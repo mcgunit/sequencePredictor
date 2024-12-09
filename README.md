@@ -53,23 +53,27 @@ To install, you will need to have Python 3.x and the following libraries install
 You can install these libraries using pip by running the following command:
 
 For CPU only: 
-'''
+```
     python3 -m pip install numpy tensorflow keras art
-'''
+```
 
 For GPU enabled:
 
-'''
+```
     python3 -m pip install numpy tensorflow[and-cuda] keras art
-'''
-
-
+```
 
 ### Usage
 
 To use the LSTM, you will need to have a data file containing past lottery results. This file should be in a comma-separated format, with each row representing a single draw and the numbers in ascending order, rows are in new line without comma. Dont use white spaces. Last row number must have nothing after last number.
 
 Once you have the data file, you can run the `LSTM_lotto.py` or `LSTM_euromillions.py` script to train the model and generate predictions. The script will print the generated ASCII art and the first ten rows of predicted numbers to the console.
+
+### Example output
+
+```
+8, 4, 7, 11, 12, 16, 44
+```
 
 ## Disclaimer
 
