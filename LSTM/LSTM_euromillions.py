@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import tensorflow as tf
+from matplotlib import pyplot as plt
 from tensorflow import keras
 from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
@@ -46,40 +47,40 @@ def create_model(num_features, max_value):
 
     # Add the first LSTM layer with L2 regularization
     model.add(layers.LSTM(256, return_sequences=True, 
-                          kernel_regularizer=regularizers.l2(0.001), 
-                          recurrent_regularizer=regularizers.l2(0.001)))
+                          kernel_regularizer=regularizers.l2(0.1), 
+                          recurrent_regularizer=regularizers.l2(0.1)))
     
     # Add a Dropout layer
     model.add(layers.Dropout(0.1))
 
     # Add the first LSTM layer with L2 regularization
     model.add(layers.LSTM(128, return_sequences=True, 
-                          kernel_regularizer=regularizers.l2(0.001), 
-                          recurrent_regularizer=regularizers.l2(0.001)))
+                          kernel_regularizer=regularizers.l2(0.1), 
+                          recurrent_regularizer=regularizers.l2(0.1)))
     
     # Add a Dropout layer
     model.add(layers.Dropout(0.1))
     
     # Add the first LSTM layer with L2 regularization
     model.add(layers.LSTM(64, return_sequences=True, 
-                          kernel_regularizer=regularizers.l2(0.001), 
-                          recurrent_regularizer=regularizers.l2(0.001)))
+                          kernel_regularizer=regularizers.l2(0.1), 
+                          recurrent_regularizer=regularizers.l2(0.1)))
     
     # Add a Dropout layer
     model.add(layers.Dropout(0.1))
     
     # Add a second LSTM layer with L2 regularization
     model.add(layers.LSTM(32, return_sequences=True,
-                          kernel_regularizer=regularizers.l2(0.001), 
-                          recurrent_regularizer=regularizers.l2(0.001)))
+                          kernel_regularizer=regularizers.l2(0.1), 
+                          recurrent_regularizer=regularizers.l2(0.1)))
     
     # Add another Dropout layer
     model.add(layers.Dropout(0.1))
     
     # Add a second LSTM layer with L2 regularization
     model.add(layers.LSTM(16, 
-                          kernel_regularizer=regularizers.l2(0.001), 
-                          recurrent_regularizer=regularizers.l2(0.001)))
+                          kernel_regularizer=regularizers.l2(0.1), 
+                          recurrent_regularizer=regularizers.l2(0.1)))
     
     # Add another Dropout layer
     model.add(layers.Dropout(0.1))
@@ -99,7 +100,15 @@ def train_model(model, train_data, val_data):
     checkpoint = ModelCheckpoint(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions_checkpoint.keras"), save_best_only=True)
 
     # Fit the model on the training data and validate on the validation data for 100 epochs
-    history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=1000, batch_size=512, callbacks=[early_stopping, reduce_lr, checkpoint])
+    history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=1000, batch_size=4, callbacks=[early_stopping, reduce_lr, checkpoint])
+
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
 
 
 # Function to predict numbers using the trained model
