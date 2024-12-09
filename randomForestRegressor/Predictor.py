@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from random import randint
@@ -5,7 +6,8 @@ from random import randint
 i = 0 # Number of predictions to make
 while i < 10: 
     # Load the data from Excel file
-    data = pd.read_excel("lotto-gamedata-NL-2024.xlsx")
+    path = os.getcwd()
+    data = pd.read_excel(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lotto-gamedata-NL-2024.xlsx"))
 
     # Split the data into features (X) and target (y)
     X = data[['Nummer 1', 'Nummer 2', 'Nummer 3', 'Nummer 4', 'Nummer 5', 'Nummer 6', 'Bonus']]
