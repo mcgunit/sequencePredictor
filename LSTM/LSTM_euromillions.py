@@ -123,14 +123,9 @@ def train_model(model, train_data, val_data):
 
     # Fit the model on the training data and validate on the validation data for 100 epochs
     history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=1000, batch_size=4, callbacks=[early_stopping, reduce_lr, checkpoint])
-
-    plt.plot(history.history['accuracy'])
-    plt.plot(history.history['val_accuracy'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'val'], loc='upper left')
-    plt.show()
+    
+    return history
+    
 
 
 # Function to predict numbers using the trained model
@@ -172,13 +167,21 @@ def main():
    
    
    # Train model 
-   train_model(model, train_data, val_data)
+   history = train_model(model, train_data, val_data)
    
    # Predict numbers using trained model 
    predicted_numbers = predict_numbers(model, val_data, num_features)
    
    # Print predicted numbers 
    print_predicted_numbers(predicted_numbers)
+
+   plt.plot(history.history['accuracy'])
+   plt.plot(history.history['val_accuracy'])
+   plt.title('model accuracy')
+   plt.ylabel('accuracy')
+   plt.xlabel('epoch')
+   plt.legend(['train', 'val'], loc='upper left')
+   plt.show()
 
    model.save(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions.keras"))
 
