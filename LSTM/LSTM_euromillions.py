@@ -11,7 +11,7 @@ from tensorflow.keras.models import load_model
 from art import text2art
 
 path = os.getcwd()
-dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "euromillions-gamedata-NL-2024.txt")
+dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "euromillions")
 
 # Function to print the introduction of the program
 def print_intro():
@@ -26,8 +26,30 @@ def print_intro():
 
 # Function to load data from a file and preprocess it
 def load_data():
-    # Load data from file, ignoring white spaces and accepting unlimited length numbers
-    data = np.genfromtxt(dataPath, delimiter=',', dtype=int)
+    # Initialize an empty list to hold the data
+    data = []
+
+    # Iterate through files in the directory
+    for csvFile in os.listdir(dataPath):
+        if csvFile.endswith(".csv"):
+            print(f"Processing file: {csvFile}")
+            try:
+                # Construct full file path
+                file_path = os.path.join(dataPath, csvFile)
+                
+                # Load data from the file
+                csvData = np.genfromtxt(file_path, usecols=range(1, 7), delimiter=';', dtype=int, skip_header=1)
+                
+                # Append each entry to the data list
+                for entry in csvData:
+                    #print("Entry: ", entry)
+                    data.append(entry)
+            except Exception as e:
+                print(f"Error processing file {csvFile}: {e}")
+
+    # Convert the data list to a NumPy array for easier manipulation
+    data = np.array(data)
+    
     # Replace all -1 values with 0
     data[data == -1] = 0
     # Split data into training and validation sets
