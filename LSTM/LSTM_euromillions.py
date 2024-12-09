@@ -132,8 +132,8 @@ def main():
    # Get number of features from training data 
    num_features = train_data.shape[1]
 
-   if os.path.exists(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions")):
-       model = load_model(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions"))
+   if os.path.exists(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions.keras")):
+       model = load_model(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions.keras"))
    else:
         # Create and compile model 
        model = create_model(num_features, max_value)
@@ -149,7 +149,10 @@ def main():
    # Print predicted numbers 
    print_predicted_numbers(predicted_numbers)
 
-   model.save(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions"))
+   model.save(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions.keras"))
+
+   if(os.path.exists(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions_checkpoint.keras"))):
+       os.remove(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions_checkpoint.keras"))
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
