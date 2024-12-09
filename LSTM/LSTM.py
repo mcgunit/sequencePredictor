@@ -7,19 +7,12 @@ from art import text2art
 
 # Function to print the introduction of the program
 def print_intro():
-    # Generate ASCII art with the text "LotteryAi"
-    ascii_art = text2art("LotteryAi")
+    # Generate ASCII art with the text "LSTM"
+    ascii_art = text2art("LSTM")
     # Print the introduction and ASCII art
     print("============================================================")
-    print("LotteryAi")
-    print("Created by: Corvus Codex")
-    print("Github: https://github.com/CorvusCodex/")
+    print("LSTM")
     print("Licence : MIT License")
-    print("Support my work:")
-    print("BTC: bc1q7wth254atug2p4v9j3krk9kauc0ehys2u8tgg3")
-    print("ETH & BNB: 0x68B6D33Ad1A3e0aFaDA60d6ADf8594601BE492F0")
-    print("Buy me a coffee: https://www.buymeacoffee.com/CorvusCodex")
-    print("============================================================")
     print(ascii_art)
     print("Lottery prediction artificial intelligence")
 
@@ -70,8 +63,6 @@ def print_predicted_numbers(predicted_numbers):
    print("Predicted Numbers:")
    # Print only the first row of predicted numbers
    print(', '.join(map(str, predicted_numbers[0])))
-   print("============================================================")
-   print("Buy me a coffee: https://www.buymeacoffee.com/CorvusCodex")
    print("============================================================")
 
 # Main function to run everything   

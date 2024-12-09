@@ -38,13 +38,13 @@ Copy code
 10. The most likely set of numbers is: [18, 26, 30, 33, 38, 42, 30]
 ```
 
-## LotteryAi
+## LSTM
 
-LotteryAi is a lottery prediction artificial intelligence that uses machine learning to predict the winning numbers of a any lottery game.
+This model is located under the LSTM folder and is a LSTM model to predict the winning numbers of a any lottery game.
 
 ### Installation
 
-To install LotteryAi, you will need to have Python 3.x and the following libraries installed:
+To install, you will need to have Python 3.x and the following libraries installed:
 - numpy
 - tensorflow
 - keras
@@ -58,14 +58,14 @@ You can install these libraries using pip by running the following command:
 
 ### Usage
 
-To use LotteryAi, you will need to have a data file containing past lottery results. This file should be in a comma-separated format, with each row representing a single draw and the numbers in ascending order, rows are in new line without comma. Dont use white spaces. Last row number must have nothing after last number.
+To use the LSTM, you will need to have a data file containing past lottery results. This file should be in a comma-separated format, with each row representing a single draw and the numbers in ascending order, rows are in new line without comma. Dont use white spaces. Last row number must have nothing after last number.
 
-Once you have the data file, you can run the `LotteryAi.py` script to train the model and generate predictions. The script will print the generated ASCII art and the first ten rows of predicted numbers to the console.
+Once you have the data file, you can run the `LSTM.py` script to train the model and generate predictions. The script will print the generated ASCII art and the first ten rows of predicted numbers to the console.
 
 ## Disclaimer
 
 The code within this repository comes with no guarantee, the use of this code is your responsibility. I take NO responsibility and/or liability for how you choose to use any of the source code available here. By using any of the files available in this repository, you understand that you are AGREEING TO USE AT YOUR OWN RISK. Once again, ALL files available here are for EDUCATION and/or RESEARCH purposes ONLY.
-Please keep in mind that while LotteryAi.py uses advanced machine learning techniques to predict lottery numbers, there is no guarantee that its predictions will be accurate. Lottery results are inherently random and unpredictable, so it is important to use LotteryAi responsibly and not rely solely on its predictions.
+Please keep in mind that while LSTM.py uses advanced machine learning techniques to predict lottery numbers, there is no guarantee that its predictions will be accurate. Lottery results are inherently random and unpredictable, so it is important to use LSTM responsibly and not rely solely on its predictions.
 
 ## License
 
