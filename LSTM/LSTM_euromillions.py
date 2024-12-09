@@ -7,7 +7,7 @@ from keras import layers
 from art import text2art
 
 path = os.getcwd()
-dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lotto-gamedata-NL-2024.txt")
+dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "euromillions-gamedata-NL-2024.txt")
 
 # Function to print the introduction of the program
 def print_intro():
@@ -48,7 +48,7 @@ def create_model(num_features, max_value):
 # Function to train the model
 def train_model(model, train_data, val_data):
     # Fit the model on the training data and validate on the validation data for 100 epochs
-    history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=100)
+    history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=1000)
 
 # Function to predict numbers using the trained model
 def predict_numbers(model, val_data, num_features):

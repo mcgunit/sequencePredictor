@@ -20,7 +20,7 @@ Copy code
 ### Usage
 
 1.  Download the previous winning lottery numbers and save them in an Excel file.
-2.  Run the `Predictor.py` file in the randomForestRegressor folder, which will train a Random Forest Regression model on the previous winning numbers and generate a set of predicted numbers.
+2.  Run the `Predictor_lotto.py` or `Predictor_euromillions.py` file in the randomForestRegressor folder, which will train a Random Forest Regression model on the previous winning numbers and generate a set of predicted numbers.
 3.  The program will output the most likely set of numbers for the next drawing.
 
 ### Example output
@@ -52,15 +52,24 @@ To install, you will need to have Python 3.x and the following libraries install
 
 You can install these libraries using pip by running the following command:
 
+For CPU only: 
 '''
     python3 -m pip install numpy tensorflow keras art
 '''
+
+For GPU enabled:
+
+'''
+    python3 -m pip install numpy tensorflow[and-cuda] keras art
+'''
+
+
 
 ### Usage
 
 To use the LSTM, you will need to have a data file containing past lottery results. This file should be in a comma-separated format, with each row representing a single draw and the numbers in ascending order, rows are in new line without comma. Dont use white spaces. Last row number must have nothing after last number.
 
-Once you have the data file, you can run the `LSTM.py` script to train the model and generate predictions. The script will print the generated ASCII art and the first ten rows of predicted numbers to the console.
+Once you have the data file, you can run the `LSTM_lotto.py` or `LSTM_euromillions.py` script to train the model and generate predictions. The script will print the generated ASCII art and the first ten rows of predicted numbers to the console.
 
 ## Disclaimer
 
