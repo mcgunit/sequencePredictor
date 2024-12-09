@@ -1,28 +1,29 @@
 
-# Lottery Predictor
+# Lotto Predictor
 
-This project is a machine learning model designed to predict the most likely set of lottery numbers for the next drawing based on previous winning numbers.
+## Random Forest Regressor
 
-## Getting Started
+This model is located in the randomForestRegressor folder.
 
 To use this model, you will need to have Python installed on your computer, as well as the following libraries:
 
 -   pandas
 -   scikit-learn
+-   openpyxl
 
 To install the libraries, run the following command:
 
 Copy code
 
-`pip install pandas scikit-learn` 
+`python3 -m pip install pandas scikit-learn openpyxl` 
 
-## Usage
+### Usage
 
-1.  Download the previous winning lottery numbers from your state's lottery website and save them in an Excel file.
+1.  Download the previous winning lottery numbers and save them in an Excel file.
 2.  Run the `Predictor.py` file, which will train a Random Forest Regression model on the previous winning numbers and generate a set of predicted numbers.
 3.  The program will output the most likely set of numbers for the next drawing.
 
-## Example output
+### Example output
 
 ```
 01. The most likely set of numbers is: [18, 30, 33, 36, 39, 42, 14]
@@ -36,6 +37,35 @@ Copy code
 09. The most likely set of numbers is: [18, 25, 29, 32, 37, 42, 30]
 10. The most likely set of numbers is: [18, 26, 30, 33, 38, 42, 30]
 ```
+
+## LotteryAi
+
+LotteryAi is a lottery prediction artificial intelligence that uses machine learning to predict the winning numbers of a any lottery game.
+
+### Installation
+
+To install LotteryAi, you will need to have Python 3.x and the following libraries installed:
+- numpy
+- tensorflow
+- keras
+- art
+
+You can install these libraries using pip by running the following command:
+
+'''
+    python3 -m pip install numpy tensorflow keras art
+'''
+
+### Usage
+
+To use LotteryAi, you will need to have a data file containing past lottery results. This file should be in a comma-separated format, with each row representing a single draw and the numbers in ascending order, rows are in new line without comma. Dont use white spaces. Last row number must have nothing after last number.
+
+Once you have the data file, you can run the `LotteryAi.py` script to train the model and generate predictions. The script will print the generated ASCII art and the first ten rows of predicted numbers to the console.
+
+## Disclaimer
+
+The code within this repository comes with no guarantee, the use of this code is your responsibility. I take NO responsibility and/or liability for how you choose to use any of the source code available here. By using any of the files available in this repository, you understand that you are AGREEING TO USE AT YOUR OWN RISK. Once again, ALL files available here are for EDUCATION and/or RESEARCH purposes ONLY.
+Please keep in mind that while LotteryAi.py uses advanced machine learning techniques to predict lottery numbers, there is no guarantee that its predictions will be accurate. Lottery results are inherently random and unpredictable, so it is important to use LotteryAi responsibly and not rely solely on its predictions.
 
 ## License
 

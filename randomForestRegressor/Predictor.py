@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from random import randint
 
-i = 0
+i = 0 # Number of predictions to make
 while i < 10: 
     # Load the data from Excel file
     data = pd.read_excel("lotto-gamedata-NL-2024.xlsx")
@@ -12,7 +12,7 @@ while i < 10:
     y = data.iloc[:, 1:]
 
     # Train a Random Forest Regression model
-    model = RandomForestRegressor(n_estimators=1000, random_state=None)
+    model = RandomForestRegressor(n_estimators=10000, random_state=None)
     model.fit(X, y)
 
     # Generate a new set of random features for prediction
