@@ -3,6 +3,7 @@ import os, argparse
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from datetime import datetime
 from matplotlib import pyplot as plt
 from tensorflow import keras
 from keras import layers, regularizers, models
@@ -23,14 +24,13 @@ def print_intro():
     print("GRU")
     print("Licence : MIT License")
     print(ascii_art)
-    print("Lottery prediction artificial intelligence")
+    print("Prediction artificial intelligence")
 
 # Function to load data from a file and preprocess it
 def load_data():
     # Initialize an empty list to hold the data
     data = []
 
-    # Iterate through files in the directory
     for csvFile in os.listdir(dataPath):
         if csvFile.endswith(".csv"):
             print(f"Processing file: {csvFile}")
@@ -39,25 +39,48 @@ def load_data():
                 file_path = os.path.join(dataPath, csvFile)
                 
                 # Load data from the file
-                csvData = np.genfromtxt(file_path, usecols=range(1, 7), delimiter=';', dtype=int, skip_header=1)
+                csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
                 
                 # Append each entry to the data list
                 for entry in csvData:
-                    #print("Entry: ", entry)
-                    data.append(entry)
+                    # Attempt to parse the date
+                    date_str = entry[0]
+                    try:
+                        # Use dateutil.parser to parse the date
+                        date = parse(date_str)
+                    except Exception as e:
+                        print(f"Date parsing error for entry '{date_str}': {e}")
+                        continue  # Skip this entry if date parsing fails
+                    
+                    # Convert the rest to integers
+                    try:
+                        numbers = list(map(int, entry[1:]))  # Convert the rest to integers
+                    except ValueError as ve:
+                        print(f"Number conversion error for entry '{entry[1:]}': {ve}")
+                        continue  # Skip this entry if number conversion fails
+                    
+                    data.append((date, *numbers))  # Store as a tuple (date, number1, number2, ...)
+
             except Exception as e:
                 print(f"Error processing file {csvFile}: {e}")
 
-    # Convert the data list to a NumPy array for easier manipulation
-    data = np.array(data)
-    
+    # Sort the data by date
+    data.sort(key=lambda x: x[0])  # Sort by the date (first element of the tuple)
+
+    # Convert the sorted data into a NumPy array
+    sorted_data = np.array(data)
+
+    # If you want to separate the date and numbers into different arrays
+    dates = sorted_data[:, 0]  # Dates
+    numbers = sorted_data[:, 1:].astype(int)  # Numbers as integers
+
     # Replace all -1 values with 0
-    data[data == -1] = 0
+    numbers[numbers == -1] = 0
     # Split data into training and validation sets
-    train_data = data[:int(0.8*len(data))]
-    val_data = data[int(0.8*len(data)):]
+    train_data = numbers[:int(0.8*len(numbers))]
+    val_data = numbers[int(0.8*len(numbers)):]
     # Get the maximum value in the data
-    max_value = np.max(data)
+    max_value = np.max(numbers)
     return train_data, val_data, max_value
 
 # Function to create the model
