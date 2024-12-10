@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from datetime import datetime
+from dateutil.parser import parse
 from matplotlib import pyplot as plt
 from tensorflow import keras
 from keras import layers, regularizers, models
