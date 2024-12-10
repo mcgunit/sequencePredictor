@@ -181,7 +181,15 @@ def main():
    plt.ylabel('accuracy')
    plt.xlabel('epoch')
    plt.legend(['train', 'val'], loc='upper left')
-   plt.show()
+   plt.savefig('model_accuracy.png')
+
+   plt.plot(history.history['loss'])
+   plt.plot(history.history['val_loss'])
+   plt.title('model loss')
+   plt.ylabel('loss')
+   plt.xlabel('epoch')
+   plt.legend(['train', 'val'], loc='upper left')
+   plt.savefig('model_loss.png')
 
    model.save(os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "lstm_model", "model_euromillions.keras"))
 
