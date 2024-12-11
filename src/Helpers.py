@@ -36,7 +36,7 @@ class Helpers():
                     print(f"Number conversion error for entry '{entry[1:]}': {ve}")
                     continue  # Skip this entry if number conversion fails
                 
-                data.append((date, *numbers))  # Store as a tuple (date, number1, number2, ...)
+                data.append((date, numbers))  # Store as a tuple (date, number1, number2, ...)
 
         except Exception as e:
             print(f"Error processing file {csvFile}: {e}")
@@ -45,8 +45,9 @@ class Helpers():
         if data:
             # Sort data by date (the first element of the tuple)
             data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+            previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
             latest_entry = data[0]  # Get the most recent entry
-            return latest_entry  # Return the most recent entry
+            return (latest_entry, previous_entry)  # Return the most recent entry
         else:
             print("No data found.")
             return None  # Return None if no data was found

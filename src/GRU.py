@@ -108,7 +108,7 @@ class GRU():
     def train_model(self, model, train_data, val_data, modelName):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-3)
-        checkpoint = ModelCheckpoint(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}_checkpoint.keras".format(modelName)), save_best_only=True)
+        checkpoint = ModelCheckpoint(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}_checkpoint.keras".format(modelName)), save_best_only=True)
 
         # Fit the model on the training data and validate on the validation data for 100 epochs
         history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=1000, batch_size=4, callbacks=[early_stopping, reduce_lr, checkpoint])
@@ -146,10 +146,10 @@ class GRU():
         # Get number of features from training data 
         num_features = train_data.shape[1]
 
-        if os.path.exists(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}.keras".format(data))):
-            model = load_model(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}.keras".format(data)))
-        elif os.path.exists(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}_checkpoint.keras".format(data))):
-            model = load_model(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}_checkpoint.keras".format(data)))
+        if os.path.exists(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}.keras".format(data))):
+            model = load_model(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}.keras".format(data)))
+        elif os.path.exists(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}_checkpoint.keras".format(data))):
+            model = load_model(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}_checkpoint.keras".format(data)))
         else:
             # Create and compile model 
             model = self.create_model(num_features, max_value)
@@ -170,8 +170,8 @@ class GRU():
 
         model.save(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}.keras".format(data)))
 
-        if(os.path.exists(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}_checkpoint.keras".format(data)))):
-            os.remove(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "gru_model", "model_{0}_checkpoint.keras".format(data)))
+        if(os.path.exists(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}_checkpoint.keras".format(data)))):
+            os.remove(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "data", "models", "gru_model", "model_{0}_checkpoint.keras".format(data)))
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":

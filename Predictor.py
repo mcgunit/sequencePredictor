@@ -1,4 +1,4 @@
-import os, argparse
+import os, argparse, json
 
 from art import text2art
 from datetime import datetime
@@ -50,23 +50,84 @@ if __name__ == "__main__":
     # Print the result
     print("Current Year:", current_year)
 
+    #####################
+    #   Euromillions    #
+    #####################
     # First get latest data
     data = 'euromillions'
     path = os.getcwd()
-    dataPath = os.path.join(path, "data", data)
+    dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     kwargs_wget = {
         "folder": dataPath,
         "file": file
     }
+
+    # Lets check if file exists
+    if os.path.exists(os.path.join(dataPath, file)):
+        os.remove(os.path.join(dataPath, file))
     command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=True)
+    
 
     # Get the latest result out of the latest data so we can use it to check the previous prediction
-    latestResult = helpers.getLatestPrediction(os.path.join(dataPath, file))
+    latestEntry, previousEntry = helpers.getLatestPrediction(os.path.join(dataPath, file))
+    if latestEntry is not None and previousEntry is not None:
+        latestDate, latestResult = latestEntry
 
-    print("Latest result: ", latestResult)
+        
+        jsonFileName = f"{latestDate.year}-{latestDate.month}-{latestDate.day}.json"
+        print(jsonFileName, ":", latestResult)
+        jsonFilePath = os.path.join(path, "data", "database", data, jsonFileName)
+
+        # Compare the latest result with the previous new prediction
+        if not os.path.exists(jsonFilePath):
+            print("New result detected. Lets compare with a prediction from previous entry")
+
+            current_json_object = {
+                "currentPrediction": [],
+                "result": latestResult,
+                "newPrediction": []
+            }
+
+            # First find the json file containing the prediction for this result
+            previousDate, previousResult = previousEntry
+            jsonPreviousFileName = f"{previousDate.year}-{previousDate.month}-{previousDate.day}.json"
+            print(jsonPreviousFileName, ":", latestResult)
+            jsonPreviousFilePath = os.path.join(path, "data", "database", data, jsonPreviousFileName)
+            print(jsonPreviousFilePath)
+            if os.path.exists(jsonPreviousFilePath):
+                print("previous json file found lets compare")
+                # Opening JSON file
+                with open(jsonPreviousFilePath, 'r') as openfile:
+                
+                    # Reading from json file
+                    previous_json_object = json.load(openfile)
+                
+                print(previous_json_object)
+                print(type(previous_json_object))
+
+                # The current prediction is the new prediction from the previous one
+                current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+
+                # Train and predict
+                lstm.setDataPath(dataPath)
+                lstm.setBatchSize(4)
+                lstm.setEpochs(100)
+                predictedNumbers = lstm.run(data)
+
+                # Save the current prediction as newPrediction
+                current_json_object["newPrediction"] = predictedNumbers[0]
+
+                with open(jsonFilePath, "w+") as outfile:
+                    json.dump(current_json_object, outfile)
+            else:
+                print("No previous prediction file found, Cannot compare.")
+
+        else:
+            print("Prediction already made")
+    else:
+        print("Did not found entries")
     
-    # Train and predict
-    #lstm.setDataPath(dataPath)
+    
 
     
