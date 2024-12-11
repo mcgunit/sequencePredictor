@@ -1,5 +1,6 @@
 {
     "currentPrediction": [],
-    "result": [14,25,39,44,47,6,10],
-    "newPrediction": [5,6,6,12,20,24,8]
+    "realResult": [14,25,39,44,47,6,10],
+    "newPrediction": [5,6,6,12,20,24,48],
+    "matchingNumbers": []
 }

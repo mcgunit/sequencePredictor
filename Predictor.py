@@ -1,8 +1,8 @@
 import os, argparse, json
+import numpy as np
 
 from art import text2art
 from datetime import datetime
-
 
 from src.LSTM import LSTM
 from src.GRU import GRU
@@ -85,8 +85,9 @@ if __name__ == "__main__":
 
             current_json_object = {
                 "currentPrediction": [],
-                "result": latestResult,
-                "newPrediction": []
+                "realResult": latestResult,
+                "newPrediction": [],
+                "matchingNumbers": []
             }
 
             # First find the json file containing the prediction for this result
@@ -103,20 +104,27 @@ if __name__ == "__main__":
                     # Reading from json file
                     previous_json_object = json.load(openfile)
                 
-                print(previous_json_object)
-                print(type(previous_json_object))
+                #print(previous_json_object)
+                #print(type(previous_json_object))
 
                 # The current prediction is the new prediction from the previous one
                 current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-                # Train and predict
+                # Check the matching numbers
+                matchingNumbers = list(set(current_json_object["currentPrediction"]) & set(current_json_object["realResult"]))
+                current_json_object["matchingNumbers"] = matchingNumbers
+                print("Matching numbers: ", matchingNumbers)
+
+                # Train and do a new prediction
                 lstm.setDataPath(dataPath)
                 lstm.setBatchSize(4)
-                lstm.setEpochs(100)
+                lstm.setEpochs(1000)
                 predictedNumbers = lstm.run(data)
+                predictedSequence = predictedNumbers.tolist()
+                print("New Prediction: ", predictedSequence[0])
 
                 # Save the current prediction as newPrediction
-                current_json_object["newPrediction"] = predictedNumbers[0]
+                current_json_object["newPrediction"] = predictedSequence[0]
 
                 with open(jsonFilePath, "w+") as outfile:
                     json.dump(current_json_object, outfile)
