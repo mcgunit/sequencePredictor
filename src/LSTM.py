@@ -12,11 +12,16 @@ from tensorflow.keras.models import load_model
 
 class LSTM():
     dataPath = ""
+    modelPath = ""
     epochs = 1000
     batchSize = 4
+    
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
+    
+    def setModelPath(self, modelPath):
+        self.modelPath = modelPath
     
     def setEpochs(self, epochs):
         self.epochs = epochs
@@ -31,7 +36,7 @@ class LSTM():
 
         for csvFile in os.listdir(self.dataPath):
             if csvFile.endswith(".csv"):
-                print(f"Processing file: {csvFile}")
+                #print(f"Processing file: {csvFile}")
                 try:
                     # Construct full file path
                     file_path = os.path.join(self.dataPath, csvFile)
@@ -123,7 +128,7 @@ class LSTM():
     def train_model(self, model, train_data, val_data, modelName):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-4)
-        checkpoint = ModelCheckpoint(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}_checkpoint.keras".format(modelName)), save_best_only=True)
+        checkpoint = ModelCheckpoint(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(modelName)), save_best_only=True)
 
         # Fit the model on the training data and validate on the validation data for 100 epochs
         history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
@@ -140,14 +145,15 @@ class LSTM():
         indices = np.argsort(predictions, axis=1)[:, -num_features:]
         # Get the predicted numbers using these indices from validation data
         predicted_numbers = np.take_along_axis(val_data, indices, axis=1)
-        return predicted_numbers
+        # Return the first 10 predictions
+        return predicted_numbers[:10]
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
         # Print a separator line and "Predicted Numbers:"
         print("============================================================")
         # Print number of rows
-        for i in range(5):
+        for i in range(len(predicted_numbers)):
             print("Predicted Numbers {}:".format(i))
             print(', '.join(map(str, predicted_numbers[i])))
         print("============================================================")
@@ -161,14 +167,13 @@ class LSTM():
         # Get number of features from training data 
         num_features = train_data.shape[1]
 
-        if os.path.exists(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}.keras".format(data))):
-            model = load_model(os.path.join(os.getcwd(),"data", "models", "lstm_model", "model_{0}.keras".format(data)))
-        elif os.path.exists(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}_checkpoint.keras".format(data))):
-            model = load_model(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}_checkpoint.keras".format(data)))
+        if os.path.exists(os.path.join(self.modelPath, "model_{0}.keras".format(data))):
+            model = load_model(os.path.join(self.modelPath, "model_{0}.keras".format(data)))
+        elif os.path.exists(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(data))):
+            model = load_model(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(data)))
         else:
             # Create and compile model 
             model = self.create_model(num_features, max_value)
-    
     
     
         # Train model 
@@ -176,17 +181,14 @@ class LSTM():
         
         # Predict numbers using trained model 
         predicted_numbers = self.predict_numbers(model, val_data, num_features)
-        
-        # Print predicted numbers 
-        #self.print_predicted_numbers(predicted_numbers)
 
         pd.DataFrame(history.history).plot(figsize=(8,5))
         plt.savefig('model_{0}_performance.png'.format(data))
 
-        model.save(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}.keras".format(data)))
+        model.save(os.path.join(self.modelPath, "model_{0}.keras".format(data)))
 
-        if(os.path.exists(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}_checkpoint.keras".format(data)))):
-            os.remove(os.path.join(os.getcwd(), "data", "models", "lstm_model", "model_{0}_checkpoint.keras".format(data)))
+        if(os.path.exists(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(data)))):
+            os.remove(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(data)))
         
         return predicted_numbers
 
@@ -195,9 +197,17 @@ if __name__ == "__main__":
 
     lstm = LSTM()
 
-    data = 'euromillions'
+    #data = 'euromillions'
+    data = 'lotto'
     path = os.getcwd()
-    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", data)
+    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "trainingData", data)
+    modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "models", "lstm_model")
 
+    lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
-    lstm.run(data)
+    lstm.setBatchSize(4)
+    lstm.setEpochs(1)
+    predictedNumbers = lstm.run(data)
+    
+    print(predictedNumbers.tolist())
+    lstm.print_predicted_numbers(predictedNumbers)

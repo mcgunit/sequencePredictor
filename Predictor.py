@@ -25,39 +25,8 @@ def print_intro():
     print(ascii_art)
     print("Prediction artificial intelligence")
 
+def predict(dataPath, file):
 
-
-
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(
-                    prog='LSTM Sequence Predictor',
-                    description='Tries to predict a sequence of numbers',
-                    epilog='Check it uit')  
-    parser.add_argument('-d', '--data', default="euromillions")
-    
-    args = parser.parse_args()
-    print(args.data)
-
-    print_intro()
-
-    # Get the current date and time
-    current_datetime = datetime.now()
-
-    # Access the year attribute to get the current year
-    current_year = current_datetime.year
-
-    # Print the result
-    print("Current Year:", current_year)
-
-    #####################
-    #   Euromillions    #
-    #####################
-    # First get latest data
-    data = 'euromillions'
-    path = os.getcwd()
-    dataPath = os.path.join(path, "data", "trainingData", data)
-    file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     kwargs_wget = {
         "folder": dataPath,
         "file": file
@@ -66,7 +35,7 @@ if __name__ == "__main__":
     # Lets check if file exists
     if os.path.exists(os.path.join(dataPath, file)):
         os.remove(os.path.join(dataPath, file))
-    command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=True)
+    command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
     
 
     # Get the latest result out of the latest data so we can use it to check the previous prediction
@@ -76,7 +45,7 @@ if __name__ == "__main__":
 
         
         jsonFileName = f"{latestDate.year}-{latestDate.month}-{latestDate.day}.json"
-        print(jsonFileName, ":", latestResult)
+        #print(jsonFileName, ":", latestResult)
         jsonFilePath = os.path.join(path, "data", "database", data, jsonFileName)
 
         # Compare the latest result with the previous new prediction
@@ -121,13 +90,16 @@ if __name__ == "__main__":
                 lstm.setEpochs(1000)
                 predictedNumbers = lstm.run(data)
                 predictedSequence = predictedNumbers.tolist()
-                print("New Prediction: ", predictedSequence[0])
+
+                
 
                 # Save the current prediction as newPrediction
-                current_json_object["newPrediction"] = predictedSequence[0]
+                current_json_object["newPrediction"] = predictedSequence
 
                 with open(jsonFilePath, "w+") as outfile:
                     json.dump(current_json_object, outfile)
+
+                return predictedSequence
             else:
                 print("No previous prediction file found, Cannot compare.")
 
@@ -135,7 +107,59 @@ if __name__ == "__main__":
             print("Prediction already made")
     else:
         print("Did not found entries")
+
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+                    prog='LSTM Sequence Predictor',
+                    description='Tries to predict a sequence of numbers',
+                    epilog='Check it uit')  
+    parser.add_argument('-d', '--data', default="euromillions")
     
+    args = parser.parse_args()
+    print(args.data)
+
+    print_intro()
+
+    # Get the current date and time
+    current_datetime = datetime.now()
+
+    # Access the year attribute to get the current year
+    current_year = current_datetime.year
+
+    # Print the result
+    print("Current Year:", current_year)
+
+    #####################
+    #   Euromillions    #
+    #####################
+    print("Euromillions")
+    # First get latest data
+    data = 'euromillions'
+    path = os.getcwd()
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
+    
+    predict(dataPath, file)
+    """
+    #####################
+    #       Lotto       #
+    #####################
+    print("Lotto")
+    # First get latest data
+    data = 'lotto'
+    path = os.getcwd()
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "lotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, file)
+    """
     
 
     
