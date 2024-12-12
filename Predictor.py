@@ -97,7 +97,7 @@ def predict(dataPath, modelPath, file, data):
                 lstm.setDataPath(dataPath)
                 lstm.setModelPath(modelPath)
                 lstm.setBatchSize(4)
-                lstm.setEpochs(500)
+                lstm.setEpochs(1000)
                 predictedNumbers = lstm.run(data)
                 predictedSequence = predictedNumbers.tolist()
 
