@@ -65,7 +65,8 @@ class Helpers():
         best_match_sequence = sequence_list[best_match_index]
         matching_numbers = results[best_match_index][1]
 
-        return (best_match_index, best_match_sequence, matching_numbers)
+
+        return (best_match_index, best_match_sequence, sorted(matching_numbers))
     
     # Function to predict numbers using the trained model
     def predict_numbers(self, model, val_data, num_features):

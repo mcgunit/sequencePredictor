@@ -10,7 +10,7 @@ from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from tensorflow.keras.models import load_model
 
-from Helpers import Helpers
+from src.Helpers import Helpers
 
 helpers = Helpers()
 

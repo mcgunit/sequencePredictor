@@ -27,7 +27,7 @@ def print_intro():
 
 
 
-def predict(dataPath, file):
+def predict(dataPath, modelPath, file):
 
     kwargs_wget = {
         "folder": dataPath,
@@ -50,6 +50,10 @@ def predict(dataPath, file):
         #print(jsonFileName, ":", latestResult)
         jsonFilePath = os.path.join(path, "data", "database", data, jsonFileName)
 
+        # Check if folder exists
+        if not os.path.exists(os.path.join(path, "data", "database", data)):
+            os.mkdir(os.path.join(path, "data", "database", data))
+
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
             print("New result detected. Lets compare with a prediction from previous entry")
@@ -58,7 +62,7 @@ def predict(dataPath, file):
                 "currentPrediction": [],
                 "realResult": latestResult,
                 "newPrediction": [],
-                "matchingNumbers": []
+                "matchingNumbers": {}
             }
 
             # First find the json file containing the prediction for this result
@@ -88,12 +92,12 @@ def predict(dataPath, file):
                     "bestMatchSequence": best_match_sequence,
                     "matchingNumbers": matching_numbers
                 }
-                print("Matching numbers: ", current_json_object["matchingNumbers"])
 
                 # Train and do a new prediction
                 lstm.setDataPath(dataPath)
+                lstm.setModelPath(modelPath)
                 lstm.setBatchSize(4)
-                lstm.setEpochs(1000)
+                lstm.setEpochs(1)
                 predictedNumbers = lstm.run(data)
                 predictedSequence = predictedNumbers.tolist()
 
@@ -106,8 +110,30 @@ def predict(dataPath, file):
 
                 return predictedSequence
             else:
-                print("No previous prediction file found, Cannot compare.")
+                print("No previous prediction file found, Cannot compare. Creating from scratch")
+                current_json_object = {
+                    "currentPrediction": [],
+                    "realResult": [],
+                    "newPrediction": [],
+                    "matchingNumbers": []
+                }
 
+                # Train and do a new prediction
+                lstm.setDataPath(dataPath)
+                lstm.setModelPath(modelPath)
+                lstm.setBatchSize(4)
+                lstm.setEpochs(1)
+                predictedNumbers = lstm.run(data)
+                predictedSequence = predictedNumbers.tolist()
+
+        
+                # Save the current prediction as newPrediction
+                current_json_object["newPrediction"] = predictedSequence
+
+                with open(jsonFilePath, "w+") as outfile:
+                    json.dump(current_json_object, outfile)
+
+                return predictedSequence
         else:
             print("Prediction already made")
     else:
@@ -137,25 +163,48 @@ if __name__ == "__main__":
     # Print the result
     print("Current Year:", current_year)
 
+    path = os.getcwd()
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+
     #####################
     #   Euromillions    #
     #####################
     print("Euromillions")
     # First get latest data
     data = 'euromillions'
-    path = os.getcwd()
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
-    predict(dataPath, file)
-    """
+    predict(dataPath, modelPath, file)
+
+    #################################
+    #   Euromillions_currentYear    #
+    #################################
+    print("Euromillions current year")
+    # First get latest data
+    data = 'euromillions_currentYear'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
+    
+    predict(dataPath, modelPath, file)
+
+    ####################################
+    #   Euromillions_hreeYears         #
+    ####################################
+    print("Euromillions current + last two years")
+    # First get latest data
+    data = 'euromillions_threeYears'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
+    
+    predict(dataPath, modelPath, file)
+    
     #####################
     #       Lotto       #
     #####################
     print("Lotto")
     # First get latest data
     data = 'lotto'
-    path = os.getcwd()
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "lotto-gamedata-NL-{0}.csv".format(current_year)
     kwargs_wget = {
@@ -163,8 +212,40 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, file)
-    """
+    predict(dataPath, modelPath, file)
+
+    ##############################
+    #       Lotto currentYear    #
+    ##############################
+    print("Lotto current year")
+    # First get latest data
+    data = 'lotto_currentYear'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "lotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, modelPath, file)
+    
+
+    ################################
+    #       Lotto threeYears       #
+    ################################
+    print("Lotto current year + last two years")
+    # First get latest data
+    data = 'lotto_threeYears'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "lotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, modelPath, file)
+    
+    
     
 
     
