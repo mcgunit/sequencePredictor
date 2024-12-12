@@ -92,7 +92,7 @@ class Helpers():
 
     
     # Function to load data from a file and preprocess it
-    def load_data(self, dataPath):
+    def load_data(self, dataPath, skipLastColumns=0):
         # Initialize an empty list to hold the data
         data = []
 
@@ -105,6 +105,10 @@ class Helpers():
                     
                     # Load data from the file
                     csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+
+                    # Skip last number of columns by slicing
+                    if(skipLastColumns > 0):
+                        csvData = csvData[:, :-skipLastColumns]
                     
                     # Append each entry to the data list
                     for entry in csvData:

@@ -27,7 +27,7 @@ def print_intro():
 
 
 
-def predict(dataPath, modelPath, file, data):
+def predict(dataPath, modelPath, file, data, skipLastColumns=0):
 
     kwargs_wget = {
         "folder": dataPath,
@@ -98,7 +98,7 @@ def predict(dataPath, modelPath, file, data):
                 lstm.setModelPath(modelPath)
                 lstm.setBatchSize(4)
                 lstm.setEpochs(1000)
-                predictedNumbers = lstm.run(data)
+                predictedNumbers = lstm.run(data, skipLastColumns)
                 predictedSequence = predictedNumbers.tolist()
 
         
@@ -123,7 +123,7 @@ def predict(dataPath, modelPath, file, data):
                 lstm.setModelPath(modelPath)
                 lstm.setBatchSize(4)
                 lstm.setEpochs(1000)
-                predictedNumbers = lstm.run(data)
+                predictedNumbers = lstm.run(data, skipLastColumns)
                 predictedSequence = predictedNumbers.tolist()
 
         
@@ -214,7 +214,8 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file, data)
+    # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
+    predict(dataPath, modelPath, file, data, skipLastColumns=1)
 
     ##############################
     #       Lotto currentYear    #
@@ -229,7 +230,8 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file, data)
+    # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
+    predict(dataPath, modelPath, file, data, skipLastColumns=1)
     
 
     ################################
@@ -245,7 +247,8 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file, data)
+    # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
+    predict(dataPath, modelPath, file, data, skipLastColumns=1)
 
     
 

@@ -88,10 +88,10 @@ class LSTM():
 
 
     # Main function to run the complete lstm flow  
-    def run(self, data='euromillions'):
+    def run(self, data='euromillions', skipLastColumns=0):
         
         # Load and preprocess data 
-        train_data, val_data, max_value = helpers.load_data(self.dataPath)
+        train_data, val_data, max_value = helpers.load_data(self.dataPath, skipLastColumns)
         
         # Get number of features from training data 
         num_features = train_data.shape[1]
