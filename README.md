@@ -24,9 +24,19 @@ For GPU enabled:
 
 ## How to run
 
+To run the complete flow run:
+
 ```
     python3 Predictor.py
 ```
+
+To test model specific for example LSTM run:
+
+```
+    python3 LSTM.py
+```
+
+Check the __main__ section of the LSTM.py or GRU.py for pointing to data and set parameters for testing.
 
 
 ## Disclaimer
