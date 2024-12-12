@@ -97,7 +97,7 @@ def predict(dataPath, modelPath, file):
                 lstm.setDataPath(dataPath)
                 lstm.setModelPath(modelPath)
                 lstm.setBatchSize(4)
-                lstm.setEpochs(1)
+                lstm.setEpochs(500)
                 predictedNumbers = lstm.run(data)
                 predictedSequence = predictedNumbers.tolist()
 
@@ -122,7 +122,7 @@ def predict(dataPath, modelPath, file):
                 lstm.setDataPath(dataPath)
                 lstm.setModelPath(modelPath)
                 lstm.setBatchSize(4)
-                lstm.setEpochs(1)
+                lstm.setEpochs(1000)
                 predictedNumbers = lstm.run(data)
                 predictedSequence = predictedNumbers.tolist()
 
