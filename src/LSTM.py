@@ -112,7 +112,7 @@ class LSTM():
         predicted_numbers = helpers.predict_numbers(model, val_data, num_features)
 
         pd.DataFrame(history.history).plot(figsize=(8,5))
-        plt.savefig('model_{0}_performance.png'.format(data))
+        plt.savefig(os.path.join(self.modelPath, 'model_{0}_performance.png'.format(data)))
 
         model.save(os.path.join(self.modelPath, "model_{0}.keras".format(data)))
 

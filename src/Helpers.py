@@ -1,7 +1,8 @@
-import os
+import os, json
 import numpy as np
 
 from dateutil.parser import parse
+from datetime import datetime
 
 
 class Helpers():
@@ -146,3 +147,50 @@ class Helpers():
         # Get the maximum value in the data
         max_value = np.max(numbers)
         return train_data, val_data, max_value
+    
+    def generatePredictionTextFile(self, path):
+        print("Generating text file with latest predictions")
+        latestPredictionFile = os.path.join(os.getcwd(), "latestPrediction.txt")
+
+        if os.path.exists(latestPredictionFile):
+            os.remove(latestPredictionFile)
+
+        for folder in os.listdir(path):
+            print(folder)
+            folder_path = os.path.join(path, folder)
+            # Get all JSON files in the folder
+            files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
+            
+            # Parse dates from the filenames and find the latest
+            latest_file = None
+            latest_date = None
+            
+            for file in files:
+                try:
+                    # Extract the date from the filename and parse it
+                    date_part = file.split('.')[0]  # Assuming format: YYYY-MM-DD.json
+                    file_date = datetime.strptime(date_part, "%Y-%m-%d")
+                    
+                    # Update the latest file if this one is more recent
+                    if latest_date is None or file_date > latest_date:
+                        latest_date = file_date
+                        latest_file = file
+                except ValueError:
+                    # Ignore files with invalid date formats
+                    continue
+
+            if latest_file is not None:
+                # Opening JSON file
+                with open(os.path.join(path, folder, latest_file), 'r') as openfile:
+                
+                    # Reading from json file
+                    predictionFObject = json.load(openfile)
+
+                with open(latestPredictionFile, "a+") as myfile:
+                    myfile.write("{}:\n".format(folder))
+                    myfile.write("{}\n".format(predictionFObject["newPrediction"]))
+                    myfile.write("\n")
+                    myfile.write("\n")
+
+            
+            

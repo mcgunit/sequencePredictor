@@ -27,7 +27,7 @@ def print_intro():
 
 
 
-def predict(dataPath, modelPath, file):
+def predict(dataPath, modelPath, file, data):
 
     kwargs_wget = {
         "folder": dataPath,
@@ -166,6 +166,8 @@ if __name__ == "__main__":
     path = os.getcwd()
     modelPath = os.path.join(path, "data", "models", "lstm_model")
 
+
+
     #####################
     #   Euromillions    #
     #####################
@@ -175,7 +177,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
-    predict(dataPath, modelPath, file)
+    predict(dataPath, modelPath, file, data)
 
     #################################
     #   Euromillions_currentYear    #
@@ -186,7 +188,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
-    predict(dataPath, modelPath, file)
+    predict(dataPath, modelPath, file, data)
 
     ####################################
     #   Euromillions_hreeYears         #
@@ -197,7 +199,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
-    predict(dataPath, modelPath, file)
+    predict(dataPath, modelPath, file, data)
     
     #####################
     #       Lotto       #
@@ -212,7 +214,7 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file)
+    predict(dataPath, modelPath, file, data)
 
     ##############################
     #       Lotto currentYear    #
@@ -227,7 +229,7 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file)
+    predict(dataPath, modelPath, file, data)
     
 
     ################################
@@ -243,7 +245,11 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file)
+    predict(dataPath, modelPath, file, data)
+
+    
+
+    helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     
     
     

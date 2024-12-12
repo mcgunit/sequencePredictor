@@ -99,7 +99,7 @@ class GRU():
 
 
         pd.DataFrame(history.history).plot(figsize=(8,5))
-        plt.savefig('model_{0}_performance.png'.format(data))
+        plt.savefig(os.path.join(self.modelPath, 'model_{0}_performance.png'.format(data)))
 
         model.save(os.path.join(self.modelPath, "model_{0}.keras".format(data)))
 
