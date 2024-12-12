@@ -25,6 +25,8 @@ def print_intro():
     print(ascii_art)
     print("Prediction artificial intelligence")
 
+
+
 def predict(dataPath, file):
 
     kwargs_wget = {
@@ -80,9 +82,13 @@ def predict(dataPath, file):
                 current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
                 # Check the matching numbers
-                matchingNumbers = list(set(current_json_object["currentPrediction"]) & set(current_json_object["realResult"]))
-                current_json_object["matchingNumbers"] = matchingNumbers
-                print("Matching numbers: ", matchingNumbers)
+                best_match_index, best_match_sequence, matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"])
+                current_json_object["matchingNumbers"] = {
+                    "bestMatchIndex": best_match_index,
+                    "bestMatchSequence": best_match_sequence,
+                    "matchingNumbers": matching_numbers
+                }
+                print("Matching numbers: ", current_json_object["matchingNumbers"])
 
                 # Train and do a new prediction
                 lstm.setDataPath(dataPath)
@@ -91,8 +97,7 @@ def predict(dataPath, file):
                 predictedNumbers = lstm.run(data)
                 predictedSequence = predictedNumbers.tolist()
 
-                
-
+        
                 # Save the current prediction as newPrediction
                 current_json_object["newPrediction"] = predictedSequence
 

@@ -51,3 +51,18 @@ class Helpers():
         else:
             print("No data found.")
             return None  # Return None if no data was found
+        
+
+    def find_matching_numbers(self, sequence, sequence_list):
+        # Calculate similarity scores and matching numbers
+        results = [
+            (len(set(sequence).intersection(seq)), set(sequence).intersection(seq))
+            for seq in sequence_list
+        ]
+
+        # Find the best match
+        best_match_index = max(range(len(results)), key=lambda i: results[i][0])
+        best_match_sequence = sequence_list[best_match_index]
+        matching_numbers = results[best_match_index][1]
+
+        return (best_match_index, best_match_sequence, matching_numbers)
