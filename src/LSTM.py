@@ -75,8 +75,15 @@ class LSTM():
         # Add another Dropout layer
         model.add(layers.Dropout(0.2))
         
+        # Add a Dense layer
+        model.add(layers.Dense(64, activation='relu'))  # First Dense layer
+        model.add(layers.Dropout(0.2))  # Optional Dropout layer
         
-        # Add a Dense layer for output
+        # Add another Dense layer
+        model.add(layers.Dense(32, activation='relu'))  # Second Dense layer
+        model.add(layers.Dropout(0.2))  # Optional Dropout layer
+        
+        # Add a final Dense layer for output
         model.add(layers.Dense(num_features, activation='linear'))
         
         # Compile the model with mean_squared_error loss, adam optimizer, and mae metric
