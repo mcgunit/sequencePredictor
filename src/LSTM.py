@@ -144,12 +144,9 @@ if __name__ == "__main__":
     lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
     lstm.setBatchSize(4)
-    lstm.setEpochs(1)
+    lstm.setEpochs(10)
     predictedNumbers = lstm.run(data)
     
-    print(predictedNumbers.tolist())
-    helpers.print_predicted_numbers(predictedNumbers)
-
     helpers.print_predicted_numbers(predictedNumbers)
 
     # Opening JSON file
