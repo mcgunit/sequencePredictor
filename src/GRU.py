@@ -1,16 +1,25 @@
 # Import necessary libraries
-import os
-import numpy as np
+import os, sys
 import pandas as pd
-from dateutil.parser import parse
+
 from matplotlib import pyplot as plt
-from tensorflow import keras
 from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from tensorflow.keras.models import load_model
 
-from src.Helpers import Helpers
+# Dynamically adjust the import path for Helpers
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+src_dir = os.path.join(parent_dir, 'src')
+
+# Ensure Helpers can be imported
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
+
+from Helpers import Helpers
 
 helpers = Helpers()
 

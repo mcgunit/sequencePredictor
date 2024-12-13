@@ -38,6 +38,12 @@ To test model specific for example LSTM run:
 
 Check the __main__ section of the LSTM.py or GRU.py for pointing to data and set parameters for testing.
 
+## Testing
+
+To test a model when modifying or tuning you can run the LSTM.py or GRU.py directly and check the __main__ section. Use the test folder for trainingData and models if you don't want to touch the actual data (highly recommended). 
+
+For testing You, in the `test` folder, can manually remove the last result from the .csv files and put it in the `sequenceToPredict_xxx.json` file. Then when tuning or changing the model, you can check manually how wel the prediction becomes.
+
 
 ## Disclaimer
 

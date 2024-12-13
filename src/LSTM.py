@@ -1,16 +1,26 @@
 # Import necessary libraries
-import os
-import numpy as np
+import os, sys, json
 import pandas as pd
-from dateutil.parser import parse
+
 from matplotlib import pyplot as plt
-from tensorflow import keras
+#from tensorflow import keras
 from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from tensorflow.keras.models import load_model
 
-from src.Helpers import Helpers
+# Dynamically adjust the import path for Helpers
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+src_dir = os.path.join(parent_dir, 'src')
+
+# Ensure Helpers can be imported
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
+
+from Helpers import Helpers
 
 helpers = Helpers()
 
@@ -123,14 +133,13 @@ class LSTM():
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
-
     lstm = LSTM()
 
-    #data = 'euromillions'
-    data = 'lotto'
+    data = 'euromillions'
+    #data = 'lotto'
     path = os.getcwd()
-    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "trainingData", data)
-    modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "data", "models", "lstm_model")
+    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
+    modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
@@ -140,3 +149,18 @@ if __name__ == "__main__":
     
     print(predictedNumbers.tolist())
     helpers.print_predicted_numbers(predictedNumbers)
+
+    helpers.print_predicted_numbers(predictedNumbers)
+
+    # Opening JSON file
+    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_euromillions.json")
+    with open(sequenceToPredictFile, 'r') as openfile:
+    
+        # Reading from json file
+        sequenceToPredict = json.load(openfile)
+
+    best_match_index, best_match_sequence, matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], predictedNumbers)
+
+    print("Best Matching Index: ", best_match_index)
+    print("Best Matching Sequence: ", best_match_sequence)
+    print("Matching Numbers: ", matching_numbers)
