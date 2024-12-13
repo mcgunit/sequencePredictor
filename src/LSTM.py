@@ -48,41 +48,33 @@ class LSTM():
 
     # Function to create the model
     def create_model(self, num_features, max_value):
+        num_lstm_layers = 50
+        num_deep_layers = 50
         # Create a sequential model
         model = models.Sequential()
         
         # Add an Embedding layer
         model.add(layers.Embedding(input_dim=max_value + 1, output_dim=64, input_length=None))
 
-        # Add the first LSTM layer with L2 regularization
-        model.add(layers.LSTM(128, return_sequences=True, 
-                            kernel_regularizer=regularizers.l2(0.001)))
+        for _ in range(num_lstm_layers):
+            # Add number of LSTM layer with L2 regularization
+            model.add(layers.LSTM(128, return_sequences=True, 
+                                kernel_regularizer=regularizers.l2(0.001)))
         
         # Add a Dropout layer
         model.add(layers.Dropout(0.2))
+
+        model.add(layers.LSTM(128, return_sequences=False, 
+                                kernel_regularizer=regularizers.l2(0.001)))
         
-        # Add a second LSTM layer with L2 regularization
-        model.add(layers.LSTM(64, return_sequences=True, 
-                            kernel_regularizer=regularizers.l2(0.001)))
         
-        # Add a Dropout layer
-        model.add(layers.Dropout(0.2))
+        for _ in range(num_deep_layers):
+            # Add a Dense layer
+            model.add(layers.Dense(128, activation='relu'))  # First Dense layer
         
-        # Add a third LSTM layer with L2 regularization
-        model.add(layers.LSTM(32, return_sequences=False,
-                            kernel_regularizer=regularizers.l2(0.001)))
-        
-        # Add another Dropout layer
-        model.add(layers.Dropout(0.2))
-        
-        # Add a Dense layer
-        model.add(layers.Dense(64, activation='relu'))  # First Dense layer
-        model.add(layers.Dropout(0.2))  # Optional Dropout layer
-        
-        # Add another Dense layer
-        model.add(layers.Dense(32, activation='relu'))  # Second Dense layer
-        model.add(layers.Dropout(0.2))  # Optional Dropout layer
-        
+    
+        #model.add(layers.Dropout(0.2))  # Optional Dropout layer
+
         # Add a final Dense layer for output
         model.add(layers.Dense(num_features, activation='linear'))
         
