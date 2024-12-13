@@ -1,9 +1,9 @@
 # Import necessary libraries
 import os, sys, json
 import pandas as pd
+import tensorflow as tf
 
 from matplotlib import pyplot as plt
-#from tensorflow import keras
 from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
@@ -23,6 +23,23 @@ if src_dir not in sys.path:
 from Helpers import Helpers
 
 helpers = Helpers()
+
+# Custom Attention Layer
+class AttentionLayer(layers.Layer):
+    def __init__(self):
+        super(AttentionLayer, self).__init__()
+        self.dense = layers.Dense(1, activation='tanh')
+
+    def call(self, inputs):
+        # Compute attention scores
+        attention_scores = self.dense(inputs)  # Shape: (batch_size, time_steps, 1)
+        attention_scores = tf.nn.softmax(attention_scores, axis=1)  # Normalize scores
+        
+        # Apply attention weights
+        weighted_inputs = inputs * attention_scores  # Element-wise multiplication
+        output = tf.reduce_sum(weighted_inputs, axis=1)  # Aggregate along the time axis
+        return output  # Shape: (batch_size, features)
+    
 
 class LSTM():
     dataPath = ""
@@ -44,49 +61,47 @@ class LSTM():
     def setBatchSize(self, batchSize):
         self.batchSize = batchSize
 
-    
 
     # Function to create the model
-    def create_model(self, num_features, max_value):
-        num_layers = 10
-        num_lstm_layers = 50
-        num_deep_layers = 50
+    def create_model(self, num_features, max_value, sequence_length=10):
+        num_conv_lstm_blocks = 2
+        num_deep_layers = 3
         embedding_output_dimension = 64
         lstm_units = 64
         dense_units = 64
+
         # Create a sequential model
         model = models.Sequential()
-        
-        # Add an Embedding layer
-        model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension, input_length=None))
-        
-        for _ in range(num_lstm_layers):
-            # Add number of LSTM layer with L2 regularization
-            model.add(layers.LSTM(lstm_units, return_sequences=True, 
-                                kernel_regularizer=regularizers.l2(0.001)))
-        
-        # Add a Dropout layer
-        model.add(layers.Dropout(0.2))
 
-        model.add(layers.LSTM(lstm_units, return_sequences=False, 
-                                kernel_regularizer=regularizers.l2(0.001)))
+        # Add an Embedding layer
+        model.add(layers.Embedding(input_dim=max_value + 1, 
+                                output_dim=embedding_output_dimension, 
+                                input_length=None))
+
+        # Add Conv1D + LSTM blocks
+        for _ in range(num_conv_lstm_blocks):
+            model.add(layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'))
+            model.add(layers.MaxPooling1D(pool_size=2))
+            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
+            model.add(layers.Dropout(0.2))
+
+        model.add(layers.LSTM(lstm_units, return_sequences=False, kernel_regularizer=regularizers.l2(0.001)))
+        model.add(layers.Dropout(0.2))
         
-        
+        # Add the custom AttentionLayer
+        #model.add(AttentionLayer())
+
+        # Add Dense layers for deep learning
         for _ in range(num_deep_layers):
-            # Add a Dense layer
-            model.add(layers.Dense(dense_units, activation='relu'))  # First Dense layer
-        
-    
-        #model.add(layers.Dropout(0.2))  # Optional Dropout layer
+            model.add(layers.Dense(dense_units, activation='relu'))
+            model.add(layers.Dropout(0.2))
 
         # Add a final Dense layer for output
-        model.add(layers.Dense(num_features, activation='softmax'))
-        
-        # Compile the model with mean_squared_error loss, adam optimizer, and mae metric
-        model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mae'])
+        model.add(layers.Dense(num_features, activation='linear'))
 
-        #print(model.summary())
-        
+        # Compile the model
+        model.compile(loss='mean_squared_error', optimizer=Adam(learning_rate=0.0001), metrics=['mae'])
+
         return model
 
     # Function to train the model
