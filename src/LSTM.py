@@ -48,38 +48,44 @@ class LSTM():
 
     # Function to create the model
     def create_model(self, num_features, max_value):
+        num_layers = 10
         num_lstm_layers = 50
         num_deep_layers = 50
+        embedding_output_dimension = 64
+        lstm_units = 64
+        dense_units = 64
         # Create a sequential model
         model = models.Sequential()
         
         # Add an Embedding layer
-        model.add(layers.Embedding(input_dim=max_value + 1, output_dim=64, input_length=None))
-
+        model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension, input_length=None))
+        
         for _ in range(num_lstm_layers):
             # Add number of LSTM layer with L2 regularization
-            model.add(layers.LSTM(128, return_sequences=True, 
+            model.add(layers.LSTM(lstm_units, return_sequences=True, 
                                 kernel_regularizer=regularizers.l2(0.001)))
         
         # Add a Dropout layer
         model.add(layers.Dropout(0.2))
 
-        model.add(layers.LSTM(128, return_sequences=False, 
+        model.add(layers.LSTM(lstm_units, return_sequences=False, 
                                 kernel_regularizer=regularizers.l2(0.001)))
         
         
         for _ in range(num_deep_layers):
             # Add a Dense layer
-            model.add(layers.Dense(128, activation='relu'))  # First Dense layer
+            model.add(layers.Dense(dense_units, activation='relu'))  # First Dense layer
         
     
         #model.add(layers.Dropout(0.2))  # Optional Dropout layer
 
         # Add a final Dense layer for output
-        model.add(layers.Dense(num_features, activation='linear'))
+        model.add(layers.Dense(num_features, activation='softmax'))
         
         # Compile the model with mean_squared_error loss, adam optimizer, and mae metric
-        model.compile(loss='mean_squared_error', optimizer=Adam(learning_rate=0.0001), metrics=['mae'])
+        model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mae'])
+
+        #print(model.summary())
         
         return model
 
