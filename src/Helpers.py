@@ -70,13 +70,14 @@ class Helpers():
         return (best_match_index, best_match_sequence, sorted(matching_numbers))
     
     # Function to predict numbers using the trained model
-    def predict_numbers(self, model, val_data, num_features):
+    def predict_numbers(self, model, data, num_features):
         # Predict on the validation data using the model
-        predictions = model.predict(val_data)
+        predictions = model.predict(data)
+        print("Prediction: ", predictions)
         # Get the indices of the top 'num_features' predictions for each sample in validation data
         indices = np.argsort(predictions, axis=1)[:, -num_features:]
         # Get the predicted numbers using these indices from validation data
-        predicted_numbers = np.take_along_axis(val_data, indices, axis=1)
+        predicted_numbers = np.take_along_axis(data, indices, axis=1)
         # Return the first 10 predictions
         return predicted_numbers[:10]
 
@@ -150,7 +151,7 @@ class Helpers():
         val_data = numbers[int(0.8*len(numbers)):]
         # Get the maximum value in the data
         max_value = np.max(numbers)
-        return train_data, val_data, max_value
+        return train_data, val_data, max_value, numbers
     
     def generatePredictionTextFile(self, path):
         print("Generating text file with latest predictions")

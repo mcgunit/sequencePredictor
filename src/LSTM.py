@@ -64,7 +64,7 @@ class LSTM():
 
     # Function to create the model
     def create_model(self, num_features, max_value, sequence_length=10):
-        num_conv_lstm_blocks = 6
+        num_conv_lstm_blocks = 1
         num_deep_layers = 9
         embedding_output_dimension = 64
         lstm_units = 64
@@ -121,7 +121,7 @@ class LSTM():
     def run(self, data='euromillions', skipLastColumns=0):
         
         # Load and preprocess data 
-        train_data, val_data, max_value = helpers.load_data(self.dataPath, skipLastColumns)
+        train_data, val_data, max_value, numbers = helpers.load_data(self.dataPath, skipLastColumns)
         
         # Get number of features from training data 
         num_features = train_data.shape[1]
@@ -139,7 +139,7 @@ class LSTM():
         history = self.train_model(model, train_data, val_data, modelName=data)
         
         # Predict numbers using trained model 
-        predicted_numbers = helpers.predict_numbers(model, val_data, num_features)
+        predicted_numbers = helpers.predict_numbers(model, numbers, num_features)
 
         pd.DataFrame(history.history).plot(figsize=(8,5))
         plt.savefig(os.path.join(self.modelPath, 'model_{0}_performance.png'.format(data)))
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
     lstm.setBatchSize(16)
-    lstm.setEpochs(1000)
+    lstm.setEpochs(10)
     predictedNumbers = lstm.run(data)
     
     helpers.print_predicted_numbers(predictedNumbers)
