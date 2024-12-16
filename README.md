@@ -19,13 +19,13 @@ Using the requirements file:
 
 For CPU only: 
 ```
-    python3 -m pip install numpy tensorflow keras art pandas scikit-learn
+    python3 -m pip install numpy tensorflow keras art pandas scikit-learn matplotlib
 ```
 
 For GPU enabled:
 
 ```
-    python3 -m pip install numpy tensorflow[and-cuda] keras art pandas scikit-learn openpyxl
+    python3 -m pip install numpy tensorflow[and-cuda] keras art pandas scikit-learn matplotlib
 ```
 
 ## How to run
