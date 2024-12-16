@@ -63,9 +63,9 @@ class LSTM():
 
 
     # Function to create the model
-    def create_model(self, num_features, max_value, sequence_length=7):
-        num_conv_lstm_blocks = 50
-        num_deep_layers = 100
+    def create_model(self, num_features, max_value, num_classes):
+        num_conv_lstm_blocks = 1
+        num_deep_layers = 1
         embedding_output_dimension = 64
         lstm_units = 128
         dense_units = 64
@@ -74,45 +74,41 @@ class LSTM():
         model = models.Sequential()
 
         # Add an Embedding layer
-        model.add(layers.Embedding(input_dim=max_value + 1, 
-                                output_dim=embedding_output_dimension, 
-                                input_length=sequence_length))
-    
+        model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension, input_length=num_features))
+
+        # Add Conv1D layer
         model.add(layers.Conv1D(filters=32, kernel_size=3, activation='relu', padding='same'))
         model.add(layers.MaxPooling1D(pool_size=2))
 
         # Add Conv1D + LSTM blocks
         for _ in range(num_conv_lstm_blocks):
             model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
-            model.add(layers.Dropout(0.2))
+            model.add(layers.Dropout(0.02))
 
         model.add(layers.LSTM(lstm_units, return_sequences=False, kernel_regularizer=regularizers.l2(0.001)))
-        model.add(layers.Dropout(0.2))
-        
-        # Add the custom AttentionLayer
-        #model.add(AttentionLayer())
+        model.add(layers.Dropout(0.02))
 
-        # Add Dense layers for deep learning
+        # Add Dense layers
         for _ in range(num_deep_layers):
             model.add(layers.Dense(dense_units, activation='relu'))
             model.add(layers.Dropout(0.2))
 
-        # Add a final Dense layer for output
-        model.add(layers.Dense(num_features, activation='sigmoid'))
+        # Add a final Dense layer for output with softmax activation for multi-class classification
+        model.add(layers.Dense(num_classes, activation='softmax'))
 
-        # Compile the model
-        model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mae'])
+        # Compile the model with categorical crossentropy loss for multi-class classification
+        model.compile(loss='categorical_crossentropy', optimizer="adam", metrics=['accuracy'])
 
         return model
 
     # Function to train the model
-    def train_model(self, model, train_data, val_data, modelName):
+    def train_model(self, model, train_data, train_labels, val_data, val_labels, modelName):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(modelName)), save_best_only=True)
 
         # Fit the model on the training data and validate on the validation data for 100 epochs
-        history = model.fit(train_data, train_data, validation_data=(val_data, val_data), epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
+        history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels), epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         
         return history
         
@@ -122,8 +118,9 @@ class LSTM():
     def run(self, data='euromillions', skipLastColumns=0):
         
         # Load and preprocess data 
-        train_data, val_data, max_value, numbers = helpers.load_data(self.dataPath, skipLastColumns)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns)
         
+        print("Num Class: ", num_classes)
         # Get number of features from training data 
         num_features = train_data.shape[1]
 
@@ -133,11 +130,11 @@ class LSTM():
             model = load_model(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(data)))
         else:
             # Create and compile model 
-            model = self.create_model(num_features, max_value)
+            model = self.create_model(num_features=train_data.shape[1], max_value=max_value, num_classes=num_classes)
     
     
         # Train model 
-        history = self.train_model(model, train_data, val_data, modelName=data)
+        history = self.train_model(model, train_data, train_labels, val_data, val_labels, modelName=data)
         
         # Predict numbers using trained model 
         predicted_numbers = helpers.predict_numbers(model, numbers, num_features)
@@ -165,7 +162,7 @@ if __name__ == "__main__":
     lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
     lstm.setBatchSize(32)
-    lstm.setEpochs(10)
+    lstm.setEpochs(100)
     predictedNumbers = lstm.run(data)
     
     helpers.print_predicted_numbers(predictedNumbers)

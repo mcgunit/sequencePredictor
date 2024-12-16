@@ -3,6 +3,9 @@ import numpy as np
 
 from dateutil.parser import parse
 from datetime import datetime
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.utils import to_categorical
+from sklearn.preprocessing import OneHotEncoder
 
 
 class Helpers():
@@ -69,29 +72,49 @@ class Helpers():
 
         return (best_match_index, best_match_sequence, sorted(matching_numbers))
     
+    def decode_predictions(self, raw_predictions, top_k=7):
+        # Initialize an empty list for the final predictions
+        final_predictions = []
+
+        # Process each row of raw predictions
+        for row in raw_predictions:
+            # Get indices of the top `top_k` probabilities
+            top_indices = np.argsort(-row)[:top_k]
+
+            # Convert indices to numbers (1-based indexing)
+            top_numbers = (top_indices + 1).tolist()  # Convert to list for consistent output
+
+            final_predictions.append(top_numbers)  # Ensure exactly top_k numbers are added
+
+        return np.array(final_predictions, dtype=int)
+    
     # Function to predict numbers using the trained model
-    def predict_numbers(self, model, data, num_features):
-        # Predict on the validation data using the model
-        predictions = model.predict(data)
-        print("Prediction: ", predictions)
-        # Get the indices of the top 'num_features' predictions for each sample in validation data
-        indices = np.argsort(predictions, axis=1)[:, -num_features:]
-        # Get the predicted numbers using these indices from validation data
-        predicted_numbers = np.take_along_axis(data, indices, axis=1)
-        # Return the first 10 predictions
-        return predicted_numbers[:10]
+    def predict_numbers(self, model, input_data, num_choices=7, value_range=(1, 50)):
+        
+        # Get the model's raw predictions (probabilities)
+        raw_predictions = model.predict(input_data)
+        print("Raw Predictions: ", raw_predictions)
+
+        # Decode raw predictions into unique numbers
+        predicted_numbers = self.decode_predictions(raw_predictions)
+        print("Predicted Numbers: ", predicted_numbers)
+        return predicted_numbers
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
         # Print a separator line and "Predicted Numbers:"
+        
         print("============================================================")
         # Print number of rows
-        for i in range(len(predicted_numbers)):
+        for i in range(10):
             print("Predicted Numbers {}:".format(i))
             print(', '.join(map(str, predicted_numbers[i])))
         print("============================================================")
+        
 
     
+    
+
     def load_data(self, dataPath, skipLastColumns=0, nth_row=5):
         # Initialize an empty list to hold the data
         data = []
@@ -105,7 +128,7 @@ class Helpers():
                     # Load data from the file
                     csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
 
-                    # Skip last number of columns by slicing
+                    # Skip last number of columns by slicing (if required)
                     if skipLastColumns > 0:
                         csvData = csvData[:, :-skipLastColumns]
 
@@ -140,10 +163,25 @@ class Helpers():
 
         # If you want to separate the date and numbers into different arrays
         dates = sorted_data[:, 0]  # Dates
-        numbers = sorted_data[:, 1:].astype(int)  # Numbers as integers
+        numbers = sorted_data[:, 1:].astype(int)  # Numbers as integers (multi-label data)
 
-        # Replace all -1 values with 0
+        # Replace all -1 values with 0 (or you can remove them if it's not needed)
         numbers[numbers == -1] = 0
+
+        # Unique labels for one-hot encoding
+        unique_labels = np.arange(1, 51)
+
+        # One-hot encode all numbers with a fixed range (1–50)
+        encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
+
+        # Reshape numbers array to a single column for encoding, then reshape back
+        one_hot_labels = encoder.fit_transform(numbers.flatten().reshape(-1, 1))
+
+        # Reshape back into the original format (rows x 7 x 50)
+        one_hot_labels = one_hot_labels.reshape(numbers.shape[0], numbers.shape[1], -1)
+
+        # Combine the one-hot encoded vectors for all 7 numbers in each row
+        one_hot_labels = one_hot_labels.sum(axis=1)  # Sum across the 7 numbers per row
 
         # Prepare training and validation sets
         train_indices = [i for i in range(len(numbers)) if i % nth_row != 0]  # Indices for training data
@@ -152,9 +190,20 @@ class Helpers():
         train_data = numbers[train_indices]
         val_data = numbers[val_indices]
 
-        # Get the maximum value in the data
+        print("length of train data: ", len(train_data))
+        print("length of val_data: ", len(val_data))
+
+        train_labels = one_hot_labels[train_indices]
+        val_labels = one_hot_labels[val_indices]
+
+        # Get the maximum value in the data (for scaling purposes, if needed)
         max_value = np.max(numbers)
-        return train_data, val_data, max_value, numbers
+
+        # Number of classes (the unique labels we have after one-hot encoding)
+        num_classes = one_hot_labels.shape[1]  # Should now be 50
+
+        return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes
+
 
     
     def generatePredictionTextFile(self, path):
