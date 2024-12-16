@@ -63,11 +63,11 @@ class LSTM():
 
 
     # Function to create the model
-    def create_model(self, num_features, max_value, sequence_length=10):
-        num_conv_lstm_blocks = 1
-        num_deep_layers = 9
+    def create_model(self, num_features, max_value, sequence_length=7):
+        num_conv_lstm_blocks = 50
+        num_deep_layers = 100
         embedding_output_dimension = 64
-        lstm_units = 64
+        lstm_units = 128
         dense_units = 64
 
         # Create a sequential model
@@ -76,12 +76,13 @@ class LSTM():
         # Add an Embedding layer
         model.add(layers.Embedding(input_dim=max_value + 1, 
                                 output_dim=embedding_output_dimension, 
-                                input_length=None))
+                                input_length=sequence_length))
+    
+        model.add(layers.Conv1D(filters=32, kernel_size=3, activation='relu', padding='same'))
+        model.add(layers.MaxPooling1D(pool_size=2))
 
         # Add Conv1D + LSTM blocks
         for _ in range(num_conv_lstm_blocks):
-            model.add(layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'))
-            model.add(layers.MaxPooling1D(pool_size=2))
             model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
             model.add(layers.Dropout(0.2))
 
@@ -97,17 +98,17 @@ class LSTM():
             model.add(layers.Dropout(0.2))
 
         # Add a final Dense layer for output
-        model.add(layers.Dense(num_features, activation='linear'))
+        model.add(layers.Dense(num_features, activation='sigmoid'))
 
         # Compile the model
-        model.compile(loss='mean_squared_error', optimizer=Adam(learning_rate=0.0001), metrics=['mae'])
+        model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mae'])
 
         return model
 
     # Function to train the model
     def train_model(self, model, train_data, val_data, modelName):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-4)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, "model_{0}_checkpoint.keras".format(modelName)), save_best_only=True)
 
         # Fit the model on the training data and validate on the validation data for 100 epochs
@@ -163,7 +164,7 @@ if __name__ == "__main__":
 
     lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
-    lstm.setBatchSize(16)
+    lstm.setBatchSize(32)
     lstm.setEpochs(10)
     predictedNumbers = lstm.run(data)
     

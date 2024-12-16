@@ -92,25 +92,23 @@ class Helpers():
         print("============================================================")
 
     
-    # Function to load data from a file and preprocess it
-    def load_data(self, dataPath, skipLastColumns=0):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5):
         # Initialize an empty list to hold the data
         data = []
 
         for csvFile in os.listdir(dataPath):
             if csvFile.endswith(".csv"):
-                #print(f"Processing file: {csvFile}")
                 try:
                     # Construct full file path
                     file_path = os.path.join(dataPath, csvFile)
-                    
+
                     # Load data from the file
                     csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
 
                     # Skip last number of columns by slicing
-                    if(skipLastColumns > 0):
+                    if skipLastColumns > 0:
                         csvData = csvData[:, :-skipLastColumns]
-                    
+
                     # Append each entry to the data list
                     for entry in csvData:
                         # Attempt to parse the date
@@ -121,14 +119,14 @@ class Helpers():
                         except Exception as e:
                             print(f"Date parsing error for entry '{date_str}': {e}")
                             continue  # Skip this entry if date parsing fails
-                        
+
                         # Convert the rest to integers
                         try:
                             numbers = list(map(int, entry[1:]))  # Convert the rest to integers
                         except ValueError as ve:
                             print(f"Number conversion error for entry '{entry[1:]}': {ve}")
                             continue  # Skip this entry if number conversion fails
-                        
+
                         data.append((date, *numbers))  # Store as a tuple (date, number1, number2, ...)
 
                 except Exception as e:
@@ -146,12 +144,18 @@ class Helpers():
 
         # Replace all -1 values with 0
         numbers[numbers == -1] = 0
-        # Split data into training and validation sets
-        train_data = numbers[:int(0.8*len(numbers))]
-        val_data = numbers[int(0.8*len(numbers)):]
+
+        # Prepare training and validation sets
+        train_indices = [i for i in range(len(numbers)) if i % nth_row != 0]  # Indices for training data
+        val_indices = [i for i in range(len(numbers)) if i % nth_row == 0]    # Indices for validation data
+
+        train_data = numbers[train_indices]
+        val_data = numbers[val_indices]
+
         # Get the maximum value in the data
         max_value = np.max(numbers)
         return train_data, val_data, max_value, numbers
+
     
     def generatePredictionTextFile(self, path):
         print("Generating text file with latest predictions")
