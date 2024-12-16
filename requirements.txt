@@ -1,0 +1,9 @@
+art==6.4
+keras==3.7.0
+matplotlib==3.10.0
+numpy==2.2.0
+pandas==2.2.3
+python_dateutil==2.8.2
+scikit_learn==1.6.0
+tensorflow==2.18.0
+

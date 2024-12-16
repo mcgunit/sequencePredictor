@@ -11,9 +11,15 @@ To install, you will need to have Python 3.x and the following libraries install
 
 You can install these libraries using pip by running the following command:
 
+Using the requirements file:
+
+```
+    python3 -m pip install -r requirements.txt
+```
+
 For CPU only: 
 ```
-    python3 -m pip install numpy tensorflow keras art pandas scikit-learn openpyxl
+    python3 -m pip install numpy tensorflow keras art pandas scikit-learn
 ```
 
 For GPU enabled:
