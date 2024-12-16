@@ -64,8 +64,8 @@ class LSTM():
 
     # Function to create the model
     def create_model(self, num_features, max_value, sequence_length=10):
-        num_conv_lstm_blocks = 2
-        num_deep_layers = 3
+        num_conv_lstm_blocks = 6
+        num_deep_layers = 9
         embedding_output_dimension = 64
         lstm_units = 64
         dense_units = 64
@@ -163,8 +163,8 @@ if __name__ == "__main__":
 
     lstm.setModelPath(modelPath)
     lstm.setDataPath(dataPath)
-    lstm.setBatchSize(4)
-    lstm.setEpochs(10)
+    lstm.setBatchSize(16)
+    lstm.setEpochs(1000)
     predictedNumbers = lstm.run(data)
     
     helpers.print_predicted_numbers(predictedNumbers)
