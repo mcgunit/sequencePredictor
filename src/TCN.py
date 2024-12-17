@@ -51,10 +51,12 @@ class TCNModel:
     """
     def create_model(self, max_value, num_classes=50):
         embedding_output_dimension = 128
-        tcn_units = 64          # Number of filters in TCN layers
-        num_tcn_layers = 5      # Number of TCN layers
-        num_dense_layers = 3    # Numbers of Dense layers
-        dense_units = 256       # Number of units in dense layersW
+        tcn_units = 128          # Number of filters in TCN layers
+        num_tcn_layers = 6      # Number of TCN layers
+        num_dense_layers = 10    # Numbers of Dense layers
+        dense_units = 512       # Number of units in dense layersW
+        dropout_rate = 0.3
+        l2_lambda = 0.01  # Set the L2 regularization factor
 
         model = models.Sequential()
 
@@ -63,12 +65,13 @@ class TCNModel:
 
         # Add TCN layers
         for _ in range(num_tcn_layers):
-            model.add(TCN(nb_filters=tcn_units, return_sequences=True, dropout_rate=0.2, kernel_size=3))
+            model.add(TCN(nb_filters=tcn_units, return_sequences=True, dropout_rate=dropout_rate, kernel_size=3))
 
         # Dense layers for processing TCN outputs
         for _ in range(num_dense_layers):  # Add a couple of dense layers
-            model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu')))
-            model.add(layers.Dropout(0.2))
+            model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu', 
+                                                       kernel_regularizer=regularizers.l2(l2_lambda))))
+            model.add(layers.Dropout(dropout_rate))
 
         # Output layer with softmax activation
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
@@ -77,6 +80,7 @@ class TCNModel:
         model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0005), metrics=['accuracy'])
 
         return model
+
 
     def train_model(self, model, train_data, train_labels, val_data, val_labels, model_name):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)

@@ -5,10 +5,12 @@ from art import text2art
 from datetime import datetime
 
 from src.LSTM import LSTM
+from src.TCN import TCN
 from src.Command import Command
 from src.Helpers import Helpers
 
 lstm = LSTM()
+tcn = TCN()
 command = Command()
 helpers = Helpers()
 
@@ -92,11 +94,11 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
                 }
 
                 # Train and do a new prediction
-                lstm.setDataPath(dataPath)
-                lstm.setModelPath(modelPath)
-                lstm.setBatchSize(4)
-                lstm.setEpochs(1000)
-                predictedNumbers = lstm.run(data, skipLastColumns)
+                tcn.setDataPath(dataPath)
+                tcn.setModelPath(modelPath)
+                tcn.setBatchSize(4)
+                tcn.setEpochs(1000)
+                predictedNumbers = tcn.run(data, skipLastColumns)
                 predictedSequence = predictedNumbers.tolist()
 
         
@@ -117,11 +119,11 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
                 }
 
                 # Train and do a new prediction
-                lstm.setDataPath(dataPath)
-                lstm.setModelPath(modelPath)
-                lstm.setBatchSize(4)
-                lstm.setEpochs(1000)
-                predictedNumbers = lstm.run(data, skipLastColumns)
+                tcn.setDataPath(dataPath)
+                tcn.setModelPath(modelPath)
+                tcn.setBatchSize(4)
+                tcn.setEpochs(1000)
+                predictedNumbers = tcn.run(data, skipLastColumns)
                 predictedSequence = predictedNumbers.tolist()
 
         
