@@ -63,7 +63,7 @@ class Helpers():
 
         # Calculate similarity scores and matching numbers
         results = [
-            (len(set(sequence).intersection(set(tuple(seq.flatten())))), set(sequence).intersection(set(tuple(seq.flatten()))))
+            (len(set(sequence).intersection(set(tuple(np.array(seq).flatten())))), set(sequence).intersection(set(tuple(np.array(seq).flatten()))))
             for seq in sequence_list
         ]
 

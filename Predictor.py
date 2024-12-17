@@ -4,13 +4,11 @@ import numpy as np
 from art import text2art
 from datetime import datetime
 
-from src.LSTM import LSTM
-from src.TCN import TCN
+from src.TCN import TCNModel
 from src.Command import Command
 from src.Helpers import Helpers
 
-lstm = LSTM()
-tcn = TCN()
+tcn = TCNModel()
 command = Command()
 helpers = Helpers()
 
@@ -93,10 +91,12 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
                     "matchingNumbers": matching_numbers
                 }
 
+                print("Data Path: ", dataPath)
+
                 # Train and do a new prediction
                 tcn.setDataPath(dataPath)
                 tcn.setModelPath(modelPath)
-                tcn.setBatchSize(4)
+                tcn.setBatchSize(16)
                 tcn.setEpochs(1000)
                 predictedNumbers = tcn.run(data, skipLastColumns)
                 predictedSequence = predictedNumbers.tolist()
@@ -121,7 +121,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
                 # Train and do a new prediction
                 tcn.setDataPath(dataPath)
                 tcn.setModelPath(modelPath)
-                tcn.setBatchSize(4)
+                tcn.setBatchSize(16)
                 tcn.setEpochs(1000)
                 predictedNumbers = tcn.run(data, skipLastColumns)
                 predictedSequence = predictedNumbers.tolist()
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     print("Current Year:", current_year)
 
     path = os.getcwd()
-    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    modelPath = os.path.join(path, "data", "models", "tcn_model")
 
 
 
