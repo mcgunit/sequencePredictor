@@ -76,10 +76,17 @@ class Helpers():
         # Initialize an empty list for the final predictions
         final_predictions = []
 
+        for i, row in enumerate(raw_predictions[:10]):
+            print(f"Raw prediction {i}: {row}")
+            top_indices = np.argsort(-row)[:top_k]
+            print(f"Top indices for {i}: {top_indices}")
+
         # Process each row of raw predictions
         for row in raw_predictions:
             # Get indices of the top `top_k` probabilities
             top_indices = np.argsort(-row)[:top_k]
+
+            
 
             # Convert indices to numbers (1-based indexing)
             top_numbers = (top_indices + 1).tolist()  # Convert to list for consistent output
@@ -89,14 +96,17 @@ class Helpers():
         return np.array(final_predictions, dtype=int)
     
     # Function to predict numbers using the trained model
-    def predict_numbers(self, model, input_data, num_choices=7, value_range=(1, 50)):
+    def predict_numbers(self, model, input_data, num_features):
         
         # Get the model's raw predictions (probabilities)
         raw_predictions = model.predict(input_data)
-        print("Raw Predictions: ", raw_predictions)
+        #print("Raw Predictions: ", raw_predictions)
+
+        print("Raw Predictions:", raw_predictions[0])  # For the first sample
+        print("Sum of Predictions:", np.sum(raw_predictions, axis=1))  # Should be close to 1
 
         # Decode raw predictions into unique numbers
-        predicted_numbers = self.decode_predictions(raw_predictions)
+        predicted_numbers = self.decode_predictions(raw_predictions, top_k=num_features)
         print("Predicted Numbers: ", predicted_numbers)
         return predicted_numbers
 
