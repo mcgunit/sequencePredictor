@@ -5,12 +5,10 @@ from art import text2art
 from datetime import datetime
 
 from src.LSTM import LSTM
-from src.GRU import GRU
 from src.Command import Command
 from src.Helpers import Helpers
 
 lstm = LSTM()
-gru = GRU()
 command = Command()
 helpers = Helpers()
 

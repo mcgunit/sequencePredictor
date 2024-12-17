@@ -66,6 +66,7 @@ class LSTMModel:
         num_bidirectional_layers = 1
         embedding_output_dimension = 128
         lstm_units = 512
+        bidirectional_lstm_units = 512
         dense_units = 256
 
         model = models.Sequential()
@@ -87,7 +88,7 @@ class LSTMModel:
         model.add(layers.Dropout(0.2))
 
         for _ in range(num_bidirectional_layers):
-            model.add(layers.Bidirectional(layers.LSTM(512, return_sequences=True, kernel_regularizer=regularizers.l2(0.001))))
+            model.add(layers.Bidirectional(layers.LSTM(bidirectional_lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001))))
             model.add(layers.Dropout(0.2))
 
         for _ in range(num_dense_layers):
