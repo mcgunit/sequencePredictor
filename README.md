@@ -1,6 +1,15 @@
 
 # Sequence Predictor
 
+## To check
+
+    - Small-to-Medium Data:
+        Use TCNs or hybrid models (CNN + LSTM).
+    - Large Data:
+        Transformers are ideal due to scalability and performance.
+    - If Sequence Dependencies are Weak:
+        Pure CNN models like ResNet, EfficientNet, or MobileNet (better than GoogLeNet for general tasks).
+
 ## Installation
 
 To install, you will need to have Python 3.x and the following libraries installed:
@@ -8,6 +17,7 @@ To install, you will need to have Python 3.x and the following libraries install
 - tensorflow
 - keras
 - art
+- keras-tcn
 
 You can install these libraries using pip by running the following command:
 
@@ -19,13 +29,13 @@ Using the requirements file:
 
 For CPU only: 
 ```
-    python3 -m pip install numpy tensorflow keras art pandas scikit-learn matplotlib
+    python3 -m pip install numpy tensorflow keras art pandas scikit-learn matplotlib keras-tcn
 ```
 
 For GPU enabled:
 
 ```
-    python3 -m pip install numpy tensorflow[and-cuda] keras art pandas scikit-learn matplotlib
+    python3 -m pip install numpy tensorflow[and-cuda] keras art pandas scikit-learn matplotlib keras-tcn
 ```
 
 ## How to run
