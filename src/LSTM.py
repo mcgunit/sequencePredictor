@@ -63,6 +63,7 @@ class LSTMModel:
     def create_model(self, max_value, num_classes=50):
         num_lstm_layers = 10
         num_dense_layers = 10
+        num_bidirectional_layers = 1
         embedding_output_dimension = 128
         lstm_units = 512
         dense_units = 256
@@ -72,13 +73,22 @@ class LSTMModel:
         # Embedding layer
         model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension))
 
-        # LSTM layers
+        # 1D Convolutional layer
+        #model.add(layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same', input_shape=(None, embedding_output_dimension)))
+        #model.add(layers.MaxPooling1D(pool_size=2))
+
+        # LSTM+GRU layers
         for _ in range(num_lstm_layers):
             model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
+            model.add(layers.GRU(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
             model.add(layers.Dropout(0.2))
 
         model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
         model.add(layers.Dropout(0.2))
+
+        for _ in range(num_bidirectional_layers):
+            model.add(layers.Bidirectional(layers.LSTM(512, return_sequences=True, kernel_regularizer=regularizers.l2(0.001))))
+            model.add(layers.Dropout(0.2))
 
         for _ in range(num_dense_layers):
             # Dense layer to process sequence outputs
@@ -149,7 +159,7 @@ if __name__ == "__main__":
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(16)
-    lstm_model.setEpochs(1)
+    lstm_model.setEpochs(1000)
 
     predicted_numbers = lstm_model.run(data)
 
