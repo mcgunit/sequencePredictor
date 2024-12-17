@@ -55,8 +55,8 @@ class TCNModel:
         num_tcn_layers = 6      # Number of TCN layers
         num_dense_layers = 10    # Numbers of Dense layers
         dense_units = 512       # Number of units in dense layersW
-        dropout_rate = 0.3
-        l2_lambda = 0.01  # Set the L2 regularization factor
+        dropout_rate = 0.2
+        l2_lambda = 0.001  # Set the L2 regularization factor
 
         model = models.Sequential()
 
