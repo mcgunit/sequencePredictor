@@ -61,9 +61,11 @@ class LSTMModel:
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
     def create_model(self, max_value, num_classes=50):
+        num_lstm_layers = 10
+        num_dense_layers = 10
         embedding_output_dimension = 128
         lstm_units = 512
-        dense_units = 128
+        dense_units = 256
 
         model = models.Sequential()
 
@@ -71,14 +73,17 @@ class LSTMModel:
         model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension))
 
         # LSTM layers
-        model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
-        model.add(layers.Dropout(0.2))
+        for _ in range(num_lstm_layers):
+            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
+            model.add(layers.Dropout(0.2))
+
         model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
         model.add(layers.Dropout(0.2))
 
-        # Dense layer to process sequence outputs
-        model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu')))
-        model.add(layers.Dropout(0.2))
+        for _ in range(num_dense_layers):
+            # Dense layer to process sequence outputs
+            model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu')))
+            model.add(layers.Dropout(0.2))
 
         # Output layer
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
