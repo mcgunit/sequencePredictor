@@ -84,14 +84,14 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
                 current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
                 # Check the matching numbers
-                best_match_index, best_match_sequence, matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"])
+                best_match_index, best_match_sequence, matching_numbers_array = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"])
                 current_json_object["matchingNumbers"] = {
                     "bestMatchIndex": best_match_index,
                     "bestMatchSequence": best_match_sequence,
-                    "matchingNumbers": matching_numbers
+                    "matchingNumbers": matching_numbers_array
                 }
 
-                print("Data Path: ", dataPath)
+                print("matching_numbers: ", matching_numbers_array)
 
                 # Train and do a new prediction
                 tcn.setDataPath(dataPath)
@@ -103,7 +103,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
 
         
                 # Save the current prediction as newPrediction
-                current_json_object["newPrediction"] = predictedSequence
+                current_json_object["newPrediction"] = predictedSequence[:10]
 
                 with open(jsonFilePath, "w+") as outfile:
                     json.dump(current_json_object, outfile)

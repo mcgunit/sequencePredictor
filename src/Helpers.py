@@ -71,8 +71,9 @@ class Helpers():
         best_match_index = max(range(len(results)), key=lambda i: results[i][0])
         best_match_sequence = sequence_list[best_match_index]
         matching_numbers = results[best_match_index][1]
+        matching_numbers_array = [int(x) for x in matching_numbers]
 
-        return (best_match_index, best_match_sequence, sorted(matching_numbers))
+        return (best_match_index, best_match_sequence, matching_numbers_array)
     
     def decode_predictions(self, raw_predictions):
         # Get the indices of the maximum probabilities for each of the 7 positions
