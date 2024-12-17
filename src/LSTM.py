@@ -60,10 +60,10 @@ class LSTMModel:
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
-    def create_model(self, num_features, max_value, sequence_length=7, num_classes=50):
-        embedding_output_dimension = 64
-        lstm_units = 128
-        dense_units = 64
+    def create_model(self, max_value, num_classes=50):
+        embedding_output_dimension = 128
+        lstm_units = 512
+        dense_units = 128
 
         model = models.Sequential()
 
@@ -111,7 +111,7 @@ class LSTMModel:
         elif os.path.exists(checkpoint_path):
             model = load_model(checkpoint_path)
         else:
-            model = self.create_model(num_features, max_value, num_classes)
+            model = self.create_model(max_value, num_classes)
 
         # Train the model
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=data)

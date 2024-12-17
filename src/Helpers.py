@@ -168,7 +168,7 @@ class Helpers():
         numbers[numbers == -1] = 0
 
         # Unique labels for one-hot encoding
-        unique_labels = np.arange(1, 51)
+        unique_labels = np.arange(1, 51)  # This should create an array [1, 2, ..., 50]
 
         # One-hot encode all numbers with a fixed range (1–50)
         encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
@@ -178,6 +178,11 @@ class Helpers():
 
         # Reshape back into the original format (rows x 7 x 50)
         one_hot_labels = one_hot_labels.reshape(numbers.shape[0], numbers.shape[1], -1)
+
+        # Number of classes (the unique labels we have after one-hot encoding)
+        num_classes = one_hot_labels.shape[2]  # Should now be 50
+
+        print("Num classes: ", num_classes)
 
         # Prepare training and validation sets
         train_indices = [i for i in range(len(numbers)) if i % nth_row != 0]  # Indices for training data
@@ -199,9 +204,6 @@ class Helpers():
 
         # Get the maximum value in the data (for scaling purposes, if needed)
         max_value = np.max(numbers)
-
-        # Number of classes (the unique labels we have after one-hot encoding)
-        num_classes = one_hot_labels.shape[1]  # Should now be 50
 
         return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes
 
