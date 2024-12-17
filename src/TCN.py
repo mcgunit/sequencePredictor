@@ -52,9 +52,9 @@ class TCNModel:
     def create_model(self, max_value, num_classes=50):
         embedding_output_dimension = 128
         tcn_units = 64          # Number of filters in TCN layers
-        num_tcn_layers = 10      # Number of TCN layers
-        num_dense_layers = 8    # Numbers of Dense layers
-        dense_units = 256       # Number of units in dense layers
+        num_tcn_layers = 5      # Number of TCN layers
+        num_dense_layers = 3    # Numbers of Dense layers
+        dense_units = 256       # Number of units in dense layersW
 
         model = models.Sequential()
 
