@@ -55,51 +55,46 @@ class LSTMModel:
     def setBatchSize(self, batchSize):
         self.batchSize = batchSize
 
-    def create_model(self, num_features, max_value, num_classes):
-        num_lstm_layers = 2
-        num_dense_layers = 1
+
+    """
+    If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
+    If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
+    """
+    def create_model(self, num_features, max_value, sequence_length=7, num_classes=50):
         embedding_output_dimension = 64
         lstm_units = 128
         dense_units = 64
 
         model = models.Sequential()
 
-        # Embedding Layer
+        # Embedding layer
         model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension))
 
-        # Conv1D Layer
-        model.add(layers.Conv1D(filters=32, kernel_size=3, activation='relu', padding='same'))
-        model.add(layers.MaxPooling1D(pool_size=2))
-
-        # LSTM Layers
-        for _ in range(num_lstm_layers):
-            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
-            model.add(layers.Dropout(0.2))
-        model.add(layers.LSTM(lstm_units, return_sequences=False, kernel_regularizer=regularizers.l2(0.001)))
+        # LSTM layers
+        model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
+        model.add(layers.Dropout(0.2))
+        model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
         model.add(layers.Dropout(0.2))
 
-        # Dense Layers
-        for _ in range(num_dense_layers):
-            model.add(layers.Dense(dense_units, activation='relu'))
-            model.add(layers.Dropout(0.2))
+        # Dense layer to process sequence outputs
+        model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu')))
+        model.add(layers.Dropout(0.2))
 
-        # Output Layer
-        model.add(layers.Dense(num_classes, activation='softmax'))
+        # Output layer
+        model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
 
-        # Compile Model
-        model.compile(loss='categorical_crossentropy', optimizer=Adam(), metrics=['accuracy'])
+        # Compile the model
+        model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0005), metrics=['accuracy'])
 
         return model
 
     def train_model(self, model, train_data, train_labels, val_data, val_labels, model_name):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5)
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
-        # Fit model on training data
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize,
-                            callbacks=[early_stopping, reduce_lr, checkpoint])
+                            epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         return history
 
     def run(self, data='euromillions', skipLastColumns=0):
@@ -122,7 +117,7 @@ class LSTMModel:
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=data)
 
         # Predict numbers
-        predicted_numbers = helpers.predict_numbers(model, numbers, num_features)
+        predicted_numbers = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -148,7 +143,7 @@ if __name__ == "__main__":
 
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(32)
+    lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1)
 
     predicted_numbers = lstm_model.run(data)

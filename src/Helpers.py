@@ -58,9 +58,12 @@ class Helpers():
         
 
     def find_matching_numbers(self, sequence, sequence_list):
+        # Convert the input sequence to a tuple for hashing
+        sequence = tuple(sequence)
+
         # Calculate similarity scores and matching numbers
         results = [
-            (len(set(sequence).intersection(seq)), set(sequence).intersection(seq))
+            (len(set(sequence).intersection(set(tuple(seq.flatten())))), set(sequence).intersection(set(tuple(seq.flatten()))))
             for seq in sequence_list
         ]
 
@@ -69,57 +72,43 @@ class Helpers():
         best_match_sequence = sequence_list[best_match_index]
         matching_numbers = results[best_match_index][1]
 
-
         return (best_match_index, best_match_sequence, sorted(matching_numbers))
     
-    def decode_predictions(self, raw_predictions, top_k=7):
-        # Initialize an empty list for the final predictions
-        final_predictions = []
-
-        for i, row in enumerate(raw_predictions[:10]):
-            print(f"Raw prediction {i}: {row}")
-            top_indices = np.argsort(-row)[:top_k]
-            print(f"Top indices for {i}: {top_indices}")
-
-        # Process each row of raw predictions
-        for row in raw_predictions:
-            # Get indices of the top `top_k` probabilities
-            top_indices = np.argsort(-row)[:top_k]
-
-            
-
-            # Convert indices to numbers (1-based indexing)
-            top_numbers = (top_indices + 1).tolist()  # Convert to list for consistent output
-
-            final_predictions.append(top_numbers)  # Ensure exactly top_k numbers are added
-
-        return np.array(final_predictions, dtype=int)
-    
-    # Function to predict numbers using the trained model
-    def predict_numbers(self, model, input_data, num_features):
+    def decode_predictions(self, raw_predictions):
+        # Get the indices of the maximum probabilities for each of the 7 positions
+        predicted_indices = np.argmax(raw_predictions, axis=-1)  # Shape will be (1796, 7)
         
-        # Get the model's raw predictions (probabilities)
+        # Convert indices to numbers (1-based indexing)
+        predicted_numbers = predicted_indices + 1  # Add 1 to convert from 0-based to 1-based
+        
+        return predicted_numbers
+    
+    def predict_numbers(self, model, input_data):
+        # Get raw predictions from the model
         raw_predictions = model.predict(input_data)
-        #print("Raw Predictions: ", raw_predictions)
+        #print("Raw Predictions Shape:", raw_predictions.shape)
+        #print("Raw Predictions (First Sample):", raw_predictions[0])
+        #print("Raw Predictions (Second Sample):", raw_predictions[1])
 
-        print("Raw Predictions:", raw_predictions[0])  # For the first sample
-        print("Sum of Predictions:", np.sum(raw_predictions, axis=1))  # Should be close to 1
+        # Decode raw predictions into numbers
+        predicted_numbers = self.decode_predictions(raw_predictions)
+        #print("Decoded Predictions Shape:", predicted_numbers.shape)
+        #print("Decoded Predictions Example (First Sample):", predicted_numbers[0])
+        #print("Decoded Predictions Example (Second Sample):", predicted_numbers[1])
 
-        # Decode raw predictions into unique numbers
-        predicted_numbers = self.decode_predictions(raw_predictions, top_k=num_features)
-        print("Predicted Numbers: ", predicted_numbers)
         return predicted_numbers
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
-        # Print a separator line and "Predicted Numbers:"
+
+        #print("Predicted Numbers Shape:", predicted_numbers.shape)
+        #print("Predicted Numbers Type:", type(predicted_numbers))
         
         print("============================================================")
-        # Print number of rows
         for i in range(10):
-            print("Predicted Numbers {}:".format(i))
-            print(', '.join(map(str, predicted_numbers[i])))
+            print(f"Predicted Numbers {i}: {', '.join(map(str, predicted_numbers[i]))}")
         print("============================================================")
+        
         
 
     
@@ -190,9 +179,6 @@ class Helpers():
         # Reshape back into the original format (rows x 7 x 50)
         one_hot_labels = one_hot_labels.reshape(numbers.shape[0], numbers.shape[1], -1)
 
-        # Combine the one-hot encoded vectors for all 7 numbers in each row
-        one_hot_labels = one_hot_labels.sum(axis=1)  # Sum across the 7 numbers per row
-
         # Prepare training and validation sets
         train_indices = [i for i in range(len(numbers)) if i % nth_row != 0]  # Indices for training data
         val_indices = [i for i in range(len(numbers)) if i % nth_row == 0]    # Indices for validation data
@@ -205,6 +191,11 @@ class Helpers():
 
         train_labels = one_hot_labels[train_indices]
         val_labels = one_hot_labels[val_indices]
+
+        print("Train data shape: ", train_data.shape)       # (samples, sequence_length) -> (n_samples, 7)
+        print("Train labels shape: ", train_labels.shape)   # (samples, sequence
+
+        #print("Train Labels Example:", train_labels[:5])  # Corresponding one-hot encoded labels
 
         # Get the maximum value in the data (for scaling purposes, if needed)
         max_value = np.max(numbers)
