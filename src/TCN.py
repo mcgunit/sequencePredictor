@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
     tcn_model.setModelPath(modelPath)
     tcn_model.setDataPath(dataPath)
-    tcn_model.setBatchSize(16)
+    tcn_model.setBatchSize(4)
     tcn_model.setEpochs(1000)
 
     predicted_numbers = tcn_model.run(data)
