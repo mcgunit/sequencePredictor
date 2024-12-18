@@ -51,12 +51,12 @@ class TCNModel:
     """
     def create_model(self, max_value, num_classes=50):
         embedding_output_dimension = 128
-        tcn_units = 128          # Number of filters in TCN layers
-        num_tcn_layers = 6      # Number of TCN layers
-        num_dense_layers = 50    # Numbers of Dense layers
-        dense_units = 512       # Number of units in dense layersW
-        dropout_rate = 0.2
-        l2_lambda = 0.001  # Set the L2 regularization factor
+        tcn_units = 256             # Number of filters in TCN layers
+        num_tcn_layers = 6          # Number of TCN layers
+        num_dense_layers = 25       # Numbers of Dense layers
+        dense_units = 512           # Number of units in dense layersW
+        dropout_rate = 0.3
+        l2_lambda = 0.001           # Set the L2 regularization factor
 
         model = models.Sequential()
 
