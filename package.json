@@ -1,0 +1,13 @@
+{
+    "name": "sequence-predictor-server",
+    "version": "1.0.0",
+    "description": "Express server for serving sequence predictor results",
+    "main": "server.js",
+    "scripts": {
+      "start": "node server.js"
+    },
+    "dependencies": {
+      "express": "^4.18.2"
+    }
+  }
+  
