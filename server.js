@@ -47,18 +47,61 @@ app.get('/database/:folder', (req, res) => {
   res.send(html);
 });
 
-// Serve JSON files directly
+// Serve JSON files with a formatted HTML layout
 app.get('/database/:folder/:file', (req, res) => {
-  const folder = req.params.folder;
-  const file = req.params.file;
-  const filePath = path.join(dataPath, folder, file);
-
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).send('File not found');
-  }
+    const folder = req.params.folder;
+    const file = req.params.file;
+    const filePath = path.join(dataPath, folder, file);
+  
+    if (fs.existsSync(filePath)) {
+      const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  
+      // Generate HTML content
+      let html = `
+        <h1>${file} Results</h1>
+        <h2>Current Prediction</h2>
+        ${generateTable(jsonData.currentPrediction, 'Current Prediction')}
+        <h2>Real Result</h2>
+        ${generateList(jsonData.realResult, 'Real Result')}
+        <h2>Matching Numbers</h2>
+        <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex}</p>
+        <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
+        <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
+        <h2>New Prediction</h2>
+        ${generateTable(jsonData.newPrediction, 'New Prediction')}
+        <a href="/database/${folder}" style="display: block; margin-top: 20px;">Back to ${folder}</a>
+      `;
+  
+      res.send(html);
+    } else {
+      res.status(404).send('File not found');
+    }
 });
+
+// Helper functions to generate HTML
+function generateTable(data, title = '') {
+    let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
+    if (title) table += `<caption><strong>${title}</strong></caption>`;
+    data.forEach((row) => {
+        table += '<tr>';
+        row.forEach((cell) => {
+            table += `<td style="padding: 5px; text-align: center;">${cell}</td>`;
+        });
+        table += '</tr>';
+    });
+    table += '</table>';
+    return table;
+}
+
+function generateList(data, title = '') {
+    let list = '<ul>';
+    if (title) list += `<h3>${title}</h3>`;
+    data.forEach((item) => {
+        list += `<li>${item}</li>`;
+    });
+    list += '</ul>';
+    return list;
+}
 
 // Router to display available PNGs
 app.get('/models', (req, res) => {
