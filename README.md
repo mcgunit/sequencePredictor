@@ -71,7 +71,7 @@ Check the __main__ section of the LSTM.py or GRU.py for pointing to data and set
 ## Run server
 
 The server is a NodeJS server with a plain simple html server side rendered front-end. No dependencies or heavy webpacks needed.
-The server will listen on 0.0.0.0 and port 30001. This can be changes in the server.js file.
+The server will listen on 0.0.0.0 and port 30001. This can be changed in the config.js file.
 
 To run the server use the command:
 

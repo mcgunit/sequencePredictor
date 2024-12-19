@@ -2,8 +2,9 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
+const config = require("./config");
+
 const app = express();
-const PORT = 3001;
 
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
@@ -43,6 +44,7 @@ app.get('/database/:folder', (req, res) => {
     html += `<li><a href="/database/${folder}/${file}" target="_blank">${file}</a></li>`;
   });
   html += '</ul><a href="/database">Back to Database</a>';
+  html += '<a href="/" style="display: block; margin-top: 10px;">Back to Home</a>';
 
   res.send(html);
 });
@@ -70,6 +72,7 @@ app.get('/database/:folder/:file', (req, res) => {
       <h2>New Prediction</h2>
       ${generateTable(jsonData.newPrediction, 'New Prediction')}
       <a href="/database/${folder}" style="display: block; margin-top: 20px;">Back to ${folder}</a>
+      <a href="/">Back to Home</a>
     `;
 
     res.send(html);
@@ -142,6 +145,7 @@ app.get('/models/:folder', (req, res) => {
     </li>`;
   });
   html += '</ul><a href="/models">Back to Models</a>';
+  html += '<a href="/" style="display: block; margin-top: 10px;">Back to Home</a>';
 
   res.send(html);
 });
@@ -191,6 +195,6 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+app.listen(config.PORT, () => {
+  console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`);
 });
