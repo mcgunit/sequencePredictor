@@ -12,6 +12,7 @@
 
 ## Installation
 
+### For Predictor (Python)
 To install, you will need to have Python 3.x and the following libraries installed:
 - numpy
 - tensorflow
@@ -38,7 +39,20 @@ For GPU enabled:
     python3 -m pip install numpy tensorflow[and-cuda] keras art pandas scikit-learn matplotlib keras-tcn
 ```
 
-## How to run
+### For server (NodeJs)
+
+Run in root of folder (where the package.json is located):
+
+```
+    npm i
+```
+
+If pm2 is needed also run:
+
+```
+    npm i pm2 -g
+```
+## How to run prediction
 
 To run the complete flow run:
 
@@ -53,6 +67,35 @@ To test model specific for example LSTM run:
 ```
 
 Check the __main__ section of the LSTM.py or GRU.py for pointing to data and set parameters for testing.
+
+## Run server
+
+The server is a NodeJS server with a plain simple html server side rendered front-end. No dependencies or heavy webpacks needed.
+The server will listen on 0.0.0.0 and port 30001. This can be changes in the server.js file.
+
+To run the server use the command:
+
+```
+    npm start
+```
+
+Pm2 can also be used. For this run:
+
+```
+    pm2 start server.js --name predictor --time --watch 
+```
+
+Then for saving this in the pm2 run list (needed for auto start):
+
+```
+    pm2 save
+```
+
+For having it with auto start at boot:
+
+```
+    pm2 startup
+```
 
 ## Testing
 
