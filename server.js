@@ -96,13 +96,15 @@ function generateTable(data, title = '', matchingNumbers = []) {
 
 
 function generateList(data, title = '') {
-  let list = '<ul>';
-  if (title) list += `<h3>${title}</h3>`;
+  let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
+  if (title) table += `<caption><strong>${title}</strong></caption>`;
+  table += '<tr>';
   data.forEach((item) => {
-      list += `<li>${item}</li>`;
+      table += `<td style="padding: 5px; text-align: center;">${item}</td>`;
   });
-  list += '</ul>';
-  return list;
+  table += '</tr>';
+  table += '</table>';
+  return table;
 }
 
 // Router to display available PNGs
@@ -144,7 +146,7 @@ app.get('/models/:folder', (req, res) => {
   res.send(html);
 });
 
-// Default route
+// Home Page
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -155,6 +157,7 @@ app.get('/', (req, res) => {
     <h2>Models</h2>
     <ul>
       <li><a href="/models">AI Models</a></li>
+      <li><a href="/database">View All Database Data</a></li>
     </ul>
     <h2>Latest Predictions</h2>
     <ul>
@@ -182,8 +185,7 @@ app.get('/', (req, res) => {
     }
   });
 
-  html += '</ul>';
-  html += '<a href="/database">View All Database Data</a>';
+  html += `</ul>`
 
   res.send(html);
 });
