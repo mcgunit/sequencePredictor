@@ -169,7 +169,10 @@ class Helpers():
         numbers[numbers == -1] = 0
 
         # Unique labels for one-hot encoding
+        # Euromillions are 50 numbers, Lotto are 45 numbers
         unique_labels = np.arange(1, 51)  # This should create an array [1, 2, ..., 50]
+        if "lotto" in dataPath:
+            unique_labels = np.arange(1, 46)  # This should create an array [1, 2, ..., 45]
 
         # One-hot encode all numbers with a fixed range (1–50)
         encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)

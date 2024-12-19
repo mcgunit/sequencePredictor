@@ -25,7 +25,7 @@ def print_intro():
 
 
 
-def predict(dataPath, modelPath, file, data, skipLastColumns=0):
+def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True):
 
     kwargs_wget = {
         "folder": dataPath,
@@ -95,10 +95,18 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
 
                 # Train and do a new prediction
                 tcn.setDataPath(dataPath)
-                tcn.setModelPath(modelPath)
-                tcn.setBatchSize(16)
-                tcn.setEpochs(1000)
-                predictedNumbers = tcn.run(data, skipLastColumns)
+                
+                if doTraining:
+                    tcn.setModelPath(modelPath)
+                    tcn.setBatchSize(4)
+                    tcn.setEpochs(1000)
+                    predictedNumbers = tcn.run(data, skipLastColumns)
+                else:
+                    model = os.path.join(modelPath, "model_euromillions.keras")
+                    if "lotto" in data:
+                        model = os.path.join(modelPath, "model_lotto.keras")
+                    predictedNumbers = tcn.doPrediction(model, skipLastColumns)
+
                 predictedSequence = predictedNumbers.tolist()
 
         
@@ -120,10 +128,18 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0):
 
                 # Train and do a new prediction
                 tcn.setDataPath(dataPath)
-                tcn.setModelPath(modelPath)
-                tcn.setBatchSize(16)
-                tcn.setEpochs(1000)
-                predictedNumbers = tcn.run(data, skipLastColumns)
+                
+                if doTraining:
+                    tcn.setModelPath(modelPath)
+                    tcn.setBatchSize(4)
+                    tcn.setEpochs(1000)
+                    predictedNumbers = tcn.run(data, skipLastColumns)
+                else:
+                    model = os.path.join(modelPath, "model_euromillions.keras")
+                    if "lotto" in data:
+                        model = os.path.join(modelPath, "model_lotto.keras")
+                    predictedNumbers = tcn.doPrediction(model, skipLastColumns)
+
                 predictedSequence = predictedNumbers.tolist()
 
         
@@ -177,6 +193,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
+    # Do also a training on the complete data
     predict(dataPath, modelPath, file, data)
 
     #################################
@@ -188,7 +205,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
-    predict(dataPath, modelPath, file, data)
+    predict(dataPath, modelPath, file, data, doTraining=False)
 
     ####################################
     #   Euromillions_hreeYears         #
@@ -199,7 +216,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(path, "data", "trainingData", data)
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
-    predict(dataPath, modelPath, file, data)
+    predict(dataPath, modelPath, file, data, doTraining=False)
     
     #####################
     #       Lotto       #
@@ -215,6 +232,7 @@ if __name__ == "__main__":
     }
 
     # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
+    # do a training on the complete data
     predict(dataPath, modelPath, file, data, skipLastColumns=1)
 
     ##############################
@@ -231,7 +249,7 @@ if __name__ == "__main__":
     }
 
     # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-    predict(dataPath, modelPath, file, data, skipLastColumns=1)
+    predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False)
     
 
     ################################
@@ -248,7 +266,7 @@ if __name__ == "__main__":
     }
 
     # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-    predict(dataPath, modelPath, file, data, skipLastColumns=1)
+    predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False)
 
     
 

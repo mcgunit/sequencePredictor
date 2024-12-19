@@ -53,7 +53,7 @@ class TCNModel:
         embedding_output_dimension = 128
         tcn_units = 256             # Number of filters in TCN layers
         num_tcn_layers = 6          # Number of TCN layers
-        num_dense_layers = 25       # Numbers of Dense layers
+        num_dense_layers = 10       # Numbers of Dense layers
         dense_units = 512           # Number of units in dense layersW
         dropout_rate = 0.3
         l2_lambda = 0.001           # Set the L2 regularization factor
@@ -91,7 +91,11 @@ class TCNModel:
                             epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         return history
 
+    
     def run(self, data='euromillions', skipLastColumns=0):
+        """
+        Train and perform a prediction
+        """
         # Load and preprocess data
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns)
 
@@ -123,6 +127,20 @@ class TCNModel:
             os.remove(checkpoint_path)
 
         return predicted_numbers
+    
+    def doPrediction(self, modelPath, skipLastColumns):
+        """
+        Do only a prediction. modelPath is the absolute path to the model
+        """
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns)
+
+        model = load_model(modelPath)
+
+        # Predict numbers
+        predicted_numbers = helpers.predict_numbers(model, numbers)
+
+        return predicted_numbers
+
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
@@ -135,7 +153,7 @@ if __name__ == "__main__":
 
     tcn_model.setModelPath(modelPath)
     tcn_model.setDataPath(dataPath)
-    tcn_model.setBatchSize(4)
+    tcn_model.setBatchSize(16)
     tcn_model.setEpochs(1000)
 
     predicted_numbers = tcn_model.run(data)

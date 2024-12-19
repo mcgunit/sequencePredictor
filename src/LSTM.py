@@ -148,6 +148,19 @@ class LSTMModel:
 
         return predicted_numbers
 
+    def doPrediction(self, modelPath, skipLastColumns):
+        """
+        Do only a prediction. modelPath is the absolute path to the model
+        """
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns)
+
+        model = load_model(modelPath)
+
+        # Predict numbers
+        predicted_numbers = helpers.predict_numbers(model, numbers)
+
+        return predicted_numbers
+
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
     lstm_model = LSTMModel()
