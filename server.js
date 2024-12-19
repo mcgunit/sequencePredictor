@@ -49,58 +49,60 @@ app.get('/database/:folder', (req, res) => {
 
 // Serve JSON files with a formatted HTML layout
 app.get('/database/:folder/:file', (req, res) => {
-    const folder = req.params.folder;
-    const file = req.params.file;
-    const filePath = path.join(dataPath, folder, file);
-  
-    if (fs.existsSync(filePath)) {
-      const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  
-      // Generate HTML content
-      let html = `
-        <h1>${file} Results</h1>
-        <h2>Current Prediction</h2>
-        ${generateTable(jsonData.currentPrediction, 'Current Prediction')}
-        <h2>Real Result</h2>
-        ${generateList(jsonData.realResult, 'Real Result')}
-        <h2>Matching Numbers</h2>
-        <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex}</p>
-        <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
-        <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
-        <h2>New Prediction</h2>
-        ${generateTable(jsonData.newPrediction, 'New Prediction')}
-        <a href="/database/${folder}" style="display: block; margin-top: 20px;">Back to ${folder}</a>
-      `;
-  
-      res.send(html);
-    } else {
-      res.status(404).send('File not found');
-    }
+  const folder = req.params.folder;
+  const file = req.params.file;
+  const filePath = path.join(dataPath, folder, file);
+
+  if (fs.existsSync(filePath)) {
+    const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    // Generate HTML content
+    let html = `
+      <h1>${file} Results</h1>
+      <h2>Current Prediction</h2>
+      ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers)}
+      <h2>Real Result</h2>
+      ${generateList(jsonData.realResult, 'Real Result')}
+      <h2>Matching Numbers</h2>
+      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex}</p>
+      <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
+      <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
+      <h2>New Prediction</h2>
+      ${generateTable(jsonData.newPrediction, 'New Prediction')}
+      <a href="/database/${folder}" style="display: block; margin-top: 20px;">Back to ${folder}</a>
+    `;
+
+    res.send(html);
+  } else {
+    res.status(404).send('File not found');
+  }
 });
 
-// Helper functions to generate HTML
-function generateTable(data, title = '') {
-    let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
-    if (title) table += `<caption><strong>${title}</strong></caption>`;
-    data.forEach((row) => {
-        table += '<tr>';
-        row.forEach((cell) => {
-            table += `<td style="padding: 5px; text-align: center;">${cell}</td>`;
-        });
-        table += '</tr>';
-    });
-    table += '</table>';
-    return table;
+// Updated generateTable function with colorization
+function generateTable(data, title = '', matchingNumbers = []) {
+  let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
+  if (title) table += `<caption><strong>${title}</strong></caption>`;
+  data.forEach((row) => {
+      table += '<tr>';
+      row.forEach((cell) => {
+          const isMatching = matchingNumbers.includes(cell); // Check if the cell value is in matchingNumbers
+          table += `<td style="padding: 5px; text-align: center; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
+      });
+      table += '</tr>';
+  });
+  table += '</table>';
+  return table;
 }
 
+
 function generateList(data, title = '') {
-    let list = '<ul>';
-    if (title) list += `<h3>${title}</h3>`;
-    data.forEach((item) => {
-        list += `<li>${item}</li>`;
-    });
-    list += '</ul>';
-    return list;
+  let list = '<ul>';
+  if (title) list += `<h3>${title}</h3>`;
+  data.forEach((item) => {
+      list += `<li>${item}</li>`;
+  });
+  list += '</ul>';
+  return list;
 }
 
 // Router to display available PNGs
@@ -133,8 +135,8 @@ app.get('/models/:folder', (req, res) => {
   files.forEach((file) => {
     html += `
     <li>
-      <p>${file}</p>
-      <img src="/models/${folder}/${file}" alt="${file}" style="max-width: 860px; margin: 10px;">
+      <h2>${file}</h2>
+      <img src="/models/${folder}/${file}" alt="${file}" style="max-width: 100%; margin: 10px;">
     </li>`;
   });
   html += '</ul><a href="/models">Back to Models</a>';
@@ -152,7 +154,7 @@ app.get('/', (req, res) => {
     <h1>Sequence Predictor Results</h1>
     <h2>Models</h2>
     <ul>
-      <li><a href="/models">Model Images</a></li>
+      <li><a href="/models">AI Models</a></li>
     </ul>
     <h2>Latest Predictions</h2>
     <ul>
@@ -173,7 +175,7 @@ app.get('/', (req, res) => {
         <li>
           <h2>${folder}</h2>
           <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
-          <p><strong>Prediction:</strong> ${JSON.stringify(jsonData.newPrediction)}</p>
+          ${generateTable(jsonData.newPrediction, 'New Prediction')}
           <a href="/database/${folder}/${latestFile}" target="_blank">View Full Details</a>
         </li>
       `;
