@@ -131,7 +131,11 @@ app.get('/models/:folder', (req, res) => {
 
   let html = `<h1>Images in ${folder}</h1><ul>`;
   files.forEach((file) => {
-    html += `<li><img src="/models/${folder}/${file}" alt="${file}" style="max-width: 300px; margin: 10px;"></li>`;
+    html += `
+    <li>
+      <p>${file}</p>
+      <img src="/models/${folder}/${file}" alt="${file}" style="max-width: 860px; margin: 10px;">
+    </li>`;
   });
   html += '</ul><a href="/models">Back to Models</a>';
 
@@ -140,13 +144,46 @@ app.get('/models/:folder', (req, res) => {
 
 // Default route
 app.get('/', (req, res) => {
-  res.send(`
+  const folders = fs.readdirSync(dataPath, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((dir) => dir.name);
+
+  let html = `
     <h1>Sequence Predictor Results</h1>
+    <h2>Models</h2>
     <ul>
-      <li><a href="/database">Database Data</a></li>
       <li><a href="/models">Model Images</a></li>
     </ul>
-  `);
+    <h2>Latest Predictions</h2>
+    <ul>
+  `;
+  
+  folders.forEach((folder) => {
+    const folderPath = path.join(dataPath, folder);
+    const files = fs.readdirSync(folderPath)
+      .filter((file) => file.endsWith('.json'))
+      .sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
+
+    if (files.length > 0) {
+      const latestFile = files[0];
+      const latestFilePath = path.join(folderPath, latestFile);
+      const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
+
+      html += `
+        <li>
+          <h2>${folder}</h2>
+          <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
+          <p><strong>Prediction:</strong> ${JSON.stringify(jsonData.newPrediction)}</p>
+          <a href="/database/${folder}/${latestFile}" target="_blank">View Full Details</a>
+        </li>
+      `;
+    }
+  });
+
+  html += '</ul>';
+  html += '<a href="/database">View All Database Data</a>';
+
+  res.send(html);
 });
 
 // Start the server
