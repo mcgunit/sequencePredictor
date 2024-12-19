@@ -98,7 +98,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
                 
                 if doTraining:
                     tcn.setModelPath(modelPath)
-                    tcn.setBatchSize(4)
+                    tcn.setBatchSize(16)
                     tcn.setEpochs(1000)
                     predictedNumbers = tcn.run(data, skipLastColumns)
                 else:
@@ -131,7 +131,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
                 
                 if doTraining:
                     tcn.setModelPath(modelPath)
-                    tcn.setBatchSize(4)
+                    tcn.setBatchSize(16)
                     tcn.setEpochs(1000)
                     predictedNumbers = tcn.run(data, skipLastColumns)
                 else:
