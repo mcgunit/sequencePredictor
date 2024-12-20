@@ -227,19 +227,30 @@ app.get('/', (req, res) => {
     .map((dir) => dir.name);
 
   let html = `
-    <h1>Sequence Predictor Results</h1>
-    <h2>Models</h2>
-    <ul>
-      <li><a href="/models">AI Models</a></li>
-      <li><a href="/database">View All Database Data</a></li>
-    </ul>
-    <h2>Latest Predictions</h2>
-    <h4>Legend: 
-      <span style="background-color: orange; padding: 0 5px; color: black; margin-left: 10px;">&nbsp;</span> 
-      <span>Most occurring numbers</span>
-    </h4>
-    <ul>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Sequence Predictor Results</title>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    </head>
+    <body>
+      <h1>Sequence Predictor Results</h1>
+      <h2>Models</h2>
+      <ul>
+        <li><a href="/models">AI Models</a></li>
+        <li><a href="/database">View All Database Data</a></li>
+      </ul>
+      <h2>Legend: 
+        <span style="background-color: orange; padding: 0 5px; color: black; margin-left: 10px;">&nbsp;</span> 
+        <span>Most occurring numbers</span>
+      </h2>
+      <h2>Latest Predictions</h2>
+      <ul>
   `;
+
+  const allFrequentNumbers = { lotto: [], euromillions: [] };
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
@@ -256,7 +267,7 @@ app.get('/', (req, res) => {
       const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
       const numCount = type === 'euromillions' ? 7 : 6;
 
-      // Calculate most occurring numbers
+      // Calculate most occurring numbers per prediction
       const allNumbers = files.flatMap(file => {
         const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
         return data.newPrediction.flat();
@@ -272,6 +283,11 @@ app.get('/', (req, res) => {
         .slice(0, numCount)
         .map(([num]) => parseInt(num, 10)); // Convert to integers
 
+      // Aggregate for final calculation
+      if (type !== 'generic') {
+        allFrequentNumbers[type].push(...mostFrequentNumbers);
+      }
+
       html += `
         <li>
           <h2>${folder}</h2>
@@ -284,7 +300,46 @@ app.get('/', (req, res) => {
     }
   });
 
-  html += `</ul>`;
+  // Calculate final most frequent numbers
+  const finalFrequentNumbers = Object.entries(allFrequentNumbers).reduce((acc, [type, numbers]) => {
+    const numCount = type === 'euromillions' ? 7 : 6;
+    const frequencyMap = numbers.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    acc[type] = Object.entries(frequencyMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, numCount)
+      .map(([num]) => parseInt(num, 10));
+
+    return acc;
+  }, {});
+
+  // Display final most frequent numbers
+  html += `
+    <h2>Combined Most Frequent Numbers</h2>
+    <p><strong>EuroMillions:</strong> ${finalFrequentNumbers.euromillions.join(', ')}</p>
+    <p><strong>Lotto:</strong> ${finalFrequentNumbers.lotto.join(', ')}</p>
+  `;
+
+  // Print button
+  html += `
+      </ul>
+      <button id="saveAsPng" style="margin-top: 20px;">Save as PNG</button>
+      <script>
+        document.getElementById('saveAsPng').addEventListener('click', () => {
+          html2canvas(document.body).then((canvas) => {
+            const link = document.createElement('a');
+            link.download = 'home_page.png';
+            link.href = canvas.toDataURL();
+            link.click();
+          });
+        });
+      </script>
+    </body>
+    </html>
+  `;
 
   res.send(html);
 });
