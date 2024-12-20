@@ -30,13 +30,13 @@ Using the requirements file:
 
 For CPU only: 
 ```
-    python3 -m pip install numpy tensorflow keras art pandas scikit-learn matplotlib keras-tcn
+    python3 -m pip install numpy tensorflow==2.13 keras art pandas scikit-learn matplotlib keras-tcn
 ```
 
 For GPU enabled:
 
 ```
-    python3 -m pip install numpy tensorflow[and-cuda] keras art pandas scikit-learn matplotlib keras-tcn
+    python3 -m pip install numpy tensorflow[and-cuda]==2.13 keras art pandas scikit-learn matplotlib keras-tcn
 ```
 
 ### For server (NodeJs)
