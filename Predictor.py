@@ -5,10 +5,12 @@ from art import text2art
 from datetime import datetime
 
 from src.TCN import TCNModel
+from src.LSTM import LSTMModel
 from src.Command import Command
 from src.Helpers import Helpers
 
 tcn = TCNModel()
+lstm = LSTMModel()
 command = Command()
 helpers = Helpers()
 
@@ -26,6 +28,11 @@ def print_intro():
 
 
 def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True):
+
+    modelToUse = tcn
+    if "lotto" in data:
+        modelToUse = lstm
+    modelToUse.setDataPath(dataPath)
 
     kwargs_wget = {
         "folder": dataPath,
@@ -94,18 +101,16 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
                 print("matching_numbers: ", matching_numbers_array)
 
                 # Train and do a new prediction
-                tcn.setDataPath(dataPath)
-                
                 if doTraining:
-                    tcn.setModelPath(modelPath)
-                    tcn.setBatchSize(16)
-                    tcn.setEpochs(1000)
-                    predictedNumbers = tcn.run(data, skipLastColumns)
+                    modelToUse.setModelPath(modelPath)
+                    modelToUse.setBatchSize(16)
+                    modelToUse.setEpochs(1000)
+                    predictedNumbers = modelToUse.run(data, skipLastColumns)
                 else:
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    predictedNumbers = tcn.doPrediction(model, skipLastColumns)
+                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns)
 
                 predictedSequence = predictedNumbers.tolist()
 
@@ -127,18 +132,18 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
                 }
 
                 # Train and do a new prediction
-                tcn.setDataPath(dataPath)
+                modelToUse.setDataPath(dataPath)
                 
                 if doTraining:
-                    tcn.setModelPath(modelPath)
-                    tcn.setBatchSize(16)
-                    tcn.setEpochs(1000)
-                    predictedNumbers = tcn.run(data, skipLastColumns)
+                    modelToUse.setModelPath(modelPath)
+                    modelToUse.setBatchSize(16)
+                    modelToUse.setEpochs(1000)
+                    predictedNumbers = modelToUse.run(data, skipLastColumns)
                 else:
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    predictedNumbers = tcn.doPrediction(model, skipLastColumns)
+                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns)
 
                 predictedSequence = predictedNumbers.tolist()
 
@@ -180,14 +185,13 @@ if __name__ == "__main__":
     print("Current Year:", current_year)
 
     path = os.getcwd()
-    modelPath = os.path.join(path, "data", "models", "tcn_model")
-
-
+   
 
     #####################
     #   Euromillions    #
     #####################
     print("Euromillions")
+    modelPath = os.path.join(path, "data", "models", "tcn_model")
     # First get latest data
     data = 'euromillions'
     dataPath = os.path.join(path, "data", "trainingData", data)
@@ -222,6 +226,7 @@ if __name__ == "__main__":
     #       Lotto       #
     #####################
     print("Lotto")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
     # First get latest data
     data = 'lotto'
     dataPath = os.path.join(path, "data", "trainingData", data)
