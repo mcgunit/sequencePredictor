@@ -179,6 +179,8 @@ if __name__ == "__main__":
 
     predicted_numbers = lstm_model.run(data)
 
+    print("Top six numbers: ", helpers.mostFrequentNumbers(predicted_numbers, numbers=6))
+
     helpers.print_predicted_numbers(predicted_numbers)
 
     # Opening JSON file

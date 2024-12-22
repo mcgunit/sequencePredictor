@@ -3,9 +3,8 @@ import numpy as np
 
 from dateutil.parser import parse
 from datetime import datetime
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import OneHotEncoder
+from collections import Counter
 
 
 class Helpers():
@@ -87,7 +86,7 @@ class Helpers():
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
         raw_predictions = model.predict(input_data)
-        #print("Raw Predictions Shape:", raw_predictions.shape)
+        print("Raw Predictions Shape:", raw_predictions.shape)
         #print("Raw Predictions (First Sample):", raw_predictions[0])
         #print("Raw Predictions (Second Sample):", raw_predictions[1])
 
@@ -256,6 +255,21 @@ class Helpers():
                     myfile.write("{}\n".format(predictionFObject["newPrediction"]))
                     myfile.write("\n")
                     myfile.write("\n")
+
+    def mostFrequentNumbers(self, array, numbers=7):
+        # Flatten the 2D array into a 1D array
+        flat_array = array.flatten()
+        
+        # Count the occurrences of each number
+        counts = Counter(flat_array)
+        
+        # Get the 6 most common numbers
+        most_common = counts.most_common(numbers)
+        
+        # Extract the numbers from the most_common list
+        top_numbers = [num for num, _ in most_common]
+        
+        return np.array(top_numbers)
 
             
             
