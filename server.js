@@ -10,119 +10,6 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-// Serve static files
-app.use('/models', express.static(modelsPath)); // Serves PNGs from models directory
-
-// Router to handle database data
-app.get('/database', (req, res) => {
-  const folders = fs.readdirSync(dataPath, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((dir) => dir.name);
-
-  let html = '<h1>Available Database Folders</h1><ul>';
-  folders.forEach((folder) => {
-    html += `<li><a href="/database/${folder}">${folder}</a></li>`;
-  });
-  html += '</ul><a href="/">Back to Home</a>';
-
-  res.send(html);
-});
-
-// Router to list JSON files in database subfolders
-app.get('/database/:folder', (req, res) => {
-  const folder = req.params.folder;
-  const folderPath = path.join(dataPath, folder);
-
-  if (!fs.existsSync(folderPath)) {
-    return res.status(404).send('Folder not found');
-  }
-
-  const files = fs.readdirSync(folderPath)
-    .filter((file) => file.endsWith('.json'))
-    .sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', ''))); // Sort files by date
-
-  let html = `<h1>JSON Files in ${folder}</h1><ul>`;
-  files.forEach((file) => {
-    html += `<li><a href="/database/${folder}/${file}">${file}</a></li>`;
-  });
-  html += '</ul><a href="/database">Back to Database</a>';
-  html += '<a href="/" style="display: block; margin-top: 10px;">Back to Home</a>';
-
-  res.send(html);
-});
-
-// Serve JSON files with a formatted HTML layout
-app.get('/database/:folder/:file', (req, res) => {
-  const folder = req.params.folder;
-  const file = req.params.file;
-  const filePath = path.join(dataPath, folder, file);
-
-  if (fs.existsSync(filePath)) {
-    const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-
-    // Determine the type based on the folder name
-    const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
-
-    // Calculate most frequent numbers in the folder
-    const folderPath = path.join(dataPath, folder);
-    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.json'));
-
-    const allNumbers = files.flatMap((f) => {
-      const fileData = JSON.parse(fs.readFileSync(path.join(folderPath, f), 'utf-8'));
-      return fileData.newPrediction.flat();
-    });
-
-    const frequencyMap = allNumbers.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
-
-    const mostFrequentNumbers = Object.entries(frequencyMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, type === 'euromillions' ? 7 : 6)
-      .map(([num]) => parseInt(num, 10));
-
-    // Calculate most frequent numbers in the current prediction
-    const currentPredictionNumbers = jsonData.currentPrediction.flat();
-    const currentFrequencyMap = currentPredictionNumbers.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
-
-    const mostFrequentCurrentNumbers = Object.entries(currentFrequencyMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, type === 'euromillions' ? 7 : 6)
-      .map(([num]) => parseInt(num, 10));
-
-    // Generate HTML content
-    let html = `
-      <h1>${file} Results</h1>
-      <h2>Current Prediction</h2>
-      ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers, type)}
-      <h3>Most Frequent Numbers in Current Prediction</h3>
-      ${generateList(mostFrequentCurrentNumbers, 'Most Frequent Numbers (Current Prediction)')}
-      <h2>Real Result</h2>
-      ${generateList(jsonData.realResult, 'Real Result')}
-      <h2>Matching Numbers</h2>
-      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex+1}</p>
-      <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
-      <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
-      <h2>New Prediction</h2>
-      ${generateTable(jsonData.newPrediction, 'New Prediction', [], type)}
-      <h3>Most Frequent Numbers in ${folder}</h3>
-      ${generateList(mostFrequentNumbers, 'Most Frequent Numbers (New Prediction)')}
-      <a href="/database/${folder}" style="display: block; margin-top: 20px;">Back to ${folder}</a>
-      <a href="/">Back to Home</a>
-    `;
-
-    res.send(html);
-  } else {
-    res.status(404).send('File not found');
-  }
-});
-
-
-
 function generateTable(data, title = '', matchingNumbers = [], type = 'euromillions') {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
@@ -216,6 +103,116 @@ function generateList(data, title = '') {
   return table;
 }
 
+// Serve static files
+app.use('/models', express.static(modelsPath)); // Serves PNGs from models directory
+// Router to handle database data
+app.get('/database', (req, res) => {
+  const folders = fs.readdirSync(dataPath, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((dir) => dir.name);
+
+  let html = '<h1>Available Database Folders</h1><ul>';
+  folders.forEach((folder) => {
+    html += `<li><form action="/database/${folder}" method="get"><button type="submit">${folder}</button></form></li>`;
+  });
+  html += '</ul><form action="/" method="get"><button type="submit">Back to Home</button></form>';
+
+  res.send(html);
+});
+
+// Router to list JSON files in database subfolders
+app.get('/database/:folder', (req, res) => {
+  const folder = req.params.folder;
+  const folderPath = path.join(dataPath, folder);
+
+  if (!fs.existsSync(folderPath)) {
+    return res.status(404).send('Folder not found');
+  }
+
+  const files = fs.readdirSync(folderPath)
+    .filter((file) => file.endsWith('.json'))
+    .sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', ''))); // Sort files by date
+
+  let html = `<h1>JSON Files in ${folder}</h1><ul>`;
+  files.forEach((file) => {
+    html += `<li><form action="/database/${folder}/${file}" method="get"><button type="submit">${file}</button></form></li>`;
+  });
+  html += '<form action="/database" method="get"><button type="submit">Back to Database</button></form>';
+  html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
+
+  res.send(html);
+});
+
+// Serve JSON files with a formatted HTML layout
+app.get('/database/:folder/:file', (req, res) => {
+  const folder = req.params.folder;
+  const file = req.params.file;
+  const filePath = path.join(dataPath, folder, file);
+
+  if (fs.existsSync(filePath)) {
+    const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    // Determine the type based on the folder name
+    const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
+
+    // Calculate most frequent numbers in the folder
+    const folderPath = path.join(dataPath, folder);
+    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.json'));
+
+    const allNumbers = files.flatMap((f) => {
+      const fileData = JSON.parse(fs.readFileSync(path.join(folderPath, f), 'utf-8'));
+      return fileData.newPrediction.flat();
+    });
+
+    const frequencyMap = allNumbers.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    const mostFrequentNumbers = Object.entries(frequencyMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, type === 'euromillions' ? 7 : 6)
+      .map(([num]) => parseInt(num, 10));
+
+    // Calculate most frequent numbers in the current prediction
+    const currentPredictionNumbers = jsonData.currentPrediction.flat();
+    const currentFrequencyMap = currentPredictionNumbers.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    const mostFrequentCurrentNumbers = Object.entries(currentFrequencyMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, type === 'euromillions' ? 7 : 6)
+      .map(([num]) => parseInt(num, 10));
+
+    // Generate HTML content
+    let html = `
+      <h1>${file} Results</h1>
+      <h2>Current Prediction</h2>
+      ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers, type)}
+      <h3>Most Frequent Numbers in Current Prediction</h3>
+      ${generateList(mostFrequentCurrentNumbers, 'Most Frequent Numbers (Current Prediction)')}
+      <h2>Real Result</h2>
+      ${generateList(jsonData.realResult, 'Real Result')}
+      <h2>Matching Numbers</h2>
+      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex+1}</p>
+      <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
+      <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
+      <h2>New Prediction</h2>
+      ${generateTable(jsonData.newPrediction, 'New Prediction', [], type)}
+      <h3>Most Frequent Numbers in ${folder}</h3>
+      ${generateList(mostFrequentNumbers, 'Most Frequent Numbers (New Prediction)')}
+      <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
+      <form action="/" method="get"><button type="submit">Back to Home</button></form>
+    `;
+
+    res.send(html);
+  } else {
+    res.status(404).send('File not found');
+  }
+});
+
 // Router to display available PNGs
 app.get('/models', (req, res) => {
   const folders = fs.readdirSync(modelsPath, { withFileTypes: true })
@@ -224,9 +221,9 @@ app.get('/models', (req, res) => {
 
   let html = '<h1>Available Models</h1><ul>';
   folders.forEach((folder) => {
-    html += `<li><a href="/models/${folder}">${folder}</a></li>`;
+    html += `<li><form action="/models/${folder}" method="get"><button type="submit">${folder}</button></form></li>`;
   });
-  html += '</ul><a href="/">Back to Home</a>';
+  html += '</ul><form action="/" method="get"><button type="submit">Back to Home</button></form>';
 
   res.send(html);
 });
@@ -250,8 +247,8 @@ app.get('/models/:folder', (req, res) => {
       <img src="/models/${folder}/${file}" alt="${file}" style="max-width: 100%; margin: 10px;">
     </li>`;
   });
-  html += '</ul><a href="/models">Back to Models</a>';
-  html += '<a href="/" style="display: block; margin-top: 10px;">Back to Home</a>';
+  html += '</ul><form action="/models" method="get"><button type="submit">Back to Models</button></form>';
+  html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
 
   res.send(html);
 });
@@ -275,8 +272,8 @@ app.get('/', (req, res) => {
       <h1>Sequence Predictor Results</h1>
       <h2>Models</h2>
       <ul>
-        <li><a href="/models">AI Models</a></li>
-        <li><a href="/database">View All Database Data</a></li>
+        <li><form action="/models" method="get"><button type="submit">AI Models</button></form></li>
+        <li><form action="/database" method="get"><button type="submit">View All Database Data</button></form></li>
       </ul>
       <h2>Legend: 
         <span style="background-color: orange; padding: 0 5px; color: black; margin-left: 10px;">&nbsp;</span> 
@@ -330,7 +327,7 @@ app.get('/', (req, res) => {
           <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
           ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', mostFrequentNumbers, type)}
           <p><strong>Most Occurring Numbers:</strong> ${mostFrequentNumbers.join(', ')}</p>
-          <a href="/database/${folder}/${latestFile}">View Full Details</a>
+          <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
         </li>
       `;
     }
