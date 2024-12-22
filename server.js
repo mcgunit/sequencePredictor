@@ -63,19 +63,54 @@ app.get('/database/:folder/:file', (req, res) => {
     // Determine the type based on the folder name
     const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
 
+    // Calculate most frequent numbers in the folder
+    const folderPath = path.join(dataPath, folder);
+    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.json'));
+
+    const allNumbers = files.flatMap((f) => {
+      const fileData = JSON.parse(fs.readFileSync(path.join(folderPath, f), 'utf-8'));
+      return fileData.newPrediction.flat();
+    });
+
+    const frequencyMap = allNumbers.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    const mostFrequentNumbers = Object.entries(frequencyMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, type === 'euromillions' ? 7 : 6)
+      .map(([num]) => parseInt(num, 10));
+
+    // Calculate most frequent numbers in the current prediction
+    const currentPredictionNumbers = jsonData.currentPrediction.flat();
+    const currentFrequencyMap = currentPredictionNumbers.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    const mostFrequentCurrentNumbers = Object.entries(currentFrequencyMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, type === 'euromillions' ? 7 : 6)
+      .map(([num]) => parseInt(num, 10));
+
     // Generate HTML content
     let html = `
       <h1>${file} Results</h1>
       <h2>Current Prediction</h2>
       ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers, type)}
+      <h3>Most Frequent Numbers in Current Prediction</h3>
+      ${generateList(mostFrequentCurrentNumbers, 'Most Frequent Numbers (Current Prediction)')}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
       <h2>Matching Numbers</h2>
-      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex}</p>
+      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex+1}</p>
       <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
       <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
       <h2>New Prediction</h2>
       ${generateTable(jsonData.newPrediction, 'New Prediction', [], type)}
+      <h3>Most Frequent Numbers in ${folder}</h3>
+      ${generateList(mostFrequentNumbers, 'Most Frequent Numbers (New Prediction)')}
       <a href="/database/${folder}" style="display: block; margin-top: 20px;">Back to ${folder}</a>
       <a href="/">Back to Home</a>
     `;
@@ -85,6 +120,7 @@ app.get('/database/:folder/:file', (req, res) => {
     res.status(404).send('File not found');
   }
 });
+
 
 
 function generateTable(data, title = '', matchingNumbers = [], type = 'euromillions') {
@@ -105,19 +141,19 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
 
   // Add header row with column names
   table += '<tr>';
-  table += `<th style="padding: 5px; text-align: center; font-weight: bold;">#</th>`; // Index column header
+  table += `<th style="padding: 5px; text-align: center; font-weight: bold; width: 100px; max-width: 10px;">#</th>`; // Index column header
   headers.forEach((header) => {
-      table += `<th style="padding: 5px; text-align: center; font-weight: bold;">${header}</th>`;
+      table += `<th style="padding: 5px; text-align: center; width: 100px; min-width: 100px; font-weight: bold;">${header}</th>`;
   });
   table += '</tr>';
 
   // Add rows with data and index
   data.forEach((row, rowIndex) => {
       table += '<tr>';
-      table += `<td style="padding: 5px; text-align: center; font-weight: bold;">${rowIndex + 1}</td>`; // Row index
+      table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
       row.forEach((cell) => {
           const isMatching = matchingNumbers.includes(cell); // Check if the cell value is in matchingNumbers
-          table += `<td style="padding: 5px; text-align: center; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
+          table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
       });
       table += '</tr>';
   });
@@ -145,16 +181,16 @@ function generateTableWithMostFrequentNumbers(data, title = '', mostFrequentNumb
 
   // Add header row with column names
   table += '<tr>';
-  table += `<th style="padding: 5px; text-align: center; font-weight: bold;">#</th>`; // Index column header
+  table += `<th style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">#</th>`; // Index column header
   headers.forEach((header) => {
-    table += `<th style="padding: 5px; text-align: center; font-weight: bold;">${header}</th>`;
+    table += `<th style="padding: 5px; text-align: center; width: 100px; min-width: 100px; font-weight: bold;">${header}</th>`;
   });
   table += '</tr>';
 
   // Add rows with data and index
   data.forEach((row, rowIndex) => {
     table += '<tr>';
-    table += `<td style="padding: 5px; text-align: center; font-weight: bold;">${rowIndex + 1}</td>`; // Row index
+    table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
     row.forEach((cell) => {
       const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
       table += `<td style="padding: 5px; text-align: center; ${
@@ -173,7 +209,7 @@ function generateList(data, title = '') {
   if (title) table += `<caption><strong>${title}</strong></caption>`;
   table += '<tr>';
   data.forEach((item) => {
-      table += `<td style="padding: 5px; text-align: center;">${item}</td>`;
+    table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px;">${item}</td>`;
   });
   table += '</tr>';
   table += '</table>';
