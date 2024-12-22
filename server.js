@@ -350,11 +350,13 @@ app.get('/', (req, res) => {
   }, {});
 
   // Display final most frequent numbers
+  /*
   html += `
     <h2>Combined Most Frequent Numbers</h2>
     <p><strong>EuroMillions:</strong> ${finalFrequentNumbers.euromillions.join(', ')}</p>
     <p><strong>Lotto:</strong> ${finalFrequentNumbers.lotto.join(', ')}</p>
   `;
+  */
 
   // Print button
   html += `
