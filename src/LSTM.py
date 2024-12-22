@@ -61,13 +61,15 @@ class LSTMModel:
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
     def create_model(self, max_value, num_classes=50):
-        num_lstm_layers = 10
-        num_dense_layers = 10
+        num_lstm_layers = 1
+        num_dense_layers = 1
         num_bidirectional_layers = 1
-        embedding_output_dimension = 128
-        lstm_units = 512
-        bidirectional_lstm_units = 512
-        dense_units = 256
+        embedding_output_dimension = 64
+        lstm_units = 128
+        bidirectional_lstm_units = 128
+        dense_units = 128
+        dropout = 0.3
+        l2Regularization = 0.001
 
         model = models.Sequential()
 
@@ -80,27 +82,27 @@ class LSTMModel:
 
         # LSTM+GRU layers
         for _ in range(num_lstm_layers):
-            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
-            model.add(layers.GRU(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
-            model.add(layers.Dropout(0.2))
+            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+            model.add(layers.GRU(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+            model.add(layers.Dropout(dropout))
 
-        model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001)))
-        model.add(layers.Dropout(0.2))
-
+        model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+        model.add(layers.Dropout(dropout))
+        
         for _ in range(num_bidirectional_layers):
-            model.add(layers.Bidirectional(layers.LSTM(bidirectional_lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(0.001))))
-            model.add(layers.Dropout(0.2))
-
+            model.add(layers.Bidirectional(layers.LSTM(bidirectional_lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization))))
+            model.add(layers.Dropout(dropout))
+        
         for _ in range(num_dense_layers):
             # Dense layer to process sequence outputs
             model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu')))
-            model.add(layers.Dropout(0.2))
+            model.add(layers.Dropout(dropout))
 
         # Output layer
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
 
         # Compile the model
-        model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0005), metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.005), metrics=['accuracy'])
 
         return model
 
@@ -180,7 +182,7 @@ if __name__ == "__main__":
     helpers.print_predicted_numbers(predicted_numbers)
 
     # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_${0}.json".format(data))
+    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 
