@@ -63,7 +63,7 @@ class LSTMModel:
     def create_model(self, max_value, num_classes=50):
         num_lstm_layers = 1
         num_dense_layers = 1
-        num_bidirectional_layers = 1
+        num_bidirectional_layers = 2
         embedding_output_dimension = 64
         lstm_units = 128
         bidirectional_lstm_units = 128
