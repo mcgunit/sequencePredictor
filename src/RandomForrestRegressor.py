@@ -19,11 +19,11 @@ while i < 10:
 
     # Generate a new set of random features for prediction
     new_data = pd.DataFrame({
-        "Nummer 1": [randint(1, 70) for _ in range(100)],
-        "Nummer 2": [randint(1, 70) for _ in range(100)],
-        "Nummer 3": [randint(1, 70) for _ in range(100)],
-        "Nummer 4": [randint(1, 70) for _ in range(100)],
-        "Nummer 5": [randint(1, 70) for _ in range(100)],
+        "Nummer 1": [randint(1, 50) for _ in range(100)],
+        "Nummer 2": [randint(1, 50) for _ in range(100)],
+        "Nummer 3": [randint(1, 50) for _ in range(100)],
+        "Nummer 4": [randint(1, 50) for _ in range(100)],
+        "Nummer 5": [randint(1, 50) for _ in range(100)],
         "Ster 1": [randint(1, 25) for _ in range(100)],
         "Ster 2": [randint(1, 25) for _ in range(100)]
     })
