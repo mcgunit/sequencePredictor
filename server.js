@@ -79,10 +79,14 @@ function generateTableWithMostFrequentNumbers(data, title = '', mostFrequentNumb
     table += '<tr>';
     table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
     row.forEach((cell) => {
+      /*
       const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
       table += `<td style="padding: 5px; text-align: center; ${
         isMostFrequent ? 'background-color: orange; color: black;' : ''
       }">${cell}</td>`;
+      */
+      const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
+      table += `<td style="padding: 5px; text-align: center;">${cell}</td>`;
     });
     table += '</tr>';
   });
@@ -275,11 +279,7 @@ app.get('/', (req, res) => {
         <li><form action="/models" method="get"><button type="submit">AI Models</button></form></li>
         <li><form action="/database" method="get"><button type="submit">View All Database Data</button></form></li>
       </ul>
-      <h2>Legend: 
-        <span style="background-color: orange; padding: 0 5px; color: black; margin-left: 10px;">&nbsp;</span> 
-        <span>Most occurring numbers</span>
-      </h2>
-      <h2>Latest Predictions</h2>
+      <h2>Predictions For Next Drawing</h2>
       <ul>
   `;
 
@@ -324,7 +324,6 @@ app.get('/', (req, res) => {
       html += `
         <li>
           <h2>${folder}</h2>
-          <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
           ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', mostFrequentNumbers, type)}
           <p><strong>Most Occurring Numbers:</strong> ${mostFrequentNumbers.join(', ')}</p>
           <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
