@@ -107,6 +107,72 @@ function generateList(data, title = '') {
   return table;
 }
 
+function calculateMostFrequentNumber(numbers, type) {
+  let mostFrequentMain = [];
+  let mostFrequentStars = [];
+  let mostFrequentNumbers = [];
+
+  const allFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
+
+  if (type === 'euromillions') {
+    const allNumbersMain = [];
+    const allNumbersStars = [];
+
+
+    if (Array.isArray(numbers)) {
+      numbers.forEach((row) => {
+        allNumbersMain.push(...row.slice(0, 5)); // First 5 numbers
+        allNumbersStars.push(...row.slice(5)); // Last 2 stars
+      });
+    }
+   
+
+    const frequencyMain = allNumbersMain.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    const frequencyStars = allNumbersStars.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    mostFrequentMain = Object.entries(frequencyMain)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([num]) => parseInt(num, 10)); // Get unique numbers
+
+    mostFrequentStars = Object.entries(frequencyStars)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 2)
+      .map(([num]) => parseInt(num, 10)); // Get unique numbers
+
+    //console.log("Most Frequent Main: ", mostFrequentMain);
+    //console.log("Most Frequent Stars: ", mostFrequentStars);
+
+    allFrequentNumbers.euromillions.main.push(...mostFrequentMain);
+    allFrequentNumbers.euromillions.stars.push(...mostFrequentStars);
+  } else if (type === 'lotto') {
+    const allNumbers = numbers;
+
+    const frequencyMap = allNumbers.reduce((map, num) => {
+      map[num] = (map[num] || 0) + 1;
+      return map;
+    }, {});
+
+    mostFrequentNumbers = Object.entries(frequencyMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 6)
+      .map(([num]) => parseInt(num, 10)); // Get unique numbers
+
+    allFrequentNumbers.lotto.push(...mostFrequentNumbers);
+  }
+
+  return allFrequentNumbers;
+
+}
+
+
 // Serve static files
 app.use('/models', express.static(modelsPath)); // Serves PNGs from models directory
 // Router to handle database data
@@ -159,36 +225,17 @@ app.get('/database/:folder/:file', (req, res) => {
     // Determine the type based on the folder name
     const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
 
-    // Calculate most frequent numbers in the folder
-    const folderPath = path.join(dataPath, folder);
-    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.json'));
+    let allNewFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
 
-    const allNumbers = files.flatMap((f) => {
-      const fileData = JSON.parse(fs.readFileSync(path.join(folderPath, f), 'utf-8'));
-      return fileData.newPrediction.flat();
-    });
+    allNewFrequentNumbers = calculateMostFrequentNumber(jsonData.newPrediction, type);
 
-    const frequencyMap = allNumbers.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
+    let mostFrequentNumbers = (type === 'euromillions' ? [...allNewFrequentNumbers.euromillions.main, ...allNewFrequentNumbers.euromillions.stars] : allNewFrequentNumbers.lotto);
 
-    const mostFrequentNumbers = Object.entries(frequencyMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, type === 'euromillions' ? 7 : 6)
-      .map(([num]) => parseInt(num, 10));
+    let allCurrentFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
 
-    // Calculate most frequent numbers in the current prediction
-    const currentPredictionNumbers = jsonData.currentPrediction.flat();
-    const currentFrequencyMap = currentPredictionNumbers.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
+    allCurrentFrequentNumbers = calculateMostFrequentNumber(jsonData.currentPrediction, type);
 
-    const mostFrequentCurrentNumbers = Object.entries(currentFrequencyMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, type === 'euromillions' ? 7 : 6)
-      .map(([num]) => parseInt(num, 10));
+    let mostFrequentCurrentNumbers = (type === 'euromillions' ? [...allCurrentFrequentNumbers.euromillions.main, ...allCurrentFrequentNumbers.euromillions.stars] : allCurrentFrequentNumbers.lotto);
 
     // Generate HTML content
     let html = `
@@ -283,7 +330,7 @@ app.get('/', (req, res) => {
       <ul>
   `;
 
-  const allFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
+  let allFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
@@ -298,73 +345,16 @@ app.get('/', (req, res) => {
 
       const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
 
-      let mostFrequentMain = [];
-      let mostFrequentStars = [];
-      let mostFrequentNumbers = [];
+      allFrequentNumbers = calculateMostFrequentNumber(jsonData.newPrediction, type);
 
-      if (type === 'euromillions') {
-        const allNumbersMain = [];
-        const allNumbersStars = [];
-
-        files.forEach((file) => {
-          const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
-          if (Array.isArray(data.newPrediction)) {
-            data.newPrediction.forEach((row) => {
-              allNumbersMain.push(...row.slice(0, 5)); // First 5 numbers
-              allNumbersStars.push(...row.slice(5)); // Last 2 stars
-            });
-          }
-        });
-
-        const frequencyMain = allNumbersMain.reduce((map, num) => {
-          map[num] = (map[num] || 0) + 1;
-          return map;
-        }, {});
-
-        const frequencyStars = allNumbersStars.reduce((map, num) => {
-          map[num] = (map[num] || 0) + 1;
-          return map;
-        }, {});
-
-        mostFrequentMain = Object.entries(frequencyMain)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .map(([num]) => parseInt(num, 10)); // Get unique numbers
-
-        mostFrequentStars = Object.entries(frequencyStars)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 2)
-          .map(([num]) => parseInt(num, 10)); // Get unique numbers
-
-        //console.log("Most Frequent Main: ", mostFrequentMain);
-        //console.log("Most Frequent Stars: ", mostFrequentStars);
-
-        allFrequentNumbers.euromillions.main.push(...mostFrequentMain);
-        allFrequentNumbers.euromillions.stars.push(...mostFrequentStars);
-      } else if (type === 'lotto') {
-        const allNumbers = files.flatMap(file => {
-          const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
-          return Array.isArray(data.newPrediction) ? data.newPrediction.flat() : [];
-        });
-
-        const frequencyMap = allNumbers.reduce((map, num) => {
-          map[num] = (map[num] || 0) + 1;
-          return map;
-        }, {});
-
-        mostFrequentNumbers = Object.entries(frequencyMap)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 6)
-          .map(([num]) => parseInt(num, 10)); // Get unique numbers
-
-        allFrequentNumbers.lotto.push(...mostFrequentNumbers);
-      }
+      //console.log("All Frequent Numbers: ", allFrequentNumbers);
+     
 
       html += `
         <li>
           <h2>${folder}</h2>
-          ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...mostFrequentMain, ...mostFrequentStars] : mostFrequentNumbers, type)}
-          <p><strong>Most Occurring Numbers:</strong> ${type === 'euromillions' ? `Main: ${mostFrequentMain.join(', ')} | Stars: ${mostFrequentStars.join(', ')}` : mostFrequentNumbers.join(', ')}</p>
+          ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...allFrequentNumbers.euromillions.main, ...allFrequentNumbers.euromillions.stars] : allFrequentNumbers.lotto, type)}
+          <p><strong>Most Occurring Numbers:</strong> ${type === 'euromillions' ? `Main: ${allFrequentNumbers.euromillions.main.join(', ')} | Stars: ${allFrequentNumbers.euromillions.stars.join(', ')}` : allFrequentNumbers.lotto.join(', ')}</p>
           <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
         </li>
       `;
