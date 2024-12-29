@@ -363,7 +363,6 @@ app.get('/', (req, res) => {
       html += `
         <li>
           <h2>${folder}</h2>
-          <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
           ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...mostFrequentMain, ...mostFrequentStars] : mostFrequentNumbers, type)}
           <p><strong>Most Occurring Numbers:</strong> ${type === 'euromillions' ? `Main: ${mostFrequentMain.join(', ')} | Stars: ${mostFrequentStars.join(', ')}` : mostFrequentNumbers.join(', ')}</p>
           <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
