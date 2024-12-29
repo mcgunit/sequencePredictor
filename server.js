@@ -292,83 +292,82 @@ app.get('/', (req, res) => {
       .sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
 
     if (files.length > 0) {
-        const latestFile = files[0];
-        const latestFilePath = path.join(folderPath, latestFile);
-        const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
+      const latestFile = files[0];
+      const latestFilePath = path.join(folderPath, latestFile);
+      const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
 
-        const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
+      const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
 
-        let mostFrequentMain = [];
-        let mostFrequentStars = [];
-        let mostFrequentNumbers = [];
+      let mostFrequentMain = [];
+      let mostFrequentStars = [];
+      let mostFrequentNumbers = [];
 
-        if (type === 'euromillions') {
-          const allNumbersMain = [];
-          const allNumbersStars = [];
+      if (type === 'euromillions') {
+        const allNumbersMain = [];
+        const allNumbersStars = [];
 
-          files.forEach((file) => {
-            const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
-            if (Array.isArray(data.newPrediction)) {
-              data.newPrediction.forEach((row) => {
-                allNumbersMain.push(...row.slice(0, 5)); // First 5 numbers
-                allNumbersStars.push(...row.slice(5)); // Last 2 stars
-              });
-            }
-          });
+        files.forEach((file) => {
+          const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
+          if (Array.isArray(data.newPrediction)) {
+            data.newPrediction.forEach((row) => {
+              allNumbersMain.push(...row.slice(0, 5)); // First 5 numbers
+              allNumbersStars.push(...row.slice(5)); // Last 2 stars
+            });
+          }
+        });
 
-          const frequencyMain = Array.isArray(allNumbersMain) ? allNumbersMain.reduce((map, num) => {
-            map[num] = (map[num] || 0) + 1;
-            return map;
-          }, {}) : {};
+        const frequencyMain = allNumbersMain.reduce((map, num) => {
+          map[num] = (map[num] || 0) + 1;
+          return map;
+        }, {});
 
-          const frequencyStars = Array.isArray(allNumbersStars) ? allNumbersStars.reduce((map, num) => {
-            map[num] = (map[num] || 0) + 1;
-            return map;
-          }, {}) : {};
+        const frequencyStars = allNumbersStars.reduce((map, num) => {
+          map[num] = (map[num] || 0) + 1;
+          return map;
+        }, {});
 
+        mostFrequentMain = Object.entries(frequencyMain)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 5)
+          .map(([num]) => parseInt(num, 10)); // Get unique numbers
 
-          mostFrequentMain = Object.entries(frequencyMain)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 5)
-            .map(([num]) => parseInt(frequencyMain[num], 10));
+        mostFrequentStars = Object.entries(frequencyStars)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 2)
+          .map(([num]) => parseInt(num, 10)); // Get unique numbers
 
-          mostFrequentStars = Object.entries(frequencyStars)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 2)
-            .map(([num]) => parseInt(frequencyStars[num], 10));
+        //console.log("Most Frequent Main: ", mostFrequentMain);
+        //console.log("Most Frequent Stars: ", mostFrequentStars);
 
-          console.log("Most Frequent Main: ", mostFrequentMain);
-          console.log("Most Frequent Stars: ", mostFrequentStars);
-
-          allFrequentNumbers.euromillions.main.push(...mostFrequentMain);
-          allFrequentNumbers.euromillions.stars.push(...mostFrequentStars);
+        allFrequentNumbers.euromillions.main.push(...mostFrequentMain);
+        allFrequentNumbers.euromillions.stars.push(...mostFrequentStars);
       } else if (type === 'lotto') {
-          const allNumbers = files.flatMap(file => {
-            const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
-            return Array.isArray(data.newPrediction) ? data.newPrediction.flat() : [];
-          });
+        const allNumbers = files.flatMap(file => {
+          const data = JSON.parse(fs.readFileSync(path.join(folderPath, file), 'utf-8'));
+          return Array.isArray(data.newPrediction) ? data.newPrediction.flat() : [];
+        });
 
-          const frequencyMap = Array.isArray(allNumbers) ? allNumbers.reduce((map, num) => {
-            map[num] = (map[num] || 0) + 1;
-            return map;
-          }, {}) : {};
+        const frequencyMap = allNumbers.reduce((map, num) => {
+          map[num] = (map[num] || 0) + 1;
+          return map;
+        }, {});
 
-          mostFrequentNumbers = Object.entries(frequencyMap)
-            .sort(([, a], [, b]) => b - a)
-            .slice(0, 6)
-            .map(([num]) => parseInt(num, 10));
+        mostFrequentNumbers = Object.entries(frequencyMap)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 6)
+          .map(([num]) => parseInt(num, 10)); // Get unique numbers
 
-          allFrequentNumbers.lotto.push(...mostFrequentNumbers);
+        allFrequentNumbers.lotto.push(...mostFrequentNumbers);
       }
 
       html += `
-          <li>
-              <h2>${folder}</h2>
-              <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
-              ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...mostFrequentMain, ...mostFrequentStars] : mostFrequentNumbers, type)}
-              <p><strong>Most Occurring Numbers:</strong> ${type === 'euromillions' ? `Main: ${mostFrequentMain.join(', ')} | Stars: ${mostFrequentStars.join(', ')}` : mostFrequentNumbers.join(', ')}</p>
-              <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
-          </li>
+        <li>
+          <h2>${folder}</h2>
+          <p><strong>Date:</strong> ${latestFile.replace('.json', '')}</p>
+          ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...mostFrequentMain, ...mostFrequentStars] : mostFrequentNumbers, type)}
+          <p><strong>Most Occurring Numbers:</strong> ${type === 'euromillions' ? `Main: ${mostFrequentMain.join(', ')} | Stars: ${mostFrequentStars.join(', ')}` : mostFrequentNumbers.join(', ')}</p>
+          <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
+        </li>
       `;
     }
   });
