@@ -116,7 +116,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
 
         
                 # Save the current prediction as newPrediction
-                current_json_object["newPrediction"] = predictedSequence[:10]
+                current_json_object["newPrediction"] = predictedSequence
 
                 with open(jsonFilePath, "w+") as outfile:
                     json.dump(current_json_object, outfile)

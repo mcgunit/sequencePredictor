@@ -36,6 +36,7 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
 
   // Add rows with data and index
   data.forEach((row, rowIndex) => {
+    if(rowIndex <= 9) {
       table += '<tr>';
       table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
       row.forEach((cell) => {
@@ -43,6 +44,7 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
           table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
       });
       table += '</tr>';
+    }
   });
 
   table += '</table>';
@@ -76,35 +78,41 @@ function generateTableWithMostFrequentNumbers(data, title = '', mostFrequentNumb
 
   // Add rows with data and index
   data.forEach((row, rowIndex) => {
-    table += '<tr>';
-    table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
-    row.forEach((cell) => {
-      /*
-      const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
-      table += `<td style="padding: 5px; text-align: center; ${
-        isMostFrequent ? 'background-color: orange; color: black;' : ''
-      }">${cell}</td>`;
-      */
-      const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
-      table += `<td style="padding: 5px; text-align: center;">${cell}</td>`;
-    });
-    table += '</tr>';
+    // Only show 10 rows
+    if(rowIndex <= 9) {
+      table += '<tr>';
+      table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
+      row.forEach((cell) => {
+        /*
+        const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
+        table += `<td style="padding: 5px; text-align: center; ${
+          isMostFrequent ? 'background-color: orange; color: black;' : ''
+        }">${cell}</td>`;
+        */
+        const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
+        table += `<td style="padding: 5px; text-align: center;">${cell}</td>`;
+      });
+      table += '</tr>';
+    }
   });
 
   table += '</table>';
+
   return table;
 }
 
 function generateList(data, title = '') {
-  let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
-  if (title) table += `<caption><strong>${title}</strong></caption>`;
-  table += '<tr>';
-  data.forEach((item) => {
-    table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px;">${item}</td>`;
-  });
-  table += '</tr>';
-  table += '</table>';
-  return table;
+  if(Array.isArray(data) && data.length > 0) {
+    let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
+    if (title) table += `<caption><strong>${title}</strong></caption>`;
+    table += '<tr>';
+    data.forEach((item) => {
+      table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px;">${item}</td>`;
+    });
+    table += '</tr>';
+    table += '</table>';
+    return table;
+  }
 }
 
 function calculateMostFrequentNumber(numbers, type) {
