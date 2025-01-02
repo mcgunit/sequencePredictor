@@ -136,7 +136,7 @@ class Helpers():
                     if skipLastColumns > 0:
                         csvData = csvData[:, :-skipLastColumns]
 
-                    print("csv data: ", csvData)
+                    #print("csv data: ", csvData)
 
                     # Append each entry to the data list
                     for entry in csvData:
@@ -165,7 +165,7 @@ class Helpers():
         # Sort the data by date
         data.sort(key=lambda x: x[0])  # Sort by the date (first element of the tuple)
 
-        print("Data: ", data)
+        #print("Data: ", data)
 
         # Convert the sorted data into a NumPy array
         sorted_data = np.array(data)
