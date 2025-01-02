@@ -115,9 +115,9 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         return history
 
-    def run(self, data='euromillions', skipLastColumns=0):
+    def run(self, data='euromillions', skipLastColumns=0, maxRows=0):
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
         num_features = train_data.shape[1]
 
@@ -150,11 +150,11 @@ class LSTMModel:
 
         return predicted_numbers
 
-    def doPrediction(self, modelPath, skipLastColumns):
+    def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
         Do only a prediction. modelPath is the absolute path to the model
         """
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
         model = load_model(modelPath)
 
