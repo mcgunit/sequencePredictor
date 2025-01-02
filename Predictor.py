@@ -179,8 +179,8 @@ if __name__ == "__main__":
     current_datetime = datetime.now()
 
     # Access the year attribute to get the current year
-    #current_year = current_datetime.year
-    current_year = 2024
+    current_year = current_datetime.year
+    #current_year = 2024
 
 
     # Print the result
