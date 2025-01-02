@@ -110,7 +110,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows)
+                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
 
@@ -143,7 +143,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows)
+                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
 
@@ -179,8 +179,8 @@ if __name__ == "__main__":
     current_datetime = datetime.now()
 
     # Access the year attribute to get the current year
-    current_year = current_datetime.year
-    #current_year = 2024
+    #current_year = current_datetime.year
+    current_year = 2024
 
 
     # Print the result
@@ -296,6 +296,42 @@ if __name__ == "__main__":
 
     # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
     predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False)
+
+    ################################
+    #       Lotto ten shot         #
+    ################################
+    print("Lotto ten shot")
+    # First get latest data
+    data = 'lotto_tenShot'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "lotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
+    predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False, maxRows=10)
+
+    ################################
+    #       Lotto one shot         #
+    ################################
+    print("Lotto one shot")
+    # First get latest data
+    data = 'lotto_oneShot'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "lotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
+    predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False, maxRows=2)
+
+
+    
+
 
     
 
