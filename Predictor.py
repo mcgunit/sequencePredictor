@@ -27,7 +27,7 @@ def print_intro():
 
 
 
-def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True):
+def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True, maxRows=0):
 
     modelToUse = tcn
     if "lotto" in data:
@@ -43,8 +43,8 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
     if os.path.exists(os.path.join(dataPath, file)):
         os.remove(os.path.join(dataPath, file))
     command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
-    
 
+    
     # Get the latest result out of the latest data so we can use it to check the previous prediction
     latestEntry, previousEntry = helpers.getLatestPrediction(os.path.join(dataPath, file))
     if latestEntry is not None and previousEntry is not None:
@@ -110,7 +110,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns)
+                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
 
@@ -143,7 +143,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True)
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns)
+                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
 
@@ -180,6 +180,8 @@ if __name__ == "__main__":
 
     # Access the year attribute to get the current year
     current_year = current_datetime.year
+    #current_year = 2024
+
 
     # Print the result
     print("Current Year:", current_year)
@@ -212,7 +214,7 @@ if __name__ == "__main__":
     predict(dataPath, modelPath, file, data, doTraining=False)
 
     ####################################
-    #   Euromillions_hreeYears         #
+    #   Euromillions_threeYears         #
     ####################################
     print("Euromillions current + last two years")
     # First get latest data
@@ -221,6 +223,28 @@ if __name__ == "__main__":
     file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
     
     predict(dataPath, modelPath, file, data, doTraining=False)
+
+    ####################################
+    #   Euromillions_One_Shot          #
+    ####################################
+    print("Euromillions One Shot")
+    # First get latest data
+    data = 'euromillions_oneShot'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
+    
+    predict(dataPath, modelPath, file, data, doTraining=False, maxRows=1)
+
+    ####################################
+    #   Euromillions_Ten_Shot          #
+    ####################################
+    print("Euromillions Ten Shot")
+    # First get latest data
+    data = 'euromillions_tenShot'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
+    
+    predict(dataPath, modelPath, file, data, doTraining=False, maxRows=10)
     
     #####################
     #       Lotto       #

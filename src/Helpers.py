@@ -1,4 +1,4 @@
-import os, json
+import os, json, collections
 import numpy as np
 
 from dateutil.parser import parse
@@ -110,11 +110,7 @@ class Helpers():
         print("============================================================")
         
         
-
-    
-    
-
-    def load_data(self, dataPath, skipLastColumns=0, nth_row=5):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0):
         # Initialize an empty list to hold the data
         data = []
 
@@ -125,7 +121,17 @@ class Helpers():
                     file_path = os.path.join(dataPath, csvFile)
 
                     # Load data from the file
-                    csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+                    if maxRows > 0:
+                        csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1, max_rows=maxRows)
+                    else:
+                        csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+
+                
+                    if not isinstance(csvData[0], (list, np.ndarray)):
+                        print("Need to reform loaded csv data")
+                        csvData = [csvData.tolist()]
+                        
+                    #print("csv data: ", csvData)
 
                     # Skip last number of columns by slicing (if required)
                     if skipLastColumns > 0:
@@ -135,6 +141,7 @@ class Helpers():
                     for entry in csvData:
                         # Attempt to parse the date
                         date_str = entry[0]
+                        #print("Date: ", date_str)
                         try:
                             # Use dateutil.parser to parse the date
                             date = parse(date_str)
@@ -156,6 +163,8 @@ class Helpers():
 
         # Sort the data by date
         data.sort(key=lambda x: x[0])  # Sort by the date (first element of the tuple)
+
+        #print("Data: ", data)
 
         # Convert the sorted data into a NumPy array
         sorted_data = np.array(data)
@@ -209,6 +218,9 @@ class Helpers():
         max_value = np.max(numbers)
 
         return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes
+
+
+
 
 
     
