@@ -147,7 +147,7 @@ class TCNModel:
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    data = 'euromillions'
+    data = 'eurodreams'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     helpers.print_predicted_numbers(predicted_numbers)
 
     # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_euromillions.json")
+    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 

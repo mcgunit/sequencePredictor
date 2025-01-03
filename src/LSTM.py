@@ -63,7 +63,7 @@ class LSTMModel:
     def create_model(self, max_value, num_classes=50):
         num_lstm_layers = 1
         num_dense_layers = 1
-        num_bidirectional_layers = 2
+        num_bidirectional_layers = 1
         embedding_output_dimension = 64
         lstm_units = 128
         bidirectional_lstm_units = 128
@@ -167,7 +167,7 @@ class LSTMModel:
 if __name__ == "__main__":
     lstm_model = LSTMModel()
 
-    data = 'lotto'
+    data = 'eurodreams'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")

@@ -330,10 +330,38 @@ if __name__ == "__main__":
     predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False, maxRows=2)
 
 
-    
+    #####################
+    #     euroDreams    #
+    #####################
+    print("euroDreams")
+    modelPath = os.path.join(path, "data", "models", "tcn_model")
+    # First get latest data
+    data = 'eurodreams'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
 
+    predict(dataPath, modelPath, file, data, skipLastColumns=1)
 
+    ##############################
+    #     euroDreams One shot    #
+    ##############################
+    print("euroDreams")
+    modelPath = os.path.join(path, "data", "models", "tcn_model")
+    # First get latest data
+    data = 'eurodreams'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
     
+    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=1)
+
 
     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     
