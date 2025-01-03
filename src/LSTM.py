@@ -163,7 +163,7 @@ class LSTMModel:
 if __name__ == "__main__":
     lstm_model = LSTMModel()
 
-    data = 'keno'
+    data = 'vikinglotto'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
