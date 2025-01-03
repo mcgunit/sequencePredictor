@@ -30,7 +30,7 @@ def print_intro():
 def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True, maxRows=0):
 
     modelToUse = tcn
-    if "lotto" in data:
+    if "lotto" in data or "eurodreams" in data:
         modelToUse = lstm
     modelToUse.setDataPath(dataPath)
 
@@ -110,6 +110,8 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
+                    if "eurodreams" in data:
+                        model = os.path.join(modelPath, "model_eurodreams.keras")
                     predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
@@ -143,6 +145,8 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
+                    if "eurodreams" in data:
+                        model = os.path.join(modelPath, "model_eurodreams.keras")
                     predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
@@ -334,7 +338,7 @@ if __name__ == "__main__":
     #     euroDreams    #
     #####################
     print("euroDreams")
-    modelPath = os.path.join(path, "data", "models", "tcn_model")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
     # First get latest data
     data = 'eurodreams'
     dataPath = os.path.join(path, "data", "trainingData", data)
@@ -344,13 +348,13 @@ if __name__ == "__main__":
         "file": file
     }
 
-    predict(dataPath, modelPath, file, data, skipLastColumns=1)
+    predict(dataPath, modelPath, file, data, skipLastColumns=0)
 
     ##############################
     #     euroDreams One shot    #
     ##############################
-    print("euroDreams")
-    modelPath = os.path.join(path, "data", "models", "tcn_model")
+    print("euroDreams One Shot")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
     # First get latest data
     data = 'eurodreams'
     dataPath = os.path.join(path, "data", "trainingData", data)
@@ -360,7 +364,135 @@ if __name__ == "__main__":
         "file": file
     }
     
-    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=1)
+    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+
+    #####################
+    #     joker plus    #
+    #####################
+    print("Joker Plus")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'jokerplus'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "jokerplus-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, modelPath, file, data, skipLastColumns=0)
+
+    ##############################
+    #     joker plus One shot    #
+    ##############################
+    print("Joker Plus One Shot")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'jokerplus'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "jokerplus-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+    
+    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+
+    #####################
+    #        keno       #
+    #####################
+    print("Keno")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'keno'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "keno-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, modelPath, file, data, skipLastColumns=0)
+
+    ##############################
+    #       keno One shot        #
+    ##############################
+    print("Keno Plus One Shot")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'keno'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "keno-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+    
+    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+
+    #####################
+    #        Pick3      #
+    #####################
+    print("Pick3")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'pick3'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "pick3-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, modelPath, file, data, skipLastColumns=0)
+
+    ##############################
+    #       Pick3 One shot       #
+    ##############################
+    print("Pick3 Plus One Shot")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'pick3'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "pick3-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+    
+    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+
+    #####################
+    #    Viking Lotto   #
+    #####################
+    print("Viking Lotto")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'vikinglotto'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+
+    predict(dataPath, modelPath, file, data, skipLastColumns=0)
+
+    ##############################
+    #    Viking Lotto One shot   #
+    ##############################
+    print("Viking Lotto Plus One Shot")
+    modelPath = os.path.join(path, "data", "models", "lstm_model")
+    # First get latest data
+    data = 'vikinglotto'
+    dataPath = os.path.join(path, "data", "trainingData", data)
+    file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
+    kwargs_wget = {
+        "folder": dataPath,
+        "file": file
+    }
+    
+    predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
 
 
     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))

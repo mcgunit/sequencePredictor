@@ -64,21 +64,17 @@ class LSTMModel:
         num_lstm_layers = 1
         num_dense_layers = 1
         num_bidirectional_layers = 1
-        embedding_output_dimension = 64
-        lstm_units = 128
-        bidirectional_lstm_units = 128
-        dense_units = 128
-        dropout = 0.3
-        l2Regularization = 0.001
+        embedding_output_dimension = 16
+        lstm_units = 16
+        bidirectional_lstm_units = 16
+        dense_units = 16
+        dropout = 0.2
+        l2Regularization = 0.0001
 
         model = models.Sequential()
 
         # Embedding layer
         model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension))
-
-        # 1D Convolutional layer
-        #model.add(layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same', input_shape=(None, embedding_output_dimension)))
-        #model.add(layers.MaxPooling1D(pool_size=2))
 
         # LSTM+GRU layers
         for _ in range(num_lstm_layers):
@@ -108,7 +104,7 @@ class LSTMModel:
 
     def train_model(self, model, train_data, train_labels, val_data, val_labels, model_name):
         early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=5)
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
@@ -179,7 +175,7 @@ if __name__ == "__main__":
 
     predicted_numbers = lstm_model.run(data)
 
-    print("Top six numbers: ", helpers.mostFrequentNumbers(predicted_numbers, numbers=6))
+    print("Top six numbers: ", helpers.mostFrequentNumbers(predicted_numbers))
 
     helpers.print_predicted_numbers(predicted_numbers)
 
