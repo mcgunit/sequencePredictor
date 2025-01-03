@@ -182,18 +182,39 @@ class Helpers():
         unique_labels = np.arange(1, 51)  # This should create an array [1, 2, ..., 50]
         if "lotto" in dataPath:
             unique_labels = np.arange(1, 46)  # This should create an array [1, 2, ..., 45]
+        if "keno" in dataPath:
+            unique_labels = np.arange(1, 81)  # This should create an array [1, 2, ..., 80]
+        if "vikinglotto" in dataPath:
+            unique_labels = np.arange(1, 49)  # This should create an array [1, 2, ..., 49]
+        if "pick3" in dataPath:
+            unique_labels = np.arange(0, 10)  # This should create an array [0, 2, ..., 9]
+        if "jokerplus" in dataPath:
+            unique_labels = np.arange(0, 10).tolist()
+            unique_labels.append("Boogschutter")
+            unique_labels.append("Kreeft")
+            unique_labels.append("Weegschaal")
+            unique_labels.append("Schorpioen")
+            unique_labels.append("Stier")
+            unique_labels.append("Leeuw")
+            unique_labels.append("Maagd")
+            unique_labels.append("Ram")
+            unique_labels.append("Waterman")
+            unique_labels.append("Vissen")
+            unique_labels.append("Steenbok")
+            unique_labels.append("Tweeling")
 
-        # One-hot encode all numbers with a fixed range (1–50)
+
+
+
         encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
 
         # Reshape numbers array to a single column for encoding, then reshape back
         one_hot_labels = encoder.fit_transform(numbers.flatten().reshape(-1, 1))
 
-        # Reshape back into the original format (rows x 7 x 50)
         one_hot_labels = one_hot_labels.reshape(numbers.shape[0], numbers.shape[1], -1)
 
         # Number of classes (the unique labels we have after one-hot encoding)
-        num_classes = one_hot_labels.shape[2]  # Should now be 50
+        num_classes = one_hot_labels.shape[2] 
 
         print("Num classes: ", num_classes)
 
@@ -233,7 +254,7 @@ class Helpers():
             os.remove(latestPredictionFile)
 
         for folder in os.listdir(path):
-            print(folder)
+            #print(folder)
             folder_path = os.path.join(path, folder)
             # Get all JSON files in the folder
             files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
