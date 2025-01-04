@@ -47,7 +47,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
     
     # Get the latest result out of the latest data so we can use it to check the previous prediction
     latestEntry, previousEntry = helpers.getLatestPrediction(os.path.join(dataPath, file))
-    if latestEntry is not None and previousEntry is not None:
+    if latestEntry is not None:
         latestDate, latestResult = latestEntry
 
         
@@ -70,70 +70,76 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                 "matchingNumbers": {}
             }
 
+            doNewPrediction = True
+
             # First find the json file containing the prediction for this result
-            previousDate, previousResult = previousEntry
-            jsonPreviousFileName = f"{previousDate.year}-{previousDate.month}-{previousDate.day}.json"
-            print(jsonPreviousFileName, ":", latestResult)
-            jsonPreviousFilePath = os.path.join(path, "data", "database", data, jsonPreviousFileName)
-            print(jsonPreviousFilePath)
-            if os.path.exists(jsonPreviousFilePath):
-                print("previous json file found lets compare")
-                # Opening JSON file
-                with open(jsonPreviousFilePath, 'r') as openfile:
+            if previousEntry is not None:
+                previousDate, previousResult = previousEntry
+                jsonPreviousFileName = f"{previousDate.year}-{previousDate.month}-{previousDate.day}.json"
+                print(jsonPreviousFileName, ":", latestResult)
+                jsonPreviousFilePath = os.path.join(path, "data", "database", data, jsonPreviousFileName)
+                print(jsonPreviousFilePath)
+                if os.path.exists(jsonPreviousFilePath):
+                    doNewPrediction = False
+                    print("previous json file found lets compare")
+                    # Opening JSON file
+                    with open(jsonPreviousFilePath, 'r') as openfile:
+                    
+                        # Reading from json file
+                        previous_json_object = json.load(openfile)
+                    
+                    #print(previous_json_object)
+                    #print(type(previous_json_object))
+
+                    # The current prediction is the new prediction from the previous one
+                    current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+
+                    # Check the matching numbers
+                    best_match_index, best_match_sequence, matching_numbers_array = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"])
+                    current_json_object["matchingNumbers"] = {
+                        "bestMatchIndex": best_match_index,
+                        "bestMatchSequence": best_match_sequence,
+                        "matchingNumbers": matching_numbers_array
+                    }
+
+                    print("matching_numbers: ", matching_numbers_array)
+
+                    # Train and do a new prediction
+                    if doTraining:
+                        modelToUse.setModelPath(modelPath)
+                        modelToUse.setBatchSize(16)
+                        modelToUse.setEpochs(1000)
+                        predictedNumbers = modelToUse.run(data, skipLastColumns)
+                    else:
+                        model = os.path.join(modelPath, "model_euromillions.keras")
+                        if "lotto" in data and not "vikinglotto" in data:
+                            model = os.path.join(modelPath, "model_lotto.keras")
+                        if "eurodreams" in data:
+                            model = os.path.join(modelPath, "model_eurodreams.keras")
+                        if "jokerplus" in data:
+                            model = os.path.join(modelPath, "model_jokerplus.keras")
+                        if "keno" in data:
+                            model = os.path.join(modelPath, "model_keno.keras")
+                        if "pick3" in data:
+                            model = os.path.join(modelPath, "model_pick3.keras")
+                        if "vikinglotto" in data:
+                            model = os.path.join(modelPath, "model_vikinglotto.keras")
+                        predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+
+                    predictedSequence = predictedNumbers.tolist()
+
+            
+                    # Save the current prediction as newPrediction
+                    current_json_object["newPrediction"] = predictedSequence
+
+                    with open(jsonFilePath, "w+") as outfile:
+                        json.dump(current_json_object, outfile)
+
+                    return predictedSequence
                 
-                    # Reading from json file
-                    previous_json_object = json.load(openfile)
-                
-                #print(previous_json_object)
-                #print(type(previous_json_object))
-
-                # The current prediction is the new prediction from the previous one
-                current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
-
-                # Check the matching numbers
-                best_match_index, best_match_sequence, matching_numbers_array = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"])
-                current_json_object["matchingNumbers"] = {
-                    "bestMatchIndex": best_match_index,
-                    "bestMatchSequence": best_match_sequence,
-                    "matchingNumbers": matching_numbers_array
-                }
-
-                print("matching_numbers: ", matching_numbers_array)
-
-                # Train and do a new prediction
-                if doTraining:
-                    modelToUse.setModelPath(modelPath)
-                    modelToUse.setBatchSize(16)
-                    modelToUse.setEpochs(1000)
-                    predictedNumbers = modelToUse.run(data, skipLastColumns)
-                else:
-                    model = os.path.join(modelPath, "model_euromillions.keras")
-                    if "lotto" in data:
-                        model = os.path.join(modelPath, "model_lotto.keras")
-                    if "eurodreams" in data:
-                        model = os.path.join(modelPath, "model_eurodreams.keras")
-                    if "jokerplus" in data:
-                        model = os.path.join(modelPath, "model_jokerplus.keras")
-                    if "keno" in data:
-                        model = os.path.join(modelPath, "model_keno.keras")
-                    if "pick3" in data:
-                        model = os.path.join(modelPath, "model_pick3.keras")
-                    if "vikinglotto" in data:
-                        model = os.path.join(modelPath, "model_vikinglotto.keras")
-                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
-
-                predictedSequence = predictedNumbers.tolist()
-
-        
-                # Save the current prediction as newPrediction
-                current_json_object["newPrediction"] = predictedSequence
-
-                with open(jsonFilePath, "w+") as outfile:
-                    json.dump(current_json_object, outfile)
-
-                return predictedSequence
-            else:
+            if doNewPrediction:
                 print("No previous prediction file found, Cannot compare. Creating from scratch")
+                
                 current_json_object = {
                     "currentPrediction": [],
                     "realResult": [],
@@ -151,7 +157,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                     predictedNumbers = modelToUse.run(data, skipLastColumns)
                 else:
                     model = os.path.join(modelPath, "model_euromillions.keras")
-                    if "lotto" in data:
+                    if "lotto" in data and not "vikinglotto" in data:
                         model = os.path.join(modelPath, "model_lotto.keras")
                     if "eurodreams" in data:
                         model = os.path.join(modelPath, "model_eurodreams.keras")

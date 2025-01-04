@@ -20,6 +20,12 @@ class Helpers():
             
             # Load data from the file
             csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+
+            if not isinstance(csvData[0], (list, np.ndarray)):
+                print("Need to reform loaded latest prediction data")
+                csvData = [csvData.tolist()]
+
+            print("CSV DATA: ", csvData)
             
             # Append each entry to the data list
             for entry in csvData:
@@ -46,11 +52,18 @@ class Helpers():
 
         # If data is not empty, find the most recent entry
         if data:
-            # Sort data by date (the first element of the tuple)
-            data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
-            previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
-            latest_entry = data[0]  # Get the most recent entry
-            return (latest_entry, previous_entry)  # Return the most recent entry
+            if len(data) == 1:
+                # Sort data by date (the first element of the tuple)
+                data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+                previous_entry = None
+                latest_entry = data[0]  # Get the most recent entry
+                return (latest_entry, previous_entry)  # Return the most recent entry
+            else:
+                # Sort data by date (the first element of the tuple)
+                data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+                previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
+                latest_entry = data[0]  # Get the most recent entry
+                return (latest_entry, previous_entry)  # Return the most recent entry
         else:
             print("No data found.")
             return None  # Return None if no data was found
