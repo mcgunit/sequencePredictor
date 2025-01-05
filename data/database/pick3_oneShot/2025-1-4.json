@@ -1,1 +1,1 @@
-{"currentPrediction": [[2, 1, 7], [7, 5, 7], [4, 10, 1], [4, 3, 6]], "realResult": [6, 2, 7], "newPrediction": [[2, 1, 7], [7, 5, 7], [4, 3, 6], [7, 3, 8]], "matchingNumbers": {"bestMatchIndex": 0, "bestMatchSequence": [2, 1, 7], "matchingNumbers": [2, 7]}}
+{"currentPrediction": [[2, 1, 7], [7, 5, 7], [4, 10, 1], [4, 3, 6]], "realResult": [6, 2, 7], "newPrediction": [[7, 5, 7], [7, 3, 8]], "matchingNumbers": {"bestMatchIndex": 0, "bestMatchSequence": [2, 1, 7], "matchingNumbers": [2, 7]}}

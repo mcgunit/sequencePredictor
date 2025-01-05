@@ -25,7 +25,7 @@ class Helpers():
                 print("Need to reform loaded latest prediction data")
                 csvData = [csvData.tolist()]
 
-            print("CSV DATA: ", csvData)
+            #print("CSV DATA: ", csvData)
             
             # Append each entry to the data list
             for entry in csvData:
@@ -217,8 +217,6 @@ class Helpers():
             unique_labels.append("Tweeling")
 
 
-
-
         encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
 
         # Reshape numbers array to a single column for encoding, then reshape back
@@ -251,6 +249,8 @@ class Helpers():
 
         # Get the maximum value in the data (for scaling purposes, if needed)
         max_value = np.max(numbers)
+
+        print("Length of data: ", len(numbers))
 
         return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes
 

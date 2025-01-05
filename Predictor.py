@@ -270,7 +270,7 @@ if __name__ == "__main__":
         dataPath = os.path.join(path, "data", "trainingData", data)
         file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
         
-        predict(dataPath, modelPath, file, data, doTraining=False, maxRows=10)
+        predict(dataPath, modelPath, file, data, doTraining=False, maxRows=9)
     except Exception as e:
         print("Failed to predict Euromillions", e)
 
@@ -340,7 +340,7 @@ if __name__ == "__main__":
         }
 
         # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False, maxRows=10)
+        predict(dataPath, modelPath, file, data, skipLastColumns=1, doTraining=False, maxRows=8)
 
         ################################
         #       Lotto one shot         #
@@ -463,7 +463,7 @@ if __name__ == "__main__":
             "file": file
         }
         
-        predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+        predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=1)
     except Exception as e:
         print("Failed to predict Keno", e)
 
@@ -499,7 +499,7 @@ if __name__ == "__main__":
             "file": file
         }
         
-        predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+        predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=1)
     except Exception as e:
         print("Failed to predict Pick3", e)
 
@@ -535,7 +535,7 @@ if __name__ == "__main__":
             "file": file
         }
         
-        predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=2)
+        predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=False, maxRows=1)
     except Exception as e:
         print("Failed to predict Viking Lotto", e)
 
