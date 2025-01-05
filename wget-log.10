@@ -1,0 +1,11 @@
+--2025-01-04 17:31:19--  https://prdlnboppreportsst.blob.core.windows.net/legal-reports/eurodreams-gamedata-NL-2025.csv
+Resolving prdlnboppreportsst.blob.core.windows.net (prdlnboppreportsst.blob.core.windows.net)... 20.60.223.4
+Connecting to prdlnboppreportsst.blob.core.windows.net (prdlnboppreportsst.blob.core.windows.net)|20.60.223.4|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 107 [text/plain]
+Saving to: '/root/sequencePredictor/data/trainingData/eurodreams/eurodreams-gamedata-NL-2025.csv'
+
+     0K                                                       100% 3.74M=0s
+
+2025-01-04 17:31:20 (3.74 MB/s) - '/root/sequencePredictor/data/trainingData/eurodreams/eurodreams-gamedata-NL-2025.csv' saved [107/107]
+

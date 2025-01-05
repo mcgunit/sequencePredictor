@@ -1,0 +1,11 @@
+--2025-01-04 19:31:26--  https://prdlnboppreportsst.blob.core.windows.net/legal-reports/pick3-gamedata-NL-2025.csv
+Resolving prdlnboppreportsst.blob.core.windows.net (prdlnboppreportsst.blob.core.windows.net)... 20.60.223.4
+Connecting to prdlnboppreportsst.blob.core.windows.net (prdlnboppreportsst.blob.core.windows.net)|20.60.223.4|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 91 [text/plain]
+Saving to: '/root/sequencePredictor/data/trainingData/pick3/pick3-gamedata-NL-2025.csv'
+
+     0K                                                       100%  209M=0s
+
+2025-01-04 19:31:26 (209 MB/s) - '/root/sequencePredictor/data/trainingData/pick3/pick3-gamedata-NL-2025.csv' saved [91/91]
+

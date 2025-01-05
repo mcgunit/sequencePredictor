@@ -1,0 +1,1 @@
+{"currentPrediction": [[2, 1, 7]], "realResult": [3, 2, 5], "newPrediction": [[2, 1, 7], [7, 5, 7], [4, 10, 1], [4, 3, 6]], "matchingNumbers": {"bestMatchIndex": 0, "bestMatchSequence": [2, 1, 7], "matchingNumbers": [2]}}
