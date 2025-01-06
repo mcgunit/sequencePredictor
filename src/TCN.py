@@ -133,7 +133,7 @@ class TCNModel:
         Do only a prediction. modelPath is the absolute path to the model
         """
 
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows)
+        numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
         model = load_model(modelPath)
 
@@ -147,19 +147,27 @@ class TCNModel:
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    data = 'eurodreams'
+    data = 'pick3_oneShot'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
 
-    tcn_model.setModelPath(modelPath)
+    
     tcn_model.setDataPath(dataPath)
     tcn_model.setBatchSize(16)
     tcn_model.setEpochs(1000)
 
-    predicted_numbers = tcn_model.run(data)
+    # When training is needed
+    #tcn_model.setModelPath(modelPath)
+    #predicted_numbers = tcn_model.run(data)
+
+    # When no training is needed, You need to point to the model 
+    modelPath = os.path.join(modelPath, "model_pick3.keras")
+    predicted_numbers = tcn_model.doPrediction(modelPath, skipLastColumns=0, maxRows=0)
 
     helpers.print_predicted_numbers(predicted_numbers)
+
+    print("Last entry: ", predicted_numbers[len(predicted_numbers)-1])
 
     # Opening JSON file
     sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))

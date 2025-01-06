@@ -150,7 +150,7 @@ class LSTMModel:
         """
         Do only a prediction. modelPath is the absolute path to the model
         """
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows)
+        numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
         model = load_model(modelPath)
 

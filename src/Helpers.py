@@ -109,6 +109,9 @@ class Helpers():
         #print("Decoded Predictions Example (First Sample):", predicted_numbers[0])
         #print("Decoded Predictions Example (Second Sample):", predicted_numbers[1])
 
+        # Reverse the predicted_numbers array
+        predicted_numbers = predicted_numbers[::-1]
+
         return predicted_numbers
 
     # Function to print the predicted numbers
@@ -118,7 +121,10 @@ class Helpers():
         #print("Predicted Numbers Type:", type(predicted_numbers))
         
         print("============================================================")
-        for i in range(10):
+        printRange = 10
+        if len(predicted_numbers) < 10:
+            printRange = len(predicted_numbers)
+        for i in range(printRange):
             print(f"Predicted Numbers {i}: {', '.join(map(str, predicted_numbers[i]))}")
         print("============================================================")
         
@@ -176,7 +182,9 @@ class Helpers():
                     print(f"Error processing file {csvFile}: {e}")
 
         # Sort the data by date
-        data.sort(key=lambda x: x[0])  # Sort by the date (first element of the tuple)
+        # Newest Value First (Reverse Chronological Order): If your use case requires predictions based on recent trends rather than long-term historical context, you might consider reversing the order.
+        # Oldest Value First (Chronological Order): The most common approach is to have the oldest value as the first element in the sequence. This way, the data flows naturally in time, mirroring how temporal information is processed in the real world
+        data.sort(key=lambda x: x[0], reverse=False)  # Sort by the date (first element of the tuple)
 
         #print("Data: ", data)
 
@@ -256,7 +264,80 @@ class Helpers():
 
 
 
+    def load_prediction_data(self, dataPath, skipLastColumns=0, maxRows=0):
+        # Initialize an empty list to hold the data
+        data = []
 
+        for csvFile in os.listdir(dataPath):
+            if csvFile.endswith(".csv"):
+                try:
+                    # Construct full file path
+                    file_path = os.path.join(dataPath, csvFile)
+
+                    # Load data from the file
+                    if maxRows > 0:
+                        csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1, max_rows=maxRows)
+                    else:
+                        csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+
+                
+                    if not isinstance(csvData[0], (list, np.ndarray)):
+                        print("Need to reform loaded csv data")
+                        csvData = [csvData.tolist()]
+                        
+                    
+                    # Skip last number of columns by slicing (if required)
+                    if skipLastColumns > 0:
+                        csvData = csvData[:, :-skipLastColumns]
+
+                    #print("csv data: ", csvData)
+
+                    # Append each entry to the data list
+                    for entry in csvData:
+                        # Attempt to parse the date
+                        date_str = entry[0]
+                        #print("Date: ", date_str)
+                        try:
+                            # Use dateutil.parser to parse the date
+                            date = parse(date_str)
+                        except Exception as e:
+                            print(f"Date parsing error for entry '{date_str}': {e}")
+                            continue  # Skip this entry if date parsing fails
+
+                        # Convert the rest to integers
+                        try:
+                            numbers = list(map(int, entry[1:]))  # Convert the rest to integers
+                        except ValueError as ve:
+                            print(f"Number conversion error for entry '{entry[1:]}': {ve}")
+                            continue  # Skip this entry if number conversion fails
+
+                        data.append((date, *numbers))  # Store as a tuple (date, number1, number2, ...)
+
+                except Exception as e:
+                    print(f"Error processing file {csvFile}: {e}")
+
+        # Sort the data by date
+        data.sort(key=lambda x: x[0], reverse=False)  # Sort by the date (first element of the tuple)
+
+        #print("Data: ", data)
+
+        # Convert the sorted data into a NumPy array
+        sorted_data = np.array(data)
+
+        print("Sorted data: ", sorted_data)
+
+        # If you want to separate the date and numbers into different arrays
+        dates = sorted_data[:, 0]  # Dates
+        numbers = sorted_data[:, 1:].astype(int)  # Numbers as integers (multi-label data)
+
+        # Replace all -1 values with 0 (or you can remove them if it's not needed)
+        numbers[numbers == -1] = 0
+
+        print("length of data: ", len(numbers))
+        print("shape of data: ", numbers.shape)
+
+
+        return numbers
 
     
     def generatePredictionTextFile(self, path):
