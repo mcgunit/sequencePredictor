@@ -147,7 +147,7 @@ class TCNModel:
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    data = 'pick3_oneShot'
+    data = 'pick3'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
@@ -158,16 +158,16 @@ if __name__ == "__main__":
     tcn_model.setEpochs(1000)
 
     # When training is needed
-    #tcn_model.setModelPath(modelPath)
-    #predicted_numbers = tcn_model.run(data)
+    tcn_model.setModelPath(modelPath)
+    predicted_numbers = tcn_model.run(data)
 
     # When no training is needed, You need to point to the model 
-    modelPath = os.path.join(modelPath, "model_pick3.keras")
-    predicted_numbers = tcn_model.doPrediction(modelPath, skipLastColumns=0, maxRows=0)
+    #modelPath = os.path.join(modelPath, "model_pick3.keras")
+    #predicted_numbers = tcn_model.doPrediction(modelPath, skipLastColumns=0, maxRows=0)
 
     helpers.print_predicted_numbers(predicted_numbers)
 
-    print("Last entry: ", predicted_numbers[len(predicted_numbers)-1])
+    #print("Last entry: ", predicted_numbers[len(predicted_numbers)-1])
 
     # Opening JSON file
     sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))

@@ -1,1 +1,0 @@
-{"currentPrediction": [[1, 4, 5, 18, 29, 44], [8, 9, 18, 22, 32, 41]], "realResult": [3, 7, 9, 36, 37, 42, 6], "newPrediction": [[1, 4, 5, 18, 29, 44], [8, 9, 18, 22, 32, 41], [18, 21, 37, 41, 44, 45], [3, 7, 9, 36, 37, 42]], "matchingNumbers": {"bestMatchIndex": 1, "bestMatchSequence": [8, 9, 18, 22, 32, 41], "matchingNumbers": [9]}}

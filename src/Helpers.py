@@ -99,7 +99,7 @@ class Helpers():
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
         raw_predictions = model.predict(input_data)
-        #print("Raw Predictions Shape:", raw_predictions)
+        #print("Raw Predictions:", raw_predictions)
         #print("Raw Predictions (First Sample):", raw_predictions[0])
         #print("Raw Predictions (Second Sample):", raw_predictions[1])
 
