@@ -386,6 +386,11 @@ if __name__ == "__main__":
         helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     except Exception as e:
         print("Failed to generate txt file", e)
+
+    try:
+        helpers.git_operations()
+    except Exception as e:
+        print("Failed to push latest predictions")
     
     
     
