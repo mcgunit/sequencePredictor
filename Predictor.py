@@ -27,10 +27,10 @@ def print_intro():
 
 
 
-def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True, maxRows=0):
+def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True, maxRows=0, years_back=None):
 
     modelToUse = tcn
-    if "lotto" in data or "eurodreams" in data or "jokerplus" in data or "keno" in data or "pick3" in data or "vikinglotto" in data:
+    if "lotto" in name or "eurodreams" in name or "jokerplus" in name or "keno" in name or "pick3" in name or "vikinglotto" in name:
         modelToUse = lstm
     modelToUse.setDataPath(dataPath)
 
@@ -53,11 +53,11 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
         
         jsonFileName = f"{latestDate.year}-{latestDate.month}-{latestDate.day}.json"
         #print(jsonFileName, ":", latestResult)
-        jsonFilePath = os.path.join(path, "data", "database", data, jsonFileName)
+        jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
 
         # Check if folder exists
-        if not os.path.exists(os.path.join(path, "data", "database", data)):
-            os.mkdir(os.path.join(path, "data", "database", data))
+        if not os.path.exists(os.path.join(path, "data", "database", name)):
+            os.mkdir(os.path.join(path, "data", "database", name))
 
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
@@ -77,7 +77,7 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                 previousDate, previousResult = previousEntry
                 jsonPreviousFileName = f"{previousDate.year}-{previousDate.month}-{previousDate.day}.json"
                 print(jsonPreviousFileName, ":", latestResult)
-                jsonPreviousFilePath = os.path.join(path, "data", "database", data, jsonPreviousFileName)
+                jsonPreviousFilePath = os.path.join(path, "data", "database", name, jsonPreviousFileName)
                 print(jsonPreviousFilePath)
                 if os.path.exists(jsonPreviousFilePath):
                     doNewPrediction = False
@@ -109,20 +109,20 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
                         modelToUse.setEpochs(1000)
-                        predictedNumbers = modelToUse.run(data, skipLastColumns)
+                        predictedNumbers = modelToUse.run(name, skipLastColumns, years_back=years_back)
                     else:
                         model = os.path.join(modelPath, "model_euromillions.keras")
-                        if "lotto" in data and not "vikinglotto" in data:
+                        if "lotto" in name and not "vikinglotto" in name:
                             model = os.path.join(modelPath, "model_lotto.keras")
-                        if "eurodreams" in data:
+                        if "eurodreams" in name:
                             model = os.path.join(modelPath, "model_eurodreams.keras")
-                        if "jokerplus" in data:
+                        if "jokerplus" in name:
                             model = os.path.join(modelPath, "model_jokerplus.keras")
-                        if "keno" in data:
+                        if "keno" in name:
                             model = os.path.join(modelPath, "model_keno.keras")
-                        if "pick3" in data:
+                        if "pick3" in name:
                             model = os.path.join(modelPath, "model_pick3.keras")
-                        if "vikinglotto" in data:
+                        if "vikinglotto" in name:
                             model = os.path.join(modelPath, "model_vikinglotto.keras")
                         predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
@@ -154,20 +154,20 @@ def predict(dataPath, modelPath, file, data, skipLastColumns=0, doTraining=True,
                     modelToUse.setModelPath(modelPath)
                     modelToUse.setBatchSize(16)
                     modelToUse.setEpochs(1000)
-                    predictedNumbers = modelToUse.run(data, skipLastColumns)
+                    predictedNumbers = modelToUse.run(name, skipLastColumns, years_back=years_back)
                 else:
                     model = os.path.join(modelPath, "model_euromillions.keras")
-                    if "lotto" in data and not "vikinglotto" in data:
+                    if "lotto" in name and not "vikinglotto" in name:
                         model = os.path.join(modelPath, "model_lotto.keras")
-                    if "eurodreams" in data:
+                    if "eurodreams" in name:
                         model = os.path.join(modelPath, "model_eurodreams.keras")
-                    if "jokerplus" in data:
+                    if "jokerplus" in name:
                         model = os.path.join(modelPath, "model_jokerplus.keras")
-                    if "keno" in data:
+                    if "keno" in name:
                         model = os.path.join(modelPath, "model_keno.keras")
-                    if "pick3" in data:
+                    if "pick3" in name:
                         model = os.path.join(modelPath, "model_pick3.keras")
-                    if "vikinglotto" in data:
+                    if "vikinglotto" in name:
                         model = os.path.join(modelPath, "model_vikinglotto.keras")
                     predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 

@@ -1,4 +1,4 @@
-import os, json, collections
+import os, json, subprocess, collections
 import numpy as np
 
 from dateutil.parser import parse
@@ -129,7 +129,7 @@ class Helpers():
         print("============================================================")
         
         
-    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, years_back=None):
         # Initialize an empty list to hold the data
         data = []
 
@@ -145,57 +145,52 @@ class Helpers():
                     else:
                         csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
 
-                
                     if not isinstance(csvData[0], (list, np.ndarray)):
                         print("Need to reform loaded csv data")
                         csvData = [csvData.tolist()]
                         
-                    
                     # Skip last number of columns by slicing (if required)
                     if skipLastColumns > 0:
                         csvData = csvData[:, :-skipLastColumns]
 
-                    #print("csv data: ", csvData)
-
                     # Append each entry to the data list
                     for entry in csvData:
-                        # Attempt to parse the date
                         date_str = entry[0]
-                        #print("Date: ", date_str)
                         try:
-                            # Use dateutil.parser to parse the date
                             date = parse(date_str)
                         except Exception as e:
                             print(f"Date parsing error for entry '{date_str}': {e}")
-                            continue  # Skip this entry if date parsing fails
+                            continue
 
-                        # Convert the rest to integers
                         try:
-                            numbers = list(map(int, entry[1:]))  # Convert the rest to integers
+                            numbers = list(map(int, entry[1:]))
                         except ValueError as ve:
                             print(f"Number conversion error for entry '{entry[1:]}': {ve}")
-                            continue  # Skip this entry if number conversion fails
+                            continue
 
-                        data.append((date, *numbers))  # Store as a tuple (date, number1, number2, ...)
+                        data.append((date, *numbers))
 
                 except Exception as e:
                     print(f"Error processing file {csvFile}: {e}")
 
         # Sort the data by date
-        # Newest Value First (Reverse Chronological Order): If your use case requires predictions based on recent trends rather than long-term historical context, you might consider reversing the order.
-        # Oldest Value First (Chronological Order): The most common approach is to have the oldest value as the first element in the sequence. This way, the data flows naturally in time, mirroring how temporal information is processed in the real world
-        data.sort(key=lambda x: x[0], reverse=False)  # Sort by the date (first element of the tuple)
+        data.sort(key=lambda x: x[0], reverse=False)  # Oldest to newest
 
-        #print("Data: ", data)
-
-        # Convert the sorted data into a NumPy array
+        # Convert to NumPy array
         sorted_data = np.array(data)
 
-        # If you want to separate the date and numbers into different arrays
-        dates = sorted_data[:, 0]  # Dates
-        numbers = sorted_data[:, 1:].astype(int)  # Numbers as integers (multi-label data)
+        # Filter data for a relative range of years
+        if years_back is not None:
+            most_recent_date = sorted_data[-1, 0]  # Most recent date in the array
+            cutoff_date = most_recent_date.replace(year=most_recent_date.year - years_back)
+            filtered_data = [entry for entry in sorted_data if entry[0] >= cutoff_date]
+            sorted_data = np.array(filtered_data)
 
-        # Replace all -1 values with 0 (or you can remove them if it's not needed)
+        # Continue processing
+        dates = sorted_data[:, 0]
+        numbers = sorted_data[:, 1:].astype(int)
+
+        # Replace all -1 values with 0
         numbers[numbers == -1] = 0
 
         # Unique labels for one-hot encoding
@@ -398,6 +393,23 @@ class Helpers():
         top_numbers = [num for num, _ in most_common]
         
         return np.array(top_numbers)
+    
+    def git_operations(self, commit_message="saving last predictions"):
+        try:
+            # Stage all changes
+            subprocess.run(["git", "add", "-A"], check=True)
+
+            # Commit changes
+            subprocess.run(["git", "commit", "-m", commit_message], check=True)
+
+            # Push changes
+            subprocess.run(["git", "push"], check=True)
+
+            print("Changes have been pushed successfully!")
+        except subprocess.CalledProcessError as e:
+            print(f"An error occurred while executing Git commands: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
 
             
             

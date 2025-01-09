@@ -111,14 +111,14 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         return history
 
-    def run(self, data='euromillions', skipLastColumns=0, maxRows=0):
+    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, years_back=None):
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, years_back=years_back)
 
         num_features = train_data.shape[1]
 
-        model_path = os.path.join(self.modelPath, f"model_{data}.keras")
-        checkpoint_path = os.path.join(self.modelPath, f"model_{data}_checkpoint.keras")
+        model_path = os.path.join(self.modelPath, f"model_{name}.keras")
+        checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
         if os.path.exists(model_path):
             model = load_model(model_path)
@@ -128,14 +128,14 @@ class LSTMModel:
             model = self.create_model(max_value, num_classes)
 
         # Train the model
-        history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=data)
+        history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
 
         # Predict numbers
         predicted_numbers = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
-        plt.savefig(os.path.join(self.modelPath, f'model_{data}_performance.png'))
+        plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
 
         # Save model
         model.save(model_path)
