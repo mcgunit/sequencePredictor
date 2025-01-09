@@ -220,35 +220,21 @@ if __name__ == "__main__":
         #####################
         print("Euromillions")
         modelPath = os.path.join(path, "data", "models", "tcn_model")
-        # First get latest data
-        data = 'euromillions'
-        dataPath = os.path.join(path, "data", "trainingData", data)
+        dataPath = os.path.join(path, "data", "trainingData", "euromillions")
         file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
-        
+
+        name = 'euromillions'
         # Do also a training on the complete data
-        predict(dataPath, modelPath, file, data)
+        predict(name, dataPath, modelPath, file)
 
-        #################################
-        #   Euromillions_currentYear    #
-        #################################
         print("Euromillions current year")
-        # First get latest data
-        data = 'euromillions_currentYear'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
-        
-        predict(dataPath, modelPath, file, data)
+        name = 'euromillions_currentYear'
+        predict(name, dataPath, modelPath, file, years_back=1)
 
-        ####################################
-        #   Euromillions_threeYears         #
-        ####################################
+
         print("Euromillions current + last two years")
-        # First get latest data
-        data = 'euromillions_threeYears'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
-        
-        predict(dataPath, modelPath, file, data)
+        name = 'euromillions_threeYears'
+        predict(name, dataPath, modelPath, file, years_back=3)
 
     except Exception as e:
         print("Failed to predict Euromillions", e)
@@ -259,51 +245,27 @@ if __name__ == "__main__":
         #####################
         print("Lotto")
         modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'lotto'
-        dataPath = os.path.join(path, "data", "trainingData", data)
+        dataPath = os.path.join(path, "data", "trainingData", "lotto")
         file = "lotto-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
 
+
+        name = 'lotto'
         # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
         # do a training on the complete data
-        predict(dataPath, modelPath, file, data, skipLastColumns=1)
+        predict(name, dataPath, modelPath, file, skipLastColumns=1)
 
-        ##############################
-        #       Lotto currentYear    #
-        ##############################
+
         print("Lotto current year")
-        # First get latest data
-        data = 'lotto_currentYear'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "lotto-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
-
+        name = 'lotto_currentYear'
         # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(dataPath, modelPath, file, data, skipLastColumns=1)
+        predict(name, dataPath, modelPath, file, skipLastColumns=1, years_back=1)
         
 
-        ################################
-        #       Lotto threeYears       #
-        ################################
-        print("Lotto current year + last two years")
-        # First get latest data
-        data = 'lotto_threeYears'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "lotto-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
 
+        print("Lotto current year + last two years")
+        name = 'lotto_threeYears'
         # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(dataPath, modelPath, file, data, skipLastColumns=1)
+        predict(name, dataPath, modelPath, file, skipLastColumns=1, years_back=3)
 
     except Exception as e:
         print("Failed to predict Lotto", e)
@@ -314,48 +276,20 @@ if __name__ == "__main__":
         #####################
         print("euroDreams")
         modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'eurodreams'
-        dataPath = os.path.join(path, "data", "trainingData", data)
+        dataPath = os.path.join(path, "data", "trainingData", 'eurodreams')
         file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        name = 'eurodreams'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0)
 
-        #####################
-        #     euroDreams    #
-        #####################
         print("euroDreams Three Years")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'eurodreams_threeYears'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        name = 'eurodreams_threeYears'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
-
-        #####################
-        #     euroDreams    #
-        #####################
         print("euroDreams Current Year")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'eurodreams_currentYear'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        name = 'eurodreams_currentYear'
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict euroDreams", e)
 
@@ -386,48 +320,20 @@ if __name__ == "__main__":
         #####################
         print("Keno")
         modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'keno'
-        dataPath = os.path.join(path, "data", "trainingData", data)
+        dataPath = os.path.join(path, "data", "trainingData", "keno")
         file = "keno-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        name = 'keno'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0)
 
-        #####################
-        #        keno       #
-        #####################
         print("Keno Three Years")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'keno_threeYears'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "keno-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        name = 'keno_threeYears'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
-
-        #####################
-        #        keno       #
-        #####################
         print("Keno Current Year")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'keno_currentYear'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "keno-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        name = 'keno_currentYear'
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Keno", e)
 
@@ -438,48 +344,18 @@ if __name__ == "__main__":
         #####################
         print("Pick3")
         modelPath = os.path.join(path, "data", "models", "tcn_model")
-        # First get latest data
-        data = 'pick3'
-        dataPath = os.path.join(path, "data", "trainingData", data)
+        dataPath = os.path.join(path, "data", "trainingData", "pick3")
         file = "pick3-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        name = 'pick3'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0)
 
-        #####################
-        #        Pick3      #
-        #####################
         print("Pick3 Three Years")
-        modelPath = os.path.join(path, "data", "models", "tcn_model")
-        # First get latest data
-        data = 'pick3_threeYears'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "pick3-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        name = 'pick3_threeYears'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
-
-        #####################
-        #        Pick3      #
-        #####################
-        print("Pick3 Current Year")
-        modelPath = os.path.join(path, "data", "models", "tcn_model")
-        # First get latest data
-        data = 'pick3_currentYear'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "pick3-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
-
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        name = 'pick3_currentYear'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Pick3", e)
 
@@ -490,48 +366,19 @@ if __name__ == "__main__":
         #####################
         print("Viking Lotto")
         modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'vikinglotto'
-        dataPath = os.path.join(path, "data", "trainingData", data)
+        dataPath = os.path.join(path, "data", "trainingData", "vikinglotto")
         file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        
+        name = 'vikinglotto'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0)
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
-
-        #####################
-        #    Viking Lotto   #
-        #####################
         print("Viking Lotto Three Years")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'vikinglotto_threeYears'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
+        name = 'vikinglotto_threeYears'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
 
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
-
-        #####################
-        #    Viking Lotto   #
-        #####################
         print("Viking Lotto Current Year")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'vikinglotto_currentYear'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
-
-        predict(dataPath, modelPath, file, data, skipLastColumns=0)
+        name = 'vikinglotto_currentYear'
+        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Viking Lotto", e)
 
