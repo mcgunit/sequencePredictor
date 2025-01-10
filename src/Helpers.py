@@ -394,7 +394,7 @@ class Helpers():
         
         return np.array(top_numbers)
     
-    def git_operations(self, commit_message="saving last predictions"):
+    def git_push(self, commit_message="saving last predictions"):
         try:
             # Stage all changes
             subprocess.run(["git", "add", "-A"], check=True)
@@ -411,5 +411,13 @@ class Helpers():
         except Exception as e:
             print(f"Unexpected error: {e}")
 
-            
+    def git_pull(self):
+        try:
+            subprocess.run(["git", "fetch"], check=True)
+
+            subprocess.run(["git", "pull"], check=True)
+
+            print("Got latest changes")
+        except Exception as e:
+            print("Failed to get latest changes")
             

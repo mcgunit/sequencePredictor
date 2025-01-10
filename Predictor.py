@@ -190,6 +190,11 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
 if __name__ == "__main__":
 
+    try:
+        helpers.git_pull()
+    except Exception as e:
+        print("Failed to get latest changes")
+
     parser = argparse.ArgumentParser(
                     prog='LSTM Sequence Predictor',
                     description='Tries to predict a sequence of numbers',
@@ -388,7 +393,7 @@ if __name__ == "__main__":
         print("Failed to generate txt file", e)
 
     try:
-        helpers.git_operations()
+        helpers.git_push()
     except Exception as e:
         print("Failed to push latest predictions")
     
