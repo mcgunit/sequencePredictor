@@ -3,12 +3,72 @@
 
 ## To check
 
-    - Small-to-Medium Data:
-        Use TCNs or hybrid models (CNN + LSTM).
-    - Large Data:
-        Transformers are ideal due to scalability and performance.
-    - If Sequence Dependencies are Weak:
-        Pure CNN models like ResNet, EfficientNet, or MobileNet (better than GoogLeNet for general tasks).
+- Small-to-Medium Data:
+    Use TCNs or hybrid models (CNN + LSTM).
+- Large Data:
+    Transformers are ideal due to scalability and performance.
+- If Sequence Dependencies are Weak:
+    Pure CNN models like ResNet, EfficientNet, or MobileNet (better than GoogLeNet for general tasks).
+
+---
+
+### **1. AI Models for Sequence Prediction**
+#### **
+
+### **1. AI Models for Sequence Prediction**
+
+#### (a) Recurrent Neural Networks (RNNs)
+- **Key Models:** Simple RNNs, LSTMs (Long Short-Term Memory), GRUs (Gated Recurrent Units)
+- **Why Use Them:** RNNs are designed for sequential data, where the order of inputs matters. LSTMs and GRUs are especially good at capturing long-term dependencies in time-series data.
+- **Applications:** Predicting the next sequence of numbers by learning temporal dependencies.
+
+#### (b) Transformer Models
+- **Key Models:** Vanilla Transformer, GPT-like models, and Time Series Transformers.
+- **Why Use Them:** Transformers handle sequence data using self-attention mechanisms, capturing both short-term and long-term dependencies. They are computationally efficient for long sequences.
+- **Applications:** Advanced modeling tasks, especially when the sequence length is large.
+
+#### (c) Convolutional Neural Networks (CNNs) for Sequences
+- **Why Use Them:** 1D-CNNs can extract local patterns in time-series data. When combined with RNNs or used as standalone models, they are efficient for learning short-term features in the sequence.
+- **Applications:** Feature extraction followed by sequence prediction.
+
+#### (d) Encoder-Decoder Architectures
+- **Why Use Them:** Useful for mapping input sequences to output sequences. They work well with RNNs or Transformers and are widely used in sequence-to-sequence problems.
+- **Applications:** Multi-step predictions like forecasting the next 3 numbers in a sequence.
+
+---
+
+### **2. Statistical Models for Sequence Prediction**
+#### (a) Autoregressive Integrated Moving Average (ARIMA)
+- **Why Use It:** Captures temporal patterns, trends, and seasonality in data. Suitable for univariate time series.
+- **Applications:** Predicting the next numbers if the sequence exhibits consistent patterns over time.
+
+#### (b) Vector Autoregression (VAR)
+- **Why Use It:** Handles multivariate time series with interdependencies between variables.
+- **Applications:** Predicting sequences involving multiple correlated numbers.
+
+#### (c) Exponential Smoothing (ETS Models)
+- **Why Use It:** Useful for forecasting sequences with trends or seasonality.
+- **Applications:** Time-series data with less complex dependencies.
+
+#### (d) Hidden Markov Models (HMMs)
+- **Why Use It:** Probabilistic models ideal for sequences where the next state depends on the current state.
+- **Applications:** Predicting discrete sequences or sequences with hidden states.
+
+---
+
+### **3. Hybrid Models**
+- **LSTM-ARIMA:** Combines LSTM’s ability to capture nonlinear patterns with ARIMA’s ability to handle seasonality.
+- **DeepAR:** Probabilistic forecasting model using recurrent neural networks.
+
+---
+
+### **4. Choosing the Right Model**
+- **Data Complexity:** If the relationships are complex and nonlinear, neural networks (LSTMs, Transformers) are better. For simpler data, ARIMA or VAR may suffice.
+- **Sequence Length:** For long sequences, Transformers or 1D-CNNs are more efficient.
+- **Multivariate or Univariate:** Use VAR for multivariate data; ARIMA for univariate.
+- **Amount of Data:** Neural networks typically require more data, while statistical models work well with smaller datasets.
+
+
 
 ## Installation
 
