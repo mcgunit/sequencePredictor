@@ -88,8 +88,7 @@ class Helpers():
         return (best_match_index, best_match_sequence, matching_numbers_array)
     
     def decode_predictions(self, raw_predictions):
-        # Get the indices of the maximum probabilities for each of the 7 positions
-        predicted_indices = np.argmax(raw_predictions, axis=-1)  # Shape will be (1796, 7)
+        predicted_indices = np.argmax(raw_predictions, axis=-1)  
         
         # Convert indices to numbers (1-based indexing)
         predicted_numbers = predicted_indices + 1  # Add 1 to convert from 0-based to 1-based
@@ -99,20 +98,31 @@ class Helpers():
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
         raw_predictions = model.predict(input_data)
-        #print("Raw Predictions:", raw_predictions)
-        #print("Raw Predictions (First Sample):", raw_predictions[0])
-        #print("Raw Predictions (Second Sample):", raw_predictions[1])
+
+        latest_raw_predictions = raw_predictions[::-1] # reverse
+
+        latest_raw_predictions = latest_raw_predictions[:10] # take the 10 most recent predictions
+        #print("Latest raw prediction: ", latest_raw_predictions)
+
+        probability_of_latest_prediction = []
+        for numbers in latest_raw_predictions:
+            numbersList = []
+            for number in numbers:
+                #print(number)
+                numbersList.append(np.max(number))
+            probability_of_latest_prediction.append(numbersList)
+
+        probability_of_latest_prediction = [[float(value) for value in row] for row in probability_of_latest_prediction]
+
+        #print("Highest probability in latest prediction: ", probability_of_latest_prediction)
 
         # Decode raw predictions into numbers
         predicted_numbers = self.decode_predictions(raw_predictions)
-        #print("Decoded Predictions Shape:", predicted_numbers.shape)
-        #print("Decoded Predictions Example (First Sample):", predicted_numbers[0])
-        #print("Decoded Predictions Example (Second Sample):", predicted_numbers[1])
 
-        # Reverse the predicted_numbers array
+        # Reverse the predicted_numbers array because the last item is the prediction of the most recent
         predicted_numbers = predicted_numbers[::-1]
 
-        return predicted_numbers
+        return predicted_numbers, probability_of_latest_prediction
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):

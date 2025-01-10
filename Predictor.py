@@ -67,6 +67,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                 "currentPrediction": [],
                 "realResult": latestResult,
                 "newPrediction": [],
+                "probabilityOfNewPrediction": [],
                 "matchingNumbers": {}
             }
 
@@ -109,7 +110,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
                         modelToUse.setEpochs(1000)
-                        predictedNumbers = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        predictedNumbers, probability_of_latest_prediction = modelToUse.run(name, skipLastColumns, years_back=years_back)
                     else:
                         model = os.path.join(modelPath, "model_euromillions.keras")
                         if "lotto" in name and not "vikinglotto" in name:
@@ -124,13 +125,14 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             model = os.path.join(modelPath, "model_pick3.keras")
                         if "vikinglotto" in name:
                             model = os.path.join(modelPath, "model_vikinglotto.keras")
-                        predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                        predictedNumbers, probability_of_latest_prediction = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                     predictedSequence = predictedNumbers.tolist()
 
             
                     # Save the current prediction as newPrediction
                     current_json_object["newPrediction"] = predictedSequence
+                    current_json_object["probabilityOfNewPrediction"] = probability_of_latest_prediction
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
@@ -144,6 +146,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     "currentPrediction": [],
                     "realResult": [],
                     "newPrediction": [],
+                    "probabilityOfNewPrediction": [],
                     "matchingNumbers": []
                 }
 
@@ -154,7 +157,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     modelToUse.setModelPath(modelPath)
                     modelToUse.setBatchSize(16)
                     modelToUse.setEpochs(1000)
-                    predictedNumbers = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                    predictedNumbers, probability_of_latest_prediction = modelToUse.run(name, skipLastColumns, years_back=years_back)
                 else:
                     model = os.path.join(modelPath, "model_euromillions.keras")
                     if "lotto" in name and not "vikinglotto" in name:
@@ -169,13 +172,14 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         model = os.path.join(modelPath, "model_pick3.keras")
                     if "vikinglotto" in name:
                         model = os.path.join(modelPath, "model_vikinglotto.keras")
-                    predictedNumbers = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                    predictedNumbers, probability_of_latest_prediction = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                 predictedSequence = predictedNumbers.tolist()
 
         
                 # Save the current prediction as newPrediction
                 current_json_object["newPrediction"] = predictedSequence
+                current_json_object["probabilityOfNewPrediction"] = probability_of_latest_prediction
 
                 with open(jsonFilePath, "w+") as outfile:
                     json.dump(current_json_object, outfile)

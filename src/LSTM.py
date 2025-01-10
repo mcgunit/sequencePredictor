@@ -131,7 +131,7 @@ class LSTMModel:
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
 
         # Predict numbers
-        predicted_numbers = helpers.predict_numbers(model, numbers)
+        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -144,7 +144,7 @@ class LSTMModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return predicted_numbers
+        return predicted_numbers, probability_of_latest_prediction
 
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -155,9 +155,9 @@ class LSTMModel:
         model = load_model(modelPath)
 
         # Predict numbers
-        predicted_numbers = helpers.predict_numbers(model, numbers)
+        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
 
-        return predicted_numbers
+        return predicted_numbers, probability_of_latest_prediction
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1000)
 
-    predicted_numbers = lstm_model.run(data)
+    predicted_numbers, probability_of_latest_prediction = lstm_model.run(data)
 
     print("Top six numbers: ", helpers.mostFrequentNumbers(predicted_numbers))
 

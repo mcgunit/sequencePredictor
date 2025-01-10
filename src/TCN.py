@@ -53,7 +53,7 @@ class TCNModel:
         embedding_output_dimension = 128
         tcn_units = 128             # Number of filters in TCN layers
         num_tcn_layers = 7          # Number of TCN layers
-        num_dense_layers = 6       # Numbers of Dense layers
+        num_dense_layers = 6        # Numbers of Dense layers
         dense_units = 512           # Number of units in dense layersW
         dropout_rate = 0.3
         l2_lambda = 0.001           # Set the L2 regularization factor
@@ -113,7 +113,7 @@ class TCNModel:
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
 
         # Predict numbers
-        predicted_numbers = helpers.predict_numbers(model, numbers)
+        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -126,7 +126,7 @@ class TCNModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return predicted_numbers
+        return predicted_numbers, probability_of_latest_prediction
     
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -138,16 +138,16 @@ class TCNModel:
         model = load_model(modelPath)
 
         # Predict numbers
-        predicted_numbers = helpers.predict_numbers(model, numbers)
+        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
 
-        return predicted_numbers
+        return predicted_numbers, probability_of_latest_prediction
 
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    data = 'pick3'
+    data = 'keno'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
@@ -159,15 +159,15 @@ if __name__ == "__main__":
 
     # When training is needed
     tcn_model.setModelPath(modelPath)
-    predicted_numbers = tcn_model.run(data)
+    predicted_numbers, probability_of_latest_prediction = tcn_model.run(data)
 
+    #print(probability_of_latest_prediction)
     # When no training is needed, You need to point to the model 
     #modelPath = os.path.join(modelPath, "model_pick3.keras")
     #predicted_numbers = tcn_model.doPrediction(modelPath, skipLastColumns=0, maxRows=0)
 
     helpers.print_predicted_numbers(predicted_numbers)
 
-    #print("Last entry: ", predicted_numbers[len(predicted_numbers)-1])
 
     # Opening JSON file
     sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))
