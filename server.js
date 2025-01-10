@@ -250,8 +250,6 @@ app.get('/database/:folder/:file', (req, res) => {
       <h1>${file} Results</h1>
       <h2>Current Prediction</h2>
       ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers, type)}
-      <h3>Most Frequent Numbers in Current Prediction</h3>
-      ${generateList(mostFrequentCurrentNumbers, 'Most Frequent Numbers (Current Prediction)')}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
       <h2>Matching Numbers</h2>
@@ -260,8 +258,6 @@ app.get('/database/:folder/:file', (req, res) => {
       <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
       <h2>New Prediction</h2>
       ${generateTable(jsonData.newPrediction, 'New Prediction', [], type)}
-      <h3>Most Frequent Numbers in ${folder}</h3>
-      ${generateList(mostFrequentNumbers, 'Most Frequent Numbers (New Prediction)')}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
     `;
@@ -332,6 +328,7 @@ app.get('/', (req, res) => {
       <h2>Models</h2>
       <ul>
         <li><form action="/models" method="get"><button type="submit">AI Models</button></form></li>
+        <br/>
         <li><form action="/database" method="get"><button type="submit">View All Database Data</button></form></li>
       </ul>
       <h2>Predictions For Next Drawing</h2>
@@ -362,8 +359,8 @@ app.get('/', (req, res) => {
         <li>
           <h2>${folder}</h2>
           ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...allFrequentNumbers.euromillions.main, ...allFrequentNumbers.euromillions.stars] : allFrequentNumbers.lotto, type)}
-          <p><strong>Most Occurring Numbers:</strong> ${type === 'euromillions' ? `Main: ${allFrequentNumbers.euromillions.main.join(', ')} | Stars: ${allFrequentNumbers.euromillions.stars.join(', ')}` : allFrequentNumbers.lotto.join(', ')}</p>
-          <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Full Details</button></form>
+          <br/>
+          <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Comparison</button></form>
         </li>
       `;
     }
