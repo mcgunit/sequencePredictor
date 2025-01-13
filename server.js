@@ -10,39 +10,39 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-function generateTable(data, title = '', matchingNumbers = [], type = 'euromillions') {
+function generateTable(data, title = '', matchingNumbers = [], type = 'euromillions', probabilities = []) {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Add title as caption if provided
   if (title) table += `<caption><strong>${title}</strong></caption>`;
 
   // Determine headers based on the type
-  let headers = [];
-  if (type === 'lotto') {
-      headers = ['Number 1', 'Number 2', 'Number 3', 'Number 4', 'Number 5', 'Number 6', 'Bonus'];
-  } else if (type === 'euromillions') {
-      headers = ['Number 1', 'Number 2', 'Number 3', 'Number 4', 'Number 5', 'Star 1', 'Star 2'];
-  } else {
-      headers = data.length > 0 ? Array.from({ length: data[0].length }, (_, i) => `Column ${i + 1}`) : [];
-  }
+  let headers = data.length > 0 
+    ? Array.from({ length: data[0].length }, (_, i) => `Column ${i + 1}`) 
+    : [];
+  headers.push('Probabilities'); // Add probabilities column
 
-  // Add header row with column names
+  // Add header row
   table += '<tr>';
-  table += `<th style="padding: 5px; text-align: center; font-weight: bold; width: 100px; max-width: 10px;">#</th>`; // Index column header
+  table += `<th style="padding: 5px; text-align: center; font-weight: bold; width: 100px;">#</th>`; // Index column
   headers.forEach((header) => {
-      table += `<th style="padding: 5px; text-align: center; width: 100px; min-width: 100px; font-weight: bold;">${header}</th>`;
+    table += `<th style="padding: 5px; text-align: center; font-weight: bold;">${header}</th>`;
   });
   table += '</tr>';
 
-  // Add rows with data and index
+  // Add rows with data and probabilities
   data.forEach((row, rowIndex) => {
-    if(rowIndex <= 9) {
+    if (rowIndex < 10) {
       table += '<tr>';
-      table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
+      table += `<td style="padding: 5px; text-align: center; font-weight: bold;">${rowIndex + 1}</td>`; // Row index
       row.forEach((cell) => {
-          const isMatching = matchingNumbers.includes(cell); // Check if the cell value is in matchingNumbers
-          table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
+        const isMatching = matchingNumbers.includes(cell); // Highlight if matching
+        table += `<td style="padding: 5px; text-align: center; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
       });
+
+      // Add probability for the current row
+      const prob = probabilities[rowIndex] || [];
+      table += `<td style="padding: 5px; text-align: center;">${prob.map(p => p.toFixed(2)).join(', ')}</td>`;
       table += '</tr>';
     }
   });
@@ -257,7 +257,7 @@ app.get('/database/:folder/:file', (req, res) => {
       <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
       <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
       <h2>New Prediction</h2>
-      ${generateTable(jsonData.newPrediction, 'New Prediction', [], type)}
+      ${generateTable(jsonData.newPrediction, 'New Prediction', [], type, jsonData.probabilityOfNewPrediction)}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
     `;
@@ -321,21 +321,42 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Sequence Predictor Results</title>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+      <style>
+        .folder {
+          margin: 10px 0;
+          border: 1px solid #ddd;
+          border-radius: 5px;
+          padding: 10px;
+        }
+        .folder-title {
+          cursor: pointer;
+          font-weight: bold;
+          background-color: #f9f9f9;
+          padding: 10px;
+          border-radius: 5px;
+        }
+        .folder-content {
+          display: none;
+          margin-top: 10px;
+        }
+      </style>
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const folderTitles = document.querySelectorAll('.folder-title');
+          folderTitles.forEach(title => {
+            title.addEventListener('click', () => {
+              const content = title.nextElementSibling;
+              content.style.display = content.style.display === 'none' || !content.style.display ? 'block' : 'none';
+            });
+          });
+        });
+      </script>
     </head>
     <body>
       <h1>Sequence Predictor Results</h1>
-      <h2>Models</h2>
-      <ul>
-        <li><form action="/models" method="get"><button type="submit">AI Models</button></form></li>
-        <br/>
-        <li><form action="/database" method="get"><button type="submit">View All Database Data</button></form></li>
-      </ul>
-      <h2>Predictions For Next Drawing</h2>
-      <ul>
+      <h2>Predictions</h2>
+      <div>
   `;
-
-  let allFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
@@ -349,28 +370,26 @@ app.get('/', (req, res) => {
       const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
 
       const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
-
-      allFrequentNumbers = calculateMostFrequentNumber(jsonData.newPrediction, type);
-
-      //console.log("All Frequent Numbers: ", allFrequentNumbers);
-     
+      const allFrequentNumbers = calculateMostFrequentNumber(jsonData.newPrediction, type);
 
       html += `
-        <li>
-          <h2>${folder}</h2>
-          ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...allFrequentNumbers.euromillions.main, ...allFrequentNumbers.euromillions.stars] : allFrequentNumbers.lotto, type)}
-          <br/>
-          <form action="/database/${folder}/${latestFile}" method="get"><button type="submit">View Comparison</button></form>
-        </li>
+        <div class="folder">
+          <div class="folder-title">${folder}</div>
+          <div class="folder-content">
+            ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...allFrequentNumbers.euromillions.main, ...allFrequentNumbers.euromillions.stars] : allFrequentNumbers.lotto, type)}
+            <form action="/database/${folder}/${latestFile}" method="get" style="margin-top: 10px;">
+              <button type="submit">View Comparison</button>
+            </form>
+          </div>
+        </div>
       `;
     }
   });
 
-  
-  // Print button
   html += `
-      </ul>
+      </div>
       <button id="saveAsPng" style="margin-top: 20px;">Save as PNG</button>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script>
         document.getElementById('saveAsPng').addEventListener('click', () => {
           html2canvas(document.body).then((canvas) => {
@@ -387,6 +406,7 @@ app.get('/', (req, res) => {
 
   res.send(html);
 });
+
 
 // Start the server
 app.listen(config.PORT, () => {

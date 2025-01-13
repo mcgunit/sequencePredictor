@@ -50,11 +50,11 @@ class TCNModel:
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
     def create_model(self, max_value, num_classes=50):
-        embedding_output_dimension = 128
-        tcn_units = 128             # Number of filters in TCN layers
-        num_tcn_layers = 7          # Number of TCN layers
-        num_dense_layers = 6        # Numbers of Dense layers
-        dense_units = 512           # Number of units in dense layersW
+        embedding_output_dimension = 64
+        tcn_units = 64              # Number of filters in TCN layers
+        num_tcn_layers = 2          # Number of TCN layers
+        num_dense_layers = 2        # Numbers of Dense layers
+        dense_units = 64            # Number of units in dense layersW
         dropout_rate = 0.3
         l2_lambda = 0.001           # Set the L2 regularization factor
 
