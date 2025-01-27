@@ -188,6 +188,6 @@ if __name__ == "__main__":
     # Check on prediction with nth highest probability
     for i in range(10):
         prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, i)
-        print("Prediction with ", i+1 ,"highest probs: ", matching_numbers)
+        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
         matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)

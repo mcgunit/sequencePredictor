@@ -84,16 +84,23 @@ class Helpers():
     
     def decode_predictions(self, raw_predictions, nHighestProb=0):
         """
-            Decode the prediction based on probability.
+        Decode the prediction based on probability.
 
-            Parameters
-            ----------
-            raw_predictions : list
-                List of raw predictions.
-            nHighestProb : int, optional
-                Number of probability ranking. 0 means return numbers with the highest probability, 
-                1 means second-highest probability, and so on.
+        Parameters
+        ----------
+        raw_predictions : list or np.ndarray
+            List of raw predictions.
+        nHighestProb : int, optional
+            Number of probability ranking. 0 means return numbers with the highest probability, 
+            1 means second-highest probability, and so on.
         """
+
+        # Ensure raw_predictions is a list or convert it to a list if it's a numpy array
+        if isinstance(raw_predictions, np.ndarray):
+            raw_predictions = raw_predictions.tolist()
+
+        if not raw_predictions or not isinstance(raw_predictions, list) or not all(isinstance(sublist, list) for sublist in raw_predictions):
+            raise ValueError("raw_predictions must be a non-empty list of lists.")
 
         if nHighestProb == 0:
             # Get indices with the highest probability
@@ -104,8 +111,15 @@ class Helpers():
                 np.argsort(sublist)[-(nHighestProb + 1)] + 1 for sublist in raw_predictions
             ]
 
-        # Convert to a set (optional)
+        # Convert to a set to remove duplicates
         highest_indices_set = set(highest_indices)
+
+        # Convert to a list of integers
+        highest_indices_set = [int(x) for x in highest_indices_set]
+
+        # Ensure the list has the same length as the sublist
+        list_length = len(raw_predictions)  # Assuming all sublists are of the same length
+        highest_indices_set = highest_indices_set + [0] * (list_length - len(highest_indices_set))
 
         return highest_indices_set
     
