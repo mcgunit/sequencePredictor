@@ -65,6 +65,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
             current_json_object = {
                 "currentPredictionRaw": [],
+                "currentPrediction": [],
                 "realResult": latestResult,
                 "newPrediction": [],
                 "newPredictionRaw": [],
@@ -94,6 +95,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                     # The current prediction is the new prediction from the previous one
                     current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+                    current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
                     listOfMatching = []
                     listOfDecodedPredictions = []
@@ -201,6 +203,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         
                         current_json_object = {
                             "currentPredictionRaw": [],
+                            "currentPrediction": [],
                             "realResult": [],
                             "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
                             "newPredictionRaw": [], # Raw prediction that contains the statistical data
@@ -255,6 +258,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         current_json_object = {
                             "currentPredictionRaw": [],
+                            "currentPrediction": [],
                             "realResult": historyResult,
                             "newPrediction": [],
                             "newPredictionRaw": [],
@@ -266,6 +270,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         # The current prediction is the new prediction from the previous one
                         current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+                        current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
                         #print(current_json_object["currentPredictionRaw"])
 

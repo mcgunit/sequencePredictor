@@ -110,7 +110,7 @@ app.get('/database/:folder/:file', (req, res) => {
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-
+    console.log(jsonData)
     // Generate HTML content
     let html = `
       <h1>${file} Results</h1>
