@@ -7,4 +7,5 @@ pandas==2.2.3
 python_dateutil==2.8.2
 scikit_learn==1.6.0
 tensorflow[and-cuda]==2.18.0
+asciichartpy==1.5.25
 

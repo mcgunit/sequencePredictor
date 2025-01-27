@@ -113,7 +113,7 @@ class TCNModel:
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
 
         # Predict numbers
-        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -126,7 +126,7 @@ class TCNModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions
     
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -147,9 +147,9 @@ class TCNModel:
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    data = 'keno'
+    name = 'keno'
     path = os.getcwd()
-    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
+    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
 
     
@@ -159,23 +159,15 @@ if __name__ == "__main__":
 
     # When training is needed
     tcn_model.setModelPath(modelPath)
-    predicted_numbers, probability_of_latest_prediction = tcn_model.run(data)
+    latest_raw_predictions = tcn_model.run(name, years_back=1)
 
-    #print(probability_of_latest_prediction)
-    # When no training is needed, You need to point to the model 
-    #modelPath = os.path.join(modelPath, "model_pick3.keras")
-    #predicted_numbers = tcn_model.doPrediction(modelPath, skipLastColumns=0, maxRows=0)
-
-    helpers.print_predicted_numbers(predicted_numbers)
-
+    #helpers.print_predicted_numbers(latest_raw_predictions)
 
     # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))
+    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(name))
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 
-    best_match_index, best_match_sequence, matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], predicted_numbers)
+    matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], latest_raw_predictions)
 
-    print("Best Matching Index: ", best_match_index)
-    print("Best Matching Sequence: ", best_match_sequence)
     print("Matching Numbers: ", matching_numbers)

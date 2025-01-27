@@ -1,5 +1,6 @@
 import os, json, subprocess, collections
 import numpy as np
+import asciichartpy
 
 from dateutil.parser import parse
 from datetime import datetime
@@ -69,23 +70,25 @@ class Helpers():
             return None  # Return None if no data was found
         
 
-    def find_matching_numbers(self, sequence, sequence_list):
-        # Convert the input sequence to a tuple for hashing
-        sequence = tuple(sequence)
+    def find_matching_numbers(self, sequence, predictedSequence):
+        # Convert the input sequence to a set for efficient matching
+        sequence_set = set(sequence)
 
-        # Calculate similarity scores and matching numbers
-        results = [
-            (len(set(sequence).intersection(set(tuple(np.array(seq).flatten())))), set(sequence).intersection(set(tuple(np.array(seq).flatten()))))
-            for seq in sequence_list
-        ]
+        print(len(predictedSequence[0]))
 
-        # Find the best match
-        best_match_index = max(range(len(results)), key=lambda i: results[i][0])
-        best_match_sequence = sequence_list[best_match_index]
-        matching_numbers = results[best_match_index][1]
-        matching_numbers_array = [int(x) for x in matching_numbers]
+        # Calculate highest probability indices and adjust to actual numbers
+        highest_indices = [np.argmax(sublist) + 1 for sublist in predictedSequence]
 
-        return (best_match_index, best_match_sequence, matching_numbers_array)
+        # Convert highest_indices to a set
+        highest_indices_set = set(highest_indices)
+
+        # Find the matching numbers between sequence and highest_indices
+        matching_numbers = list(sequence_set.intersection(highest_indices_set))
+
+        # Convert to a list of integers
+        matching_numbers = [int(x) for x in matching_numbers]
+
+        return matching_numbers
     
     def decode_predictions(self, raw_predictions):
         predicted_indices = np.argmax(raw_predictions, axis=-1)  
@@ -101,42 +104,35 @@ class Helpers():
 
         latest_raw_predictions = raw_predictions[::-1] # reverse
 
-        latest_raw_predictions = latest_raw_predictions[:10] # take the 10 most recent predictions
-        #print("Latest raw prediction: ", latest_raw_predictions)
+        latest_raw_predictions = latest_raw_predictions[0] # take the the latest
+        print("Latest raw prediction: ", latest_raw_predictions)
 
-        probability_of_latest_prediction = []
-        for numbers in latest_raw_predictions:
-            numbersList = []
-            for number in numbers:
-                #print(number)
-                numbersList.append(np.max(number))
-            probability_of_latest_prediction.append(numbersList)
+        """
+            Structure of latest_raw_prediction is a list of each position a class and each class is a list of probabilities of what class it will be.
+            Fow example when the model has to predict a set of 3 numbers and each number can be 1, 2 or 3 you can get something like this:
+            [[0.1,0.2, 0.7], [0.8, 0.1, 0.1], [0.0, 0.9, 0.1]] --> This will be a prediction of a set of 3 numbers being [3, 1, 2].
+            The index of the highest probability in the list determines the predicted number (index+1) 
+        """
 
-        probability_of_latest_prediction = [[float(value) for value in row] for row in probability_of_latest_prediction]
-
-        #print("Highest probability in latest prediction: ", probability_of_latest_prediction)
-
-        # Decode raw predictions into numbers
-        predicted_numbers = self.decode_predictions(raw_predictions)
-
-        # Reverse the predicted_numbers array because the last item is the prediction of the most recent
-        predicted_numbers = predicted_numbers[::-1]
-
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
 
         #print("Predicted Numbers Shape:", predicted_numbers.shape)
         #print("Predicted Numbers Type:", type(predicted_numbers))
-        
+        """
         print("============================================================")
-        printRange = 10
-        if len(predicted_numbers) < 10:
-            printRange = len(predicted_numbers)
-        for i in range(printRange):
+        for i in range(len(predicted_numbers)):
             print(f"Predicted Numbers {i}: {', '.join(map(str, predicted_numbers[i]))}")
         print("============================================================")
+        """
+
+        for i, sublist in enumerate(predicted_numbers):
+            chart = asciichartpy.plot(sublist, {'height': 10})
+            print(f"Graph for Sublist {i+1}:\n{chart}\n")
+
+
         
         
     def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, years_back=None):
