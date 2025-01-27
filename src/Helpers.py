@@ -85,8 +85,8 @@ class Helpers():
         
 
     def find_matching_numbers(self, sequence, predictedSequence):
-        print("Sequence: ", sequence)
-        print("Predicted Sequence: ", predictedSequence)
+        #print("Sequence: ", sequence)
+        #print("Predicted Sequence: ", predictedSequence)
         # Convert the input sequence to a set for efficient matching
         sequence_set = set(sequence)
 
