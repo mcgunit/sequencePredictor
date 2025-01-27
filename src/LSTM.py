@@ -182,6 +182,12 @@ if __name__ == "__main__":
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 
-    matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], latest_raw_predictions)
+    # Generate set of predictions
+    print(len(latest_raw_predictions[0]))
 
-    print("Matching Numbers: ", matching_numbers)
+    # Check on prediction with nth highest probability
+    for i in range(10):
+        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, i)
+        print("Prediction with ", i+1 ,"highest probs: ", matching_numbers)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
+        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)

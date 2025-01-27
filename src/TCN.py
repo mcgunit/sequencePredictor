@@ -152,13 +152,11 @@ if __name__ == "__main__":
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
 
-    
+    tcn_model.setModelPath(modelPath)
     tcn_model.setDataPath(dataPath)
     tcn_model.setBatchSize(16)
     tcn_model.setEpochs(1000)
-
-    # When training is needed
-    tcn_model.setModelPath(modelPath)
+    
     latest_raw_predictions = tcn_model.run(name, years_back=1)
 
     #helpers.print_predicted_numbers(latest_raw_predictions)
@@ -168,6 +166,12 @@ if __name__ == "__main__":
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 
-    matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], latest_raw_predictions)
+    # Generate set of predictions
+    print(len(latest_raw_predictions[0]))
 
-    print("Matching Numbers: ", matching_numbers)
+    # Check on prediction with nth highest probability
+    for i in range(10):
+        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, i)
+        print("Prediction with ", i+1 ,"highest probs: ", matching_numbers)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
+        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)

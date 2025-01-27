@@ -74,29 +74,40 @@ class Helpers():
         # Convert the input sequence to a set for efficient matching
         sequence_set = set(sequence)
 
-        print(len(predictedSequence[0]))
-
-        # Calculate highest probability indices and adjust to actual numbers
-        highest_indices = [np.argmax(sublist) + 1 for sublist in predictedSequence]
-
-        # Convert highest_indices to a set
-        highest_indices_set = set(highest_indices)
-
         # Find the matching numbers between sequence and highest_indices
-        matching_numbers = list(sequence_set.intersection(highest_indices_set))
+        matching_numbers = list(sequence_set.intersection(predictedSequence))
 
         # Convert to a list of integers
         matching_numbers = [int(x) for x in matching_numbers]
 
         return matching_numbers
     
-    def decode_predictions(self, raw_predictions):
-        predicted_indices = np.argmax(raw_predictions, axis=-1)  
-        
-        # Convert indices to numbers (1-based indexing)
-        predicted_numbers = predicted_indices + 1  # Add 1 to convert from 0-based to 1-based
-        
-        return predicted_numbers
+    def decode_predictions(self, raw_predictions, nHighestProb=0):
+        """
+            Decode the prediction based on probability.
+
+            Parameters
+            ----------
+            raw_predictions : list
+                List of raw predictions.
+            nHighestProb : int, optional
+                Number of probability ranking. 0 means return numbers with the highest probability, 
+                1 means second-highest probability, and so on.
+        """
+
+        if nHighestProb == 0:
+            # Get indices with the highest probability
+            highest_indices = [np.argmax(sublist) + 1 for sublist in raw_predictions]
+        else:
+            # Get indices with the nth-highest probability
+            highest_indices = [
+                np.argsort(sublist)[-(nHighestProb + 1)] + 1 for sublist in raw_predictions
+            ]
+
+        # Convert to a set (optional)
+        highest_indices_set = set(highest_indices)
+
+        return highest_indices_set
     
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
@@ -105,7 +116,7 @@ class Helpers():
         latest_raw_predictions = raw_predictions[::-1] # reverse
 
         latest_raw_predictions = latest_raw_predictions[0] # take the the latest
-        print("Latest raw prediction: ", latest_raw_predictions)
+        #print("Latest raw prediction: ", latest_raw_predictions)
 
         """
             Structure of latest_raw_prediction is a list of each position a class and each class is a list of probabilities of what class it will be.
