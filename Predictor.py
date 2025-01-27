@@ -64,10 +64,10 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
             print("New result detected. Lets compare with a prediction from previous entry")
 
             current_json_object = {
-                "currentPrediction": [],
+                "currentPredictionRaw": [],
                 "realResult": latestResult,
                 "newPrediction": [],
-                "probabilityOfNewPrediction": [],
+                "newPredictionRaw": [],
                 "matchingNumbers": {}
             }
 
@@ -93,24 +93,44 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     #print(type(previous_json_object))
 
                     # The current prediction is the new prediction from the previous one
-                    current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+                    current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
 
-                    # Check the matching numbers
-                    best_match_index, best_match_sequence, matching_numbers_array = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"])
+                    listOfMatching = []
+                    listOfDecodedPredictions = []
+
+                    # Check on prediction with nth highest probability
+                    for i in range(10):
+                        prediction_nth_indices = helpers.decode_predictions(latest_raw_predictions, i)
+                        #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
+                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPredictionRaw"][i])
+                        #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+                        listOfMatching.append({
+                            "index": i,
+                            "matchingSequence": prediction_nth_indices,
+                            "matchingNumbers": matching_numbers
+                        })
+
+                        listOfDecodedPredictions.append(prediction_nth_indices)
+                    
+
+                    # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
+                    largest_matching_object = max(listOfMatching, key=lambda x: len(x['matchingNumbers']))
+
+
                     current_json_object["matchingNumbers"] = {
-                        "bestMatchIndex": best_match_index,
-                        "bestMatchSequence": best_match_sequence,
-                        "matchingNumbers": matching_numbers_array
+                        "bestMatchIndex": largest_matching_object["index"],
+                        "bestMatchSequence": largest_matching_object["matchingSequence"],
+                        "matchingNumbers": largest_matching_object["matchingNumbers"]
                     }
 
-                    print("matching_numbers: ", matching_numbers_array)
+                    print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
 
                     # Train and do a new prediction
                     if doTraining:
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
                         modelToUse.setEpochs(1000)
-                        predictedNumbers, probability_of_latest_prediction = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        latest_raw_predictions = modelToUse.run(name, skipLastColumns, years_back=years_back)
                     else:
                         model = os.path.join(modelPath, "model_euromillions.keras")
                         if "lotto" in name and not "vikinglotto" in name:
@@ -125,66 +145,195 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             model = os.path.join(modelPath, "model_pick3.keras")
                         if "vikinglotto" in name:
                             model = os.path.join(modelPath, "model_vikinglotto.keras")
-                        predictedNumbers, probability_of_latest_prediction = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                        latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
-                    predictedSequence = predictedNumbers.tolist()
+                    predictedSequence = latest_raw_predictions.tolist()
 
             
                     # Save the current prediction as newPrediction
-                    current_json_object["newPrediction"] = predictedSequence
-                    current_json_object["probabilityOfNewPrediction"] = probability_of_latest_prediction
+                    current_json_object["newPredictionRaw"] = predictedSequence
+                    current_json_object["newPrediction"] = listOfDecodedPredictions
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
 
-                    return predictedSequence
+                    #return predictedSequence
                 
             if doNewPrediction:
-                print("No previous prediction file found, Cannot compare. Creating from scratch")
+                print("No previous prediction file found, Cannot compare. Recreating one month of history")
+
+                # Check if there is not a gap or so
+                historyData = helpers.getLatestPrediction(os.path.join(dataPath, file), dateRange=1)
+                print("History data: ", historyData)
+
+                dateOffset = len(historyData)-1 # index of list entry
+
+                print("Date to start from: ", historyData[dateOffset])
+
+                # Search for existing history
+                for index, historyEntry in enumerate(historyData):
+                    entryDate = historyEntry[0]
+                    entryResult = historyEntry[1]
+                    jsonFileName = f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json"
+                    print(jsonFileName, ":", entryResult)
+                    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+                    print("Does file exist: ", os.path.exists(jsonFilePath))
+                    if os.path.exists(jsonFilePath):
+                        dateOffset = index
                 
-                current_json_object = {
-                    "currentPrediction": [],
-                    "realResult": [],
-                    "newPrediction": [],
-                    "probabilityOfNewPrediction": [],
-                    "matchingNumbers": []
-                }
-
-                # Train and do a new prediction
-                modelToUse.setDataPath(dataPath)
+                # Remove all elements starting from dateOffset index
+                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index
                 
-                if doTraining:
-                    modelToUse.setModelPath(modelPath)
-                    modelToUse.setBatchSize(16)
-                    modelToUse.setEpochs(1000)
-                    predictedNumbers, probability_of_latest_prediction = modelToUse.run(name, skipLastColumns, years_back=years_back)
-                else:
-                    model = os.path.join(modelPath, "model_euromillions.keras")
-                    if "lotto" in name and not "vikinglotto" in name:
-                        model = os.path.join(modelPath, "model_lotto.keras")
-                    if "eurodreams" in name:
-                        model = os.path.join(modelPath, "model_eurodreams.keras")
-                    if "jokerplus" in name:
-                        model = os.path.join(modelPath, "model_jokerplus.keras")
-                    if "keno" in name:
-                        model = os.path.join(modelPath, "model_keno.keras")
-                    if "pick3" in name:
-                        model = os.path.join(modelPath, "model_pick3.keras")
-                    if "vikinglotto" in name:
-                        model = os.path.join(modelPath, "model_vikinglotto.keras")
-                    predictedNumbers, probability_of_latest_prediction = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                print("History to rebuild: ", historyData)
 
-                predictedSequence = predictedNumbers.tolist()
+                previousJsonFilePath = ""
 
-        
-                # Save the current prediction as newPrediction
-                current_json_object["newPrediction"] = predictedSequence
-                current_json_object["probabilityOfNewPrediction"] = probability_of_latest_prediction
+                # Now lets iterate in reversed order to start with the older entries
+                for historyIndex, historyEntry in enumerate(reversed(historyData)):
+                    historyDate = historyEntry[0]
+                    historyResult = historyEntry[1]
+                    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
+                    print(jsonFileName, ":", historyResult)
+                    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
 
-                with open(jsonFilePath, "w+") as outfile:
-                    json.dump(current_json_object, outfile)
+                    if historyIndex == 0:
+                        print("oldest entry: ", historyEntry)
+                        
+                        current_json_object = {
+                            "currentPredictionRaw": [],
+                            "realResult": [],
+                            "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
+                            "newPredictionRaw": [], # Raw prediction that contains the statistical data
+                            "matchingNumbers": []
+                        }
 
-                return predictedSequence
+                        # Train and do a new prediction
+                        modelToUse.setDataPath(dataPath)
+                        
+                        if doTraining:
+                            modelToUse.setModelPath(modelPath)
+                            modelToUse.setBatchSize(16)
+                            modelToUse.setEpochs(1000)
+                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        else:
+                            model = os.path.join(modelPath, "model_euromillions.keras")
+                            if "lotto" in name and not "vikinglotto" in name:
+                                model = os.path.join(modelPath, "model_lotto.keras")
+                            if "eurodreams" in name:
+                                model = os.path.join(modelPath, "model_eurodreams.keras")
+                            if "jokerplus" in name:
+                                model = os.path.join(modelPath, "model_jokerplus.keras")
+                            if "keno" in name:
+                                model = os.path.join(modelPath, "model_keno.keras")
+                            if "pick3" in name:
+                                model = os.path.join(modelPath, "model_pick3.keras")
+                            if "vikinglotto" in name:
+                                model = os.path.join(modelPath, "model_vikinglotto.keras")
+                            latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+
+                        predictedSequence = latest_raw_predictions.tolist()
+
+                        listOfDecodedPredictions = []
+                        for i in range(10):
+                            prediction_nth_indices = helpers.decode_predictions(predictedSequence, i)
+                            listOfDecodedPredictions.append(prediction_nth_indices)
+                
+                        # Save the current prediction as newPrediction
+                        current_json_object["newPredictionRaw"] = predictedSequence
+                        current_json_object["newPrediction"] = listOfDecodedPredictions
+
+                        with open(jsonFilePath, "w+") as outfile:
+                            json.dump(current_json_object, outfile)
+                    else:
+                        # The previous file should be created at index 0
+
+                        # Opening JSON file
+                        with open(previousJsonFilePath, 'r') as openfile:
+                        
+                            # Reading from json file
+                            previous_json_object = json.load(openfile)
+
+                        current_json_object = {
+                            "currentPredictionRaw": [],
+                            "realResult": historyResult,
+                            "newPrediction": [],
+                            "newPredictionRaw": [],
+                            "matchingNumbers": {}
+                        }
+                        
+                        #print(previous_json_object)
+                        #print(type(previous_json_object))
+
+                        # The current prediction is the new prediction from the previous one
+                        current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+
+                        #print(current_json_object["currentPredictionRaw"])
+
+                        listOfDecodedPredictions = []
+                        listOfMatchings = []
+
+                        # Check on prediction with nth highest probability
+                        for i in range(10):
+                            prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], i)
+                            #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
+                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
+                            #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+                            listOfMatchings.append({
+                                "index": i,
+                                "matchingSequence": prediction_nth_indices,
+                                "matchingNumbers": matching_numbers
+                            })
+
+                            listOfDecodedPredictions.append(prediction_nth_indices)
+                        
+
+                        # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
+                        largest_matching_object = max(listOfMatchings, key=lambda x: len(x['matchingNumbers']))
+
+
+                        current_json_object["matchingNumbers"] = {
+                            "bestMatchIndex": largest_matching_object["index"],
+                            "bestMatchSequence": largest_matching_object["matchingSequence"],
+                            "matchingNumbers": largest_matching_object["matchingNumbers"]
+                        }
+
+                        print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
+
+                        # Train and do a new prediction
+                        if doTraining:
+                            modelToUse.setModelPath(modelPath)
+                            modelToUse.setBatchSize(16)
+                            modelToUse.setEpochs(1000)
+                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        else:
+                            model = os.path.join(modelPath, "model_euromillions.keras")
+                            if "lotto" in name and not "vikinglotto" in name:
+                                model = os.path.join(modelPath, "model_lotto.keras")
+                            if "eurodreams" in name:
+                                model = os.path.join(modelPath, "model_eurodreams.keras")
+                            if "jokerplus" in name:
+                                model = os.path.join(modelPath, "model_jokerplus.keras")
+                            if "keno" in name:
+                                model = os.path.join(modelPath, "model_keno.keras")
+                            if "pick3" in name:
+                                model = os.path.join(modelPath, "model_pick3.keras")
+                            if "vikinglotto" in name:
+                                model = os.path.join(modelPath, "model_vikinglotto.keras")
+                            latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+
+                        predictedSequence = latest_raw_predictions.tolist()
+
+                
+                        # Save the current prediction as newPrediction
+                        current_json_object["newPredictionRaw"] = predictedSequence
+                        current_json_object["newPrediction"] = listOfDecodedPredictions
+
+                        with open(jsonFilePath, "w+") as outfile:
+                            json.dump(current_json_object, outfile)
+
+                    previousJsonFilePath = jsonFilePath
+
+                #return predictedSequence
         else:
             print("Prediction already made")
     else:
@@ -222,7 +371,7 @@ if __name__ == "__main__":
     print("Current Year:", current_year)
 
     path = os.getcwd()
-   
+    """
     try:
         #####################
         #   Euromillions    #
@@ -301,8 +450,9 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict euroDreams", e)
-
-    '''
+    
+    """
+    """
     try:
         #####################
         #     joker plus    #
@@ -322,7 +472,8 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to predict Joker plus", e)
 
-    '''
+    """
+
     try:
         #####################
         #        keno       #
@@ -346,7 +497,7 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to predict Keno", e)
 
-
+    """
     try:
         #####################
         #        Pick3      #
@@ -400,6 +551,7 @@ if __name__ == "__main__":
         helpers.git_push()
     except Exception as e:
         print("Failed to push latest predictions")
+    """
     
     
     

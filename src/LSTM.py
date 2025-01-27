@@ -155,9 +155,9 @@ class LSTMModel:
         model = load_model(modelPath)
 
         # Predict numbers
-        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":

@@ -3,14 +3,21 @@ import numpy as np
 import asciichartpy
 
 from dateutil.parser import parse
+from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from sklearn.preprocessing import OneHotEncoder
 from collections import Counter
 
 
+
 class Helpers():
 
-    def getLatestPrediction(self, csvFile):
+    def getLatestPrediction(self, csvFile, dateRange=None):
+        """
+            Get latest result from csv file.
+            If dateRange is provided it will return a list containing multiple results
+            If dateRange is None (default) it will return the current and previous result
+        """
         # Initialize an empty list to hold the data
         data = []
 
@@ -53,24 +60,33 @@ class Helpers():
 
         # If data is not empty, find the most recent entry
         if data:
-            if len(data) == 1:
-                # Sort data by date (the first element of the tuple)
-                data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
-                previous_entry = None
-                latest_entry = data[0]  # Get the most recent entry
-                return (latest_entry, previous_entry)  # Return the most recent entry
+            if dateRange is None:
+                if len(data) == 1:
+                    # Sort data by date (the first element of the tuple)
+                    data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+                    previous_entry = None
+                    latest_entry = data[0]  # Get the most recent entry
+                    return (latest_entry, previous_entry)  # Return the most recent entry
+                else:
+                    # Sort data by date (the first element of the tuple)
+                    data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+                    previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
+                    latest_entry = data[0]  # Get the most recent entry
+                    return (latest_entry, previous_entry)  # Return the most recent entry
             else:
-                # Sort data by date (the first element of the tuple)
-                data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
-                previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
-                latest_entry = data[0]  # Get the most recent entry
-                return (latest_entry, previous_entry)  # Return the most recent entry
+                # Calculate the cutoff date based on the dateRange
+                cutoff_date = datetime.now() - relativedelta(months=dateRange)
+                # Filter data to include only entries within the date range
+                filtered_data = [entry for entry in data if entry[0] >= cutoff_date]
+                return filtered_data
         else:
             print("No data found.")
             return None  # Return None if no data was found
         
 
     def find_matching_numbers(self, sequence, predictedSequence):
+        print("Sequence: ", sequence)
+        print("Predicted Sequence: ", predictedSequence)
         # Convert the input sequence to a set for efficient matching
         sequence_set = set(sequence)
 
