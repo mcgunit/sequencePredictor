@@ -390,7 +390,7 @@ if __name__ == "__main__":
     print("Current Year:", current_year)
 
     path = os.getcwd()
-    """
+    
     try:
         #####################
         #   Euromillions    #
@@ -470,7 +470,7 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to predict euroDreams", e)
     
-    """
+    
     """
     try:
         #####################
@@ -516,7 +516,7 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to predict Keno", e)
 
-    """
+    
     try:
         #####################
         #        Pick3      #
@@ -570,7 +570,7 @@ if __name__ == "__main__":
         helpers.git_push()
     except Exception as e:
         print("Failed to push latest predictions")
-    """
+    
     
     
     
