@@ -18,7 +18,7 @@ function generateTable(data, title = '', matchingNumbers = []) {
 
   // Determine headers based on the type
   let headers = data.length > 0 
-    ? Array.from({ length: data[0].length }, (_, i) => `Column ${i + 1}`) 
+    ? Array.from({ length: data[0].length }, (_, i) => `Number ${i + 1}`) 
     : [];
 
   // Add header row
@@ -252,7 +252,7 @@ app.get('/', (req, res) => {
         newPredictionRaw.forEach((sublist, index) => {
           html += `
             <div>
-              <h4>Sublist ${index + 1}</h4>
+              <h4>Probability for number ${index + 1}</h4>
               <canvas id="chart-${folder}-${index}"></canvas>
             </div>
             <script>
