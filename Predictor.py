@@ -57,7 +57,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
         # Check if folder exists
         if not os.path.exists(os.path.join(path, "data", "database", name)):
-            os.mkdir(os.path.join(path, "data", "database", name))
+            os.makedirs(os.path.join(path, "data", "database", name), exist_ok=True)
 
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
