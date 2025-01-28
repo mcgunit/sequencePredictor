@@ -102,9 +102,9 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                     # Check on prediction with nth highest probability
                     for i in range(10):
-                        prediction_nth_indices = helpers.decode_predictions(latest_raw_predictions, i)
+                        prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], i)
                         #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
-                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPredictionRaw"][i])
+                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
                         #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
                         listOfMatching.append({
                             "index": i,
@@ -154,7 +154,14 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
             
                     # Save the current prediction as newPrediction
                     current_json_object["newPredictionRaw"] = predictedSequence
-                    current_json_object["newPrediction"] = listOfDecodedPredictions
+
+                    decodedRawPredictions = []
+                    # Decode prediction with nth highest probability
+                    for i in range(10):
+                        prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], i)
+                        decodedRawPredictions.append(prediction_nth_indices)
+
+                    current_json_object["newPrediction"] = decodedRawPredictions
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
@@ -217,7 +224,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             modelToUse.setModelPath(modelPath)
                             modelToUse.setBatchSize(16)
                             modelToUse.setEpochs(1000)
-                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
                         else:
                             model = os.path.join(modelPath, "model_euromillions.keras")
                             if "lotto" in name and not "vikinglotto" in name:
@@ -309,7 +316,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             modelToUse.setModelPath(modelPath)
                             modelToUse.setBatchSize(16)
                             modelToUse.setEpochs(1000)
-                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
                         else:
                             model = os.path.join(modelPath, "model_euromillions.keras")
                             if "lotto" in name and not "vikinglotto" in name:
@@ -328,10 +335,17 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         predictedSequence = latest_raw_predictions.tolist()
 
-                
+
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
-                        current_json_object["newPrediction"] = listOfDecodedPredictions
+                        
+                        decodedRawPredictions = []
+                        # Decode prediction with nth highest probability
+                        for i in range(10):
+                            prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], i)
+                            decodedRawPredictions.append(prediction_nth_indices)
+
+                        current_json_object["newPrediction"] = decodedRawPredictions
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)

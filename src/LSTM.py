@@ -111,9 +111,9 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         return history
 
-    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, years_back=None):
+    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, years_back=years_back)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
 
         num_features = train_data.shape[1]
 

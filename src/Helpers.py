@@ -176,7 +176,7 @@ class Helpers():
 
         
         
-    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, years_back=None):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None):
         # Initialize an empty list to hold the data
         data = []
 
@@ -239,6 +239,14 @@ class Helpers():
 
         # Replace all -1 values with 0
         numbers[numbers == -1] = 0
+
+        # Remove the last n elements in case of history building
+        if skipRows > 0:
+            print("Skipping Rows: ", skipRows)
+            print("Length of data before skipping rows: ", len(numbers))
+            numbers = numbers[:-skipRows]
+            
+    
 
         # Unique labels for one-hot encoding
         # Euromillions are 50 numbers, Lotto are 45 numbers

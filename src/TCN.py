@@ -92,12 +92,12 @@ class TCNModel:
         return history
 
     
-    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, years_back=None):
+    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
         """
         Train and perform a prediction
         """
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, years_back=years_back)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
 
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")

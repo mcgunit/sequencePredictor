@@ -186,6 +186,8 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Sequence Predictor Results</title>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <style>
         .folder {
           margin: 10px 0;
@@ -204,22 +206,24 @@ app.get('/', (req, res) => {
           display: none;
           margin-top: 10px;
         }
+        .charts-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 10px;
+        }
+        canvas {
+          width: 100%;
+          height: auto;
+          max-height: 150px;
+        }
+        .save-btn {
+          margin-top: 20px;
+        }
       </style>
-      <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const folderTitles = document.querySelectorAll('.folder-title');
-          folderTitles.forEach(title => {
-            title.addEventListener('click', () => {
-              const content = title.nextElementSibling;
-              content.style.display = content.style.display === 'none' || !content.style.display ? 'block' : 'none';
-            });
-          });
-        });
-      </script>
     </head>
     <body>
       <h1>Sequence Predictor Results</h1>
-      <h2>Predictions</h2>
+      <button id="saveAsPng" class="save-btn">Save as PNG</button>
       <div>
   `;
 
@@ -233,12 +237,59 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const latestFilePath = path.join(folderPath, latestFile);
       const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
+      const newPredictionRaw = jsonData.newPredictionRaw;
 
       html += `
         <div class="folder">
           <div class="folder-title">${folder}</div>
           <div class="folder-content">
+            <h3>${latestFile}</h3>
             ${generateTable(jsonData.newPrediction, 'New Prediction')}
+            <div class="charts-grid">
+      `;
+
+      if (newPredictionRaw && Array.isArray(newPredictionRaw)) {
+        newPredictionRaw.forEach((sublist, index) => {
+          html += `
+            <div>
+              <h4>Sublist ${index + 1}</h4>
+              <canvas id="chart-${folder}-${index}"></canvas>
+            </div>
+            <script>
+              const ctx${folder}${index} = document.getElementById('chart-${folder}-${index}').getContext('2d');
+              new Chart(ctx${folder}${index}, {
+                type: 'line',
+                data: {
+                  labels: Array.from({ length: ${sublist.length} }, (_, i) => i + 1),
+                  datasets: [{
+                    label: 'Probability',
+                    data: ${JSON.stringify(sublist)},
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderWidth: 1,
+                    fill: true,
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    }
+                  },
+                  scales: {
+                    x: { display: false },
+                    y: { display: false },
+                  }
+                }
+              });
+            </script>
+          `;
+        });
+      }
+
+      html += `
+            </div>
             <form action="/database/${folder}/${latestFile}" method="get" style="margin-top: 10px;">
               <button type="submit">View Comparison</button>
             </form>
@@ -250,13 +301,21 @@ app.get('/', (req, res) => {
 
   html += `
       </div>
-      <button id="saveAsPng" style="margin-top: 20px;">Save as PNG</button>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const folderTitles = document.querySelectorAll('.folder-title');
+          folderTitles.forEach(title => {
+            title.addEventListener('click', () => {
+              const content = title.nextElementSibling;
+              content.style.display = content.style.display === 'none' || !content.style.display ? 'block' : 'none';
+            });
+          });
+        });
+
         document.getElementById('saveAsPng').addEventListener('click', () => {
           html2canvas(document.body).then((canvas) => {
             const link = document.createElement('a');
-            link.download = 'home_page.png';
+            link.download = 'page_snapshot.png';
             link.href = canvas.toDataURL();
             link.click();
           });
@@ -268,7 +327,6 @@ app.get('/', (req, res) => {
 
   res.send(html);
 });
-
 
 // Start the server
 app.listen(config.PORT, () => {
