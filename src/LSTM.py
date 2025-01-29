@@ -113,7 +113,7 @@ class LSTMModel:
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
 
         num_features = train_data.shape[1]
 
@@ -144,7 +144,7 @@ class LSTMModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return latest_raw_predictions
+        return latest_raw_predictions, unique_labels
 
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -163,7 +163,7 @@ class LSTMModel:
 if __name__ == "__main__":
     lstm_model = LSTMModel()
 
-    name = 'keno'
+    name = 'pick3'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1000)
 
-    latest_raw_predictions = lstm_model.run(name, years_back=1)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
 
     #helpers.print_predicted_numbers(latest_raw_predictions)
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     # Check on prediction with nth highest probability
     for i in range(10):
-        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, i)
+        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
         matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)

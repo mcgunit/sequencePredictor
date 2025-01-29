@@ -98,46 +98,36 @@ class Helpers():
 
         return matching_numbers
     
-    def decode_predictions(self, raw_predictions, nHighestProb=0):
+    def decode_predictions(self, raw_predictions, labels, nHighestProb=0):
         """
-        Decode the prediction based on probability.
+        Decode the prediction based on probability and match with corresponding labels.
 
         Parameters
         ----------
         raw_predictions : list or np.ndarray
             List of raw predictions.
+        labels : list or np.ndarray
+            List of labels corresponding to the classes.
         nHighestProb : int, optional
-            Number of probability ranking. 0 means return numbers with the highest probability, 
-            1 means second-highest probability, and so on.
+            Rank of probability to consider. 0 means highest probability, 1 means second-highest, etc.
+
+        Returns
+        -------
+        list
+            Decoded predictions as per the provided labels.
         """
 
-        # Ensure raw_predictions is a list or convert it to a list if it's a numpy array
-        if isinstance(raw_predictions, np.ndarray):
-            raw_predictions = raw_predictions.tolist()
+        # Ensure raw_predictions is a numpy array for easy processing
+        raw_predictions = np.array(raw_predictions)
+        labels = np.array(labels)
 
-        if not raw_predictions or not isinstance(raw_predictions, list) or not all(isinstance(sublist, list) for sublist in raw_predictions):
-            raise ValueError("raw_predictions must be a non-empty list of lists.")
+        # Get indices of the top nHighestProb probability
+        highest_indices = np.argsort(raw_predictions, axis=1)[:, -(nHighestProb + 1)]
 
-        if nHighestProb == 0:
-            # Get indices with the highest probability
-            highest_indices = [np.argmax(sublist) + 1 for sublist in raw_predictions]
-        else:
-            # Get indices with the nth-highest probability
-            highest_indices = [
-                np.argsort(sublist)[-(nHighestProb + 1)] + 1 for sublist in raw_predictions
-            ]
+        # Map indices to labels
+        decoded_predictions = labels[highest_indices]
 
-        # Convert to a set to remove duplicates
-        highest_indices_set = set(highest_indices)
-
-        # Convert to a list of integers
-        highest_indices_set = [int(x) for x in highest_indices_set]
-
-        # Ensure the list has the same length as the sublist
-        list_length = len(raw_predictions)  # Assuming all sublists are of the same length
-        highest_indices_set = highest_indices_set + [0] * (list_length - len(highest_indices_set))
-
-        return highest_indices_set
+        return decoded_predictions.tolist()
     
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
@@ -274,6 +264,7 @@ class Helpers():
             unique_labels.append("Steenbok")
             unique_labels.append("Tweeling")
 
+        #print("unique_labels: ", unique_labels)
 
         encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
 
@@ -310,7 +301,7 @@ class Helpers():
 
         print("Length of data: ", len(numbers))
 
-        return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes
+        return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels
 
 
 

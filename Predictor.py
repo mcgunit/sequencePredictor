@@ -67,9 +67,10 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                 "currentPredictionRaw": [],
                 "currentPrediction": [],
                 "realResult": latestResult,
-                "newPrediction": [],
-                "newPredictionRaw": [],
-                "matchingNumbers": {}
+                "newPrediction": [],      # Decoded prediction with help of labels
+                "newPredictionRaw": [],   # Raw prediction that contains the statistical data
+                "matchingNumbers": {},
+                "labels": []              # Needed for decoding the raw predictions
             }
 
             doNewPrediction = True
@@ -102,7 +103,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                     # Check on prediction with nth highest probability
                     for i in range(10):
-                        prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], i)
+                        prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
                         #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
                         matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
                         #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
@@ -132,7 +133,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
                         modelToUse.setEpochs(1000)
-                        latest_raw_predictions = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
                     else:
                         model = os.path.join(modelPath, "model_euromillions.keras")
                         if "lotto" in name and not "vikinglotto" in name:
@@ -154,11 +155,12 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
             
                     # Save the current prediction as newPrediction
                     current_json_object["newPredictionRaw"] = predictedSequence
+                    current_json_object["labels"] = unique_labels
 
                     decodedRawPredictions = []
                     # Decode prediction with nth highest probability
                     for i in range(10):
-                        prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], i)
+                        prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], unique_labels, i)
                         decodedRawPredictions.append(prediction_nth_indices)
 
                     current_json_object["newPrediction"] = decodedRawPredictions
@@ -214,7 +216,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             "realResult": [],
                             "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
                             "newPredictionRaw": [], # Raw prediction that contains the statistical data
-                            "matchingNumbers": []
+                            "matchingNumbers": [],
+                            "labels": []
                         }
 
                         # Train and do a new prediction
@@ -224,7 +227,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             modelToUse.setModelPath(modelPath)
                             modelToUse.setBatchSize(16)
                             modelToUse.setEpochs(1000)
-                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
+                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
                         else:
                             model = os.path.join(modelPath, "model_euromillions.keras")
                             if "lotto" in name and not "vikinglotto" in name:
@@ -245,12 +248,13 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         listOfDecodedPredictions = []
                         for i in range(10):
-                            prediction_nth_indices = helpers.decode_predictions(predictedSequence, i)
+                            prediction_nth_indices = helpers.decode_predictions(predictedSequence, unique_labels, i)
                             listOfDecodedPredictions.append(prediction_nth_indices)
                 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
                         current_json_object["newPrediction"] = listOfDecodedPredictions
+                        current_json_object["labels"] = unique_labels
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
@@ -269,7 +273,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             "realResult": historyResult,
                             "newPrediction": [],
                             "newPredictionRaw": [],
-                            "matchingNumbers": {}
+                            "matchingNumbers": {},
+                            "labels": []
                         }
                         
                         #print(previous_json_object)
@@ -286,7 +291,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         # Check on prediction with nth highest probability
                         for i in range(10):
-                            prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], i)
+                            prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
                             #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
                             matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
                             #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
@@ -316,7 +321,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             modelToUse.setModelPath(modelPath)
                             modelToUse.setBatchSize(16)
                             modelToUse.setEpochs(1000)
-                            latest_raw_predictions = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
+                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
                         else:
                             model = os.path.join(modelPath, "model_euromillions.keras")
                             if "lotto" in name and not "vikinglotto" in name:
@@ -338,11 +343,12 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
+                        current_json_object["labels"] = unique_labels
                         
                         decodedRawPredictions = []
                         # Decode prediction with nth highest probability
                         for i in range(10):
-                            prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], i)
+                            prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], unique_labels, i)
                             decodedRawPredictions.append(prediction_nth_indices)
 
                         current_json_object["newPrediction"] = decodedRawPredictions
@@ -391,6 +397,7 @@ if __name__ == "__main__":
 
     path = os.getcwd()
     
+    """
     try:
         #####################
         #   Euromillions    #
@@ -469,7 +476,7 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict euroDreams", e)
-    
+    """
     
     """
     try:
@@ -493,6 +500,7 @@ if __name__ == "__main__":
 
     """
 
+    """
     try:
         #####################
         #        keno       #
@@ -515,7 +523,7 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Keno", e)
-
+    """
     
     try:
         #####################
@@ -538,7 +546,7 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to predict Pick3", e)
 
-
+    """
     try:
         #####################
         #    Viking Lotto   #
@@ -570,7 +578,7 @@ if __name__ == "__main__":
         helpers.git_push()
     except Exception as e:
         print("Failed to push latest predictions")
-    
+    """
     
     
     
