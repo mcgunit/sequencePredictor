@@ -155,12 +155,12 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
             
                     # Save the current prediction as newPrediction
                     current_json_object["newPredictionRaw"] = predictedSequence
-                    current_json_object["labels"] = unique_labels
+                    current_json_object["labels"] = unique_labels.tolist()
 
                     decodedRawPredictions = []
                     # Decode prediction with nth highest probability
                     for i in range(10):
-                        prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], unique_labels, i)
+                        prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
                         decodedRawPredictions.append(prediction_nth_indices)
 
                     current_json_object["newPrediction"] = decodedRawPredictions
@@ -175,7 +175,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                 # Check if there is not a gap or so
                 historyData = helpers.getLatestPrediction(os.path.join(dataPath, file), dateRange=1)
-                print("History data: ", historyData)
+                #print("History data: ", historyData)
 
                 dateOffset = len(historyData)-1 # index of list entry
 
@@ -195,7 +195,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                 # Remove all elements starting from dateOffset index
                 historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index
                 
-                print("History to rebuild: ", historyData)
+                #print("History to rebuild: ", historyData)
 
                 previousJsonFilePath = ""
 
@@ -245,6 +245,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
 
                         predictedSequence = latest_raw_predictions.tolist()
+                        unique_labels = unique_labels.tolist()
 
                         listOfDecodedPredictions = []
                         for i in range(10):
@@ -343,12 +344,12 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
-                        current_json_object["labels"] = unique_labels
+                        current_json_object["labels"] = unique_labels.tolist()
                         
                         decodedRawPredictions = []
                         # Decode prediction with nth highest probability
                         for i in range(10):
-                            prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], unique_labels, i)
+                            prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
                             decodedRawPredictions.append(prediction_nth_indices)
 
                         current_json_object["newPrediction"] = decodedRawPredictions
