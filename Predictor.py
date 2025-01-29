@@ -398,7 +398,7 @@ if __name__ == "__main__":
 
     path = os.getcwd()
     
-    """
+    
     try:
         #####################
         #   Euromillions    #
@@ -477,7 +477,7 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict euroDreams", e)
-    """
+    
     
     """
     try:
@@ -501,7 +501,7 @@ if __name__ == "__main__":
 
     """
 
-    """
+    
     try:
         #####################
         #        keno       #
@@ -524,7 +524,7 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Keno", e)
-    """
+    
     
     try:
         #####################
@@ -547,7 +547,7 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to predict Pick3", e)
 
-    """
+    
     try:
         #####################
         #    Viking Lotto   #
@@ -574,12 +574,12 @@ if __name__ == "__main__":
         helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     except Exception as e:
         print("Failed to generate txt file", e)
-
+    
     try:
         helpers.git_push()
     except Exception as e:
         print("Failed to push latest predictions")
-    """
+    
     
     
     
