@@ -111,9 +111,9 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
         return history
 
-    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, years_back=None):
+    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, years_back=years_back)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
 
         num_features = train_data.shape[1]
 
@@ -131,7 +131,7 @@ class LSTMModel:
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
 
         # Predict numbers
-        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -144,7 +144,7 @@ class LSTMModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions, unique_labels
 
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -155,17 +155,17 @@ class LSTMModel:
         model = load_model(modelPath)
 
         # Predict numbers
-        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
     lstm_model = LSTMModel()
 
-    data = 'vikinglotto'
+    name = 'pick3'
     path = os.getcwd()
-    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
+    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     lstm_model.setModelPath(modelPath)
@@ -173,19 +173,21 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1000)
 
-    predicted_numbers, probability_of_latest_prediction = lstm_model.run(data)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
 
-    print("Top six numbers: ", helpers.mostFrequentNumbers(predicted_numbers))
-
-    helpers.print_predicted_numbers(predicted_numbers)
+    #helpers.print_predicted_numbers(latest_raw_predictions)
 
     # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))
+    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(name))
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 
-    best_match_index, best_match_sequence, matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], predicted_numbers)
+    # Generate set of predictions
+    print(len(latest_raw_predictions[0]))
 
-    print("Best Matching Index: ", best_match_index)
-    print("Best Matching Sequence: ", best_match_sequence)
-    print("Matching Numbers: ", matching_numbers)
+    # Check on prediction with nth highest probability
+    for i in range(10):
+        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
+        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
+        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)

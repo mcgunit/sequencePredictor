@@ -1,15 +1,23 @@
 import os, json, subprocess, collections
 import numpy as np
+import asciichartpy
 
 from dateutil.parser import parse
+from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from sklearn.preprocessing import OneHotEncoder
 from collections import Counter
 
 
+
 class Helpers():
 
-    def getLatestPrediction(self, csvFile):
+    def getLatestPrediction(self, csvFile, dateRange=None):
+        """
+            Get latest result from csv file.
+            If dateRange is provided it will return a list containing multiple results
+            If dateRange is None (default) it will return the current and previous result
+        """
         # Initialize an empty list to hold the data
         data = []
 
@@ -52,48 +60,74 @@ class Helpers():
 
         # If data is not empty, find the most recent entry
         if data:
-            if len(data) == 1:
-                # Sort data by date (the first element of the tuple)
-                data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
-                previous_entry = None
-                latest_entry = data[0]  # Get the most recent entry
-                return (latest_entry, previous_entry)  # Return the most recent entry
+            if dateRange is None:
+                if len(data) == 1:
+                    # Sort data by date (the first element of the tuple)
+                    data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+                    previous_entry = None
+                    latest_entry = data[0]  # Get the most recent entry
+                    return (latest_entry, previous_entry)  # Return the most recent entry
+                else:
+                    # Sort data by date (the first element of the tuple)
+                    data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
+                    previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
+                    latest_entry = data[0]  # Get the most recent entry
+                    return (latest_entry, previous_entry)  # Return the most recent entry
             else:
-                # Sort data by date (the first element of the tuple)
-                data.sort(key=lambda x: x[0], reverse=True)  # Sort in descending order
-                previous_entry = data[1] # needed to find the previous prediction to compare with the latest entry
-                latest_entry = data[0]  # Get the most recent entry
-                return (latest_entry, previous_entry)  # Return the most recent entry
+                # Calculate the cutoff date based on the dateRange
+                cutoff_date = datetime.now() - relativedelta(months=dateRange)
+                # Filter data to include only entries within the date range
+                filtered_data = [entry for entry in data if entry[0] >= cutoff_date]
+                return filtered_data
         else:
             print("No data found.")
             return None  # Return None if no data was found
         
 
-    def find_matching_numbers(self, sequence, sequence_list):
-        # Convert the input sequence to a tuple for hashing
-        sequence = tuple(sequence)
+    def find_matching_numbers(self, sequence, predictedSequence):
+        #print("Sequence: ", sequence)
+        #print("Predicted Sequence: ", predictedSequence)
+        # Convert the input sequence to a set for efficient matching
+        sequence_set = set(sequence)
 
-        # Calculate similarity scores and matching numbers
-        results = [
-            (len(set(sequence).intersection(set(tuple(np.array(seq).flatten())))), set(sequence).intersection(set(tuple(np.array(seq).flatten()))))
-            for seq in sequence_list
-        ]
+        # Find the matching numbers between sequence and highest_indices
+        matching_numbers = list(sequence_set.intersection(predictedSequence))
 
-        # Find the best match
-        best_match_index = max(range(len(results)), key=lambda i: results[i][0])
-        best_match_sequence = sequence_list[best_match_index]
-        matching_numbers = results[best_match_index][1]
-        matching_numbers_array = [int(x) for x in matching_numbers]
+        # Convert to a list of integers
+        matching_numbers = [int(x) for x in matching_numbers]
 
-        return (best_match_index, best_match_sequence, matching_numbers_array)
+        return matching_numbers
     
-    def decode_predictions(self, raw_predictions):
-        predicted_indices = np.argmax(raw_predictions, axis=-1)  
-        
-        # Convert indices to numbers (1-based indexing)
-        predicted_numbers = predicted_indices + 1  # Add 1 to convert from 0-based to 1-based
-        
-        return predicted_numbers
+    def decode_predictions(self, raw_predictions, labels, nHighestProb=0):
+        """
+        Decode the prediction based on probability and match with corresponding labels.
+
+        Parameters
+        ----------
+        raw_predictions : list or np.ndarray
+            List of raw predictions.
+        labels : list or np.ndarray
+            List of labels corresponding to the classes.
+        nHighestProb : int, optional
+            Rank of probability to consider. 0 means highest probability, 1 means second-highest, etc.
+
+        Returns
+        -------
+        list
+            Decoded predictions as per the provided labels.
+        """
+
+        # Ensure raw_predictions is a numpy array for easy processing
+        raw_predictions = np.array(raw_predictions)
+        labels = np.array(labels)
+
+        # Get indices of the top nHighestProb probability
+        highest_indices = np.argsort(raw_predictions, axis=1)[:, -(nHighestProb + 1)]
+
+        # Map indices to labels
+        decoded_predictions = labels[highest_indices]
+
+        return decoded_predictions.tolist()
     
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
@@ -101,45 +135,38 @@ class Helpers():
 
         latest_raw_predictions = raw_predictions[::-1] # reverse
 
-        latest_raw_predictions = latest_raw_predictions[:10] # take the 10 most recent predictions
+        latest_raw_predictions = latest_raw_predictions[0] # take the the latest
         #print("Latest raw prediction: ", latest_raw_predictions)
 
-        probability_of_latest_prediction = []
-        for numbers in latest_raw_predictions:
-            numbersList = []
-            for number in numbers:
-                #print(number)
-                numbersList.append(np.max(number))
-            probability_of_latest_prediction.append(numbersList)
+        """
+            Structure of latest_raw_prediction is a list of each position a class and each class is a list of probabilities of what class it will be.
+            Fow example when the model has to predict a set of 3 numbers and each number can be 1, 2 or 3 you can get something like this:
+            [[0.1,0.2, 0.7], [0.8, 0.1, 0.1], [0.0, 0.9, 0.1]] --> This will be a prediction of a set of 3 numbers being [3, 1, 2].
+            The index of the highest probability in the list determines the predicted number (index+1) 
+        """
 
-        probability_of_latest_prediction = [[float(value) for value in row] for row in probability_of_latest_prediction]
-
-        #print("Highest probability in latest prediction: ", probability_of_latest_prediction)
-
-        # Decode raw predictions into numbers
-        predicted_numbers = self.decode_predictions(raw_predictions)
-
-        # Reverse the predicted_numbers array because the last item is the prediction of the most recent
-        predicted_numbers = predicted_numbers[::-1]
-
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
 
         #print("Predicted Numbers Shape:", predicted_numbers.shape)
         #print("Predicted Numbers Type:", type(predicted_numbers))
-        
+        """
         print("============================================================")
-        printRange = 10
-        if len(predicted_numbers) < 10:
-            printRange = len(predicted_numbers)
-        for i in range(printRange):
+        for i in range(len(predicted_numbers)):
             print(f"Predicted Numbers {i}: {', '.join(map(str, predicted_numbers[i]))}")
         print("============================================================")
+        """
+
+        for i, sublist in enumerate(predicted_numbers):
+            chart = asciichartpy.plot(sublist, {'height': 10})
+            print(f"Graph for Sublist {i+1}:\n{chart}\n")
+
+
         
         
-    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, years_back=None):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None):
         # Initialize an empty list to hold the data
         data = []
 
@@ -203,6 +230,14 @@ class Helpers():
         # Replace all -1 values with 0
         numbers[numbers == -1] = 0
 
+        # Remove the last n elements in case of history building
+        if skipRows > 0:
+            print("Skipping Rows: ", skipRows)
+            print("Length of data before skipping rows: ", len(numbers))
+            numbers = numbers[:-skipRows]
+            
+    
+
         # Unique labels for one-hot encoding
         # Euromillions are 50 numbers, Lotto are 45 numbers
         unique_labels = np.arange(1, 51)  # This should create an array [1, 2, ..., 50]
@@ -229,6 +264,7 @@ class Helpers():
             unique_labels.append("Steenbok")
             unique_labels.append("Tweeling")
 
+        #print("unique_labels: ", unique_labels)
 
         encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
 
@@ -265,7 +301,7 @@ class Helpers():
 
         print("Length of data: ", len(numbers))
 
-        return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes
+        return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels
 
 
 

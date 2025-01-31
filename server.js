@@ -10,7 +10,7 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-function generateTable(data, title = '', matchingNumbers = [], type = 'euromillions', probabilities = []) {
+function generateTable(data, title = '', matchingNumbers = []) {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Add title as caption if provided
@@ -18,9 +18,8 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
 
   // Determine headers based on the type
   let headers = data.length > 0 
-    ? Array.from({ length: data[0].length }, (_, i) => `Column ${i + 1}`) 
+    ? Array.from({ length: data[0].length }, (_, i) => `Number ${i + 1}`) 
     : [];
-  headers.push('Probabilities'); // Add probabilities column
 
   // Add header row
   table += '<tr>';
@@ -30,7 +29,7 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
   });
   table += '</tr>';
 
-  // Add rows with data and probabilities
+  // Add rows with data
   data.forEach((row, rowIndex) => {
     if (rowIndex < 10) {
       table += '<tr>';
@@ -39,11 +38,6 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
         const isMatching = matchingNumbers.includes(cell); // Highlight if matching
         table += `<td style="padding: 5px; text-align: center; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
       });
-
-      // Add probability for the current row
-      const prob = probabilities[rowIndex] || [];
-      table += `<td style="padding: 5px; text-align: center;">${prob.map(p => p.toFixed(2)).join(', ')}</td>`;
-      table += '</tr>';
     }
   });
 
@@ -51,55 +45,6 @@ function generateTable(data, title = '', matchingNumbers = [], type = 'euromilli
   return table;
 }
 
-function generateTableWithMostFrequentNumbers(data, title = '', mostFrequentNumbers = [], type = 'euromillions') {
-
-  let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
-
-  // Add title as caption if provided
-  if (title) table += `<caption><strong>${title}</strong></caption>`;
-
-  // Determine headers based on the type
-  let headers = [];
-  if (type === 'lotto') {
-    headers = ['Number 1', 'Number 2', 'Number 3', 'Number 4', 'Number 5', 'Number 6', 'Bonus'];
-  } else if (type === 'euromillions') {
-    headers = ['Number 1', 'Number 2', 'Number 3', 'Number 4', 'Number 5', 'Star 1', 'Star 2'];
-  } else {
-    headers = data.length > 0 ? Array.from({ length: data[0].length }, (_, i) => `Column ${i + 1}`) : [];
-  }
-
-  // Add header row with column names
-  table += '<tr>';
-  table += `<th style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">#</th>`; // Index column header
-  headers.forEach((header) => {
-    table += `<th style="padding: 5px; text-align: center; width: 100px; min-width: 100px; font-weight: bold;">${header}</th>`;
-  });
-  table += '</tr>';
-
-  // Add rows with data and index
-  data.forEach((row, rowIndex) => {
-    // Only show 10 rows
-    if(rowIndex <= 9) {
-      table += '<tr>';
-      table += `<td style="padding: 5px; text-align: center; font-weight: bold; width: 10px; max-width: 10px;">${rowIndex + 1}</td>`; // Row index
-      row.forEach((cell) => {
-        /*
-        const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
-        table += `<td style="padding: 5px; text-align: center; ${
-          isMostFrequent ? 'background-color: orange; color: black;' : ''
-        }">${cell}</td>`;
-        */
-        const isMostFrequent = mostFrequentNumbers.includes(cell); // Check if the cell value is in mostFrequentNumbers
-        table += `<td style="padding: 5px; text-align: center;">${cell}</td>`;
-      });
-      table += '</tr>';
-    }
-  });
-
-  table += '</table>';
-
-  return table;
-}
 
 function generateList(data, title = '') {
   if(Array.isArray(data) && data.length > 0) {
@@ -113,71 +58,6 @@ function generateList(data, title = '') {
     table += '</table>';
     return table;
   }
-}
-
-function calculateMostFrequentNumber(numbers, type) {
-  let mostFrequentMain = [];
-  let mostFrequentStars = [];
-  let mostFrequentNumbers = [];
-
-  const allFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
-
-  if (type === 'euromillions') {
-    const allNumbersMain = [];
-    const allNumbersStars = [];
-
-
-    if (Array.isArray(numbers)) {
-      numbers.forEach((row) => {
-        allNumbersMain.push(...row.slice(0, 5)); // First 5 numbers
-        allNumbersStars.push(...row.slice(5)); // Last 2 stars
-      });
-    }
-   
-
-    const frequencyMain = allNumbersMain.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
-
-    const frequencyStars = allNumbersStars.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
-
-    mostFrequentMain = Object.entries(frequencyMain)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([num]) => parseInt(num, 10)); // Get unique numbers
-
-    mostFrequentStars = Object.entries(frequencyStars)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 2)
-      .map(([num]) => parseInt(num, 10)); // Get unique numbers
-
-    //console.log("Most Frequent Main: ", mostFrequentMain);
-    //console.log("Most Frequent Stars: ", mostFrequentStars);
-
-    allFrequentNumbers.euromillions.main.push(...mostFrequentMain);
-    allFrequentNumbers.euromillions.stars.push(...mostFrequentStars);
-  } else if (type === 'lotto') {
-    const allNumbers = numbers;
-
-    const frequencyMap = allNumbers.reduce((map, num) => {
-      map[num] = (map[num] || 0) + 1;
-      return map;
-    }, {});
-
-    mostFrequentNumbers = Object.entries(frequencyMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 6)
-      .map(([num]) => parseInt(num, 10)); // Get unique numbers
-
-    allFrequentNumbers.lotto.push(...mostFrequentNumbers);
-  }
-
-  return allFrequentNumbers;
-
 }
 
 
@@ -230,26 +110,11 @@ app.get('/database/:folder/:file', (req, res) => {
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-    // Determine the type based on the folder name
-    const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
-
-    let allNewFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
-
-    allNewFrequentNumbers = calculateMostFrequentNumber(jsonData.newPrediction, type);
-
-    let mostFrequentNumbers = (type === 'euromillions' ? [...allNewFrequentNumbers.euromillions.main, ...allNewFrequentNumbers.euromillions.stars] : allNewFrequentNumbers.lotto);
-
-    let allCurrentFrequentNumbers = { lotto: [], euromillions: { main: [], stars: [] } };
-
-    allCurrentFrequentNumbers = calculateMostFrequentNumber(jsonData.currentPrediction, type);
-
-    let mostFrequentCurrentNumbers = (type === 'euromillions' ? [...allCurrentFrequentNumbers.euromillions.main, ...allCurrentFrequentNumbers.euromillions.stars] : allCurrentFrequentNumbers.lotto);
-
     // Generate HTML content
     let html = `
       <h1>${file} Results</h1>
       <h2>Current Prediction</h2>
-      ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers, type)}
+      ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers)}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
       <h2>Matching Numbers</h2>
@@ -257,7 +122,7 @@ app.get('/database/:folder/:file', (req, res) => {
       <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
       <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
       <h2>New Prediction</h2>
-      ${generateTable(jsonData.newPrediction, 'New Prediction', [], type, jsonData.probabilityOfNewPrediction)}
+      ${generateTable(jsonData.newPrediction, 'New Prediction', [])}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
     `;
@@ -321,6 +186,8 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Sequence Predictor Results</title>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <style>
         .folder {
           margin: 10px 0;
@@ -339,22 +206,24 @@ app.get('/', (req, res) => {
           display: none;
           margin-top: 10px;
         }
+        .charts-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 10px;
+        }
+        canvas {
+          width: 100%;
+          height: auto;
+          max-height: 150px;
+        }
+        .save-btn {
+          margin-top: 20px;
+        }
       </style>
-      <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const folderTitles = document.querySelectorAll('.folder-title');
-          folderTitles.forEach(title => {
-            title.addEventListener('click', () => {
-              const content = title.nextElementSibling;
-              content.style.display = content.style.display === 'none' || !content.style.display ? 'block' : 'none';
-            });
-          });
-        });
-      </script>
     </head>
     <body>
       <h1>Sequence Predictor Results</h1>
-      <h2>Predictions</h2>
+      <button id="saveAsPng" class="save-btn">Save as PNG</button>
       <div>
   `;
 
@@ -368,15 +237,59 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const latestFilePath = path.join(folderPath, latestFile);
       const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
-
-      const type = folder.includes('lotto') ? 'lotto' : folder.includes('euromillions') ? 'euromillions' : 'generic';
-      const allFrequentNumbers = calculateMostFrequentNumber(jsonData.newPrediction, type);
+      const newPredictionRaw = jsonData.newPredictionRaw;
 
       html += `
         <div class="folder">
           <div class="folder-title">${folder}</div>
           <div class="folder-content">
-            ${generateTableWithMostFrequentNumbers(jsonData.newPrediction, 'New Prediction', type === 'euromillions' ? [...allFrequentNumbers.euromillions.main, ...allFrequentNumbers.euromillions.stars] : allFrequentNumbers.lotto, type)}
+            <h3>${latestFile}</h3>
+            ${generateTable(jsonData.newPrediction, 'New Prediction')}
+            <div class="charts-grid">
+      `;
+
+      if (newPredictionRaw && Array.isArray(newPredictionRaw)) {
+        newPredictionRaw.forEach((sublist, index) => {
+          html += `
+            <div>
+              <h4>Probability for number ${index + 1}</h4>
+              <canvas id="chart-${folder}-${index}"></canvas>
+            </div>
+            <script>
+              const ctx${folder}${index} = document.getElementById('chart-${folder}-${index}').getContext('2d');
+              new Chart(ctx${folder}${index}, {
+                type: 'line',
+                data: {
+                  labels: Array.from({ length: ${sublist.length} }, (_, i) => i + 1),
+                  datasets: [{
+                    label: 'Probability',
+                    data: ${JSON.stringify(sublist)},
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderWidth: 1,
+                    fill: true,
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    }
+                  },
+                  scales: {
+                    x: { display: false },
+                    y: { display: false },
+                  }
+                }
+              });
+            </script>
+          `;
+        });
+      }
+
+      html += `
+            </div>
             <form action="/database/${folder}/${latestFile}" method="get" style="margin-top: 10px;">
               <button type="submit">View Comparison</button>
             </form>
@@ -388,13 +301,21 @@ app.get('/', (req, res) => {
 
   html += `
       </div>
-      <button id="saveAsPng" style="margin-top: 20px;">Save as PNG</button>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const folderTitles = document.querySelectorAll('.folder-title');
+          folderTitles.forEach(title => {
+            title.addEventListener('click', () => {
+              const content = title.nextElementSibling;
+              content.style.display = content.style.display === 'none' || !content.style.display ? 'block' : 'none';
+            });
+          });
+        });
+
         document.getElementById('saveAsPng').addEventListener('click', () => {
           html2canvas(document.body).then((canvas) => {
             const link = document.createElement('a');
-            link.download = 'home_page.png';
+            link.download = 'page_snapshot.png';
             link.href = canvas.toDataURL();
             link.click();
           });
@@ -406,7 +327,6 @@ app.get('/', (req, res) => {
 
   res.send(html);
 });
-
 
 // Start the server
 app.listen(config.PORT, () => {

@@ -92,12 +92,12 @@ class TCNModel:
         return history
 
     
-    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, years_back=None):
+    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
         """
         Train and perform a prediction
         """
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, years_back=years_back)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
 
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
@@ -113,7 +113,7 @@ class TCNModel:
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
 
         # Predict numbers
-        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -126,7 +126,7 @@ class TCNModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions, unique_labels
     
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -138,44 +138,40 @@ class TCNModel:
         model = load_model(modelPath)
 
         # Predict numbers
-        predicted_numbers, probability_of_latest_prediction = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
-        return predicted_numbers, probability_of_latest_prediction
+        return latest_raw_predictions
 
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    data = 'keno'
+    name = 'pick3'
     path = os.getcwd()
-    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", data)
+    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
 
-    
+    tcn_model.setModelPath(modelPath)
     tcn_model.setDataPath(dataPath)
     tcn_model.setBatchSize(16)
     tcn_model.setEpochs(1000)
+    
+    latest_raw_predictions, unique_labels = tcn_model.run(name, years_back=1)
 
-    # When training is needed
-    tcn_model.setModelPath(modelPath)
-    predicted_numbers, probability_of_latest_prediction = tcn_model.run(data)
-
-    #print(probability_of_latest_prediction)
-    # When no training is needed, You need to point to the model 
-    #modelPath = os.path.join(modelPath, "model_pick3.keras")
-    #predicted_numbers = tcn_model.doPrediction(modelPath, skipLastColumns=0, maxRows=0)
-
-    helpers.print_predicted_numbers(predicted_numbers)
-
+    #helpers.print_predicted_numbers(latest_raw_predictions)
 
     # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(data))
+    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(name))
     with open(sequenceToPredictFile, 'r') as openfile:
         sequenceToPredict = json.load(openfile)
 
-    best_match_index, best_match_sequence, matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], predicted_numbers)
+    # Generate set of predictions
+    print("Raw predictions: ", latest_raw_predictions)
 
-    print("Best Matching Index: ", best_match_index)
-    print("Best Matching Sequence: ", best_match_sequence)
-    print("Matching Numbers: ", matching_numbers)
+    # Check on prediction with nth highest probability
+    for i in range(10):
+        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
+        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
+        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
