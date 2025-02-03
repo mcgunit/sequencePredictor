@@ -446,7 +446,7 @@ class Helpers():
             subprocess.run(["git", "add", "-A"], check=True)
 
             # Commit changes
-            subprocess.run(["git", "commit", "-m", commit_message], check=True)
+            subprocess.run(["git", "commit", "-m", f"{commit_message}"], check=True)
 
             # Push changes
             subprocess.run(["git", "push"], check=True)
@@ -466,4 +466,74 @@ class Helpers():
             print("Got latest changes")
         except Exception as e:
             print("Failed to get latest changes")
-            
+
+    def extract_features_from_json(self, json_folder):
+        X = []
+        y = []
+
+        for file in sorted(os.listdir(json_folder)):
+            if file.endswith(".json"):
+                with open(os.path.join(json_folder, file), "r") as f:
+                    data = json.load(f)
+
+                if "currentPredictionRaw" not in data:
+                    print(f"⚠ Warning: No 'currentPredictionRaw' in {file}")
+                    continue
+                
+                raw_probs = np.array(data["currentPredictionRaw"])
+                
+                if raw_probs.size == 0:
+                    print(f"⚠ Warning: Empty probability array in {file}")
+                    continue
+
+                # Debug: Print shape of `raw_probs`
+                print(f"Processing {file}, shape: {raw_probs.shape}")
+
+                # Ensure raw_probs has expected shape (20, 80)
+                if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:
+                    print(f"⚠ Unexpected shape {raw_probs.shape} in {file}")
+                    continue
+
+                # Feature Extraction
+                mean_probs = np.mean(raw_probs, axis=0)  # Average probability per number
+                max_probs = np.max(raw_probs, axis=0)    # Maximum probability per number
+                sum_probs = np.sum(raw_probs, axis=0)    # Sum of probabilities per number
+
+                # Combine features
+                features = np.concatenate([mean_probs, max_probs, sum_probs])
+
+                # Ensure actual result exists
+                if "realResult" not in data or len(data["realResult"]) == 0:
+                    print(f"⚠ Warning: No realResult in {file}")
+                    continue
+                
+                actual_result = data["realResult"]  # This is a list of actual drawn numbers
+
+                # Convert realResult into a one-hot encoded vector (shape: (80,))
+                real_result_vector = np.zeros(80)  # 80 possible numbers
+                for num in actual_result:
+                    real_result_vector[num - 1] = 1  # Convert numbers (1-80) to index (0-79)
+
+                X.append(features)
+                y.append(real_result_vector)  # Now y is a probability-like distribution
+
+        return np.array(X), np.array(y)  # Both X and y now have compatible shapes
+    
+
+    def get_top_predictions(self, predictions, labels, num_top=20):
+        """
+        Extracts the top N most probable numbers from the model output.
+
+        :param predictions: Model output (probability distribution of shape (batch_size, 80)).
+        :param labels: The corresponding numbers (1-80 for Keno).
+        :param num_top: Number of top predictions to extract.
+        :return: List of top N numbers for each prediction.
+        """
+        top_numbers = []
+        
+        for prediction in predictions:
+            # Get indices of top N probabilities
+            top_indices = np.argsort(prediction)[-num_top:]  # Indices of top 20 numbers
+            top_numbers.append([labels[i] for i in top_indices])  # Convert indices to numbers
+
+        return top_numbers

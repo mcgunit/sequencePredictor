@@ -2,6 +2,7 @@
 import os, sys, json
 import pandas as pd
 import tensorflow as tf
+import numpy as np
 
 from matplotlib import pyplot as plt
 from keras import layers, regularizers, models
@@ -23,18 +24,6 @@ if src_dir not in sys.path:
 from Helpers import Helpers
 
 helpers = Helpers()
-
-# Custom Attention Layer (If you need attention layer for future use, you can re-enable this part)
-class AttentionLayer(layers.Layer):
-    def __init__(self):
-        super(AttentionLayer, self).__init__()
-        self.dense = layers.Dense(1, activation='tanh')
-
-    def call(self, inputs):
-        attention_scores = self.dense(inputs)
-        attention_scores = tf.nn.softmax(attention_scores, axis=1)
-        weighted_inputs = inputs * attention_scores
-        return tf.reduce_sum(weighted_inputs, axis=1)
 
 class LSTMModel:
     def __init__(self):
@@ -158,12 +147,62 @@ class LSTMModel:
         latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
         return latest_raw_predictions
+    
+
+    def trainRefinePredictionsModel(self, name, path_to_json_folder, num_classes):
+        """
+        Create a neural network to refine predictions.
+        @num_classes: How many numbers to predict.
+        """
+
+        model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
+
+        X_train, y_train = helpers.extract_features_from_json(path_to_json_folder)
+
+        inputShape = (X_train.shape[1],)
+
+        model = models.Sequential([
+            layers.Input(shape=inputShape),  # Fix input shape
+            layers.Dense(128, activation='relu'),
+            layers.Dropout(0.3),
+            layers.Dense(64, activation='relu'),
+            layers.Dense(80, activation='softmax')  # ⚠ Change from 20 → 80
+        ])
+        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+        
+        # Create and train the model
+        model.fit(X_train, y_train, epochs=20, batch_size=32)
+
+        # Save model for future use
+        model.save(model_path)
+
+        print(f"Refine Prediction AI Model {name} Trained and Saved!")
+    
+    def refinePrediction(self, name, pathToLatestPredictionFile):
+        """
+            Refine the predictions with an AI
+        """
+
+        model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
+
+        second_model = load_model(model_path)
+
+        # Get new prediction features
+        new_json = pathToLatestPredictionFile
+        X_new, _ = helpers.extract_features_from_json(new_json)
+
+        # Get refined prediction
+        refined_prediction = second_model.predict(X_new)
+
+        print("Refined Prediction: ", refined_prediction)
+        return refined_prediction
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
     lstm_model = LSTMModel()
 
-    name = 'pick3'
+    name = 'keno'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
@@ -173,6 +212,7 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1000)
 
+    """
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
 
     #helpers.print_predicted_numbers(latest_raw_predictions)
@@ -191,3 +231,17 @@ if __name__ == "__main__":
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
         matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+    """
+
+    # Refine predictions
+    jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
+    lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=20)
+    refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=os.path.join(jsonDirPath))
+
+    labels = np.arange(1, 81) # for testing but we can extract the labels from the run
+    refinedPredictions = helpers.get_top_predictions(refined_prediction_raw, labels, num_top=20)
+
+    # Print refined predictions
+    for i, prediction in enumerate(refinedPredictions):
+        prediction = [int(num) for num in prediction]
+        print(f"Refined Prediction {i+1}: {sorted(prediction)}")
