@@ -3,13 +3,15 @@ import os, sys, json
 import pandas as pd
 import tensorflow as tf
 import numpy as np
+import tensorflow.keras.backend as K
 
+from keras.saving import register_keras_serializable
+from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
 from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
-from tensorflow.keras.models import load_model
-from tensorflow.keras.utils import to_categorical
+
 
 # Dynamically adjust the import path for Helpers
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +27,18 @@ if src_dir not in sys.path:
 from Helpers import Helpers
 
 helpers = Helpers()
+
+@register_keras_serializable()
+def multi_label_accuracy(y_true, y_pred):
+    """
+    Computes the accuracy for multi-label classification.
+    It calculates how many of the predicted numbers match the actual numbers.
+    """
+    threshold = 0.5  # Convert probabilities to binary (0 or 1)
+    y_pred = K.cast(y_pred > threshold, dtype='float32')  # Convert predictions to 0s & 1s
+    correct_preds = K.sum(y_true * y_pred, axis=-1)  # Count matching 1s
+    total_preds = K.sum(y_true, axis=-1)  # Count total 1s in actual result
+    return correct_preds / total_preds  # Percentage of correctly predicted numbers
 
 class LSTMModel:
     def __init__(self):
@@ -163,22 +177,26 @@ class LSTMModel:
         inputShape = (X_train.shape[1],)
 
         model = models.Sequential([
-            layers.Input(shape=inputShape),  # Fix input shape
-            layers.Dense(64, activation='relu'),
+            layers.Input(shape=inputShape), 
+            layers.Dense(128, activation='relu'),
             layers.Dropout(0.3),
-            layers.Dense(32, activation='relu'),
-            layers.Dense(80, activation='softmax')  # ⚠ Change from 20 → 80
+            layers.Dense(64, activation='relu'),
+            layers.Dense(num_classes, activation='sigmoid')
         ])
-        model.compile(optimizer=Adam(learning_rate=0.00001), loss='categorical_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
 
-        print("X_train:", X_train)  # Should be (num_samples, 240)
-        print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
+        #print("X_train:", X_train)  # Should be (num_samples, 240)
+        #print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
         # Create and train the model
-        model.fit(X_train, y_train, epochs=100, batch_size=32)
+        history = model.fit(X_train, y_train, epochs=1000, batch_size=16)
 
         # Save model for future use
         model.save(model_path)
+
+        # Plot training history
+        pd.DataFrame(history.history).plot(figsize=(8, 5))
+        plt.savefig(os.path.join(self.modelPath, f'refine_prediction_model_{name}_performance.png'))
 
         print(f"Refine Prediction AI Model {name} Trained and Saved!")
     
@@ -189,7 +207,7 @@ class LSTMModel:
 
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
 
-        second_model = load_model(model_path)
+        second_model = load_model(model_path, custom_objects={"multi_label_accuracy": multi_label_accuracy})
 
         # Get new prediction features
         new_json = pathToLatestPredictionFile
@@ -200,6 +218,8 @@ class LSTMModel:
 
         print("Refined Prediction: ", refined_prediction)
         return refined_prediction
+    
+    
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
@@ -238,7 +258,7 @@ if __name__ == "__main__":
 
     # Refine predictions
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=20)
+    lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=80)
     refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=os.path.join(jsonDirPath, "2025-1-31.json"))
 
     labels = np.arange(1, 81) # for testing but we can extract the labels from the run
