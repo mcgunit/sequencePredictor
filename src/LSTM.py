@@ -193,10 +193,10 @@ class LSTMModel:
 
         model = models.Sequential([
             layers.Input(shape=inputShape), 
-            layers.Dense(512, activation='relu'),
-            layers.Dropout(0.6),
             layers.Dense(256, activation='relu'),
-            layers.Dropout(0.6),
+            layers.Dropout(0.3),
+            layers.Dense(256, activation='relu'),
+            layers.Dropout(0.3),
             layers.Dense(128, activation='relu'),
             layers.Dense(num_classes, activation='sigmoid')
         ])
