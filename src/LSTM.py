@@ -179,61 +179,58 @@ class LSTMModel:
         return latest_raw_predictions
     
 
-    def trainRefinePredictionsModel(self, name, path_to_json_folder, num_classes):
+    def trainRefinePredictionsModel(self, name, path_to_json_folder, num_classes=80):
         """
         Create a neural network to refine predictions.
-        @num_classes: How many numbers to predict.
+        Ensures output has the same shape as the original raw predictions (20, 80).
         """
-        epochs = 1000
+        epochs = 100
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
 
         X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder)
 
-        inputShape = (X_train.shape[1],)
+        inputShape = (20, num_classes)  # Ensure input shape is consistent with raw predictions
 
         model = models.Sequential([
-            layers.Input(shape=inputShape), 
-            layers.Dense(256, activation='relu'),
+            layers.Input(shape=inputShape),
+            layers.Conv1D(64, kernel_size=3, activation='relu', padding='same'),
+            layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
+            layers.LSTM(128, return_sequences=True),
             layers.Dropout(0.3),
-            layers.Dense(256, activation='relu'),
+            layers.LSTM(64, return_sequences=True),
             layers.Dropout(0.3),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(num_classes, activation='sigmoid')
+            layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
         ])
-        model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
-
-        #print("X_train:", X_train)  # Should be (num_samples, 240)
-        #print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
-        # Create and train the model
-        history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/10)])
-
-        # Save model for future use
+        model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=[multi_label_accuracy])
+        
+        history = model.fit(
+            X_train, y_train,
+            epochs=epochs,
+            batch_size=4,
+            verbose=False,
+            callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs//10)]
+        )
+        
         model.save(model_path)
-
-        # Plot training history
+        
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f'refine_prediction_model_{name}_performance.png'))
-
         print(f"Refine Prediction AI Model {name} Trained and Saved!")
-    
+
+
     def refinePrediction(self, name, pathToLatestPredictionFile):
         """
-            Refine the predictions with an AI
+        Refine the predictions while keeping the (20, 80) shape.
         """
-
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
-
         second_model = load_model(model_path, custom_objects={"multi_label_accuracy": multi_label_accuracy})
 
-        # Get new prediction features
-        new_json = pathToLatestPredictionFile
-        X_new, _ = helpers.extractFeaturesFromJsonForRefinement(new_json)
-
-        # Get refined prediction
+        X_new, _ = helpers.extractFeaturesFromJsonForRefinement(pathToLatestPredictionFile)
         refined_prediction = second_model.predict(X_new)
-
-        print("Refined Prediction: ", refined_prediction)
+        
+        refined_prediction = refined_prediction.reshape(-1, 20, 80)  # Ensure correct shape
+        print("Refined Prediction Shape:", refined_prediction.shape)
         return refined_prediction
     
     
@@ -278,21 +275,20 @@ if __name__ == "__main__":
     lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=80)
     refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=os.path.join(jsonDirPath, "2025-1-31.json"))
 
-    labels = np.arange(1, 81) # for testing but we can extract the labels from the run
-    refinedPredictions = helpers.get_top_predictions(refined_prediction_raw, labels, num_top=20)
-
     sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
+    
+    print("refined_prediction_raw: ", refined_prediction_raw)
 
-    # Print refined predictions
-    for i, prediction in enumerate(refinedPredictions):
-        prediction = [int(num) for num in prediction]
-        print(f"Refined Prediction {i+1}: {sorted(prediction)}")
+    labels = np.arange(1, 81) # for testing but we can extract the labels from the run
+
+    for i in range(10):
+        prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], labels, nHighestProb=i)
+        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
 
         # Opening JSON file
         with open(sequenceToPredictFile, 'r') as openfile:
             sequenceToPredict = json.load(openfile)
 
-        # Check for matching numbers    
-        matchingNumbers = helpers.find_matching_numbers(prediction, sequenceToPredict["realResult"])
-        print("Matching Numbers: ", matchingNumbers)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
+        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
 
