@@ -40,6 +40,21 @@ def multi_label_accuracy(y_true, y_pred):
     total_preds = K.sum(y_true, axis=-1)  # Count total 1s in actual result
     return correct_preds / total_preds  # Percentage of correctly predicted numbers
 
+
+class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
+    def __init__(self, verbose, epoch_interval, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.default_verbose = verbose
+        self.epoch_interval = epoch_interval
+    
+    def on_epoch_begin(self, epoch, *args, **kwargs):
+        self.verbose = (
+            0 
+                if epoch % self.epoch_interval != 0 
+                else self.default_verbose
+        )
+        super().on_epoch_begin(epoch, *args, **kwargs)
+
 class LSTMModel:
     def __init__(self):
         self.dataPath = ""
@@ -169,7 +184,7 @@ class LSTMModel:
         Create a neural network to refine predictions.
         @num_classes: How many numbers to predict.
         """
-
+        epochs = 1000
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
 
         X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder)
@@ -178,18 +193,20 @@ class LSTMModel:
 
         model = models.Sequential([
             layers.Input(shape=inputShape), 
+            layers.Dense(512, activation='relu'),
+            layers.Dropout(0.6),
+            layers.Dense(256, activation='relu'),
+            layers.Dropout(0.6),
             layers.Dense(128, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(64, activation='relu'),
             layers.Dense(num_classes, activation='sigmoid')
         ])
-        model.compile(optimizer=Adam(learning_rate=0.001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
+        model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
 
         #print("X_train:", X_train)  # Should be (num_samples, 240)
         #print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
         # Create and train the model
-        history = model.fit(X_train, y_train, epochs=1000, batch_size=16)
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/10)])
 
         # Save model for future use
         model.save(model_path)
