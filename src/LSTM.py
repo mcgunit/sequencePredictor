@@ -9,6 +9,7 @@ from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.optimizers import Adam
 from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import to_categorical
 
 # Dynamically adjust the import path for Helpers
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -157,22 +158,24 @@ class LSTMModel:
 
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
 
-        X_train, y_train = helpers.extract_features_from_json(path_to_json_folder)
+        X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder)
 
         inputShape = (X_train.shape[1],)
 
         model = models.Sequential([
             layers.Input(shape=inputShape),  # Fix input shape
-            layers.Dense(128, activation='relu'),
-            layers.Dropout(0.3),
             layers.Dense(64, activation='relu'),
+            layers.Dropout(0.3),
+            layers.Dense(32, activation='relu'),
             layers.Dense(80, activation='softmax')  # ⚠ Change from 20 → 80
         ])
-        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=Adam(learning_rate=0.00001), loss='categorical_crossentropy', metrics=['accuracy'])
 
+        print("X_train:", X_train)  # Should be (num_samples, 240)
+        print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
         # Create and train the model
-        model.fit(X_train, y_train, epochs=20, batch_size=32)
+        model.fit(X_train, y_train, epochs=100, batch_size=32)
 
         # Save model for future use
         model.save(model_path)
@@ -190,7 +193,7 @@ class LSTMModel:
 
         # Get new prediction features
         new_json = pathToLatestPredictionFile
-        X_new, _ = helpers.extract_features_from_json(new_json)
+        X_new, _ = helpers.extractFeaturesFromJsonForRefinement(new_json)
 
         # Get refined prediction
         refined_prediction = second_model.predict(X_new)
@@ -236,12 +239,23 @@ if __name__ == "__main__":
     # Refine predictions
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
     lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=20)
-    refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=os.path.join(jsonDirPath))
+    refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=os.path.join(jsonDirPath, "2025-1-31.json"))
 
     labels = np.arange(1, 81) # for testing but we can extract the labels from the run
     refinedPredictions = helpers.get_top_predictions(refined_prediction_raw, labels, num_top=20)
+
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
 
     # Print refined predictions
     for i, prediction in enumerate(refinedPredictions):
         prediction = [int(num) for num in prediction]
         print(f"Refined Prediction {i+1}: {sorted(prediction)}")
+
+        # Opening JSON file
+        with open(sequenceToPredictFile, 'r') as openfile:
+            sequenceToPredict = json.load(openfile)
+
+        # Check for matching numbers    
+        matchingNumbers = helpers.find_matching_numbers(prediction, sequenceToPredict["realResult"])
+        print("Matching Numbers: ", matchingNumbers)
+

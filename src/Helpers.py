@@ -425,20 +425,6 @@ class Helpers():
                     myfile.write("\n")
                     myfile.write("\n")
 
-    def mostFrequentNumbers(self, array, numbers=7):
-        # Flatten the 2D array into a 1D array
-        flat_array = array.flatten()
-        
-        # Count the occurrences of each number
-        counts = Counter(flat_array)
-        
-        # Get the 6 most common numbers
-        most_common = counts.most_common(numbers)
-        
-        # Extract the numbers from the most_common list
-        top_numbers = [num for num, _ in most_common]
-        
-        return np.array(top_numbers)
     
     def git_push(self, commit_message="saving last predictions"):
         try:
@@ -467,32 +453,81 @@ class Helpers():
         except Exception as e:
             print("Failed to get latest changes")
 
-    def extract_features_from_json(self, json_folder):
+    def extractFeaturesFromJsonForRefinement(self, jsonFileOrDir):
+        """
+            Function to extract features for training a refinement model
+            Can be a folder containing json files or a single file
+        """
         X = []
         y = []
+        if os.path.isdir(jsonFileOrDir):
+            for file in sorted(os.listdir(jsonFileOrDir)):
+                if file.endswith(".json"):
+                    with open(os.path.join(jsonFileOrDir, file), "r") as f:
+                        data = json.load(f)
 
-        for file in sorted(os.listdir(json_folder)):
-            if file.endswith(".json"):
-                with open(os.path.join(json_folder, file), "r") as f:
+                    if "currentPredictionRaw" not in data:
+                        print(f"⚠ Warning: No 'currentPredictionRaw' in {file}")
+                        continue
+                    
+                    raw_probs = np.array(data["currentPredictionRaw"])
+                    
+                    if raw_probs.size == 0:
+                        print(f"⚠ Warning: Empty probability array in {file}")
+                        continue
+
+                    # Debug: Print shape of `raw_probs`
+                    print(f"Processing {file}, shape: {raw_probs.shape}")
+
+                    # Ensure raw_probs has expected shape (20, 80)
+                    if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:
+                        print(f"⚠ Unexpected shape {raw_probs.shape} in {file}")
+                        continue
+
+                    # Feature Extraction
+                    mean_probs = np.mean(raw_probs, axis=0)  # Average probability per number
+                    max_probs = np.max(raw_probs, axis=0)    # Maximum probability per number
+                    sum_probs = np.sum(raw_probs, axis=0)    # Sum of probabilities per number
+
+                    # Combine features
+                    features = np.concatenate([mean_probs, max_probs, sum_probs])
+
+                    # Ensure actual result exists
+                    if "realResult" not in data or len(data["realResult"]) == 0:
+                        print(f"⚠ Warning: No realResult in {file}")
+                        continue
+                    
+                    actual_result = data["realResult"]  # This is a list of actual drawn numbers
+
+                    # Convert realResult into a one-hot encoded vector (shape: (80,))
+                    real_result_vector = np.zeros(80)  # 80 possible numbers
+                    for num in actual_result:
+                        real_result_vector[num - 1] = 1  # Convert numbers (1-80) to index (0-79)
+
+                    X.append(features)
+                    y.append(real_result_vector)  # Now y is a probability-like distribution
+        elif os.path.isfile(jsonFileOrDir):
+            if jsonFileOrDir.endswith(".json"):
+                with open(os.path.join(jsonFileOrDir), "r") as f:
                     data = json.load(f)
 
                 if "currentPredictionRaw" not in data:
-                    print(f"⚠ Warning: No 'currentPredictionRaw' in {file}")
-                    continue
+                    print(f"⚠ Warning: No 'currentPredictionRaw' in {jsonFileOrDir}")
+
                 
                 raw_probs = np.array(data["currentPredictionRaw"])
                 
                 if raw_probs.size == 0:
-                    print(f"⚠ Warning: Empty probability array in {file}")
-                    continue
+                    print(f"⚠ Warning: Empty probability array in {jsonFileOrDir}")
+
 
                 # Debug: Print shape of `raw_probs`
-                print(f"Processing {file}, shape: {raw_probs.shape}")
+                print(f"Processing {jsonFileOrDir}, shape: {raw_probs.shape}")
 
                 # Ensure raw_probs has expected shape (20, 80)
                 if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:
-                    print(f"⚠ Unexpected shape {raw_probs.shape} in {file}")
-                    continue
+                    print(f"⚠ Unexpected shape {raw_probs.shape} in {jsonFileOrDir}")
+
 
                 # Feature Extraction
                 mean_probs = np.mean(raw_probs, axis=0)  # Average probability per number
@@ -504,8 +539,7 @@ class Helpers():
 
                 # Ensure actual result exists
                 if "realResult" not in data or len(data["realResult"]) == 0:
-                    print(f"⚠ Warning: No realResult in {file}")
-                    continue
+                    print(f"⚠ Warning: No realResult in {jsonFileOrDir}")
                 
                 actual_result = data["realResult"]  # This is a list of actual drawn numbers
 
