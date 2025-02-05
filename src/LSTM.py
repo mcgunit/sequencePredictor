@@ -235,42 +235,48 @@ class LSTMModel:
     
     def trainTopPredictionsModel(self, name, path_to_json_folder, num_classes):
         """
-        Create a neural network to refine predictions.
+        Create a neural network to get the top prediction.
         @num_classes: How many numbers to predict.
         """
-
-        model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
+        epochs = 1000
+        model_path = os.path.join(self.modelPath, f"top_prediction_model_{name}.keras")
 
         X_train, y_train = helpers.extractFeaturesFromJsonForDetermineTopPrediction(path_to_json_folder)
 
         inputShape = (X_train.shape[1],)
 
         model = models.Sequential([
-            layers.Input(shape=inputShape),  # Fix input shape
-            layers.Dense(64, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(32, activation='relu'),
-            layers.Dense(80, activation='softmax')  # ⚠ Change from 20 → 80
+            layers.Input(shape=inputShape), 
+            layers.Dense(512, activation='relu'),
+            layers.Dropout(0.6),
+            layers.Dense(256, activation='relu'),
+            layers.Dropout(0.6),
+            layers.Dense(128, activation='relu'),
+            layers.Dense(num_classes, activation='sigmoid')
         ])
-        model.compile(optimizer=Adam(learning_rate=0.00001), loss='categorical_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
 
-        print("X_train:", X_train)  # Should be (num_samples, 240)
-        print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
+        #print("X_train:", X_train)  # Should be (num_samples, 240)
+        #print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
         # Create and train the model
-        model.fit(X_train, y_train, epochs=100, batch_size=32)
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/10)])
 
         # Save model for future use
         model.save(model_path)
+
+        # Plot training history
+        pd.DataFrame(history.history).plot(figsize=(8, 5))
+        plt.savefig(os.path.join(self.modelPath, f'top_prediction_model_{name}_performance.png'))
 
         print(f"Refine Prediction AI Model {name} Trained and Saved!")
     
     def topPrediction(self, name, pathToLatestPredictionFile):
         """
-            Refine the predictions with an AI
+            Get top prediction with an AI
         """
 
-        model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
+        model_path = os.path.join(self.modelPath, f"top_prediction_model_{name}.keras")
 
         second_model = load_model(model_path)
 
@@ -348,7 +354,7 @@ if __name__ == "__main__":
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
     """
 
-    lstm_model.trainTopPredictionsModel(name, jsonDirPath, num_classes=20)
+    lstm_model.trainTopPredictionsModel(name, jsonDirPath, num_classes=80)
     top_prediction_raw = lstm_model.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile)
     topPrediction = helpers.getTopPredictions(top_prediction_raw, labels, num_top=20)
 
