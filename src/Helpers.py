@@ -555,7 +555,7 @@ class Helpers():
                         continue
 
                     # Debug: Print shape of `raw_probs`
-                    print(f"Processing {file}, shape: {raw_probs.shape}")
+                    #print(f"Processing {file}, shape: {raw_probs.shape}")
 
                     # Ensure raw_probs has expected shape (20, 80)
                     if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:
@@ -600,7 +600,7 @@ class Helpers():
 
 
                 # Debug: Print shape of `raw_probs`
-                print(f"Processing {jsonFileOrDir}, shape: {raw_probs.shape}")
+                #print(f"Processing {jsonFileOrDir}, shape: {raw_probs.shape}")
 
                 # Ensure raw_probs has expected shape (20, 80)
                 if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:

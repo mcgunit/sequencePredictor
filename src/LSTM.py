@@ -184,7 +184,7 @@ class LSTMModel:
         Create a neural network to refine predictions.
         Ensures output has the same shape as the original raw predictions (20, 80).
         """
-        epochs = 100
+        epochs = 1000
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
 
         X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder)
@@ -202,14 +202,14 @@ class LSTMModel:
             layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
         ])
         
-        model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=[multi_label_accuracy])
+        model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=["accuracy"])
         
         history = model.fit(
             X_train, y_train,
             epochs=epochs,
             batch_size=4,
             verbose=False,
-            callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs//10)]
+            callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)]
         )
         
         model.save(model_path)
@@ -260,7 +260,7 @@ class LSTMModel:
         #print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
         # Create and train the model
-        history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/10)])
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
 
         # Save model for future use
         model.save(model_path)
@@ -287,7 +287,7 @@ class LSTMModel:
         # Get refined prediction
         refined_prediction = second_model.predict(X_new)
 
-        print("Top Prediction: ", refined_prediction)
+        #print("Top Prediction: ", refined_prediction)
         return refined_prediction
     
 
@@ -334,12 +334,12 @@ if __name__ == "__main__":
     sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
     labels = np.arange(1, 81) # for testing but we can extract the labels from the run
 
-    """
+    
     # Refine predictions
     lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=80)
     refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile)
 
-    print("refined_prediction_raw: ", refined_prediction_raw)
+    #print("refined_prediction_raw: ", refined_prediction_raw)
 
     # Print refined predictions
     for i in range(10):
@@ -352,7 +352,7 @@ if __name__ == "__main__":
 
         matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-    """
+    
 
     lstm_model.trainTopPredictionsModel(name, jsonDirPath, num_classes=80)
     top_prediction_raw = lstm_model.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile)
