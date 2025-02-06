@@ -98,18 +98,21 @@ class Helpers():
 
         return matching_numbers
     
-    def decode_predictions(self, raw_predictions, labels, nHighestProb=0):
+    def decode_predictions(self, raw_predictions, labels, nHighestProb=0, remove_duplicates=True):
         """
         Decode the prediction based on probability and match with corresponding labels.
+        Ensures distinct selections across probability ranks if remove_duplicates=True.
 
         Parameters
         ----------
-        raw_predictions : list or np.ndarray
-            List of raw predictions.
+        raw_predictions : np.ndarray
+            Array of shape (num_samples, num_classes) containing probabilities.
         labels : list or np.ndarray
             List of labels corresponding to the classes.
-        nHighestProb : int, optional
-            Rank of probability to consider. 0 means highest probability, 1 means second-highest, etc.
+        nHighestProb : int
+            Rank of probability to consider (0 = highest, 1 = second-highest, etc.).
+        remove_duplicates : bool, optional
+            If True, prevents selecting the same number across different ranks.
 
         Returns
         -------
@@ -117,17 +120,22 @@ class Helpers():
             Decoded predictions as per the provided labels.
         """
 
-        # Ensure raw_predictions is a numpy array for easy processing
-        raw_predictions = np.array(raw_predictions)
-        labels = np.array(labels)
+        raw_predictions = np.array(raw_predictions)  # Shape (numbersLength, num_classes)
+        labels = np.array(labels)  # Shape (num_classes,)
 
-        # Get indices of the top nHighestProb probability
-        highest_indices = np.argsort(raw_predictions, axis=1)[:, -(nHighestProb + 1)]
+        sorted_indices = np.argsort(raw_predictions, axis=1)[:, ::-1]  # Sort descending (highest first)
 
-        # Map indices to labels
-        decoded_predictions = labels[highest_indices]
+        if remove_duplicates:
+            selected_indices = []
+            for i, row in enumerate(sorted_indices):
+                # Get the nth highest index, skipping previously selected ones
+                unique_indices = [idx for idx in row if idx not in selected_indices]
+                selected_indices.append(unique_indices[nHighestProb])  # Pick the nth highest
 
-        return decoded_predictions.tolist()
+        else:
+            selected_indices = sorted_indices[:, nHighestProb]  # Direct selection without duplicate filtering
+
+        return labels[selected_indices].tolist()
     
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
