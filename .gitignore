@@ -166,4 +166,5 @@ node_modules/
 wget-log*
 *.png
 
-test/database
+test/database/*
+data/database/*
