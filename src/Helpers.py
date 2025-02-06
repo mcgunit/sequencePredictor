@@ -453,7 +453,7 @@ class Helpers():
         except Exception as e:
             print("Failed to get latest changes")
 
-    def extractFeaturesFromJsonForRefinement(self, jsonFileOrDir):
+    def extractFeaturesFromJsonForRefinement(self, jsonFileOrDir, num_classes=80, numbersLength=20):
         """
             Function to extract features for training a refinement model
             Can be a folder containing json files or a single file
@@ -473,21 +473,21 @@ class Helpers():
                     raw_probs = np.array(data["currentPredictionRaw"])
                     
                     # Ensure correct shape before reshaping
-                    if raw_probs.size != 20 * 80:
+                    if raw_probs.size != numbersLength * num_classes:
                         print(f"Skipping {file} - Unexpected shape {raw_probs.shape}")
                         continue
                     
-                    raw_probs = raw_probs.reshape(20, 80)
+                    raw_probs = raw_probs.reshape(numbersLength, num_classes)
 
                     if "realResult" not in data or not data["realResult"]:
                         print(f"Skipping {file} - No valid 'realResult' data.")
                         continue
 
                     actual_result = data["realResult"]
-                    real_result_vector = np.zeros((20, 80))
+                    real_result_vector = np.zeros((numbersLength, num_classes))
 
                     for i, num in enumerate(actual_result):
-                        if 1 <= num <= 80:  # Ensure number is within valid range
+                        if 1 <= num <= num_classes:  # Ensure number is within valid range
                             real_result_vector[i, num - 1] = 1  # One-hot encode
                     
                     X.append(raw_probs)
@@ -506,21 +506,21 @@ class Helpers():
                 raw_probs = np.array(data["currentPredictionRaw"])
                 
                 # Ensure correct shape before reshaping
-                if raw_probs.size != 20 * 80:
+                if raw_probs.size != numbersLength * num_classes:
                     print(f"Skipping {jsonFileOrDir} - Unexpected shape {raw_probs.shape}")
                     return
                 
-                raw_probs = raw_probs.reshape(20, 80)
+                raw_probs = raw_probs.reshape(numbersLength, num_classes)
 
                 if "realResult" not in data or not data["realResult"]:
                     print(f"Skipping {jsonFileOrDir} - No valid 'realResult' data.")
                     return
 
                 actual_result = data["realResult"]
-                real_result_vector = np.zeros((20, 80))
+                real_result_vector = np.zeros((numbersLength, num_classes))
 
                 for i, num in enumerate(actual_result):
-                    if 1 <= num <= 80:  # Ensure number is within valid range
+                    if 1 <= num <= num_classes:  # Ensure number is within valid range
                         real_result_vector[i, num - 1] = 1  # One-hot encode
                 
                 X.append(raw_probs)
@@ -531,7 +531,7 @@ class Helpers():
 
         return np.array(X), np.array(y)  # Both X and y now have compatible shapes
     
-    def extractFeaturesFromJsonForDetermineTopPrediction(self, jsonFileOrDir):
+    def extractFeaturesFromJsonForDetermineTopPrediction(self, jsonFileOrDir, num_classes=80, numbersLength=20):
         """
             Function to extract features for training a refinement model
             Can be a folder containing json files or a single file
@@ -557,8 +557,8 @@ class Helpers():
                     # Debug: Print shape of `raw_probs`
                     #print(f"Processing {file}, shape: {raw_probs.shape}")
 
-                    # Ensure raw_probs has expected shape (20, 80)
-                    if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:
+                    # Ensure raw_probs has expected shape (numbersLength, num_classes)
+                    if raw_probs.shape[0] != numbersLength or raw_probs.shape[1] != num_classes:
                         print(f"⚠ Unexpected shape {raw_probs.shape} in {file}")
                         continue
 
@@ -577,10 +577,10 @@ class Helpers():
                     
                     actual_result = data["realResult"]  # This is a list of actual drawn numbers
 
-                    # Convert realResult into a one-hot encoded vector (shape: (80,))
-                    real_result_vector = np.zeros(80)  # 80 possible numbers
+                    # Convert realResult into a one-hot encoded vector (shape: (num_classes,))
+                    real_result_vector = np.zeros(num_classes)  # num_classes possible numbers
                     for num in actual_result:
-                        real_result_vector[num - 1] = 1  # Convert numbers (1-80) to index (0-79)
+                        real_result_vector[num - 1] = 1  # Convert numbers (1 - num_classes) to index (0 - (num_classes-1))
 
                     X.append(features)
                     y.append(real_result_vector)  # Now y is a probability-like distribution
@@ -602,8 +602,8 @@ class Helpers():
                 # Debug: Print shape of `raw_probs`
                 #print(f"Processing {jsonFileOrDir}, shape: {raw_probs.shape}")
 
-                # Ensure raw_probs has expected shape (20, 80)
-                if raw_probs.shape[0] != 20 or raw_probs.shape[1] != 80:
+                # Ensure raw_probs has expected shape (numbersLength, num_classes)
+                if raw_probs.shape[0] != numbersLength or raw_probs.shape[1] != num_classes:
                     print(f"⚠ Unexpected shape {raw_probs.shape} in {jsonFileOrDir}")
 
 
@@ -621,10 +621,10 @@ class Helpers():
                 
                 actual_result = data["realResult"]  # This is a list of actual drawn numbers
 
-                # Convert realResult into a one-hot encoded vector (shape: (80,))
-                real_result_vector = np.zeros(80)  # 80 possible numbers
+                # Convert realResult into a one-hot encoded vector (shape: (num_classes,))
+                real_result_vector = np.zeros(num_classes)  # num_classes possible numbers
                 for num in actual_result:
-                    real_result_vector[num - 1] = 1  # Convert numbers (1-80) to index (0-79)
+                    real_result_vector[num - 1] = 1  # Convert numbers (1 - num_classes) to index (0 - (num_classes-1))
 
                 X.append(features)
                 y.append(real_result_vector)  # Now y is a probability-like distribution

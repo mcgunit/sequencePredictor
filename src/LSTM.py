@@ -179,17 +179,17 @@ class LSTMModel:
         return latest_raw_predictions
     
 
-    def trainRefinePredictionsModel(self, name, path_to_json_folder, num_classes=80):
+    def trainRefinePredictionsModel(self, name, path_to_json_folder, num_classes=80, numbersLength=20):
         """
         Create a neural network to refine predictions.
-        Ensures output has the same shape as the original raw predictions (20, 80).
+        Ensures output has the same shape as the original raw predictions (numbersLength, num_classes).
         """
         epochs = 1000
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
 
-        X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder)
+        X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder, num_classes=num_classes, numbersLength=numbersLength)
 
-        inputShape = (20, num_classes)  # Ensure input shape is consistent with raw predictions
+        inputShape = (numbersLength, num_classes)  # Ensure input shape is consistent with raw predictions
 
         model = models.Sequential([
             layers.Input(shape=inputShape),
@@ -219,21 +219,21 @@ class LSTMModel:
         print(f"Refine Prediction AI Model {name} Trained and Saved!")
 
 
-    def refinePrediction(self, name, pathToLatestPredictionFile):
+    def refinePrediction(self, name, pathToLatestPredictionFile, num_classes=80, numbersLength=20):
         """
-        Refine the predictions while keeping the (20, 80) shape.
+        Refine the predictions while keeping the (numbersLength, num_classes) shape.
         """
         model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
         second_model = load_model(model_path, custom_objects={"multi_label_accuracy": multi_label_accuracy})
 
-        X_new, _ = helpers.extractFeaturesFromJsonForRefinement(pathToLatestPredictionFile)
+        X_new, _ = helpers.extractFeaturesFromJsonForRefinement(pathToLatestPredictionFile, num_classes=num_classes, numbersLength=numbersLength)
         refined_prediction = second_model.predict(X_new)
         
-        refined_prediction = refined_prediction.reshape(-1, 20, 80)  # Ensure correct shape
+        refined_prediction = refined_prediction.reshape(-1, numbersLength, num_classes)  # Ensure correct shape
         print("Refined Prediction Shape:", refined_prediction.shape)
         return refined_prediction
     
-    def trainTopPredictionsModel(self, name, path_to_json_folder, num_classes):
+    def trainTopPredictionsModel(self, name, path_to_json_folder, num_classes=80, numbersLength=20):
         """
         Create a neural network to get the top prediction.
         @num_classes: How many numbers to predict.
@@ -241,7 +241,7 @@ class LSTMModel:
         epochs = 1000
         model_path = os.path.join(self.modelPath, f"top_prediction_model_{name}.keras")
 
-        X_train, y_train = helpers.extractFeaturesFromJsonForDetermineTopPrediction(path_to_json_folder)
+        X_train, y_train = helpers.extractFeaturesFromJsonForDetermineTopPrediction(path_to_json_folder, num_classes=num_classes, numbersLength=numbersLength)
 
         inputShape = (X_train.shape[1],)
 
@@ -255,9 +255,6 @@ class LSTMModel:
             layers.Dense(num_classes, activation='sigmoid')
         ])
         model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
-
-        #print("X_train:", X_train)  # Should be (num_samples, 240)
-        #print("y_train:", y_train)  # Should be (num_samples, 80) if one-hot encoded in case of keno
         
         # Create and train the model
         history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
@@ -271,7 +268,7 @@ class LSTMModel:
 
         print(f"Refine Prediction AI Model {name} Trained and Saved!")
     
-    def topPrediction(self, name, pathToLatestPredictionFile):
+    def topPrediction(self, name, pathToLatestPredictionFile, num_classes=80, numbersLength=20):
         """
             Get top prediction with an AI
         """
@@ -282,7 +279,7 @@ class LSTMModel:
 
         # Get new prediction features
         new_json = pathToLatestPredictionFile
-        X_new, _ = helpers.extractFeaturesFromJsonForDetermineTopPrediction(new_json)
+        X_new, _ = helpers.extractFeaturesFromJsonForDetermineTopPrediction(new_json, num_classes=num_classes, numbersLength=numbersLength)
 
         # Get refined prediction
         refined_prediction = second_model.predict(X_new)
@@ -303,20 +300,27 @@ if __name__ == "__main__":
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
+    jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
+    pathToLatestJsonFile = os.path.join(jsonDirPath, "2025-1-31.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
+
+    # Opening JSON file
+    with open(sequenceToPredictFile, 'r') as openfile:
+        sequenceToPredict = json.load(openfile)
+
+    numbersLength = len(sequenceToPredict["realResult"])
+
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1000)
 
-    """
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
+    num_classes = len(unique_labels)
 
-    #helpers.print_predicted_numbers(latest_raw_predictions)
+    print("num_classes: ", len(unique_labels))
 
-    # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(name))
-    with open(sequenceToPredictFile, 'r') as openfile:
-        sequenceToPredict = json.load(openfile)
+    #helpers.print_predicted_numbers(latest_raw_predictions
 
     # Generate set of predictions
     print(len(latest_raw_predictions[0]))
@@ -325,47 +329,36 @@ if __name__ == "__main__":
     for i in range(10):
         prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-    """
-
-    jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    pathToLatestJsonFile = os.path.join(jsonDirPath, "2025-1-31.json")
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
-    labels = np.arange(1, 81) # for testing but we can extract the labels from the run
-
     
+
+
     # Refine predictions
-    lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=80)
-    refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile)
+    lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+    refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, num_classes=num_classes, numbersLength=numbersLength)
 
     #print("refined_prediction_raw: ", refined_prediction_raw)
 
     # Print refined predictions
     for i in range(10):
-        prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], labels, nHighestProb=i)
+        prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-
-        # Opening JSON file
-        with open(sequenceToPredictFile, 'r') as openfile:
-            sequenceToPredict = json.load(openfile)
 
         matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-    
 
-    lstm_model.trainTopPredictionsModel(name, jsonDirPath, num_classes=80)
-    top_prediction_raw = lstm_model.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile)
-    topPrediction = helpers.getTopPredictions(top_prediction_raw, labels, num_top=20)
+
+    
+    # Top prediction
+    lstm_model.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+    top_prediction_raw = lstm_model.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, num_classes=num_classes, numbersLength=numbersLength)
+    topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
 
     # Print Top prediction
     for i, prediction in enumerate(topPrediction):
         prediction = [int(num) for num in prediction]
         print(f"Top Prediction {i+1}: {sorted(prediction)}")
-
-        # Opening JSON file
-        with open(sequenceToPredictFile, 'r') as openfile:
-            sequenceToPredict = json.load(openfile)
 
         # Check for matching numbers    
         matchingNumbers = helpers.find_matching_numbers(prediction, sequenceToPredict["realResult"])
