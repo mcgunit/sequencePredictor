@@ -165,6 +165,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
 
                 print("Date to start from: ", historyData[dateOffset])
 
+                previousJsonFilePath = ""
+
                 # Search for existing history
                 for index, historyEntry in enumerate(historyData):
                     entryDate = historyEntry[0]
@@ -175,13 +177,14 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     print("Does file exist: ", os.path.exists(jsonFilePath))
                     if os.path.exists(jsonFilePath):
                         dateOffset = index
+                        previousJsonFilePath = jsonFilePath
                 
                 # Remove all elements starting from dateOffset index
                 historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index
                 
                 #print("History to rebuild: ", historyData)
 
-                previousJsonFilePath = ""
+                
 
                 # Now lets iterate in reversed order to start with the older entries
                 for historyIndex, historyEntry in enumerate(reversed(historyData)):
@@ -197,12 +200,53 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         current_json_object = {
                             "currentPredictionRaw": [],
                             "currentPrediction": [],
-                            "realResult": [],
+                            "realResult": historyResult,
                             "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
                             "newPredictionRaw": [], # Raw prediction that contains the statistical data
                             "matchingNumbers": [],
                             "labels": []
                         }
+
+                        # Connect the history
+                        if previousJsonFilePath:
+                            # Opening JSON file
+                            with open(previousJsonFilePath, 'r') as openfile:
+                                # Reading from json file
+                                previous_json_object = json.load(openfile)
+
+                            current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+                            current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+
+                            listOfDecodedPredictions = []
+                            listOfMatchings = []
+
+                            # Check on prediction with nth highest probability
+                            for i in range(10):
+                                prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
+                                #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
+                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
+                                #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+                                listOfMatchings.append({
+                                    "index": i,
+                                    "matchingSequence": prediction_nth_indices,
+                                    "matchingNumbers": matching_numbers
+                                })
+
+                                listOfDecodedPredictions.append(prediction_nth_indices)
+                            
+
+                            # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
+                            largest_matching_object = max(listOfMatchings, key=lambda x: len(x['matchingNumbers']))
+
+
+                            current_json_object["matchingNumbers"] = {
+                                "bestMatchIndex": largest_matching_object["index"],
+                                "bestMatchSequence": largest_matching_object["matchingSequence"],
+                                "matchingNumbers": largest_matching_object["matchingNumbers"]
+                            }
+
+                            print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
+
 
                         # Train and do a new prediction
                         modelToUse.setDataPath(dataPath)
