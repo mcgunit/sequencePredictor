@@ -76,11 +76,13 @@ class TCNModel:
         # Output layer with softmax activation
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
 
-        if os.path.exists(model_path):
-            model = model.load_weights(model_path)
+        model.build(input_shape=(None, None))
 
         # Compile the model
         model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0005), metrics=['accuracy'])
+
+        if os.path.exists(model_path):
+            model.load_weights(model_path)
 
         return model
 
@@ -145,7 +147,7 @@ class TCNModel:
 if __name__ == "__main__":
     tcn_model = TCNModel()
 
-    name = 'pick3'
+    name = 'keno'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")

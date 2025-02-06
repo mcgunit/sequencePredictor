@@ -116,11 +116,14 @@ class LSTMModel:
         # Output layer
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
 
-        if os.path.exists(model_path):
-            model = model.load_weights(model_path)
+        model.build(input_shape=(None, None))
 
         # Compile the model
         model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.005), metrics=['accuracy'])
+
+        if os.path.exists(model_path):
+            print(f"Loading weights from {model_path}")
+            model.load_weights(model_path)
 
         return model
 
@@ -198,10 +201,12 @@ class LSTMModel:
             layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
         ])
 
-        if os.path.exists(model_path):
-            model = model.load_weights(model_path)
+        #model.build(input_shape=inputShape)
 
         model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=["accuracy"])
+
+        if os.path.exists(model_path):
+            model.load_weights(model_path)
         
         history = model.fit(
             X_train, y_train,
@@ -254,10 +259,12 @@ class LSTMModel:
             layers.Dense(num_classes, activation='sigmoid')
         ])
 
-        if os.path.exists(model_path):
-            model = model.load_weights(model_path)
+        #model.build(input_shape=inputShape)
 
         model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
+
+        if os.path.exists(model_path):
+            model.load_weights(model_path)
         
         # Create and train the model
         history = model.fit(X_train, y_train, epochs=epochs, batch_size=8, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
