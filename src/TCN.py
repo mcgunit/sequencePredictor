@@ -49,7 +49,7 @@ class TCNModel:
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
-    def create_model(self, max_value, num_classes=50):
+    def create_model(self, max_value, num_classes=50, model_path=""):
         embedding_output_dimension = 64
         tcn_units = 64              # Number of filters in TCN layers
         num_tcn_layers = 2          # Number of TCN layers
@@ -75,6 +75,9 @@ class TCNModel:
 
         # Output layer with softmax activation
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
+
+        if os.path.exists(model_path):
+            model = model.load_weights(model_path)
 
         # Compile the model
         model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0005), metrics=['accuracy'])
@@ -102,12 +105,7 @@ class TCNModel:
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
-        if os.path.exists(model_path):
-            model = load_model(model_path)
-        elif os.path.exists(checkpoint_path):
-            model = load_model(checkpoint_path)
-        else:
-            model = self.create_model(max_value, num_classes)
+        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path)
 
         # Train the model
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)

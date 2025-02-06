@@ -79,7 +79,7 @@ class LSTMModel:
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
-    def create_model(self, max_value, num_classes=50):
+    def create_model(self, max_value, num_classes=50, model_path=""):
         num_lstm_layers = 1
         num_dense_layers = 1
         num_bidirectional_layers = 1
@@ -116,6 +116,9 @@ class LSTMModel:
         # Output layer
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
 
+        if os.path.exists(model_path):
+            model = model.load_weights(model_path)
+
         # Compile the model
         model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.005), metrics=['accuracy'])
 
@@ -134,17 +137,10 @@ class LSTMModel:
         # Load and preprocess data
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
 
-        num_features = train_data.shape[1]
-
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
-
-        if os.path.exists(model_path):
-            model = load_model(model_path)
-        elif os.path.exists(checkpoint_path):
-            model = load_model(checkpoint_path)
-        else:
-            model = self.create_model(max_value, num_classes)
+        
+        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path)
 
         # Train the model
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
@@ -201,7 +197,10 @@ class LSTMModel:
             layers.Dropout(0.3),
             layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
         ])
-        
+
+        if os.path.exists(model_path):
+            model = model.load_weights(model_path)
+
         model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=["accuracy"])
         
         history = model.fit(
@@ -254,6 +253,10 @@ class LSTMModel:
             layers.Dense(128, activation='relu'),
             layers.Dense(num_classes, activation='sigmoid')
         ])
+
+        if os.path.exists(model_path):
+            model = model.load_weights(model_path)
+
         model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
         
         # Create and train the model
