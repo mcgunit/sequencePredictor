@@ -127,7 +127,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=self.epochs/2)])
         return history
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
@@ -207,7 +207,7 @@ class LSTMModel:
         history = model.fit(
             X_train, y_train,
             epochs=epochs,
-            batch_size=4,
+            batch_size=8,
             verbose=False,
             callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)]
         )
@@ -257,7 +257,7 @@ class LSTMModel:
         model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
         
         # Create and train the model
-        history = model.fit(X_train, y_train, epochs=epochs, batch_size=4, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=8, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
 
         # Save model for future use
         model.save(model_path)
@@ -318,12 +318,6 @@ if __name__ == "__main__":
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
     num_classes = len(unique_labels)
 
-    print("num_classes: ", len(unique_labels))
-
-    #helpers.print_predicted_numbers(latest_raw_predictions
-
-    # Generate set of predictions
-    print(len(latest_raw_predictions[0]))
 
     # Check on prediction with nth highest probability
     for i in range(10):
