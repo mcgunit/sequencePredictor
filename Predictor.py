@@ -99,23 +99,16 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
                     listOfMatching = []
-                    listOfDecodedPredictions = []
-
                     # Check on prediction with nth highest probability
-                    for i in range(10):
-                        prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
-                        #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
-                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
+                    for i in range(len(current_json_object["currentPrediction"])):
+                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
                         #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
                         listOfMatching.append({
                             "index": i,
-                            "matchingSequence": prediction_nth_indices,
+                            "matchingSequence": current_json_object["currentPrediction"][i],
                             "matchingNumbers": matching_numbers
                         })
-
-                        listOfDecodedPredictions.append(prediction_nth_indices)
                     
-
                     # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
                     largest_matching_object = max(listOfMatching, key=lambda x: len(x['matchingNumbers']))
 
@@ -141,13 +134,44 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     current_json_object["newPredictionRaw"] = predictedSequence
                     current_json_object["labels"] = unique_labels.tolist()
 
-                    decodedRawPredictions = []
+                    listOfDecodedPredictions = []
                     # Decode prediction with nth highest probability
-                    for i in range(10):
+                    for i in range(2):
                         prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
-                        decodedRawPredictions.append(prediction_nth_indices)
+                        listOfDecodedPredictions.append(prediction_nth_indices)
 
-                    current_json_object["newPrediction"] = decodedRawPredictions
+
+                    with open(jsonFilePath, "w+") as outfile:
+                        json.dump(current_json_object, outfile)
+                    
+                    #####################
+                    # Start refinements #
+                    #####################
+                    jsonDirPath = os.path.join(path, "data", "database", name)
+                    num_classes = len(unique_labels)
+                    numbersLength = len(previousResult)
+
+                    # Refine predictions
+                    modelToUse.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+                    refined_prediction_raw = modelToUse.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+
+                    for i in range(2):
+                        prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+                        #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+                        listOfDecodedPredictions.append(prediction_highest_indices)
+
+                    # Top prediction
+                    modelToUse.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+                    top_prediction_raw = modelToUse.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+                    topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+                    # Print Top prediction
+                    for i, prediction in enumerate(topPrediction):
+                        topHighestProbPrediction = [int(num) for num in prediction]
+                        #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+                        listOfDecodedPredictions.append(topHighestProbPrediction)
+
+                    current_json_object["newPrediction"] = listOfDecodedPredictions
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
@@ -217,22 +241,16 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                             current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
                             current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-                            listOfDecodedPredictions = []
                             listOfMatchings = []
-
                             # Check on prediction with nth highest probability
-                            for i in range(10):
-                                prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
-                                #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
-                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
+                            for i in range(len(current_json_object["currentPrediction"])):
+                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
                                 #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
                                 listOfMatchings.append({
                                     "index": i,
-                                    "matchingSequence": prediction_nth_indices,
+                                    "matchingSequence": current_json_object["currentPrediction"][i],
                                     "matchingNumbers": matching_numbers
                                 })
-
-                                listOfDecodedPredictions.append(prediction_nth_indices)
                             
 
                             # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
@@ -260,15 +278,49 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         unique_labels = unique_labels.tolist()
 
                         listOfDecodedPredictions = []
-                        for i in range(10):
+                        for i in range(2):
                             prediction_nth_indices = helpers.decode_predictions(predictedSequence, unique_labels, i)
                             listOfDecodedPredictions.append(prediction_nth_indices)
                 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
+
+                        with open(jsonFilePath, "w+") as outfile:
+                            json.dump(current_json_object, outfile)
+                        
+                        #####################
+                        # Start refinements #
+                        #####################
+                        jsonDirPath = os.path.join(path, "data", "database", name)
+                        num_classes = len(unique_labels)
+                        numbersLength = len(historyResult)
+
+                        # Refine predictions
+                        modelToUse.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+                        refined_prediction_raw = modelToUse.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+
+                        #print("refined_prediction_raw: ", refined_prediction_raw)
+
+                        for i in range(2):
+                            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+                            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+                            listOfDecodedPredictions.append(prediction_highest_indices)
+
+                        # Top prediction
+                        modelToUse.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+                        top_prediction_raw = modelToUse.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+                        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+                        # Print Top prediction
+                        for i, prediction in enumerate(topPrediction):
+                            topHighestProbPrediction = [int(num) for num in prediction]
+                            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+                            listOfDecodedPredictions.append(topHighestProbPrediction)
+
                         current_json_object["newPrediction"] = listOfDecodedPredictions
                         current_json_object["labels"] = unique_labels
 
+                        # store the decoded and refined predictions
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
                     else:
@@ -299,22 +351,16 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
 
                         #print(current_json_object["currentPredictionRaw"])
 
-                        listOfDecodedPredictions = []
                         listOfMatchings = []
-
-                        # Check on prediction with nth highest probability
-                        for i in range(10):
-                            prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
-                            #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
-                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
-                            #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+                        # Compare decoded and refined predictions stored in currentPrediction with the real result (drawing)
+                        for i in range(len(current_json_object["currentPrediction"])):
+                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
+                            print("Matching Numbers with ", i+1 , matching_numbers)
                             listOfMatchings.append({
                                 "index": i,
-                                "matchingSequence": prediction_nth_indices,
+                                "matchingSequence": current_json_object["currentPrediction"][i],
                                 "matchingNumbers": matching_numbers
                             })
-
-                            listOfDecodedPredictions.append(prediction_nth_indices)
                         
 
                         # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
@@ -341,13 +387,46 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         current_json_object["newPredictionRaw"] = predictedSequence
                         current_json_object["labels"] = unique_labels.tolist()
                         
-                        decodedRawPredictions = []
+                        listOfDecodedPredictions = [] = []
                         # Decode prediction with nth highest probability
-                        for i in range(10):
+                        for i in range(2):
                             prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
-                            decodedRawPredictions.append(prediction_nth_indices)
+                            listOfDecodedPredictions.append(prediction_nth_indices)
 
-                        current_json_object["newPrediction"] = decodedRawPredictions
+                        with open(jsonFilePath, "w+") as outfile:
+                            json.dump(current_json_object, outfile)
+                        
+                        #####################
+                        # Start refinements #
+                        #####################
+                        jsonDirPath = os.path.join(path, "data", "database", name)
+                        num_classes = len(unique_labels)
+                        numbersLength = len(historyResult)
+
+                        # Refine predictions
+                        modelToUse.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+                        refined_prediction_raw = modelToUse.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+
+                        #print("refined_prediction_raw: ", refined_prediction_raw)
+
+                        for i in range(2):
+                            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+                            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+                            listOfDecodedPredictions.append(prediction_highest_indices)
+
+                        # Top prediction
+                        modelToUse.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
+                        top_prediction_raw = modelToUse.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+                        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+                        # Print Top prediction
+                        for i, prediction in enumerate(topPrediction):
+                            topHighestProbPrediction = [int(num) for num in prediction]
+                            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+                            listOfDecodedPredictions.append(topHighestProbPrediction)
+
+                        # store the decoded and refined predictions
+                        current_json_object["newPrediction"] = listOfDecodedPredictions
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
