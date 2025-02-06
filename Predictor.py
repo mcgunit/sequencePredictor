@@ -27,7 +27,7 @@ def print_intro():
 
 
 
-def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True, maxRows=0, years_back=None):
+def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None):
 
     modelToUse = tcn
     if "lotto" in name or "eurodreams" in name or "jokerplus" in name or "keno" in name or "pick3" in name or "vikinglotto" in name:
@@ -129,27 +129,11 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
 
                     # Train and do a new prediction
-                    if doTraining:
-                        modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
-                    else:
-                        model = os.path.join(modelPath, "model_euromillions.keras")
-                        if "lotto" in name and not "vikinglotto" in name:
-                            model = os.path.join(modelPath, "model_lotto.keras")
-                        if "eurodreams" in name:
-                            model = os.path.join(modelPath, "model_eurodreams.keras")
-                        if "jokerplus" in name:
-                            model = os.path.join(modelPath, "model_jokerplus.keras")
-                        if "keno" in name:
-                            model = os.path.join(modelPath, "model_keno.keras")
-                        if "pick3" in name:
-                            model = os.path.join(modelPath, "model_pick3.keras")
-                        if "vikinglotto" in name:
-                            model = os.path.join(modelPath, "model_vikinglotto.keras")
-                        latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
-
+                    modelToUse.setModelPath(modelPath)
+                    modelToUse.setBatchSize(16)
+                    modelToUse.setEpochs(1000)
+                    latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                    
                     predictedSequence = latest_raw_predictions.tolist()
 
             
@@ -223,26 +207,10 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         # Train and do a new prediction
                         modelToUse.setDataPath(dataPath)
                         
-                        if doTraining:
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(16)
-                            modelToUse.setEpochs(1000)
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
-                        else:
-                            model = os.path.join(modelPath, "model_euromillions.keras")
-                            if "lotto" in name and not "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_lotto.keras")
-                            if "eurodreams" in name:
-                                model = os.path.join(modelPath, "model_eurodreams.keras")
-                            if "jokerplus" in name:
-                                model = os.path.join(modelPath, "model_jokerplus.keras")
-                            if "keno" in name:
-                                model = os.path.join(modelPath, "model_keno.keras")
-                            if "pick3" in name:
-                                model = os.path.join(modelPath, "model_pick3.keras")
-                            if "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_vikinglotto.keras")
-                            latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                        modelToUse.setModelPath(modelPath)
+                        modelToUse.setBatchSize(16)
+                        modelToUse.setEpochs(1000)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
 
                         predictedSequence = latest_raw_predictions.tolist()
                         unique_labels = unique_labels.tolist()
@@ -318,29 +286,12 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
 
                         # Train and do a new prediction
-                        if doTraining:
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(16)
-                            modelToUse.setEpochs(1000)
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
-                        else:
-                            model = os.path.join(modelPath, "model_euromillions.keras")
-                            if "lotto" in name and not "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_lotto.keras")
-                            if "eurodreams" in name:
-                                model = os.path.join(modelPath, "model_eurodreams.keras")
-                            if "jokerplus" in name:
-                                model = os.path.join(modelPath, "model_jokerplus.keras")
-                            if "keno" in name:
-                                model = os.path.join(modelPath, "model_keno.keras")
-                            if "pick3" in name:
-                                model = os.path.join(modelPath, "model_pick3.keras")
-                            if "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_vikinglotto.keras")
-                            latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                        modelToUse.setModelPath(modelPath)
+                        modelToUse.setBatchSize(16)
+                        modelToUse.setEpochs(1000)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
 
                         predictedSequence = latest_raw_predictions.tolist()
-
 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
