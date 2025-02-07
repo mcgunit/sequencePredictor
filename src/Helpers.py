@@ -534,9 +534,6 @@ class Helpers():
                 X.append(raw_probs)
                 y.append(real_result_vector)
 
-        if not X:
-            raise ValueError("No valid data found in JSON files!")
-
         return np.array(X), np.array(y)  # Both X and y now have compatible shapes
     
     def extractFeaturesFromJsonForDetermineTopPrediction(self, jsonFileOrDir, num_classes=80, numbersLength=20):

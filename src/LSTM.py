@@ -188,39 +188,41 @@ class LSTMModel:
 
         X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder, num_classes=num_classes, numbersLength=numbersLength)
 
-        inputShape = (numbersLength, num_classes)  # Ensure input shape is consistent with raw predictions
+        if len(X_train) > 0 and len(y_train) > 0:
 
-        model = models.Sequential([
-            layers.Input(shape=inputShape),
-            layers.Conv1D(64, kernel_size=3, activation='relu', padding='same'),
-            layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
-            layers.LSTM(128, return_sequences=True),
-            layers.Dropout(0.3),
-            layers.LSTM(64, return_sequences=True),
-            layers.Dropout(0.3),
-            layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
-        ])
+            inputShape = (numbersLength, num_classes)  # Ensure input shape is consistent with raw predictions
 
-        #model.build(input_shape=inputShape)
+            model = models.Sequential([
+                layers.Input(shape=inputShape),
+                layers.Conv1D(64, kernel_size=3, activation='relu', padding='same'),
+                layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
+                layers.LSTM(128, return_sequences=True),
+                layers.Dropout(0.3),
+                layers.LSTM(64, return_sequences=True),
+                layers.Dropout(0.3),
+                layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
+            ])
 
-        model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=["accuracy"])
+            #model.build(input_shape=inputShape)
 
-        if os.path.exists(model_path):
-            model.load_weights(model_path)
-        
-        history = model.fit(
-            X_train, y_train,
-            epochs=epochs,
-            batch_size=8,
-            verbose=False,
-            callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)]
-        )
-        
-        model.save(model_path)
-        
-        pd.DataFrame(history.history).plot(figsize=(8, 5))
-        plt.savefig(os.path.join(self.modelPath, f'refine_prediction_model_{name}_performance.png'))
-        print(f"Refine Prediction AI Model {name} Trained and Saved!")
+            model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=["accuracy"])
+
+            if os.path.exists(model_path):
+                model.load_weights(model_path)
+            
+            history = model.fit(
+                X_train, y_train,
+                epochs=epochs,
+                batch_size=8,
+                verbose=False,
+                callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)]
+            )
+            
+            model.save(model_path)
+            
+            pd.DataFrame(history.history).plot(figsize=(8, 5))
+            plt.savefig(os.path.join(self.modelPath, f'refine_prediction_model_{name}_performance.png'))
+            print(f"Refine Prediction AI Model {name} Trained and Saved!")
 
 
     def refinePrediction(self, name, pathToLatestPredictionFile, num_classes=80, numbersLength=20):
@@ -231,11 +233,15 @@ class LSTMModel:
         second_model = load_model(model_path, custom_objects={"multi_label_accuracy": multi_label_accuracy})
 
         X_new, _ = helpers.extractFeaturesFromJsonForRefinement(pathToLatestPredictionFile, num_classes=num_classes, numbersLength=numbersLength)
-        refined_prediction = second_model.predict(X_new)
-        
-        refined_prediction = refined_prediction.reshape(-1, numbersLength, num_classes)  # Ensure correct shape
-        print("Refined Prediction Shape:", refined_prediction.shape)
-        return refined_prediction
+
+        if len(X_new) > 0:
+            refined_prediction = second_model.predict(X_new)
+            
+            refined_prediction = refined_prediction.reshape(-1, numbersLength, num_classes)  # Ensure correct shape
+            print("Refined Prediction Shape:", refined_prediction.shape)
+            return refined_prediction
+        else:
+            return []
     
     def trainTopPredictionsModel(self, name, path_to_json_folder, num_classes=80, numbersLength=20):
         """
@@ -247,36 +253,37 @@ class LSTMModel:
 
         X_train, y_train = helpers.extractFeaturesFromJsonForDetermineTopPrediction(path_to_json_folder, num_classes=num_classes, numbersLength=numbersLength)
 
-        inputShape = (X_train.shape[1],)
+        if len(X_train) > 0 and len(y_train) > 0:
+            inputShape = (X_train.shape[1],)
 
-        model = models.Sequential([
-            layers.Input(shape=inputShape), 
-            layers.Dense(512, activation='relu'),
-            layers.Dropout(0.6),
-            layers.Dense(256, activation='relu'),
-            layers.Dropout(0.6),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(num_classes, activation='sigmoid')
-        ])
+            model = models.Sequential([
+                layers.Input(shape=inputShape), 
+                layers.Dense(512, activation='relu'),
+                layers.Dropout(0.6),
+                layers.Dense(256, activation='relu'),
+                layers.Dropout(0.6),
+                layers.Dense(128, activation='relu'),
+                layers.Dense(num_classes, activation='sigmoid')
+            ])
 
-        #model.build(input_shape=inputShape)
+            #model.build(input_shape=inputShape)
 
-        model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
+            model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
 
-        if os.path.exists(model_path):
-            model.load_weights(model_path)
-        
-        # Create and train the model
-        history = model.fit(X_train, y_train, epochs=epochs, batch_size=8, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
+            if os.path.exists(model_path):
+                model.load_weights(model_path)
+            
+            # Create and train the model
+            history = model.fit(X_train, y_train, epochs=epochs, batch_size=8, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
 
-        # Save model for future use
-        model.save(model_path)
+            # Save model for future use
+            model.save(model_path)
 
-        # Plot training history
-        pd.DataFrame(history.history).plot(figsize=(8, 5))
-        plt.savefig(os.path.join(self.modelPath, f'top_prediction_model_{name}_performance.png'))
+            # Plot training history
+            pd.DataFrame(history.history).plot(figsize=(8, 5))
+            plt.savefig(os.path.join(self.modelPath, f'top_prediction_model_{name}_performance.png'))
 
-        print(f"Refine Prediction AI Model {name} Trained and Saved!")
+            print(f"Refine Prediction AI Model {name} Trained and Saved!")
     
     def topPrediction(self, name, pathToLatestPredictionFile, num_classes=80, numbersLength=20):
         """
@@ -291,11 +298,14 @@ class LSTMModel:
         new_json = pathToLatestPredictionFile
         X_new, _ = helpers.extractFeaturesFromJsonForDetermineTopPrediction(new_json, num_classes=num_classes, numbersLength=numbersLength)
 
-        # Get refined prediction
-        refined_prediction = second_model.predict(X_new)
+        if len(X_new) > 0:
+            # Get refined prediction
+            refined_prediction = second_model.predict(X_new)
 
-        #print("Top Prediction: ", refined_prediction)
-        return refined_prediction
+            #print("Top Prediction: ", refined_prediction)
+            return refined_prediction
+        else:
+            return []
     
 
     
@@ -330,7 +340,7 @@ if __name__ == "__main__":
 
 
     # Check on prediction with nth highest probability
-    for i in range(10):
+    for i in range(2):
         prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
         matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
@@ -345,7 +355,7 @@ if __name__ == "__main__":
     #print("refined_prediction_raw: ", refined_prediction_raw)
 
     # Print refined predictions
-    for i in range(10):
+    for i in range(2):
         prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
 
