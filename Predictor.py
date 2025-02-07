@@ -202,13 +202,12 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     if os.path.exists(jsonFilePath):
                         dateOffset = index
                         previousJsonFilePath = jsonFilePath
+                        break
                 
                 # Remove all elements starting from dateOffset index
-                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index
-                
+                #print("Date offset: ", dateOffset)
+                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index                
                 #print("History to rebuild: ", historyData)
-
-                
 
                 # Now lets iterate in reversed order to start with the older entries
                 for historyIndex, historyEntry in enumerate(reversed(historyData)):
