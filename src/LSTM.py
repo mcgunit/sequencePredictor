@@ -1,11 +1,7 @@
 # Import necessary libraries
 import os, sys, json
 import pandas as pd
-import tensorflow as tf
-import numpy as np
-import tensorflow.keras.backend as K
 
-from keras.saving import register_keras_serializable
 from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
 from keras import layers, regularizers, models
@@ -25,35 +21,10 @@ if src_dir not in sys.path:
     sys.path.append(src_dir)
 
 from Helpers import Helpers
+from SelectiveProgbarLogger import SelectiveProgbarLogger
 
 helpers = Helpers()
 
-@register_keras_serializable()
-def multi_label_accuracy(y_true, y_pred):
-    """
-    Computes the accuracy for multi-label classification.
-    It calculates how many of the predicted numbers match the actual numbers.
-    """
-    threshold = 0.5  # Convert probabilities to binary (0 or 1)
-    y_pred = K.cast(y_pred > threshold, dtype='float32')  # Convert predictions to 0s & 1s
-    correct_preds = K.sum(y_true * y_pred, axis=-1)  # Count matching 1s
-    total_preds = K.sum(y_true, axis=-1)  # Count total 1s in actual result
-    return correct_preds / total_preds  # Percentage of correctly predicted numbers
-
-
-class SelectiveProgbarLogger(tf.keras.callbacks.ProgbarLogger):
-    def __init__(self, verbose, epoch_interval, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.default_verbose = verbose
-        self.epoch_interval = epoch_interval
-    
-    def on_epoch_begin(self, epoch, *args, **kwargs):
-        self.verbose = (
-            0 
-                if epoch % self.epoch_interval != 0 
-                else self.default_verbose
-        )
-        super().on_epoch_begin(epoch, *args, **kwargs)
 
 class LSTMModel:
     def __init__(self):
@@ -178,142 +149,15 @@ class LSTMModel:
         return latest_raw_predictions
     
 
-    def trainRefinePredictionsModel(self, name, path_to_json_folder, num_classes=80, numbersLength=20):
-        """
-        Create a neural network to refine predictions.
-        Ensures output has the same shape as the original raw predictions (numbersLength, num_classes).
-        """
-        epochs = 1000
-        model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
-
-        X_train, y_train = helpers.extractFeaturesFromJsonForRefinement(path_to_json_folder, num_classes=num_classes, numbersLength=numbersLength)
-
-        if len(X_train) > 0 and len(y_train) > 0:
-
-            inputShape = (numbersLength, num_classes)  # Ensure input shape is consistent with raw predictions
-
-            model = models.Sequential([
-                layers.Input(shape=inputShape),
-                layers.Conv1D(64, kernel_size=3, activation='relu', padding='same'),
-                layers.Conv1D(128, kernel_size=3, activation='relu', padding='same'),
-                layers.LSTM(128, return_sequences=True),
-                layers.Dropout(0.3),
-                layers.LSTM(64, return_sequences=True),
-                layers.Dropout(0.3),
-                layers.TimeDistributed(layers.Dense(num_classes, activation='softmax'))
-            ])
-
-            #model.build(input_shape=inputShape)
-
-            model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=["accuracy"])
-
-            if os.path.exists(model_path):
-                model.load_weights(model_path)
-            
-            history = model.fit(
-                X_train, y_train,
-                epochs=epochs,
-                batch_size=8,
-                verbose=False,
-                callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)]
-            )
-            
-            model.save(model_path)
-            
-            pd.DataFrame(history.history).plot(figsize=(8, 5))
-            plt.savefig(os.path.join(self.modelPath, f'refine_prediction_model_{name}_performance.png'))
-            print(f"Refine Prediction AI Model {name} Trained and Saved!")
-
-
-    def refinePrediction(self, name, pathToLatestPredictionFile, num_classes=80, numbersLength=20):
-        """
-        Refine the predictions while keeping the (numbersLength, num_classes) shape.
-        """
-        model_path = os.path.join(self.modelPath, f"refine_prediction_model_{name}.keras")
-        second_model = load_model(model_path, custom_objects={"multi_label_accuracy": multi_label_accuracy})
-
-        X_new, _ = helpers.extractFeaturesFromJsonForRefinement(pathToLatestPredictionFile, num_classes=num_classes, numbersLength=numbersLength)
-
-        if len(X_new) > 0:
-            refined_prediction = second_model.predict(X_new)
-            
-            refined_prediction = refined_prediction.reshape(-1, numbersLength, num_classes)  # Ensure correct shape
-            print("Refined Prediction Shape:", refined_prediction.shape)
-            return refined_prediction
-        else:
-            return []
-    
-    def trainTopPredictionsModel(self, name, path_to_json_folder, num_classes=80, numbersLength=20):
-        """
-        Create a neural network to get the top prediction.
-        @num_classes: How many numbers to predict.
-        """
-        epochs = 1000
-        model_path = os.path.join(self.modelPath, f"top_prediction_model_{name}.keras")
-
-        X_train, y_train = helpers.extractFeaturesFromJsonForDetermineTopPrediction(path_to_json_folder, num_classes=num_classes, numbersLength=numbersLength)
-
-        if len(X_train) > 0 and len(y_train) > 0:
-            inputShape = (X_train.shape[1],)
-
-            model = models.Sequential([
-                layers.Input(shape=inputShape), 
-                layers.Dense(512, activation='relu'),
-                layers.Dropout(0.6),
-                layers.Dense(256, activation='relu'),
-                layers.Dropout(0.6),
-                layers.Dense(128, activation='relu'),
-                layers.Dense(num_classes, activation='sigmoid')
-            ])
-
-            #model.build(input_shape=inputShape)
-
-            model.compile(optimizer=Adam(learning_rate=0.0001), loss='binary_crossentropy', metrics=[multi_label_accuracy])
-
-            if os.path.exists(model_path):
-                model.load_weights(model_path)
-            
-            # Create and train the model
-            history = model.fit(X_train, y_train, epochs=epochs, batch_size=8, verbose=False, callbacks=[SelectiveProgbarLogger(verbose=1, epoch_interval=epochs/2)])
-
-            # Save model for future use
-            model.save(model_path)
-
-            # Plot training history
-            pd.DataFrame(history.history).plot(figsize=(8, 5))
-            plt.savefig(os.path.join(self.modelPath, f'top_prediction_model_{name}_performance.png'))
-
-            print(f"Refine Prediction AI Model {name} Trained and Saved!")
-    
-    def topPrediction(self, name, pathToLatestPredictionFile, num_classes=80, numbersLength=20):
-        """
-            Get top prediction with an AI
-        """
-
-        model_path = os.path.join(self.modelPath, f"top_prediction_model_{name}.keras")
-
-        second_model = load_model(model_path)
-
-        # Get new prediction features
-        new_json = pathToLatestPredictionFile
-        X_new, _ = helpers.extractFeaturesFromJsonForDetermineTopPrediction(new_json, num_classes=num_classes, numbersLength=numbersLength)
-
-        if len(X_new) > 0:
-            # Get refined prediction
-            refined_prediction = second_model.predict(X_new)
-
-            #print("Top Prediction: ", refined_prediction)
-            return refined_prediction
-        else:
-            return []
-    
-
-    
-    
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
+    from RefinemePrediction import RefinePrediction
+    from TopPrediction import TopPrediction
+
     lstm_model = LSTMModel()
+    refinePrediction = RefinePrediction()
+    topPrediction = TopPrediction()
 
     name = 'keno'
     path = os.getcwd()
@@ -349,8 +193,8 @@ if __name__ == "__main__":
 
 
     # Refine predictions
-    lstm_model.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-    refined_prediction_raw = lstm_model.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, num_classes=num_classes, numbersLength=numbersLength)
+    refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
 
     #print("refined_prediction_raw: ", refined_prediction_raw)
 
@@ -365,8 +209,8 @@ if __name__ == "__main__":
 
     
     # Top prediction
-    lstm_model.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-    top_prediction_raw = lstm_model.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, num_classes=num_classes, numbersLength=numbersLength)
+    topPrediction.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    top_prediction_raw = topPrediction.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
     topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
 
     # Print Top prediction

@@ -1,4 +1,4 @@
-import os, json, subprocess, collections
+import os, json, subprocess
 import numpy as np
 import asciichartpy
 
@@ -6,8 +6,6 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from sklearn.preprocessing import OneHotEncoder
-from collections import Counter
-
 
 
 class Helpers():
@@ -652,5 +650,9 @@ class Helpers():
             top_indices = np.argsort(prediction)[-num_top:]  # Indices of top 20 numbers
             top_numbers.append([labels[i] for i in top_indices])  # Convert indices to numbers
 
-        return top_numbers    
+        return top_numbers
+
+
+
+
     

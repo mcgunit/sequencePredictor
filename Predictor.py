@@ -515,7 +515,9 @@ if __name__ == "__main__":
 
     except Exception as e:
         print("Failed to predict Euromillions", e)
+    """
 
+    """
     try:
         #####################
         #       Lotto       #
@@ -546,7 +548,9 @@ if __name__ == "__main__":
 
     except Exception as e:
         print("Failed to predict Lotto", e)
+    """
 
+    """
     try:
         #####################
         #     euroDreams    #
@@ -593,7 +597,7 @@ if __name__ == "__main__":
 
     """
 
-    
+    """
     try:
         #####################
         #        keno       #
@@ -616,14 +620,15 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Keno", e)
-    
     """
+    
+    
     try:
         #####################
         #        Pick3      #
         #####################
         print("Pick3")
-        modelPath = os.path.join(path, "data", "models", "tcn_model")
+        modelPath = os.path.join(path, "data", "models", "lstm_model")
         dataPath = os.path.join(path, "data", "trainingData", "pick3")
         file = "pick3-gamedata-NL-{0}.csv".format(current_year)
 
@@ -638,8 +643,8 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Pick3", e)
-
     
+    """
     try:
         #####################
         #    Viking Lotto   #
