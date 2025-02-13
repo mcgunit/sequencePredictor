@@ -8,6 +8,6 @@ python_dateutil==2.8.2
 scikit_learn==1.6.0
 tensorflow[and-cuda]==2.18.0
 asciichartpy==1.5.25
-pmdarina==2.0.4
+pmdarima==2.0.4
 statsmodels==0.14.4
 
