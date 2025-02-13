@@ -380,7 +380,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     jsonDirPath = os.path.join(path, "data", "database", name)
     num_classes = len(unique_labels)
     numbersLength = len(historyResult)
-
+    """
     try:
         # Refine predictions
         refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
@@ -421,12 +421,13 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     except Exception as e:
         print("Failed to perform ARIMA: ", e)
-
+    """
     try:
         # Markov
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(0.1)
-        markovSequence = markov.run() 
+        markovSequence = markov.run()
+        print("MArkov Sequence: ", markovSequence)
         listOfDecodedPredictions.append(markovSequence)
     except Exception as e:
         print("Failed to perform Markov: ", e)
@@ -473,7 +474,6 @@ if __name__ == "__main__":
             modelPath = os.path.join(path, "data", "models", model_type)
             dataPath = os.path.join(path, "data", "trainingData", dataset_name)
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
-
 
             # Predict for complete data
             predict(dataset_name, dataPath, modelPath, file, skipLastColumns=skip_last_columns)

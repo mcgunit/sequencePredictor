@@ -16,7 +16,7 @@ if src_dir not in sys.path:
 
 
 from Helpers import Helpers
-\
+
 helpers = Helpers()
 
 class Markov():
