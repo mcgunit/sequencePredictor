@@ -380,7 +380,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     jsonDirPath = os.path.join(path, "data", "database", name)
     num_classes = len(unique_labels)
     numbersLength = len(historyResult)
-    """
+    
     try:
         # Refine predictions
         refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
@@ -421,7 +421,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     except Exception as e:
         print("Failed to perform ARIMA: ", e)
-    """
+    
     try:
         # Markov
         markov.setDataPath(dataPath)
