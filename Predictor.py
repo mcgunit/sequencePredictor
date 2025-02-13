@@ -430,225 +430,66 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
 
 if __name__ == "__main__":
-
     try:
         helpers.git_pull()
     except Exception as e:
         print("Failed to get latest changes")
 
     parser = argparse.ArgumentParser(
-                    prog='LSTM Sequence Predictor',
-                    description='Tries to predict a sequence of numbers',
-                    epilog='Check it uit')  
+        prog='LSTM Sequence Predictor',
+        description='Tries to predict a sequence of numbers',
+        epilog='Check it out'
+    )
     parser.add_argument('-d', '--data', default="euromillions")
-    
     args = parser.parse_args()
     print(args.data)
 
     print_intro()
 
-    # Get the current date and time
-    current_datetime = datetime.now()
-
-    # Access the year attribute to get the current year
-    current_year = current_datetime.year
-    #current_year = 2024
-
-
-    # Print the result
+    current_year = datetime.now().year
     print("Current Year:", current_year)
 
     path = os.getcwd()
-    
-    """
-    try:
-        #####################
-        #   Euromillions    #
-        #####################
-        print("Euromillions")
-        modelPath = os.path.join(path, "data", "models", "tcn_model")
-        dataPath = os.path.join(path, "data", "trainingData", "euromillions")
-        file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
 
-        name = 'euromillions'
-        # Do also a training on the complete data
-        predict(name, dataPath, modelPath, file)
+    datasets = [
+        # (dataset_name, model_type, skip_last_columns)
+        ("euromillions", "tcn_model", 0),
+        ("lotto", "lstm_model", 1),
+        ("eurodreams", "lstm_model", 0),
+        ("jokerplus", "lstm_model", 1),
+        ("keno", "lstm_model", 0),
+        ("pick3", "lstm_model", 0),
+        ("vikinglotto", "lstm_model", 0),
+    ]
 
-        print("Euromillions current year")
-        name = 'euromillions_currentYear'
-        predict(name, dataPath, modelPath, file, years_back=1)
+    for dataset_name, model_type, skip_last_columns in datasets:
+        try:
+            print(f"\n{dataset_name.capitalize()}")
+            modelPath = os.path.join(path, "data", "models", model_type)
+            dataPath = os.path.join(path, "data", "trainingData", dataset_name)
+            file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
+            # Predict for complete data
+            predict(dataset_name, dataPath, modelPath, file, skipLastColumns=skip_last_columns)
 
-        print("Euromillions current + last two years")
-        name = 'euromillions_threeYears'
-        predict(name, dataPath, modelPath, file, years_back=3)
+            # Predict for current year
+            predict(f"{dataset_name}_currentYear", dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1)
 
-    except Exception as e:
-        print("Failed to predict Euromillions", e)
-    """
+            # Predict for current year + last two years
+            predict(f"{dataset_name}_threeYears", dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3)
 
-    """
-    try:
-        #####################
-        #       Lotto       #
-        #####################
-        print("Lotto")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "lotto")
-        file = "lotto-gamedata-NL-{0}.csv".format(current_year)
-
-
-        name = 'lotto'
-        # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        # do a training on the complete data
-        predict(name, dataPath, modelPath, file, skipLastColumns=1)
-
-
-        print("Lotto current year")
-        name = 'lotto_currentYear'
-        # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(name, dataPath, modelPath, file, skipLastColumns=1, years_back=1)
-        
-
-
-        print("Lotto current year + last two years")
-        name = 'lotto_threeYears'
-        # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(name, dataPath, modelPath, file, skipLastColumns=1, years_back=3)
-
-    except Exception as e:
-        print("Failed to predict Lotto", e)
-    """
-
-    """
-    try:
-        #####################
-        #     euroDreams    #
-        #####################
-        print("euroDreams")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", 'eurodreams')
-        file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
-
-        name = 'eurodreams'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("euroDreams Three Years")
-        name = 'eurodreams_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        print("euroDreams Current Year")
-        name = 'eurodreams_currentYear'
-
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict euroDreams", e)
-    """
-    
-    """
-    try:
-        #####################
-        #     joker plus    #
-        #####################
-        print("Joker Plus")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'jokerplus'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "jokerplus-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
-
-        predict(dataPath, modelPath, file, data, skipLastColumns=1)
-    except Exception as e:
-        print("Failed to predict Joker plus", e)
-
-    """
-
-    
-    try:
-        #####################
-        #        keno       #
-        #####################
-        print("Keno")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "keno")
-        file = "keno-gamedata-NL-{0}.csv".format(current_year)
-
-        name = 'keno'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("Keno Three Years")
-        name = 'keno_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        print("Keno Current Year")
-        name = 'keno_currentYear'
-
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict Keno", e)
-    
-    
-    """
-    try:
-        #####################
-        #        Pick3      #
-        #####################
-        print("Pick3")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "pick3")
-        file = "pick3-gamedata-NL-{0}.csv".format(current_year)
-
-        name = 'pick3'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("Pick3 Three Years")
-        name = 'pick3_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        name = 'pick3_currentYear'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict Pick3", e)
-    """
-    
-    """
-    try:
-        #####################
-        #    Viking Lotto   #
-        #####################
-        print("Viking Lotto")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "vikinglotto")
-        file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
-        
-        name = 'vikinglotto'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("Viking Lotto Three Years")
-        name = 'vikinglotto_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        print("Viking Lotto Current Year")
-        name = 'vikinglotto_currentYear'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict Viking Lotto", e)
+        except Exception as e:
+            print(f"Failed to predict {dataset_name.capitalize()}: {e}")
 
     try:
         helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     except Exception as e:
-        print("Failed to generate txt file", e)
-    
+        print("Failed to generate txt file:", e)
+
     try:
         helpers.git_push()
     except Exception as e:
-        print("Failed to push latest predictions")
-    
-    """
+        print("Failed to push latest predictions:", e)
     
     
 
