@@ -9,6 +9,7 @@ from src.LSTM import LSTMModel
 from src.LSTM_ARIMA_Model import LSTM_ARIMA_Model
 from src.RefinemePrediction import RefinePrediction
 from src.TopPrediction import TopPrediction
+from src.Markov import Markov
 from src.Command import Command
 from src.Helpers import Helpers
 
@@ -17,6 +18,7 @@ lstm = LSTMModel()
 lstmArima = LSTM_ARIMA_Model()
 refinePrediction = RefinePrediction()
 topPredictor = TopPrediction()
+markov = Markov()
 command = Command()
 helpers = Helpers()
 
@@ -150,7 +152,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath)
+                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
 
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
@@ -270,7 +272,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
                         
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath)
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
 
                         current_json_object["newPrediction"] = listOfDecodedPredictions
                         current_json_object["labels"] = unique_labels
@@ -351,7 +353,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
 
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath)
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
 
                         # store the decoded and refined predictions
                         current_json_object["newPrediction"] = listOfDecodedPredictions
@@ -368,7 +370,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
         print("Did not found entries")
 
 
-def secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath):
+def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath):
     #####################
     # Start refinements #
     #####################
@@ -416,6 +418,13 @@ def secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labe
 
     except Exception as e:
         print("Failed to perform ARIMA: ", e)
+
+    try:
+        # Markov
+        markov.setDataPath(dataPath)
+        listOfDecodedPredictions.append(markov.run())
+    except Exception as e:
+        print("Failed to perform Markov: ", e)
 
     return listOfDecodedPredictions
 
