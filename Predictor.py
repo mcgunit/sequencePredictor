@@ -425,9 +425,11 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     try:
         # Markov
         markov.setDataPath(dataPath)
-        listOfDecodedPredictions.append(markov.run())
+        markovSequence = markov.run() 
+        listOfDecodedPredictions.append(markovSequence)
     except Exception as e:
         print("Failed to perform Markov: ", e)
+        exit()
 
     return listOfDecodedPredictions
 
@@ -456,13 +458,13 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
-        ("euromillions", "tcn_model", 0),
-        ("lotto", "lstm_model", 1),
-        ("eurodreams", "lstm_model", 0),
+        #("euromillions", "tcn_model", 0),
+        #("lotto", "lstm_model", 1),
+        #("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 1),
         ("keno", "lstm_model", 0),
-        ("pick3", "lstm_model", 0),
-        ("vikinglotto", "lstm_model", 0),
+        #("pick3", "lstm_model", 0),
+        #("vikinglotto", "lstm_model", 0),
     ]
 
     for dataset_name, model_type, skip_last_columns in datasets:

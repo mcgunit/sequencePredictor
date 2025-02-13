@@ -276,7 +276,6 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const latestFilePath = path.join(folderPath, latestFile);
       const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
-      const newPredictionRaw = jsonData.newPredictionRaw;
 
       html += `
         <div class="folder">
@@ -287,44 +286,44 @@ app.get('/', (req, res) => {
             <div class="charts-grid">
       `;
 
-      if (newPredictionRaw && Array.isArray(newPredictionRaw)) {
-        newPredictionRaw.forEach((sublist, index) => {
-          html += `
-            <div>
-              <h4>Probability for number ${index + 1}</h4>
-              <canvas id="chart-${folder}-${index}"></canvas>
-            </div>
-            <script>
-              const ctx${folder}${index} = document.getElementById('chart-${folder}-${index}').getContext('2d');
-              new Chart(ctx${folder}${index}, {
-                type: 'line',
-                data: {
-                  labels: Array.from({ length: ${sublist.length} }, (_, i) => i + 1),
-                  datasets: [{
-                    label: 'Probability',
-                    data: ${JSON.stringify(sublist)},
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderWidth: 1,
-                    fill: true,
-                  }]
-                },
-                options: {
-                  responsive: true,
-                  plugins: {
-                    legend: {
-                      display: false,
-                    }
-                  },
-                  scales: {
-                    x: { display: false },
-                    y: { display: false },
+      if (jsonData.numberFrequency) {
+        const labels = Object.keys(jsonData.numberFrequency);
+        const dataValues = Object.values(jsonData.numberFrequency);
+      
+        html += `
+          <div>
+            <h4>Number Frequency</h4>
+            <canvas id="chart-${folder}"></canvas>
+          </div>
+          <script>
+            const ctx${folder} = document.getElementById('chart-${folder}').getContext('2d');
+            new Chart(ctx${folder}, {
+              type: 'bar',
+              data: {
+                labels: ${JSON.stringify(labels)},
+                datasets: [{
+                  label: 'Probability',
+                  data: ${JSON.stringify(dataValues)},
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                  borderWidth: 1,
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: false,
                   }
+                },
+                scales: {
+                  x: { title: { display: true, text: "Number" } },
+                  y: { title: { display: true, text: "Probability" } }
                 }
-              });
-            </script>
-          `;
-        });
+              }
+            });
+          </script>
+        `;
       }
 
       html += `
