@@ -425,11 +425,11 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     try:
         # Markov
         markov.setDataPath(dataPath)
+        markov.setSoftMAxTemperature(0.1)
         markovSequence = markov.run() 
         listOfDecodedPredictions.append(markovSequence)
     except Exception as e:
         print("Failed to perform Markov: ", e)
-        exit()
 
     return listOfDecodedPredictions
 
@@ -473,6 +473,7 @@ if __name__ == "__main__":
             modelPath = os.path.join(path, "data", "models", model_type)
             dataPath = os.path.join(path, "data", "trainingData", dataset_name)
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
+
 
             # Predict for complete data
             predict(dataset_name, dataPath, modelPath, file, skipLastColumns=skip_last_columns)
