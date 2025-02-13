@@ -26,6 +26,11 @@ class Markov():
         self.transition_matrix = defaultdict(lambda: defaultdict(int))
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
+    
+    def clear(self):
+        self.transition_matrix = defaultdict(lambda: defaultdict(int))
+        self.pair_counts = defaultdict(lambda: defaultdict(int))
+        self.number_frequencies = defaultdict(int)
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath

@@ -133,7 +133,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     # Train and do a new prediction
                     modelToUse.setModelPath(modelPath)
                     modelToUse.setBatchSize(16)
-                    modelToUse.setEpochs(1000)
+                    modelToUse.setEpochs(1)
                     latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
                     
                     predictedSequence = latest_raw_predictions.tolist()
@@ -257,7 +257,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
+                        modelToUse.setEpochs(1)
                         latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
 
                         predictedSequence = latest_raw_predictions.tolist()
@@ -338,7 +338,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         # Train and do a new prediction
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
+                        modelToUse.setEpochs(1)
                         latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
 
                         predictedSequence = latest_raw_predictions.tolist()
@@ -426,11 +426,13 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(0.1)
+        markov.clear()
         markovSequence = markov.run()
         print("MArkov Sequence: ", markovSequence)
         listOfDecodedPredictions.append(markovSequence)
     except Exception as e:
         print("Failed to perform Markov: ", e)
+        exit()
 
     return listOfDecodedPredictions
 
