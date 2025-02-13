@@ -16,6 +16,8 @@ if src_dir not in sys.path:
 
 
 from Helpers import Helpers
+\
+helpers = Helpers()
 
 class Markov():
     def __init__(self):
@@ -105,7 +107,7 @@ class Markov():
 
     def run(self):
         """Runs the Markov Chain prediction process."""
-        helpers = Helpers()
+        
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
 
         # Build the enhanced Markov Chain model
@@ -116,7 +118,9 @@ class Markov():
 
         # Predict the next numbers
         predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(numbers[0]), temperature=self.softMaxTemperature)
-        print("Predicted next numbers:", predicted_numbers)
+        #print("Predicted next numbers:", predicted_numbers)
+
+        return predicted_numbers
 
 
 if __name__ == "__main__":
@@ -128,8 +132,10 @@ if __name__ == "__main__":
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
+    print("Most Frequent Numbers: ", helpers.count_number_frequencies(dataPath))
+
     markov.setDataPath(dataPath)
     markov.setSoftMAxTemperature(0.1)
-    markov.run()
+    print("Predicted Numbers: ", markov.run())
 
 

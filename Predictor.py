@@ -78,7 +78,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                 "newPrediction": [],      # Decoded prediction with help of labels
                 "newPredictionRaw": [],   # Raw prediction that contains the statistical data
                 "matchingNumbers": {},
-                "labels": []              # Needed for decoding the raw predictions
+                "labels": [],             # Needed for decoding the raw predictions
+                "numberFrequency": helpers.count_number_frequencies(dataPath)
             }
 
             doNewPrediction = True
@@ -211,7 +212,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                             "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
                             "newPredictionRaw": [], # Raw prediction that contains the statistical data
                             "matchingNumbers": [],
-                            "labels": []
+                            "labels": [],
+                            "numberFrequency": helpers.count_number_frequencies(dataPath)
                         }
 
                         # Connect the history
@@ -296,7 +298,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                             "newPrediction": [],
                             "newPredictionRaw": [],
                             "matchingNumbers": {},
-                            "labels": []
+                            "labels": [],
+                            "numberFrequency": helpers.count_number_frequencies(dataPath)
                         }
                         
                         #print(previous_json_object)

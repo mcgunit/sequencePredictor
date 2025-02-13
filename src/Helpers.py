@@ -657,6 +657,60 @@ class Helpers():
         return top_numbers
 
 
+    def count_number_frequencies(self, dataPath):
+        """
+        Count the frequency of each number in all CSV files within the specified folder and normalize the frequencies.
 
+        Parameters
+        ----------
+        dataPath : str
+            Path to the folder containing CSV files with historical data.
+
+        Returns
+        -------
+        dict
+            A dictionary where keys are numbers and values are their normalized frequencies.
+        """
+        # Initialize a dictionary to store number frequencies
+        number_frequencies = {}
+
+        # Iterate over all CSV files in the folder
+        for csvFile in os.listdir(dataPath):
+            if csvFile.endswith(".csv"):
+                try:
+                    # Construct full file path
+                    file_path = os.path.join(dataPath, csvFile)
+
+                    # Load data from the file
+                    csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+
+                    # Ensure the data is in the correct format
+                    if not isinstance(csvData[0], (list, np.ndarray)):
+                        csvData = [csvData.tolist()]
+
+                    # Process each entry in the CSV data
+                    for entry in csvData:
+                        # Skip the date and convert the rest to integers
+                        try:
+                            numbers = list(map(int, entry[1:]))
+                        except ValueError as ve:
+                            print(f"Number conversion error for entry '{entry[1:]}': {ve}")
+                            continue
+
+                        # Update the frequency count for each number
+                        for number in numbers:
+                            if number in number_frequencies:
+                                number_frequencies[number] += 1
+                            else:
+                                number_frequencies[number] = 1
+
+                except Exception as e:
+                    print(f"Error processing file {csvFile}: {e}")
+
+        # Normalize the frequencies
+        total_counts = sum(number_frequencies.values())
+        normalized_frequencies = {number: count / total_counts for number, count in number_frequencies.items()}
+
+        return normalized_frequencies
 
     
