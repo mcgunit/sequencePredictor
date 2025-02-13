@@ -478,10 +478,12 @@ class Helpers():
                     
                     raw_probs = np.array(data["currentPredictionRaw"])
                     
+                    """
                     # Ensure correct shape before reshaping
                     if raw_probs.size != numbersLength * num_classes:
                         print(f"Skipping {file} - Unexpected shape {raw_probs.shape}")
                         continue
+                    """
                     
                     raw_probs = raw_probs.reshape(numbersLength, num_classes)
 
@@ -512,9 +514,11 @@ class Helpers():
                 raw_probs = np.array(data["currentPredictionRaw"])
                 
                 # Ensure correct shape before reshaping
+                """
                 if raw_probs.size != numbersLength * num_classes:
                     print(f"Skipping {jsonFileOrDir} - Unexpected shape {raw_probs.shape}")
                     return
+                """
                 
                 raw_probs = raw_probs.reshape(numbersLength, num_classes)
 

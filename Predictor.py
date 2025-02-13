@@ -6,11 +6,17 @@ from datetime import datetime
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
+from src.LSTM_ARIMA_Model import LSTM_ARIMA_Model
+from src.RefinemePrediction import RefinePrediction
+from src.TopPrediction import TopPrediction
 from src.Command import Command
 from src.Helpers import Helpers
 
 tcn = TCNModel()
 lstm = LSTMModel()
+lstmArima = LSTM_ARIMA_Model()
+refinePrediction = RefinePrediction()
+topPredictor = TopPrediction()
 command = Command()
 helpers = Helpers()
 
@@ -44,7 +50,6 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
         os.remove(os.path.join(dataPath, file))
     command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
-    
     # Get the latest result out of the latest data so we can use it to check the previous prediction
     latestEntry, previousEntry = helpers.getLatestPrediction(os.path.join(dataPath, file))
     if latestEntry is not None:
@@ -58,6 +63,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
         # Check if folder exists
         if not os.path.exists(os.path.join(path, "data", "database", name)):
             os.makedirs(os.path.join(path, "data", "database", name), exist_ok=True)
+
 
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
@@ -144,37 +150,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    #####################
-                    # Start refinements #
-                    #####################
-                    jsonDirPath = os.path.join(path, "data", "database", name)
-                    num_classes = len(unique_labels)
-                    numbersLength = len(previousResult)
-                    try:
-                        # Refine predictions
-                        modelToUse.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-                        refined_prediction_raw = modelToUse.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
+                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath)
 
-                        for i in range(2):
-                            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-                            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-                            listOfDecodedPredictions.append(prediction_highest_indices)
-                    except Exception as e:
-                        print("Was not able to run refine prediction model: ", e)
-
-                    try:
-                        # Top prediction
-                        modelToUse.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-                        top_prediction_raw = modelToUse.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
-                        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-                        # Print Top prediction
-                        for i, prediction in enumerate(topPrediction):
-                            topHighestProbPrediction = [int(num) for num in prediction]
-                            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-                            listOfDecodedPredictions.append(topHighestProbPrediction)
-                    except Exception as e:
-                        print("Was not able to run top prediction model: ", e)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
 
@@ -293,40 +270,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
                         
-                        #####################
-                        # Start refinements #
-                        #####################
-                        jsonDirPath = os.path.join(path, "data", "database", name)
-                        num_classes = len(unique_labels)
-                        numbersLength = len(historyResult)
-
-                        try:
-                            # Refine predictions
-                            modelToUse.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-                            refined_prediction_raw = modelToUse.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
-
-                            #print("refined_prediction_raw: ", refined_prediction_raw)
-
-                            for i in range(2):
-                                prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-                                #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-                                listOfDecodedPredictions.append(prediction_highest_indices)
-                        except Exception as e:
-                            print("Was not able to run refine prediction model: ", e)
-
-                        try:
-                            # Top prediction
-                            modelToUse.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-                            top_prediction_raw = modelToUse.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
-                            topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-                            # Print Top prediction
-                            for i, prediction in enumerate(topPrediction):
-                                topHighestProbPrediction = [int(num) for num in prediction]
-                                #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-                                listOfDecodedPredictions.append(topHighestProbPrediction)
-                        except Exception as e:
-                            print("Was not able to run top prediction model: ", e)
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath)
 
                         current_json_object["newPrediction"] = listOfDecodedPredictions
                         current_json_object["labels"] = unique_labels
@@ -406,42 +350,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
-                        
-                        #####################
-                        # Start refinements #
-                        #####################
-                        jsonDirPath = os.path.join(path, "data", "database", name)
-                        num_classes = len(unique_labels)
-                        numbersLength = len(historyResult)
 
-                        try:
-                            # Refine predictions
-                            modelToUse.trainRefinePredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-                            refined_prediction_raw = modelToUse.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
-
-                            #print("refined_prediction_raw: ", refined_prediction_raw)
-
-                            for i in range(2):
-                                prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-                                #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-                                listOfDecodedPredictions.append(prediction_highest_indices)
-                        except Exception as e:
-                            print("Was not able to run refine prediction model: ", e)
-
-                        try:
-                            # Top prediction
-                            modelToUse.trainTopPredictionsModel(name, jsonDirPath, num_classes=num_classes, numbersLength=numbersLength)
-                            top_prediction_raw = modelToUse.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, num_classes=num_classes, numbersLength=numbersLength)
-                            topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-                            # Print Top prediction
-                            for i, prediction in enumerate(topPrediction):
-                                topHighestProbPrediction = [int(num) for num in prediction]
-                                #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-                                listOfDecodedPredictions.append(topHighestProbPrediction)
-                        except Exception as e:
-                            print("Was not able to run top prediction model: ", e)
-                        
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath)
 
                         # store the decoded and refined predictions
                         current_json_object["newPrediction"] = listOfDecodedPredictions
@@ -457,6 +367,57 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years
     else:
         print("Did not found entries")
 
+
+def secondStage(listOfDecodedPredictions, path, name, historyResult, unique_labels, jsonFilePath):
+    #####################
+    # Start refinements #
+    #####################
+    jsonDirPath = os.path.join(path, "data", "database", name)
+    num_classes = len(unique_labels)
+    numbersLength = len(historyResult)
+
+    try:
+        # Refine predictions
+        refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+
+        #print("refined_prediction_raw: ", refined_prediction_raw)
+
+        for i in range(2):
+            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+            listOfDecodedPredictions.append(prediction_highest_indices)
+    except Exception as e:
+        print("Was not able to run refine prediction model: ", e)
+
+    try:
+        # Top prediction
+        topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+        # Print Top prediction
+        for i, prediction in enumerate(topPrediction):
+            topHighestProbPrediction = [int(num) for num in prediction]
+            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+            listOfDecodedPredictions.append(topHighestProbPrediction)
+    except Exception as e:
+        print("Was not able to run top prediction model: ", e)
+
+    try:
+        # Arima prediction
+        lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
+        lstmArima.setDataPath(dataPath)
+        lstmArima.setBatchSize(8)
+        lstmArima.setEpochs(1000)
+
+        predicted_arima_sequence = lstmArima.run(name)
+        listOfDecodedPredictions.append(predicted_arima_sequence)
+
+    except Exception as e:
+        print("Failed to perform ARIMA: ", e)
+
+    return listOfDecodedPredictions
 
 
 if __name__ == "__main__":
@@ -597,7 +558,7 @@ if __name__ == "__main__":
 
     """
 
-    """
+    
     try:
         #####################
         #        keno       #
@@ -620,9 +581,9 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Keno", e)
+    
+    
     """
-    
-    
     try:
         #####################
         #        Pick3      #
@@ -643,6 +604,7 @@ if __name__ == "__main__":
         predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
     except Exception as e:
         print("Failed to predict Pick3", e)
+    """
     
     """
     try:

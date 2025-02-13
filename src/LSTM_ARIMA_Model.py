@@ -1,13 +1,24 @@
 #https://en.wikipedia.org/wiki/Autoregressive_integrated_moving_average
-import os
+import os, sys
 import numpy as np
 import pandas as pd
-import pmdarima as pm
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from statsmodels.tsa.arima.model import ARIMA
+
+# Dynamically adjust the import path for Helpers
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+src_dir = os.path.join(parent_dir, 'src')
+
+# Ensure Helpers can be imported
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
+
 from Helpers import Helpers
 
 helpers = Helpers()
@@ -17,10 +28,11 @@ class LSTM_ARIMA_Model:
         self.dataPath = ""
         self.modelPath = ""
         self.epochs = 50
-        self.batchSize = 16
-        self.order = None  # Auto-detect best ARIMA order
-        self.lookback = 30  # LSTM lookback window
-        self.lstm_units = 16
+        self.batchSize = 8
+        self.order = (5,1,0)  # (5,1,0) Default ARIMA order test: (3,1,0), and (2,1,2)
+        self.lookback = 10  # LSTM lookback window
+        self.lstm_units = 8
+        self.dense_units = 8
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -34,24 +46,15 @@ class LSTM_ARIMA_Model:
     def setBatchSize(self, batchSize):
         self.batchSize = batchSize
 
-    def find_best_arima_order(self, series):
-        model = pm.auto_arima(series, 
-                              start_p=0, max_p=5, 
-                              start_q=0, max_q=5, 
-                              d=None, seasonal=False, 
-                              stepwise=True, trace=True)
-        return model.order
 
     def apply_arima(self, data):
         arima_predictions = []
         residuals = []
         
+        print("Making arima raw predictions")
+
         for i in range(data.shape[1]):
             series = data[:, i]
-            
-            if self.order is None:
-                self.order = self.find_best_arima_order(series)
-            
             model = ARIMA(series, order=self.order)
             model_fit = model.fit()
             pred = model_fit.predict(start=0, end=len(series)-1)
@@ -67,20 +70,25 @@ class LSTM_ARIMA_Model:
             y.append(residuals[i + self.lookback, :])
         return np.array(X), np.array(y)
 
-    def create_lstm_model(self, input_shape, numbersToPredict=20):
+    def create_lstm_model(self, name, input_shape, numbersToPredict=20):
+        print("Creating lstm model for arima")
         model = Sequential([
             Input(input_shape),
             LSTM(self.lstm_units, activation='relu', return_sequences=True),
             Dropout(0.2),
             LSTM(self.lstm_units, activation='relu'),
-            Dense(numbersToPredict)
+            Dense(numbersToPredict)  # Predicting residuals for numbersToPredict
         ])
-        model.compile(optimizer=Adam(learning_rate=0.005), loss='mse')
+        model.compile(optimizer=Adam(learning_rate=0.0005), loss='mse') # loss: mse, mae, huber_loss
+
+        if os.path.exists(os.path.join(self.modelPath, f"model_{name}.keras")):
+            model.load_weights(os.path.join(self.modelPath, f"model_{name}.keras"))
+
         return model
 
     def train_lstm(self, name, train_data, train_labels, numbersToPredict=20):
-        model = self.create_lstm_model((train_data.shape[1], train_data.shape[2]), numbersToPredict=numbersToPredict)
-        early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+        model = self.create_lstm_model(name, (train_data.shape[1], train_data.shape[2]), numbersToPredict=numbersToPredict)
+        early_stopping = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=5)
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{name}_checkpoint.keras"), save_best_only=True)
         
@@ -94,19 +102,20 @@ class LSTM_ARIMA_Model:
         arima_pred_next = arima_predictions[-1]
         
         final_prediction = np.round(arima_pred_next + lstm_residual_pred).astype(int)
+
+        # Ensure predictions are within unique_labels
         final_prediction = np.array([min(unique_labels, key=lambda x: abs(x - num)) for num in final_prediction])
         return final_prediction
 
-    def run(self, name='hybrid_model'):
+    def run(self, name):
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(self.dataPath)
         arima_predictions, residuals = self.apply_arima(numbers)
-        print("Arima predictions: ", arima_predictions)
+        print("Arima predictions: ", len(arima_predictions))
         X_train, y_train = self.prepare_lstm_data(residuals)
         model = self.train_lstm(name, X_train, y_train, numbersToPredict=len(numbers[0]))
         next_sequence = self.predict_next_sequence(model, residuals, arima_predictions, unique_labels)
-        print("Predicted Next Sequence:", next_sequence)
-        return next_sequence
-
+        #print("Predicted Next Sequence:", next_sequence)
+        return next_sequence.tolist()
 
 
 if __name__ == "__main__":
@@ -120,7 +129,9 @@ if __name__ == "__main__":
 
     hybrid_model.setModelPath(modelPath)
     hybrid_model.setDataPath(dataPath)
-    hybrid_model.setBatchSize(16)
-    hybrid_model.setEpochs(100)
+    hybrid_model.setBatchSize(8)
+    hybrid_model.setEpochs(1000)
 
-    predicted_sequence = hybrid_model.run(name=name)
+    predicted_sequence = hybrid_model.run(name)
+
+    print("Predicted Sequence:", predicted_sequence)
