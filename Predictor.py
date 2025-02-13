@@ -456,7 +456,7 @@ if __name__ == "__main__":
         ("euromillions", "tcn_model", 0),
         ("lotto", "lstm_model", 1),
         ("eurodreams", "lstm_model", 0),
-        ("jokerplus", "lstm_model", 1),
+        #("jokerplus", "lstm_model", 1),
         ("keno", "lstm_model", 0),
         ("pick3", "lstm_model", 0),
         ("vikinglotto", "lstm_model", 0),
