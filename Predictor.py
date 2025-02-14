@@ -35,10 +35,10 @@ def print_intro():
 
 
 
-def predict(name, dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None):
 
     modelToUse = tcn
-    if "lotto" in name or "eurodreams" in name or "jokerplus" in name or "keno" in name or "pick3" in name or "vikinglotto" in name:
+    if "lstm_model" in model_type:
         modelToUse = lstm
     modelToUse.setDataPath(dataPath)
 
@@ -461,11 +461,11 @@ if __name__ == "__main__":
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
         #("euromillions", "tcn_model", 0),
-        #("lotto", "lstm_model", 1),
+        ("lotto", "lstm_model", 1),
         #("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 1),
         #("keno", "lstm_model", 0),
-        ("pick3", "lstm_model", 0),
+        #("pick3", "lstm_model", 0),
         #("vikinglotto", "lstm_model", 0),
     ]
 
@@ -477,13 +477,13 @@ if __name__ == "__main__":
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
             # Predict for complete data
-            predict(dataset_name, dataPath, modelPath, file, skipLastColumns=skip_last_columns)
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1)
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3)
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
