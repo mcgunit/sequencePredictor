@@ -149,9 +149,9 @@ if __name__ == "__main__":
 
     markov.setDataPath(dataPath)
     markov.setSoftMAxTemperature(0.1)
-    markov.setAlpha(0.7)
+    markov.setAlpha(0.5)
     markov.setMinOccurrences(5)
-    
+
     print("Predicted Numbers: ", markov.run())
 
 
