@@ -23,6 +23,8 @@ class Markov():
     def __init__(self):
         self.dataPath = ""
         self.softMaxTemperature = 0.5
+        self.alpha = 0.7
+        self.min_occurrences = 5
         self.transition_matrix = defaultdict(lambda: defaultdict(int))
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
@@ -37,18 +39,24 @@ class Markov():
     
     def setSoftMAxTemperature(self, temperature):
         self.softMaxTemperature = temperature
+    
+    def setAlpha(self, nAlpha):
+        self.alpha = nAlpha
+
+    def setMinOccurrences(self, nMinOccurrences):
+        self.min_occurrences = nMinOccurrences
 
     def softmax_with_temperature(self, probabilities, temperature=1.0):
         """Applies temperature scaling to control randomness."""
         probs = np.array(probabilities) / temperature
         return scipy.special.softmax(probs)
 
-    def blended_probability(self, markov_probs, num_frequencies, alpha=0.7):
+    def blended_probability(self, markov_probs, num_frequencies):
         """Combines Markov transition probabilities with frequency analysis."""
-        return {num: (alpha * markov_probs.get(num, 0) + (1 - alpha) * (num_frequencies.get(num, 0) / sum(num_frequencies.values())))
+        return {num: (self.alpha * markov_probs.get(num, 0) + (1 - self.alpha) * (num_frequencies.get(num, 0) / sum(num_frequencies.values())))
             for num in set(markov_probs) | set(num_frequencies)}
 
-    def build_markov_chain(self, numbers, min_occurrences=5):
+    def build_markov_chain(self, numbers):
         """Creates the transition matrix with weighted recency and removes rare transitions."""
         total_draws = len(numbers)
 
@@ -71,7 +79,7 @@ class Markov():
         # Normalize transition probabilities and remove rare transitions
         for number, transitions in self.transition_matrix.items():
             total = sum(transitions.values())
-            self.transition_matrix[number] = {k: v / total for k, v in transitions.items() if v >= min_occurrences}
+            self.transition_matrix[number] = {k: v / total for k, v in transitions.items() if v >= self.min_occurrences}
 
     def predict_next_numbers(self, previous_numbers, n_predictions=20, temperature=0.7):
         """Predicts the next numbers using Markov Chain with all fine-tuning strategies."""
@@ -137,10 +145,13 @@ if __name__ == "__main__":
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
-    print("Most Frequent Numbers: ", helpers.count_number_frequencies(dataPath))
+    #print("Most Frequent Numbers: ", helpers.count_number_frequencies(dataPath))
 
     markov.setDataPath(dataPath)
     markov.setSoftMAxTemperature(0.1)
+    markov.setAlpha(0.7)
+    markov.setMinOccurrences(5)
+    
     print("Predicted Numbers: ", markov.run())
 
 
