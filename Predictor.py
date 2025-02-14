@@ -155,7 +155,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
+                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath)
 
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions

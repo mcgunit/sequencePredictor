@@ -62,6 +62,7 @@ function determineModelType(index) {
     case (index === 4): return 'LSTM Top Predictor';
     case (index === 5): return 'ARIMA Model';
     case (index === 6): return 'Markov Model';
+    case (index === 7): return 'PoissonMonteCarlo Model';
     default: return 'Ensemble Model';
   }
 }
