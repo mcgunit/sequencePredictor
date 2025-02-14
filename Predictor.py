@@ -461,7 +461,7 @@ if __name__ == "__main__":
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
         #("euromillions", "tcn_model", 0),
-        ("lotto", "lstm_model", 1),
+        ("lotto", "lstm_model", 0),
         #("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 1),
         #("keno", "lstm_model", 0),
