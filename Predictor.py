@@ -10,6 +10,7 @@ from src.LSTM_ARIMA_Model import LSTM_ARIMA_Model
 from src.RefinemePrediction import RefinePrediction
 from src.TopPrediction import TopPrediction
 from src.Markov import Markov
+from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.Command import Command
 from src.Helpers import Helpers
 
@@ -19,6 +20,7 @@ lstmArima = LSTM_ARIMA_Model()
 refinePrediction = RefinePrediction()
 topPredictor = TopPrediction()
 markov = Markov()
+poissonMonteCarlo = PoissonMonteCarlo()
 command = Command()
 helpers = Helpers()
 
@@ -432,6 +434,18 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         listOfDecodedPredictions.append(markovSequence)
     except Exception as e:
         print("Failed to perform Markov: ", e)
+
+    try:
+        # Poisson Distribution with Monte Carlo Analysis
+        poissonMonteCarlo.setDataPath(dataPath)
+        poissonMonteCarlo.setNumOfSimulations(5000)
+        poissonMonteCarlo.setRecentDraws(2000)
+        poissonMonteCarlo.setWeightFactor(0.1)
+        
+        poissonMonteCarloSequence = poissonMonteCarlo.run()
+        listOfDecodedPredictions.append(poissonMonteCarloSequence)    
+    except Exception as e:
+        print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
     return listOfDecodedPredictions
 
