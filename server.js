@@ -147,7 +147,7 @@ app.get('/database/:folder/:file', (req, res) => {
       ${generateTable(
         jsonData.currentPrediction, 
         'Current Prediction', 
-        jsonData.matchingNumbers.matchingNumbers, 
+        [].concat(...jsonData.currentPrediction.map(pred => pred.filter(num => jsonData.realResult.includes(num)))), 
         currentPredictionModels
       )}
       <h2>Real Result</h2>
@@ -155,7 +155,7 @@ app.get('/database/:folder/:file', (req, res) => {
       <h2>Matching Numbers</h2>
       <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex+1}</p>
       <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
-      <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
+      <!--<p><strong>Matching Numbers:</strong> ${generateList([].concat(...jsonData.currentPrediction.map(pred => pred.filter(num => jsonData.realResult.includes(num)))))}</p>--!>
       <h2>New Prediction</h2>
       ${generateTable(
         jsonData.newPrediction,
