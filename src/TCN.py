@@ -1,7 +1,6 @@
 # Import necessary libraries
 import os, sys, json
 import pandas as pd
-import tensorflow as tf
 
 from tcn import TCN  # Import the TCN layer
 from matplotlib import pyplot as plt
@@ -22,6 +21,7 @@ if src_dir not in sys.path:
     sys.path.append(src_dir)
 
 from Helpers import Helpers
+from SelectiveProgbarLogger import SelectiveProgbarLogger
 
 helpers = Helpers()
 
@@ -49,7 +49,7 @@ class TCNModel:
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
-    def create_model(self, max_value, num_classes=50):
+    def create_model(self, max_value, num_classes=50, model_path=""):
         embedding_output_dimension = 64
         tcn_units = 64              # Number of filters in TCN layers
         num_tcn_layers = 2          # Number of TCN layers
@@ -76,8 +76,14 @@ class TCNModel:
         # Output layer with softmax activation
         model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
 
+        model.build(input_shape=(None, None))
+
         # Compile the model
-        model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0005), metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.005), metrics=['accuracy'])
+
+        if os.path.exists(model_path):
+            print(f"Loading weights from {model_path}")
+            model.load_weights(model_path)
 
         return model
 
@@ -88,7 +94,7 @@ class TCNModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint])
+                            epochs=self.epochs, batch_size=self.batchSize, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=self.epochs/2)])
         return history
 
     
@@ -102,12 +108,7 @@ class TCNModel:
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
-        if os.path.exists(model_path):
-            model = load_model(model_path)
-        elif os.path.exists(checkpoint_path):
-            model = load_model(checkpoint_path)
-        else:
-            model = self.create_model(max_value, num_classes)
+        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path)
 
         # Train the model
         history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
@@ -143,35 +144,77 @@ class TCNModel:
         return latest_raw_predictions
 
 
+    
+
+
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
-    tcn_model = TCNModel()
+    from RefinemePrediction import RefinePrediction
+    from TopPrediction import TopPrediction
 
-    name = 'pick3'
+    tcn_model = TCNModel()
+    refinePrediction = RefinePrediction()
+    topPrediction = TopPrediction()
+
+    name = 'keno'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
+
+    jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
+    pathToLatestJsonFile = os.path.join(jsonDirPath, "2025-1-31.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
+
+    # Opening JSON file
+    with open(sequenceToPredictFile, 'r') as openfile:
+        sequenceToPredict = json.load(openfile)
+
+    numbersLength = len(sequenceToPredict["realResult"])
 
     tcn_model.setModelPath(modelPath)
     tcn_model.setDataPath(dataPath)
     tcn_model.setBatchSize(16)
     tcn_model.setEpochs(1000)
-    
+
     latest_raw_predictions, unique_labels = tcn_model.run(name, years_back=1)
+    num_classes = len(unique_labels)
 
-    #helpers.print_predicted_numbers(latest_raw_predictions)
-
-    # Opening JSON file
-    sequenceToPredictFile = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "sequenceToPredict_{0}.json".format(name))
-    with open(sequenceToPredictFile, 'r') as openfile:
-        sequenceToPredict = json.load(openfile)
-
-    # Generate set of predictions
-    print("Raw predictions: ", latest_raw_predictions)
 
     # Check on prediction with nth highest probability
-    for i in range(10):
+    for i in range(2):
         prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
         print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["sequenceToPredict"], prediction_highest_indices)
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
         print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+    
+
+
+    # Refine predictions
+    refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+
+    #print("refined_prediction_raw: ", refined_prediction_raw)
+
+    # Print refined predictions
+    for i in range(2):
+        prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+
+        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
+        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+
+
+    
+    # Top prediction
+    topPrediction.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    top_prediction_raw = topPrediction.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+    # Print Top prediction
+    for i, prediction in enumerate(topPrediction):
+        prediction = [int(num) for num in prediction]
+        print(f"Top Prediction {i+1}: {sorted(prediction)}")
+
+        # Check for matching numbers    
+        matchingNumbers = helpers.find_matching_numbers(prediction, sequenceToPredict["realResult"])
+        print("Matching Numbers: ", matchingNumbers)

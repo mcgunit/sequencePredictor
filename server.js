@@ -10,39 +10,61 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-function generateTable(data, title = '', matchingNumbers = []) {
+function generateTable(data, title = '', matchingNumbers = [], models = []) {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
-  // Add title as caption if provided
+  // Add title if provided
   if (title) table += `<caption><strong>${title}</strong></caption>`;
 
-  // Determine headers based on the type
-  let headers = data.length > 0 
-    ? Array.from({ length: data[0].length }, (_, i) => `Number ${i + 1}`) 
-    : [];
+  // Define column headers
+  table += '<tr>' +
+    '<th style="padding: 5px; text-align: center; background: #333; color: white; min-width: 150px;">Model</th>' +
+    '<th style="padding: 5px; text-align: center; background: #333; color: white; width: 50px;">#</th>';
 
-  // Add header row
-  table += '<tr>';
-  table += `<th style="padding: 5px; text-align: center; font-weight: bold; width: 100px;">#</th>`; // Index column
-  headers.forEach((header) => {
-    table += `<th style="padding: 5px; text-align: center; font-weight: bold;">${header}</th>`;
-  });
+  // Add number headers
+  if (data.length > 0) {
+    Array.from({ length: data[0].length }).forEach((_, i) => {
+      table += `<th style="padding: 5px; text-align: center; background: #333; color: white;">Number ${i + 1}</th>`;
+    });
+  }
   table += '</tr>';
 
-  // Add rows with data
+  // Add data rows with model identification
   data.forEach((row, rowIndex) => {
     if (rowIndex < 10) {
-      table += '<tr>';
-      table += `<td style="padding: 5px; text-align: center; font-weight: bold;">${rowIndex + 1}</td>`; // Row index
+      const modelType = models[rowIndex] || determineModelType(rowIndex); // Fallback
+      table += `<tr>
+        <td style="padding: 5px; background: #f8f9fa; font-weight: bold; border-right: 2px solid #ddd;">
+          ${modelType}
+        </td>
+        <td style="padding: 5px; text-align: center; font-weight: bold; background: #f8f9fa;">${rowIndex + 1}</td>`;
+
       row.forEach((cell) => {
-        const isMatching = matchingNumbers.includes(cell); // Highlight if matching
-        table += `<td style="padding: 5px; text-align: center; ${isMatching ? 'background-color: green; color: white;' : ''}">${cell}</td>`;
+        const isMatching = matchingNumbers.includes(cell);
+        table += `<td style="padding: 5px; text-align: center; 
+          ${isMatching ? 'background: #2ecc71; color: white;' : ''}">
+          ${cell}
+        </td>`;
       });
+      table += '</tr>';
     }
   });
 
   table += '</table>';
   return table;
+}
+
+// Helper function for model identification
+function determineModelType(index) {
+  switch(true) {
+    case (index < 2): return 'LSTM Base Model';
+    case (index < 4): return 'LSTM Refined Model';
+    case (index === 4): return 'LSTM Top Predictor';
+    case (index === 5): return 'ARIMA Model';
+    case (index === 6): return 'Markov Model';
+    case (index === 7): return 'PoissonMonteCarlo Model';
+    default: return 'Ensemble Model';
+  }
 }
 
 
@@ -110,19 +132,37 @@ app.get('/database/:folder/:file', (req, res) => {
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
+    const currentPredictionModels = jsonData.currentPrediction.map((_, index) => 
+      determineModelType(index)
+    );
+
+    const newPredictionModels = jsonData.newPrediction.map((_, index) => 
+      determineModelType(index)
+    );
+
     // Generate HTML content
     let html = `
       <h1>${file} Results</h1>
       <h2>Current Prediction</h2>
-      ${generateTable(jsonData.currentPrediction, 'Current Prediction', jsonData.matchingNumbers.matchingNumbers)}
+      ${generateTable(
+        jsonData.currentPrediction, 
+        'Current Prediction', 
+        [].concat(...jsonData.currentPrediction.map(pred => pred.filter(num => jsonData.realResult.includes(num)))), 
+        currentPredictionModels
+      )}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
       <h2>Matching Numbers</h2>
       <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex+1}</p>
       <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
-      <p><strong>Matching Numbers:</strong> ${generateList(jsonData.matchingNumbers.matchingNumbers)}</p>
+      <!--<p><strong>Matching Numbers:</strong> ${generateList([].concat(...jsonData.currentPrediction.map(pred => pred.filter(num => jsonData.realResult.includes(num)))))}</p>--!>
       <h2>New Prediction</h2>
-      ${generateTable(jsonData.newPrediction, 'New Prediction', [])}
+      ${generateTable(
+        jsonData.newPrediction,
+        'New Prediction', 
+        [], 
+        newPredictionModels
+      )}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
     `;
@@ -237,7 +277,6 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const latestFilePath = path.join(folderPath, latestFile);
       const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
-      const newPredictionRaw = jsonData.newPredictionRaw;
 
       html += `
         <div class="folder">
@@ -248,44 +287,44 @@ app.get('/', (req, res) => {
             <div class="charts-grid">
       `;
 
-      if (newPredictionRaw && Array.isArray(newPredictionRaw)) {
-        newPredictionRaw.forEach((sublist, index) => {
-          html += `
-            <div>
-              <h4>Probability for number ${index + 1}</h4>
-              <canvas id="chart-${folder}-${index}"></canvas>
-            </div>
-            <script>
-              const ctx${folder}${index} = document.getElementById('chart-${folder}-${index}').getContext('2d');
-              new Chart(ctx${folder}${index}, {
-                type: 'line',
-                data: {
-                  labels: Array.from({ length: ${sublist.length} }, (_, i) => i + 1),
-                  datasets: [{
-                    label: 'Probability',
-                    data: ${JSON.stringify(sublist)},
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderWidth: 1,
-                    fill: true,
-                  }]
-                },
-                options: {
-                  responsive: true,
-                  plugins: {
-                    legend: {
-                      display: false,
-                    }
-                  },
-                  scales: {
-                    x: { display: false },
-                    y: { display: false },
+      if (jsonData.numberFrequency) {
+        const labels = Object.keys(jsonData.numberFrequency);
+        const dataValues = Object.values(jsonData.numberFrequency);
+      
+        html += `
+          <div>
+            <h4>Number Frequency</h4>
+            <canvas id="chart-${folder}"></canvas>
+          </div>
+          <script>
+            const ctx${folder} = document.getElementById('chart-${folder}').getContext('2d');
+            new Chart(ctx${folder}, {
+              type: 'bar',
+              data: {
+                labels: ${JSON.stringify(labels)},
+                datasets: [{
+                  label: 'Probability',
+                  data: ${JSON.stringify(dataValues)},
+                  borderColor: 'rgba(75, 192, 192, 1)',
+                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                  borderWidth: 1,
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    display: false,
                   }
+                },
+                scales: {
+                  x: { title: { display: true, text: "Number" } },
+                  y: { title: { display: true, text: "Probability" } }
                 }
-              });
-            </script>
-          `;
-        });
+              }
+            });
+          </script>
+        `;
       }
 
       html += `

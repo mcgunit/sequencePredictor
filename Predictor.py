@@ -6,11 +6,21 @@ from datetime import datetime
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
+from src.LSTM_ARIMA_Model import LSTM_ARIMA_Model
+from src.RefinemePrediction import RefinePrediction
+from src.TopPrediction import TopPrediction
+from src.Markov import Markov
+from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.Command import Command
 from src.Helpers import Helpers
 
 tcn = TCNModel()
 lstm = LSTMModel()
+lstmArima = LSTM_ARIMA_Model()
+refinePrediction = RefinePrediction()
+topPredictor = TopPrediction()
+markov = Markov()
+poissonMonteCarlo = PoissonMonteCarlo()
 command = Command()
 helpers = Helpers()
 
@@ -27,10 +37,10 @@ def print_intro():
 
 
 
-def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True, maxRows=0, years_back=None):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None):
 
     modelToUse = tcn
-    if "lotto" in name or "eurodreams" in name or "jokerplus" in name or "keno" in name or "pick3" in name or "vikinglotto" in name:
+    if "lstm_model" in model_type:
         modelToUse = lstm
     modelToUse.setDataPath(dataPath)
 
@@ -44,7 +54,6 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
         os.remove(os.path.join(dataPath, file))
     command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
-    
     # Get the latest result out of the latest data so we can use it to check the previous prediction
     latestEntry, previousEntry = helpers.getLatestPrediction(os.path.join(dataPath, file))
     if latestEntry is not None:
@@ -59,6 +68,7 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
         if not os.path.exists(os.path.join(path, "data", "database", name)):
             os.makedirs(os.path.join(path, "data", "database", name), exist_ok=True)
 
+
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
             print("New result detected. Lets compare with a prediction from previous entry")
@@ -70,7 +80,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                 "newPrediction": [],      # Decoded prediction with help of labels
                 "newPredictionRaw": [],   # Raw prediction that contains the statistical data
                 "matchingNumbers": {},
-                "labels": []              # Needed for decoding the raw predictions
+                "labels": [],             # Needed for decoding the raw predictions
+                "numberFrequency": helpers.count_number_frequencies(dataPath)
             }
 
             doNewPrediction = True
@@ -99,23 +110,16 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
                     listOfMatching = []
-                    listOfDecodedPredictions = []
-
                     # Check on prediction with nth highest probability
-                    for i in range(10):
-                        prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
-                        #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
-                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
+                    for i in range(len(current_json_object["currentPrediction"])):
+                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
                         #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
                         listOfMatching.append({
                             "index": i,
-                            "matchingSequence": prediction_nth_indices,
+                            "matchingSequence": current_json_object["currentPrediction"][i],
                             "matchingNumbers": matching_numbers
                         })
-
-                        listOfDecodedPredictions.append(prediction_nth_indices)
                     
-
                     # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
                     largest_matching_object = max(listOfMatching, key=lambda x: len(x['matchingNumbers']))
 
@@ -129,27 +133,11 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
 
                     # Train and do a new prediction
-                    if doTraining:
-                        modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
-                    else:
-                        model = os.path.join(modelPath, "model_euromillions.keras")
-                        if "lotto" in name and not "vikinglotto" in name:
-                            model = os.path.join(modelPath, "model_lotto.keras")
-                        if "eurodreams" in name:
-                            model = os.path.join(modelPath, "model_eurodreams.keras")
-                        if "jokerplus" in name:
-                            model = os.path.join(modelPath, "model_jokerplus.keras")
-                        if "keno" in name:
-                            model = os.path.join(modelPath, "model_keno.keras")
-                        if "pick3" in name:
-                            model = os.path.join(modelPath, "model_pick3.keras")
-                        if "vikinglotto" in name:
-                            model = os.path.join(modelPath, "model_vikinglotto.keras")
-                        latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
-
+                    modelToUse.setModelPath(modelPath)
+                    modelToUse.setBatchSize(16)
+                    modelToUse.setEpochs(1000)
+                    latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                    
                     predictedSequence = latest_raw_predictions.tolist()
 
             
@@ -157,13 +145,20 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                     current_json_object["newPredictionRaw"] = predictedSequence
                     current_json_object["labels"] = unique_labels.tolist()
 
-                    decodedRawPredictions = []
+                    listOfDecodedPredictions = []
                     # Decode prediction with nth highest probability
-                    for i in range(10):
+                    for i in range(2):
                         prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
-                        decodedRawPredictions.append(prediction_nth_indices)
+                        listOfDecodedPredictions.append(prediction_nth_indices)
 
-                    current_json_object["newPrediction"] = decodedRawPredictions
+
+                    with open(jsonFilePath, "w+") as outfile:
+                        json.dump(current_json_object, outfile)
+                    
+                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath)
+
+
+                    current_json_object["newPrediction"] = listOfDecodedPredictions
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
@@ -181,30 +176,32 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                 print("Date to start from: ", historyData[dateOffset])
 
+                previousJsonFilePath = ""
+
                 # Search for existing history
                 for index, historyEntry in enumerate(historyData):
                     entryDate = historyEntry[0]
                     entryResult = historyEntry[1]
                     jsonFileName = f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json"
-                    print(jsonFileName, ":", entryResult)
+                    #print(jsonFileName, ":", entryResult)
                     jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
-                    print("Does file exist: ", os.path.exists(jsonFilePath))
+                    #print("Does file exist: ", os.path.exists(jsonFilePath))
                     if os.path.exists(jsonFilePath):
                         dateOffset = index
+                        previousJsonFilePath = jsonFilePath
+                        break
                 
                 # Remove all elements starting from dateOffset index
-                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index
-                
+                #print("Date offset: ", dateOffset)
+                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index                
                 #print("History to rebuild: ", historyData)
-
-                previousJsonFilePath = ""
 
                 # Now lets iterate in reversed order to start with the older entries
                 for historyIndex, historyEntry in enumerate(reversed(historyData)):
                     historyDate = historyEntry[0]
                     historyResult = historyEntry[1]
                     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
-                    print(jsonFileName, ":", historyResult)
+                    #print(jsonFileName, ":", historyResult)
                     jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
 
                     if historyIndex == 0:
@@ -213,50 +210,78 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         current_json_object = {
                             "currentPredictionRaw": [],
                             "currentPrediction": [],
-                            "realResult": [],
+                            "realResult": historyResult,
                             "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
                             "newPredictionRaw": [], # Raw prediction that contains the statistical data
                             "matchingNumbers": [],
-                            "labels": []
+                            "labels": [],
+                            "numberFrequency": helpers.count_number_frequencies(dataPath)
                         }
+
+                        # Connect the history
+                        if previousJsonFilePath:
+                            print("Starting from: ", previousJsonFilePath)
+                            # Opening JSON file
+                            with open(previousJsonFilePath, 'r') as openfile:
+                                # Reading from json file
+                                previous_json_object = json.load(openfile)
+
+                            current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+                            current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+
+                            listOfMatchings = []
+                            # Check on prediction with nth highest probability
+                            for i in range(len(current_json_object["currentPrediction"])):
+                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
+                                #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+                                listOfMatchings.append({
+                                    "index": i,
+                                    "matchingSequence": current_json_object["currentPrediction"][i],
+                                    "matchingNumbers": matching_numbers
+                                })
+                            
+
+                            # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
+                            largest_matching_object = max(listOfMatchings, key=lambda x: len(x['matchingNumbers']))
+
+
+                            current_json_object["matchingNumbers"] = {
+                                "bestMatchIndex": largest_matching_object["index"],
+                                "bestMatchSequence": largest_matching_object["matchingSequence"],
+                                "matchingNumbers": largest_matching_object["matchingNumbers"]
+                            }
+
+                            print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
+
 
                         # Train and do a new prediction
                         modelToUse.setDataPath(dataPath)
                         
-                        if doTraining:
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(16)
-                            modelToUse.setEpochs(1000)
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
-                        else:
-                            model = os.path.join(modelPath, "model_euromillions.keras")
-                            if "lotto" in name and not "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_lotto.keras")
-                            if "eurodreams" in name:
-                                model = os.path.join(modelPath, "model_eurodreams.keras")
-                            if "jokerplus" in name:
-                                model = os.path.join(modelPath, "model_jokerplus.keras")
-                            if "keno" in name:
-                                model = os.path.join(modelPath, "model_keno.keras")
-                            if "pick3" in name:
-                                model = os.path.join(modelPath, "model_pick3.keras")
-                            if "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_vikinglotto.keras")
-                            latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                        modelToUse.setModelPath(modelPath)
+                        modelToUse.setBatchSize(16)
+                        modelToUse.setEpochs(1000)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
 
                         predictedSequence = latest_raw_predictions.tolist()
                         unique_labels = unique_labels.tolist()
 
                         listOfDecodedPredictions = []
-                        for i in range(10):
+                        for i in range(2):
                             prediction_nth_indices = helpers.decode_predictions(predictedSequence, unique_labels, i)
                             listOfDecodedPredictions.append(prediction_nth_indices)
                 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
+
+                        with open(jsonFilePath, "w+") as outfile:
+                            json.dump(current_json_object, outfile)
+                        
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
+
                         current_json_object["newPrediction"] = listOfDecodedPredictions
                         current_json_object["labels"] = unique_labels
 
+                        # store the decoded and refined predictions
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
                     else:
@@ -275,7 +300,8 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                             "newPrediction": [],
                             "newPredictionRaw": [],
                             "matchingNumbers": {},
-                            "labels": []
+                            "labels": [],
+                            "numberFrequency": helpers.count_number_frequencies(dataPath)
                         }
                         
                         #print(previous_json_object)
@@ -287,22 +313,16 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
 
                         #print(current_json_object["currentPredictionRaw"])
 
-                        listOfDecodedPredictions = []
                         listOfMatchings = []
-
-                        # Check on prediction with nth highest probability
-                        for i in range(10):
-                            prediction_nth_indices = helpers.decode_predictions(current_json_object["currentPredictionRaw"], previous_json_object["labels"], i)
-                            #print("Prediction with ", i+1 ,"highest probs: ", prediction_nth_indices)
-                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], prediction_nth_indices)
-                            #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
+                        # Compare decoded and refined predictions stored in currentPrediction with the real result (drawing)
+                        for i in range(len(current_json_object["currentPrediction"])):
+                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
+                            print("Matching Numbers with ", i+1 , matching_numbers)
                             listOfMatchings.append({
                                 "index": i,
-                                "matchingSequence": prediction_nth_indices,
+                                "matchingSequence": current_json_object["currentPrediction"][i],
                                 "matchingNumbers": matching_numbers
                             })
-
-                            listOfDecodedPredictions.append(prediction_nth_indices)
                         
 
                         # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
@@ -318,41 +338,30 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
                         print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
 
                         # Train and do a new prediction
-                        if doTraining:
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(16)
-                            modelToUse.setEpochs(1000)
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
-                        else:
-                            model = os.path.join(modelPath, "model_euromillions.keras")
-                            if "lotto" in name and not "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_lotto.keras")
-                            if "eurodreams" in name:
-                                model = os.path.join(modelPath, "model_eurodreams.keras")
-                            if "jokerplus" in name:
-                                model = os.path.join(modelPath, "model_jokerplus.keras")
-                            if "keno" in name:
-                                model = os.path.join(modelPath, "model_keno.keras")
-                            if "pick3" in name:
-                                model = os.path.join(modelPath, "model_pick3.keras")
-                            if "vikinglotto" in name:
-                                model = os.path.join(modelPath, "model_vikinglotto.keras")
-                            latest_raw_predictions = modelToUse.doPrediction(model, skipLastColumns, maxRows=maxRows)
+                        modelToUse.setModelPath(modelPath)
+                        modelToUse.setBatchSize(16)
+                        modelToUse.setEpochs(1000)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
 
                         predictedSequence = latest_raw_predictions.tolist()
-
 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
                         current_json_object["labels"] = unique_labels.tolist()
                         
-                        decodedRawPredictions = []
+                        listOfDecodedPredictions = []
                         # Decode prediction with nth highest probability
-                        for i in range(10):
+                        for i in range(2):
                             prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
-                            decodedRawPredictions.append(prediction_nth_indices)
+                            listOfDecodedPredictions.append(prediction_nth_indices)
 
-                        current_json_object["newPrediction"] = decodedRawPredictions
+                        with open(jsonFilePath, "w+") as outfile:
+                            json.dump(current_json_object, outfile)
+
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
+
+                        # store the decoded and refined predictions
+                        current_json_object["newPrediction"] = listOfDecodedPredictions
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
@@ -366,221 +375,142 @@ def predict(name, dataPath, modelPath, file, skipLastColumns=0, doTraining=True,
         print("Did not found entries")
 
 
+def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath):
+    #####################
+    # Start refinements #
+    #####################
+    jsonDirPath = os.path.join(path, "data", "database", name)
+    num_classes = len(unique_labels)
+    numbersLength = len(historyResult)
+    
+    try:
+        # Refine predictions
+        refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+
+        #print("refined_prediction_raw: ", refined_prediction_raw)
+
+        for i in range(2):
+            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+            listOfDecodedPredictions.append(prediction_highest_indices)
+    except Exception as e:
+        print("Was not able to run refine prediction model: ", e)
+
+    try:
+        # Top prediction
+        topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+        # Print Top prediction
+        for i, prediction in enumerate(topPrediction):
+            topHighestProbPrediction = [int(num) for num in prediction]
+            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+            listOfDecodedPredictions.append(topHighestProbPrediction)
+    except Exception as e:
+        print("Was not able to run top prediction model: ", e)
+
+    try:
+        # Arima prediction
+        lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
+        lstmArima.setDataPath(dataPath)
+        lstmArima.setBatchSize(8)
+        lstmArima.setEpochs(1000)
+
+        predicted_arima_sequence = lstmArima.run(name)
+        listOfDecodedPredictions.append(predicted_arima_sequence)
+
+    except Exception as e:
+        print("Failed to perform ARIMA: ", e)
+    
+    try:
+        # Markov
+        markov.setDataPath(dataPath)
+        markov.setSoftMAxTemperature(0.1)
+        markov.clear()
+        markovSequence = markov.run()
+        #print("MArkov Sequence: ", markovSequence)
+        listOfDecodedPredictions.append(markovSequence)
+    except Exception as e:
+        print("Failed to perform Markov: ", e)
+
+    try:
+        # Poisson Distribution with Monte Carlo Analysis
+        poissonMonteCarlo.setDataPath(dataPath)
+        poissonMonteCarlo.setNumOfSimulations(5000)
+        poissonMonteCarlo.setRecentDraws(2000)
+        poissonMonteCarlo.setWeightFactor(0.1)
+        
+        poissonMonteCarloSequence = poissonMonteCarlo.run()
+        listOfDecodedPredictions.append(poissonMonteCarloSequence)    
+    except Exception as e:
+        print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
+
+    return listOfDecodedPredictions
+
 
 if __name__ == "__main__":
-
     try:
         helpers.git_pull()
     except Exception as e:
         print("Failed to get latest changes")
 
     parser = argparse.ArgumentParser(
-                    prog='LSTM Sequence Predictor',
-                    description='Tries to predict a sequence of numbers',
-                    epilog='Check it uit')  
+        prog='LSTM Sequence Predictor',
+        description='Tries to predict a sequence of numbers',
+        epilog='Check it out'
+    )
     parser.add_argument('-d', '--data', default="euromillions")
-    
     args = parser.parse_args()
     print(args.data)
 
     print_intro()
 
-    # Get the current date and time
-    current_datetime = datetime.now()
-
-    # Access the year attribute to get the current year
-    current_year = current_datetime.year
-    #current_year = 2024
-
-
-    # Print the result
+    current_year = datetime.now().year
     print("Current Year:", current_year)
 
     path = os.getcwd()
-    
-    
-    try:
-        #####################
-        #   Euromillions    #
-        #####################
-        print("Euromillions")
-        modelPath = os.path.join(path, "data", "models", "tcn_model")
-        dataPath = os.path.join(path, "data", "trainingData", "euromillions")
-        file = "euromillions-gamedata-NL-{0}.csv".format(current_year)
 
-        name = 'euromillions'
-        # Do also a training on the complete data
-        predict(name, dataPath, modelPath, file)
+    datasets = [
+        # (dataset_name, model_type, skip_last_columns)
+        ("euromillions", "tcn_model", 0),
+        ("lotto", "lstm_model", 0),
+        ("eurodreams", "lstm_model", 0),
+        #("jokerplus", "lstm_model", 1),
+        ("keno", "lstm_model", 0),
+        ("pick3", "lstm_model", 0),
+        ("vikinglotto", "lstm_model", 0),
+    ]
 
-        print("Euromillions current year")
-        name = 'euromillions_currentYear'
-        predict(name, dataPath, modelPath, file, years_back=1)
+    for dataset_name, model_type, skip_last_columns in datasets:
+        try:
+            print(f"\n{dataset_name.capitalize()}")
+            modelPath = os.path.join(path, "data", "models", model_type)
+            dataPath = os.path.join(path, "data", "trainingData", dataset_name)
+            file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
+            # Predict for complete data
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns)
 
-        print("Euromillions current + last two years")
-        name = 'euromillions_threeYears'
-        predict(name, dataPath, modelPath, file, years_back=3)
+            # Predict for current year
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1)
 
-    except Exception as e:
-        print("Failed to predict Euromillions", e)
+            # Predict for current year + last two years
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3)
 
-    try:
-        #####################
-        #       Lotto       #
-        #####################
-        print("Lotto")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "lotto")
-        file = "lotto-gamedata-NL-{0}.csv".format(current_year)
-
-
-        name = 'lotto'
-        # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        # do a training on the complete data
-        predict(name, dataPath, modelPath, file, skipLastColumns=1)
-
-
-        print("Lotto current year")
-        name = 'lotto_currentYear'
-        # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(name, dataPath, modelPath, file, skipLastColumns=1, years_back=1)
-        
-
-
-        print("Lotto current year + last two years")
-        name = 'lotto_threeYears'
-        # With skipLastColumns we only going to use 6 numbers because number 7 is the bonus number
-        predict(name, dataPath, modelPath, file, skipLastColumns=1, years_back=3)
-
-    except Exception as e:
-        print("Failed to predict Lotto", e)
-
-    try:
-        #####################
-        #     euroDreams    #
-        #####################
-        print("euroDreams")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", 'eurodreams')
-        file = "eurodreams-gamedata-NL-{0}.csv".format(current_year)
-
-        name = 'eurodreams'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("euroDreams Three Years")
-        name = 'eurodreams_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        print("euroDreams Current Year")
-        name = 'eurodreams_currentYear'
-
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict euroDreams", e)
-    
-    
-    """
-    try:
-        #####################
-        #     joker plus    #
-        #####################
-        print("Joker Plus")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        # First get latest data
-        data = 'jokerplus'
-        dataPath = os.path.join(path, "data", "trainingData", data)
-        file = "jokerplus-gamedata-NL-{0}.csv".format(current_year)
-        kwargs_wget = {
-            "folder": dataPath,
-            "file": file
-        }
-
-        predict(dataPath, modelPath, file, data, skipLastColumns=1)
-    except Exception as e:
-        print("Failed to predict Joker plus", e)
-
-    """
-
-    
-    try:
-        #####################
-        #        keno       #
-        #####################
-        print("Keno")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "keno")
-        file = "keno-gamedata-NL-{0}.csv".format(current_year)
-
-        name = 'keno'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("Keno Three Years")
-        name = 'keno_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        print("Keno Current Year")
-        name = 'keno_currentYear'
-
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict Keno", e)
-    
-    
-    try:
-        #####################
-        #        Pick3      #
-        #####################
-        print("Pick3")
-        modelPath = os.path.join(path, "data", "models", "tcn_model")
-        dataPath = os.path.join(path, "data", "trainingData", "pick3")
-        file = "pick3-gamedata-NL-{0}.csv".format(current_year)
-
-        name = 'pick3'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("Pick3 Three Years")
-        name = 'pick3_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        name = 'pick3_currentYear'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict Pick3", e)
-
-    
-    try:
-        #####################
-        #    Viking Lotto   #
-        #####################
-        print("Viking Lotto")
-        modelPath = os.path.join(path, "data", "models", "lstm_model")
-        dataPath = os.path.join(path, "data", "trainingData", "vikinglotto")
-        file = "vikinglotto-gamedata-NL-{0}.csv".format(current_year)
-        
-        name = 'vikinglotto'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0)
-
-        print("Viking Lotto Three Years")
-        name = 'vikinglotto_threeYears'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=3)
-
-        print("Viking Lotto Current Year")
-        name = 'vikinglotto_currentYear'
-        predict(name, dataPath, modelPath, file, skipLastColumns=0, years_back=1)
-    except Exception as e:
-        print("Failed to predict Viking Lotto", e)
+        except Exception as e:
+            print(f"Failed to predict {dataset_name.capitalize()}: {e}")
 
     try:
         helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     except Exception as e:
-        print("Failed to generate txt file", e)
-    
+        print("Failed to generate txt file:", e)
+
     try:
         helpers.git_push()
     except Exception as e:
-        print("Failed to push latest predictions")
-    
-    
+        print("Failed to push latest predictions:", e)
     
     
 
