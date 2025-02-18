@@ -1,4 +1,4 @@
-import os, json, subprocess, collections
+import os, json, subprocess
 import numpy as np
 import asciichartpy
 
@@ -6,8 +6,6 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from sklearn.preprocessing import OneHotEncoder
-from collections import Counter
-
 
 
 class Helpers():
@@ -98,18 +96,21 @@ class Helpers():
 
         return matching_numbers
     
-    def decode_predictions(self, raw_predictions, labels, nHighestProb=0):
+    def decode_predictions(self, raw_predictions, labels, nHighestProb=0, remove_duplicates=True):
         """
         Decode the prediction based on probability and match with corresponding labels.
+        Ensures distinct selections across probability ranks if remove_duplicates=True.
 
         Parameters
         ----------
-        raw_predictions : list or np.ndarray
-            List of raw predictions.
+        raw_predictions : np.ndarray
+            Array of shape (num_samples, num_classes) containing probabilities.
         labels : list or np.ndarray
             List of labels corresponding to the classes.
-        nHighestProb : int, optional
-            Rank of probability to consider. 0 means highest probability, 1 means second-highest, etc.
+        nHighestProb : int
+            Rank of probability to consider (0 = highest, 1 = second-highest, etc.).
+        remove_duplicates : bool, optional
+            If True, prevents selecting the same number across different ranks.
 
         Returns
         -------
@@ -117,17 +118,22 @@ class Helpers():
             Decoded predictions as per the provided labels.
         """
 
-        # Ensure raw_predictions is a numpy array for easy processing
-        raw_predictions = np.array(raw_predictions)
-        labels = np.array(labels)
+        raw_predictions = np.array(raw_predictions)  # Shape (numbersLength, num_classes)
+        labels = np.array(labels)  # Shape (num_classes,)
 
-        # Get indices of the top nHighestProb probability
-        highest_indices = np.argsort(raw_predictions, axis=1)[:, -(nHighestProb + 1)]
+        sorted_indices = np.argsort(raw_predictions, axis=1)[:, ::-1]  # Sort descending (highest first)
 
-        # Map indices to labels
-        decoded_predictions = labels[highest_indices]
+        if remove_duplicates:
+            selected_indices = []
+            for i, row in enumerate(sorted_indices):
+                # Get the nth highest index, skipping previously selected ones
+                unique_indices = [idx for idx in row if idx not in selected_indices]
+                selected_indices.append(unique_indices[nHighestProb])  # Pick the nth highest
 
-        return decoded_predictions.tolist()
+        else:
+            selected_indices = sorted_indices[:, nHighestProb]  # Direct selection without duplicate filtering
+
+        return labels[selected_indices].tolist()
     
     def predict_numbers(self, model, input_data):
         # Get raw predictions from the model
@@ -425,20 +431,6 @@ class Helpers():
                     myfile.write("\n")
                     myfile.write("\n")
 
-    def mostFrequentNumbers(self, array, numbers=7):
-        # Flatten the 2D array into a 1D array
-        flat_array = array.flatten()
-        
-        # Count the occurrences of each number
-        counts = Counter(flat_array)
-        
-        # Get the 6 most common numbers
-        most_common = counts.most_common(numbers)
-        
-        # Extract the numbers from the most_common list
-        top_numbers = [num for num, _ in most_common]
-        
-        return np.array(top_numbers)
     
     def git_push(self, commit_message="saving last predictions"):
         try:
@@ -446,7 +438,7 @@ class Helpers():
             subprocess.run(["git", "add", "-A"], check=True)
 
             # Commit changes
-            subprocess.run(["git", "commit", "-m", commit_message], check=True)
+            subprocess.run(["git", "commit", "-m", f"{commit_message}"], check=True)
 
             # Push changes
             subprocess.run(["git", "push"], check=True)
@@ -466,4 +458,259 @@ class Helpers():
             print("Got latest changes")
         except Exception as e:
             print("Failed to get latest changes")
-            
+
+    def extractFeaturesFromJsonForRefinement(self, jsonFileOrDir, num_classes=80, numbersLength=20):
+        """
+            Function to extract features for training a refinement model
+            Can be a folder containing json files or a single file
+        """
+        X = []
+        y = []
+        if os.path.isdir(jsonFileOrDir):
+            for file in sorted(os.listdir(jsonFileOrDir)):
+                if file.endswith(".json"):
+                    with open(os.path.join(jsonFileOrDir, file), "r") as f:
+                        data = json.load(f)
+
+                    if "currentPredictionRaw" not in data or not data["currentPredictionRaw"]:
+                        print(f"Skipping {file} - No valid 'currentPredictionRaw' data.")
+                        continue
+                    
+                    raw_probs = np.array(data["currentPredictionRaw"])
+                    
+                    """
+                    # Ensure correct shape before reshaping
+                    if raw_probs.size != numbersLength * num_classes:
+                        print(f"Skipping {file} - Unexpected shape {raw_probs.shape}")
+                        continue
+                    """
+                    
+                    raw_probs = raw_probs.reshape(numbersLength, num_classes)
+
+                    if "realResult" not in data or not data["realResult"]:
+                        print(f"Skipping {file} - No valid 'realResult' data.")
+                        continue
+
+                    actual_result = data["realResult"]
+                    real_result_vector = np.zeros((numbersLength, num_classes))
+
+                    for i, num in enumerate(actual_result):
+                        if 1 <= num <= num_classes:  # Ensure number is within valid range
+                            real_result_vector[i, num - 1] = 1  # One-hot encode
+                    
+                    X.append(raw_probs)
+                    y.append(real_result_vector)
+
+
+        elif os.path.isfile(jsonFileOrDir):
+            if jsonFileOrDir.endswith(".json"):
+                with open(os.path.join(jsonFileOrDir), "r") as f:
+                    data = json.load(f)
+
+                if "currentPredictionRaw" not in data or not data["currentPredictionRaw"]:
+                    print(f"Skipping {jsonFileOrDir} - No valid 'currentPredictionRaw' data.")
+                    return
+                
+                raw_probs = np.array(data["currentPredictionRaw"])
+                
+                # Ensure correct shape before reshaping
+                """
+                if raw_probs.size != numbersLength * num_classes:
+                    print(f"Skipping {jsonFileOrDir} - Unexpected shape {raw_probs.shape}")
+                    return
+                """
+                
+                raw_probs = raw_probs.reshape(numbersLength, num_classes)
+
+                if "realResult" not in data or not data["realResult"]:
+                    print(f"Skipping {jsonFileOrDir} - No valid 'realResult' data.")
+                    return
+
+                actual_result = data["realResult"]
+                real_result_vector = np.zeros((numbersLength, num_classes))
+
+                for i, num in enumerate(actual_result):
+                    if 1 <= num <= num_classes:  # Ensure number is within valid range
+                        real_result_vector[i, num - 1] = 1  # One-hot encode
+                
+                X.append(raw_probs)
+                y.append(real_result_vector)
+
+        return np.array(X), np.array(y)  # Both X and y now have compatible shapes
+    
+    def extractFeaturesFromJsonForDetermineTopPrediction(self, jsonFileOrDir, num_classes=80, numbersLength=20):
+        """
+            Function to extract features for training a refinement model
+            Can be a folder containing json files or a single file
+        """
+        X = []
+        y = []
+        if os.path.isdir(jsonFileOrDir):
+            for file in sorted(os.listdir(jsonFileOrDir)):
+                if file.endswith(".json"):
+                    with open(os.path.join(jsonFileOrDir, file), "r") as f:
+                        data = json.load(f)
+
+                    if "currentPredictionRaw" not in data:
+                        print(f"⚠ Warning: No 'currentPredictionRaw' in {file}")
+                        continue
+                    
+                    raw_probs = np.array(data["currentPredictionRaw"])
+                    
+                    if raw_probs.size == 0:
+                        print(f"⚠ Warning: Empty probability array in {file}")
+                        continue
+
+                    # Debug: Print shape of `raw_probs`
+                    #print(f"Processing {file}, shape: {raw_probs.shape}")
+
+                    # Ensure raw_probs has expected shape (numbersLength, num_classes)
+                    if raw_probs.shape[0] != numbersLength or raw_probs.shape[1] != num_classes:
+                        print(f"⚠ Unexpected shape {raw_probs.shape} in {file}")
+                        continue
+
+                    # Feature Extraction
+                    mean_probs = np.mean(raw_probs, axis=0)  # Average probability per number
+                    max_probs = np.max(raw_probs, axis=0)    # Maximum probability per number
+                    sum_probs = np.sum(raw_probs, axis=0)    # Sum of probabilities per number
+
+                    # Combine features
+                    features = np.concatenate([mean_probs, max_probs, sum_probs])
+
+                    # Ensure actual result exists
+                    if "realResult" not in data or len(data["realResult"]) == 0:
+                        print(f"⚠ Warning: No realResult in {file}")
+                        continue
+                    
+                    actual_result = data["realResult"]  # This is a list of actual drawn numbers
+
+                    # Convert realResult into a one-hot encoded vector (shape: (num_classes,))
+                    real_result_vector = np.zeros(num_classes)  # num_classes possible numbers
+                    for num in actual_result:
+                        real_result_vector[num - 1] = 1  # Convert numbers (1 - num_classes) to index (0 - (num_classes-1))
+
+                    X.append(features)
+                    y.append(real_result_vector)  # Now y is a probability-like distribution
+        elif os.path.isfile(jsonFileOrDir):
+            if jsonFileOrDir.endswith(".json"):
+                with open(os.path.join(jsonFileOrDir), "r") as f:
+                    data = json.load(f)
+
+                if "currentPredictionRaw" not in data:
+                    print(f"⚠ Warning: No 'currentPredictionRaw' in {jsonFileOrDir}")
+
+                
+                raw_probs = np.array(data["currentPredictionRaw"])
+                
+                if raw_probs.size == 0:
+                    print(f"⚠ Warning: Empty probability array in {jsonFileOrDir}")
+
+
+                # Debug: Print shape of `raw_probs`
+                #print(f"Processing {jsonFileOrDir}, shape: {raw_probs.shape}")
+
+                # Ensure raw_probs has expected shape (numbersLength, num_classes)
+                if raw_probs.shape[0] != numbersLength or raw_probs.shape[1] != num_classes:
+                    print(f"⚠ Unexpected shape {raw_probs.shape} in {jsonFileOrDir}")
+
+
+                # Feature Extraction
+                mean_probs = np.mean(raw_probs, axis=0)  # Average probability per number
+                max_probs = np.max(raw_probs, axis=0)    # Maximum probability per number
+                sum_probs = np.sum(raw_probs, axis=0)    # Sum of probabilities per number
+
+                # Combine features
+                features = np.concatenate([mean_probs, max_probs, sum_probs])
+
+                # Ensure actual result exists
+                if "realResult" not in data or len(data["realResult"]) == 0:
+                    print(f"⚠ Warning: No realResult in {jsonFileOrDir}")
+                
+                actual_result = data["realResult"]  # This is a list of actual drawn numbers
+
+                # Convert realResult into a one-hot encoded vector (shape: (num_classes,))
+                real_result_vector = np.zeros(num_classes)  # num_classes possible numbers
+                for num in actual_result:
+                    real_result_vector[num - 1] = 1  # Convert numbers (1 - num_classes) to index (0 - (num_classes-1))
+
+                X.append(features)
+                y.append(real_result_vector)  # Now y is a probability-like distribution
+
+        return np.array(X), np.array(y)  # Both X and y now have compatible shapes
+    
+    def getTopPredictions(self, predictions, labels, num_top=20):
+        """
+        Extracts the top N most probable numbers from the model output.
+
+        :param predictions: Model output (probability distribution of shape (batch_size, 80)).
+        :param labels: The corresponding numbers (1-80 for Keno).
+        :param num_top: Number of top predictions to extract.
+        :return: List of top N numbers for each prediction.
+        """
+        top_numbers = []
+        
+        for prediction in predictions:
+            # Get indices of top N probabilities
+            top_indices = np.argsort(prediction)[-num_top:]  # Indices of top 20 numbers
+            top_numbers.append([labels[i] for i in top_indices])  # Convert indices to numbers
+
+        return top_numbers
+
+
+    def count_number_frequencies(self, dataPath):
+        """
+        Count the frequency of each number in all CSV files within the specified folder and normalize the frequencies.
+
+        Parameters
+        ----------
+        dataPath : str
+            Path to the folder containing CSV files with historical data.
+
+        Returns
+        -------
+        dict
+            A dictionary where keys are numbers and values are their normalized frequencies.
+        """
+        # Initialize a dictionary to store number frequencies
+        number_frequencies = {}
+
+        # Iterate over all CSV files in the folder
+        for csvFile in os.listdir(dataPath):
+            if csvFile.endswith(".csv"):
+                try:
+                    # Construct full file path
+                    file_path = os.path.join(dataPath, csvFile)
+
+                    # Load data from the file
+                    csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+
+                    # Ensure the data is in the correct format
+                    if not isinstance(csvData[0], (list, np.ndarray)):
+                        csvData = [csvData.tolist()]
+
+                    # Process each entry in the CSV data
+                    for entry in csvData:
+                        # Skip the date and convert the rest to integers
+                        try:
+                            numbers = list(map(int, entry[1:]))
+                        except ValueError as ve:
+                            print(f"Number conversion error for entry '{entry[1:]}': {ve}")
+                            continue
+
+                        # Update the frequency count for each number
+                        for number in numbers:
+                            if number in number_frequencies:
+                                number_frequencies[number] += 1
+                            else:
+                                number_frequencies[number] = 1
+
+                except Exception as e:
+                    print(f"Error processing file {csvFile}: {e}")
+
+        # Normalize the frequencies
+        total_counts = sum(number_frequencies.values())
+        normalized_frequencies = {number: count / total_counts for number, count in number_frequencies.items()}
+
+        return normalized_frequencies
+
+    
