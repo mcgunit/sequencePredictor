@@ -167,4 +167,3 @@ wget-log*
 *.png
 
 test/database/*
-data/database/*
