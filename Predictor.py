@@ -109,29 +109,13 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
                     current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-                    listOfMatching = []
                     # Check on prediction with nth highest probability
                     print("find matching numbers")
-                    for i in range(len(current_json_object["currentPrediction"])):
-                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
-                        #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-                        listOfMatching.append({
-                            "index": i,
-                            "matchingSequence": current_json_object["currentPrediction"][i],
-                            "matchingNumbers": matching_numbers
-                        })
-                    
-                    # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
-                    largest_matching_object = max(listOfMatching, key=lambda x: len(x['matchingNumbers']))
+                    best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
 
+                    current_json_object["matchingNumbers"] = best_matching_prediction
 
-                    current_json_object["matchingNumbers"] = {
-                        "bestMatchIndex": largest_matching_object["index"],
-                        "bestMatchSequence": largest_matching_object["matchingSequence"],
-                        "matchingNumbers": largest_matching_object["matchingNumbers"]
-                    }
-
-                    print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
+                    print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
 
                     # Train and do a new prediction
                     modelToUse.setModelPath(modelPath)
@@ -228,30 +212,14 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                             current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
                             current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-                            listOfMatchings = []
                             # Check on prediction with nth highest probability
                             print("find matching numbers")
-                            for i in range(len(current_json_object["currentPrediction"])):
-                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
-                                #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-                                listOfMatchings.append({
-                                    "index": i,
-                                    "matchingSequence": current_json_object["currentPrediction"][i],
-                                    "matchingNumbers": matching_numbers
-                                })
                             
+                            best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
+                                
+                            current_json_object["matchingNumbers"] = best_matching_prediction
 
-                            # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
-                            largest_matching_object = max(listOfMatchings, key=lambda x: len(x['matchingNumbers']))
-
-
-                            current_json_object["matchingNumbers"] = {
-                                "bestMatchIndex": largest_matching_object["index"],
-                                "bestMatchSequence": largest_matching_object["matchingSequence"],
-                                "matchingNumbers": largest_matching_object["matchingNumbers"]
-                            }
-
-                            print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
+                            print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
 
 
                         # Train and do a new prediction
@@ -311,30 +279,13 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                         #print(current_json_object["currentPredictionRaw"])
 
-                        listOfMatchings = []
                         # Compare decoded and refined predictions stored in currentPrediction with the real result (drawing)
                         print("find matching numbers")
-                        for i in range(len(current_json_object["currentPrediction"])):
-                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
-                            print("Matching Numbers with ", i+1 , matching_numbers)
-                            listOfMatchings.append({
-                                "index": i,
-                                "matchingSequence": current_json_object["currentPrediction"][i],
-                                "matchingNumbers": matching_numbers
-                            })
-                        
+                        best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
 
-                        # Use max with a key to find the dictionary with the largest 'matchingNumbers' list
-                        largest_matching_object = max(listOfMatchings, key=lambda x: len(x['matchingNumbers']))
+                        current_json_object["matchingNumbers"] = best_matching_prediction
 
-
-                        current_json_object["matchingNumbers"] = {
-                            "bestMatchIndex": largest_matching_object["index"],
-                            "bestMatchSequence": largest_matching_object["matchingSequence"],
-                            "matchingNumbers": largest_matching_object["matchingNumbers"]
-                        }
-
-                        print("matching_numbers: ", current_json_object["matchingNumbers"]["matchingNumbers"])
+                        print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
 
                         # Train and do a new prediction
                         modelToUse.setModelPath(modelPath)
@@ -537,13 +488,13 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
-        #("euromillions", "tcn_model", 0),
-        #("lotto", "lstm_model", 0),
-        #("eurodreams", "lstm_model", 0),
+        ("euromillions", "tcn_model", 0),
+        ("lotto", "lstm_model", 0),
+        ("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 1),
         ("keno", "lstm_model", 0),
         ("pick3", "lstm_model", 0),
-        #("vikinglotto", "lstm_model", 0),
+        ("vikinglotto", "lstm_model", 0),
     ]
 
     for dataset_name, model_type, skip_last_columns in datasets:

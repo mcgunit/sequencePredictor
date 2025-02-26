@@ -82,19 +82,30 @@ class Helpers():
             return None  # Return None if no data was found
         
 
-    def find_matching_numbers(self, sequence, predictedSequence):
-        #print("Sequence: ", sequence)
-        #print("Predicted Sequence: ", predictedSequence)
-        # Convert the input sequence to a set for efficient matching
-        sequence_set = set(sequence)
+    def find_best_matching_prediction(self, sequence, predictions_dict):
+        sequence_set = set(sequence)  # Convert the sequence to a set for fast lookup
 
-        # Find the matching numbers between sequence and highest_indices
-        matching_numbers = list(sequence_set.intersection(predictedSequence))
+        best_match = {
+            "model": None,
+            "prediction": None,
+            "matching_numbers": [],
+            "match_count": 0
+        }
 
-        # Convert to a list of integers
-        matching_numbers = [int(x) for x in matching_numbers]
+        for model in predictions_dict:
+            model_name = model["name"]
+            for predicted_list in model["predictions"]:
+                matching_numbers = list(sequence_set.intersection(predicted_list))
+                match_count = len(matching_numbers)
 
-        return matching_numbers
+                # If this prediction has more matches, update the best match
+                if match_count > best_match["match_count"]:
+                    best_match["model"] = model_name
+                    best_match["prediction"] = predicted_list
+                    best_match["matching_numbers"] = matching_numbers
+                    best_match["match_count"] = match_count
+
+        return best_match  # Return full details of the best matching prediction
     
     def decode_predictions(self, raw_predictions, labels, nHighestProb=0, remove_duplicates=True):
         """
