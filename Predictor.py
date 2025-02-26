@@ -112,7 +112,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     listOfMatching = []
                     # Check on prediction with nth highest probability
                     for i in range(len(current_json_object["currentPrediction"])):
-                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
+                        matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
                         #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
                         listOfMatching.append({
                             "index": i,
@@ -230,7 +230,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                             listOfMatchings = []
                             # Check on prediction with nth highest probability
                             for i in range(len(current_json_object["currentPrediction"])):
-                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
+                                matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
                                 #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
                                 listOfMatchings.append({
                                     "index": i,
@@ -312,7 +312,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         listOfMatchings = []
                         # Compare decoded and refined predictions stored in currentPrediction with the real result (drawing)
                         for i in range(len(current_json_object["currentPrediction"])):
-                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i])
+                            matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
                             print("Matching Numbers with ", i+1 , matching_numbers)
                             listOfMatchings.append({
                                 "index": i,
