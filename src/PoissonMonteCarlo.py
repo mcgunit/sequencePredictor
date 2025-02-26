@@ -41,6 +41,22 @@ class PoissonMonteCarlo():
 
     def setRecentDraws(self, nRecentDraws):
         self.recent_draws = nRecentDraws
+
+    def generate_best_subset(self, predicted_numbers, nSubset):
+        """Generate a unique subset using weighted probability selection."""
+        unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure standard integers
+
+        if len(unique_numbers) < nSubset:
+            return unique_numbers  # Fallback if not enough numbers
+
+        # Assign probabilities (higher for top-ranked numbers)
+        probabilities = np.linspace(1.0, 0.5, len(unique_numbers))
+        probabilities /= probabilities.sum()  # Normalize
+
+        # Randomly select numbers based on weighted probability
+        best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
+
+        return sorted(map(int, best_subset))
     
     def build_poisson_model(self, numbers):
         """Computes the Poisson distribution parameters for each position."""
@@ -59,13 +75,13 @@ class PoissonMonteCarlo():
     
     def monte_carlo_simulation(self, n_predictions=20):
         """Runs Monte Carlo simulations using Poisson distribution for each position."""
-        predicted_numbers = []
-        
-        for pos in range(n_predictions):
+        predicted_numbers = set()  # Use a set to ensure uniqueness
+
+        while len(predicted_numbers) < n_predictions:
             simulated_counts = defaultdict(int)
             
             for _ in range(self.num_simulations):
-                for num, lam in self.poisson_lambda.get(pos, {}).items():
+                for num, lam in self.poisson_lambda.get(len(predicted_numbers), {}).items():
                     occurrence = poisson.rvs(lam)
                     if occurrence > 0:
                         simulated_counts[num] += 1
@@ -75,23 +91,41 @@ class PoissonMonteCarlo():
             probabilities = softmax(raw_values)
             sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
             
-            predicted_numbers.append(sorted_predictions[0] if sorted_predictions else np.random.randint(1, 81))
-        
-        return [int(num) for num in predicted_numbers]
+            for num in sorted_predictions:
+                if num not in predicted_numbers:
+                    predicted_numbers.add(num)
+                    break  # Move to the next position
+
+        return [int(num) for num in sorted(predicted_numbers)]  
     
-    def run(self):
-        """Runs the Poisson Monte Carlo prediction process."""
+    def run(self, generateSubsets=[]):
+        """
+        Runs the Poisson Monte Carlo prediction process.
+
+        Parameters:
+        generateSubset is an array to generate subsets of numbers, e.g., [6, 7] creates subsets of 6 and 7 numbers.
+        """
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
         self.build_poisson_model(numbers)
-        predicted_numbers = self.monte_carlo_simulation(n_predictions=len(numbers[0]))
-        return predicted_numbers
+
+
+        predicted_numbers = self.monte_carlo_simulation(n_predictions=len(numbers[-1]))
+
+        subsets = {}
+        if generateSubsets:
+            print("Creating subsets of: ", generateSubsets)
+            for nPredictions in generateSubsets:
+                subsets[nPredictions] = self.generate_best_subset(predicted_numbers, nPredictions)
+
+        return predicted_numbers, subsets
 
 if __name__ == "__main__":
     print("Running Poisson Monte Carlo Simulation")
     
     model = PoissonMonteCarlo()
     
-    name = 'keno'
+    name = 'pick3'
+    generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     
@@ -101,5 +135,8 @@ if __name__ == "__main__":
     model.setNumOfSimulations(5000)
     model.setRecentDraws(2000)
     model.setWeightFactor(0.1)
+
+    if "keno" in name:
+        generateSubsets = [6, 7]
     
-    print("Predicted Numbers: ", model.run())
+    print("Predicted Numbers: ", model.run(generateSubsets=generateSubsets))

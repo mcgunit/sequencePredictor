@@ -146,10 +146,8 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     current_json_object["labels"] = unique_labels.tolist()
 
                     listOfDecodedPredictions = []
-                    # Decode prediction with nth highest probability
-                    for i in range(2):
-                        prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
-                        listOfDecodedPredictions.append(prediction_nth_indices)
+
+                    listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
 
 
                     with open(jsonFilePath, "w+") as outfile:
@@ -266,9 +264,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         unique_labels = unique_labels.tolist()
 
                         listOfDecodedPredictions = []
-                        for i in range(2):
-                            prediction_nth_indices = helpers.decode_predictions(predictedSequence, unique_labels, i)
-                            listOfDecodedPredictions.append(prediction_nth_indices)
+                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
                 
                         # Save the current prediction as newPrediction
                         current_json_object["newPredictionRaw"] = predictedSequence
@@ -350,10 +346,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         current_json_object["labels"] = unique_labels.tolist()
                         
                         listOfDecodedPredictions = []
-                        # Decode prediction with nth highest probability
-                        for i in range(2):
-                            prediction_nth_indices = helpers.decode_predictions(current_json_object["newPredictionRaw"], current_json_object["labels"], i)
-                            listOfDecodedPredictions.append(prediction_nth_indices)
+                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
@@ -375,6 +368,21 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         print("Did not found entries")
 
 
+def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions):
+    nthPredictions = {
+        "name": "LSTM Base Model",
+        "predictions": []
+    }
+    # Decode prediction with nth highest probability
+    for i in range(nOfPredictions):
+        prediction_nth_indices = helpers.decode_predictions(newPredictionRaw, labels, i)
+        nthPredictions["predictions"].append(prediction_nth_indices)
+    
+    listOfDecodedPredictions.append(nthPredictions)
+
+    return listOfDecodedPredictions
+
+
 def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath):
     #####################
     # Start refinements #
@@ -389,11 +397,17 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
 
         #print("refined_prediction_raw: ", refined_prediction_raw)
+        refinedPredictions = {
+            "name": "LSTM Refined Model",
+            "predictions": []
+        }
 
         for i in range(2):
             prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
             #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-            listOfDecodedPredictions.append(prediction_highest_indices)
+            refinedPredictions["predictions"].append(prediction_highest_indices)
+
+        listOfDecodedPredictions.append(refinedPredictions)
     except Exception as e:
         print("Was not able to run refine prediction model: ", e)
 
@@ -403,11 +417,18 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
         topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
 
+        topPrediction = {
+            "name": "LSTM Top Predictor",
+            "predictions": []
+        }
+
         # Print Top prediction
         for i, prediction in enumerate(topPrediction):
             topHighestProbPrediction = [int(num) for num in prediction]
             #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-            listOfDecodedPredictions.append(topHighestProbPrediction)
+            topPrediction["predictions"].append(topHighestProbPrediction)
+        
+        listOfDecodedPredictions.append(topPrediction)
     except Exception as e:
         print("Was not able to run top prediction model: ", e)
 
@@ -418,8 +439,14 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         lstmArima.setBatchSize(8)
         lstmArima.setEpochs(1000)
 
+        arimaPrediction = {
+            "name": "ARIMA Model",
+            "predictions": []
+        }
+
         predicted_arima_sequence = lstmArima.run(name)
-        listOfDecodedPredictions.append(predicted_arima_sequence)
+        arimaPrediction["predictions"].append(predicted_arima_sequence)
+        listOfDecodedPredictions.append(arimaPrediction)
 
     except Exception as e:
         print("Failed to perform ARIMA: ", e)
@@ -429,9 +456,22 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(0.1)
         markov.clear()
-        markovSequence = markov.run()
+
+        markovPrediction = {
+            "name": "Markov Model",
+            "predictions": [],
+            "subsets": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        markovSequence, markovSubsets = markov.run(generateSubsets=subsets)
         #print("MArkov Sequence: ", markovSequence)
-        listOfDecodedPredictions.append(markovSequence)
+        markovPrediction["predictions"].append(markovSequence)
+        markovPrediction["subsets"] = markovSubsets
+        listOfDecodedPredictions.append(markovPrediction)
     except Exception as e:
         print("Failed to perform Markov: ", e)
 
@@ -441,9 +481,21 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         poissonMonteCarlo.setNumOfSimulations(5000)
         poissonMonteCarlo.setRecentDraws(2000)
         poissonMonteCarlo.setWeightFactor(0.1)
-        
-        poissonMonteCarloSequence = poissonMonteCarlo.run()
-        listOfDecodedPredictions.append(poissonMonteCarloSequence)    
+
+        poissonMonteCarloPrediction = {
+            "name": "PoissonMonteCarlo Model",
+            "predictions": [],
+            "subsets": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets)
+        poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
+        poissonMonteCarloPrediction["subsets"] = poissonMonteCarloSubsets
+        listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
     except Exception as e:
         print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
@@ -474,13 +526,13 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
-        ("euromillions", "tcn_model", 0),
-        ("lotto", "lstm_model", 0),
-        ("eurodreams", "lstm_model", 0),
+        #("euromillions", "tcn_model", 0),
+        #("lotto", "lstm_model", 0),
+        #("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 1),
         ("keno", "lstm_model", 0),
         ("pick3", "lstm_model", 0),
-        ("vikinglotto", "lstm_model", 0),
+        #("vikinglotto", "lstm_model", 0),
     ]
 
     for dataset_name, model_type, skip_last_columns in datasets:

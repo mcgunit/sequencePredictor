@@ -46,6 +46,24 @@ class Markov():
     def setMinOccurrences(self, nMinOccurrences):
         self.min_occurrences = nMinOccurrences
 
+    def generate_best_subset(self, predicted_numbers, nSubset):
+        """Generate a subset of numbers using weighted selection based on Markov probabilities and frequencies."""
+        unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure unique standard integers
+
+        if len(unique_numbers) < nSubset:
+            return unique_numbers  # Fallback if not enough numbers
+
+        # Compute blended probabilities using Markov and frequency data
+        blended_probs = self.blended_probability({num: 1 for num in unique_numbers}, self.number_frequencies)
+
+        # Sort numbers based on probability values
+        sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(x, 0), reverse=True)
+
+        # Select the top `nSubset` numbers
+        best_subset = sorted_numbers[:nSubset]
+
+        return sorted(map(int, best_subset))
+
     def softmax_with_temperature(self, probabilities, temperature=1.0):
         """Applies temperature scaling to control randomness."""
         probs = np.array(probabilities) / temperature
@@ -118,9 +136,13 @@ class Markov():
 
         return [int(num) for num in predictions][:n_predictions]
 
-    def run(self):
-        """Runs the Markov Chain prediction process."""
+    def run(self, generateSubsets=[]):
+        """
+        Runs the Markov Chain prediction process with optional subset generation.
         
+        Parameters:
+        generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
+        """
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
 
         # Build the enhanced Markov Chain model
@@ -129,11 +151,17 @@ class Markov():
         # Get the last drawn numbers
         last_draw = numbers[-1]
 
-        # Predict the next numbers
-        predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(numbers[0]), temperature=self.softMaxTemperature)
-        #print("Predicted next numbers:", predicted_numbers)
+        # Predict n_prdictions numbers first
+        predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(last_draw), temperature=self.softMaxTemperature)
 
-        return predicted_numbers
+        # Generate subsets if requested
+        subsets = {}
+        if generateSubsets:
+            print("Creating subsets of:", generateSubsets)
+            for subset_size in generateSubsets:
+                subsets[subset_size] = self.generate_best_subset(predicted_numbers, subset_size)
+
+        return predicted_numbers, subsets
 
 
 if __name__ == "__main__":
@@ -141,7 +169,8 @@ if __name__ == "__main__":
 
     markov = Markov()
 
-    name = 'keno'
+    name = 'pick3'
+    generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
@@ -152,6 +181,9 @@ if __name__ == "__main__":
     markov.setAlpha(0.5)
     markov.setMinOccurrences(5)
 
-    print("Predicted Numbers: ", markov.run())
+    if "keno" in name:
+        generateSubsets = [6, 7]
+
+    print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets))
 
 
