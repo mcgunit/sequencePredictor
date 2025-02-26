@@ -459,8 +459,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
         markovPrediction = {
             "name": "Markov Model",
-            "predictions": [],
-            "subsets": []
+            "predictions": []
         }
 
         subsets = []
@@ -468,9 +467,11 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             subsets = [5, 6, 7, 8, 9, 10]
 
         markovSequence, markovSubsets = markov.run(generateSubsets=subsets)
-        #print("MArkov Sequence: ", markovSequence)
+        
         markovPrediction["predictions"].append(markovSequence)
-        markovPrediction["subsets"] = markovSubsets
+        for key in markovSubsets:
+            markovPrediction["predictions"].append(markovSubsets[key])
+
         listOfDecodedPredictions.append(markovPrediction)
     except Exception as e:
         print("Failed to perform Markov: ", e)
@@ -484,8 +485,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
         poissonMonteCarloPrediction = {
             "name": "PoissonMonteCarlo Model",
-            "predictions": [],
-            "subsets": []
+            "predictions": []
         }
 
         subsets = []
@@ -493,8 +493,11 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             subsets = [5, 6, 7, 8, 9, 10]
 
         poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets)
+
         poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
-        poissonMonteCarloPrediction["subsets"] = poissonMonteCarloSubsets
+        for key in poissonMonteCarloSubsets:
+            poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSubsets[key])
+
         listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
     except Exception as e:
         print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)

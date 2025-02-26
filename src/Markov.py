@@ -169,7 +169,7 @@ if __name__ == "__main__":
 
     markov = Markov()
 
-    name = 'pick3'
+    name = 'keno'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
