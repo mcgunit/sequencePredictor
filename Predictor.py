@@ -111,6 +111,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                     listOfMatching = []
                     # Check on prediction with nth highest probability
+                    print("find matching numbers")
                     for i in range(len(current_json_object["currentPrediction"])):
                         matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
                         #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
@@ -229,6 +230,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                             listOfMatchings = []
                             # Check on prediction with nth highest probability
+                            print("find matching numbers")
                             for i in range(len(current_json_object["currentPrediction"])):
                                 matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
                                 #print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
@@ -311,6 +313,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                         listOfMatchings = []
                         # Compare decoded and refined predictions stored in currentPrediction with the real result (drawing)
+                        print("find matching numbers")
                         for i in range(len(current_json_object["currentPrediction"])):
                             matching_numbers = helpers.find_matching_numbers(current_json_object["realResult"], current_json_object["currentPrediction"][i]["predictions"])
                             print("Matching Numbers with ", i+1 , matching_numbers)
@@ -393,6 +396,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     
     try:
         # Refine predictions
+        print("Refine predictions")
         refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
         refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
 
@@ -413,6 +417,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     try:
         # Top prediction
+        print("Performing a Top Prediction")
         topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
         top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
         topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
@@ -434,6 +439,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     try:
         # Arima prediction
+        print("Performing ARIMA Prediction")
         lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
         lstmArima.setDataPath(dataPath)
         lstmArima.setBatchSize(8)
@@ -453,6 +459,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     
     try:
         # Markov
+        print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(0.1)
         markov.clear()
@@ -478,6 +485,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     try:
         # Poisson Distribution with Monte Carlo Analysis
+        print("Performing Poisson Monte Carlo Prediction")
         poissonMonteCarlo.setDataPath(dataPath)
         poissonMonteCarlo.setNumOfSimulations(5000)
         poissonMonteCarlo.setRecentDraws(2000)
