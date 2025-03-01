@@ -73,6 +73,18 @@
 ## Installation
 
 ### For Predictor (Python)
+
+Create a virtual env:
+```
+python3 -m venv ~/sequencePredictor
+```
+
+Activate env:
+
+```
+source ~/sequencePredictor/bin/activate
+```
+
 To install, you will need to have Python 3.x and the following libraries installed:
 - numpy
 - tensorflow

@@ -1,12 +1,12 @@
 art==6.4
 keras==3.7.0
 keras-tcn==3.1.2
-matplotlib==3.10.0
-numpy==2.2.0
+matplotlib==3.9.4
+numpy==2.0.2
 pandas==2.2.3
 python_dateutil==2.8.2
 scikit_learn==1.6.0
-tensorflow[and-cuda]==2.18.0
+tensorflow==2.16.2
 asciichartpy==1.5.25
 pmdarima==2.0.4
 statsmodels==0.14.4
