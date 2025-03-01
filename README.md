@@ -74,6 +74,8 @@
 
 ### For Predictor (Python)
 
+#### Virtual env
+
 Create a virtual env:
 ```
 python3 -m venv ~/sequencePredictor
@@ -110,6 +112,24 @@ For GPU enabled:
 ```
     python3 -m pip install numpy tensorflow[and-cuda]==2.18 keras art pandas scikit-learn matplotlib keras-tcn==3.1.2
 ```
+
+#### Docker
+
+Check the dockerfile.
+
+To build:
+
+```
+    docker build -t sequence_predictor .
+```
+
+Run:
+
+```
+    docker run --rm -it -v {absolute path to sequencePredictor repo}:/opt/sequencePredictor sequence_predictor /bin/bash
+```
+
+From this point you are inside the docker container with bash active. Now you can run or test code.
 
 ### For server (NodeJs)
 
