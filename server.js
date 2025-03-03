@@ -22,17 +22,17 @@ function generateTable(data, title = '', matchingNumbers = [], models = []) {
     '<th style="padding: 5px; text-align: center; background: #333; color: white; width: 50px;">#</th>';
 
   // Add number headers
-  if (data.length > 0) {
-    Array.from({ length: data[0].length }).forEach((_, i) => {
+  if (data.length > 0 && data[0].predictions.length > 0) {
+    Array.from({ length: data[0].predictions[0].length }).forEach((_, i) => {
       table += `<th style="padding: 5px; text-align: center; background: #333; color: white;">Number ${i + 1}</th>`;
     });
   }
   table += '</tr>';
 
   // Add data rows with model identification
-  data.forEach((row, rowIndex) => {
-    if (rowIndex < 10) {
-      const modelType = models[rowIndex] || determineModelType(rowIndex); // Fallback
+  data.forEach((model, modelIndex) => {
+    model.predictions.forEach((row, rowIndex) => {
+      const modelType = model.name || determineModelType(modelIndex); // Fallback
       table += `<tr>
         <td style="padding: 5px; background: #f8f9fa; font-weight: bold; border-right: 2px solid #ddd;">
           ${modelType}
@@ -47,7 +47,7 @@ function generateTable(data, title = '', matchingNumbers = [], models = []) {
         </td>`;
       });
       table += '</tr>';
-    }
+    });
   });
 
   table += '</table>';
@@ -123,7 +123,6 @@ app.get('/database/:folder', (req, res) => {
   res.send(html);
 });
 
-// Serve JSON files with a formatted HTML layout
 app.get('/database/:folder/:file', (req, res) => {
   const folder = req.params.folder;
   const file = req.params.file;
@@ -132,12 +131,12 @@ app.get('/database/:folder/:file', (req, res) => {
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-    const currentPredictionModels = jsonData.currentPrediction.map((_, index) => 
-      determineModelType(index)
+    const currentPredictionModels = jsonData.currentPrediction.map((prediction) => 
+      prediction.name
     );
 
-    const newPredictionModels = jsonData.newPrediction.map((_, index) => 
-      determineModelType(index)
+    const newPredictionModels = jsonData.newPrediction.map((prediction) => 
+      prediction.name
     );
 
     // Generate HTML content
@@ -147,15 +146,15 @@ app.get('/database/:folder/:file', (req, res) => {
       ${generateTable(
         jsonData.currentPrediction, 
         'Current Prediction', 
-        [].concat(...jsonData.currentPrediction.map(pred => pred.filter(num => jsonData.realResult.includes(num)))), 
+        [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))), 
         currentPredictionModels
       )}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
       <h2>Matching Numbers</h2>
-      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.bestMatchIndex+1}</p>
-      <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.bestMatchSequence)}</p>
-      <!--<p><strong>Matching Numbers:</strong> ${generateList([].concat(...jsonData.currentPrediction.map(pred => pred.filter(num => jsonData.realResult.includes(num)))))}</p>--!>
+      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.model}</p>
+      <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.prediction)}</p>
+      <!--<p><strong>Matching Numbers:</strong> ${generateList([].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))))}</p>--!>
       <h2>New Prediction</h2>
       ${generateTable(
         jsonData.newPrediction,
