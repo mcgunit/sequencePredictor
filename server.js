@@ -10,12 +10,12 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-function generateTable(data, title = '', matchingNumbers = []) {
+function generateTable(data, title = '', matchingNumbers = [], calcProfit = false) {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Add title if provided
   if (title) table += `<caption><strong>${title}</strong></caption>`;
-  console.log("title", title);
+  
   // Define column headers
   table += '<tr>' +
     '<th style="padding: 5px; text-align: center; background: #333; color: white; min-width: 150px;">Model</th>' +
@@ -27,13 +27,15 @@ function generateTable(data, title = '', matchingNumbers = []) {
       table += `<th style="padding: 5px; text-align: center; background: #333; color: white;">Number ${i + 1}</th>`;
     });
   }
-  table += '<th style="padding: 5px; text-align: center; background: #333; color: white;">Profit</th>';
+  if(title.includes("Current Prediction") && calcProfit) {
+    table += '<th style="padding: 5px; text-align: center; background: #333; color: white;">Profit</th>';
+  }
   table += '</tr>';
 
   // Add data rows with model identification
   data.forEach((model, modelIndex) => {
     model.predictions.forEach((row, rowIndex) => {
-      const modelType = model.name || determineModelType(modelIndex); // Fallback
+      const modelType = model.name || "not known";
       table += `<tr>
         <td style="padding: 5px; background: #f8f9fa; font-weight: bold; border-right: 2px solid #ddd;">
           ${modelType}
@@ -50,7 +52,7 @@ function generateTable(data, title = '', matchingNumbers = []) {
         </td>`;
       });
 
-      if(title.includes("Current Prediction")) {
+      if(title.includes("Current Prediction") && calcProfit) {
         const numbersPlayed = row.length;
         const profit = calculateProfit(numbersPlayed, correctNumbers);
         table += `<td style="padding: 5px; text-align: center; background: #f8f9fa;">${profit} €</td>`;
@@ -83,19 +85,6 @@ function calculateProfit(numbersPlayed, correctNumbers) {
   }
 }
 
-// Helper function for model identification
-function determineModelType(index) {
-  switch(true) {
-    case (index < 2): return 'LSTM Base Model';
-    case (index < 4): return 'LSTM Refined Model';
-    case (index === 4): return 'LSTM Top Predictor';
-    case (index === 5): return 'ARIMA Model';
-    case (index === 6): return 'Markov Model';
-    case (index === 7): return 'PoissonMonteCarlo Model';
-    default: return 'Ensemble Model';
-  }
-}
-
 
 function generateList(data, title = '') {
   if(Array.isArray(data) && data.length > 0) {
@@ -114,6 +103,7 @@ function generateList(data, title = '') {
 
 // Serve static files
 app.use('/models', express.static(modelsPath)); // Serves PNGs from models directory
+
 // Router to handle database data
 app.get('/database', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true })
@@ -156,9 +146,14 @@ app.get('/database/:folder/:file', (req, res) => {
   const folder = req.params.folder;
   const file = req.params.file;
   const filePath = path.join(dataPath, folder, file);
+  let calculateProfit = false;
 
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    
+    if(folder === "keno") {
+      calculateProfit = true;
+    }
 
     // Generate HTML content
     let html = `
@@ -167,7 +162,8 @@ app.get('/database/:folder/:file', (req, res) => {
       ${generateTable(
         jsonData.currentPrediction, 
         'Current Prediction', 
-        [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num))))
+        [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))),
+        calculateProfit
       )}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
@@ -179,7 +175,8 @@ app.get('/database/:folder/:file', (req, res) => {
       ${generateTable(
         jsonData.newPrediction,
         'New Prediction', 
-        []
+        [],
+        calculateProfit
       )}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
@@ -281,7 +278,12 @@ app.get('/', (req, res) => {
     </head>
     <body>
       <h1>Sequence Predictor Results</h1>
-      <button id="saveAsPng" class="save-btn">Save as PNG</button>
+      <div class="button-container" style="margin-top: 20px;">
+        <form action="/database" method="get" style="display: inline;">
+          <button type="submit">Go to Database</button>
+        </form>
+        <button id="saveAsPng" class="save-btn" style="display: inline;">Save as PNG</button>
+      </div>
       <div>
   `;
 
