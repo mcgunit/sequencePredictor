@@ -10,12 +10,12 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-function generateTable(data, title = '', matchingNumbers = [], models = []) {
+function generateTable(data, title = '', matchingNumbers = []) {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Add title if provided
   if (title) table += `<caption><strong>${title}</strong></caption>`;
-
+  console.log("title", title);
   // Define column headers
   table += '<tr>' +
     '<th style="padding: 5px; text-align: center; background: #333; color: white; min-width: 150px;">Model</th>' +
@@ -27,6 +27,7 @@ function generateTable(data, title = '', matchingNumbers = [], models = []) {
       table += `<th style="padding: 5px; text-align: center; background: #333; color: white;">Number ${i + 1}</th>`;
     });
   }
+  table += '<th style="padding: 5px; text-align: center; background: #333; color: white;">Profit</th>';
   table += '</tr>';
 
   // Add data rows with model identification
@@ -39,19 +40,47 @@ function generateTable(data, title = '', matchingNumbers = [], models = []) {
         </td>
         <td style="padding: 5px; text-align: center; font-weight: bold; background: #f8f9fa;">${rowIndex + 1}</td>`;
 
+      let correctNumbers = 0;
       row.forEach((cell) => {
         const isMatching = matchingNumbers.includes(cell);
+        if (isMatching) correctNumbers++;
         table += `<td style="padding: 5px; text-align: center; 
           ${isMatching ? 'background: #2ecc71; color: white;' : ''}">
           ${cell}
         </td>`;
       });
+
+      if(title.includes("Current Prediction")) {
+        const numbersPlayed = row.length;
+        const profit = calculateProfit(numbersPlayed, correctNumbers);
+        table += `<td style="padding: 5px; text-align: center; background: #f8f9fa;">${profit} €</td>`;
+      }
       table += '</tr>';
     });
   });
 
   table += '</table>';
   return table;
+}
+
+function calculateProfit(numbersPlayed, correctNumbers) {
+  // Define the Keno payout table
+  const payoutTable = {
+    8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
+    7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
+    6: { 3: 1, 4: 4, 5: 20, 6: 200 },
+    5: { 3: 2, 4: 5, 5: 150 },
+    4: { 2: 1, 3: 2, 4: 30 },
+    3: { 2: 1, 3: 16 },
+    2: { 2: 6.50 }
+  };
+
+  // Calculate the profit based on the payout table
+  if (payoutTable[numbersPlayed] && payoutTable[numbersPlayed][correctNumbers]) {
+    return payoutTable[numbersPlayed][correctNumbers];
+  } else {
+    return 0;
+  }
 }
 
 // Helper function for model identification
@@ -131,14 +160,6 @@ app.get('/database/:folder/:file', (req, res) => {
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-    const currentPredictionModels = jsonData.currentPrediction.map((prediction) => 
-      prediction.name
-    );
-
-    const newPredictionModels = jsonData.newPrediction.map((prediction) => 
-      prediction.name
-    );
-
     // Generate HTML content
     let html = `
       <h1>${file} Results</h1>
@@ -146,8 +167,7 @@ app.get('/database/:folder/:file', (req, res) => {
       ${generateTable(
         jsonData.currentPrediction, 
         'Current Prediction', 
-        [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))), 
-        currentPredictionModels
+        [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num))))
       )}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
@@ -159,8 +179,7 @@ app.get('/database/:folder/:file', (req, res) => {
       ${generateTable(
         jsonData.newPrediction,
         'New Prediction', 
-        [], 
-        newPredictionModels
+        []
       )}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
