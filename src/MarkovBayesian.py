@@ -172,10 +172,15 @@ class MarkovBayesian():
         self.update_bayesian_model(last_draw)
 
         # Predict n_predictions numbers first
-        predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(last_draw), temperature=self.softMaxTemperature)
+        n_predictions = len(last_draw)
+        predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=n_predictions, temperature=self.softMaxTemperature)
+
+        #print("predicted_numbers", len(predicted_numbers))
 
         # Get predictions from the Bayesian model
-        bayesian_predictions = self.bayesian_prediction(n_predictions=len(last_draw))
+        bayesian_predictions = self.bayesian_prediction(n_predictions=n_predictions)
+
+        #print("bayesian_predictions", len(bayesian_predictions))
 
         # Combine predictions from Markov and Bayesian models
         combined_predictions = list(set(predicted_numbers) | set(bayesian_predictions))
@@ -193,7 +198,7 @@ class MarkovBayesian():
         # Convert subsets from np.int64 to Python int
         subsets = {size: [int(num) for num in numbers] for size, numbers in subsets.items()}
 
-        return combined_predictions, subsets
+        return combined_predictions[:n_predictions], subsets
 
 
 if __name__ == "__main__":
