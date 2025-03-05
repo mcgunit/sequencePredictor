@@ -10,8 +10,10 @@ from src.LSTM_ARIMA_Model import LSTM_ARIMA_Model
 from src.RefinemePrediction import RefinePrediction
 from src.TopPrediction import TopPrediction
 from src.Markov import Markov
+from src.MarkovBayesian import MarkovBayesian
 from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
+from src.HybridStatisticalModel import HybridStatisticalModel
 from src.Command import Command
 from src.Helpers import Helpers
 
@@ -21,8 +23,10 @@ lstmArima = LSTM_ARIMA_Model()
 refinePrediction = RefinePrediction()
 topPredictor = TopPrediction()
 markov = Markov()
+markovBayesian = MarkovBayesian()
 poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
+hybridStatisticalModel = HybridStatisticalModel()
 command = Command()
 helpers = Helpers()
 
@@ -437,6 +441,32 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Failed to perform Markov: ", e)
 
     try:
+        # Markov Bayesian
+        print("Performing Markov Bayesian Prediction")
+        markovBayesian.setDataPath(dataPath)
+        markovBayesian.setSoftMAxTemperature(0.1)
+        markovBayesian.setAlpha(0.5)
+        markovBayesian.clear()
+
+        markovBayesianPrediction = {
+            "name": "MarkovBayesian Model",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets)
+        markovBayesianPrediction["predictions"].append(markovBayesianSequence)
+        for key in markovBayesianSubsets:
+            markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
+
+        listOfDecodedPredictions.append(markovBayesianPrediction)
+    except Exception as e:
+        print("Failed to perform Markov Bayesian: ", e)
+
+    try:
         # Poisson Distribution with Monte Carlo Analysis
         print("Performing Poisson Monte Carlo Prediction")
         poissonMonteCarlo.setDataPath(dataPath)
@@ -470,7 +500,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         laplaceMonteCarlo.setDataPath(dataPath)
         laplaceMonteCarlo.setNumOfSimulations(5000)
         laplaceMonteCarlo.clear()
-        
+
         laplaceMonteCarloPrediction = {
             "name": "LaplaceMonteCarlo Model",
             "predictions": []
@@ -488,6 +518,35 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         listOfDecodedPredictions.append(laplaceMonteCarloPrediction)
     except Exception as e:
         print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
+
+    try:
+        # Hybrid Statistical Model
+        print("Performing Hybrid Statistical Model Prediction")
+        hybridStatisticalModel.setDataPath(dataPath)
+        hybridStatisticalModel.setSoftMaxTemperature(0.1)
+        hybridStatisticalModel.setAlpha(0.5)
+        hybridStatisticalModel.setMinOccurrences(5)
+        hybridStatisticalModel.setNumberOfSimulations(5000)
+        hybridStatisticalModel.clear()
+
+        hybridStatisticalModelPrediction = {
+            "name": "HybridStatisticalModel",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets)
+        hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
+        for key in hybridStatisticalModelSubsets:
+            hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
+        
+        listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
+    except Exception as e:
+        print("Failed to perform Hybrid Statistical Model: ", e)
+
 
     return listOfDecodedPredictions
 
