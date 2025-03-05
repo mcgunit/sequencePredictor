@@ -151,7 +151,7 @@ app.get('/database/:folder/:file', (req, res) => {
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     
-    if(folder === "keno") {
+    if(folder.includes("keno")) {
       calculateProfit = true;
     }
 
