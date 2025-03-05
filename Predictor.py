@@ -11,6 +11,7 @@ from src.RefinemePrediction import RefinePrediction
 from src.TopPrediction import TopPrediction
 from src.Markov import Markov
 from src.PoissonMonteCarlo import PoissonMonteCarlo
+from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.Command import Command
 from src.Helpers import Helpers
 
@@ -21,6 +22,7 @@ refinePrediction = RefinePrediction()
 topPredictor = TopPrediction()
 markov = Markov()
 poissonMonteCarlo = PoissonMonteCarlo()
+laplaceMonteCarlo = LaplaceMonteCarlo()
 command = Command()
 helpers = Helpers()
 
@@ -439,8 +441,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Poisson Monte Carlo Prediction")
         poissonMonteCarlo.setDataPath(dataPath)
         poissonMonteCarlo.setNumOfSimulations(5000)
-        poissonMonteCarlo.setRecentDraws(2000)
         poissonMonteCarlo.setWeightFactor(0.1)
+        poissonMonteCarlo.clear()
 
         poissonMonteCarloPrediction = {
             "name": "PoissonMonteCarlo Model",
@@ -460,6 +462,32 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
     except Exception as e:
         print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
+
+
+    try:
+        # Laplace Distribution with Monte Carlo Analysis
+        print("Performing Laplace Monte Carlo Prediction")
+        laplaceMonteCarlo.setDataPath(dataPath)
+        laplaceMonteCarlo.setNumOfSimulations(5000)
+        laplaceMonteCarlo.clear()
+        
+        laplaceMonteCarloPrediction = {
+            "name": "LaplaceMonteCarlo Model",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets)
+        laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
+        for key in laplaceMonteCarloSubsets:
+            laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
+        
+        listOfDecodedPredictions.append(laplaceMonteCarloPrediction)
+    except Exception as e:
+        print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
 
     return listOfDecodedPredictions
 

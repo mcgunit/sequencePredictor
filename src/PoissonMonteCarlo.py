@@ -106,6 +106,9 @@ class PoissonMonteCarlo():
         generateSubset is an array to generate subsets of numbers, e.g., [6, 7] creates subsets of 6 and 7 numbers.
         """
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
+
+        self.setRecentDraws(max(self.recent_draws, len(numbers)))
+
         self.build_poisson_model(numbers)
 
 
@@ -124,7 +127,7 @@ if __name__ == "__main__":
     
     model = PoissonMonteCarlo()
     
-    name = 'pick3'
+    name = 'keno'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)

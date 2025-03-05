@@ -97,7 +97,6 @@ class LaplaceMonteCarlo():
         """Runs the Laplace Monte Carlo prediction process with optional subset generation."""
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
 
-        print("Recent Draws: ", max(self.recent_draws, len(numbers)))
         self.setRecentDraws(max(self.recent_draws, len(numbers)))
 
         self.build_laplace_model(numbers)
