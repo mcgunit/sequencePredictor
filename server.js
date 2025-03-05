@@ -123,9 +123,14 @@ app.get('/database', (req, res) => {
 app.get('/database/:folder', (req, res) => {
   const folder = req.params.folder;
   const folderPath = path.join(dataPath, folder);
+  let calcProfit = false;
 
   if (!fs.existsSync(folderPath)) {
     return res.status(404).send('Folder not found');
+  }
+
+  if (folder.includes("keno")) {
+    calcProfit = true;
   }
 
   const files = fs.readdirSync(folderPath)
@@ -134,7 +139,27 @@ app.get('/database/:folder', (req, res) => {
 
   let html = `<h1>JSON Files in ${folder}</h1><ul>`;
   files.forEach((file) => {
-    html += `<li><form action="/database/${folder}/${file}" method="get"><button type="submit">${file}</button></form></li>`;
+    const filePath = path.join(folderPath, file);
+    const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+    let totalProfit = 0;
+    if (calcProfit && jsonData.currentPrediction) {
+      totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
+        let predictionProfit = 0;
+        prediction.predictions.forEach((pred) => {
+          const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+          predictionProfit += calculateProfit(pred.length, correctNumbers);
+        });
+        return acc + predictionProfit;
+      }, 0);
+    }
+
+    html += `<li>
+      <form action="/database/${folder}/${file}" method="get" style="display: inline;">
+        <button type="submit">${file}</button>
+      </form>
+      <span>Profit: ${totalProfit} €</span>
+    </li>`;
   });
   html += '<form action="/database" method="get"><button type="submit">Back to Database</button></form>';
   html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
