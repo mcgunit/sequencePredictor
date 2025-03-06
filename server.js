@@ -76,20 +76,38 @@ function calculateProfit(numbersPlayed, correctNumbers, game) {
     5: { 3: 2, 4: 5, 5: 150 },
     4: { 2: 1, 3: 2, 4: 30 },
     3: { 2: 1, 3: 16 },
-    2: { 2: 6.50 }
+    2: { 2: 6.50 },
+    "lost": -1
   };
 
+  const payoutTablePick3 = {
+    3: {3: 80},
+    "lost": -1
+  }
+
   switch (game) {
-    case "keno":
+    case "keno": {
       if (payoutTableKeno[numbersPlayed]) {
         if(payoutTableKeno[numbersPlayed][correctNumbers]) {
           return payoutTableKeno[numbersPlayed][correctNumbers];
         } else {
-          return -1; // No profit and assumed payed 1€ for the ticket
+          return payoutTableKeno["lost"]; // No profit 
         }   
       } else {
         return 0; // In case of keno, the payout table is only defined for 2-10 numbers
       }
+    }
+    case "pick3": {
+      if (payoutTablePick3[numbersPlayed]) {
+        if(payoutTablePick3[numbersPlayed][correctNumbers]) {
+          return payoutTablePick3[numbersPlayed][correctNumbers];
+        } else {
+          return payoutTablePick3["lost"]; // No profit 
+        }
+      } else {
+        return 0;
+      }
+    }
     default:
       return 0; // Don't calculate profit for other games
   }
@@ -143,6 +161,9 @@ app.get('/database/:folder', (req, res) => {
   if (folder.includes("keno")) {
     calcProfit = true;
     game = "keno";
+  } if (folder.includes("pick3")) {
+    calcProfit = true;
+    game = "pick3";
   }
 
   const files = fs.readdirSync(folderPath)
@@ -261,6 +282,9 @@ app.get('/database/:folder/:file', (req, res) => {
     if(folder.includes("keno")) {
       calculateProfit = true;
       game = "keno";
+    } if (folder.includes("pick3")) {
+      calcProfit = true;
+      game = "pick3";
     }
 
     // Generate HTML content
