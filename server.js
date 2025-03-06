@@ -10,7 +10,7 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-function generateTable(data, title = '', matchingNumbers = [], calcProfit = false) {
+function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Add title if provided
@@ -54,7 +54,7 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
 
       if(title.includes("Current Prediction") && calcProfit) {
         const numbersPlayed = row.length;
-        const profit = calculateProfit(numbersPlayed, correctNumbers);
+        const profit = calculateProfit(numbersPlayed, correctNumbers, game);
         table += `<td style="padding: 5px; text-align: center; background: #f8f9fa;">${profit} €</td>`;
       }
       table += '</tr>';
@@ -65,9 +65,11 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
   return table;
 }
 
-function calculateProfit(numbersPlayed, correctNumbers) {
+function calculateProfit(numbersPlayed, correctNumbers, game) {
   // Define the Keno payout table
   const payoutTableKeno = {
+    10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
+    9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
     8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
     7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
     6: { 3: 1, 4: 4, 5: 20, 6: 200 },
@@ -77,12 +79,21 @@ function calculateProfit(numbersPlayed, correctNumbers) {
     2: { 2: 6.50 }
   };
 
-  // Calculate the profit based on the payout table
-  if (payoutTable[numbersPlayed] && payoutTable[numbersPlayed][correctNumbers]) {
-    return payoutTable[numbersPlayed][correctNumbers];
-  } else {
-    return 0;
+  switch (game) {
+    case "keno":
+      if (payoutTableKeno[numbersPlayed]) {
+        if(payoutTableKeno[numbersPlayed][correctNumbers]) {
+          return payoutTableKeno[numbersPlayed][correctNumbers];
+        } else {
+          return -1; // No profit and assumed payed 1€ for the ticket
+        }   
+      } else {
+        return 0; // In case of keno, the payout table is only defined for 2-10 numbers
+      }
+    default:
+      return 0; // Don't calculate profit for other games
   }
+
 }
 
 
@@ -174,12 +185,14 @@ app.get('/database/:folder/:file', (req, res) => {
   const file = req.params.file;
   const filePath = path.join(dataPath, folder, file);
   let calculateProfit = false;
+  let game = "";
 
   if (fs.existsSync(filePath)) {
     const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     
     if(folder.includes("keno")) {
       calculateProfit = true;
+      game = "keno";
     }
 
     // Generate HTML content
@@ -190,7 +203,8 @@ app.get('/database/:folder/:file', (req, res) => {
         jsonData.currentPrediction, 
         'Current Prediction', 
         [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))),
-        calculateProfit
+        calculateProfit,
+        game
       )}
       <h2>Real Result</h2>
       ${generateList(jsonData.realResult, 'Real Result')}
@@ -203,7 +217,8 @@ app.get('/database/:folder/:file', (req, res) => {
         jsonData.newPrediction,
         'New Prediction', 
         [],
-        calculateProfit
+        calculateProfit,
+        game
       )}
       <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
       <form action="/" method="get"><button type="submit">Back to Home</button></form>
