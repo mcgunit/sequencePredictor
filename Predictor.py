@@ -43,7 +43,20 @@ def print_intro():
 
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, monthsToRebuild=1):
+    """
+        Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
+
+        @param name: The name of the dataset
+        @param model_type: The type of model to use
+        @param dataPath: The path to the data
+        @param modelPath: The path to the model
+        @param file: The file to download
+        @param skipLastColumns: The number of columns to skip
+        @param maxRows: The maximum number of rows to use
+        @param years_back: The number of years to go back
+        @param monthsToRebuild: The number of months to rebuild
+    """
 
     modelToUse = tcn
     if "lstm_model" in model_type:
@@ -155,10 +168,10 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     #return predictedSequence
                 
             if doNewPrediction:
-                print("No previous prediction file found, Cannot compare. Recreating one month of history")
+                print(f"No previous prediction file found, Cannot compare. Recreating {monthsToRebuild} month of history")
 
                 # Check if there is not a gap or so
-                historyData = helpers.getLatestPrediction(os.path.join(dataPath, file), dateRange=1)
+                historyData = helpers.getLatestPrediction(os.path.join(dataPath, file), dateRange=monthsToRebuild)
                 #print("History data: ", historyData)
 
                 dateOffset = len(historyData)-1 # index of list entry
@@ -558,11 +571,13 @@ if __name__ == "__main__":
         print("Failed to get latest changes")
 
     parser = argparse.ArgumentParser(
-        prog='LSTM Sequence Predictor',
+        prog='Sequence Predictor',
         description='Tries to predict a sequence of numbers',
         epilog='Check it out'
     )
-    parser.add_argument('-d', '--data', default="euromillions")
+
+    parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
+    parser.add_argument('-m', '--months', type=int, default=1)
     args = parser.parse_args()
     print(args.data)
 
@@ -570,6 +585,10 @@ if __name__ == "__main__":
 
     current_year = datetime.now().year
     print("Current Year:", current_year)
+
+    monthsToRebuild = int(args.months)
+    rebuildHistory = bool(args.rebuild_history)
+
 
     path = os.getcwd()
 
@@ -592,13 +611,13 @@ if __name__ == "__main__":
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
             # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns)
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, monthsToRebuild=monthsToRebuild)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1)
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, monthsToRebuild=monthsToRebuild)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3)
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, monthsToRebuild=monthsToRebuild)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")

@@ -15,6 +15,10 @@ class Helpers():
             Get latest result from csv file.
             If dateRange is provided it will return a list containing multiple results
             If dateRange is None (default) it will return the current and previous result
+
+            @param csvFile: The csv file to get the latest prediction from
+            @param dateRange: The numbers of months to get the predictions from
+            
         """
         # Initialize an empty list to hold the data
         data = []

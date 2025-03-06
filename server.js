@@ -67,7 +67,7 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
 
 function calculateProfit(numbersPlayed, correctNumbers) {
   // Define the Keno payout table
-  const payoutTable = {
+  const payoutTableKeno = {
     8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
     7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
     6: { 3: 1, 4: 4, 5: 20, 6: 200 },
@@ -124,6 +124,7 @@ app.get('/database/:folder', (req, res) => {
   const folder = req.params.folder;
   const folderPath = path.join(dataPath, folder);
   let calcProfit = false;
+  let game = "";
 
   if (!fs.existsSync(folderPath)) {
     return res.status(404).send('Folder not found');
@@ -131,6 +132,7 @@ app.get('/database/:folder', (req, res) => {
 
   if (folder.includes("keno")) {
     calcProfit = true;
+    game = "keno";
   }
 
   const files = fs.readdirSync(folderPath)
@@ -148,7 +150,7 @@ app.get('/database/:folder', (req, res) => {
         let predictionProfit = 0;
         prediction.predictions.forEach((pred) => {
           const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-          predictionProfit += calculateProfit(pred.length, correctNumbers);
+          predictionProfit += calculateProfit(pred.length, correctNumbers, game);
         });
         return acc + predictionProfit;
       }, 0);
