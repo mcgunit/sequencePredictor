@@ -130,7 +130,6 @@ app.get('/database', (req, res) => {
   res.send(html);
 });
 
-// Router to list JSON files in database subfolders
 app.get('/database/:folder', (req, res) => {
   const folder = req.params.folder;
   const folderPath = path.join(dataPath, folder);
@@ -147,41 +146,102 @@ app.get('/database/:folder', (req, res) => {
   }
 
   const files = fs.readdirSync(folderPath)
-    .filter((file) => file.endsWith('.json'))
-    .sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', ''))); // Sort files by date
+    .filter((file) => file.endsWith('.json'));
 
-  let html = `<h1>JSON Files in ${folder}</h1><ul>`;
-  files.forEach((file) => {
-    const filePath = path.join(folderPath, file);
-    const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  // Group files by month and year
+  const filesByMonth = files.reduce((acc, file) => {
+    const date = new Date(file.replace('.json', ''));
+    const monthYear = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    if (!acc[monthYear]) acc[monthYear] = [];
+    acc[monthYear].push(file);
+    return acc;
+  }, {});
 
-    let totalProfit = 0;
-    if (calcProfit && jsonData.currentPrediction) {
-      totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
-        let predictionProfit = 0;
-        prediction.predictions.forEach((pred) => {
-          const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-          predictionProfit += calculateProfit(pred.length, correctNumbers, game);
-        });
-        return acc + predictionProfit;
-      }, 0);
+  // Sort months
+  const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(a) - new Date(b));
+
+  let html = `<h1>JSON Files in ${folder}</h1>`;
+  html += '<table border="1" style="border-collapse: collapse; width: 100%;">';
+
+  // Create rows with a maximum of 3 columns per row
+  for (let i = 0; i < sortedMonths.length; i += 3) {
+    html += '<tr>';
+    for (let j = i; j < i + 3 && j < sortedMonths.length; j++) {
+      const month = sortedMonths[j];
+      let monthTotalProfit = 0;
+
+      // Calculate total profit for the month
+      filesByMonth[month].forEach((file) => {
+        const filePath = path.join(folderPath, file);
+        const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+        if (calcProfit && jsonData.currentPrediction) {
+          monthTotalProfit += jsonData.currentPrediction.reduce((acc, prediction) => {
+            let predictionProfit = 0;
+            prediction.predictions.forEach((pred) => {
+              const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+              predictionProfit += calculateProfit(pred.length, correctNumbers, game);
+            });
+            return acc + predictionProfit;
+          }, 0);
+        }
+      });
+
+      let profitColor = 'white';
+      if (monthTotalProfit > 0) {
+        profitColor = 'green';
+      } else if (monthTotalProfit < 0) {
+        profitColor = 'red';
+      }
+
+      html += `<th style="padding: 5px; text-align: center; background: #333; color: white;">
+        ${month}<br><span style="color: ${profitColor};">Total Profit: ${monthTotalProfit} €</span>
+      </th>`;
     }
+    html += '</tr><tr>';
+    for (let j = i; j < i + 3 && j < sortedMonths.length; j++) {
+      const month = sortedMonths[j];
+      html += '<td style="vertical-align: top;">';
+      html += '<ul>';
+      // Sort files within the month in descending order
+      filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
+      filesByMonth[month].forEach((file) => {
+        const filePath = path.join(folderPath, file);
+        const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-    let profitColor = 'white';
-    if (totalProfit > 0) {
-      profitColor = 'green';
-    } else if (totalProfit < 0) {
-      profitColor = 'red';
+        let totalProfit = 0;
+        if (calcProfit && jsonData.currentPrediction) {
+          totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
+            let predictionProfit = 0;
+            prediction.predictions.forEach((pred) => {
+              const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+              predictionProfit += calculateProfit(pred.length, correctNumbers, game);
+            });
+            return acc + predictionProfit;
+          }, 0);
+        }
+
+        let profitColor = 'orange';
+        if (totalProfit > 0) {
+          profitColor = 'green';
+        } else if (totalProfit < 0) {
+          profitColor = 'red';
+        }
+
+        html += `<li>
+          <form action="/database/${folder}/${file}" method="get" style="display: inline;">
+            <button type="submit">${file}</button>
+          </form>
+          <span style="color: ${profitColor};">Profit: ${totalProfit} €</span>
+        </li>`;
+      });
+      html += '</ul>';
+      html += '</td>';
     }
+    html += '</tr>';
+  }
 
-    html += `<li>
-      <form action="/database/${folder}/${file}" method="get" style="display: inline;">
-        <button type="submit">${file}</button>
-      </form>
-      <span style="color: ${profitColor};">Profit: ${totalProfit} €</span>
-    </li>`;
-  });
-  
+  html += '</table>';
   html += '<form action="/database" method="get"><button type="submit">Back to Database</button></form>';
   html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
 
