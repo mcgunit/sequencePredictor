@@ -579,7 +579,6 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
     parser.add_argument('-m', '--months', type=int, default=1)
     args = parser.parse_args()
-    print(args.data)
 
     print_intro()
 

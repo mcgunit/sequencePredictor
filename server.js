@@ -167,13 +167,21 @@ app.get('/database/:folder', (req, res) => {
       }, 0);
     }
 
+    let profitColor = 'white';
+    if (totalProfit > 0) {
+      profitColor = 'green';
+    } else if (totalProfit < 0) {
+      profitColor = 'red';
+    }
+
     html += `<li>
       <form action="/database/${folder}/${file}" method="get" style="display: inline;">
         <button type="submit">${file}</button>
       </form>
-      <span>Profit: ${totalProfit} €</span>
+      <span style="color: ${profitColor};">Profit: ${totalProfit} €</span>
     </li>`;
   });
+  
   html += '<form action="/database" method="get"><button type="submit">Back to Database</button></form>';
   html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
 
