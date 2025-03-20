@@ -14,7 +14,7 @@ if current_dir not in sys.path:
 if src_dir not in sys.path:
     sys.path.append(src_dir)
 
-class HybridPoissonMarkov:
+class PoissonMarkov:
     def __init__(self):
         self.poisson_model = PoissonMonteCarlo()
         self.markov_model = Markov()

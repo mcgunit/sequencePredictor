@@ -12,6 +12,7 @@ from src.TopPrediction import TopPrediction
 from src.Markov import Markov
 from src.MarkovBayesian import MarkovBayesian
 from src.PoissonMonteCarlo import PoissonMonteCarlo
+from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
 from src.Command import Command
@@ -27,6 +28,7 @@ markovBayesian = MarkovBayesian()
 poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
 hybridStatisticalModel = HybridStatisticalModel()
+poissonMarkov = PoissonMarkov()
 command = Command()
 helpers = Helpers()
 
@@ -505,6 +507,31 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
     except Exception as e:
         print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
+
+    try:
+        # Poisson-Markov Distribution
+        print("Performing Poisson-Markov Prediction")
+        poissonMarkov.setDataPath(dataPath)
+        poissonMarkov.setWeights(poisson_weight=0.5, markov_weight=0.5)
+
+        poissonMarkovPrediction = {
+            "name": "PoissonMarkov Model",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets)
+
+        poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
+        for key in poissonMarkovSubsets:
+            poissonMarkovPrediction["predictions"].append(poissonMarkovSubsets[key])
+
+        listOfDecodedPredictions.append(poissonMarkovPrediction)    
+    except Exception as e:
+        print("Failed to perform Poisson-Markov Distribution: ", e)
 
 
     try:

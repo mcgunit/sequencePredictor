@@ -10,6 +10,8 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
+const selectedPlayedNumbers = 8; // To select played numbers  for Keno
+
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
@@ -88,7 +90,7 @@ function calculateProfit(numbersPlayed, correctNumbers, game) {
   switch (game) {
     case "keno": {
       if (payoutTableKeno[numbersPlayed]) {
-        if(payoutTableKeno[numbersPlayed][correctNumbers]) {
+        if(payoutTableKeno[numbersPlayed][correctNumbers] && numbersPlayed == selectedPlayedNumbers) {
           return payoutTableKeno[numbersPlayed][correctNumbers];
         } else {
           return payoutTableKeno["lost"]; // No profit 
