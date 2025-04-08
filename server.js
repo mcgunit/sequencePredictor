@@ -196,12 +196,14 @@ app.get('/database/:folder', (req, res) => {
       <label for="playedNumbers">Enter Numbers (comma separated):</label>
       <input type="text" id="playedNumbers" name="playedNumbers" placeholder="e.g. 4,5,6,7,8,9,10" required>
       <button type="submit">Submit</button>
+      <button type="button" id="resetPlayedNumbers">Reset</button>
     </form>
 
     <form id="selectedModelForm">
       <label for="selectedModel">Enter Selected Model:</label>
       <input type="text" id="selectedModel" name="selectedModel" placeholder="e.g. all" required>
       <button type="submit">Submit</button>
+      <button type="button" id="resetSelectedModel">Reset</button>
     </form>
 
     <div id="result">Played numbers: ${selectedPlayedNumbers}</div>
@@ -216,19 +218,18 @@ app.get('/database/:folder', (req, res) => {
         const rawInput = document.getElementById('playedNumbers').value;
         const playedNumbersArray = rawInput.split(',').map(n => n.trim()).filter(n => n !== '');
 
-        const response = await fetch('/playedNumbers', {
+        await fetch('/playedNumbers', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playedNumbers: playedNumbersArray }),
         });
 
-        const text = await response.text();
-        document.getElementById('result').innerText = text;
         form.reset();
+        window.location.reload();
+      });
 
-        // Now reload the page (which will reload /database/:folder content)
+      document.getElementById('resetPlayedNumbers').addEventListener('click', async () => {
+        await fetch('/resetPlayedNumbers', { method: 'POST' });
         window.location.reload();
       });
     </script>
@@ -243,13 +244,16 @@ app.get('/database/:folder', (req, res) => {
 
         await fetch('/playedModel', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ selectedModel }),
         });
 
-        // Reload page to see updated content
+        modelForm.reset();
+        window.location.reload();
+      });
+
+      document.getElementById('resetSelectedModel').addEventListener('click', async () => {
+        await fetch('/resetSelectedModel', { method: 'POST' });
         window.location.reload();
       });
     </script>
@@ -639,6 +643,17 @@ app.post('/playedModel', (req, res) => {
   selectedModel = playedModel; 
 
   res.send('Selected model saved');
+});
+
+app.post('/resetPlayedNumbers', (req, res) => {
+
+  selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for Keno
+  res.send('Played numbers reset');
+});
+
+app.post('/resetSelectedModel', (req, res) => {
+  selectedModel = "all"; // To select with wich model's predictions is played
+  res.send('Selected model reset');
 });
 
 // Start the server
