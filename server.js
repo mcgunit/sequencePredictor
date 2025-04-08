@@ -10,7 +10,7 @@ const app = express();
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
-const selectedPlayedNumbers = 8; // To select played numbers  for Keno
+var selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for Keno
 
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
@@ -89,8 +89,8 @@ function calculateProfit(numbersPlayed, correctNumbers, game) {
 
   switch (game) {
     case "keno": {
-      if (payoutTableKeno[numbersPlayed]) {
-        if(payoutTableKeno[numbersPlayed][correctNumbers] && numbersPlayed == selectedPlayedNumbers) {
+      if (payoutTableKeno[numbersPlayed] && selectedPlayedNumbers.includes(numbersPlayed)) {
+        if(payoutTableKeno[numbersPlayed][correctNumbers]) {
           return payoutTableKeno[numbersPlayed][correctNumbers];
         } else {
           return payoutTableKeno["lost"]; // No profit 
@@ -183,7 +183,16 @@ app.get('/database/:folder', (req, res) => {
   // Sort months
   const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(a) - new Date(b));
 
-  let html = `<h1>JSON Files in ${folder}</h1>`;
+  let html = `<h1>Predictions in ${folder}</h1>`;
+  if(game == "keno") {
+    html += `
+    <form action="/playedNumbers" method="post">
+      <label for="playedNumber">Enter a Number:</label>
+      <input type="number" id="playedNumber" name="playedNumber" required>
+      <button type="submit">Submit</button>
+    </form>
+  `;
+  }
   html += '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Create rows with a maximum of 3 columns per row
@@ -521,6 +530,17 @@ app.get('/', (req, res) => {
   `;
 
   res.send(html);
+});
+
+app.post('/playedNumbers', (req, res) => {
+  const playedNumber = req.body.playedNumber;
+
+  if (!playedNumber) {
+    return res.status(400).send('No number provided.');
+  }
+
+  console.log(`Received played number: ${playedNumber}`);
+  res.send();
 });
 
 // Start the server
