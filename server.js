@@ -6,11 +6,17 @@ const config = require("./config");
 
 const app = express();
 
+// Middleware to parse form data
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // To parse JSON body
+
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
+
 var selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for Keno
+var selectedModel = "all"; // To select with wich model's predictions is played
 
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
@@ -56,7 +62,7 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
 
       if(title.includes("Current Prediction") && calcProfit) {
         const numbersPlayed = row.length;
-        const profit = calculateProfit(numbersPlayed, correctNumbers, game);
+        const profit = calculateProfit(numbersPlayed, correctNumbers, game, modelType);
         table += `<td style="padding: 5px; text-align: center; background: #f8f9fa;">${profit} €</td>`;
       }
       table += '</tr>';
@@ -67,7 +73,7 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
   return table;
 }
 
-function calculateProfit(numbersPlayed, correctNumbers, game) {
+function calculateProfit(numbersPlayed, correctNumbers, game, name) {
   // Define the Keno payout table
   const payoutTableKeno = {
     10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
@@ -89,7 +95,7 @@ function calculateProfit(numbersPlayed, correctNumbers, game) {
 
   switch (game) {
     case "keno": {
-      if (payoutTableKeno[numbersPlayed] && selectedPlayedNumbers.includes(numbersPlayed)) {
+      if (payoutTableKeno[numbersPlayed] && selectedPlayedNumbers.includes(numbersPlayed) && (selectedModel == "all" || selectedModel == name)) {
         if(payoutTableKeno[numbersPlayed][correctNumbers]) {
           return payoutTableKeno[numbersPlayed][correctNumbers];
         } else {
@@ -100,7 +106,7 @@ function calculateProfit(numbersPlayed, correctNumbers, game) {
       }
     }
     case "pick3": {
-      if (payoutTablePick3[numbersPlayed]) {
+      if (payoutTablePick3[numbersPlayed] && (selectedModel == "all" || selectedModel == name)) {
         if(payoutTablePick3[numbersPlayed][correctNumbers]) {
           return payoutTablePick3[numbersPlayed][correctNumbers];
         } else {
@@ -186,13 +192,70 @@ app.get('/database/:folder', (req, res) => {
   let html = `<h1>Predictions in ${folder}</h1>`;
   if(game == "keno") {
     html += `
-    <form action="/playedNumbers" method="post">
-      <label for="playedNumber">Enter a Number:</label>
-      <input type="number" id="playedNumber" name="playedNumber" required>
+    <form id="playedNumberForm">
+      <label for="playedNumbers">Enter Numbers (comma separated):</label>
+      <input type="text" id="playedNumbers" name="playedNumbers" placeholder="e.g. 4,5,6,7,8,9,10" required>
       <button type="submit">Submit</button>
     </form>
+
+    <form id="selectedModelForm">
+      <label for="selectedModel">Enter Selected Model:</label>
+      <input type="text" id="selectedModel" name="selectedModel" placeholder="e.g. all" required>
+      <button type="submit">Submit</button>
+    </form>
+
+    <div id="result">Played numbers: ${selectedPlayedNumbers}</div>
+    <div id="result">Played model: ${selectedModel}</div>
+
+    <script>
+      const form = document.getElementById('playedNumberForm');
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const rawInput = document.getElementById('playedNumbers').value;
+        const playedNumbersArray = rawInput.split(',').map(n => n.trim()).filter(n => n !== '');
+
+        const response = await fetch('/playedNumbers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ playedNumbers: playedNumbersArray }),
+        });
+
+        const text = await response.text();
+        document.getElementById('result').innerText = text;
+        form.reset();
+
+        // Now reload the page (which will reload /database/:folder content)
+        window.location.reload();
+      });
+    </script>
+
+    <script>
+      const modelForm = document.getElementById('selectedModelForm');
+
+      modelForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const selectedModel = document.getElementById('selectedModel').value;
+
+        await fetch('/playedModel', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ selectedModel }),
+        });
+
+        // Reload page to see updated content
+        window.location.reload();
+      });
+    </script>
   `;
   }
+
   html += '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Create rows with a maximum of 3 columns per row
@@ -212,7 +275,7 @@ app.get('/database/:folder', (req, res) => {
             let predictionProfit = 0;
             prediction.predictions.forEach((pred) => {
               const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-              predictionProfit += calculateProfit(pred.length, correctNumbers, game);
+              predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
             });
             return acc + predictionProfit;
           }, 0);
@@ -247,7 +310,7 @@ app.get('/database/:folder', (req, res) => {
             let predictionProfit = 0;
             prediction.predictions.forEach((pred) => {
               const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-              predictionProfit += calculateProfit(pred.length, correctNumbers, game);
+              predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
             });
             return acc + predictionProfit;
           }, 0);
@@ -416,6 +479,9 @@ app.get('/', (req, res) => {
           height: auto;
           max-height: 150px;
         }
+        body {
+         background-color: white;
+        }
         .save-btn {
           margin-top: 20px;
         }
@@ -532,15 +598,47 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-app.post('/playedNumbers', (req, res) => {
-  const playedNumber = req.body.playedNumber;
+app.use(express.json()); // To parse JSON bodies
 
-  if (!playedNumber) {
-    return res.status(400).send('No number provided.');
+app.post('/playedNumbers', (req, res) => {
+  let playedNumbers = req.body.playedNumbers;
+
+  if (!playedNumbers) {
+    return res.status(400).send('No numbers provided');
   }
 
-  console.log(`Received played number: ${playedNumber}`);
-  res.send();
+  // Ensure it's always an array
+  if (!Array.isArray(playedNumbers)) {
+    playedNumbers = [playedNumbers];
+  }
+
+  // Convert all values to Numbers
+  playedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
+
+  if (playedNumbers.length === 0) {
+    return res.status(400).send('Provided values are not valid numbers');
+  }
+
+  console.log('Received numbers:', playedNumbers);
+
+  selectedPlayedNumbers = playedNumbers;
+
+  res.send(`Played numbers: ${playedNumbers.join(', ')}`);
+});
+
+app.post('/playedModel', (req, res) => {
+  let body = req.body;
+  let playedModel = body.selectedModel || 'all'; 
+  console.log("played model: ", req.body);
+  if (!playedModel || typeof playedModel !== 'string') {
+    return res.status(400).send('Invalid selectedModel');
+  }
+
+  console.log('Received selectedModel:', playedModel);
+
+  selectedModel = playedModel; 
+
+  res.send('Selected model saved');
 });
 
 // Start the server
