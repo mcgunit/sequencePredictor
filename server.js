@@ -16,7 +16,7 @@ const modelsPath = path.join(__dirname, 'data', 'models');
 
 
 var selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for Keno
-var selectedModel = "all"; // To select with wich model's predictions is played
+var selectedModel = ["all"]; // To select with wich model's predictions is played
 
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
@@ -95,7 +95,7 @@ function calculateProfit(numbersPlayed, correctNumbers, game, name) {
 
   switch (game) {
     case "keno": {
-      if (payoutTableKeno[numbersPlayed] && selectedPlayedNumbers.includes(numbersPlayed) && (selectedModel == "all" || selectedModel == name)) {
+      if (payoutTableKeno[numbersPlayed] && selectedPlayedNumbers.includes(numbersPlayed) && (selectedModel.includes("all") || selectedModel.includes(name))) {
         if(payoutTableKeno[numbersPlayed][correctNumbers]) {
           return payoutTableKeno[numbersPlayed][correctNumbers];
         } else {
@@ -106,7 +106,7 @@ function calculateProfit(numbersPlayed, correctNumbers, game, name) {
       }
     }
     case "pick3": {
-      if (payoutTablePick3[numbersPlayed] && (selectedModel == "all" || selectedModel == name)) {
+      if (payoutTablePick3[numbersPlayed] && (selectedModel.includes("all") || selectedModel.includes(name))) {
         if(payoutTablePick3[numbersPlayed][correctNumbers]) {
           return payoutTablePick3[numbersPlayed][correctNumbers];
         } else {
@@ -201,7 +201,15 @@ app.get('/database/:folder', (req, res) => {
 
     <form id="selectedModelForm">
       <label for="selectedModel">Enter Selected Model:</label>
-      <input type="text" id="selectedModel" name="selectedModel" placeholder="e.g. all" required>
+      <select id="selectedModel" name="selectedModel(s)" multiple required>
+        <option value="all">all</option>
+        <option value="HybridStatisticalModel">HybridStatisticalModel</option>
+        <option value="LaplaceMonteCarlo Model">LaplaceMonteCarlo Model</option>
+        <option value="PoissonMarkov Model">PoissonMarkov Model</option>
+        <option value="PoissonMonteCarlo Model">PoissonMonteCarlo Model</option>
+        <option value="MarkovBayesian Model">MarkovBayesian Model</option>
+        <option value="Markov Model">Markov Model</option>
+      </select>
       <button type="submit">Submit</button>
       <button type="button" id="resetSelectedModel">Reset</button>
     </form>
@@ -240,12 +248,13 @@ app.get('/database/:folder', (req, res) => {
       modelForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
-        const selectedModel = document.getElementById('selectedModel').value;
+        const selectedOptions = Array.from(document.getElementById('selectedModel').selectedOptions);
+        const selectedModelsArray = selectedOptions.map(option => option.value);
 
         await fetch('/playedModel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selectedModel }),
+          body: JSON.stringify({ selectedModel: selectedModelsArray }),
         });
 
         modelForm.reset();
@@ -631,11 +640,10 @@ app.post('/playedNumbers', (req, res) => {
 });
 
 app.post('/playedModel', (req, res) => {
-  let body = req.body;
-  let playedModel = body.selectedModel || 'all'; 
-  console.log("played model: ", req.body);
-  if (!playedModel || typeof playedModel !== 'string') {
-    return res.status(400).send('Invalid selectedModel');
+  let playedModel = req.body.selectedModel;
+
+  if (!Array.isArray(playedModel)) {
+    playedModel = [playedModel];
   }
 
   console.log('Received selectedModel:', playedModel);
