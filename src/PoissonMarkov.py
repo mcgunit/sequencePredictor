@@ -52,27 +52,29 @@ class PoissonMarkov:
         unique_numbers = list(set(predicted_numbers))
 
         if len(unique_numbers) < nSubset:
-            return unique_numbers  # Fallback if not enough numbers
+            return sorted(map(int, unique_numbers))  # Ensure Python ints
 
         probabilities = np.linspace(1.0, 0.5, len(unique_numbers))
         probabilities /= probabilities.sum()
 
         best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
 
-        return sorted(map(int, best_subset))
+        return sorted(map(int, best_subset))  # Convert np.int64 to int
+
 
     def run(self, generateSubsets=[]):
         """Runs both models, blends predictions, and generates subsets if needed."""
-        poisson_numbers, _ = self.poisson_model.run()  # Extract only the first element
-        markov_numbers, _ = self.markov_model.run()  # Extract only the first element
+        self.poisson_model.setNumOfSimulations(100)
+        poisson_numbers, _ = self.poisson_model.run()
+        markov_numbers, _ = self.markov_model.run()
 
-        # Flatten nested lists if necessary
         if isinstance(poisson_numbers[0], list):
             poisson_numbers = [num for sublist in poisson_numbers for num in sublist]
         if isinstance(markov_numbers[0], list):
             markov_numbers = [num for sublist in markov_numbers for num in sublist]
 
         hybrid_predictions = self.blend_predictions(poisson_numbers, markov_numbers)
+        hybrid_predictions = list(map(int, hybrid_predictions))  # Ensure Python ints
 
         subsets = {}
         if generateSubsets:
@@ -80,13 +82,12 @@ class PoissonMarkov:
                 subsets[subset_size] = self.generate_best_subset(hybrid_predictions, subset_size)
 
         return hybrid_predictions, subsets
-
     
 
 if __name__ == "__main__":
     print("Running Hybrid Poisson-Markov Model")
 
-    hybrid_model = HybridPoissonMarkov()
+    hybrid_model = PoissonMarkov()
 
     name = 'keno'
     generateSubsets = []
