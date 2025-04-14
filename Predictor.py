@@ -11,6 +11,7 @@ from src.RefinemePrediction import RefinePrediction
 from src.TopPrediction import TopPrediction
 from src.Markov import Markov
 from src.MarkovBayesian import MarkovBayesian
+from src.MarkovBayesianEnhanched import MarkovBayesianEnhanced
 from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
@@ -25,6 +26,7 @@ refinePrediction = RefinePrediction()
 topPredictor = TopPrediction()
 markov = Markov()
 markovBayesian = MarkovBayesian()
+markovBayesianEnhanced = MarkovBayesianEnhanced()
 poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
 hybridStatisticalModel = HybridStatisticalModel()
@@ -480,6 +482,32 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         listOfDecodedPredictions.append(markovBayesianPrediction)
     except Exception as e:
         print("Failed to perform Markov Bayesian: ", e)
+
+    try:
+        # Markov Bayesian
+        print("Performing Markov Bayesian Enhanced Prediction")
+        markovBayesianEnhanced.setDataPath(dataPath)
+        markovBayesianEnhanced.setSoftMAxTemperature(0.1)
+        markovBayesianEnhanced.setAlpha(0.5)
+        markovBayesianEnhanced.clear()
+
+        markovBayesianEnhancedPrediction = {
+            "name": "MarkovBayesianEnhanched Model",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5, 6, 7, 8, 9, 10]
+
+        markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
+        markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
+        for key in markovBayesianSubsets:
+            markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
+
+        listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
+    except Exception as e:
+        print("Failed to perform Markov Bayesian Enhanced: ", e)
 
     try:
         # Poisson Distribution with Monte Carlo Analysis
