@@ -209,6 +209,7 @@ app.get('/database/:folder', (req, res) => {
         <option value="PoissonMonteCarlo Model">PoissonMonteCarlo Model</option>
         <option value="MarkovBayesian Model">MarkovBayesian Model</option>
         <option value="Markov Model">Markov Model</option>
+        <option value="MarkovBayesianEnhanched Model">MarkovBayesianEnhanched Model</option>
       </select>
       <button type="submit">Submit</button>
       <button type="button" id="resetSelectedModel">Reset</button>
