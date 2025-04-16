@@ -10,7 +10,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 class Helpers():
 
-    def getLatestPrediction(self, csvFile, dateRange=None):
+    def getLatestPrediction(self, csvPath, dateRange=None):
         """
             Get latest result from csv file.
             If dateRange is provided it will return a list containing multiple results
@@ -23,39 +23,41 @@ class Helpers():
         # Initialize an empty list to hold the data
         data = []
 
-        print(f"Getting latest prediction from file: {csvFile}")
+        print(f"Getting latest prediction from folder: {csvPath}")
         try:
-            # Construct full file path
-            file_path = csvFile
-            
-            # Load data from the file
-            csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
+            for csvFile in os.listdir(csvPath):
+                if csvFile.endswith(".csv"):
+                    # Construct full file path
+                    file_path = os.path.join(csvPath, csvFile)
+                    
+                    # Load data from the file
+                    csvData = np.genfromtxt(file_path, delimiter=';', dtype=str, skip_header=1)
 
-            if not isinstance(csvData[0], (list, np.ndarray)):
-                print("Need to reform loaded latest prediction data")
-                csvData = [csvData.tolist()]
+                    if not isinstance(csvData[0], (list, np.ndarray)):
+                        print("Need to reform loaded latest prediction data")
+                        csvData = [csvData.tolist()]
 
-            #print("CSV DATA: ", csvData)
-            
-            # Append each entry to the data list
-            for entry in csvData:
-                # Attempt to parse the date
-                date_str = entry[0]
-                try:
-                    # Use dateutil.parser to parse the date
-                    date = parse(date_str)
-                except Exception as e:
-                    print(f"Date parsing error for entry '{date_str}': {e}")
-                    continue  # Skip this entry if date parsing fails
-                
-                # Convert the rest to integers
-                try:
-                    numbers = list(map(int, entry[1:]))  # Convert the rest to integers
-                except ValueError as ve:
-                    print(f"Number conversion error for entry '{entry[1:]}': {ve}")
-                    continue  # Skip this entry if number conversion fails
-                
-                data.append((date, numbers))  # Store as a tuple (date, number1, number2, ...)
+                    #print("CSV DATA: ", csvData)
+                    
+                    # Append each entry to the data list
+                    for entry in csvData:
+                        # Attempt to parse the date
+                        date_str = entry[0]
+                        try:
+                            # Use dateutil.parser to parse the date
+                            date = parse(date_str)
+                        except Exception as e:
+                            print(f"Date parsing error for entry '{date_str}': {e}")
+                            continue  # Skip this entry if date parsing fails
+                        
+                        # Convert the rest to integers
+                        try:
+                            numbers = list(map(int, entry[1:]))  # Convert the rest to integers
+                        except ValueError as ve:
+                            print(f"Number conversion error for entry '{entry[1:]}': {ve}")
+                            continue  # Skip this entry if number conversion fails
+                        
+                        data.append((date, numbers))  # Store as a tuple (date, number1, number2, ...)
 
         except Exception as e:
             print(f"Error processing file {csvFile}: {e}")
@@ -253,8 +255,8 @@ class Helpers():
 
         # Remove the last n elements in case of history building
         if skipRows > 0:
-            print("Skipping Rows: ", skipRows)
-            print("Length of data before skipping rows: ", len(numbers))
+            #print("Skipping Rows: ", skipRows)
+            #print("Length of data before skipping rows: ", len(numbers))
             numbers = numbers[:-skipRows]
             
     
@@ -297,7 +299,7 @@ class Helpers():
         # Number of classes (the unique labels we have after one-hot encoding)
         num_classes = one_hot_labels.shape[2] 
 
-        print("Num classes: ", num_classes)
+        #print("Num classes: ", num_classes)
 
         # Prepare training and validation sets
         train_indices = [i for i in range(len(numbers)) if i % nth_row != 0]  # Indices for training data
@@ -306,21 +308,21 @@ class Helpers():
         train_data = numbers[train_indices]
         val_data = numbers[val_indices]
 
-        print("length of train data: ", len(train_data))
-        print("length of val_data: ", len(val_data))
+        #print("length of train data: ", len(train_data))
+        #print("length of val_data: ", len(val_data))
 
         train_labels = one_hot_labels[train_indices]
         val_labels = one_hot_labels[val_indices]
 
-        print("Train data shape: ", train_data.shape)       # (samples, sequence_length) -> (n_samples, 7)
-        print("Train labels shape: ", train_labels.shape)   # (samples, sequence
+        #print("Train data shape: ", train_data.shape)       # (samples, sequence_length) -> (n_samples, 7)
+        #print("Train labels shape: ", train_labels.shape)   # (samples, sequence
 
         #print("Train Labels Example:", train_labels[:5])  # Corresponding one-hot encoded labels
 
         # Get the maximum value in the data (for scaling purposes, if needed)
         max_value = np.max(numbers)
 
-        print("Length of data: ", len(numbers))
+        #print("Length of data: ", len(numbers))
 
         return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels
 

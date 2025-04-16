@@ -47,7 +47,7 @@ def print_intro():
 
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, monthsToRebuild=1):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, monthsToRebuild=1, ai=False):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -60,6 +60,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param maxRows: The maximum number of rows to use
         @param years_back: The number of years to go back
         @param monthsToRebuild: The number of months to rebuild
+        @param ai: To use ai tech to do predictions
     """
 
     modelToUse = tcn
@@ -78,7 +79,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
     command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
     # Get the latest result out of the latest data so we can use it to check the previous prediction
-    latestEntry, previousEntry = helpers.getLatestPrediction(os.path.join(dataPath, file))
+    latestEntry, previousEntry = helpers.getLatestPrediction(dataPath)
     if latestEntry is not None:
         latestDate, latestResult = latestEntry
 
@@ -140,28 +141,34 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                     print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
 
-                    # Train and do a new prediction
-                    modelToUse.setModelPath(modelPath)
-                    modelToUse.setBatchSize(16)
-                    modelToUse.setEpochs(1000)
-                    latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
-                    
-                    predictedSequence = latest_raw_predictions.tolist()
+                    listOfDecodedPredictions = []
+                    unique_labels = []
+
+                    if ai:
+                        # Train and do a new prediction
+                        modelToUse.setModelPath(modelPath)
+                        modelToUse.setBatchSize(16)
+                        modelToUse.setEpochs(1000)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        
+                        predictedSequence = latest_raw_predictions.tolist()
+
+                
+                        # Save the current prediction as newPrediction
+                        current_json_object["newPredictionRaw"] = predictedSequence
+                        current_json_object["labels"] = unique_labels.tolist()
 
             
-                    # Save the current prediction as newPrediction
-                    current_json_object["newPredictionRaw"] = predictedSequence
-                    current_json_object["labels"] = unique_labels.tolist()
-
-                    listOfDecodedPredictions = []
-
-                    listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
+                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
+                    else:
+                        _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
+                        unique_labels = unique_labels.tolist()
 
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath)
+                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath, ai)
 
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
@@ -175,7 +182,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                 print(f"No previous prediction file found, Cannot compare. Recreating {monthsToRebuild} month of history")
 
                 # Check if there is not a gap or so
-                historyData = helpers.getLatestPrediction(os.path.join(dataPath, file), dateRange=monthsToRebuild)
+                historyData = helpers.getLatestPrediction(dataPath, dateRange=monthsToRebuild)
                 #print("History data: ", historyData)
 
                 dateOffset = len(historyData)-1 # index of list entry
@@ -244,35 +251,45 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                             print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
 
-
-                        # Train and do a new prediction
-                        modelToUse.setDataPath(dataPath)
-                        
-                        modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
-
-                        predictedSequence = latest_raw_predictions.tolist()
-                        unique_labels = unique_labels.tolist()
-
                         listOfDecodedPredictions = []
-                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
+                        unique_labels = []
+
+                        if ai:
+                            # Train and do a new prediction
+                            modelToUse.setDataPath(dataPath)
+                            
+                            modelToUse.setModelPath(modelPath)
+                            modelToUse.setBatchSize(16)
+                            modelToUse.setEpochs(1000)
+                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
+
+                            predictedSequence = latest_raw_predictions.tolist()
+                            unique_labels = unique_labels.tolist()
+
+                            listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
                 
-                        # Save the current prediction as newPrediction
-                        current_json_object["newPredictionRaw"] = predictedSequence
+                            # Save the current prediction as newPrediction
+                            current_json_object["newPredictionRaw"] = predictedSequence
+                        else:
+                            _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
+                            unique_labels = unique_labels.tolist()
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
                         
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai)
 
                         current_json_object["newPrediction"] = listOfDecodedPredictions
                         current_json_object["labels"] = unique_labels
 
+                        #print("current_json_object: ", current_json_object)
+
                         # store the decoded and refined predictions
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
+
+                        
+
                     else:
                         # The previous file should be created at index 0
 
@@ -310,25 +327,31 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                         print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
 
-                        # Train and do a new prediction
-                        modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
-
-                        predictedSequence = latest_raw_predictions.tolist()
-
-                        # Save the current prediction as newPrediction
-                        current_json_object["newPredictionRaw"] = predictedSequence
-                        current_json_object["labels"] = unique_labels.tolist()
-                        
                         listOfDecodedPredictions = []
-                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
+                        unique_labels = []
+
+                        if ai:
+                            # Train and do a new prediction
+                            modelToUse.setModelPath(modelPath)
+                            modelToUse.setBatchSize(16)
+                            modelToUse.setEpochs(1000)
+                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
+
+                            predictedSequence = latest_raw_predictions.tolist()
+
+                            # Save the current prediction as newPrediction
+                            current_json_object["newPredictionRaw"] = predictedSequence
+                            current_json_object["labels"] = unique_labels.tolist()
+                        
+                            listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
+                        else:
+                            _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
+                            unique_labels = unique_labels.tolist()
 
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
 
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath)
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai)
 
                         # store the decoded and refined predictions
                         current_json_object["newPrediction"] = listOfDecodedPredictions
@@ -360,7 +383,7 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
     return listOfDecodedPredictions
 
 
-def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath):
+def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai):
     #####################
     # Start refinements #
     #####################
@@ -368,68 +391,69 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     num_classes = len(unique_labels)
     numbersLength = len(historyResult)
     
-    try:
-        # Refine predictions
-        print("Refine predictions")
-        refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    if ai:
+        try:
+            # Refine predictions
+            print("Refine predictions")
+            refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+            refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
 
-        #print("refined_prediction_raw: ", refined_prediction_raw)
-        refinedPredictions = {
-            "name": "LSTM Refined Model",
-            "predictions": []
-        }
+            #print("refined_prediction_raw: ", refined_prediction_raw)
+            refinedPredictions = {
+                "name": "LSTM Refined Model",
+                "predictions": []
+            }
 
-        for i in range(2):
-            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-            refinedPredictions["predictions"].append(prediction_highest_indices)
+            for i in range(2):
+                prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+                #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+                refinedPredictions["predictions"].append(prediction_highest_indices)
 
-        listOfDecodedPredictions.append(refinedPredictions)
-    except Exception as e:
-        print("Was not able to run refine prediction model: ", e)
+            listOfDecodedPredictions.append(refinedPredictions)
+        except Exception as e:
+            print("Was not able to run refine prediction model: ", e)
 
-    try:
-        # Top prediction
-        print("Performing a Top Prediction")
-        topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+        try:
+            # Top prediction
+            print("Performing a Top Prediction")
+            topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+            top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+            topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
 
-        topPrediction = {
-            "name": "LSTM Top Predictor",
-            "predictions": []
-        }
+            topPrediction = {
+                "name": "LSTM Top Predictor",
+                "predictions": []
+            }
 
-        # Print Top prediction
-        for i, prediction in enumerate(topPrediction):
-            topHighestProbPrediction = [int(num) for num in prediction]
-            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-            topPrediction["predictions"].append(topHighestProbPrediction)
-        
-        listOfDecodedPredictions.append(topPrediction)
-    except Exception as e:
-        print("Was not able to run top prediction model: ", e)
+            # Print Top prediction
+            for i, prediction in enumerate(topPrediction):
+                topHighestProbPrediction = [int(num) for num in prediction]
+                #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+                topPrediction["predictions"].append(topHighestProbPrediction)
+            
+            listOfDecodedPredictions.append(topPrediction)
+        except Exception as e:
+            print("Was not able to run top prediction model: ", e)
 
-    try:
-        # Arima prediction
-        print("Performing ARIMA Prediction")
-        lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
-        lstmArima.setDataPath(dataPath)
-        lstmArima.setBatchSize(8)
-        lstmArima.setEpochs(1000)
+        try:
+            # Arima prediction
+            print("Performing ARIMA Prediction")
+            lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
+            lstmArima.setDataPath(dataPath)
+            lstmArima.setBatchSize(8)
+            lstmArima.setEpochs(1000)
 
-        arimaPrediction = {
-            "name": "ARIMA Model",
-            "predictions": []
-        }
+            arimaPrediction = {
+                "name": "ARIMA Model",
+                "predictions": []
+            }
 
-        predicted_arima_sequence = lstmArima.run(name)
-        arimaPrediction["predictions"].append(predicted_arima_sequence)
-        listOfDecodedPredictions.append(arimaPrediction)
+            predicted_arima_sequence = lstmArima.run(name)
+            arimaPrediction["predictions"].append(predicted_arima_sequence)
+            listOfDecodedPredictions.append(arimaPrediction)
 
-    except Exception as e:
-        print("Failed to perform ARIMA: ", e)
+        except Exception as e:
+            print("Failed to perform ARIMA: ", e)
     
     try:
         # Markov
@@ -484,7 +508,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Failed to perform Markov Bayesian: ", e)
 
     try:
-        # Markov Bayesian
+        # Markov Bayesian Enhanced
         print("Performing Markov Bayesian Enhanced Prediction")
         markovBayesianEnhanced.setDataPath(dataPath)
         markovBayesianEnhanced.setSoftMAxTemperature(0.1)
@@ -513,7 +537,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Poisson Distribution with Monte Carlo Analysis
         print("Performing Poisson Monte Carlo Prediction")
         poissonMonteCarlo.setDataPath(dataPath)
-        poissonMonteCarlo.setNumOfSimulations(5000)
+        poissonMonteCarlo.setNumOfSimulations(1000)
         poissonMonteCarlo.setWeightFactor(0.1)
         poissonMonteCarlo.clear()
 
@@ -541,6 +565,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Poisson-Markov Prediction")
         poissonMarkov.setDataPath(dataPath)
         poissonMarkov.setWeights(poisson_weight=0.5, markov_weight=0.5)
+        poissonMarkov.setNumberOfSimulations(1000)
 
         poissonMarkovPrediction = {
             "name": "PoissonMarkov Model",
@@ -632,7 +657,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-m', '--months', type=int, default=1)
+    parser.add_argument('-m', '--months', type=int, default=6)
     args = parser.parse_args()
 
     print_intro()
@@ -648,16 +673,16 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
-        ("euromillions", "tcn_model", 0),
-        ("lotto", "lstm_model", 0),
-        ("eurodreams", "lstm_model", 0),
-        #("jokerplus", "lstm_model", 1),
-        ("keno", "lstm_model", 0),
-        ("pick3", "lstm_model", 0),
-        ("vikinglotto", "lstm_model", 0),
+        #("euromillions", "tcn_model", 0, False),
+        #("lotto", "lstm_model", 0, False),
+        #("eurodreams", "lstm_model", 0, False),
+        #("jokerplus", "lstm_model", 1, False),
+        ("keno", "lstm_model", 0, False),
+        #("pick3", "lstm_model", 0, False),
+        #("vikinglotto", "lstm_model", 0, False),
     ]
 
-    for dataset_name, model_type, skip_last_columns in datasets:
+    for dataset_name, model_type, skip_last_columns, ai in datasets:
         try:
             print(f"\n{dataset_name.capitalize()}")
             modelPath = os.path.join(path, "data", "models", model_type)
@@ -665,13 +690,13 @@ if __name__ == "__main__":
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
             # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, monthsToRebuild=monthsToRebuild)
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, monthsToRebuild=monthsToRebuild, ai=ai)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, monthsToRebuild=monthsToRebuild)
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, monthsToRebuild=monthsToRebuild, ai=ai)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, monthsToRebuild=monthsToRebuild)
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, monthsToRebuild=monthsToRebuild, ai=ai)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
@@ -681,10 +706,10 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to generate txt file:", e)
 
-    try:
-        helpers.git_push()
-    except Exception as e:
-        print("Failed to push latest predictions:", e)
+    # try:
+    #     helpers.git_push()
+    # except Exception as e:
+    #     print("Failed to push latest predictions:", e)
     
     
 

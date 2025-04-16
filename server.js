@@ -117,7 +117,8 @@ function calculateProfit(numbersPlayed, correctNumbers, game, name) {
       }
     }
     default:
-      return 0; // Don't calculate profit for other games
+
+      return `${correctNumbers}/${numbersPlayed}`; // Don't calculate profit but give the ratio for other games
   }
 
 }
@@ -165,7 +166,7 @@ app.get('/database/:folder', (req, res) => {
   if (!fs.existsSync(folderPath)) {
     return res.status(404).send('Folder not found');
   }
-
+  
   if (folder.includes("keno")) {
     calcProfit = true;
     game = "keno";
@@ -173,6 +174,7 @@ app.get('/database/:folder', (req, res) => {
     calcProfit = true;
     game = "pick3";
   }
+  
 
   const files = fs.readdirSync(folderPath)
     .filter((file) => file.endsWith('.json'));
@@ -278,23 +280,42 @@ app.get('/database/:folder', (req, res) => {
     for (let j = i; j < i + 3 && j < sortedMonths.length; j++) {
       const month = sortedMonths[j];
       let monthTotalProfit = 0;
+      let monthHighestRatio = `0/0`; // numbersCorrect/numbersPlayed
+      let highestCorrectNumbers = 0;
 
       // Calculate total profit for the month
       filesByMonth[month].forEach((file) => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
-        if (calcProfit && jsonData.currentPrediction) {
-          monthTotalProfit += jsonData.currentPrediction.reduce((acc, prediction) => {
-            let predictionProfit = 0;
-            prediction.predictions.forEach((pred) => {
-              const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-              predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
-            });
-            return acc + predictionProfit;
-          }, 0);
-        }
+        if (jsonData.currentPrediction) {
+          if(calcProfit) {
+            monthTotalProfit += jsonData.currentPrediction.reduce((acc, prediction) => {
+              let predictionProfit = 0;
+              prediction.predictions.forEach((pred) => {
+                const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+                predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
+              });
+              return acc + predictionProfit;
+            }, 0);
+          } else {
+            //console.log(jsonData.currentPrediction)
+            if(Array.isArray(jsonData.currentPrediction) && jsonData.currentPrediction.length > 0) {
+              jsonData.currentPrediction.forEach((prediction) => {
+                prediction.predictions.forEach((pred) => {
+                  const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+                  if(correctNumbers > highestCorrectNumbers) {
+                    highestCorrectNumbers = correctNumbers;
+                    monthHighestRatio = `${highestCorrectNumbers}/${pred.length}`
+                  }
+                });
+              });
+            }
+          }
+        } 
       });
+
+      //console.log("highest month match: ", monthHighestRatio)
 
       let profitColor = 'white';
       if (monthTotalProfit > 0) {
@@ -303,9 +324,15 @@ app.get('/database/:folder', (req, res) => {
         profitColor = 'red';
       }
 
-      html += `<th style="padding: 5px; text-align: center; background: #333; color: white;">
-        ${month}<br><span style="color: ${profitColor};">Total Profit: ${monthTotalProfit} €</span>
-      </th>`;
+      if(game.includes("keno") || game.includes("pick3")) {
+        html += `<th style="padding: 5px; text-align: center; background: #333; color: white;">
+          ${month}<br><span style="color: ${profitColor};">Total Profit: ${monthTotalProfit} €</span>
+        </th>`;
+      } else {
+        html += `<th style="padding: 5px; text-align: center; background: #333; color: white;">
+          ${month}<br><span style="color: ${profitColor};">Highest matching number: ${monthHighestRatio}</span>
+        </th>`;
+      }
     }
     html += '</tr><tr>';
     for (let j = i; j < i + 3 && j < sortedMonths.length; j++) {
@@ -319,16 +346,34 @@ app.get('/database/:folder', (req, res) => {
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 
         let totalProfit = 0;
-        if (calcProfit && jsonData.currentPrediction) {
-          totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
-            let predictionProfit = 0;
-            prediction.predictions.forEach((pred) => {
-              const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-              predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
-            });
-            return acc + predictionProfit;
-          }, 0);
-        }
+        let dayHighestRatio = `0/0`; // numbersCorrect/numbersPlayed
+        let highestCorrectNumbers = 0;
+
+        if (jsonData.currentPrediction) {
+          if(calcProfit) {
+            totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
+              let predictionProfit = 0;
+              prediction.predictions.forEach((pred) => {
+                const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+                predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
+              });
+              return acc + predictionProfit;
+            }, 0);
+          } else {
+            //console.log(jsonData.currentPrediction)
+            if(Array.isArray(jsonData.currentPrediction) && jsonData.currentPrediction.length > 0) {
+              jsonData.currentPrediction.forEach((prediction) => {
+                prediction.predictions.forEach((pred) => {
+                  const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+                  if(correctNumbers > highestCorrectNumbers) {
+                    highestCorrectNumbers = correctNumbers;
+                    dayHighestRatio = `${highestCorrectNumbers}/${pred.length}`
+                  }
+                });
+              });
+            }
+          }
+        } 
 
         let profitColor = 'orange';
         if (totalProfit > 0) {
@@ -337,12 +382,22 @@ app.get('/database/:folder', (req, res) => {
           profitColor = 'red';
         }
 
-        html += `<li>
-          <form action="/database/${folder}/${file}" method="get" style="display: inline;">
-            <button type="submit">${file}</button>
-          </form>
-          <span style="color: ${profitColor};">Profit: ${totalProfit} €</span>
-        </li>`;
+        if(game.includes("keno") || game.includes("pick3")) {
+          html += `<li>
+            <form action="/database/${folder}/${file}" method="get" style="display: inline;">
+              <button type="submit">${file}</button>
+            </form>
+            <span style="color: ${profitColor};">Profit: ${totalProfit} €</span>
+          </li>`;
+        } else {
+          html += `<li>
+            <form action="/database/${folder}/${file}" method="get" style="display: inline;">
+              <button type="submit">${file}</button>
+            </form>
+            <span style="color: ${profitColor};">Matching: ${dayHighestRatio} </span>
+          </li>`;
+        }
+        
       });
       html += '</ul>';
       html += '</td>';

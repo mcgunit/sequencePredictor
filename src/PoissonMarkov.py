@@ -32,57 +32,69 @@ class PoissonMarkov:
         self.poisson_weight = poisson_weight / total
         self.markov_weight = markov_weight / total
 
+    def setNumberOfSimulations(self, n_simulations):
+        self.poisson_model.setNumOfSimulations(n_simulations)
+
     def blend_predictions(self, poisson_numbers, markov_numbers, n_predictions=20):
         """Blend predictions from both models using weighted probability selection."""
         combined_counts = {}
 
         for num in poisson_numbers:
+            num = int(num)
             combined_counts[num] = combined_counts.get(num, 0) + self.poisson_weight
 
         for num in markov_numbers:
+            num = int(num)
             combined_counts[num] = combined_counts.get(num, 0) + self.markov_weight
 
         # Sort numbers based on combined probabilities
         sorted_numbers = sorted(combined_counts, key=combined_counts.get, reverse=True)
 
-        return sorted_numbers[:n_predictions]  # Select top numbers
+        return [int(num) for num in sorted_numbers[:n_predictions]]  # Ensure Python ints
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a subset using probability-based selection."""
-        unique_numbers = list(set(predicted_numbers))
+        unique_numbers = list(set(int(num) for num in predicted_numbers))
 
         if len(unique_numbers) < nSubset:
-            return sorted(map(int, unique_numbers))  # Ensure Python ints
+            return sorted(unique_numbers)  # Already native ints
 
         probabilities = np.linspace(1.0, 0.5, len(unique_numbers))
         probabilities /= probabilities.sum()
 
         best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
 
-        return sorted(map(int, best_subset))  # Convert np.int64 to int
-
+        return sorted(int(num) for num in best_subset)
 
     def run(self, generateSubsets=[]):
         """Runs both models, blends predictions, and generates subsets if needed."""
-        self.poisson_model.setNumOfSimulations(100)
+        self.poisson_model.clear()
+        self.markov_model.clear()
         poisson_numbers, _ = self.poisson_model.run()
+        #print("poisson numbers: ", poisson_numbers)
         markov_numbers, _ = self.markov_model.run()
+        #print("markov numbers: ", markov_numbers)
 
+        # Flatten if returned as nested lists
         if isinstance(poisson_numbers[0], list):
-            poisson_numbers = [num for sublist in poisson_numbers for num in sublist]
+            poisson_numbers = [int(num) for sublist in poisson_numbers for num in sublist]
+        else:
+            poisson_numbers = [int(num) for num in poisson_numbers]
+
         if isinstance(markov_numbers[0], list):
-            markov_numbers = [num for sublist in markov_numbers for num in sublist]
+            markov_numbers = [int(num) for sublist in markov_numbers for num in sublist]
+        else:
+            markov_numbers = [int(num) for num in markov_numbers]
 
         hybrid_predictions = self.blend_predictions(poisson_numbers, markov_numbers)
-        hybrid_predictions = list(map(int, hybrid_predictions))  # Ensure Python ints
 
         subsets = {}
         if generateSubsets:
+            print("Creating subsets of: ", generateSubsets)
             for subset_size in generateSubsets:
                 subsets[subset_size] = self.generate_best_subset(hybrid_predictions, subset_size)
 
         return hybrid_predictions, subsets
-    
 
 if __name__ == "__main__":
     print("Running Hybrid Poisson-Markov Model")
@@ -95,7 +107,7 @@ if __name__ == "__main__":
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
     hybrid_model.setDataPath(dataPath)
-    hybrid_model.setWeights(poisson_weight=0.6, markov_weight=0.4) 
+    hybrid_model.setWeights(poisson_weight=0.6, markov_weight=0.4)
 
     if "keno" in name:
         generateSubsets = [6, 7]

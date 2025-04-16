@@ -44,7 +44,7 @@ class PoissonMonteCarlo():
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a unique subset using weighted probability selection."""
-        unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure standard integers
+        unique_numbers = list(set(int(x) for x in predicted_numbers))
 
         if len(unique_numbers) < nSubset:
             return unique_numbers  # Fallback if not enough numbers
@@ -65,6 +65,7 @@ class PoissonMonteCarlo():
         for i, draw in enumerate(numbers):
             weight = self.recent_weight_factor if i >= total_draws - self.recent_draws else 1.0
             for pos, num in enumerate(draw):
+                num = int(num)
                 self.position_frequencies[pos][num] += weight
         
         # Compute Poisson lambda per position
@@ -96,7 +97,7 @@ class PoissonMonteCarlo():
                     predicted_numbers.add(num)
                     break  # Move to the next position
 
-        return [int(num) for num in sorted(predicted_numbers)]  
+        return sorted([int(num) for num in predicted_numbers]) 
     
     def run(self, generateSubsets=[]):
         """
@@ -106,6 +107,7 @@ class PoissonMonteCarlo():
         generateSubset is an array to generate subsets of numbers, e.g., [6, 7] creates subsets of 6 and 7 numbers.
         """
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
+        numbers = [[int(num) for num in draw] for draw in numbers]
 
         self.setRecentDraws(max(self.recent_draws, len(numbers)))
 
