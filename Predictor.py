@@ -1,5 +1,6 @@
 import os, argparse, json
 import numpy as np
+import subprocess
 
 from art import text2art
 from datetime import datetime
@@ -645,6 +646,30 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
 
 if __name__ == "__main__":
+
+    try:
+        cmd = ['pgrep', '-f', 'python.*Predictor.py']
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        my_pid, err = process.communicate()
+
+        if err:
+            print(f"Error running pgrep: {err.decode('utf-8')}")
+
+        pid_list = my_pid.decode('utf-8').strip().splitlines()
+        num_pids = len(pid_list)
+
+        if num_pids >= 2:
+            print("Multiple instances running. Exiting.")
+            exit()
+        else:
+            print("Not enough instances running. Continuing.")
+
+    except Exception as e:
+        print(f"Failed to check if running: {e}")
+
+    except Exception as e:
+        print(f"Failed to check if running: {e}")
+
     try:
         helpers.git_pull()
     except Exception as e:
