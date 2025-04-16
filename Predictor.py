@@ -537,7 +537,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Poisson Distribution with Monte Carlo Analysis
         print("Performing Poisson Monte Carlo Prediction")
         poissonMonteCarlo.setDataPath(dataPath)
-        poissonMonteCarlo.setNumOfSimulations(1000)
+        poissonMonteCarlo.setNumOfSimulations(100)
         poissonMonteCarlo.setWeightFactor(0.1)
         poissonMonteCarlo.clear()
 
@@ -565,7 +565,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Poisson-Markov Prediction")
         poissonMarkov.setDataPath(dataPath)
         poissonMarkov.setWeights(poisson_weight=0.5, markov_weight=0.5)
-        poissonMarkov.setNumberOfSimulations(1000)
+        poissonMarkov.setNumberOfSimulations(100)
 
         poissonMarkovPrediction = {
             "name": "PoissonMarkov Model",
@@ -591,7 +591,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Laplace Distribution with Monte Carlo Analysis
         print("Performing Laplace Monte Carlo Prediction")
         laplaceMonteCarlo.setDataPath(dataPath)
-        laplaceMonteCarlo.setNumOfSimulations(5000)
+        laplaceMonteCarlo.setNumOfSimulations(100)
         laplaceMonteCarlo.clear()
 
         laplaceMonteCarloPrediction = {
@@ -619,7 +619,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         hybridStatisticalModel.setSoftMaxTemperature(0.1)
         hybridStatisticalModel.setAlpha(0.5)
         hybridStatisticalModel.setMinOccurrences(5)
-        hybridStatisticalModel.setNumberOfSimulations(5000)
+        hybridStatisticalModel.setNumberOfSimulations(100)
         hybridStatisticalModel.clear()
 
         hybridStatisticalModelPrediction = {
@@ -672,14 +672,14 @@ if __name__ == "__main__":
     path = os.getcwd()
 
     datasets = [
-        # (dataset_name, model_type, skip_last_columns)
-        #("euromillions", "tcn_model", 0, False),
-        #("lotto", "lstm_model", 0, False),
-        #("eurodreams", "lstm_model", 0, False),
+        # (dataset_name, model_type, skip_last_columns, ai)
+        ("euromillions", "tcn_model", 0, True),
+        ("lotto", "lstm_model", 0, True),
+        ("eurodreams", "lstm_model", 0, True),
         #("jokerplus", "lstm_model", 1, False),
         ("keno", "lstm_model", 0, False),
-        #("pick3", "lstm_model", 0, False),
-        #("vikinglotto", "lstm_model", 0, False),
+        ("pick3", "lstm_model", 0, False),
+        ("vikinglotto", "lstm_model", 0, False),
     ]
 
     for dataset_name, model_type, skip_last_columns, ai in datasets:
@@ -695,6 +695,9 @@ if __name__ == "__main__":
             # Predict for current year
             predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, monthsToRebuild=monthsToRebuild, ai=ai)
 
+            # Predict for current year + last year
+            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, monthsToRebuild=monthsToRebuild, ai=ai)
+
             # Predict for current year + last two years
             predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, monthsToRebuild=monthsToRebuild, ai=ai)
 
@@ -706,10 +709,10 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to generate txt file:", e)
 
-    # try:
-    #     helpers.git_push()
-    # except Exception as e:
-    #     print("Failed to push latest predictions:", e)
+    try:
+        helpers.git_push()
+    except Exception as e:
+        print("Failed to push latest predictions:", e)
     
     
 
