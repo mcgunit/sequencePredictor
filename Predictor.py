@@ -662,10 +662,7 @@ if __name__ == "__main__":
             print("Multiple instances running. Exiting.")
             exit()
         else:
-            print("Not enough instances running. Continuing.")
-
-    except Exception as e:
-        print(f"Failed to check if running: {e}")
+            print("No instances running. Continuing.")
 
     except Exception as e:
         print(f"Failed to check if running: {e}")
