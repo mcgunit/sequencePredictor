@@ -482,31 +482,32 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     except Exception as e:
         print("Failed to perform Markov Bayesian: ", e)
 
-    try:
-        # Markov Bayesian Enhanced
-        print("Performing Markov Bayesian Enhanced Prediction")
-        markovBayesianEnhanced.setDataPath(dataPath)
-        markovBayesianEnhanced.setSoftMAxTemperature(0.1)
-        markovBayesianEnhanced.setAlpha(0.5)
-        markovBayesianEnhanced.clear()
+    if not "pick3" in name:
+        try:
+            # Markov Bayesian Enhanced
+            print("Performing Markov Bayesian Enhanced Prediction")
+            markovBayesianEnhanced.setDataPath(dataPath)
+            markovBayesianEnhanced.setSoftMAxTemperature(0.1)
+            markovBayesianEnhanced.setAlpha(0.5)
+            markovBayesianEnhanced.clear()
 
-        markovBayesianEnhancedPrediction = {
-            "name": "MarkovBayesianEnhanched Model",
-            "predictions": []
-        }
+            markovBayesianEnhancedPrediction = {
+                "name": "MarkovBayesianEnhanched Model",
+                "predictions": []
+            }
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            subsets = []
+            if "keno" in name:
+                subsets = [5, 6, 7, 8, 9, 10]
 
-        markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
-        markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
-        for key in markovBayesianSubsets:
-            markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
+            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
+            markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
+            for key in markovBayesianSubsets:
+                markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
 
-        listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
-    except Exception as e:
-        print("Failed to perform Markov Bayesian Enhanced: ", e)
+            listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
+        except Exception as e:
+            print("Failed to perform Markov Bayesian Enhanced: ", e)
 
     try:
         # Poisson Distribution with Monte Carlo Analysis
