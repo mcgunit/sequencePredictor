@@ -705,15 +705,15 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
 
-    try:
-        helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
-    except Exception as e:
-        print("Failed to generate txt file:", e)
+    # try:
+    #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
+    # except Exception as e:
+    #     print("Failed to generate txt file:", e)
 
-    try:
-        helpers.git_push()
-    except Exception as e:
-        print("Failed to push latest predictions:", e)
+    # try:
+    #     helpers.git_push()
+    # except Exception as e:
+    #     print("Failed to push latest predictions:", e)
     
     
 
