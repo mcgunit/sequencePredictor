@@ -1,1 +1,304 @@
-{"currentPredictionRaw": [[1.8903308955486864e-05, 3.626115301358368e-07, 0.0, 5.9479829360498115e-05, 5.4277495697641195e-25, 2.062716317197122e-14, 0.0, 0.9999212026596069, 1.0863237943971585e-30, 0.0], [2.3062193577061407e-05, 3.083476372012228e-07, 0.0, 7.69766847952269e-05, 5.148353772581336e-25, 1.2567083943035469e-14, 0.0, 0.9998996257781982, 5.151919175427972e-29, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]], "currentPrediction": [{"name": "LSTM Base Model", "predictions": [[7, 3, 5], [3, 0, 9]]}, {"name": "LSTM Refined Model", "predictions": [[6, 1, 4], [4, 1, 5]]}, {"name": "ARIMA Model", "predictions": [[4, 6, 4]]}, {"name": "Markov Model", "predictions": [[8, 2, 6]]}, {"name": "MarkovBayesian Model", "predictions": [[0, 1, 5]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[0, 2, 8]]}, {"name": "LaplaceMonteCarlo Model", "predictions": [[4, 5, 5]]}, {"name": "HybridStatisticalModel", "predictions": [[7, 5, 0]]}], "realResult": [2, 5, 3], "newPrediction": [{"name": "LSTM Base Model", "predictions": [[7, 3, 5], [3, 0, 9]]}, {"name": "LSTM Refined Model", "predictions": [[1, 4, 2], [2, 3, 4]]}, {"name": "ARIMA Model", "predictions": [[4, 6, 4]]}, {"name": "Markov Model", "predictions": [[9, 4, 5]]}, {"name": "MarkovBayesian Model", "predictions": [[0, 2, 4]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[1, 3, 6]]}, {"name": "LaplaceMonteCarlo Model", "predictions": [[3, 4, 5]]}, {"name": "HybridStatisticalModel", "predictions": [[4, 7, 8]]}], "newPredictionRaw": [[4.9828663577500265e-06, 5.82478094202088e-07, 0.0, 5.983039045531768e-06, 2.972093467996178e-32, 1.874955074350677e-17, 0.0, 0.9999884366989136, 1.8183198650541865e-35, 0.0], [6.126987955212826e-06, 4.945664500155544e-07, 0.0, 8.295010047731921e-06, 8.793912176751904e-33, 6.299630942143079e-18, 0.0, 0.9999850988388062, 1.943815090934997e-33, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]], "matchingNumbers": {"model": "LSTM Base Model", "prediction": [7, 3, 5], "matching_numbers": [3, 5], "match_count": 2}, "labels": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "numberFrequency": {"6": 0.10003636033087901, "4": 0.1013089719116444, "1": 0.10012726115807653, "0": 0.10212707935642214, "5": 0.09894555040450868, "3": 0.09771838923734207, "2": 0.10112717025724934, "8": 0.100809017362058, "7": 0.09794564130533588, "9": 0.09985455867648396}}
+{
+  "currentPredictionRaw": [
+    [
+      1.8903308955486864e-05,
+      3.626115301358368e-07,
+      0.0,
+      5.9479829360498115e-05,
+      5.4277495697641195e-25,
+      2.062716317197122e-14,
+      0.0,
+      0.9999212026596069,
+      1.0863237943971585e-30,
+      0.0
+    ],
+    [
+      2.3062193577061407e-05,
+      3.083476372012228e-07,
+      0.0,
+      7.69766847952269e-05,
+      5.148353772581336e-25,
+      1.2567083943035469e-14,
+      0.0,
+      0.9998996257781982,
+      5.151919175427972e-29,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "currentPrediction": [
+    {
+      "name": "LSTM Base Model",
+      "predictions": [
+        [
+          7,
+          3,
+          5
+        ],
+        [
+          3,
+          0,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "LSTM Refined Model",
+      "predictions": [
+        [
+          6,
+          1,
+          4
+        ],
+        [
+          4,
+          1,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "ARIMA Model",
+      "predictions": [
+        [
+          4,
+          6,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          8,
+          2,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          1,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          2,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          7,
+          5,
+          0
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    2,
+    5,
+    3
+  ],
+  "newPrediction": [
+    {
+      "name": "LSTM Base Model",
+      "predictions": [
+        [
+          7,
+          3,
+          5
+        ],
+        [
+          3,
+          0,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "LSTM Refined Model",
+      "predictions": [
+        [
+          1,
+          4,
+          2
+        ],
+        [
+          2,
+          3,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "ARIMA Model",
+      "predictions": [
+        [
+          4,
+          6,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          9,
+          4,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          2,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          1,
+          3,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          4,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          4,
+          7,
+          8
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [
+    [
+      4.9828663577500265e-06,
+      5.82478094202088e-07,
+      0.0,
+      5.983039045531768e-06,
+      2.972093467996178e-32,
+      1.874955074350677e-17,
+      0.0,
+      0.9999884366989136,
+      1.8183198650541865e-35,
+      0.0
+    ],
+    [
+      6.126987955212826e-06,
+      4.945664500155544e-07,
+      0.0,
+      8.295010047731921e-06,
+      8.793912176751904e-33,
+      6.299630942143079e-18,
+      0.0,
+      0.9999850988388062,
+      1.943815090934997e-33,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "matchingNumbers": {
+    "model": "LSTM Base Model",
+    "prediction": [
+      7,
+      3,
+      5
+    ],
+    "matching_numbers": [
+      3,
+      5
+    ],
+    "match_count": 2
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "6": 0.10003636033087901,
+    "4": 0.1013089719116444,
+    "1": 0.10012726115807653,
+    "0": 0.10212707935642214,
+    "5": 0.09894555040450868,
+    "3": 0.09771838923734207,
+    "2": 0.10112717025724934,
+    "8": 0.100809017362058,
+    "7": 0.09794564130533588,
+    "9": 0.09985455867648396
+  }
+}

@@ -1,1 +1,30 @@
-{"currentPredictionRaw": [[6.363658421663443e-33, 4.853108067112082e-32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 3.9011401576346393e-19], [1.0, 6.128371261324947e-19, 0.0, 2.3063869487961546e-22, 9.823858571598244e-28, 5.743290688056482e-21, 1.226142321997458e-37, 3.146982047673382e-27, 2.1657200338642824e-11, 2.2222538500670968e-32], [1.9844439425042992e-09, 6.436863623093814e-05, 0.0, 0.9999356269836426, 3.294463924403228e-20, 1.746475278849649e-13, 0.0, 2.0666725275564346e-10, 7.637695272240397e-13, 4.350896255645678e-25]], "currentPrediction": [{"name": "LSTM Base Model", "predictions": [[8, 0, 3], [9, 8, 1]]}, {"name": "LSTM Refined Model", "predictions": [[7, 8, 2], [0, 5, 3]]}, {"name": "ARIMA Model", "predictions": [[4, 6, 4]]}, {"name": "Markov Model", "predictions": [[1, 6, 7]]}, {"name": "MarkovBayesian Model", "predictions": [[0, 2, 3]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[2, 5, 6]]}, {"name": "LaplaceMonteCarlo Model", "predictions": [[4, 5, 5]]}, {"name": "HybridStatisticalModel", "predictions": [[8, 3, 6]]}], "realResult": [0, 4, 1], "newPrediction": [], "newPredictionRaw": [], "matchingNumbers": {"model": "LSTM Base Model", "prediction": [8, 0, 3], "matching_numbers": [0], "match_count": 1}, "labels": [], "numberFrequency": {"3": 0.09767610748002904, "1": 0.10012708787218591, "5": 0.09881082062454612, "7": 0.09812999273783587, "9": 0.0999001452432825, "0": 0.10216957153231664, "2": 0.10108024691358025, "6": 0.10003631082062454, "4": 0.10126180101670297, "8": 0.10080791575889615}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [],
+  "realResult": [
+    0,
+    4,
+    1
+  ],
+  "newPrediction": [],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
+  },
+  "labels": [],
+  "numberFrequency": {
+    "3": 0.09767610748002904,
+    "1": 0.10012708787218591,
+    "5": 0.09881082062454612,
+    "7": 0.09812999273783587,
+    "9": 0.0999001452432825,
+    "0": 0.10216957153231664,
+    "2": 0.10108024691358025,
+    "6": 0.10003631082062454,
+    "4": 0.10126180101670297,
+    "8": 0.10080791575889615
+  }
+}

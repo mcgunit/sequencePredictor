@@ -435,6 +435,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(0.1)
+        markov.setMinOccurrences(10)
+        markov.setAlpha(0.7)
         markov.clear()
 
         markovPrediction = {
@@ -461,7 +463,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Markov Bayesian Prediction")
         markovBayesian.setDataPath(dataPath)
         markovBayesian.setSoftMAxTemperature(0.1)
-        markovBayesian.setAlpha(0.5)
+        markovBayesian.setAlpha(0.7)
+        markovBayesian.setMinOccurrences(10)
         markovBayesian.clear()
 
         markovBayesianPrediction = {
@@ -488,7 +491,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             print("Performing Markov Bayesian Enhanced Prediction")
             markovBayesianEnhanced.setDataPath(dataPath)
             markovBayesianEnhanced.setSoftMAxTemperature(0.1)
-            markovBayesianEnhanced.setAlpha(0.5)
+            markovBayesianEnhanced.setAlpha(0.7)
+            markovBayesianEnhanced.setMinOccurrences(10)
             markovBayesianEnhanced.clear()
 
             markovBayesianEnhancedPrediction = {
@@ -513,7 +517,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Poisson Distribution with Monte Carlo Analysis
         print("Performing Poisson Monte Carlo Prediction")
         poissonMonteCarlo.setDataPath(dataPath)
-        poissonMonteCarlo.setNumOfSimulations(100)
+        poissonMonteCarlo.setNumOfSimulations(1000)
         poissonMonteCarlo.setWeightFactor(0.1)
         poissonMonteCarlo.clear()
 
@@ -540,8 +544,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Poisson-Markov Distribution
         print("Performing Poisson-Markov Prediction")
         poissonMarkov.setDataPath(dataPath)
-        poissonMarkov.setWeights(poisson_weight=0.5, markov_weight=0.5)
-        poissonMarkov.setNumberOfSimulations(100)
+        poissonMarkov.setWeights(poisson_weight=0.3, markov_weight=0.7)
+        poissonMarkov.setNumberOfSimulations(1000)
 
         poissonMarkovPrediction = {
             "name": "PoissonMarkov Model",
@@ -567,7 +571,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Laplace Distribution with Monte Carlo Analysis
         print("Performing Laplace Monte Carlo Prediction")
         laplaceMonteCarlo.setDataPath(dataPath)
-        laplaceMonteCarlo.setNumOfSimulations(100)
+        laplaceMonteCarlo.setNumOfSimulations(1000)
         laplaceMonteCarlo.clear()
 
         laplaceMonteCarloPrediction = {
@@ -593,9 +597,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Hybrid Statistical Model Prediction")
         hybridStatisticalModel.setDataPath(dataPath)
         hybridStatisticalModel.setSoftMaxTemperature(0.1)
-        hybridStatisticalModel.setAlpha(0.5)
-        hybridStatisticalModel.setMinOccurrences(5)
-        hybridStatisticalModel.setNumberOfSimulations(100)
+        hybridStatisticalModel.setAlpha(0.7)
+        hybridStatisticalModel.setMinOccurrences(10)
+        hybridStatisticalModel.setNumberOfSimulations(1000)
         hybridStatisticalModel.clear()
 
         hybridStatisticalModelPrediction = {
@@ -654,7 +658,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-m', '--months', type=int, default=1)
+    parser.add_argument('-m', '--months', type=int, default=3)
     args = parser.parse_args()
 
     print_intro()
