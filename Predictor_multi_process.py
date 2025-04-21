@@ -327,7 +327,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     for historyIndex, historyEntry in enumerate(reversedHistory)
                 ]
 
-                with Pool(processes=min(cpu_count(), len(argsList))) as pool:
+                with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
                     results = pool.map(process_single_history_entry, argsList)
 
                 print("Finished multiprocessing rebuild of history entries.")
@@ -463,7 +463,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         print("Performing Markov Bayesian Prediction")
         markovBayesian.setDataPath(dataPath)
         markovBayesian.setSoftMAxTemperature(0.1)
-        markovBayesian.setAlpha(0.7)
+        markovBayesian.setAlpha(0.3)
         markovBayesian.setMinOccurrences(10)
         markovBayesian.clear()
 
