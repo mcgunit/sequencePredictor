@@ -56,7 +56,7 @@ class Markov():
         blended_probs = self.blended_probability({int(num): 1 for num in unique_numbers}, self.number_frequencies)
 
         # Sort numbers based on probability values
-        sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(int(x), 0), reverse=True)
+        sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(int(x), 0), reverse=False)
 
         # Select the top `nSubset` numbers
         best_subset = sorted(map(int, sorted_numbers[:nSubset]))

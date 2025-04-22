@@ -17,7 +17,7 @@ class Helpers():
             If dateRange is None (default) it will return the current and previous result
 
             @param csvFile: The csv file to get the latest prediction from
-            @param dateRange: The numbers of months to get the predictions from
+            @param dateRange: The numbers of days to get the predictions from
             
         """
         # Initialize an empty list to hold the data
@@ -82,7 +82,7 @@ class Helpers():
             else:
                 data.sort(key=lambda x: x[0], reverse=False)  # Sort in ascending order
                 # Calculate the cutoff date based on the dateRange
-                cutoff_date = datetime.now() - relativedelta(months=dateRange)
+                cutoff_date = datetime.now() - relativedelta(days=dateRange)
                 #print("Cutoff date: ", cutoff_date)
                 # Filter data to include only entries within the date range
                 filtered_data = [entry for entry in data if entry[0] >= cutoff_date]

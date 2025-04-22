@@ -156,7 +156,7 @@ def process_single_history_entry(args):
 
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, monthsToRebuild=1, ai=False):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -168,7 +168,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param skipLastColumns: The number of columns to skip
         @param maxRows: The maximum number of rows to use
         @param years_back: The number of years to go back
-        @param monthsToRebuild: The number of months to rebuild
+        @param daysToRebuild: The number of days to rebuild
         @param ai: To use ai tech to do predictions
     """
 
@@ -288,13 +288,11 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     #return predictedSequence
                 
             if doNewPrediction:
-                print(f"No previous prediction file found, Cannot compare. Recreating {monthsToRebuild} month of history")
+                print(f"No previous prediction file found, Cannot compare. Recreating {daysToRebuild} days of history")
 
                 # Check if there is not a gap or so
-                historyData = helpers.getLatestPrediction(dataPath, dateRange=monthsToRebuild)
+                historyData = helpers.getLatestPrediction(dataPath, dateRange=daysToRebuild)
                 #print("History data: ", historyData)
-
-                exit()
 
                 dateOffset = len(historyData)-1 # index of list entry
 
@@ -438,7 +436,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(0.1)
         markov.setMinOccurrences(10)
-        markov.setAlpha(0.7)
+        markov.setAlpha(0.3)
         markov.clear()
 
         markovPrediction = {
@@ -660,7 +658,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-m', '--months', type=int, default=6)
+    parser.add_argument('-d', '--days', type=int, default=14)
     args = parser.parse_args()
 
     print_intro()
@@ -668,7 +666,7 @@ if __name__ == "__main__":
     current_year = datetime.now().year
     print("Current Year:", current_year)
 
-    monthsToRebuild = int(args.months)
+    daysToRebuild = int(args.days)
     rebuildHistory = bool(args.rebuild_history)
 
 
@@ -693,16 +691,16 @@ if __name__ == "__main__":
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
             # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year + last year
-            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
