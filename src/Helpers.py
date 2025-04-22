@@ -37,7 +37,7 @@ class Helpers():
                         print("Need to reform loaded latest prediction data")
                         csvData = [csvData.tolist()]
 
-                    #print("CSV DATA: ", csvData)
+                    #print("Reading CSV: ", csvFile)
                     
                     # Append each entry to the data list
                     for entry in csvData:
@@ -62,6 +62,8 @@ class Helpers():
         except Exception as e:
             print(f"Error processing file {csvFile}: {e}")
 
+        #print("Data: ", data)
+
         # If data is not empty, find the most recent entry
         if data:
             if dateRange is None:
@@ -78,10 +80,13 @@ class Helpers():
                     latest_entry = data[0]  # Get the most recent entry
                     return (latest_entry, previous_entry)  # Return the most recent entry
             else:
+                data.sort(key=lambda x: x[0], reverse=False)  # Sort in ascending order
                 # Calculate the cutoff date based on the dateRange
                 cutoff_date = datetime.now() - relativedelta(months=dateRange)
+                #print("Cutoff date: ", cutoff_date)
                 # Filter data to include only entries within the date range
                 filtered_data = [entry for entry in data if entry[0] >= cutoff_date]
+                #print("Filtered data: ", filtered_data)
                 return filtered_data
         else:
             print("No data found.")

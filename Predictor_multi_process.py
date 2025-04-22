@@ -294,6 +294,8 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                 historyData = helpers.getLatestPrediction(dataPath, dateRange=monthsToRebuild)
                 #print("History data: ", historyData)
 
+                exit()
+
                 dateOffset = len(historyData)-1 # index of list entry
 
                 print("Date to start from: ", historyData[dateOffset])
@@ -658,7 +660,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-m', '--months', type=int, default=1)
+    parser.add_argument('-m', '--months', type=int, default=6)
     args = parser.parse_args()
 
     print_intro()
