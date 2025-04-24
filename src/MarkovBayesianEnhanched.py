@@ -119,7 +119,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
 
         subsets = {}
         if generateSubsets:
-            print("Creating subsets of:", generateSubsets)
+            # print("Creating subsets of:", generateSubsets)
             for subset_size in generateSubsets:
                 best = self.generate_best_subset(combined_predictions, subset_size)
                 subsets[subset_size] = [int(n) for n in best]

@@ -191,7 +191,7 @@ class MarkovBayesian():
         # Generate subsets if requested
         subsets = {}
         if generateSubsets:
-            print("Creating subsets of:", generateSubsets)
+            # print("Creating subsets of:", generateSubsets)
             for subset_size in generateSubsets:
                 subsets[subset_size] = self.generate_best_subset(combined_predictions, subset_size)
 

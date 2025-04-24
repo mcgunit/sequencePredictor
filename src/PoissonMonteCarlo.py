@@ -118,7 +118,7 @@ class PoissonMonteCarlo():
 
         subsets = {}
         if generateSubsets:
-            print("Creating subsets of: ", generateSubsets)
+            # print("Creating subsets of: ", generateSubsets)
             for nPredictions in generateSubsets:
                 subsets[nPredictions] = self.generate_best_subset(predicted_numbers, nPredictions)
 

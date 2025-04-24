@@ -162,7 +162,7 @@ class Markov():
 
         subsets = {}
         if generateSubsets:
-            print("Creating subsets of:", generateSubsets)
+            #print("Creating subsets of:", generateSubsets)
             for subset_size in generateSubsets:
                 subsets[subset_size] = self.generate_best_subset(predicted_numbers, subset_size)
 

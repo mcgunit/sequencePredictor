@@ -404,7 +404,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     
     try:
         # Markov
-        print("Performing Markov Prediction")
+        # print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
         markov.setSoftMAxTemperature(modelParams["markovSoftMaxTemperature"])
         markov.setMinOccurrences(modelParams["markovMinOccurences"])
@@ -684,7 +684,7 @@ if __name__ == "__main__":
             study = optuna.create_study(direction='maximize')
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=5)
+            study.optimize(objective, n_trials=10)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
