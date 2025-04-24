@@ -1,6 +1,7 @@
 import os, argparse, json
 import numpy as np
 import subprocess
+import optuna
 
 from art import text2art
 from datetime import datetime
@@ -39,16 +40,16 @@ helpers = Helpers()
 
 def print_intro():
     # Generate ASCII art with the text "LSTM"
-    ascii_art = text2art("Predictor")
+    ascii_art = text2art("Predictor Hyperopt")
     # Print the introduction and ASCII art
     print("============================================================")
-    print("Predictor")
+    print("Predictor Hyperopt")
     print("Licence : MIT License")
     print(ascii_art)
-    print("Prediction artificial intelligence")
+    print("Find best parameters for Predictor")
 
 def update_matching_numbers(name, path):
-    json_dir = os.path.join(path, "data", "database", name)
+    json_dir = os.path.join(path, "data", "hyperOptCache", name)
     if not os.path.exists(json_dir):
         print(f"Directory does not exist: {json_dir}")
         return
@@ -92,12 +93,12 @@ def update_matching_numbers(name, path):
 
 def process_single_history_entry(args):
     (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-     skipLastColumns, years_back, ai, previousJsonFilePath, path) = args
+     skipLastColumns, years_back, ai, previousJsonFilePath, path, modelParams) = args
 
     modelToUse = tcn if "lstm_model" not in model_type else lstm
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
-    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+    jsonFilePath = os.path.join(path, "data", "hyperOptCache", name, jsonFileName)
 
     current_json_object = {
         "currentPredictionRaw": [],
@@ -133,7 +134,7 @@ def process_single_history_entry(args):
         predictedSequence = latest_raw_predictions.tolist()
         unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
+        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2, modelParams)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -144,7 +145,7 @@ def process_single_history_entry(args):
 
     listOfDecodedPredictions = secondStage(
         listOfDecodedPredictions, dataPath, path, name, historyResult,
-        unique_labels, jsonFilePath, ai)
+        unique_labels, jsonFilePath, ai, modelParams)
 
     current_json_object["newPrediction"] = listOfDecodedPredictions
     current_json_object["labels"] = unique_labels
@@ -154,9 +155,52 @@ def process_single_history_entry(args):
 
     return jsonFilePath
 
+def calculate_profit(name, path):
+    json_dir = os.path.join(path, "data", "hyperOptCache", name)
+    if not os.path.exists(json_dir):
+        print(f"Directory does not exist: {json_dir}")
+        return
+
+    payoutTableKeno = {
+        10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
+        9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
+        8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
+        7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
+        6: { 3: 1, 4: 4, 5: 20, 6: 200 },
+        5: { 3: 2, 4: 5, 5: 150 },
+        4: { 2: 1, 3: 2, 4: 30 },
+        3: { 2: 1, 3: 16 },
+        2: { 2: 6.50 },
+        "lost": -1
+    }
+
+    total_profit = 0
+
+    for filename in os.listdir(json_dir):
+        if filename.endswith(".json"):
+            filepath = os.path.join(json_dir, filename)
+            with open(filepath, "r") as file:
+                data = json.load(file)
+
+                real_result = set(data.get("realResult", []))
+                model_predictions = data.get("currentPrediction", [])
+
+                for model in model_predictions:
+                    for prediction in model["predictions"]:
+                        played = len(prediction)
+                        if played < 4 or played > 10:
+                            continue
+
+                        matches = len(set(prediction) & real_result)
+                        profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
+                        total_profit += profit
+    
+    return total_profit
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False):
+
+
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, modelParams={}):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -192,158 +236,86 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
     if latestEntry is not None:
         latestDate, latestResult = latestEntry
 
-        
+        folderPath = os.path.join(path, "data", "hyperOptCache", name)
+
         jsonFileName = f"{latestDate.year}-{latestDate.month}-{latestDate.day}.json"
         #print(jsonFileName, ":", latestResult)
-        jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+        jsonFilePath = os.path.join(folderPath, jsonFileName)
 
         # Check if folder exists
-        if not os.path.exists(os.path.join(path, "data", "database", name)):
-            os.makedirs(os.path.join(path, "data", "database", name), exist_ok=True)
+        if not os.path.exists(folderPath):
+            os.makedirs(folderPath, exist_ok=True)
+        else:
+            # Clear the hyperOptCache
+            for filename in os.listdir(folderPath):
+                file_path = os.path.join(folderPath, filename)
+            
+                if os.path.isfile(file_path):
+                    os.remove(file_path)  
+                    #print(f"Deleted file: {filename}")
 
 
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
-            print("New result detected. Lets compare with a prediction from previous entry")
 
-            current_json_object = {
-                "currentPredictionRaw": [],
-                "currentPrediction": [],
-                "realResult": latestResult,
-                "newPrediction": [],      # Decoded prediction with help of labels
-                "newPredictionRaw": [],   # Raw prediction that contains the statistical data
-                "matchingNumbers": {},
-                "labels": [],             # Needed for decoding the raw predictions
-                "numberFrequency": helpers.count_number_frequencies(dataPath)
-            }
+            print(f"Hyperopt -> Recreating {daysToRebuild} days of history")
 
-            doNewPrediction = True
+            # Check if there is not a gap or so
+            historyData = helpers.getLatestPrediction(dataPath, dateRange=daysToRebuild)
+            #print("History data: ", historyData)
 
-            # First find the json file containing the prediction for this result
-            if previousEntry is not None:
-                previousDate, previousResult = previousEntry
-                jsonPreviousFileName = f"{previousDate.year}-{previousDate.month}-{previousDate.day}.json"
-                print(jsonPreviousFileName, ":", latestResult)
-                jsonPreviousFilePath = os.path.join(path, "data", "database", name, jsonPreviousFileName)
-                print(jsonPreviousFilePath)
-                if os.path.exists(jsonPreviousFilePath):
-                    doNewPrediction = False
-                    print("previous json file found lets compare")
-                    # Opening JSON file
-                    with open(jsonPreviousFilePath, 'r') as openfile:
-                    
-                        # Reading from json file
-                        previous_json_object = json.load(openfile)
-                    
-                    #print(previous_json_object)
-                    #print(type(previous_json_object))
+            dateOffset = len(historyData)-1 # index of list entry
 
-                    # The current prediction is the new prediction from the previous one
-                    current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
-                    current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+            print("Date to start from: ", historyData[dateOffset])
 
-                    # Check on prediction with nth highest probability
-                    print("find matching numbers")
-                    best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
+            previousJsonFilePath = ""
 
-                    current_json_object["matchingNumbers"] = best_matching_prediction
-
-                    print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
-
-                    listOfDecodedPredictions = []
-                    unique_labels = []
-
-                    if ai:
-                        # Train and do a new prediction
-                        modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
-                        
-                        predictedSequence = latest_raw_predictions.tolist()
-
-                
-                        # Save the current prediction as newPrediction
-                        current_json_object["newPredictionRaw"] = predictedSequence
-                        current_json_object["labels"] = unique_labels.tolist()
-
+            # Search for existing history
+            for index, historyEntry in enumerate(historyData):
+                entryDate = historyEntry[0]
+                entryResult = historyEntry[1]
+                jsonFileName = f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json"
+                #print(jsonFileName, ":", entryResult)
+                jsonFilePath = os.path.join(path, "data", "hyperOptCache", name, jsonFileName)
+                #print("Does file exist: ", os.path.exists(jsonFilePath))
+                if os.path.exists(jsonFilePath):
+                    dateOffset = index
+                    previousJsonFilePath = jsonFilePath
+                    break
             
-                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
-                    else:
-                        _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
-                        unique_labels = unique_labels.tolist()
+            # Remove all elements starting from dateOffset index
+            #print("Date offset: ", dateOffset)
+            historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index                
+            #print("History to rebuild: ", historyData)
 
+            # Now lets iterate in reversed order to start with the older entries
+            reversedHistory = list(reversed(historyData))
 
-                    with open(jsonFilePath, "w+") as outfile:
-                        json.dump(current_json_object, outfile)
-                    
-                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath, ai)
+            argsList = [
+                (historyIndex, historyEntry, reversedHistory, name, model_type, dataPath,
+                modelPath, skipLastColumns, years_back, ai, previousJsonFilePath, path, modelParams)
+                for historyIndex, historyEntry in enumerate(reversedHistory)
+            ]
 
+            with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
+                results = pool.map(process_single_history_entry, argsList)
 
-                    current_json_object["newPrediction"] = listOfDecodedPredictions
+            print("Finished multiprocessing rebuild of history entries.")
 
-                    with open(jsonFilePath, "w+") as outfile:
-                        json.dump(current_json_object, outfile)
+            # Find the matching numbers
+            update_matching_numbers(name=name, path=path)
 
-                    #return predictedSequence
-                
-            if doNewPrediction:
-                print(f"No previous prediction file found, Cannot compare. Recreating {daysToRebuild} days of history")
+            # Calculate Profit
+            profit =  calculate_profit(name=name, path=path)
 
-                # Check if there is not a gap or so
-                historyData = helpers.getLatestPrediction(dataPath, dateRange=daysToRebuild)
-                #print("History data: ", historyData)
-
-                dateOffset = len(historyData)-1 # index of list entry
-
-                print("Date to start from: ", historyData[dateOffset])
-
-                previousJsonFilePath = ""
-
-                # Search for existing history
-                for index, historyEntry in enumerate(historyData):
-                    entryDate = historyEntry[0]
-                    entryResult = historyEntry[1]
-                    jsonFileName = f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json"
-                    #print(jsonFileName, ":", entryResult)
-                    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
-                    #print("Does file exist: ", os.path.exists(jsonFilePath))
-                    if os.path.exists(jsonFilePath):
-                        dateOffset = index
-                        previousJsonFilePath = jsonFilePath
-                        break
-                
-                # Remove all elements starting from dateOffset index
-                #print("Date offset: ", dateOffset)
-                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index                
-                #print("History to rebuild: ", historyData)
-
-                # Now lets iterate in reversed order to start with the older entries
-                reversedHistory = list(reversed(historyData))
-
-                argsList = [
-                    (historyIndex, historyEntry, reversedHistory, name, model_type, dataPath,
-                    modelPath, skipLastColumns, years_back, ai, previousJsonFilePath, path)
-                    for historyIndex, historyEntry in enumerate(reversedHistory)
-                ]
-
-                with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
-                    results = pool.map(process_single_history_entry, argsList)
-
-                print("Finished multiprocessing rebuild of history entries.")
-
-                # Find the matching numbers
-                update_matching_numbers(name=name, path=path)
-                
-
-                #return predictedSequence
+            return profit
         else:
             print("Prediction already made")
     else:
         print("Did not found entries")
 
 
-def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions):
+def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, modelParams):
     nthPredictions = {
         "name": "LSTM Base Model",
         "predictions": []
@@ -358,11 +330,11 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
     return listOfDecodedPredictions
 
 
-def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai):
+def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, modelParams):
     #####################
     # Start refinements #
     #####################
-    jsonDirPath = os.path.join(path, "data", "database", name)
+    jsonDirPath = os.path.join(path, "data", "hyperOptCache", name)
     num_classes = len(unique_labels)
     numbersLength = len(historyResult)
     
@@ -434,9 +406,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov
         print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(0.3)
-        markov.setMinOccurrences(10)
-        markov.setAlpha(0.7)
+        markov.setSoftMAxTemperature(modelParams["markovSoftMaxTemperature"])
+        markov.setMinOccurrences(modelParams["markovMinOccurences"])
+        markov.setAlpha(modelParams["markovAlpha"])
         markov.clear()
 
         markovPrediction = {
@@ -458,6 +430,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     except Exception as e:
         print("Failed to perform Markov: ", e)
 
+    """
     try:
         # Markov Bayesian
         print("Performing Markov Bayesian Prediction")
@@ -619,7 +592,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
     except Exception as e:
         print("Failed to perform Hybrid Statistical Model: ", e)
-
+    """
 
     return listOfDecodedPredictions
 
@@ -674,13 +647,13 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns, ai)
-        ("euromillions", "tcn_model", 0, False),
-        ("lotto", "lstm_model", 0, False),
-        ("eurodreams", "lstm_model", 0, False),
+        #("euromillions", "tcn_model", 0, False),
+        #("lotto", "lstm_model", 0, False),
+        #("eurodreams", "lstm_model", 0, False),
         #("jokerplus", "lstm_model", 1, False),
         ("keno", "lstm_model", 0, False),
-        ("pick3", "lstm_model", 0, False),
-        ("vikinglotto", "lstm_model", 0, False),
+        #("pick3", "lstm_model", 0, False),
+        #("vikinglotto", "lstm_model", 0, False),
     ]
 
     for dataset_name, model_type, skip_last_columns, ai in datasets:
@@ -691,22 +664,40 @@ if __name__ == "__main__":
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
             # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
+            #predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai)
+            #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year + last year
-            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai)
+            def objective(trial):
+                modelParams = {
+                    'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.5),
+                    'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
+                    'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.5)
+                }
+                profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)
+                #print("Profit: ", profit)
+                return profit
+
+            # Create an Optuna study object
+            study = optuna.create_study(direction='maximize')
+
+            # Run the automatic tuning process
+            study.optimize(objective, n_trials=5)
+
+            # Output the best hyperparameters and score
+            print("Best Parameters: ", study.best_params)
+            print("Best Score: ", study.best_value)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
+            #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
 
         except Exception as e:
-            print(f"Failed to predict {dataset_name.capitalize()}: {e}")
+            print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 
     # try:
-    #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
+    #     helpers.generatePredictionTextFile(os.path.join(path, "data", "hyperOptCache"))
     # except Exception as e:
     #     print("Failed to generate txt file:", e)
 
