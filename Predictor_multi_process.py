@@ -327,13 +327,19 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     for historyIndex, historyEntry in enumerate(reversedHistory)
                 ]
 
-                with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
-                    results = pool.map(process_single_history_entry, argsList)
+                #print("Argslist: ", len(argsList))
 
-                print("Finished multiprocessing rebuild of history entries.")
+                if len(argsList) > 0:
+                    #print("Numbers of cpu needed: ", min(cpu_count() - 1, len(argsList)))
+                    with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
+                        results = pool.map(process_single_history_entry, argsList)
 
-                # Find the matching numbers
-                update_matching_numbers(name=name, path=path)
+                    print("Finished multiprocessing rebuild of history entries.")
+
+                    # Find the matching numbers
+                    update_matching_numbers(name=name, path=path)
+                else:
+                    print("No entries to process for: ", name)
                 
 
                 #return predictedSequence
@@ -434,9 +440,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov
         print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(0.3)
-        markov.setMinOccurrences(10)
-        markov.setAlpha(0.7)
+        markov.setSoftMAxTemperature(0.32081463925483866) # Determined with hyperopt
+        markov.setMinOccurrences(6) # Determined with hyperopt
+        markov.setAlpha(0.1752327077833425) # Determined with hyperopt
         markov.clear()
 
         markovPrediction = {

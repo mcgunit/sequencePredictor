@@ -675,14 +675,23 @@ if __name__ == "__main__":
 
             # Predict for current year + last year
             def objective(trial):
+                numOfRepeats = 3 # To average out the rusults before continueing to the next result
+                totalProfit = 0
+                results = [] # Intermediate results
+
                 modelParams = {
                     'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.5),
                     'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
                     'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.5)
                 }
-                profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)
-                #print("Profit: ", profit)
-                return profit
+                for _ in range(numOfRepeats):
+                    profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)
+                    #print("Profit: ", profit)
+                    results.append(profit)
+
+                totalProfit = sum(results) / len(results)
+                
+                return totalProfit
 
             # Create an Optuna study object
             study = optuna.create_study(direction='maximize')
