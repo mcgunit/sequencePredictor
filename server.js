@@ -526,6 +526,7 @@ app.get('/', (req, res) => {
           border: 1px solid #ddd;
           border-radius: 5px;
           padding: 10px;
+          background-color: white;
         }
         .folder-title {
           cursor: pointer;
@@ -537,6 +538,7 @@ app.get('/', (req, res) => {
         .folder-content {
           display: none;
           margin-top: 10px;
+          background-color: white;
         }
         .charts-grid {
           display: grid;
@@ -547,6 +549,7 @@ app.get('/', (req, res) => {
           width: 100%;
           height: auto;
           max-height: 150px;
+          background-color: white;
         }
         body {
          background-color: white;
