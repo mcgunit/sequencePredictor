@@ -690,14 +690,14 @@ if __name__ == "__main__":
                     results.append(profit)
 
                 totalProfit = sum(results) / len(results)
-                
+
                 return totalProfit
 
             # Create an Optuna study object
             study = optuna.create_study(direction='maximize')
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=1000)
+            study.optimize(objective, n_trials=50)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
