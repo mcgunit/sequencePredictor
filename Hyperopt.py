@@ -198,7 +198,16 @@ def calculate_profit(name, path):
     return total_profit
 
 
-
+def clearFolder(folderPath):
+    try:
+        for filename in os.listdir(folderPath):
+            file_path = os.path.join(folderPath, filename)
+        
+            if os.path.isfile(file_path):
+                os.remove(file_path)  
+                #print(f"Deleted file: {filename}")
+    except Exception as e:
+        pass
 
 def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, modelParams={}):
     """
@@ -247,12 +256,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             os.makedirs(folderPath, exist_ok=True)
         else:
             # Clear the hyperOptCache
-            for filename in os.listdir(folderPath):
-                file_path = os.path.join(folderPath, filename)
-            
-                if os.path.isfile(file_path):
-                    os.remove(file_path)  
-                    #print(f"Deleted file: {filename}")
+            clearFolder(folderPath)
 
 
         # Compare the latest result with the previous new prediction
@@ -684,11 +688,13 @@ if __name__ == "__main__":
             study = optuna.create_study(direction='maximize')
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=10)
+            study.optimize(objective, n_trials=1000)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
             print("Best Score: ", study.best_value)
+            
+            clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}_twoYears"))
 
             # Predict for current year + last two years
             #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
