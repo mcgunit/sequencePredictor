@@ -19,7 +19,7 @@ var selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for K
 var selectedModel = ["all"]; // To select with wich model's predictions is played
 
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
-  let table = '<table border="1" style="border-collapse: collapse; width: 100%; background-color: white;">';
+  let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Add title if provided
   if (title) table += `<caption><strong>${title}</strong></caption>`;
@@ -130,7 +130,7 @@ function generateList(data, title = '') {
     if (title) table += `<caption><strong>${title}</strong></caption>`;
     table += '<tr>';
     data.forEach((item) => {
-      table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px; background-color: white;">${item}</td>`;
+      table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px;">${item}</td>`;
     });
     table += '</tr>';
     table += '</table>';
@@ -272,7 +272,7 @@ app.get('/database/:folder', (req, res) => {
   `;
   }
 
-  html += '<table border="1" style="border-collapse: collapse; width: 100%; background-color: white;">';
+  html += '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
   // Create rows with a maximum of 3 columns per row
   for (let i = 0; i < sortedMonths.length; i += 3) {
@@ -526,7 +526,7 @@ app.get('/', (req, res) => {
           border: 1px solid #ddd;
           border-radius: 5px;
           padding: 10px;
-          background-color: white;
+          background-color: #f9f9f9;
         }
         .folder-title {
           cursor: pointer;
