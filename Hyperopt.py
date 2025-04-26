@@ -697,7 +697,7 @@ if __name__ == "__main__":
             study = optuna.create_study(
                 direction='maximize',
                 storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                study_name="Sequence-Predictor"
+                study_name=f"Sequence-Predictor-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
             )
 
             # Run the automatic tuning process

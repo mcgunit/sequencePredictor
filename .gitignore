@@ -168,3 +168,4 @@ wget-log*
 
 test/database/*
 .DS_Store
+data/hyperOptCache/*

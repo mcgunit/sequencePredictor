@@ -730,7 +730,7 @@ app.listen(config.PORT, () => {
 });
 
 // Start optuna-dashboard server by default running on port 8080
-exec('optuna-dashboard sqlite:///db.sqlite3', (error, stdout, stderr) => {
+exec('optuna-dashboard sqlite:///db.sqlite3 --host 0.0.0.0 --port 8080', (error, stdout, stderr) => {
   if (error) {
     console.error(`Error running optuna-dashboard: ${error.message}`);
     return;
