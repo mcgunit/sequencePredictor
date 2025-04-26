@@ -11,4 +11,5 @@ asciichartpy==1.5.25
 pmdarima==2.0.4
 statsmodels==0.14.4
 optuna==4.3.0
+optuna_dashboard==0.18.0
 

@@ -675,7 +675,7 @@ if __name__ == "__main__":
 
             # Predict for current year + last year
             def objective(trial):
-                numOfRepeats = 3 # To average out the rusults before continueing to the next result
+                numOfRepeats = 5 # To average out the rusults before continueing to the next result
                 totalProfit = 0
                 results = [] # Intermediate results
 
@@ -694,10 +694,14 @@ if __name__ == "__main__":
                 return totalProfit
 
             # Create an Optuna study object
-            study = optuna.create_study(direction='maximize')
+            study = optuna.create_study(
+                direction='maximize',
+                storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                study_name="Sequence-Predictor"
+            )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=50)
+            study.optimize(objective, n_trials=500)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)

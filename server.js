@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { exec } = require('child_process');
 
 const config = require("./config");
 
@@ -726,4 +727,17 @@ app.post('/resetSelectedModel', (req, res) => {
 // Start the server
 app.listen(config.PORT, () => {
   console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`);
+});
+
+// Start optuna-dashboard server by default running on port 8080
+exec('optuna-dashboard sqlite:///db.sqlite3', (error, stdout, stderr) => {
+  if (error) {
+    console.error(`Error running optuna-dashboard: ${error.message}`);
+    return;
+  }
+  if (stderr) {
+    console.error(`optuna-dashboard stderr: ${stderr}`);
+    return;
+  }
+  console.log(`optuna-dashboard stdout: ${stdout}`);
 });
