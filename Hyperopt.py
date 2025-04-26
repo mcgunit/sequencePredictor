@@ -701,7 +701,7 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=500)
+            study.optimize(objective, n_trials=1000)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
