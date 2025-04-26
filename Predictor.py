@@ -460,7 +460,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov
         print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(0.1)
+        markov.setSoftMAxTemperature(0.5971260746885267) # Determined with hyperopt
+        markov.setMinOccurrences(2) # Determined with hyperopt
+        markov.setAlpha(1.11636426149007) # Determined with hyperopt
         markov.clear()
 
         markovPrediction = {
