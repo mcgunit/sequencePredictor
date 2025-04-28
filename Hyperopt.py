@@ -145,7 +145,7 @@ def process_single_history_entry(args):
 
     listOfDecodedPredictions = secondStage(
         listOfDecodedPredictions, dataPath, path, name, historyResult,
-        unique_labels, jsonFilePath, ai, modelParams)
+        unique_labels, jsonFilePath, ai, modelParams, skipRows=len(historyData)-historyIndex)
 
     current_json_object["newPrediction"] = listOfDecodedPredictions
     current_json_object["labels"] = unique_labels
@@ -331,7 +331,7 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
     return listOfDecodedPredictions
 
 
-def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, modelParams):
+def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, modelParams, skipRows=0):
     #####################
     # Start refinements #
     #####################
@@ -421,7 +421,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        markovSequence, markovSubsets = markov.run(generateSubsets=subsets)
+        markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
         
         markovPrediction["predictions"].append(markovSequence)
         for key in markovSubsets:

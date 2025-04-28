@@ -264,8 +264,10 @@ class Helpers():
             #print("Skipping Rows: ", skipRows)
             #print("Length of data before skipping rows: ", len(numbers))
             numbers = numbers[:-skipRows]
-            
-    
+            #print("Length after skipping rows: ", len(numbers))
+            #print("last entry: ", numbers[len(numbers)-1])
+        
+        
 
         # Unique labels for one-hot encoding
         # Euromillions are 50 numbers, Lotto are 45 numbers
