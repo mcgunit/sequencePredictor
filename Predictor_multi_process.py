@@ -716,6 +716,16 @@ if __name__ == "__main__":
     # except Exception as e:
     #     print("Failed to generate txt file:", e)
 
+    try:
+        for filename in os.listdir(os.getcwd()):
+            if 'wget' in filename:
+                file_path = os.path.join(os.getcwd(), filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+    except Exception as e:
+        print("Failed to cleanup folder")
+
     # try:
     #     helpers.git_push()
     # except Exception as e:
