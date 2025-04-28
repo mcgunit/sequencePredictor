@@ -87,6 +87,7 @@ class Helpers():
                 # Filter data to include only entries within the date range
                 filtered_data = [entry for entry in data if entry[0] >= cutoff_date]
                 #print("Filtered data: ", filtered_data)
+            
                 return filtered_data
         else:
             print("No data found.")
