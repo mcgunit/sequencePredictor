@@ -219,8 +219,8 @@ class HybridStatisticalModel():
         return {num: (self.alpha * markov_probs.get(num, 0) + (1 - self.alpha) * (num_frequencies.get(num, 0) / sum(num_frequencies.values())))
             for num in set(markov_probs) | set(num_frequencies)}
 
-    def run(self, generateSubsets=[]):
-        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath)
+    def run(self, generateSubsets=[], skipRows=0):
+        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows)
 
         self.build_markov_chain(numbers)
         last_draw = numbers[-1]

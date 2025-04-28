@@ -278,7 +278,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         with open(jsonFilePath, "w+") as outfile:
                             json.dump(current_json_object, outfile)
                         
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai)
+                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=len(historyData)-historyIndex)
 
                         current_json_object["newPrediction"] = listOfDecodedPredictions
                         current_json_object["labels"] = unique_labels
@@ -384,7 +384,7 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
     return listOfDecodedPredictions
 
 
-def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai):
+def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=0):
     #####################
     # Start refinements #
     #####################
@@ -474,7 +474,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        markovSequence, markovSubsets = markov.run(generateSubsets=subsets)
+        markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
         
         markovPrediction["predictions"].append(markovSequence)
         for key in markovSubsets:
@@ -502,7 +502,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets)
+        markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
         markovBayesianPrediction["predictions"].append(markovBayesianSequence)
         for key in markovBayesianSubsets:
             markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
@@ -529,7 +529,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
+        markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
         markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
         for key in markovBayesianSubsets:
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
@@ -556,7 +556,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets)
+        poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
 
         poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
         for key in poissonMonteCarloSubsets:
@@ -582,7 +582,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets)
+        poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
 
         poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
         for key in poissonMarkovSubsets:
@@ -609,7 +609,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets)
+        laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
         laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
         for key in laplaceMonteCarloSubsets:
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
@@ -637,7 +637,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         if "keno" in name:
             subsets = [5, 6, 7, 8, 9, 10]
 
-        hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets)
+        hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
         hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
         for key in hybridStatisticalModelSubsets:
             hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])

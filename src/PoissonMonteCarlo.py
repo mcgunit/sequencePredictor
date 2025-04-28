@@ -99,14 +99,14 @@ class PoissonMonteCarlo():
 
         return sorted([int(num) for num in predicted_numbers]) 
     
-    def run(self, generateSubsets=[]):
+    def run(self, generateSubsets=[], skipRows=0):
         """
         Runs the Poisson Monte Carlo prediction process.
 
         Parameters:
         generateSubset is an array to generate subsets of numbers, e.g., [6, 7] creates subsets of 6 and 7 numbers.
         """
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath)
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
         numbers = [[int(num) for num in draw] for draw in numbers]
 
         self.setRecentDraws(max(self.recent_draws, len(numbers)))
