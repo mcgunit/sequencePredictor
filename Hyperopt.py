@@ -268,7 +268,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             historyData = helpers.getLatestPrediction(dataPath, dateRange=daysToRebuild)
             #print("History data: ", historyData)
 
-            dateOffset = len(historyData)-1 # index of list entry
+            dateOffset = 0 # index of list entry
 
             print("Date to start from: ", historyData[dateOffset])
 
@@ -289,16 +289,13 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             
             # Remove all elements starting from dateOffset index
             #print("Date offset: ", dateOffset)
-            historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index                
+            historyData = historyData[dateOffset:]  # Keep elements afer dateOffset because newer elements comes after the dateOffset index                
             #print("History to rebuild: ", historyData)
 
-            # Now lets iterate in reversed order to start with the older entries
-            reversedHistory = list(reversed(historyData))
-
             argsList = [
-                (historyIndex, historyEntry, reversedHistory, name, model_type, dataPath,
+                (historyIndex, historyEntry, historyData, name, model_type, dataPath,
                 modelPath, skipLastColumns, years_back, ai, previousJsonFilePath, path, modelParams)
-                for historyIndex, historyEntry in enumerate(reversedHistory)
+                for historyIndex, historyEntry in enumerate(historyData)
             ]
 
             with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
