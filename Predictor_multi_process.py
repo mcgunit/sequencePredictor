@@ -363,6 +363,16 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
 
 
 def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=0):
+
+    bestParams_json_object = {}
+    # Load hyperopt parameters if exists
+    hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+    if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+        with open(hyperoptParamsJsonFile, 'r') as openfile:
+            bestParams_json_object = json.load(openfile)
+
+    
+
     #####################
     # Start refinements #
     #####################
@@ -438,9 +448,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov
         print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(0.8441556081233808) # Determined with hyperopt
-        markov.setMinOccurrences(3) # Determined with hyperopt
-        markov.setAlpha(0.45034618711047536) # Determined with hyperopt
+        markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"] or 0.8441556081233808) # Determined with hyperopt
+        markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"] or 3) # Determined with hyperopt
+        markov.setAlpha(bestParams_json_object["markovAlpha"] or 0.45034618711047536) # Determined with hyperopt
         markov.clear()
 
         markovPrediction = {
@@ -466,9 +476,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov Bayesian
         print("Performing Markov Bayesian Prediction")
         markovBayesian.setDataPath(dataPath)
-        markovBayesian.setSoftMAxTemperature(0.1)
-        markovBayesian.setAlpha(0.3)
-        markovBayesian.setMinOccurrences(10)
+        markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"] or 0.1)
+        markovBayesian.setAlpha(bestParams_json_object["markovBayesianMinOccurences"] or 0.3)
+        markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianAlpha"] or 10)
         markovBayesian.clear()
 
         markovBayesianPrediction = {
