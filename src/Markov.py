@@ -153,6 +153,9 @@ class Markov():
         Parameters:
         generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
         """
+
+        #print("Running Markov with params: ", self.alpha, self.min_occurrences, self.softMaxTemperature)
+    
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
         self.build_markov_chain(numbers)
