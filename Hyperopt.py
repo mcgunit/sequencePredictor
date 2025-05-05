@@ -434,7 +434,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     
     try:
         # Markov Bayesian
-        print("Performing Markov Bayesian Prediction")
+        #print("Performing Markov Bayesian Prediction")
         markovBayesian.setDataPath(dataPath)
         markovBayesian.setSoftMAxTemperature(modelParams["markovBayesianSoftMaxTemperature"])
         markovBayesian.setAlpha(modelParams["markovBayesianAlpha"])
@@ -702,7 +702,7 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=1)
+            study.optimize(objective, n_trials=1000)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
