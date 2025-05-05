@@ -431,14 +431,14 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     except Exception as e:
         print("Failed to perform Markov: ", e)
 
-    """
+    
     try:
         # Markov Bayesian
         print("Performing Markov Bayesian Prediction")
         markovBayesian.setDataPath(dataPath)
-        markovBayesian.setSoftMAxTemperature(0.1)
-        markovBayesian.setAlpha(0.3)
-        markovBayesian.setMinOccurrences(10)
+        markovBayesian.setSoftMAxTemperature(modelParams["markovBayesianSoftMaxTemperature"])
+        markovBayesian.setAlpha(modelParams["markovBayesianAlpha"])
+        markovBayesian.setMinOccurrences(modelParams["markovBayesianMinOccurences"])
         markovBayesian.clear()
 
         markovBayesianPrediction = {
@@ -459,6 +459,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     except Exception as e:
         print("Failed to perform Markov Bayesian: ", e)
 
+    """
     if not "pick3" in name:
         try:
             # Markov Bayesian Enhanced
@@ -679,7 +680,10 @@ if __name__ == "__main__":
                 modelParams = {
                     'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.5),
                     'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
-                    'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.5)
+                    'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.5),
+                    'markovBayesianSoftMaxTemperature': trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.5),
+                    'markovBayesianMinOccurences': trial.suggest_int('markovBayesianMinOccurences', 1, 20),
+                    'markovBayesianAlpha': trial.suggest_float('markovBayesianAlpha', 0.1, 1.5)
                 }
                 for _ in range(numOfRepeats):
                     profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)
@@ -698,11 +702,16 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=1000)
+            study.optimize(objective, n_trials=1)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
             print("Best Score: ", study.best_value)
+
+            # Write best params to json
+            jsonBestParamsFilePath = os.path.join(path, "bestParams.json")
+            with open(jsonBestParamsFilePath, "w+") as outfile:
+                json.dump(study.best_params, outfile)
             
             clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}_twoYears"))
 
