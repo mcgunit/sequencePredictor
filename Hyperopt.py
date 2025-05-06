@@ -471,7 +471,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if not "pick3" in name and modelParams["usevMarkovBayesianEnhanced"] == True:
         try:
             # Markov Bayesian Enhanced
-            print("Performing Markov Bayesian Enhanced Prediction")
+            #print("Performing Markov Bayesian Enhanced Prediction")
             markovBayesianEnhanced.setDataPath(dataPath)
             markovBayesianEnhanced.setSoftMAxTemperature(modelParams["markovBayesianEnhancedSoftMaxTemperature"])
             markovBayesianEnhanced.setAlpha(modelParams["markovBayesianEnhancedAlpha"])
@@ -489,7 +489,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
             markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
-            for key in markovBayesianSubsets:
+            for key in markovBayesianEnhancedSubsets:
                 markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
 
             listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
@@ -499,7 +499,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if modelParams["usePoissonMonteCarlo"] == True:
         try:
             # Poisson Distribution with Monte Carlo Analysis
-            print("Performing Poisson Monte Carlo Prediction")
+            #print("Performing Poisson Monte Carlo Prediction")
             poissonMonteCarlo.setDataPath(dataPath)
             poissonMonteCarlo.setNumOfSimulations(modelParams["poissonMonteCarloNumberOfSimulations"])
             poissonMonteCarlo.setWeightFactor(modelParams["poissonMonteCarloWeightFactor"])
@@ -527,7 +527,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if modelParams["usePoissonMarkov"] == True:
         try:
             # Poisson-Markov Distribution
-            print("Performing Poisson-Markov Prediction")
+            #print("Performing Poisson-Markov Prediction")
             poissonMarkov.setDataPath(dataPath)
             poissonMarkov.setWeights(poisson_weight=modelParams["poissonMarkovWeight"], markov_weight=(1-modelParams["poissonMarkovWeight"]))
             poissonMarkov.setNumberOfSimulations(modelParams["poissonMarkovNumberOfSimulations"])
@@ -554,7 +554,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if modelParams["useLaplaceMonteCarlo"] == True:
         try:
             # Laplace Distribution with Monte Carlo Analysis
-            print("Performing Laplace Monte Carlo Prediction")
+            #print("Performing Laplace Monte Carlo Prediction")
             laplaceMonteCarlo.setDataPath(dataPath)
             laplaceMonteCarlo.setNumOfSimulations(modelParams["laplaceMonteCarloNumberOfSimulations"])
             laplaceMonteCarlo.clear()
@@ -580,7 +580,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if modelParams["useHybridStatisticalModel"] == True:
         try:
             # Hybrid Statistical Model
-            print("Performing Hybrid Statistical Model Prediction")
+            #print("Performing Hybrid Statistical Model Prediction")
             hybridStatisticalModel.setDataPath(dataPath)
             hybridStatisticalModel.setSoftMaxTemperature(modelParams["hybridStatisticalModelSoftMaxTemperature"])
             hybridStatisticalModel.setAlpha(modelParams["hybridStatisticalModelAlpha"])
