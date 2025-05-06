@@ -385,6 +385,27 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
 
 
 def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=0):
+    bestParams_json_object = {
+        "markovSoftMaxTemperature": 0.1,
+        "markovMinOccurences": 20,
+        "markovAlpha": 1.0,
+        "markovRecencyWeight": 1.0,
+        "markovRecencyMode": "linear",
+        "markovPairDecayFactor": 0.9,
+        "markovSmoothingFactor": 0.01,
+        "markovSubsetSelectionMode": "top",
+        "markovBlendMode": "linear",
+        "markovBayesianSoftMaxTemperature": 0.1,
+        "markovBayesianMinOccurences": 20,
+        "markovBayesianAlpha": 0.3
+    }
+
+    # Load hyperopt parameters if exists
+    hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+    if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+        with open(hyperoptParamsJsonFile, 'r') as openfile:
+            bestParams_json_object = json.load(openfile)
+
     #####################
     # Start refinements #
     #####################
@@ -460,9 +481,15 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov
         print("Performing Markov Prediction")
         markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(0.8441556081233808) # Determined with hyperopt
-        markov.setMinOccurrences(3) # Determined with hyperopt
-        markov.setAlpha(0.45034618711047536) # Determined with hyperopt
+        markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
+        markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
+        markov.setAlpha(bestParams_json_object["markovAlpha"])
+        markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
+        markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
+        markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
+        markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
+        markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
+        markov.setBlendMode(bestParams_json_object["markovBlendMode"])
         markov.clear()
 
         markovPrediction = {
@@ -488,9 +515,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         # Markov Bayesian
         print("Performing Markov Bayesian Prediction")
         markovBayesian.setDataPath(dataPath)
-        markovBayesian.setSoftMAxTemperature(0.1)
-        markovBayesian.setAlpha(0.7)
-        markovBayesian.setMinOccurrences(10)
+        markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
+        markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
+        markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
         markovBayesian.clear()
 
         markovBayesianPrediction = {

@@ -368,6 +368,12 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         "markovSoftMaxTemperature": 0.1,
         "markovMinOccurences": 20,
         "markovAlpha": 1.0,
+        "markovRecencyWeight": 1.0,
+        "markovRecencyMode": "linear",
+        "markovPairDecayFactor": 0.9,
+        "markovSmoothingFactor": 0.01,
+        "markovSubsetSelectionMode": "top",
+        "markovBlendMode": "linear",
         "markovBayesianSoftMaxTemperature": 0.1,
         "markovBayesianMinOccurences": 20,
         "markovBayesianAlpha": 0.3
@@ -459,6 +465,12 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
         markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
         markov.setAlpha(bestParams_json_object["markovAlpha"])
+        markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
+        markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
+        markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
+        markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
+        markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
+        markov.setBlendMode(bestParams_json_object["markovBlendMode"])
         markov.clear()
 
         markovPrediction = {
