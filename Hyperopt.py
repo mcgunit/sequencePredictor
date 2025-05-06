@@ -438,7 +438,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Markov: ", e)
 
-    """
+    
     if modelParams["useMarkovBayesian"] == True:
         try:
             # Markov Bayesian
@@ -473,9 +473,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             # Markov Bayesian Enhanced
             print("Performing Markov Bayesian Enhanced Prediction")
             markovBayesianEnhanced.setDataPath(dataPath)
-            markovBayesianEnhanced.setSoftMAxTemperature(markovBayesianEnhancedSoftMaxTemperature)
-            markovBayesianEnhanced.setAlpha(markovBayesianEnhancedAlpha)
-            markovBayesianEnhanced.setMinOccurrences(markovBayesianEnhancedMinOccurences)
+            markovBayesianEnhanced.setSoftMAxTemperature(modelParams["markovBayesianEnhancedSoftMaxTemperature"])
+            markovBayesianEnhanced.setAlpha(modelParams["markovBayesianEnhancedAlpha"])
+            markovBayesianEnhanced.setMinOccurrences(modelParams["markovBayesianEnhancedMinOccurences"])
             markovBayesianEnhanced.clear()
 
             markovBayesianEnhancedPrediction = {
@@ -496,13 +496,13 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Markov Bayesian Enhanced: ", e)
 
-    modelParams["usePoissonMonteCarlo"] == True:
+    if modelParams["usePoissonMonteCarlo"] == True:
         try:
             # Poisson Distribution with Monte Carlo Analysis
             print("Performing Poisson Monte Carlo Prediction")
             poissonMonteCarlo.setDataPath(dataPath)
-            poissonMonteCarlo.setNumOfSimulations(poissonMonteCarloNumberOfSimulations)
-            poissonMonteCarlo.setWeightFactor(poissonMonteCarloWeightFactor)
+            poissonMonteCarlo.setNumOfSimulations(modelParams["poissonMonteCarloNumberOfSimulations"])
+            poissonMonteCarlo.setWeightFactor(modelParams["poissonMonteCarloWeightFactor"])
             poissonMonteCarlo.clear()
 
             poissonMonteCarloPrediction = {
@@ -524,13 +524,13 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
-    modelParams["usePoissonMarkov"] == True:
+    if modelParams["usePoissonMarkov"] == True:
         try:
             # Poisson-Markov Distribution
             print("Performing Poisson-Markov Prediction")
             poissonMarkov.setDataPath(dataPath)
-            poissonMarkov.setWeights(poisson_weight=0.3, markov_weight=0.7)
-            poissonMarkov.setNumberOfSimulations(1000)
+            poissonMarkov.setWeights(poisson_weight=modelParams["poissonMarkovWeight"], markov_weight=(1-modelParams["poissonMarkovWeight"]))
+            poissonMarkov.setNumberOfSimulations(modelParams["poissonMarkovNumberOfSimulations"])
 
             poissonMarkovPrediction = {
                 "name": "PoissonMarkov Model",
@@ -551,12 +551,12 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Poisson-Markov Distribution: ", e)
 
-    modelParams["useLaplaceMonteCarlo"] == True:
+    if modelParams["useLaplaceMonteCarlo"] == True:
         try:
             # Laplace Distribution with Monte Carlo Analysis
             print("Performing Laplace Monte Carlo Prediction")
             laplaceMonteCarlo.setDataPath(dataPath)
-            laplaceMonteCarlo.setNumOfSimulations(1000)
+            laplaceMonteCarlo.setNumOfSimulations(modelParams["laplaceMonteCarloNumberOfSimulations"])
             laplaceMonteCarlo.clear()
 
             laplaceMonteCarloPrediction = {
@@ -577,15 +577,15 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
 
-    modelParams["useHybridStatisticalModel"] == True:
+    if modelParams["useHybridStatisticalModel"] == True:
         try:
             # Hybrid Statistical Model
             print("Performing Hybrid Statistical Model Prediction")
             hybridStatisticalModel.setDataPath(dataPath)
-            hybridStatisticalModel.setSoftMaxTemperature(0.1)
-            hybridStatisticalModel.setAlpha(0.7)
-            hybridStatisticalModel.setMinOccurrences(10)
-            hybridStatisticalModel.setNumberOfSimulations(1000)
+            hybridStatisticalModel.setSoftMaxTemperature(modelParams["hybridStatisticalModelSoftMaxTemperature"])
+            hybridStatisticalModel.setAlpha(modelParams["hybridStatisticalModelAlpha"])
+            hybridStatisticalModel.setMinOccurrences(modelParams["hybridStatisticalModelMinOcurrences"])
+            hybridStatisticalModel.setNumberOfSimulations(modelParams["hybridStatisticalModelNumberOfSimulations"])
             hybridStatisticalModel.clear()
 
             hybridStatisticalModelPrediction = {
@@ -605,7 +605,6 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
         except Exception as e:
             print("Failed to perform Hybrid Statistical Model: ", e)
-    """
 
     return listOfDecodedPredictions
 
@@ -726,7 +725,15 @@ if __name__ == "__main__":
                     'markovBayesianEnhancedSoftMaxTemperature': trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.5),
                     'markovBayesianEnhancedAlpha': trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.5),
                     'markovBayesianEnhancedMinOccurences': trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20),
-                    'poissonMonteCarloNumberOfSimulations': trial.suggest_int('markovBayesianEnhancedMinOccurences', 100, 1000)
+                    'poissonMonteCarloNumberOfSimulations': trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100),
+                    'poissonMonteCarloWeightFactor': trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.5),
+                    'poissonMarkovWeight': trial.suggest_float('poissonMarkovWeight', 0.1, 1.0),
+                    'poissonMarkovNumberOfSimulations': trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100),
+                    'laplaceMonteCarloNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
+                    'hybridStatisticalModelSoftMaxTemperature': trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.5),
+                    'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.5),
+                    'hybridStatisticalModelMinOcurrences': trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20),
+                    'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
                 }
                 for _ in range(numOfRepeats):
                     profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)
