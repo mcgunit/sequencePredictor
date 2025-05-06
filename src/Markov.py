@@ -27,6 +27,14 @@ class Markov():
         self.transition_matrix = defaultdict(lambda: defaultdict(int))
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
+
+        # New hyperparameters
+        self.recency_weight = 1.0  # Coefficient for recent draws
+        self.recency_mode = "linear" # linear, log or none
+        self.pair_decay_factor = 0.9  # Discount for older pairs
+        self.smoothing_factor = 0.01  # Additive smoothing
+        self.subset_selection_mode = "top"  # top/softmax
+        self.blend_mode = "linear" # options: linear, harmonic and log
     
     def clear(self):
         self.transition_matrix = defaultdict(lambda: defaultdict(int))
@@ -45,6 +53,24 @@ class Markov():
     def setMinOccurrences(self, nMinOccurrences):
         self.min_occurrences = nMinOccurrences
 
+    def setRecencyWeight(self, weight):
+        self.recency_weight = weight
+    
+    def setPairDecayFactor(self, decay):
+        self.pair_decay_factor = decay
+    
+    def setRecencyMode(self, recencyMode):
+        self.recency_mode = recencyMode
+    
+    def setSmoothingFactor(self, smoothing):
+        self.smoothing_factor = smoothing
+    
+    def setSubsetSelectionMode(self, mode):
+        self.subset_selection_mode = mode
+    
+    def setBlendMode(self, mode):
+        self.blend_mode = mode
+
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a subset of numbers using weighted selection based on Markov probabilities and frequencies."""
         unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure unique standard integers
@@ -55,11 +81,14 @@ class Markov():
         # Compute blended probabilities using Markov and frequency data
         blended_probs = self.blended_probability({int(num): 1 for num in unique_numbers}, self.number_frequencies)
 
-        # Sort numbers based on probability values
-        sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(int(x), 0), reverse=True)
-
-        # Select the top `nSubset` numbers
-        best_subset = sorted(map(int, sorted_numbers[:nSubset]))
+        if self.subset_selection_mode == "softmax":
+            probs = np.array([blended_probs[n] for n in unique_numbers])
+            indices = np.random.choice(len(unique_numbers), nSubset, replace=False,
+                                    p=self.softmax_with_temperature(probs, self.softMaxTemperature))
+            best_subset = sorted(map(int, [unique_numbers[i] for i in indices]))
+        else:
+            sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(int(x), 0), reverse=True)
+            best_subset = sorted(map(int, sorted_numbers[:nSubset]))
 
         return best_subset
 
@@ -69,22 +98,36 @@ class Markov():
         return scipy.special.softmax(probs)
 
     def blended_probability(self, markov_probs, num_frequencies):
-        """Combines Markov transition probabilities with frequency analysis."""
+        """Combines Markov transition probabilities with frequency analysis using different blend modes."""
         total_freq = sum(num_frequencies.values()) or 1  # Prevent division by zero
-        return {
-            int(num): (
-                self.alpha * markov_probs.get(int(num), 0) +
-                (1 - self.alpha) * (num_frequencies.get(int(num), 0) / total_freq)
-            )
-            for num in set(map(int, markov_probs)) | set(map(int, num_frequencies))
-        }
+
+        all_nums = set(map(int, markov_probs)) | set(map(int, num_frequencies))
+        blended = {}
+
+        for num in all_nums:
+            mp = markov_probs.get(num, 0)
+            freq = num_frequencies.get(num, 0) / total_freq
+
+            if self.blend_mode == "log":
+                blended[num] = np.log1p(mp) + np.log1p(freq)
+            elif self.blend_mode == "harmonic":
+                blended[num] = 2 * mp * freq / (mp + freq + 1e-8)
+            else:  # default to linear
+                blended[num] = self.alpha * mp + (1 - self.alpha) * freq
+
+        return blended
 
     def build_markov_chain(self, numbers):
         """Creates the transition matrix with weighted recency and removes rare transitions."""
         total_draws = len(numbers)
 
         for draw_index, draw in enumerate(numbers):
-            weight = 1 + (draw_index / total_draws)  # More weight to recent draws
+            if self.recency_mode == "linear":
+                weight = 1 + (self.recency_weight * draw_index / total_draws)
+            elif self.recency_mode == "log":
+                weight = 1 + np.log1p(draw_index) * self.recency_weight
+            else:
+                weight = 1
 
             draw = list(map(int, draw))
 
@@ -100,9 +143,10 @@ class Markov():
                 self.number_frequencies[int(num)] += 1
 
         for number, transitions in self.transition_matrix.items():
-            total = sum(transitions.values())
+            total = sum(transitions.values()) + self.smoothing_factor * len(transitions)
             self.transition_matrix[number] = {
-                int(k): v / total for k, v in transitions.items() if v >= self.min_occurrences
+                int(k): (v + self.smoothing_factor) / total 
+                for k, v in transitions.items()
             }
 
     def predict_next_numbers(self, previous_numbers, n_predictions=20, temperature=0.7):

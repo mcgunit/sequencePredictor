@@ -410,6 +410,12 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         markov.setSoftMAxTemperature(modelParams["markovSoftMaxTemperature"])
         markov.setMinOccurrences(modelParams["markovMinOccurences"])
         markov.setAlpha(modelParams["markovAlpha"])
+        markov.setRecencyWeight(modelParams["markovRecencyWeight"])
+        markov.setRecencyMode(modelParams["markovRecencyMode"])
+        markov.setPairDecayFactor(modelParams["markovPairDecayFactor"])
+        markov.setSmoothingFactor(modelParams["markovSmoothingFactor"])
+        markov.setSubsetSelectionMode(modelParams["markovSubsetSelectionMode"])
+        markov.setBlendMode(modelParams["markovBlendMode"])
         markov.clear()
 
         markovPrediction = {
@@ -431,7 +437,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     except Exception as e:
         print("Failed to perform Markov: ", e)
 
-    
+    """
     try:
         # Markov Bayesian
         #print("Performing Markov Bayesian Prediction")
@@ -459,7 +465,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     except Exception as e:
         print("Failed to perform Markov Bayesian: ", e)
 
-    """
+    
     if not "pick3" in name:
         try:
             # Markov Bayesian Enhanced
@@ -681,6 +687,12 @@ if __name__ == "__main__":
                     'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.5),
                     'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
                     'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.5),
+                    'markovRecencyWeight': trial.suggest_float('markovRecencyWeight', 0.1, 2.0),
+                    'markovRecencyMode': trial.suggest_categorical("markovRecencyMode", ["linear", "log", "none"]),
+                    'markovPairDecayFactor': trial.suggest_float('markovPairDecayFactor', 0.1, 2.0),
+                    'markovSmoothingFactor': trial.suggest_float('markovSmoothingFactor', 0.01, 1.0),
+                    'markovSubsetSelectionMode': trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"]),
+                    'markovBlendMode': trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"]),
                     'markovBayesianSoftMaxTemperature': trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.5),
                     'markovBayesianMinOccurences': trial.suggest_int('markovBayesianMinOccurences', 1, 20),
                     'markovBayesianAlpha': trial.suggest_float('markovBayesianAlpha', 0.1, 1.5)
