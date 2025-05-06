@@ -1,0 +1,175 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          2,
+          7,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          2,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          5,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          5,
+          6,
+          7,
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          2,
+          8,
+          1
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    1,
+    5,
+    4
+  ],
+  "newPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          0,
+          6,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          2,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          7,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          4,
+          0,
+          9,
+          2,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          3,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          5,
+          8,
+          9
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "PoissonMonteCarlo Model",
+    "prediction": [
+      4,
+      5,
+      8
+    ],
+    "matching_numbers": [
+      4,
+      5
+    ],
+    "match_count": 2
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "3": 0.09770895589966494,
+    "1": 0.10019922122611609,
+    "5": 0.0988861722358055,
+    "7": 0.09798062120800508,
+    "9": 0.09983700081499593,
+    "0": 0.10223671103866704,
+    "2": 0.10105949470252648,
+    "6": 0.10006338857194604,
+    "4": 0.10124060490808658,
+    "8": 0.10078782939418636
+  }
+}
