@@ -30,7 +30,7 @@ class Markov():
 
         # New hyperparameters
         self.recency_weight = 1.0  # Coefficient for recent draws
-        self.recency_mode = "linear" # linear, log or none
+        self.recency_mode = "linear" # linear, log or constant
         self.pair_decay_factor = 0.9  # Discount for older pairs
         self.smoothing_factor = 0.01  # Additive smoothing
         self.subset_selection_mode = "top"  # top/softmax
