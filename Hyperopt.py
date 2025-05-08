@@ -230,16 +230,6 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         modelToUse = lstm
     modelToUse.setDataPath(dataPath)
 
-    kwargs_wget = {
-        "folder": dataPath,
-        "file": file
-    }
-
-    # Lets check if file exists
-    if os.path.exists(os.path.join(dataPath, file)):
-        os.remove(os.path.join(dataPath, file))
-    command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
-
     # Get the latest result out of the latest data so we can use it to check the previous prediction
     latestEntry, previousEntry = helpers.getLatestPrediction(dataPath)
     if latestEntry is not None:
@@ -674,6 +664,16 @@ if __name__ == "__main__":
             modelPath = os.path.join(path, "data", "models", model_type)
             dataPath = os.path.join(path, "data", "trainingData", dataset_name)
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
+
+            kwargs_wget = {
+                "folder": dataPath,
+                "file": file
+            }
+
+            # Lets check if file exists
+            if os.path.exists(os.path.join(dataPath, file)):
+                os.remove(os.path.join(dataPath, file))
+            command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
             # Predict for complete data
             #predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
