@@ -732,8 +732,8 @@ if __name__ == "__main__":
                     'laplaceMonteCarloNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
                     'hybridStatisticalModelSoftMaxTemperature': trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0),
                     'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0),
-                    'hybridStatisticalModelMinOcurrences': trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20),
-                    'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
+                    'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
+                    'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100),
                 }
                 for _ in range(numOfRepeats):
                     profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)

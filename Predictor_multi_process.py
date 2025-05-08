@@ -399,7 +399,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         "poissonMarkovNumberOfSimulations":100,
         "laplaceMonteCarloNumberOfSimulations":900,
         "hybridStatisticalModelSoftMaxTemperature":0.918188590362822,
-        "hybridStatisticalModelAlpha":0.7874157368729954
+        "hybridStatisticalModelAlpha":0.7874157368729954,
+        "hybridStatisticalModelMinOcurrences": 19,
+        "hybridStatisticalModelNumberOfSimulations": 900
     }
 
     # Load hyperopt parameters if exists
@@ -555,9 +557,9 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             # Markov Bayesian Enhanced
             print("Performing Markov Bayesian Enhanced Prediction")
             markovBayesianEnhanced.setDataPath(dataPath)
-            markovBayesianEnhanced.setSoftMAxTemperature(0.1)
-            markovBayesianEnhanced.setAlpha(0.7)
-            markovBayesianEnhanced.setMinOccurrences(10)
+            markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
+            markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
+            markovBayesianEnhanced.setMinOccurrences(bestParams_json_object["markovBayesianEnhancedMinOccurences"])
             markovBayesianEnhanced.clear()
 
             markovBayesianEnhancedPrediction = {
@@ -579,8 +581,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             # Poisson Distribution with Monte Carlo Analysis
             print("Performing Poisson Monte Carlo Prediction")
             poissonMonteCarlo.setDataPath(dataPath)
-            poissonMonteCarlo.setNumOfSimulations(1000)
-            poissonMonteCarlo.setWeightFactor(0.1)
+            poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
+            poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
             poissonMonteCarlo.clear()
 
             poissonMonteCarloPrediction = {
@@ -603,8 +605,8 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             # Poisson-Markov Distribution
             print("Performing Poisson-Markov Prediction")
             poissonMarkov.setDataPath(dataPath)
-            poissonMarkov.setWeights(poisson_weight=0.3, markov_weight=0.7)
-            poissonMarkov.setNumberOfSimulations(1000)
+            poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1-bestParams_json_object["poissonMarkovWeight"]))
+            poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
 
             poissonMarkovPrediction = {
                 "name": "PoissonMarkov Model",
@@ -626,7 +628,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             # Laplace Distribution with Monte Carlo Analysis
             print("Performing Laplace Monte Carlo Prediction")
             laplaceMonteCarlo.setDataPath(dataPath)
-            laplaceMonteCarlo.setNumOfSimulations(1000)
+            laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
             laplaceMonteCarlo.clear()
 
             laplaceMonteCarloPrediction = {
@@ -652,10 +654,10 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             # Hybrid Statistical Model
             print("Performing Hybrid Statistical Model Prediction")
             hybridStatisticalModel.setDataPath(dataPath)
-            hybridStatisticalModel.setSoftMaxTemperature(0.1)
-            hybridStatisticalModel.setAlpha(0.7)
-            hybridStatisticalModel.setMinOccurrences(10)
-            hybridStatisticalModel.setNumberOfSimulations(1000)
+            hybridStatisticalModel.setSoftMaxTemperature(bestParams_json_object["hybridStatisticalModelSoftMaxTemperature"])
+            hybridStatisticalModel.setAlpha(bestParams_json_object["hybridStatisticalModelAlpha"])
+            hybridStatisticalModel.setMinOccurrences(bestParams_json_object["hybridStatisticalModelMinOcurrences"])
+            hybridStatisticalModel.setNumberOfSimulations(bestParams_json_object["hybridStatisticalModelNumberOfSimulations"])
             hybridStatisticalModel.clear()
 
             hybridStatisticalModelPrediction = {
