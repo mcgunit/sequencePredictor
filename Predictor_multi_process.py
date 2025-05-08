@@ -365,18 +365,41 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
 def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=0):
 
     bestParams_json_object = {
-        "markovSoftMaxTemperature": 0.1,
-        "markovMinOccurences": 20,
-        "markovAlpha": 1.0,
-        "markovRecencyWeight": 1.0,
-        "markovRecencyMode": "linear",
-        "markovPairDecayFactor": 0.9,
-        "markovSmoothingFactor": 0.01,
-        "markovSubsetSelectionMode": "top",
-        "markovBlendMode": "linear",
-        "markovBayesianSoftMaxTemperature": 0.1,
-        "markovBayesianMinOccurences": 20,
-        "markovBayesianAlpha": 0.3
+        "use_5":True,
+        "use_6":True,
+        "use_7":True,
+        "use_8":True,
+        "use_9":True,
+        "use_10":True,
+        "useMarkov":False,
+        "useMarkovBayesian":True,
+        "usevMarkovBayesianEnhanced":True,
+        "usePoissonMonteCarlo":False,
+        "usePoissonMarkov":True,
+        "useLaplaceMonteCarlo":False,
+        "useHybridStatisticalModel":True,
+        "markovSoftMaxTemperature":0.10002049510925136,
+        "markovMinOccurences":9,
+        "markovAlpha":0.20682688936213361,
+        "markovRecencyWeight":1.591825953176242,
+        "markovRecencyMode":"constant",
+        "markovPairDecayFactor":0.34980042438509473,
+        "markovSmoothingFactor":0.6342058116675424,
+        "markovSubsetSelectionMode":"softmax",
+        "markovBlendMode":"log",
+        "markovBayesianSoftMaxTemperature":0.24235148017270242,
+        "markovBayesianMinOccurences":14,
+        "markovBayesianAlpha":0.1452615422969012,
+        "markovBayesianEnhancedSoftMaxTemperature":0.4244268734953605,
+        "markovBayesianEnhancedAlpha":0.4015984866176651,
+        "markovBayesianEnhancedMinOccurences":19,
+        "poissonMonteCarloNumberOfSimulations":600,
+        "poissonMonteCarloWeightFactor":0.836053158339262,
+        "poissonMarkovWeight":0.48068822894893704,
+        "poissonMarkovNumberOfSimulations":100,
+        "laplaceMonteCarloNumberOfSimulations":900,
+        "hybridStatisticalModelSoftMaxTemperature":0.918188590362822,
+        "hybridStatisticalModelAlpha":0.7874157368729954
     }
 
     # Load hyperopt parameters if exists
@@ -385,7 +408,21 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         with open(hyperoptParamsJsonFile, 'r') as openfile:
             bestParams_json_object = json.load(openfile)
 
-    
+    subsets = []
+    if "keno" in name:
+        if bestParams_json_object["use_5"]:
+            subsets.append(5)
+        if bestParams_json_object["use_6"]:
+            subsets.append(6)
+        if bestParams_json_object["use_7"]:
+            subsets.append(7)
+        if bestParams_json_object["use_8"]:
+            subsets.append(8)
+        if bestParams_json_object["use_9"]:
+            subsets.append(9)
+        if bestParams_json_object["use_10"]:
+            subsets.append(10)
+        
 
     #####################
     # Start refinements #
@@ -458,68 +495,62 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform ARIMA: ", e)
     
-    try:
-        # Markov
-        print("Performing Markov Prediction")
-        markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
-        markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
-        markov.setAlpha(bestParams_json_object["markovAlpha"])
-        markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
-        markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
-        markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
-        markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
-        markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
-        markov.setBlendMode(bestParams_json_object["markovBlendMode"])
-        markov.clear()
+    if bestParams_json_object["useMarkov"]:
+        try:
+            # Markov
+            print("Performing Markov Prediction")
+            markov.setDataPath(dataPath)
+            markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
+            markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
+            markov.setAlpha(bestParams_json_object["markovAlpha"])
+            markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
+            markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
+            markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
+            markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
+            markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
+            markov.setBlendMode(bestParams_json_object["markovBlendMode"])
+            markov.clear()
 
-        markovPrediction = {
-            "name": "Markov Model",
-            "predictions": []
-        }
+            markovPrediction = {
+                "name": "Markov Model",
+                "predictions": []
+            }
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
+            
+            markovPrediction["predictions"].append(markovSequence)
+            for key in markovSubsets:
+                markovPrediction["predictions"].append(markovSubsets[key])
 
-        markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
-        
-        markovPrediction["predictions"].append(markovSequence)
-        for key in markovSubsets:
-            markovPrediction["predictions"].append(markovSubsets[key])
+            listOfDecodedPredictions.append(markovPrediction)
+        except Exception as e:
+            print("Failed to perform Markov: ", e)
 
-        listOfDecodedPredictions.append(markovPrediction)
-    except Exception as e:
-        print("Failed to perform Markov: ", e)
+    if bestParams_json_object["useMarkovBayesian"]:
+        try:
+            # Markov Bayesian
+            print("Performing Markov Bayesian Prediction")
+            markovBayesian.setDataPath(dataPath)
+            markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
+            markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
+            markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
+            markovBayesian.clear()
 
-    try:
-        # Markov Bayesian
-        print("Performing Markov Bayesian Prediction")
-        markovBayesian.setDataPath(dataPath)
-        markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
-        markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
-        markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
-        markovBayesian.clear()
+            markovBayesianPrediction = {
+                "name": "MarkovBayesian Model",
+                "predictions": []
+            }
 
-        markovBayesianPrediction = {
-            "name": "MarkovBayesian Model",
-            "predictions": []
-        }
+            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
+            markovBayesianPrediction["predictions"].append(markovBayesianSequence)
+            for key in markovBayesianSubsets:
+                markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            listOfDecodedPredictions.append(markovBayesianPrediction)
+        except Exception as e:
+            print("Failed to perform Markov Bayesian: ", e)
 
-        markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
-        markovBayesianPrediction["predictions"].append(markovBayesianSequence)
-        for key in markovBayesianSubsets:
-            markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
-
-        listOfDecodedPredictions.append(markovBayesianPrediction)
-    except Exception as e:
-        print("Failed to perform Markov Bayesian: ", e)
-
-    if not "pick3" in name:
+    if not "pick3" in name and bestParams_json_object["usevMarkovBayesianEnhanced"]:
         try:
             # Markov Bayesian Enhanced
             print("Performing Markov Bayesian Enhanced Prediction")
@@ -534,10 +565,6 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = [5, 6, 7, 8, 9, 10]
-
             markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
             for key in markovBayesianSubsets:
@@ -547,112 +574,103 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Markov Bayesian Enhanced: ", e)
 
-    try:
-        # Poisson Distribution with Monte Carlo Analysis
-        print("Performing Poisson Monte Carlo Prediction")
-        poissonMonteCarlo.setDataPath(dataPath)
-        poissonMonteCarlo.setNumOfSimulations(1000)
-        poissonMonteCarlo.setWeightFactor(0.1)
-        poissonMonteCarlo.clear()
+    if bestParams_json_object["usePoissonMonteCarlo"]:
+        try:
+            # Poisson Distribution with Monte Carlo Analysis
+            print("Performing Poisson Monte Carlo Prediction")
+            poissonMonteCarlo.setDataPath(dataPath)
+            poissonMonteCarlo.setNumOfSimulations(1000)
+            poissonMonteCarlo.setWeightFactor(0.1)
+            poissonMonteCarlo.clear()
 
-        poissonMonteCarloPrediction = {
-            "name": "PoissonMonteCarlo Model",
-            "predictions": []
-        }
+            poissonMonteCarloPrediction = {
+                "name": "PoissonMonteCarlo Model",
+                "predictions": []
+            }
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
 
-        poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
+            poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
+            for key in poissonMonteCarloSubsets:
+                poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSubsets[key])
 
-        poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
-        for key in poissonMonteCarloSubsets:
-            poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSubsets[key])
+            listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
+        except Exception as e:
+            print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
-        listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
-    except Exception as e:
-        print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
+    if bestParams_json_object["usePoissonMarkov"]:
+        try:
+            # Poisson-Markov Distribution
+            print("Performing Poisson-Markov Prediction")
+            poissonMarkov.setDataPath(dataPath)
+            poissonMarkov.setWeights(poisson_weight=0.3, markov_weight=0.7)
+            poissonMarkov.setNumberOfSimulations(1000)
 
-    try:
-        # Poisson-Markov Distribution
-        print("Performing Poisson-Markov Prediction")
-        poissonMarkov.setDataPath(dataPath)
-        poissonMarkov.setWeights(poisson_weight=0.3, markov_weight=0.7)
-        poissonMarkov.setNumberOfSimulations(1000)
+            poissonMarkovPrediction = {
+                "name": "PoissonMarkov Model",
+                "predictions": []
+            }
 
-        poissonMarkovPrediction = {
-            "name": "PoissonMarkov Model",
-            "predictions": []
-        }
+            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
+            for key in poissonMarkovSubsets:
+                poissonMarkovPrediction["predictions"].append(poissonMarkovSubsets[key])
 
-        poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
+            listOfDecodedPredictions.append(poissonMarkovPrediction)    
+        except Exception as e:
+            print("Failed to perform Poisson-Markov Distribution: ", e)
 
-        poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
-        for key in poissonMarkovSubsets:
-            poissonMarkovPrediction["predictions"].append(poissonMarkovSubsets[key])
+    if bestParams_json_object["useLaplaceMonteCarlo"]:
+        try:
+            # Laplace Distribution with Monte Carlo Analysis
+            print("Performing Laplace Monte Carlo Prediction")
+            laplaceMonteCarlo.setDataPath(dataPath)
+            laplaceMonteCarlo.setNumOfSimulations(1000)
+            laplaceMonteCarlo.clear()
 
-        listOfDecodedPredictions.append(poissonMarkovPrediction)    
-    except Exception as e:
-        print("Failed to perform Poisson-Markov Distribution: ", e)
+            laplaceMonteCarloPrediction = {
+                "name": "LaplaceMonteCarlo Model",
+                "predictions": []
+            }
 
+            subsets = []
+            if "keno" in name:
+                subsets = [5, 6, 7, 8, 9, 10]
 
-    try:
-        # Laplace Distribution with Monte Carlo Analysis
-        print("Performing Laplace Monte Carlo Prediction")
-        laplaceMonteCarlo.setDataPath(dataPath)
-        laplaceMonteCarlo.setNumOfSimulations(1000)
-        laplaceMonteCarlo.clear()
+            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
+            laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
+            for key in laplaceMonteCarloSubsets:
+                laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
+            
+            listOfDecodedPredictions.append(laplaceMonteCarloPrediction)
+        except Exception as e:
+            print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
 
-        laplaceMonteCarloPrediction = {
-            "name": "LaplaceMonteCarlo Model",
-            "predictions": []
-        }
+    if bestParams_json_object["useHybridStatisticalModel"]:
+        try:
+            # Hybrid Statistical Model
+            print("Performing Hybrid Statistical Model Prediction")
+            hybridStatisticalModel.setDataPath(dataPath)
+            hybridStatisticalModel.setSoftMaxTemperature(0.1)
+            hybridStatisticalModel.setAlpha(0.7)
+            hybridStatisticalModel.setMinOccurrences(10)
+            hybridStatisticalModel.setNumberOfSimulations(1000)
+            hybridStatisticalModel.clear()
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            hybridStatisticalModelPrediction = {
+                "name": "HybridStatisticalModel",
+                "predictions": []
+            }
 
-        laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
-        laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
-        for key in laplaceMonteCarloSubsets:
-            laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
-        
-        listOfDecodedPredictions.append(laplaceMonteCarloPrediction)
-    except Exception as e:
-        print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
-
-    try:
-        # Hybrid Statistical Model
-        print("Performing Hybrid Statistical Model Prediction")
-        hybridStatisticalModel.setDataPath(dataPath)
-        hybridStatisticalModel.setSoftMaxTemperature(0.1)
-        hybridStatisticalModel.setAlpha(0.7)
-        hybridStatisticalModel.setMinOccurrences(10)
-        hybridStatisticalModel.setNumberOfSimulations(1000)
-        hybridStatisticalModel.clear()
-
-        hybridStatisticalModelPrediction = {
-            "name": "HybridStatisticalModel",
-            "predictions": []
-        }
-
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
-
-        hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
-        hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
-        for key in hybridStatisticalModelSubsets:
-            hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
-        
-        listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
-    except Exception as e:
-        print("Failed to perform Hybrid Statistical Model: ", e)
+            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
+            hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
+            for key in hybridStatisticalModelSubsets:
+                hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
+            
+            listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
+        except Exception as e:
+            print("Failed to perform Hybrid Statistical Model: ", e)
 
 
     return listOfDecodedPredictions

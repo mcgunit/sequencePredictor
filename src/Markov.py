@@ -202,6 +202,7 @@ class Markov():
     
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
+
         self.build_markov_chain(numbers)
 
         last_draw = numbers[-1]
