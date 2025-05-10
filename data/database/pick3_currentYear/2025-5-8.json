@@ -1,0 +1,114 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          1,
+          5,
+          7,
+          2,
+          4,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          4,
+          7,
+          0
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    5,
+    5,
+    0
+  ],
+  "newPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          2,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          4,
+          0,
+          6,
+          2,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          0,
+          2,
+          7
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "MarkovBayesian Model",
+    "prediction": [
+      0,
+      2,
+      3
+    ],
+    "matching_numbers": [
+      0
+    ],
+    "match_count": 1
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "6": 0.10009955652095212,
+    "4": 0.10123088062268079,
+    "1": 0.10014480948502127,
+    "0": 0.10236220472440945,
+    "5": 0.09892297945515431,
+    "3": 0.09770114942528736,
+    "2": 0.1010498687664042,
+    "8": 0.10073309801792017,
+    "7": 0.09797266720970224,
+    "9": 0.0997827857724681
+  }
+}
