@@ -4,6 +4,7 @@ import subprocess
 
 from art import text2art
 from datetime import datetime
+from multiprocessing import Pool, cpu_count
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
@@ -46,9 +47,116 @@ def print_intro():
     print(ascii_art)
     print("Prediction artificial intelligence")
 
+def update_matching_numbers(name, path):
+    json_dir = os.path.join(path, "data", "database", name)
+    if not os.path.exists(json_dir):
+        print(f"Directory does not exist: {json_dir}")
+        return
+
+    # Step 1: Get all JSON files
+    json_files = [f for f in os.listdir(json_dir) if f.endswith(".json")]
+
+    # Step 2: Sort by date
+    def parse_date(filename):
+        try:
+            name_part = filename.replace(".json", "")
+            return datetime.strptime(name_part, "%Y-%m-%d")
+        except ValueError:
+            return datetime.max  # Skip improperly named files
+
+    sorted_files = sorted(json_files, key=parse_date)
+
+    # Step 3: Iterate through each pair (previous, current)
+    for i in range(1, len(sorted_files)):
+        prev_file = os.path.join(json_dir, sorted_files[i - 1])
+        curr_file = os.path.join(json_dir, sorted_files[i])
+
+        with open(prev_file, "r") as f_prev, open(curr_file, "r") as f_curr:
+            prev_json = json.load(f_prev)
+            curr_json = json.load(f_curr)
+
+        curr_json["currentPredictionRaw"] = prev_json.get("newPredictionRaw", [])
+        curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
+
+        best_match = helpers.find_best_matching_prediction(
+            curr_json["realResult"], curr_json["currentPrediction"]
+        )
+        curr_json["matchingNumbers"] = best_match
+
+        # Save updated JSON
+        with open(curr_file, "w") as f_curr_out:
+            json.dump(curr_json, f_curr_out, indent=2)
+
+    print(f"Updated matching numbers in {len(sorted_files) - 1} files.")
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, monthsToRebuild=1, ai=False):
+def process_single_history_entry(args):
+    (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
+     skipLastColumns, years_back, ai, previousJsonFilePath, path) = args
+
+    modelToUse = tcn if "lstm_model" not in model_type else lstm
+    historyDate, historyResult = historyEntry
+    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
+    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+
+    current_json_object = {
+        "currentPredictionRaw": [],
+        "currentPrediction": [],
+        "realResult": historyResult,
+        "newPrediction": [],
+        "newPredictionRaw": [],
+        "matchingNumbers": {},
+        "labels": [],
+        "numberFrequency": helpers.count_number_frequencies(dataPath)
+    }
+
+    if previousJsonFilePath and os.path.exists(previousJsonFilePath):
+        with open(previousJsonFilePath, 'r') as openfile:
+            previous_json_object = json.load(openfile)
+        current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+        current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+
+    best_matching_prediction = helpers.find_best_matching_prediction(
+        current_json_object["realResult"], current_json_object["currentPrediction"])
+    current_json_object["matchingNumbers"] = best_matching_prediction
+
+    listOfDecodedPredictions = []
+    unique_labels = []
+
+    if ai:
+        modelToUse.setDataPath(dataPath)
+        modelToUse.setModelPath(modelPath)
+        modelToUse.setBatchSize(16)
+        modelToUse.setEpochs(1000)
+        latest_raw_predictions, unique_labels = modelToUse.run(
+            name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
+        predictedSequence = latest_raw_predictions.tolist()
+        unique_labels = unique_labels.tolist()
+        current_json_object["newPredictionRaw"] = predictedSequence
+        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
+    else:
+        _, _, _, _, _, _, _, unique_labels = helpers.load_data(
+            dataPath, skipLastColumns, years_back=years_back)
+        unique_labels = unique_labels.tolist()
+
+    with open(jsonFilePath, "w+") as outfile:
+        json.dump(current_json_object, outfile)
+
+    listOfDecodedPredictions = secondStage(
+        listOfDecodedPredictions, dataPath, path, name, historyResult,
+        unique_labels, jsonFilePath, ai, skipRows=len(historyData)-historyIndex)
+
+    current_json_object["newPrediction"] = listOfDecodedPredictions
+    current_json_object["labels"] = unique_labels
+
+    with open(jsonFilePath, "w+") as outfile:
+        json.dump(current_json_object, outfile)
+
+    return jsonFilePath
+
+
+
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -60,7 +168,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param skipLastColumns: The number of columns to skip
         @param maxRows: The maximum number of rows to use
         @param years_back: The number of years to go back
-        @param monthsToRebuild: The number of months to rebuild
+        @param daysToRebuild: The number of days to rebuild
         @param ai: To use ai tech to do predictions
     """
 
@@ -68,16 +176,6 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
     if "lstm_model" in model_type:
         modelToUse = lstm
     modelToUse.setDataPath(dataPath)
-
-    kwargs_wget = {
-        "folder": dataPath,
-        "file": file
-    }
-
-    # Lets check if file exists
-    if os.path.exists(os.path.join(dataPath, file)):
-        os.remove(os.path.join(dataPath, file))
-    command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
     # Get the latest result out of the latest data so we can use it to check the previous prediction
     latestEntry, previousEntry = helpers.getLatestPrediction(dataPath)
@@ -180,15 +278,16 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     #return predictedSequence
                 
             if doNewPrediction:
-                print(f"No previous prediction file found, Cannot compare. Recreating {monthsToRebuild} month of history")
+                print(f"No previous prediction file found, Cannot compare. Recreating {daysToRebuild} days of history")
 
                 # Check if there is not a gap or so
-                historyData = helpers.getLatestPrediction(dataPath, dateRange=monthsToRebuild)
+                historyData = helpers.getLatestPrediction(dataPath, dateRange=daysToRebuild)
                 #print("History data: ", historyData)
 
-                dateOffset = len(historyData)-1 # index of list entry
+                dateOffset = 0 # index of last entry
 
                 print("Date to start from: ", historyData[dateOffset])
+                
 
                 previousJsonFilePath = ""
 
@@ -207,160 +306,29 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                 
                 # Remove all elements starting from dateOffset index
                 #print("Date offset: ", dateOffset)
-                historyData = historyData[:dateOffset]  # Keep elements before dateOffset because older elements comes after the dateOffset index                
+                historyData = historyData[dateOffset:]  # Keep elements after dateOffset because newer elements comes after the dateOffset index                
                 #print("History to rebuild: ", historyData)
 
-                # Now lets iterate in reversed order to start with the older entries
-                for historyIndex, historyEntry in enumerate(reversed(historyData)):
-                    historyDate = historyEntry[0]
-                    historyResult = historyEntry[1]
-                    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
-                    #print(jsonFileName, ":", historyResult)
-                    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+                argsList = [
+                    (historyIndex, historyEntry, historyData, name, model_type, dataPath,
+                    modelPath, skipLastColumns, years_back, ai, previousJsonFilePath, path)
+                    for historyIndex, historyEntry in enumerate(historyData)
+                ]
 
-                    if historyIndex == 0:
-                        print("oldest entry: ", historyEntry)
-                        
-                        current_json_object = {
-                            "currentPredictionRaw": [],
-                            "currentPrediction": [],
-                            "realResult": historyResult,
-                            "newPrediction": [],    # Decoded prediction according to formula in decode_prediction
-                            "newPredictionRaw": [], # Raw prediction that contains the statistical data
-                            "matchingNumbers": [],
-                            "labels": [],
-                            "numberFrequency": helpers.count_number_frequencies(dataPath)
-                        }
+                #print("Argslist: ", len(argsList))
 
-                        # Connect the history
-                        if previousJsonFilePath:
-                            print("Starting from: ", previousJsonFilePath)
-                            # Opening JSON file
-                            with open(previousJsonFilePath, 'r') as openfile:
-                                # Reading from json file
-                                previous_json_object = json.load(openfile)
+                if len(argsList) > 0:
+                    #print("Numbers of cpu needed: ", min(cpu_count() - 1, len(argsList)))
+                    with Pool(processes=min((cpu_count()-3), len(argsList))) as pool:
+                        results = pool.map(process_single_history_entry, argsList)
 
-                            current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
-                            current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+                    print("Finished multiprocessing rebuild of history entries.")
 
-                            # Check on prediction with nth highest probability
-                            print("find matching numbers")
-                            
-                            best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
-                                
-                            current_json_object["matchingNumbers"] = best_matching_prediction
-
-                            print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
-
-                        listOfDecodedPredictions = []
-                        unique_labels = []
-
-                        if ai:
-                            # Train and do a new prediction
-                            modelToUse.setDataPath(dataPath)
-                            
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(16)
-                            modelToUse.setEpochs(1000)
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex , years_back=years_back)
-
-                            predictedSequence = latest_raw_predictions.tolist()
-                            unique_labels = unique_labels.tolist()
-
-                            listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
+                    # Find the matching numbers
+                    update_matching_numbers(name=name, path=path)
+                else:
+                    print("No entries to process for: ", name)
                 
-                            # Save the current prediction as newPrediction
-                            current_json_object["newPredictionRaw"] = predictedSequence
-                        else:
-                            _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
-                            unique_labels = unique_labels.tolist()
-
-                        with open(jsonFilePath, "w+") as outfile:
-                            json.dump(current_json_object, outfile)
-                        
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=len(historyData)-historyIndex)
-
-                        current_json_object["newPrediction"] = listOfDecodedPredictions
-                        current_json_object["labels"] = unique_labels
-
-                        #print("current_json_object: ", current_json_object)
-
-                        # store the decoded and refined predictions
-                        with open(jsonFilePath, "w+") as outfile:
-                            json.dump(current_json_object, outfile)
-
-                        
-
-                    else:
-                        # The previous file should be created at index 0
-
-                        # Opening JSON file
-                        with open(previousJsonFilePath, 'r') as openfile:
-                        
-                            # Reading from json file
-                            previous_json_object = json.load(openfile)
-
-                        current_json_object = {
-                            "currentPredictionRaw": [],
-                            "currentPrediction": [],
-                            "realResult": historyResult,
-                            "newPrediction": [],
-                            "newPredictionRaw": [],
-                            "matchingNumbers": {},
-                            "labels": [],
-                            "numberFrequency": helpers.count_number_frequencies(dataPath)
-                        }
-                        
-                        #print(previous_json_object)
-                        #print(type(previous_json_object))
-
-                        # The current prediction is the new prediction from the previous one
-                        current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
-                        current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
-
-                        #print(current_json_object["currentPredictionRaw"])
-
-                        # Compare decoded and refined predictions stored in currentPrediction with the real result (drawing)
-                        print("find matching numbers")
-                        best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
-
-                        current_json_object["matchingNumbers"] = best_matching_prediction
-
-                        print("matching_numbers: ", current_json_object["matchingNumbers"]["matching_numbers"])
-
-                        listOfDecodedPredictions = []
-                        unique_labels = []
-
-                        if ai:
-                            # Train and do a new prediction
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(16)
-                            modelToUse.setEpochs(1000)
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
-
-                            predictedSequence = latest_raw_predictions.tolist()
-
-                            # Save the current prediction as newPrediction
-                            current_json_object["newPredictionRaw"] = predictedSequence
-                            current_json_object["labels"] = unique_labels.tolist()
-                        
-                            listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
-                        else:
-                            _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
-                            unique_labels = unique_labels.tolist()
-
-                        with open(jsonFilePath, "w+") as outfile:
-                            json.dump(current_json_object, outfile)
-
-                        listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai)
-
-                        # store the decoded and refined predictions
-                        current_json_object["newPrediction"] = listOfDecodedPredictions
-
-                        with open(jsonFilePath, "w+") as outfile:
-                            json.dump(current_json_object, outfile)
-
-                    previousJsonFilePath = jsonFilePath
 
                 #return predictedSequence
         else:
@@ -385,19 +353,45 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
 
 
 def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=0):
+
     bestParams_json_object = {
-        "markovSoftMaxTemperature": 0.1,
-        "markovMinOccurences": 20,
-        "markovAlpha": 1.0,
-        "markovRecencyWeight": 1.0,
-        "markovRecencyMode": "linear",
-        "markovPairDecayFactor": 0.9,
-        "markovSmoothingFactor": 0.01,
-        "markovSubsetSelectionMode": "top",
-        "markovBlendMode": "linear",
-        "markovBayesianSoftMaxTemperature": 0.1,
-        "markovBayesianMinOccurences": 20,
-        "markovBayesianAlpha": 0.3
+        "use_5":True,
+        "use_6":True,
+        "use_7":True,
+        "use_8":True,
+        "use_9":True,
+        "use_10":True,
+        "useMarkov":False,
+        "useMarkovBayesian":True,
+        "usevMarkovBayesianEnhanced":True,
+        "usePoissonMonteCarlo":False,
+        "usePoissonMarkov":True,
+        "useLaplaceMonteCarlo":False,
+        "useHybridStatisticalModel":True,
+        "markovSoftMaxTemperature":0.10002049510925136,
+        "markovMinOccurences":9,
+        "markovAlpha":0.20682688936213361,
+        "markovRecencyWeight":1.591825953176242,
+        "markovRecencyMode":"constant",
+        "markovPairDecayFactor":0.34980042438509473,
+        "markovSmoothingFactor":0.6342058116675424,
+        "markovSubsetSelectionMode":"softmax",
+        "markovBlendMode":"log",
+        "markovBayesianSoftMaxTemperature":0.24235148017270242,
+        "markovBayesianMinOccurences":14,
+        "markovBayesianAlpha":0.1452615422969012,
+        "markovBayesianEnhancedSoftMaxTemperature":0.4244268734953605,
+        "markovBayesianEnhancedAlpha":0.4015984866176651,
+        "markovBayesianEnhancedMinOccurences":19,
+        "poissonMonteCarloNumberOfSimulations":600,
+        "poissonMonteCarloWeightFactor":0.836053158339262,
+        "poissonMarkovWeight":0.48068822894893704,
+        "poissonMarkovNumberOfSimulations":100,
+        "laplaceMonteCarloNumberOfSimulations":900,
+        "hybridStatisticalModelSoftMaxTemperature":0.918188590362822,
+        "hybridStatisticalModelAlpha":0.7874157368729954,
+        "hybridStatisticalModelMinOcurrences": 19,
+        "hybridStatisticalModelNumberOfSimulations": 900
     }
 
     # Load hyperopt parameters if exists
@@ -405,6 +399,22 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
         with open(hyperoptParamsJsonFile, 'r') as openfile:
             bestParams_json_object = json.load(openfile)
+
+    subsets = []
+    if "keno" in name:
+        if bestParams_json_object["use_5"]:
+            subsets.append(5)
+        if bestParams_json_object["use_6"]:
+            subsets.append(6)
+        if bestParams_json_object["use_7"]:
+            subsets.append(7)
+        if bestParams_json_object["use_8"]:
+            subsets.append(8)
+        if bestParams_json_object["use_9"]:
+            subsets.append(9)
+        if bestParams_json_object["use_10"]:
+            subsets.append(10)
+        
 
     #####################
     # Start refinements #
@@ -477,201 +487,182 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform ARIMA: ", e)
     
-    try:
-        # Markov
-        print("Performing Markov Prediction")
-        markov.setDataPath(dataPath)
-        markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
-        markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
-        markov.setAlpha(bestParams_json_object["markovAlpha"])
-        markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
-        markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
-        markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
-        markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
-        markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
-        markov.setBlendMode(bestParams_json_object["markovBlendMode"])
-        markov.clear()
+    if bestParams_json_object["useMarkov"]:
+        try:
+            # Markov
+            print("Performing Markov Prediction")
+            markov.setDataPath(dataPath)
+            markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
+            markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
+            markov.setAlpha(bestParams_json_object["markovAlpha"])
+            markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
+            markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
+            markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
+            markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
+            markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
+            markov.setBlendMode(bestParams_json_object["markovBlendMode"])
+            markov.clear()
 
-        markovPrediction = {
-            "name": "Markov Model",
-            "predictions": []
-        }
+            markovPrediction = {
+                "name": "Markov Model",
+                "predictions": []
+            }
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
+            
+            markovPrediction["predictions"].append(markovSequence)
+            for key in markovSubsets:
+                markovPrediction["predictions"].append(markovSubsets[key])
 
-        markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
-        
-        markovPrediction["predictions"].append(markovSequence)
-        for key in markovSubsets:
-            markovPrediction["predictions"].append(markovSubsets[key])
+            listOfDecodedPredictions.append(markovPrediction)
+        except Exception as e:
+            print("Failed to perform Markov: ", e)
 
-        listOfDecodedPredictions.append(markovPrediction)
-    except Exception as e:
-        print("Failed to perform Markov: ", e)
+    if bestParams_json_object["useMarkovBayesian"]:
+        try:
+            # Markov Bayesian
+            print("Performing Markov Bayesian Prediction")
+            markovBayesian.setDataPath(dataPath)
+            markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
+            markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
+            markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
+            markovBayesian.clear()
 
-    try:
-        # Markov Bayesian
-        print("Performing Markov Bayesian Prediction")
-        markovBayesian.setDataPath(dataPath)
-        markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
-        markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
-        markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
-        markovBayesian.clear()
+            markovBayesianPrediction = {
+                "name": "MarkovBayesian Model",
+                "predictions": []
+            }
 
-        markovBayesianPrediction = {
-            "name": "MarkovBayesian Model",
-            "predictions": []
-        }
+            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
+            markovBayesianPrediction["predictions"].append(markovBayesianSequence)
+            for key in markovBayesianSubsets:
+                markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            listOfDecodedPredictions.append(markovBayesianPrediction)
+        except Exception as e:
+            print("Failed to perform Markov Bayesian: ", e)
 
-        markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
-        markovBayesianPrediction["predictions"].append(markovBayesianSequence)
-        for key in markovBayesianSubsets:
-            markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
+    if not "pick3" in name and bestParams_json_object["usevMarkovBayesianEnhanced"]:
+        try:
+            # Markov Bayesian Enhanced
+            print("Performing Markov Bayesian Enhanced Prediction")
+            markovBayesianEnhanced.setDataPath(dataPath)
+            markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
+            markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
+            markovBayesianEnhanced.setMinOccurrences(bestParams_json_object["markovBayesianEnhancedMinOccurences"])
+            markovBayesianEnhanced.clear()
 
-        listOfDecodedPredictions.append(markovBayesianPrediction)
-    except Exception as e:
-        print("Failed to perform Markov Bayesian: ", e)
+            markovBayesianEnhancedPrediction = {
+                "name": "MarkovBayesianEnhanched Model",
+                "predictions": []
+            }
 
-    try:
-        # Markov Bayesian Enhanced
-        print("Performing Markov Bayesian Enhanced Prediction")
-        markovBayesianEnhanced.setDataPath(dataPath)
-        markovBayesianEnhanced.setSoftMAxTemperature(0.1)
-        markovBayesianEnhanced.setAlpha(0.7)
-        markovBayesianEnhanced.setMinOccurrences(10)
-        markovBayesianEnhanced.clear()
+            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
+            markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
+            for key in markovBayesianSubsets:
+                markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
 
-        markovBayesianEnhancedPrediction = {
-            "name": "MarkovBayesianEnhanched Model",
-            "predictions": []
-        }
+            listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
+        except Exception as e:
+            print("Failed to perform Markov Bayesian Enhanced: ", e)
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+    if bestParams_json_object["usePoissonMonteCarlo"]:
+        try:
+            # Poisson Distribution with Monte Carlo Analysis
+            print("Performing Poisson Monte Carlo Prediction")
+            poissonMonteCarlo.setDataPath(dataPath)
+            poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
+            poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
+            poissonMonteCarlo.clear()
 
-        markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
-        markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
-        for key in markovBayesianSubsets:
-            markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
+            poissonMonteCarloPrediction = {
+                "name": "PoissonMonteCarlo Model",
+                "predictions": []
+            }
 
-        listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
-    except Exception as e:
-        print("Failed to perform Markov Bayesian Enhanced: ", e)
+            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
 
-    try:
-        # Poisson Distribution with Monte Carlo Analysis
-        print("Performing Poisson Monte Carlo Prediction")
-        poissonMonteCarlo.setDataPath(dataPath)
-        poissonMonteCarlo.setNumOfSimulations(1000)
-        poissonMonteCarlo.setRecentDraws(2000)
-        poissonMonteCarlo.setWeightFactor(0.1)
-        poissonMonteCarlo.clear()
+            poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
+            for key in poissonMonteCarloSubsets:
+                poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSubsets[key])
 
-        poissonMonteCarloPrediction = {
-            "name": "PoissonMonteCarlo Model",
-            "predictions": []
-        }
+            listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
+        except Exception as e:
+            print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+    if bestParams_json_object["usePoissonMarkov"]:
+        try:
+            # Poisson-Markov Distribution
+            print("Performing Poisson-Markov Prediction")
+            poissonMarkov.setDataPath(dataPath)
+            poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1-bestParams_json_object["poissonMarkovWeight"]))
+            poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
 
-        poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
+            poissonMarkovPrediction = {
+                "name": "PoissonMarkov Model",
+                "predictions": []
+            }
 
-        poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
-        for key in poissonMonteCarloSubsets:
-            poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSubsets[key])
+            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
 
-        listOfDecodedPredictions.append(poissonMonteCarloPrediction)    
-    except Exception as e:
-        print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
+            poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
+            for key in poissonMarkovSubsets:
+                poissonMarkovPrediction["predictions"].append(poissonMarkovSubsets[key])
 
-    try:
-        # Poisson-Markov Distribution
-        print("Performing Poisson-Markov Prediction")
-        poissonMarkov.setDataPath(dataPath)
-        poissonMarkov.setWeights(poisson_weight=0.3, markov_weight=0.7)
-        poissonMarkov.setNumberOfSimulations(1000)
+            listOfDecodedPredictions.append(poissonMarkovPrediction)    
+        except Exception as e:
+            print("Failed to perform Poisson-Markov Distribution: ", e)
 
-        poissonMarkovPrediction = {
-            "name": "PoissonMarkov Model",
-            "predictions": []
-        }
+    if bestParams_json_object["useLaplaceMonteCarlo"]:
+        try:
+            # Laplace Distribution with Monte Carlo Analysis
+            print("Performing Laplace Monte Carlo Prediction")
+            laplaceMonteCarlo.setDataPath(dataPath)
+            laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
+            laplaceMonteCarlo.clear()
 
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
+            laplaceMonteCarloPrediction = {
+                "name": "LaplaceMonteCarlo Model",
+                "predictions": []
+            }
 
-        poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
+            subsets = []
+            if "keno" in name:
+                subsets = [5, 6, 7, 8, 9, 10]
 
-        poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
-        for key in poissonMarkovSubsets:
-            poissonMarkovPrediction["predictions"].append(poissonMarkovSubsets[key])
+            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
+            laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
+            for key in laplaceMonteCarloSubsets:
+                laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
+            
+            listOfDecodedPredictions.append(laplaceMonteCarloPrediction)
+        except Exception as e:
+            print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
 
-        listOfDecodedPredictions.append(poissonMarkovPrediction)    
-    except Exception as e:
-        print("Failed to perform Poisson-Markov Distribution: ", e)
+    if bestParams_json_object["useHybridStatisticalModel"]:
+        try:
+            # Hybrid Statistical Model
+            print("Performing Hybrid Statistical Model Prediction")
+            hybridStatisticalModel.setDataPath(dataPath)
+            hybridStatisticalModel.setSoftMaxTemperature(bestParams_json_object["hybridStatisticalModelSoftMaxTemperature"])
+            hybridStatisticalModel.setAlpha(bestParams_json_object["hybridStatisticalModelAlpha"])
+            hybridStatisticalModel.setMinOccurrences(bestParams_json_object["hybridStatisticalModelMinOcurrences"])
+            hybridStatisticalModel.setNumberOfSimulations(bestParams_json_object["hybridStatisticalModelNumberOfSimulations"])
+            hybridStatisticalModel.clear()
 
+            hybridStatisticalModelPrediction = {
+                "name": "HybridStatisticalModel",
+                "predictions": []
+            }
 
-    try:
-        # Laplace Distribution with Monte Carlo Analysis
-        print("Performing Laplace Monte Carlo Prediction")
-        laplaceMonteCarlo.setDataPath(dataPath)
-        laplaceMonteCarlo.setNumOfSimulations(1000)
-        laplaceMonteCarlo.clear()
-
-        laplaceMonteCarloPrediction = {
-            "name": "LaplaceMonteCarlo Model",
-            "predictions": []
-        }
-
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
-
-        laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
-        laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
-        for key in laplaceMonteCarloSubsets:
-            laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
-        
-        listOfDecodedPredictions.append(laplaceMonteCarloPrediction)
-    except Exception as e:
-        print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
-
-    try:
-        # Hybrid Statistical Model
-        print("Performing Hybrid Statistical Model Prediction")
-        hybridStatisticalModel.setDataPath(dataPath)
-        hybridStatisticalModel.setSoftMaxTemperature(0.1)
-        hybridStatisticalModel.setAlpha(0.7)
-        hybridStatisticalModel.setMinOccurrences(10)
-        hybridStatisticalModel.setNumberOfSimulations(1000)
-        hybridStatisticalModel.clear()
-
-        hybridStatisticalModelPrediction = {
-            "name": "HybridStatisticalModel",
-            "predictions": []
-        }
-
-        subsets = []
-        if "keno" in name:
-            subsets = [5, 6, 7, 8, 9, 10]
-
-        hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
-        hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
-        for key in hybridStatisticalModelSubsets:
-            hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
-        
-        listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
-    except Exception as e:
-        print("Failed to perform Hybrid Statistical Model: ", e)
+            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
+            hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
+            for key in hybridStatisticalModelSubsets:
+                hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
+            
+            listOfDecodedPredictions.append(hybridStatisticalModelPrediction)
+        except Exception as e:
+            print("Failed to perform Hybrid Statistical Model: ", e)
 
 
     return listOfDecodedPredictions
@@ -711,7 +702,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-m', '--months', type=int, default=6)
+    parser.add_argument('-d', '--days', type=int, default=93)
     args = parser.parse_args()
 
     print_intro()
@@ -719,7 +710,7 @@ if __name__ == "__main__":
     current_year = datetime.now().year
     print("Current Year:", current_year)
 
-    monthsToRebuild = int(args.months)
+    daysToRebuild = int(args.days)
     rebuildHistory = bool(args.rebuild_history)
 
 
@@ -743,25 +734,35 @@ if __name__ == "__main__":
             dataPath = os.path.join(path, "data", "trainingData", dataset_name)
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
+            kwargs_wget = {
+                "folder": dataPath,
+                "file": file
+            }
+
+            # Lets check if file exists
+            if os.path.exists(os.path.join(dataPath, file)):
+                os.remove(os.path.join(dataPath, file))
+            command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+
             # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year + last year
-            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, monthsToRebuild=monthsToRebuild, ai=ai)
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
 
-    try:
-        helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
-    except Exception as e:
-        print("Failed to generate txt file:", e)
+    # try:
+    #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
+    # except Exception as e:
+    #     print("Failed to generate txt file:", e)
 
     try:
         for filename in os.listdir(os.getcwd()):
@@ -772,7 +773,7 @@ if __name__ == "__main__":
                     print(f"Deleted: {file_path}")
     except Exception as e:
         print("Failed to cleanup folder")
-        
+
     try:
         helpers.git_push()
     except Exception as e:
