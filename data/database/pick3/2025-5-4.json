@@ -6,30 +6,17 @@
       "predictions": [
         [
           0,
-          4,
-          5
+          3,
+          4
         ]
       ]
     },
     {
-      "name": "PoissonMarkov Model",
+      "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          0,
-          1,
-          5,
           2,
-          4,
-          6
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          5,
-          7,
+          6,
           8
         ]
       ]
@@ -46,50 +33,34 @@
       "predictions": [
         [
           2,
-          7,
-          8
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
-          6,
-          0,
           3,
-          2,
-          4
+          5
         ]
       ]
     },
     {
-      "name": "HybridStatisticalModel",
+      "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          8,
           2,
-          7
+          6,
+          8
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "PoissonMarkov Model",
+    "model": "PoissonMonteCarlo Model",
     "prediction": [
-      0,
-      1,
-      5,
       2,
-      4,
-      6
+      6,
+      8
     ],
     "matching_numbers": [
-      2,
-      5
+      2
     ],
-    "match_count": 2
+    "match_count": 1
   },
   "labels": [
     0,
@@ -104,15 +75,15 @@
     9
   ],
   "numberFrequency": {
-    "6": 0.10009955652095212,
-    "4": 0.10123088062268079,
-    "1": 0.10014480948502127,
-    "0": 0.10236220472440945,
-    "5": 0.09892297945515431,
-    "3": 0.09770114942528736,
-    "2": 0.1010498687664042,
-    "8": 0.10073309801792017,
-    "7": 0.09797266720970224,
-    "9": 0.0997827857724681
+    "6": 0.10007238508867174,
+    "4": 0.10120340209916757,
+    "1": 0.1001628664495114,
+    "0": 0.10233441910966341,
+    "5": 0.0989413680781759,
+    "3": 0.09767462902642056,
+    "2": 0.10106768005790807,
+    "8": 0.1007057546145494,
+    "7": 0.0979913137893594,
+    "9": 0.09984618168657257
   }
 }

@@ -2,22 +2,12 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          4,
-          6,
-          9
-        ]
-      ]
-    },
-    {
       "name": "MarkovBayesian Model",
       "predictions": [
         [
           2,
-          3,
-          7
+          4,
+          5
         ]
       ]
     },
@@ -25,41 +15,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          2,
+          0,
           4,
           5
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
-          4,
-          2,
-          7,
-          5,
-          6
-        ]
-      ]
-    },
-    {
-      "name": "LaplaceMonteCarlo Model",
-      "predictions": [
-        [
-          3,
-          3,
-          5
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          3,
-          4,
-          7
         ]
       ]
     }
@@ -71,22 +29,12 @@
   ],
   "newPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          0,
-          1,
-          5
-        ]
-      ]
-    },
-    {
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          1,
           2,
-          4
+          5,
+          6
         ]
       ]
     },
@@ -94,41 +42,8 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          7,
-          8,
-          9
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
+          0,
           4,
-          6,
-          8,
-          1,
-          2,
-          9
-        ]
-      ]
-    },
-    {
-      "name": "LaplaceMonteCarlo Model",
-      "predictions": [
-        [
-          3,
-          4,
-          5
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          1,
-          2,
           5
         ]
       ]
@@ -154,15 +69,15 @@
     9
   ],
   "numberFrequency": {
-    "3": 0.09767610748002904,
-    "1": 0.10012708787218591,
-    "5": 0.09881082062454612,
-    "7": 0.09812999273783587,
-    "9": 0.0999001452432825,
-    "0": 0.10216957153231664,
-    "2": 0.10108024691358025,
-    "6": 0.10003631082062454,
-    "4": 0.10126180101670297,
-    "8": 0.10080791575889615
+    "6": 0.10007238508867174,
+    "4": 0.10120340209916757,
+    "1": 0.1001628664495114,
+    "0": 0.10233441910966341,
+    "5": 0.0989413680781759,
+    "3": 0.09767462902642056,
+    "2": 0.10106768005790807,
+    "8": 0.1007057546145494,
+    "7": 0.0979913137893594,
+    "9": 0.09984618168657257
   }
 }

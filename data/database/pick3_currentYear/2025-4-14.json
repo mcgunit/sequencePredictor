@@ -1,85 +1,8 @@
 {
-  "currentPredictionRaw": [
-    [
-      0.0,
-      0.0,
-      0.0,
-      3.673950033089568e-08,
-      0.0,
-      0.0,
-      0.0,
-      7.651534920437615e-19,
-      1.0,
-      0.0
-    ],
-    [
-      0.9999105930328369,
-      3.139479846339839e-14,
-      8.097341055318414e-15,
-      4.160386618545786e-11,
-      5.295009373185167e-07,
-      4.8187839135627186e-11,
-      1.654526661228566e-16,
-      1.0262105249728818e-16,
-      9.551154101151331e-16,
-      8.89133516466245e-05
-    ],
-    [
-      0.0,
-      0.0,
-      0.0,
-      0.9999990463256836,
-      0.0,
-      4.2572903535820217e-10,
-      6.273323436259784e-38,
-      2.646390732111842e-23,
-      9.280523158849974e-07,
-      0.0
-    ]
-  ],
+  "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "LSTM Base Model",
-      "predictions": [
-        [
-          8,
-          0,
-          3
-        ],
-        [
-          3,
-          9,
-          5
-        ]
-      ]
-    },
-    {
-      "name": "LSTM Refined Model",
-      "predictions": [
-        [
-          7,
-          8,
-          2
-        ],
-        [
-          0,
-          5,
-          6
-        ]
-      ]
-    },
-    {
-      "name": "ARIMA Model",
-      "predictions": [
-        [
-          5,
-          6,
-          4
-        ]
-      ]
-    },
-    {
-      "name": "Markov Model",
+      "name": "MarkovBayesian Model",
       "predictions": [
         [
           0,
@@ -89,42 +12,12 @@
       ]
     },
     {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          0,
-          3,
-          4
-        ]
-      ]
-    },
-    {
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          2,
-          6,
-          8
-        ]
-      ]
-    },
-    {
-      "name": "LaplaceMonteCarlo Model",
-      "predictions": [
-        [
-          3,
-          5,
-          4
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          0,
           4,
-          6
+          7,
+          9
         ]
       ]
     }
@@ -136,22 +29,12 @@
   ],
   "newPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          0,
-          1,
-          5
-        ]
-      ]
-    },
-    {
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          1,
-          2,
-          4
+          0,
+          3,
+          6
         ]
       ]
     },
@@ -159,59 +42,25 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
+          4,
           7,
-          8,
           9
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
-          4,
-          6,
-          8,
-          1,
-          2,
-          9
-        ]
-      ]
-    },
-    {
-      "name": "LaplaceMonteCarlo Model",
-      "predictions": [
-        [
-          3,
-          4,
-          5
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          1,
-          2,
-          5
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "LSTM Base Model",
+    "model": "MarkovBayesian Model",
     "prediction": [
-      8,
       0,
-      3
+      1,
+      4
     ],
     "matching_numbers": [
-      0,
-      3
+      0
     ],
-    "match_count": 2
+    "match_count": 1
   },
   "labels": [
     0,
@@ -226,15 +75,15 @@
     9
   ],
   "numberFrequency": {
-    "3": 0.09767610748002904,
-    "1": 0.10012708787218591,
-    "5": 0.09881082062454612,
-    "7": 0.09812999273783587,
-    "9": 0.0999001452432825,
-    "0": 0.10216957153231664,
-    "2": 0.10108024691358025,
-    "6": 0.10003631082062454,
-    "4": 0.10126180101670297,
-    "8": 0.10080791575889615
+    "6": 0.10007238508867174,
+    "4": 0.10120340209916757,
+    "1": 0.1001628664495114,
+    "0": 0.10233441910966341,
+    "5": 0.0989413680781759,
+    "3": 0.09767462902642056,
+    "2": 0.10106768005790807,
+    "8": 0.1007057546145494,
+    "7": 0.0979913137893594,
+    "9": 0.09984618168657257
   }
 }
