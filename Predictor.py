@@ -18,6 +18,7 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
+from src.XGBoost import XGBoostKenoPredictor
 from src.Command import Command
 from src.Helpers import Helpers
 
@@ -33,6 +34,7 @@ poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
 hybridStatisticalModel = HybridStatisticalModel()
 poissonMarkov = PoissonMarkov()
+xgboostPredictor = XGBoostKenoPredictor()
 command = Command()
 helpers = Helpers()
 
@@ -156,7 +158,7 @@ def process_single_history_entry(args):
 
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, boost=False):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -269,6 +271,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     
                     listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath, ai)
 
+                    listOfDecodedPredictions = thirdStage(listOfDecodedPredictions, dataPath, path, name)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
 
@@ -626,9 +629,6 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = [5, 6, 7, 8, 9, 10]
 
             laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
@@ -664,6 +664,33 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
         except Exception as e:
             print("Failed to perform Hybrid Statistical Model: ", e)
 
+
+    return listOfDecodedPredictions
+
+def thirdStage(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
+    try:
+        # Hybrid Statistical Model
+        print("Performing XGBoost Prediction")
+        xgboostPredictor.setDataPath(dataPath)
+        xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
+
+        xgboostPrediction = {
+            "name": "xgboost",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = [5,6,7,8,9,10]
+
+        xgboostSequence, xgboostSubsets = xgboostPredictor.run(generateSubsets=subsets, skipRows=skipRows)
+        xgboostPrediction["predictions"].append(xgboostSequence)
+        for key in xgboostSubsets:
+            xgboostPrediction["predictions"].append(xgboostSubsets[key])
+        
+        listOfDecodedPredictions.append(xgboostPrediction)
+    except Exception as e:
+        print("Failed to perform Hybrid Statistical Model: ", e)
 
     return listOfDecodedPredictions
 
