@@ -801,16 +801,16 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns, ai)
-        ("euromillions", "tcn_model", 0, False),
-        ("lotto", "lstm_model", 0, False),
-        ("eurodreams", "lstm_model", 0, False),
-        #("jokerplus", "lstm_model", 1, False),
-        ("keno", "lstm_model", 0, False),
-        ("pick3", "lstm_model", 0, False),
-        ("vikinglotto", "lstm_model", 0, False),
+        ("euromillions", "tcn_model", 0, False, True),
+        ("lotto", "lstm_model", 0, False, True),
+        ("eurodreams", "lstm_model", 0, False, True),
+        #("jokerplus", "lstm_model", 1, False, True),
+        ("keno", "lstm_model", 0, False, True),
+        ("pick3", "lstm_model", 0, False, True),
+        ("vikinglotto", "lstm_model", 0, False, True),
     ]
 
-    for dataset_name, model_type, skip_last_columns, ai in datasets:
+    for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
         try:
             print(f"\n{dataset_name.capitalize()}")
             modelPath = os.path.join(path, "data", "models", model_type)
@@ -828,16 +828,16 @@ if __name__ == "__main__":
             command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
             # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
+            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai)
+            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             # Predict for current year + last year
-            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai)
+            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
+            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
