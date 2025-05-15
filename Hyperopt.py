@@ -19,6 +19,7 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
+from src.XGBoost import XGBoostKenoPredictor
 from src.Command import Command
 from src.Helpers import Helpers
 
@@ -34,6 +35,7 @@ poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
 hybridStatisticalModel = HybridStatisticalModel()
 poissonMarkov = PoissonMarkov()
+xgboostPredictor = XGBoostKenoPredictor()
 command = Command()
 helpers = Helpers()
 
@@ -93,7 +95,7 @@ def update_matching_numbers(name, path):
 
 def process_single_history_entry(args):
     (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-     skipLastColumns, years_back, ai, previousJsonFilePath, path, modelParams) = args
+        skipLastColumns, years_back, ai, boost, previousJsonFilePath, path, modelParams) = args
 
     modelToUse = tcn if "lstm_model" not in model_type else lstm
     historyDate, historyResult = historyEntry
@@ -134,7 +136,7 @@ def process_single_history_entry(args):
         predictedSequence = latest_raw_predictions.tolist()
         unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2, modelParams)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 2, modelParams)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -143,9 +145,12 @@ def process_single_history_entry(args):
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
 
-    listOfDecodedPredictions = secondStage(
+    listOfDecodedPredictions = statisticalMethod(
         listOfDecodedPredictions, dataPath, path, name, historyResult,
         unique_labels, jsonFilePath, ai, modelParams, skipRows=len(historyData)-historyIndex)
+    
+    if boost:
+        listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name, modelParams, skipRows=len(historyData)-historyIndex)
 
     current_json_object["newPrediction"] = listOfDecodedPredictions
     current_json_object["labels"] = unique_labels
@@ -209,7 +214,7 @@ def clearFolder(folderPath):
     except Exception as e:
         pass
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, modelParams={}):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, boost=False, modelParams={}):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -284,11 +289,15 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
             argsList = [
                 (historyIndex, historyEntry, historyData, name, model_type, dataPath,
-                modelPath, skipLastColumns, years_back, ai, previousJsonFilePath, path, modelParams)
+                modelPath, skipLastColumns, years_back, ai, boost, previousJsonFilePath, path, modelParams)
                 for historyIndex, historyEntry in enumerate(historyData)
             ]
 
-            with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
+            numberOfProcesses = min((cpu_count()-1), len(argsList))
+            if boost or ai:
+                numberOfProcesses = 1
+
+            with Pool(processes=numberOfProcesses) as pool:
                 results = pool.map(process_single_history_entry, argsList)
 
             print("Finished multiprocessing rebuild of history entries.")
@@ -306,7 +315,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         print("Did not found entries")
 
 
-def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, modelParams):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, modelParams):
     nthPredictions = {
         "name": "LSTM Base Model",
         "predictions": []
@@ -321,7 +330,7 @@ def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPrediction
     return listOfDecodedPredictions
 
 
-def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, modelParams, skipRows=0):
+def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, modelParams, skipRows=0):
     #####################
     # Start refinements #
     #####################
@@ -598,6 +607,33 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     return listOfDecodedPredictions
 
+def boostingMethod(listOfDecodedPredictions, dataPath, path, name, modelParams, skipRows=0):
+    try:
+        # Hybrid Statistical Model
+        #print("Performing XGBoost Prediction")
+        xgboostPredictor.setDataPath(dataPath)
+        xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
+
+        xgboostPrediction = {
+            "name": "xgboost",
+            "predictions": []
+        }
+
+        subsets = []
+        if "keno" in name:
+            subsets = modelParams["kenoSubset"]
+
+        xgboostSequence, xgboostSubsets = xgboostPredictor.run(generateSubsets=subsets, skipRows=skipRows)
+        xgboostPrediction["predictions"].append(xgboostSequence)
+        for item in xgboostSubsets:
+            xgboostPrediction["predictions"].append(item)
+        
+        listOfDecodedPredictions.append(xgboostPrediction)
+    except Exception as e:
+        print("Failed to perform XGBoost: ", e)
+
+    return listOfDecodedPredictions
+
 
 if __name__ == "__main__":
 
@@ -633,7 +669,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=93)
+    parser.add_argument('-d', '--days', type=int, default=31)
     args = parser.parse_args()
 
     print_intro()
@@ -709,6 +745,7 @@ if __name__ == "__main__":
                     'usePoissonMarkov': trial.suggest_categorical("usePoissonMarkov", [True, False]),
                     'useLaplaceMonteCarlo': trial.suggest_categorical("useLaplaceMonteCarlo", [True, False]),
                     'useHybridStatisticalModel': trial.suggest_categorical("useHybridStatisticalModel", [True, False]),
+                    'useBoost': trial.suggest_categorical("useBoost", [True, False]),
                     'kenoSubset': subset,
                     'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0),
                     'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
@@ -736,7 +773,7 @@ if __name__ == "__main__":
                     'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100),
                 }
                 for _ in range(numOfRepeats):
-                    profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, modelParams=modelParams)
+                    profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=modelParams["useBoost"], modelParams=modelParams)
                     #print("Profit: ", profit)
                     results.append(profit)
 
