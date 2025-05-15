@@ -685,12 +685,12 @@ def thirdStage(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
 
         xgboostSequence, xgboostSubsets = xgboostPredictor.run(generateSubsets=subsets, skipRows=skipRows)
         xgboostPrediction["predictions"].append(xgboostSequence)
-        for key in xgboostSubsets:
-            xgboostPrediction["predictions"].append(xgboostSubsets[key])
+        for item in xgboostSubsets:
+            xgboostPrediction["predictions"].append(item)
         
         listOfDecodedPredictions.append(xgboostPrediction)
     except Exception as e:
-        print("Failed to perform Hybrid Statistical Model: ", e)
+        print("Failed to perform XGBoost: ", e)
 
     return listOfDecodedPredictions
 
