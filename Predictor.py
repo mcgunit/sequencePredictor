@@ -92,11 +92,14 @@ def update_matching_numbers(name, path):
     print(f"Updated matching numbers in {len(sorted_files) - 1} files.")
 
 
-def process_single_history_entry(args):
-    (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-     skipLastColumns, years_back, ai, previousJsonFilePath, path) = args
+def process_single_history_entry_first_step(args):
+    """
+    First step to prepare the database and perform the statistical method.
+    In this step we can process multible files.
+    """
+    
+    (historyIndex, historyEntry, historyData, name, dataPath, previousJsonFilePath, path) = args
 
-    modelToUse = tcn if "lstm_model" not in model_type else lstm
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
     jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
@@ -112,6 +115,7 @@ def process_single_history_entry(args):
         "numberFrequency": helpers.count_number_frequencies(dataPath)
     }
 
+    # Check the previous prediction with the real result
     if previousJsonFilePath and os.path.exists(previousJsonFilePath):
         with open(previousJsonFilePath, 'r') as openfile:
             previous_json_object = json.load(openfile)
@@ -123,9 +127,49 @@ def process_single_history_entry(args):
     current_json_object["matchingNumbers"] = best_matching_prediction
 
     listOfDecodedPredictions = []
+
+    with open(jsonFilePath, "w+") as outfile:
+        json.dump(current_json_object, outfile)
+
+    listOfDecodedPredictions = statisticalMethod(
+        listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+
+    current_json_object["newPrediction"] = listOfDecodedPredictions
+
+    with open(jsonFilePath, "w+") as outfile:
+        json.dump(current_json_object, outfile)
+
+    return jsonFilePath
+
+
+def process_single_history_entry_second_step(args):
+    """
+    Second step to perform methods where we can not process multible files at the same time
+    """
+    
+    (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
+     skipLastColumns, years_back, ai, previousJsonFilePath, path, boost) = args
+
+    modelToUse = tcn if "lstm_model" not in model_type else lstm
+    historyDate, historyResult = historyEntry
+    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
+    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+
+    current_json_object = {}
+
+    # We need the file of the first step to continue
+    if jsonFilePath and os.path.exists(jsonFilePath):
+        with open(jsonFilePath, 'r') as openfile:
+            current_json_object = json.load(openfile)
+    else:
+        print("File of first step not found")
+        exit()
+
+    listOfDecodedPredictions = current_json_object["newPrediction"]
     unique_labels = []
 
     if ai:
+        # Set the fundation for deepLearningMethod
         modelToUse.setDataPath(dataPath)
         modelToUse.setModelPath(modelPath)
         modelToUse.setBatchSize(16)
@@ -135,27 +179,25 @@ def process_single_history_entry(args):
         predictedSequence = latest_raw_predictions.tolist()
         unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
         unique_labels = unique_labels.tolist()
 
-    with open(jsonFilePath, "w+") as outfile:
-        json.dump(current_json_object, outfile)
+    if boost:
+       listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
 
-    listOfDecodedPredictions = secondStage(
-        listOfDecodedPredictions, dataPath, path, name, historyResult,
-        unique_labels, jsonFilePath, ai, skipRows=len(historyData)-historyIndex)
-
+    
     current_json_object["newPrediction"] = listOfDecodedPredictions
     current_json_object["labels"] = unique_labels
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
 
-    return jsonFilePath
 
+
+    return jsonFilePath
 
 
 def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, boost=False):
@@ -260,7 +302,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         current_json_object["labels"] = unique_labels.tolist()
 
             
-                        listOfDecodedPredictions = firstStage(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2)
+                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2, current_json_object["realResult"], unique_labels, jsonFilePath, name)
                     else:
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
                         unique_labels = unique_labels.tolist()
@@ -269,9 +311,9 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    listOfDecodedPredictions = secondStage(listOfDecodedPredictions, dataPath, path, name, current_json_object["realResult"], unique_labels, jsonFilePath, ai)
+                    listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
 
-                    listOfDecodedPredictions = thirdStage(listOfDecodedPredictions, dataPath, path, name)
+                    listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
 
@@ -313,8 +355,8 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                 #print("History to rebuild: ", historyData)
 
                 argsList = [
-                    (historyIndex, historyEntry, historyData, name, model_type, dataPath,
-                    modelPath, skipLastColumns, years_back, ai, previousJsonFilePath, path)
+                    (historyIndex, historyEntry, historyData, name, dataPath,
+                    previousJsonFilePath, path)
                     for historyIndex, historyEntry in enumerate(historyData)
                 ]
 
@@ -323,15 +365,25 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                 if len(argsList) > 0:
                     #print("Numbers of cpu needed: ", min(cpu_count() - 1, len(argsList)))
                     with Pool(processes=min((cpu_count()-3), len(argsList))) as pool:
-                        results = pool.map(process_single_history_entry, argsList)
+                        results = pool.map(process_single_history_entry_first_step, argsList)
 
-                    print("Finished multiprocessing rebuild of history entries.")
+                    print("Finished first step: multiprocessing rebuild of history entries and statistical method.")
+
+                    argsList = [
+                        (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
+                            skipLastColumns, years_back, ai, previousJsonFilePath, path, boost)
+                        for historyIndex, historyEntry in enumerate(historyData)
+                    ]
+
+                    with Pool(processes=1) as pool:
+                        results = pool.map(process_single_history_entry_second_step, argsList)
+
+                    print("Finished second step: single process rebuild of history entries and ai or boosting method.")
 
                     # Find the matching numbers
                     update_matching_numbers(name=name, path=path)
                 else:
                     print("No entries to process for: ", name)
-                
 
                 #return predictedSequence
         else:
@@ -340,22 +392,95 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         print("Did not found entries")
 
 
-def firstStage(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions):
-    nthPredictions = {
-        "name": "LSTM Base Model",
-        "predictions": []
-    }
-    # Decode prediction with nth highest probability
-    for i in range(nOfPredictions):
-        prediction_nth_indices = helpers.decode_predictions(newPredictionRaw, labels, i)
-        nthPredictions["predictions"].append(prediction_nth_indices)
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, historyResult, unique_labels, jsonFilePath, name):
     
-    listOfDecodedPredictions.append(nthPredictions)
+    try:
+        nthPredictions = {
+            "name": "LSTM Base Model",
+            "predictions": []
+        }
+        # Decode prediction with nth highest probability
+        for i in range(nOfPredictions):
+            prediction_nth_indices = helpers.decode_predictions(newPredictionRaw, labels, i)
+            nthPredictions["predictions"].append(prediction_nth_indices)
+        
+        listOfDecodedPredictions.append(nthPredictions)
 
-    return listOfDecodedPredictions
+        return listOfDecodedPredictions
+    except Exception as e:
+        print("Failed to perform nth prediction: ", e)
 
 
-def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, unique_labels, jsonFilePath, ai, skipRows=0):
+    jsonDirPath = os.path.join(path, "data", "database", name)
+    num_classes = len(unique_labels)
+    numbersLength = len(historyResult)
+
+
+    try:
+        # Refine predictions
+        #print("Refine predictions")
+        refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+
+        #print("refined_prediction_raw: ", refined_prediction_raw)
+        refinedPredictions = {
+            "name": "LSTM Refined Model",
+            "predictions": []
+        }
+
+        for i in range(2):
+            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
+            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
+            refinedPredictions["predictions"].append(prediction_highest_indices)
+
+        listOfDecodedPredictions.append(refinedPredictions)
+    except Exception as e:
+        print("Was not able to run refine prediction model: ", e)
+
+    try:
+        # Top prediction
+        #print("Performing a Top Prediction")
+        topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
+
+        topPrediction = {
+            "name": "LSTM Top Predictor",
+            "predictions": []
+        }
+
+        # Print Top prediction
+        for i, prediction in enumerate(topPrediction):
+            topHighestProbPrediction = [int(num) for num in prediction]
+            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
+            topPrediction["predictions"].append(topHighestProbPrediction)
+        
+        listOfDecodedPredictions.append(topPrediction)
+    except Exception as e:
+        print("Was not able to run top prediction model: ", e)
+
+    try:
+        # Arima prediction
+        #print("Performing ARIMA Prediction")
+        lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
+        lstmArima.setDataPath(dataPath)
+        lstmArima.setBatchSize(8)
+        lstmArima.setEpochs(1000)
+
+        arimaPrediction = {
+            "name": "ARIMA Model",
+            "predictions": []
+        }
+
+        predicted_arima_sequence = lstmArima.run(name)
+        arimaPrediction["predictions"].append(predicted_arima_sequence)
+        listOfDecodedPredictions.append(arimaPrediction)
+
+    except Exception as e:
+        print("Failed to perform ARIMA: ", e)
+
+
+def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
 
     bestParams_json_object = {
         "use_5":True,
@@ -419,81 +544,12 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
             subsets.append(10)
         
 
-    #####################
-    # Start refinements #
-    #####################
-    jsonDirPath = os.path.join(path, "data", "database", name)
-    num_classes = len(unique_labels)
-    numbersLength = len(historyResult)
     
-    if ai:
-        try:
-            # Refine predictions
-            print("Refine predictions")
-            refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-            refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-
-            #print("refined_prediction_raw: ", refined_prediction_raw)
-            refinedPredictions = {
-                "name": "LSTM Refined Model",
-                "predictions": []
-            }
-
-            for i in range(2):
-                prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-                #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-                refinedPredictions["predictions"].append(prediction_highest_indices)
-
-            listOfDecodedPredictions.append(refinedPredictions)
-        except Exception as e:
-            print("Was not able to run refine prediction model: ", e)
-
-        try:
-            # Top prediction
-            print("Performing a Top Prediction")
-            topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-            top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-            topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-            topPrediction = {
-                "name": "LSTM Top Predictor",
-                "predictions": []
-            }
-
-            # Print Top prediction
-            for i, prediction in enumerate(topPrediction):
-                topHighestProbPrediction = [int(num) for num in prediction]
-                #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-                topPrediction["predictions"].append(topHighestProbPrediction)
-            
-            listOfDecodedPredictions.append(topPrediction)
-        except Exception as e:
-            print("Was not able to run top prediction model: ", e)
-
-        try:
-            # Arima prediction
-            print("Performing ARIMA Prediction")
-            lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
-            lstmArima.setDataPath(dataPath)
-            lstmArima.setBatchSize(8)
-            lstmArima.setEpochs(1000)
-
-            arimaPrediction = {
-                "name": "ARIMA Model",
-                "predictions": []
-            }
-
-            predicted_arima_sequence = lstmArima.run(name)
-            arimaPrediction["predictions"].append(predicted_arima_sequence)
-            listOfDecodedPredictions.append(arimaPrediction)
-
-        except Exception as e:
-            print("Failed to perform ARIMA: ", e)
     
     if bestParams_json_object["useMarkov"]:
         try:
             # Markov
-            print("Performing Markov Prediction")
+            #print("Performing Markov Prediction")
             markov.setDataPath(dataPath)
             markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"]) 
             markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"]) 
@@ -524,7 +580,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if bestParams_json_object["useMarkovBayesian"]:
         try:
             # Markov Bayesian
-            print("Performing Markov Bayesian Prediction")
+            #print("Performing Markov Bayesian Prediction")
             markovBayesian.setDataPath(dataPath)
             markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
             markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
@@ -548,7 +604,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if not "pick3" in name and bestParams_json_object["usevMarkovBayesianEnhanced"]:
         try:
             # Markov Bayesian Enhanced
-            print("Performing Markov Bayesian Enhanced Prediction")
+            #print("Performing Markov Bayesian Enhanced Prediction")
             markovBayesianEnhanced.setDataPath(dataPath)
             markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
             markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
@@ -572,7 +628,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if bestParams_json_object["usePoissonMonteCarlo"]:
         try:
             # Poisson Distribution with Monte Carlo Analysis
-            print("Performing Poisson Monte Carlo Prediction")
+            #print("Performing Poisson Monte Carlo Prediction")
             poissonMonteCarlo.setDataPath(dataPath)
             poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
             poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
@@ -596,7 +652,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if bestParams_json_object["usePoissonMarkov"]:
         try:
             # Poisson-Markov Distribution
-            print("Performing Poisson-Markov Prediction")
+            #print("Performing Poisson-Markov Prediction")
             poissonMarkov.setDataPath(dataPath)
             poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1-bestParams_json_object["poissonMarkovWeight"]))
             poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
@@ -619,7 +675,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if bestParams_json_object["useLaplaceMonteCarlo"]:
         try:
             # Laplace Distribution with Monte Carlo Analysis
-            print("Performing Laplace Monte Carlo Prediction")
+            #print("Performing Laplace Monte Carlo Prediction")
             laplaceMonteCarlo.setDataPath(dataPath)
             laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
             laplaceMonteCarlo.clear()
@@ -642,7 +698,7 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
     if bestParams_json_object["useHybridStatisticalModel"]:
         try:
             # Hybrid Statistical Model
-            print("Performing Hybrid Statistical Model Prediction")
+            #print("Performing Hybrid Statistical Model Prediction")
             hybridStatisticalModel.setDataPath(dataPath)
             hybridStatisticalModel.setSoftMaxTemperature(bestParams_json_object["hybridStatisticalModelSoftMaxTemperature"])
             hybridStatisticalModel.setAlpha(bestParams_json_object["hybridStatisticalModelAlpha"])
@@ -667,10 +723,10 @@ def secondStage(listOfDecodedPredictions, dataPath, path, name, historyResult, u
 
     return listOfDecodedPredictions
 
-def thirdStage(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
+def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
     try:
         # Hybrid Statistical Model
-        print("Performing XGBoost Prediction")
+        #print("Performing XGBoost Prediction")
         xgboostPredictor.setDataPath(dataPath)
         xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
 
@@ -729,7 +785,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=93)
+    parser.add_argument('-d', '--days', type=int, default=3)
     args = parser.parse_args()
 
     print_intro()
