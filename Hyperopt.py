@@ -613,6 +613,13 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, modelParams, 
         #print("Performing XGBoost Prediction")
         xgboostPredictor.setDataPath(dataPath)
         xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
+        xgboostPredictor.setEstimators(modelParams["xgBoostEstimators"])
+        xgboostPredictor.setLearningRate(modelParams["xgBoostLearningRate"])
+        xgboostPredictor.setMaxDepth(modelParams["xgBoostMaxdepth"])
+        xgboostPredictor.setPreviousDraws(modelParams["xgBoostPreviousDraws"])
+        xgboostPredictor.setTopK(modelParams["xgBoostTopK"])
+        xgboostPredictor.setForceNested(modelParams["xgBoostForceNested"])
+        xgboostPredictor.setRecentDraws(modelParams["xgBoostRecentDraws"])
 
         xgboostPrediction = {
             "name": "xgboost",
@@ -669,7 +676,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=31)
+    parser.add_argument('-d', '--days', type=int, default=15)
     args = parser.parse_args()
 
     print_intro()
@@ -719,7 +726,7 @@ if __name__ == "__main__":
 
             # Predict for current year + last year
             def objective(trial):
-                numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                numOfRepeats = 1 # To average out the rusults before continueing to the next result
                 totalProfit = 0
                 results = [] # Intermediate results
 
@@ -771,6 +778,13 @@ if __name__ == "__main__":
                     'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0),
                     'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
                     'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100),
+                    'xgBoostEstimators': trial.suggest_int('xgBoostEstimators', 10, 1000, step=10),
+                    'xgBoostLearningRate': trial.suggest_float('xgBoostLearningRate', 0.1, 2.0),
+                    'xgBoostMaxdepth': trial.suggest_int('xgBoostMaxdepth', 1, 20),
+                    'xgBoostPreviousDraws': trial.suggest_int('xgBoostPreviousDraws', 1, 100, step=5),
+                    'xgBoostTopK': trial.suggest_int('xgBoostTopK', 1, 100, step=5),
+                    'xgBoostForceNested': trial.suggest_categorical("xgBoostForceNested", [True, False]),
+                    'xgBoostRecentDraws': trial.suggest_int('xgBoostRecentDraws', 1, 100, step=5)
                 }
                 for _ in range(numOfRepeats):
                     profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=modelParams["useBoost"], modelParams=modelParams)
@@ -789,7 +803,7 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=1000)
+            study.optimize(objective, n_trials=100)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)

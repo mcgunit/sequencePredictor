@@ -24,20 +24,44 @@ from Helpers import Helpers
 helpers = Helpers()
 
 class XGBoostKenoPredictor:
-    def __init__(self, n_previous_draws=5, n_estimators=100, max_depth=5, learning_rate=0.1, lengthOfDraw=20):
+    def __init__(self, lengthOfDraw=20):
         self.dataPath = ""
         self.modelPath = ""
-        self.n_previous_draws = n_previous_draws
-        self.n_estimators = n_estimators
-        self.max_depth = max_depth
-        self.learning_rate = learning_rate
+        self.n_previous_draws = 5
+        self.n_estimators = 100
+        self.max_depth = 5
+        self.learning_rate = 0.1
         self.models = [None] * lengthOfDraw
+        self.top_k = 5
+        self.force_nested = False
+        self.recent_draws = 5
 
     def setModelPath(self, modelPath):
         self.modelPath = modelPath
     
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
+    
+    def setPreviousDraws(self, nPreviousDraws):
+        self.n_previous_draws = nPreviousDraws
+    
+    def setEstimators(self, nEstimators):
+        self.n_estimators = nEstimators
+
+    def setMaxDepth(self, maxDepth):
+        self.max_depth = maxDepth
+    
+    def setLearningRate(self, learningRate):
+        self.learning_rate = learningRate
+
+    def setTopK(self, topK):
+        self.top_k = topK
+    
+    def setForceNested(self, forceNested):
+        self.force_nested = forceNested
+
+    def setRecentDraws(self, recentDraws):
+        self.recent_draws = recentDraws
 
     def _prepare_data(self, draws: List[List[int]], lengthOfDraw):
         X, Y = [], [[] for _ in range(lengthOfDraw)]
@@ -206,9 +230,9 @@ class XGBoostKenoPredictor:
         subsets = {}
 
         if len(generateSubsets) > 0:
-            predicted_numbers, subsets = self.predict_with_subsets(numbers[-5:], top_k=5, draw_sizes=generateSubsets, force_nested=False)
+            predicted_numbers, subsets = self.predict_with_subsets(numbers[-self.recent_draws:], top_k=self.top_k, draw_sizes=generateSubsets, force_nested=self.force_nested)
         else:
-            predicted_numbers = self.predict(numbers[-5:])
+            predicted_numbers = self.predict(numbers[-self.recent_draws:])
 
         return predicted_numbers, subsets
 
