@@ -143,7 +143,7 @@ class XGBoostKenoPredictor:
             for num, val in number_scores.items()
         }
 
-        self.save_average_confidence_plot(average_confidences)
+        #self.save_average_confidence_plot(average_confidences)
 
         # Rank by average confidence (descending)
         sorted_candidates = sorted(average_confidences, key=average_confidences.get, reverse=True)
