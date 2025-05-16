@@ -5,6 +5,8 @@ import os
 import joblib
 from itertools import combinations
 from typing import List, Dict, Tuple
+from collections import defaultdict
+import matplotlib.pyplot as plt
 
 # Dynamically adjust the import path for Helpers
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -119,20 +121,32 @@ class XGBoostKenoPredictor:
         )
 
         predicted_draw = []
-        position_topk = []
+        number_scores = defaultdict(lambda: {"total_prob": 0.0, "count": 0})
 
         for model in self.models:
             probs = model.predict_proba(input_features)[0]
             top_indices = np.argsort(probs)[-top_k:][::-1]
             top_numbers = [int(i + 1) for i in top_indices]
-            position_topk.append(top_numbers)
-            predicted_draw.append(top_numbers[0])  # Top-1 prediction
 
-        # Flatten and sort candidates by frequency
-        from collections import Counter
-        all_top_numbers = [n for topk in position_topk for n in topk]
-        counter = Counter(all_top_numbers)
-        sorted_candidates = [n for n, _ in counter.most_common()]
+            # Top-1 prediction
+            predicted_draw.append(top_numbers[0])
+
+            # Track confidence for each number
+            for i in top_indices:
+                number = int(i + 1)
+                number_scores[number]["total_prob"] += probs[i]
+                number_scores[number]["count"] += 1
+
+        # Compute average confidence per number
+        average_confidences = {
+            num: val["total_prob"] / val["count"]
+            for num, val in number_scores.items()
+        }
+
+        save_average_confidence_plot(average_confidences)
+
+        # Rank by average confidence (descending)
+        sorted_candidates = sorted(average_confidences, key=average_confidences.get, reverse=True)
 
         # Generate draw subsets
         subsets_by_draw_size = []
@@ -159,6 +173,7 @@ class XGBoostKenoPredictor:
             subsets_by_draw_size.append(draw)
 
         return predicted_draw, subsets_by_draw_size
+
 
     def save(self, folder_path: str):
         os.makedirs(folder_path, exist_ok=True)
@@ -191,12 +206,25 @@ class XGBoostKenoPredictor:
         subsets = {}
 
         if len(generateSubsets) > 0:
-            predicted_numbers, subsets = self.predict_with_subsets(numbers[-5:], top_k=3, draw_sizes=generateSubsets, force_nested=False)
+            predicted_numbers, subsets = self.predict_with_subsets(numbers[-5:], top_k=5, draw_sizes=generateSubsets, force_nested=False)
         else:
             predicted_numbers = self.predict(numbers[-5:])
 
         return predicted_numbers, subsets
 
+def save_average_confidence_plot(avg_confidences, filename="average_confidence_per_number.png"):
+    numbers = list(avg_confidences.keys())
+    confidences = list(avg_confidences.values())
+
+    plt.figure(figsize=(10, 4))
+    plt.bar(numbers, confidences, color='skyblue')
+    plt.xlabel("Number")
+    plt.ylabel("Average Confidence")
+    plt.title("Average Confidence per Number")
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
 
 if __name__ == "__main__":
     print("Trying XGBoost")
