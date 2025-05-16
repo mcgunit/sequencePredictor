@@ -71,7 +71,7 @@ class XGBoostKenoPredictor:
                 n_estimators=self.n_estimators,
                 max_depth=self.max_depth,
                 learning_rate=self.learning_rate,
-                use_label_encoder=False,
+                #use_label_encoder=False,
                 eval_metric="mlogloss"
             )
 
