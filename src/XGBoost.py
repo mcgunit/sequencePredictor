@@ -143,7 +143,7 @@ class XGBoostKenoPredictor:
             for num, val in number_scores.items()
         }
 
-        save_average_confidence_plot(average_confidences)
+        self.save_average_confidence_plot(average_confidences)
 
         # Rank by average confidence (descending)
         sorted_candidates = sorted(average_confidences, key=average_confidences.get, reverse=True)
@@ -212,19 +212,19 @@ class XGBoostKenoPredictor:
 
         return predicted_numbers, subsets
 
-def save_average_confidence_plot(avg_confidences, filename="average_confidence_per_number.png"):
-    numbers = list(avg_confidences.keys())
-    confidences = list(avg_confidences.values())
+    def save_average_confidence_plot(self, avg_confidences, filename="average_confidence_per_number.png"):
+        numbers = list(avg_confidences.keys())
+        confidences = list(avg_confidences.values())
 
-    plt.figure(figsize=(10, 4))
-    plt.bar(numbers, confidences, color='skyblue')
-    plt.xlabel("Number")
-    plt.ylabel("Average Confidence")
-    plt.title("Average Confidence per Number")
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout()
-    plt.savefig(filename)
-    plt.close()
+        plt.figure(figsize=(10, 4))
+        plt.bar(numbers, confidences, color='skyblue')
+        plt.xlabel("Number")
+        plt.ylabel("Average Confidence")
+        plt.title("Average Confidence per Number")
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
 
 if __name__ == "__main__":
     print("Trying XGBoost")

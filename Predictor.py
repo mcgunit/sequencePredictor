@@ -842,6 +842,9 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
 
+    
+    print("Finished with predictions")
+
     # try:
     #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
     # except Exception as e:
