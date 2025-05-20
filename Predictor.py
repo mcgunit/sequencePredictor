@@ -741,8 +741,7 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
             "xgBoostMaxdepth": 3,
             "xgBoostPreviousDraws": 81,
             "xgBoostTopK": 31,
-            "xgBoostForceNested": True,
-            "xgBoostRecentDraws": 41
+            "xgBoostForceNested": True
         }
 
         try:
@@ -778,7 +777,6 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
         xgboostPredictor.setPreviousDraws(bestParams_json_object["xgBoostPreviousDraws"])
         xgboostPredictor.setTopK(bestParams_json_object["xgBoostTopK"])
         xgboostPredictor.setForceNested(bestParams_json_object["xgBoostForceNested"])
-        xgboostPredictor.setRecentDraws(bestParams_json_object["xgBoostRecentDraws"])
 
         xgboostPrediction = {
             "name": "xgboost",
