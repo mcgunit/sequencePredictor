@@ -230,6 +230,7 @@ class XGBoostKenoPredictor:
         subsets = {}
 
         if len(generateSubsets) > 0:
+            print("Predicting with xgboost: ", len(numbers[-self.recent_draws:]))
             predicted_numbers, subsets = self.predict_with_subsets(numbers[-self.recent_draws:], top_k=self.top_k, draw_sizes=generateSubsets, force_nested=self.force_nested)
         else:
             predicted_numbers = self.predict(numbers[-self.recent_draws:])
