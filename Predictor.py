@@ -522,11 +522,14 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "hybridStatisticalModelNumberOfSimulations": 900
     }
 
-    # Load hyperopt parameters if exists
-    hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
-    if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-        with open(hyperoptParamsJsonFile, 'r') as openfile:
-            bestParams_json_object = json.load(openfile)
+    try:
+        # Load hyperopt parameters if exists
+        hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+            with open(hyperoptParamsJsonFile, 'r') as openfile:
+                bestParams_json_object = json.load(openfile)
+    except Exception as e:
+        print("Failed to parse parameter file: ", e)
 
     subsets = []
     if "keno" in name:
@@ -742,11 +745,14 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
             "xgBoostRecentDraws": 41
         }
 
-        # Load hyperopt parameters if exists
-        hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
-        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-            with open(hyperoptParamsJsonFile, 'r') as openfile:
-                bestParams_json_object = json.load(openfile)
+        try:
+            # Load hyperopt parameters if exists
+            hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+            if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+                with open(hyperoptParamsJsonFile, 'r') as openfile:
+                    bestParams_json_object = json.load(openfile)
+        except Exception as e:
+            print("Failed to parse parameter file in boost method: ", e)
 
         subsets = []
         if "keno" in name:
