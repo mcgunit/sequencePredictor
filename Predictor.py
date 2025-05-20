@@ -100,10 +100,6 @@ def process_single_history_entry_first_step(args):
     
     (historyIndex, historyEntry, historyData, name, dataPath, previousJsonFilePath, path) = args
 
-    historyDate, historyResult = historyEntry
-    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
-    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
-
     current_json_object = {
         "currentPredictionRaw": [],
         "currentPrediction": [],
@@ -112,29 +108,46 @@ def process_single_history_entry_first_step(args):
         "newPredictionRaw": [],
         "matchingNumbers": {},
         "labels": [],
-        "numberFrequency": helpers.count_number_frequencies(dataPath)
+        "numberFrequency": []
     }
 
-    # Check the previous prediction with the real result
-    if previousJsonFilePath and os.path.exists(previousJsonFilePath):
-        with open(previousJsonFilePath, 'r') as openfile:
-            previous_json_object = json.load(openfile)
-        current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
-        current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+    try:
+        current_json_object["numberFrequency"] = helpers.count_number_frequencies(dataPath)
+    except Exception as e:
+        print("Failed to calculate the number frequencies: ", e)
 
-    best_matching_prediction = helpers.find_best_matching_prediction(
-        current_json_object["realResult"], current_json_object["currentPrediction"])
-    current_json_object["matchingNumbers"] = best_matching_prediction
+    historyDate, historyResult = historyEntry
+    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
+    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+    
+    try:
+        # Check the previous prediction with the real result
+        if previousJsonFilePath and os.path.exists(previousJsonFilePath):
+            with open(previousJsonFilePath, 'r') as openfile:
+                previous_json_object = json.load(openfile)
+            current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+            current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-    listOfDecodedPredictions = []
+        best_matching_prediction = helpers.find_best_matching_prediction(
+            current_json_object["realResult"], current_json_object["currentPrediction"])
+        current_json_object["matchingNumbers"] = best_matching_prediction
 
-    with open(jsonFilePath, "w+") as outfile:
-        json.dump(current_json_object, outfile)
+        
 
-    listOfDecodedPredictions = statisticalMethod(
-        listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+        with open(jsonFilePath, "w+") as outfile:
+            json.dump(current_json_object, outfile)
+    except Exception as e:
+        print("Failed to check previous json: ", e)
 
-    current_json_object["newPrediction"] = listOfDecodedPredictions
+    try: 
+        listOfDecodedPredictions = []
+
+        listOfDecodedPredictions = statisticalMethod(
+            listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+
+        current_json_object["newPrediction"] = listOfDecodedPredictions
+    except Exception as e:
+        print("Failed to perform statistical method: ", e)
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
