@@ -100,6 +100,10 @@ def process_single_history_entry_first_step(args):
     
     (historyIndex, historyEntry, historyData, name, dataPath, previousJsonFilePath, path) = args
 
+    historyDate, historyResult = historyEntry
+    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
+    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+
     current_json_object = {
         "currentPredictionRaw": [],
         "currentPrediction": [],
@@ -115,10 +119,6 @@ def process_single_history_entry_first_step(args):
         current_json_object["numberFrequency"] = helpers.count_number_frequencies(dataPath)
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
-
-    historyDate, historyResult = historyEntry
-    jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
-    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
     
     try:
         # Check the previous prediction with the real result
