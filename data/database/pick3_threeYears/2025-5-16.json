@@ -1,1 +1,90 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "MarkovBayesian Model", "predictions": [[0, 1, 2]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[0, 6, 9]]}], "realResult": [0, 5, 2], "newPrediction": [{"name": "MarkovBayesian Model", "predictions": [[0, 1, 2]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[1, 2, 7]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "MarkovBayesian Model", "prediction": [0, 1, 2], "matching_numbers": [0, 2], "match_count": 2}, "labels": [], "numberFrequency": {"6": 0.10000452100004521, "4": 0.10127040101270401, "1": 0.10018536100185362, "0": 0.10244586102445861, "5": 0.09900990099009901, "3": 0.09760839097608391, "2": 0.10108956101089561, "8": 0.1006374610063746, "7": 0.09792486097924862, "9": 0.09982368099823681}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          6,
+          9
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    0,
+    5,
+    2
+  ],
+  "newPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          3,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          8,
+          9
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "MarkovBayesian Model",
+    "prediction": [
+      0,
+      1,
+      2
+    ],
+    "matching_numbers": [
+      0,
+      2
+    ],
+    "match_count": 2
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "6": 0.1000994215473608,
+    "4": 0.10127440347071584,
+    "1": 0.10018980477223427,
+    "0": 0.10244938539407086,
+    "5": 0.09896963123644252,
+    "3": 0.09761388286334056,
+    "2": 0.10109363702096891,
+    "8": 0.10059652928416486,
+    "7": 0.09788503253796095,
+    "9": 0.09982827187274042
+  }
+}
