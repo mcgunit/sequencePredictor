@@ -218,6 +218,8 @@ class XGBoostKenoPredictor:
         _, _, _, _, _, numbers, num_classes, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
         #print("num classes: ", num_classes)
+        print("lengt of Numbers before fiting: ", len(numbers))
+        print("recent draws: ", self.recent_draws)
 
         self.fit(draws=numbers, num_classes=num_classes, lengthOfDraw=len(numbers[0]))
 
