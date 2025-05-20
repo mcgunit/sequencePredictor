@@ -777,7 +777,7 @@ if __name__ == "__main__":
                     'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0),
                     'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
                     'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100),
-                    'xgBoostEstimators': trial.suggest_int('xgBoostEstimators', 10, 1000, step=10),
+                    'xgBoostEstimators': trial.suggest_int('xgBoostEstimators', 10, 200, step=10),
                     'xgBoostLearningRate': trial.suggest_float('xgBoostLearningRate', 0.1, 2.0),
                     'xgBoostMaxdepth': trial.suggest_int('xgBoostMaxdepth', 1, 20),
                     'xgBoostPreviousDraws': trial.suggest_int('xgBoostPreviousDraws', 1, 100, step=5),
