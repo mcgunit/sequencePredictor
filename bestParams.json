@@ -37,11 +37,10 @@
     "hybridStatisticalModelAlpha": 0.8847514061200058, 
     "hybridStatisticalModelMinOcurrences": 19, 
     "hybridStatisticalModelNumberOfSimulations": 400,
-    "xgBoostEstimators": 1000,
+    "xgBoostEstimators": 100,
     "xgBoostLearningRate": 0.7014495252508934,
     "xgBoostMaxdepth": 3,
     "xgBoostPreviousDraws": 81,
     "xgBoostTopK": 31,
-    "xgBoostForceNested": true,
-    "xgBoostRecentDraws": 41
+    "xgBoostForceNested": true
 }
