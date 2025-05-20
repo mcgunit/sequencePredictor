@@ -261,7 +261,7 @@ class Helpers():
 
         # Remove the last n elements in case of history building
         if skipRows > 0:
-            print("Skipping Rows: ", skipRows)
+            #print("Skipping Rows: ", skipRows)
             #print("Length of data before skipping rows: ", len(numbers))
             numbers = numbers[:-skipRows]
             #print("Length after skipping rows: ", len(numbers))
@@ -330,7 +330,7 @@ class Helpers():
         # Get the maximum value in the data (for scaling purposes, if needed)
         max_value = np.max(numbers)
 
-        print("Length of data: ", len(numbers))
+        #print("Length of data: ", len(numbers))
 
         return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels
 
