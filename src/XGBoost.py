@@ -34,7 +34,6 @@ class XGBoostKenoPredictor:
         self.models = [None] * lengthOfDraw
         self.top_k = 5
         self.force_nested = False
-        self.recent_draws = 5
 
     def setModelPath(self, modelPath):
         self.modelPath = modelPath
@@ -59,9 +58,6 @@ class XGBoostKenoPredictor:
     
     def setForceNested(self, forceNested):
         self.force_nested = forceNested
-
-    def setRecentDraws(self, recentDraws):
-        self.recent_draws = recentDraws
 
     def _prepare_data(self, draws: List[List[int]], lengthOfDraw):
         X, Y = [], [[] for _ in range(lengthOfDraw)]
@@ -218,8 +214,6 @@ class XGBoostKenoPredictor:
         _, _, _, _, _, numbers, num_classes, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
         #print("num classes: ", num_classes)
-        print("lengt of Numbers before fiting: ", len(numbers))
-        print("recent draws: ", self.recent_draws)
 
         self.fit(draws=numbers, num_classes=num_classes, lengthOfDraw=len(numbers[0]))
 
@@ -232,10 +226,10 @@ class XGBoostKenoPredictor:
         subsets = {}
 
         if len(generateSubsets) > 0:
-            print("Predicting with xgboost: ", len(numbers[-self.recent_draws:]))
-            predicted_numbers, subsets = self.predict_with_subsets(numbers[-self.recent_draws:], top_k=self.top_k, draw_sizes=generateSubsets, force_nested=self.force_nested)
+            #print("Predicting with xgboost: ", len(numbers))
+            predicted_numbers, subsets = self.predict_with_subsets(numbers, top_k=self.top_k, draw_sizes=generateSubsets, force_nested=self.force_nested)
         else:
-            predicted_numbers = self.predict(numbers[-self.recent_draws:])
+            predicted_numbers = self.predict(numbers)
 
         return predicted_numbers, subsets
 

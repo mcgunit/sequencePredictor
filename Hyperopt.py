@@ -619,7 +619,6 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, modelParams, 
         xgboostPredictor.setPreviousDraws(modelParams["xgBoostPreviousDraws"])
         xgboostPredictor.setTopK(modelParams["xgBoostTopK"])
         xgboostPredictor.setForceNested(modelParams["xgBoostForceNested"])
-        xgboostPredictor.setRecentDraws(modelParams["xgBoostRecentDraws"])
 
         xgboostPrediction = {
             "name": "xgboost",
@@ -783,8 +782,7 @@ if __name__ == "__main__":
                     'xgBoostMaxdepth': trial.suggest_int('xgBoostMaxdepth', 1, 20),
                     'xgBoostPreviousDraws': trial.suggest_int('xgBoostPreviousDraws', 1, 100, step=5),
                     'xgBoostTopK': trial.suggest_int('xgBoostTopK', 1, 100, step=5),
-                    'xgBoostForceNested': trial.suggest_categorical("xgBoostForceNested", [True, False]),
-                    'xgBoostRecentDraws': trial.suggest_int('xgBoostRecentDraws', 1, 100, step=5)
+                    'xgBoostForceNested': trial.suggest_categorical("xgBoostForceNested", [True, False])
                 }
                 for _ in range(numOfRepeats):
                     profit = predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=modelParams["useBoost"], modelParams=modelParams)
