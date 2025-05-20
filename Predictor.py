@@ -725,19 +725,59 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
 def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
     try:
-        # Hybrid Statistical Model
+        bestParams_json_object = {
+            "use_5":True,
+            "use_6":True,
+            "use_7":True,
+            "use_8":True,
+            "use_9":True,
+            "use_10":True,
+            "useBoost": True,
+            "xgBoostEstimators": 1000,
+            "xgBoostLearningRate": 0.7014495252508934,
+            "xgBoostMaxdepth": 3,
+            "xgBoostPreviousDraws": 81,
+            "xgBoostTopK": 31,
+            "xgBoostForceNested": True,
+            "xgBoostRecentDraws": 41
+        }
+
+        # Load hyperopt parameters if exists
+        hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+            with open(hyperoptParamsJsonFile, 'r') as openfile:
+                bestParams_json_object = json.load(openfile)
+
+        subsets = []
+        if "keno" in name:
+            if bestParams_json_object["use_5"]:
+                subsets.append(5)
+            if bestParams_json_object["use_6"]:
+                subsets.append(6)
+            if bestParams_json_object["use_7"]:
+                subsets.append(7)
+            if bestParams_json_object["use_8"]:
+                subsets.append(8)
+            if bestParams_json_object["use_9"]:
+                subsets.append(9)
+            if bestParams_json_object["use_10"]:
+                subsets.append(10)
+
         #print("Performing XGBoost Prediction")
         xgboostPredictor.setDataPath(dataPath)
         xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
+        xgboostPredictor.setEstimators(bestParams_json_object["xgBoostEstimators"])
+        xgboostPredictor.setLearningRate(bestParams_json_object["xgBoostLearningRate"])
+        xgboostPredictor.setMaxDepth(bestParams_json_object["xgBoostMaxdepth"])
+        xgboostPredictor.setPreviousDraws(bestParams_json_object["xgBoostPreviousDraws"])
+        xgboostPredictor.setTopK(bestParams_json_object["xgBoostTopK"])
+        xgboostPredictor.setForceNested(bestParams_json_object["xgBoostForceNested"])
+        xgboostPredictor.setRecentDraws(bestParams_json_object["xgBoostRecentDraws"])
 
         xgboostPrediction = {
             "name": "xgboost",
             "predictions": []
         }
-
-        subsets = []
-        if "keno" in name:
-            subsets = [5,6,7,8,9,10]
 
         xgboostSequence, xgboostSubsets = xgboostPredictor.run(generateSubsets=subsets, skipRows=skipRows)
         xgboostPrediction["predictions"].append(xgboostSequence)
