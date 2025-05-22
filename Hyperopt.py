@@ -644,7 +644,8 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, modelParams, 
 if __name__ == "__main__":
 
     try:
-        cmd = ['pgrep', '-f', 'python.*Predictor.py']
+        # Updated pattern to match either Predictor.py or Hyperopt.py
+        cmd = ['pgrep', '-f', 'python.*(Predictor.py|Hyperopt.py)']
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         my_pid, err = process.communicate()
 
@@ -655,10 +656,10 @@ if __name__ == "__main__":
         num_pids = len(pid_list)
 
         if num_pids >= 2:
-            print("Multiple instances running. Exiting.")
+            print("Multiple instances running (Predictor or Hyperopt). Exiting.")
             exit()
         else:
-            print("No instances running. Continuing.")
+            print("No conflicting instances running. Continuing.")
 
     except Exception as e:
         print(f"Failed to check if running: {e}")
