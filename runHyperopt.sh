@@ -2,4 +2,4 @@
 
 cd /root/sequencePredictor/
 
-python3 Hyperopt.py >> /root/sequencePredictor/log/hyperopt.log 2>&1
+python3 HyperoptStatistics.py >> /root/sequencePredictor/log/hyperopt.log 2>&1
