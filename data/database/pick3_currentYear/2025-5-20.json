@@ -1,1 +1,102 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "MarkovBayesian Model", "predictions": [[1, 3, 4]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[4, 8, 9]]}], "realResult": [0, 8, 5], "newPrediction": [{"name": "MarkovBayesian Model", "predictions": [[0, 1, 2]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[1, 4, 6]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "PoissonMonteCarlo Model", "prediction": [4, 8, 9], "matching_numbers": [8], "match_count": 1}, "labels": [], "numberFrequency": {"6": 0.10008585242420134, "4": 0.10126067507116714, "1": 0.10017622339704486, "0": 0.1024806832045547, "5": 0.09900140075007907, "3": 0.09760065067100447, "2": 0.1010799331254801, "8": 0.10062807826126248, "7": 0.09787176358953505, "9": 0.09981473950567078}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          1,
+          3,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          8,
+          9
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    0,
+    8,
+    5
+  ],
+  "newPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          1,
+          2,
+          8,
+          3,
+          7,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          3
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "PoissonMonteCarlo Model",
+    "prediction": [
+      4,
+      8,
+      9
+    ],
+    "matching_numbers": [
+      8
+    ],
+    "match_count": 1
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "6": 0.10006321683373973,
+    "4": 0.10128239862729162,
+    "1": 0.10019868147746772,
+    "0": 0.10241127065835817,
+    "5": 0.09893434480267317,
+    "3": 0.09776031789036395,
+    "2": 0.10105662422107829,
+    "8": 0.10065023028989434,
+    "7": 0.09785062765284927,
+    "9": 0.09979228754628375
+  }
+}

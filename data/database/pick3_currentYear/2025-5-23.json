@@ -1,1 +1,114 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "MarkovBayesian Model", "predictions": [[1, 2, 3]]}, {"name": "PoissonMarkov Model", "predictions": [[2, 3, 5, 1, 4, 9]]}], "realResult": [3, 9, 4], "newPrediction": [{"name": "MarkovBayesian Model", "predictions": [[0, 3, 4]]}, {"name": "PoissonMarkov Model", "predictions": [[3, 5, 8, 0, 4, 6]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "PoissonMarkov Model", "prediction": [2, 3, 5, 1, 4, 9], "matching_numbers": [9, 3, 4], "match_count": 3}, "labels": [], "numberFrequency": {"6": 0.1000903342366757, "4": 0.10130984643179765, "1": 0.1001806684733514, "0": 0.1024390243902439, "5": 0.09896115627822945, "3": 0.09760614272809395, "2": 0.1010840108401084, "8": 0.1006323396567299, "7": 0.09787714543812105, "9": 0.0998193315266486}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          1,
+          2,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          2,
+          0,
+          8,
+          5,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          3
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    3,
+    9,
+    4
+  ],
+  "newPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          0,
+          2,
+          8,
+          1,
+          6,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          3
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "MarkovBayesian Model",
+    "prediction": [
+      1,
+      2,
+      4
+    ],
+    "matching_numbers": [
+      4
+    ],
+    "match_count": 1
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "6": 0.10006321683373973,
+    "4": 0.10128239862729162,
+    "1": 0.10019868147746772,
+    "0": 0.10241127065835817,
+    "5": 0.09893434480267317,
+    "3": 0.09776031789036395,
+    "2": 0.10105662422107829,
+    "8": 0.10065023028989434,
+    "7": 0.09785062765284927,
+    "9": 0.09979228754628375
+  }
+}
