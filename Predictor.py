@@ -325,8 +325,9 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         json.dump(current_json_object, outfile)
                     
                     listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
-
-                    listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
+                    
+                    if boost:
+                        listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
 
