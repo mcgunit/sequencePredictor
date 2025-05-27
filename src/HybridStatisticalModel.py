@@ -235,10 +235,10 @@ class HybridStatisticalModel():
         hypergeometric_predictions = [int(num) for num in hypergeometric_predictions]
         monte_carlo_predictions = self.monte_carlo_simulation(n_simulations=self.numberOfSimulations, n_draws=n_predictions)
 
-        print("Bayesian Predictions: ", bayesian_predictions)
-        print("Multinomial Predictions: ", multinomial_predictions)
-        print("Hypergeometric Predictions: ", hypergeometric_predictions)
-        print("Monte Carlo Predictions: ", monte_carlo_predictions)
+        #print("Bayesian Predictions: ", bayesian_predictions)
+        #print("Multinomial Predictions: ", multinomial_predictions)
+        #print("Hypergeometric Predictions: ", hypergeometric_predictions)
+        #print("Monte Carlo Predictions: ", monte_carlo_predictions)
 
         # Combine all predictions
         all_predictions = ( 
