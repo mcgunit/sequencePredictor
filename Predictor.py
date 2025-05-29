@@ -782,27 +782,28 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
             if bestParams_json_object["use_10"]:
                 subsets.append(10)
 
-        #print("Performing XGBoost Prediction")
-        xgboostPredictor.setDataPath(dataPath)
-        xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
-        xgboostPredictor.setEstimators(bestParams_json_object["xgBoostEstimators"])
-        xgboostPredictor.setLearningRate(bestParams_json_object["xgBoostLearningRate"])
-        xgboostPredictor.setMaxDepth(bestParams_json_object["xgBoostMaxdepth"])
-        xgboostPredictor.setPreviousDraws(bestParams_json_object["xgBoostPreviousDraws"])
-        xgboostPredictor.setTopK(bestParams_json_object["xgBoostTopK"])
-        xgboostPredictor.setForceNested(bestParams_json_object["xgBoostForceNested"])
+        if bestParams_json_object["useBoost"]:
+            #print("Performing XGBoost Prediction")
+            xgboostPredictor.setDataPath(dataPath)
+            xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
+            xgboostPredictor.setEstimators(bestParams_json_object["xgBoostEstimators"])
+            xgboostPredictor.setLearningRate(bestParams_json_object["xgBoostLearningRate"])
+            xgboostPredictor.setMaxDepth(bestParams_json_object["xgBoostMaxdepth"])
+            xgboostPredictor.setPreviousDraws(bestParams_json_object["xgBoostPreviousDraws"])
+            xgboostPredictor.setTopK(bestParams_json_object["xgBoostTopK"])
+            xgboostPredictor.setForceNested(bestParams_json_object["xgBoostForceNested"])
 
-        xgboostPrediction = {
-            "name": "xgboost",
-            "predictions": []
-        }
+            xgboostPrediction = {
+                "name": "xgboost",
+                "predictions": []
+            }
 
-        xgboostSequence, xgboostSubsets = xgboostPredictor.run(generateSubsets=subsets, skipRows=skipRows)
-        xgboostPrediction["predictions"].append(xgboostSequence)
-        for item in xgboostSubsets:
-            xgboostPrediction["predictions"].append(item)
-        
-        listOfDecodedPredictions.append(xgboostPrediction)
+            xgboostSequence, xgboostSubsets = xgboostPredictor.run(generateSubsets=subsets, skipRows=skipRows)
+            xgboostPrediction["predictions"].append(xgboostSequence)
+            for item in xgboostSubsets:
+                xgboostPrediction["predictions"].append(item)
+            
+            listOfDecodedPredictions.append(xgboostPrediction)
     except Exception as e:
         print("Failed to perform XGBoost: ", e)
 
@@ -858,6 +859,7 @@ if __name__ == "__main__":
 
     path = os.getcwd()
 
+    # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
     datasets = [
         # (dataset_name, model_type, skip_last_columns, ai)
         ("euromillions", "tcn_model", 0, False, True),
