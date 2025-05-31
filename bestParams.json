@@ -12,7 +12,7 @@
     "usePoissonMarkov": true,
     "useLaplaceMonteCarlo": false,
     "useHybridStatisticalModel": false,
-    "useBoost": false,
+    "useBoost": true,
     "markovSoftMaxTemperature": 0.7342951145748811,
     "markovMinOccurences": 9,
     "markovAlpha": 0.4584891720956308,
