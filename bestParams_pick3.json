@@ -13,6 +13,7 @@
     "usePoissonMarkov": false,
     "useLaplaceMonteCarlo": false,
     "useHybridStatisticalModel": true,
+    "useBoost": true,
     "markovSoftMaxTemperature": 0.8828580193429544,
     "markovMinOccurences": 16,
     "markovAlpha": 0.8351446999884008,
@@ -36,5 +37,11 @@
     "hybridStatisticalModelSoftMaxTemperature": 0.741448398945082,
     "hybridStatisticalModelAlpha": 0.46690760661638253,
     "hybridStatisticalModelMinOcurrences": 9,
-    "hybridStatisticalModelNumberOfSimulations": 400
+    "hybridStatisticalModelNumberOfSimulations": 400,
+    "xgBoostEstimators": 200,
+    "xgBoostLearningRate": 1.7388451531917795,
+    "xgBoostMaxdepth": 15,
+    "xgBoostPreviousDraws": 11,
+    "xgBoostTopK": 16,
+    "xgBoostForceNested": true
 }
