@@ -1,5 +1,6 @@
-import os, sys
+import os, sys, random
 import numpy as np
+from collections import Counter
 from PoissonMonteCarlo import PoissonMonteCarlo
 from Markov import Markov
 
@@ -37,20 +38,22 @@ class PoissonMarkov:
 
     def blend_predictions(self, poisson_numbers, markov_numbers, n_predictions=20):
         """Blend predictions from both models using weighted probability selection."""
-        combined_counts = {}
+        combined_counts = Counter()
 
+        # Apply weights
         for num in poisson_numbers:
-            num = int(num)
-            combined_counts[num] = combined_counts.get(num, 0) + self.poisson_weight
-
+            combined_counts[int(num)] += self.poisson_weight
         for num in markov_numbers:
-            num = int(num)
-            combined_counts[num] = combined_counts.get(num, 0) + self.markov_weight
+            combined_counts[int(num)] += self.markov_weight
 
-        # Sort numbers based on combined probabilities
-        sorted_numbers = sorted(combined_counts, key=combined_counts.get, reverse=True)
+        # Random tie-breaking with consistent ordering
+        unique_numbers = list(combined_counts.keys())
+        random.shuffle(unique_numbers)
 
-        return [int(num) for num in sorted_numbers[:n_predictions]]  # Ensure Python ints
+        # Sort based on weight
+        sorted_numbers = sorted(unique_numbers, key=lambda x: combined_counts[x], reverse=True)
+
+        return sorted_numbers[:n_predictions]
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a subset using probability-based selection."""
@@ -86,7 +89,7 @@ class PoissonMarkov:
         else:
             markov_numbers = [int(num) for num in markov_numbers]
 
-        hybrid_predictions = self.blend_predictions(poisson_numbers, markov_numbers)
+        hybrid_predictions = self.blend_predictions(poisson_numbers, markov_numbers, len(poisson_numbers))
 
         subsets = {}
         if generateSubsets:
@@ -101,7 +104,7 @@ if __name__ == "__main__":
 
     hybrid_model = PoissonMarkov()
 
-    name = 'keno'
+    name = 'pick3'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
