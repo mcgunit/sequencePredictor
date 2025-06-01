@@ -213,7 +213,7 @@ def process_single_history_entry_second_step(args):
     return jsonFilePath
 
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, ai=False, boost=False):
+def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebuild=31, ai=False, boost=False):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -228,6 +228,20 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param daysToRebuild: The number of days to rebuild
         @param ai: To use ai tech to do predictions
     """
+
+    # Get the hyperopted parameters 
+    bestParams_json_object = {
+        "yearsOfHistory": 2,   
+    }
+
+    try:
+        # Load hyperopt parameters if exists
+        hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
+        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+            with open(hyperoptParamsJsonFile, 'r') as openfile:
+                bestParams_json_object = json.load(openfile)
+    except Exception as e:
+        print("Failed to parse parameter file: ", e)
 
     modelToUse = tcn
     if "lstm_model" in model_type:
@@ -305,7 +319,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
                         modelToUse.setEpochs(1000)
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=years_back)
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         
                         predictedSequence = latest_raw_predictions.tolist()
 
@@ -317,7 +331,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             
                         listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2, current_json_object["realResult"], unique_labels, jsonFilePath, name)
                     else:
-                        _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=years_back)
+                        _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         unique_labels = unique_labels.tolist()
 
 
@@ -385,7 +399,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
                     argsList = [
                         (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-                            skipLastColumns, years_back, ai, previousJsonFilePath, path, boost)
+                            skipLastColumns, bestParams_json_object['yearsOfHistory'], ai, previousJsonFilePath, path, boost)
                         for historyIndex, historyEntry in enumerate(historyData)
                     ]
 
@@ -503,6 +517,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "use_8":True,
         "use_9":True,
         "use_10":True,
+        "yearsOfHistory": 2,
         "useMarkov":False,
         "useMarkovBayesian":True,
         "usevMarkovBayesianEnhanced":True,
@@ -888,17 +903,17 @@ if __name__ == "__main__":
                 os.remove(os.path.join(dataPath, file))
             command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
-            # Predict for complete data
-            predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+            # Predict with hyperopt params
+            predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             # Predict for current year
-            predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+            #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             # Predict for current year + last year
-            predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+            #predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             # Predict for current year + last two years
-            predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+            #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
         except Exception as e:
             print(f"Failed to predict {dataset_name.capitalize()}: {e}")
