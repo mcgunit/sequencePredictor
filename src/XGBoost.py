@@ -24,16 +24,18 @@ from Helpers import Helpers
 helpers = Helpers()
 
 class XGBoostKenoPredictor:
-    def __init__(self, lengthOfDraw=20):
+    def __init__(self):
+        self.lengthOfDraw = 20
         self.dataPath = ""
         self.modelPath = ""
         self.n_previous_draws = 5
         self.n_estimators = 100
         self.max_depth = 5
         self.learning_rate = 0.1
-        self.models = [None] * lengthOfDraw
+        self.models = [None] * self.lengthOfDraw
         self.top_k = 5
         self.force_nested = False
+        self.offsetByOne = True # Needed for games where 0 is not a value (needed for machine learning with 0 value needed). Pick3 has 0 as an valid value so no offset needed
 
     def setModelPath(self, modelPath):
         self.modelPath = modelPath
@@ -58,6 +60,13 @@ class XGBoostKenoPredictor:
     
     def setForceNested(self, forceNested):
         self.force_nested = forceNested
+    
+    def setLengtOfDraw(self, lengthOfDraw):
+        self.lengthOfDraw = lengthOfDraw
+        self.models = [None] * self.lengthOfDraw
+
+    def setOffsetByOne(self, offset):
+        self.offsetByOne = offset
 
     def _prepare_data(self, draws: List[List[int]], lengthOfDraw):
         X, Y = [], [[] for _ in range(lengthOfDraw)]
@@ -66,7 +75,10 @@ class XGBoostKenoPredictor:
             flat_features = np.array(window).flatten()
             X.append(flat_features)
             for pos in range(lengthOfDraw):
-                Y[pos].append(draws[i][pos] - 1)
+                if self.offsetByOne:
+                    Y[pos].append(draws[i][pos] - 1)
+                else:
+                    Y[pos].append(draws[i][pos])
         return np.array(X), [np.array(y) for y in Y]
 
     def fit(self, draws: List[List[int]], num_classes, lengthOfDraw):
@@ -110,8 +122,11 @@ class XGBoostKenoPredictor:
 
         predicted_draw = []
         for model in self.models:
-            pred_label = model.predict(input_features)[0] 
-            predicted_draw.append(int(pred_label) + 1)  
+            pred_label = model.predict(input_features)[0]
+            if self.offsetByOne:
+                predicted_draw.append(int(pred_label) + 1)
+            else:
+                predicted_draw.append(int(pred_label))
 
         return predicted_draw
     
@@ -214,6 +229,7 @@ class XGBoostKenoPredictor:
         _, _, _, _, _, numbers, num_classes, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
         #print("num classes: ", num_classes)
+        #print("Numbers: ", numbers)
         self.fit(draws=numbers, num_classes=num_classes, lengthOfDraw=len(numbers[0]))
 
         # Save to disk
@@ -249,9 +265,9 @@ class XGBoostKenoPredictor:
 if __name__ == "__main__":
     print("Trying XGBoost")
 
-    xgboost = XGBoostKenoPredictor(n_previous_draws=5)
+    xgboost = XGBoostKenoPredictor()
 
-    name = 'keno'
+    name = 'pick3'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
@@ -259,8 +275,12 @@ if __name__ == "__main__":
 
     xgboost.setDataPath(dataPath)
     xgboost.setModelPath(modelPath)
+    xgboost.setLengtOfDraw(3)
 
     if "keno" in name:
         generateSubsets = [6, 7]
+    
+    if "pick3" in name:
+        xgboost.setOffsetByOne(False)
 
     print("Predicted Numbers: ", xgboost.run(generateSubsets=generateSubsets))
