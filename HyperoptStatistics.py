@@ -148,7 +148,17 @@ def calculate_profit(name, path):
         4: { 2: 1, 3: 2, 4: 30 },
         3: { 2: 1, 3: 16 },
         2: { 2: 6.50 },
-        "lost": -1
+        "lost": -1  # Because it cost 1 euro
+    }
+
+    payoutTablePick3 = {
+        "straight": 500,
+        "box_with_doubles": 160,
+        "box_no_doubles": 80,
+        "front_pair": 50,
+        "back_pair": 50,
+        "last_number": 1,
+        "lost": -1  # Because it cost 1 euro
     }
 
     total_profit = 0
@@ -164,14 +174,51 @@ def calculate_profit(name, path):
 
                 for model in model_predictions:
                     for prediction in model["predictions"]:
-                        played = len(prediction)
-                        if played < 4 or played > 10:
-                            continue
+                        # For keno and pick3 the profits can be calculated. For others we check the matches
+                        if "keno" in name:
+                            played = len(prediction)
+                            if played < 4 or played > 10:
+                                continue
 
-                        matches = len(set(prediction) & real_result)
-                        profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
-                        total_profit += profit
-    
+                            matches = len(set(prediction) & real_result)
+                            profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
+                            total_profit += profit
+                        elif "pick3" in name:
+                            played = len(prediction)
+                            if played != 3 or len(real_result) != 3:
+                                continue
+
+                            pred = prediction
+                            actual = list(real_result)
+
+                            if pred == actual:
+                                profit = payoutTablePick3["straight"]
+
+                            elif sorted(pred) == sorted(actual):
+                                # Check for doubles
+                                pred_counts = {x: pred.count(x) for x in pred}
+                                if 2 in pred_counts.values():
+                                    profit = payoutTablePick3["box_with_doubles"]
+                                else:
+                                    profit = payoutTablePick3["box_no_doubles"]
+
+                            elif pred[0:2] == actual[0:2]:
+                                profit = payoutTablePick3["front_pair"]
+
+                            elif pred[1:3] == actual[1:3]:
+                                profit = payoutTablePick3["back_pair"]
+
+                            elif pred[2] == actual[2]:
+                                profit = payoutTablePick3["last_number"]
+
+                            else:
+                                profit = payoutTablePick3["lost"]
+
+                            total_profit += profit
+                        else:
+                            matches = len(set(prediction) & real_result)
+                            total_profit += matches
+    #print("Total profit: ", total_profit)
     return total_profit
 
 
@@ -266,7 +313,7 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
             update_matching_numbers(name=name, path=path)
 
             # Calculate Profit
-            profit =  calculate_profit(name=name, path=path)
+            profit = calculate_profit(name=name, path=path)
 
             return profit
         else:
@@ -533,12 +580,12 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
-        #("euromillions", "tcn_model"),
+        #("euromillions", "tcn_model", 0),
         #("lotto", "lstm_model", 0),
         #("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 0),
-        ("keno", "lstm_model", 0),
-        #("pick3", "lstm_model", 0),
+        #("keno", "lstm_model", 0),
+        ("pick3", "lstm_model", 0),
         #("vikinglotto", "lstm_model", 0),
     ]
 
@@ -558,12 +605,6 @@ if __name__ == "__main__":
             if os.path.exists(os.path.join(dataPath, file)):
                 os.remove(os.path.join(dataPath, file))
             command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
-
-            # Predict for complete data
-            #predict(dataset_name, model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai)
-
-            # Predict for current year
-            #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai)
 
             # Predict for current year + last year
             def objective(trial):
@@ -586,6 +627,7 @@ if __name__ == "__main__":
                     return float("-inf")  # Or float("inf") if minimizing
 
                 modelParams = {
+                    'yearsOfHistory': trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
                     'useMarkov': trial.suggest_categorical("useMarkov", [True, False]),
                     'useMarkovBayesian': trial.suggest_categorical("useMarkovBayesian", [True, False]),
                     'usevMarkovBayesianEnhanced': trial.suggest_categorical("usevMarkovBayesianEnhanced", [True, False]),
@@ -620,7 +662,7 @@ if __name__ == "__main__":
                     'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
                 }
                 for _ in range(numOfRepeats):
-                    profit = predict(f"{dataset_name}_twoYears", dataPath, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, modelParams=modelParams)
+                    profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
                     #print("Profit: ", profit)
                     results.append(profit)
 
@@ -632,18 +674,18 @@ if __name__ == "__main__":
             study = optuna.create_study(
                 direction='maximize',
                 storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                study_name=f"Sequence-Predictor-Statistical-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                study_name=f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=1000)
+            study.optimize(objective, n_trials=5)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
             print("Best Score: ", study.best_value)
 
             # Write best params to json
-            jsonBestParamsFilePath = os.path.join(path, "bestParams.json")
+            jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
             existingData = {}
             if os.path.exists(jsonBestParamsFilePath):
                 with open(jsonBestParamsFilePath, "r") as infile:
@@ -655,9 +697,6 @@ if __name__ == "__main__":
                 json.dump(existingData, outfile, indent=4)
             
             clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}_twoYears"))
-
-            # Predict for current year + last two years
-            #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai)
 
         except Exception as e:
             print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")

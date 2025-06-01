@@ -538,7 +538,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
     try:
         # Load hyperopt parameters if exists
-        hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+        hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
         if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
             with open(hyperoptParamsJsonFile, 'r') as openfile:
                 bestParams_json_object = json.load(openfile)
@@ -760,7 +760,7 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
 
         try:
             # Load hyperopt parameters if exists
-            hyperoptParamsJsonFile = os.path.join(path, "bestParams.json")
+            hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
             if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
                 with open(hyperoptParamsJsonFile, 'r') as openfile:
                     bestParams_json_object = json.load(openfile)

@@ -62,8 +62,7 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
       });
 
       if(title.includes("Current Prediction") && calcProfit) {
-        const numbersPlayed = row.length;
-        const profit = calculateProfit(numbersPlayed, correctNumbers, game, modelType);
+        const profit = calculateProfit(row, matchingNumbers, game, modelType);
         table += `<td style="padding: 5px; text-align: center; background: #f8f9fa;">${profit} €</td>`;
       }
       table += '</tr>';
@@ -74,8 +73,9 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
   return table;
 }
 
-function calculateProfit(numbersPlayed, correctNumbers, game, name) {
-  // Define the Keno payout table
+function calculateProfit(prediction, realResult, game, name) {
+  //console.log("prediction: ", prediction);
+  //console.log("realResult: ", realResult);
   const payoutTableKeno = {
     10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
     9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
@@ -85,43 +85,65 @@ function calculateProfit(numbersPlayed, correctNumbers, game, name) {
     5: { 3: 2, 4: 5, 5: 150 },
     4: { 2: 1, 3: 2, 4: 30 },
     3: { 2: 1, 3: 16 },
-    2: { 2: 6.50 },
+    2: { 2: 6.5 },
     "lost": -1
   };
 
   const payoutTablePick3 = {
-    3: {3: 80},
-    "lost": -1
-  }
+    straight: 500,
+    box_with_doubles: 160,
+    box_no_doubles: 80,
+    front_pair: 50,
+    back_pair: 50,
+    last_number: 1,
+    lost: -1
+  };
+
+  const played = prediction.length;
 
   switch (game) {
     case "keno": {
-      if (payoutTableKeno[numbersPlayed] && selectedPlayedNumbers.includes(numbersPlayed) && (selectedModel.includes("all") || selectedModel.includes(name))) {
-        if(payoutTableKeno[numbersPlayed][correctNumbers]) {
-          return payoutTableKeno[numbersPlayed][correctNumbers];
-        } else {
-          return payoutTableKeno["lost"]; // No profit 
-        }   
-      } else {
-        return 0; // In case of keno, the payout table is only defined for 2-10 numbers
-      }
-    }
-    case "pick3": {
-      if (payoutTablePick3[numbersPlayed] && (selectedModel.includes("all") || selectedModel.includes(name))) {
-        if(payoutTablePick3[numbersPlayed][correctNumbers]) {
-          return payoutTablePick3[numbersPlayed][correctNumbers];
-        } else {
-          return payoutTablePick3["lost"]; // No profit 
-        }
+      const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
+      if (played >= 2 && played <= 10 && payoutTableKeno[played]) {
+        return payoutTableKeno[played][correctNumbers] ?? payoutTableKeno["lost"];
       } else {
         return 0;
       }
     }
+
+    case "pick3": {
+      if (played != 3 || realResult.length != 3) return 0;
+
+      const pred = prediction;
+      const actual = realResult;
+
+      const isSame = pred[0] === actual[0] && pred[1] === actual[1] && pred[2] === actual[2];
+      const isPermutation = [...pred].sort().join('') === [...actual].sort().join('');
+
+      if (isSame) {
+        return payoutTablePick3.straight;
+      } else if (isPermutation) {
+        const countMap = {};
+        for (let n of pred) {
+          countMap[n] = (countMap[n] || 0) + 1;
+        }
+        const hasDouble = Object.values(countMap).includes(2);
+        return hasDouble ? payoutTablePick3.box_with_doubles : payoutTablePick3.box_no_doubles;
+      } else if (pred[0] === actual[0] && pred[1] === actual[1]) {
+        return payoutTablePick3.front_pair;
+      } else if (pred[1] === actual[1] && pred[2] === actual[2]) {
+        return payoutTablePick3.back_pair;
+      } else if (pred[2] === actual[2]) {
+        return payoutTablePick3.last_number;
+      } else {
+        return payoutTablePick3.lost;
+      }
+    }
+
     default:
-
-      return `${correctNumbers}/${numbersPlayed}`; // Don't calculate profit but give the ratio for other games
+      const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
+      return `${correctNumbers}/${played}`;
   }
-
 }
 
 
@@ -294,8 +316,8 @@ app.get('/database/:folder', (req, res) => {
             monthTotalProfit += jsonData.currentPrediction.reduce((acc, prediction) => {
               let predictionProfit = 0;
               prediction.predictions.forEach((pred) => {
-                const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-                predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
+                //const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+                predictionProfit += calculateProfit(pred, jsonData.realResult, game, prediction.name);
               });
               return acc + predictionProfit;
             }, 0);
@@ -355,8 +377,8 @@ app.get('/database/:folder', (req, res) => {
             totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
               let predictionProfit = 0;
               prediction.predictions.forEach((pred) => {
-                const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-                predictionProfit += calculateProfit(pred.length, correctNumbers, game, prediction.name);
+                //const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
+                predictionProfit += calculateProfit(pred, jsonData.realResult, game, prediction.name);
               });
               return acc + predictionProfit;
             }, 0);
