@@ -650,7 +650,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
             markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
-            for key in markovBayesianSubsets:
+            for key in markovBayesianEnhancedSubsets:
                 markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
 
             listOfDecodedPredictions.append(markovBayesianEnhancedPrediction)
