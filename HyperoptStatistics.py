@@ -701,6 +701,20 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 
+    try:
+        for filename in os.listdir(os.getcwd()):
+            if 'wget' in filename:
+                file_path = os.path.join(os.getcwd(), filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+    except Exception as e:
+        print("Failed to cleanup folder")
+
+    try:
+        helpers.git_push(commit_message="Saving latest statistical hyperopt")
+    except Exception as e:
+        print("Failed to push latest predictions:", e)
     
     
 
