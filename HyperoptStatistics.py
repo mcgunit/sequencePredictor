@@ -580,13 +580,13 @@ if __name__ == "__main__":
 
     datasets = [
         # (dataset_name, model_type, skip_last_columns)
-        #("euromillions", "tcn_model", 0),
-        #("lotto", "lstm_model", 0),
-        #("eurodreams", "lstm_model", 0),
+        ("euromillions", "tcn_model", 0),
+        ("lotto", "lstm_model", 0),
+        ("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 0),
-        #("keno", "lstm_model", 0),
+        ("keno", "lstm_model", 0),
         ("pick3", "lstm_model", 0),
-        #("vikinglotto", "lstm_model", 0),
+        ("vikinglotto", "lstm_model", 0),
     ]
 
     for dataset_name, model_type, skip_last_columns in datasets:
@@ -678,7 +678,7 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=5)
+            study.optimize(objective, n_trials=100)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
