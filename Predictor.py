@@ -799,6 +799,10 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, l
 
         if bestParams_json_object["useBoost"]:
             #print("Performing XGBoost Prediction")
+            if "pick3" in name:
+                xgboostPredictor.setOffsetByOne(False)
+            else:
+                xgboostPredictor.setOffsetByOne(True)
             xgboostPredictor.setLengtOfDraw(lengthOfDraw)
             xgboostPredictor.setDataPath(dataPath)
             xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
