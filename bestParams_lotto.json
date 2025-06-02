@@ -36,5 +36,12 @@
     "hybridStatisticalModelSoftMaxTemperature": 0.7087112126862778,
     "hybridStatisticalModelAlpha": 0.18209197111804154,
     "hybridStatisticalModelMinOcurrences": 6,
-    "hybridStatisticalModelNumberOfSimulations": 200
+    "hybridStatisticalModelNumberOfSimulations": 200,
+    "useBoost": true,
+    "xgBoostEstimators": 200,
+    "xgBoostLearningRate": 1.7388451531917795,
+    "xgBoostMaxdepth": 15,
+    "xgBoostPreviousDraws": 11,
+    "xgBoostTopK": 16,
+    "xgBoostForceNested": true
 }
