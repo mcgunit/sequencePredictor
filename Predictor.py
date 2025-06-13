@@ -885,12 +885,12 @@ if __name__ == "__main__":
     datasets = [
         # (dataset_name, model_type, skip_last_columns, ai)
         ("euromillions", "tcn_model", 0, False, True),
-        #("lotto", "lstm_model", 0, False, True),
-        #("eurodreams", "lstm_model", 0, False, True),
+        ("lotto", "lstm_model", 0, False, True),
+        ("eurodreams", "lstm_model", 0, False, True),
         #("jokerplus", "lstm_model", 1, False, True),
-        #("keno", "lstm_model", 0, False, True),
-        #("pick3", "lstm_model", 0, False, True),
-        #("vikinglotto", "lstm_model", 0, False, True),
+        ("keno", "lstm_model", 0, False, True),
+        ("pick3", "lstm_model", 0, False, True),
+        ("vikinglotto", "lstm_model", 0, False, True),
     ]
 
     for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
