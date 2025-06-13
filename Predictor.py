@@ -21,6 +21,7 @@ from src.HybridStatisticalModel import HybridStatisticalModel
 from src.XGBoost import XGBoostKenoPredictor
 from src.Command import Command
 from src.Helpers import Helpers
+from src.DataFetcher import DataFetcher
 
 tcn = TCNModel()
 lstm = LSTMModel()
@@ -37,6 +38,7 @@ poissonMarkov = PoissonMarkov()
 xgboostPredictor = XGBoostKenoPredictor()
 command = Command()
 helpers = Helpers()
+dataFetcher = DataFetcher()
 
 
 def print_intro():
@@ -883,12 +885,12 @@ if __name__ == "__main__":
     datasets = [
         # (dataset_name, model_type, skip_last_columns, ai)
         ("euromillions", "tcn_model", 0, False, True),
-        ("lotto", "lstm_model", 0, False, True),
-        ("eurodreams", "lstm_model", 0, False, True),
+        #("lotto", "lstm_model", 0, False, True),
+        #("eurodreams", "lstm_model", 0, False, True),
         #("jokerplus", "lstm_model", 1, False, True),
-        ("keno", "lstm_model", 0, False, True),
-        ("pick3", "lstm_model", 0, False, True),
-        ("vikinglotto", "lstm_model", 0, False, True),
+        #("keno", "lstm_model", 0, False, True),
+        #("pick3", "lstm_model", 0, False, True),
+        #("vikinglotto", "lstm_model", 0, False, True),
     ]
 
     for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
@@ -906,6 +908,10 @@ if __name__ == "__main__":
             # Lets check if file exists
             if os.path.exists(os.path.join(dataPath, file)):
                 print("Starting data fetcher")
+                filePath = os.path.join(dataPath, file)
+                dataFetcher.calculate_start_date(filePath)
+                dataFetcher.getLatestData(dataset_name, filePath)
+                exit()
                 #os.remove(os.path.join(dataPath, file))
             #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 

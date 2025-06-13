@@ -15,12 +15,14 @@ class DataFetcher():
                 if rows:
                     latest_date_str = rows[1][0].split(";")[0]  # Get the date from the second row
                     #print("Latest date: ", latest_date_str)
+                    if "00:00:00.0000000" in latest_date_str:
+                        latest_date_str = latest_date_str.split(" ")[0]
                     latest_date = datetime.strptime(latest_date_str, '%Y-%m-%d')
                     today = datetime.now()
                     days_ago = (today - latest_date).days
                    
                     start_date = int(datetime.now().timestamp() - (days_ago * 24 * 3600))*1000
-                    
+                    print("start date: ", start_date)
                     return start_date
                 else:
                     # File is empty, so fetch data for the last 30 days
