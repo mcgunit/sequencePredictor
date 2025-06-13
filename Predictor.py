@@ -911,7 +911,6 @@ if __name__ == "__main__":
                 filePath = os.path.join(dataPath, file)
                 dataFetcher.calculate_start_date(filePath)
                 dataFetcher.getLatestData(dataset_name, filePath)
-                exit()
                 #os.remove(os.path.join(dataPath, file))
             #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 

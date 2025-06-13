@@ -16,6 +16,7 @@ from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
 from src.Command import Command
 from src.Helpers import Helpers
+from src.DataFetcher import DataFetcher
 
 
 markov = Markov()
@@ -27,6 +28,7 @@ hybridStatisticalModel = HybridStatisticalModel()
 poissonMarkov = PoissonMarkov()
 command = Command()
 helpers = Helpers()
+dataFetcher = DataFetcher()
 
 
 def print_intro():
@@ -603,8 +605,12 @@ if __name__ == "__main__":
 
             # Lets check if file exists
             if os.path.exists(os.path.join(dataPath, file)):
-                os.remove(os.path.join(dataPath, file))
-            command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+                print("Starting data fetcher")
+                filePath = os.path.join(dataPath, file)
+                dataFetcher.calculate_start_date(filePath)
+                dataFetcher.getLatestData(dataset_name, filePath)
+                #os.remove(os.path.join(dataPath, file))
+            #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
             # Predict for current year + last year
             def objective(trial):
