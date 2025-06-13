@@ -60,7 +60,8 @@ class DataFetcher():
             numbersArray = ast.literal_eval(numbers[0])
             numbers_string = ";".join(map(str, numbersArray))  # Join the numbers with semicolons
             rows.append(f"{draw_date};{numbers_string}")
-            #print(f"{draw_date};{numbers_string}") # Print in the desired format
+            print(f"{draw_date};{numbers_string}") # Print in the desired format
+        
             
         # CSV File Handling
         csv_file_path = filePath
@@ -90,16 +91,20 @@ class DataFetcher():
         # Extract the data rows
         data_rows = existing_rows[1:]
 
+        #print("data rows: ", data_rows)
+
         # Sort the data rows by date in descending order
         sorted_data_rows = sorted(data_rows, key=lambda x: self.parse_date(x.split(';')[0]), reverse=True)
+
+        #print("sorted data: ", sorted_data_rows)
 
         # Put the header back at the beginning
         sorted_data = [header] + sorted_data_rows
 
-        # Print the sorted data
-        # for row in sorted_data:
-        #     print(row)
-        
+        #Print the sorted data
+        for row in sorted_data:
+            print(row)
+        exit()
         # Write the sorted data back to the CSV file
         with open(csv_file_path, 'w', newline='') as csvfile:  # 'w' for write mode
             writer = csv.writer(csvfile)
