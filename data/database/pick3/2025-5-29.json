@@ -1,1 +1,81 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "PoissonMonteCarlo Model", "predictions": [[0, 8, 9]]}], "realResult": [0, 8, 7], "newPrediction": [{"name": "Markov Model", "predictions": [[1, 2, 6]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[3, 4, 6]]}, {"name": "PoissonMarkov Model", "predictions": [[6, 1, 7, 0, 9]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "PoissonMonteCarlo Model", "prediction": [0, 8, 9], "matching_numbers": [0, 8], "match_count": 2}, "labels": [], "numberFrequency": {"6": 0.10000902608538677, "4": 0.10127267803953426, "1": 0.10037006950085747, "0": 0.10240093871288022, "5": 0.0988807654120408, "3": 0.09770737431176099, "2": 0.10100189547793122, "8": 0.10068598248939435, "7": 0.09788789601949635, "9": 0.09978337395071757}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          8,
+          9
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    0,
+    8,
+    7
+  ],
+  "newPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          1,
+          2,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          4,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          6,
+          1,
+          7,
+          0,
+          9
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "PoissonMonteCarlo Model",
+    "prediction": [
+      0,
+      8,
+      9
+    ],
+    "matching_numbers": [
+      0,
+      8
+    ],
+    "match_count": 2
+  },
+  "labels": [],
+  "numberFrequency": {
+    "6": 0.10000902608538677,
+    "4": 0.10127267803953426,
+    "1": 0.10037006950085747,
+    "0": 0.10240093871288022,
+    "5": 0.0988807654120408,
+    "3": 0.09770737431176099,
+    "2": 0.10100189547793122,
+    "8": 0.10068598248939435,
+    "7": 0.09788789601949635,
+    "9": 0.09978337395071757
+  }
+}
