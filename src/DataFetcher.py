@@ -102,12 +102,12 @@ class DataFetcher():
         sorted_data = [header] + sorted_data_rows
 
         #Print the sorted data
-        for row in sorted_data:
-            print(row)
-        exit()
+        # for row in sorted_data:
+        #     print(row)
+        
         # Write the sorted data back to the CSV file
         with open(csv_file_path, 'w', newline='') as csvfile:  # 'w' for write mode
-            writer = csv.writer(csvfile)
+            writer = csv.writer(csvfile, delimiter=";")
             for row in sorted_data:
                 writer.writerow(row.split(';'))  # Split the row into a list of values
 
