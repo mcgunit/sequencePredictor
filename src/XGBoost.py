@@ -267,7 +267,7 @@ if __name__ == "__main__":
 
     xgboost = XGBoostKenoPredictor()
 
-    name = 'pick3'
+    name = 'keno'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
     xgboost.setDataPath(dataPath)
     xgboost.setModelPath(modelPath)
-    xgboost.setLengtOfDraw(3)
+    xgboost.setLengtOfDraw(20)
 
     if "keno" in name:
         generateSubsets = [6, 7]
