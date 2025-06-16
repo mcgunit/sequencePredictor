@@ -5,8 +5,8 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          0,
           1,
+          2,
           4
         ]
       ]
@@ -15,55 +15,8 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          5,
-          8,
-          0
-        ]
-      ]
-    },
-    {
-      "name": "LaplaceMonteCarlo Model",
-      "predictions": [
-        [
-          3,
-          5,
-          3
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          0,
-          2,
-          6
-        ]
-      ]
-    }
-  ],
-  "realResult": [
-    1,
-    2,
-    7
-  ],
-  "newPrediction": [
-    {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          2,
-          3,
-          4
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
-          8,
           4,
+          8,
           5
         ]
       ]
@@ -82,9 +35,56 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          8,
           2,
+          7,
           0
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    3,
+    1,
+    8
+  ],
+  "newPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          5,
+          4,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          5,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          2,
+          5,
+          8
         ]
       ]
     }
@@ -93,8 +93,8 @@
   "matchingNumbers": {
     "model": "MarkovBayesian Model",
     "prediction": [
-      0,
       1,
+      2,
       4
     ],
     "matching_numbers": [

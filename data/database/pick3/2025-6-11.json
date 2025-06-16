@@ -2,22 +2,22 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          0,
-          4,
-          6
-        ]
-      ]
-    },
-    {
       "name": "MarkovBayesian Model",
       "predictions": [
         [
           0,
           1,
-          6
+          7
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          5,
+          0,
+          8
         ]
       ]
     },
@@ -26,7 +26,7 @@
       "predictions": [
         [
           3,
-          4,
+          5,
           3
         ]
       ]
@@ -36,8 +36,8 @@
       "predictions": [
         [
           7,
-          1,
-          8
+          2,
+          0
         ]
       ]
     }
@@ -49,22 +49,22 @@
   ],
   "newPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          3,
-          4,
-          7
-        ]
-      ]
-    },
-    {
       "name": "MarkovBayesian Model",
       "predictions": [
         [
           0,
           1,
-          3
+          4
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          5,
+          8,
+          0
         ]
       ]
     },
@@ -73,7 +73,7 @@
       "predictions": [
         [
           3,
-          4,
+          5,
           3
         ]
       ]
@@ -82,23 +82,23 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          7,
           0,
-          1
+          2,
+          6
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "Markov Model",
+    "model": "PoissonMarkov Model",
     "prediction": [
+      5,
       0,
-      4,
-      6
+      8
     ],
     "matching_numbers": [
-      4
+      8
     ],
     "match_count": 1
   },
@@ -115,15 +115,15 @@
     9
   ],
   "numberFrequency": {
-    "6": 0.09986486486486487,
-    "4": 0.10126126126126127,
-    "1": 0.10045045045045045,
-    "0": 0.10225225225225225,
-    "5": 0.09896396396396397,
-    "3": 0.09752252252252253,
-    "2": 0.10099099099099099,
-    "8": 0.10081081081081081,
-    "7": 0.0981081081081081,
-    "9": 0.09977477477477477
+    "6": 0.09982439551533162,
+    "4": 0.10122022603449052,
+    "1": 0.10049979737944077,
+    "0": 0.10225584222612455,
+    "5": 0.09896888648746004,
+    "3": 0.09752802917736053,
+    "2": 0.10099509207978748,
+    "8": 0.10090503849790626,
+    "7": 0.09806835066864784,
+    "9": 0.0997343419334504
   }
 }
