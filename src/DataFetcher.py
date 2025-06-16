@@ -37,7 +37,7 @@ class DataFetcher():
 
     def getLatestData(self, game, filePath, dryRun=False):
 
-        print("Start date: ", self.startDate)
+        print("Startdate: ", self.startDate, datetime.fromtimestamp(self.startDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
         url = f"https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from={self.startDate}&size=62&date-to={self.endDate}&game-names={game}"
         #url = "https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=1746057600000&size=62&date-to=1751414400000&game-names=Keno"
         #print("url: ", url)
