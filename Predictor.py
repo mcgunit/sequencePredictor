@@ -910,7 +910,22 @@ if __name__ == "__main__":
                 print("Starting data fetcher")
                 filePath = os.path.join(dataPath, file)
                 dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
-                dataFetcher.getLatestData(dataset_name, filePath)
+                gameName = ""
+                if "euromillions" in dataset_name:
+                    gameName = "Euro+Millions"
+                if "lotto" in dataset_name:
+                    gameName = "Lotto"
+                if "eurodreams" in dataset_name:
+                    gameName = "EuroDreams"
+                if "jokerplus" in dataset_name:
+                    gameName = "Joker%2B"
+                if "keno" in dataset_name:
+                    gameName = "Keno"
+                if "pick3" in dataset_name:
+                    gameName = "Pick3"
+                if "vikinglotto" in dataset_name:
+                    gameName = "Viking+Lotto"
+                dataFetcher.getLatestData(gameName, filePath)
                 #os.remove(os.path.join(dataPath, file))
         
 

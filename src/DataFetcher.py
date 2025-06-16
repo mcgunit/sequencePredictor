@@ -58,11 +58,35 @@ class DataFetcher():
         rows = []
         for draw in draws:
             draw_date = datetime.utcfromtimestamp(draw["drawTime"] / 1000).strftime("%Y-%m-%d")
-            numbers = [str(result["primary"]) for result in draw.get("results", []) if "primary" in result]
-            numbersArray = ast.literal_eval(numbers[0])
-            numbers_string = ";".join(map(str, numbersArray))  # Join the numbers with semicolons
+
+            # Initialize
+            primary = []
+            bonus = None
+
+            # Look through results to separate primary and bonus
+            for result in draw.get("results", []):
+                
+                if result.get("drawType") == "normal":
+                    primary_raw = result.get("primary", [])
+                    if len(primary_raw) == 1:
+                        primary = [int(char) for char in primary_raw[0]]
+                    else: 
+                        primary = [int(n) for n in result.get("primary", [])]
+
+                    if result.get("secondary", []):
+                        bonus = [int(n) for n in result.get("secondary", [])]
+                
+                elif result.get("drawType") == "bonus":
+                    bonus_list = result.get("primary", [])
+                    if bonus_list:
+                        bonus = [int(n) for n in bonus_list]
+
+            # Compose the line
+            numbers_string = ";".join(map(str, primary))
+            if bonus:
+                numbers_string = ";".join(map(str, primary + bonus))
             rows.append(f"{draw_date};{numbers_string}")
-            print(f"{draw_date};{numbers_string}") # Print in the desired format
+            print(f"{draw_date};{numbers_string}")
         
             
         # CSV File Handling
@@ -122,12 +146,12 @@ if __name__ == "__main__":
     #print("Checking date range: ", dataFetcher.startDate, "-", dataFetcher.endDate)
     current_year = datetime.now().year
     path = os.getcwd()
-    game = "Keno"
+    game = "keno"
     dataPath = os.path.join(path, "data", "trainingData", game.lower())
     file = f"{game.lower()}-gamedata-NL-{current_year}.csv"
     filePath = os.path.join(dataPath, file)
     print("File path: ", filePath)
     dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
-    print("Startdate: ", dataFetcher.startDate, datetime.fromtimestamp(dataFetcher.startDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
+    #print("Startdate: ", dataFetcher.startDate, datetime.fromtimestamp(dataFetcher.startDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
     dataFetcher.getLatestData(game, filePath, dryRun=True)
 
