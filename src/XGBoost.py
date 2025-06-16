@@ -228,6 +228,8 @@ class XGBoostKenoPredictor:
     def run(self, generateSubsets=[], skipRows=0):
         _, _, _, _, _, numbers, num_classes, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
+        self.setLengtOfDraw(len(numbers[0]))
+
         #print("num classes: ", num_classes)
         #print("Numbers: ", numbers)
         self.fit(draws=numbers, num_classes=num_classes, lengthOfDraw=len(numbers[0]))
@@ -267,7 +269,7 @@ if __name__ == "__main__":
 
     xgboost = XGBoostKenoPredictor()
 
-    name = 'keno'
+    name = 'vikinglotto'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
@@ -275,7 +277,6 @@ if __name__ == "__main__":
 
     xgboost.setDataPath(dataPath)
     xgboost.setModelPath(modelPath)
-    xgboost.setLengtOfDraw(20)
 
     if "keno" in name:
         generateSubsets = [6, 7]

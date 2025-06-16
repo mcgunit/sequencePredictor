@@ -201,7 +201,7 @@ def process_single_history_entry_second_step(args):
         unique_labels = unique_labels.tolist()
 
     if boost:
-       listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=(len(historyData)-historyIndex), lengthOfDraw=len(historyData[0]))
+       listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=(len(historyData)-historyIndex))
 
     
     current_json_object["newPrediction"] = listOfDecodedPredictions
@@ -343,7 +343,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
                     
                     if boost:
-                        listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name, lengthOfDraw=len(current_json_object["realResult"]))
+                        listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
 
@@ -757,7 +757,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
     return listOfDecodedPredictions
 
-def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, lengthOfDraw=20):
+def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
     try:
         bestParams_json_object = {
             "use_5":True,
@@ -805,7 +805,6 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, l
                 xgboostPredictor.setOffsetByOne(False)
             else:
                 xgboostPredictor.setOffsetByOne(True)
-            xgboostPredictor.setLengtOfDraw(lengthOfDraw)
             xgboostPredictor.setDataPath(dataPath)
             xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
             xgboostPredictor.setEstimators(bestParams_json_object["xgBoostEstimators"])
