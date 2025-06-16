@@ -69,7 +69,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
         ranked = sorted(scores, key=scores.get, reverse=True)
         return ranked[:n_predictions]
 
-    def generate_crossover_combinations(self, numbers, recent_draws=5):
+    def generate_crossover_combinations(self, numbers, recent_draws=5, predictionLenght=20):
         if len(numbers) < recent_draws:
             return []
 
@@ -82,7 +82,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
             try:
                 mixed = list(set(random.sample(a, min(10, len(a))) + random.sample(b, min(10, len(b)))))
                 if len(mixed) >= 10:
-                    new_combos.append(sorted(mixed[:20]))
+                    new_combos.append(sorted(mixed[:predictionLenght]))
             except ValueError:
                 continue  # skip invalid combos where sample size is too large
 
@@ -113,7 +113,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
 
         combined_predictions = self.ensemble_prediction(last_draw, n_predictions=len(last_draw))
 
-        cross_combos = self.generate_crossover_combinations(numbers, 200)
+        cross_combos = self.generate_crossover_combinations(numbers, 200, len(last_draw))
         candidate_sets = [combined_predictions] + cross_combos
         scored_subset = self.best_scored_subset(candidate_sets)
 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
     markovBayesian = MarkovBayesianEnhanced()
 
-    name = 'keno'
+    name = 'lotto'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)

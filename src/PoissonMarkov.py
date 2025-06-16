@@ -104,13 +104,13 @@ if __name__ == "__main__":
 
     hybrid_model = PoissonMarkov()
 
-    name = 'pick3'
+    name = 'euromillions'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
     hybrid_model.setDataPath(dataPath)
-    hybrid_model.setWeights(poisson_weight=0.6, markov_weight=0.4)
+    hybrid_model.setWeights(poisson_weight=0.5, markov_weight=0.5)
 
     if "keno" in name:
         generateSubsets = [6, 7]
