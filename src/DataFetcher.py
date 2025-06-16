@@ -35,7 +35,7 @@ class DataFetcher():
             # File doesn't exist, so fetch data for the last 6 days
             return int(datetime.now().timestamp() - (30 * 24 * 3600))
 
-    def getLatestData(self, game, filePath):
+    def getLatestData(self, game, filePath, dryRun=False):
         url = f"https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from={self.startDate}&size=62&date-to={self.endDate}&game-names={game}"
         #url = "https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=1746057600000&size=62&date-to=1751414400000&game-names=Keno"
         #print("url: ", url)
@@ -106,10 +106,11 @@ class DataFetcher():
         #     print(row)
         
         # Write the sorted data back to the CSV file
-        with open(csv_file_path, 'w', newline='') as csvfile:  # 'w' for write mode
-            writer = csv.writer(csvfile, delimiter=";")
-            for row in sorted_data:
-                writer.writerow(row.split(';'))  # Split the row into a list of values
+        if not dryRun:
+            with open(csv_file_path, 'w', newline='') as csvfile:  # 'w' for write mode
+                writer = csv.writer(csvfile, delimiter=";")
+                for row in sorted_data:
+                    writer.writerow(row.split(';'))  # Split the row into a list of values
 
 
 
@@ -126,5 +127,5 @@ if __name__ == "__main__":
     print("File path: ", filePath)
     dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
     print("Startdate: ", dataFetcher.startDate, datetime.fromtimestamp(dataFetcher.startDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
-    dataFetcher.getLatestData(game, filePath)
+    dataFetcher.getLatestData(game, filePath, dryRun=True)
 
