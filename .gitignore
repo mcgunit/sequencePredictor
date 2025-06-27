@@ -170,4 +170,4 @@ test/database/*
 .DS_Store
 data/hyperOptCache/*
 *.joblib
-.lock
+process.lock
