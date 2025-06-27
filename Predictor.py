@@ -1,4 +1,4 @@
-import os, argparse, json
+import os, argparse, json, sys, time
 import numpy as np
 import subprocess
 
@@ -40,6 +40,8 @@ command = Command()
 helpers = Helpers()
 dataFetcher = DataFetcher()
 
+LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
 
 def print_intro():
     # Generate ASCII art with the text "LSTM"
@@ -50,6 +52,26 @@ def print_intro():
     print("Licence : MIT License")
     print(ascii_art)
     print("Prediction artificial intelligence")
+
+def is_running():
+    """Checks if another instance is running based on the lock file."""
+    return os.path.exists(LOCK_FILE)
+
+def create_lock():
+    """Creates the lock file."""
+    try:
+        with open(LOCK_FILE, "x") as f:  # "x" mode creates the file, failing if it exists
+            f.write(str(os.getpid()))  # Write the PID to the lock file (optional, but helpful for debugging)
+        return True
+    except FileExistsError:
+        return False
+
+def remove_lock():
+    """Removes the lock file."""
+    try:
+        os.remove(LOCK_FILE)
+    except FileNotFoundError:
+        pass  # It's okay if the lock file doesn't exist
 
 def update_matching_numbers(name, path):
     json_dir = os.path.join(path, "data", "database", name)
@@ -832,141 +854,132 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
 
 
 if __name__ == "__main__":
-
-    try:
-        # Updated pattern to match either Predictor.py or Hyperopt.py
-        cmd = ['pgrep', '-f', 'python.*(Predictor.py|Hyperopt.py)']
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        my_pid, err = process.communicate()
-
-        if err:
-            print(f"Error running pgrep: {err.decode('utf-8')}")
-
-        pid_list = my_pid.decode('utf-8').strip().splitlines()
-        num_pids = len(pid_list)
-
-        if num_pids >= 2:
-            print("Multiple instances running (Predictor or Hyperopt). Exiting.")
-            exit()
-        else:
-            print("No conflicting instances running. Continuing.")
-
-    except Exception as e:
-        print(f"Failed to check if running: {e}")
-
-    try:
-        helpers.git_pull()
-    except Exception as e:
-        print("Failed to get latest changes")
-
-    parser = argparse.ArgumentParser(
-        prog='Sequence Predictor',
-        description='Tries to predict a sequence of numbers',
-        epilog='Check it out'
-    )
-
-    parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=7)
-    args = parser.parse_args()
-
-    print_intro()
-
-    current_year = datetime.now().year
-    print("Current Year:", current_year)
-
-    daysToRebuild = int(args.days)
-    rebuildHistory = bool(args.rebuild_history)
-
-
-    path = os.getcwd()
-
-    # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
-    datasets = [
-        # (dataset_name, model_type, skip_last_columns, ai)
-        ("euromillions", "tcn_model", 0, False, True),
-        ("lotto", "lstm_model", 0, False, True),
-        ("eurodreams", "lstm_model", 0, False, True),
-        #("jokerplus", "lstm_model", 1, False, True),
-        ("keno", "lstm_model", 0, False, True),
-        ("pick3", "lstm_model", 0, False, True),
-        ("vikinglotto", "lstm_model", 0, False, True),
-    ]
-
-    for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
-        try:
-            print(f"\n{dataset_name.capitalize()}")
-            modelPath = os.path.join(path, "data", "models", model_type)
-            dataPath = os.path.join(path, "data", "trainingData", dataset_name)
-            file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
-
-            kwargs_wget = {
-                "folder": dataPath,
-                "file": file
-            }
-
-            # Lets check if file exists
-            if os.path.exists(os.path.join(dataPath, file)):
-                print("Starting data fetcher")
-                filePath = os.path.join(dataPath, file)
-                dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
-                gameName = ""
-                if "euromillions" in dataset_name:
-                    gameName = "Euro+Millions"
-                if "lotto" in dataset_name:
-                    gameName = "Lotto"
-                if "eurodreams" in dataset_name:
-                    gameName = "EuroDreams"
-                if "jokerplus" in dataset_name:
-                    gameName = "Joker%2B"
-                if "keno" in dataset_name:
-                    gameName = "Keno"
-                if "pick3" in dataset_name:
-                    gameName = "Pick3"
-                if "vikinglotto" in dataset_name:
-                    gameName = "Viking+Lotto"
-                dataFetcher.getLatestData(gameName, filePath)
-                #os.remove(os.path.join(dataPath, file))
-        
-
-            #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
-
-            # Predict with hyperopt params
-            predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-            # Predict for current year
-            #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-            # Predict for current year + last year
-            #predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-            # Predict for current year + last two years
-            #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-        except Exception as e:
-            print(f"Failed to predict {dataset_name.capitalize()}: {e}")
-
     
-    print("Finished with predictions")
+    if is_running():
+        print("Another instance is already running. Exiting.")
+        sys.exit(1)
 
-    # try:
-    #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
-    # except Exception as e:
-    #     print("Failed to generate txt file:", e)
-
-    try:
-        for filename in os.listdir(os.getcwd()):
-            if 'wget' in filename:
-                file_path = os.path.join(os.getcwd(), filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-                    print(f"Deleted: {file_path}")
-    except Exception as e:
-        print("Failed to cleanup folder")
+    if not create_lock():
+        print("Failed to create lock file. Exiting.")
+        sys.exit(1)
 
     try:
-        helpers.git_push()
-    except Exception as e:
-        print("Failed to push latest predictions:", e)
+        time.sleep(100)
+        try:
+            helpers.git_pull()
+        except Exception as e:
+            print("Failed to get latest changes")
+
+        parser = argparse.ArgumentParser(
+            prog='Sequence Predictor',
+            description='Tries to predict a sequence of numbers',
+            epilog='Check it out'
+        )
+
+        parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
+        parser.add_argument('-d', '--days', type=int, default=7)
+        args = parser.parse_args()
+
+        print_intro()
+
+        current_year = datetime.now().year
+        print("Current Year:", current_year)
+
+        daysToRebuild = int(args.days)
+        rebuildHistory = bool(args.rebuild_history)
+
+
+        path = os.getcwd()
+
+        # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
+        datasets = [
+            # (dataset_name, model_type, skip_last_columns, ai)
+            ("euromillions", "tcn_model", 0, False, True),
+            ("lotto", "lstm_model", 0, False, True),
+            ("eurodreams", "lstm_model", 0, False, True),
+            #("jokerplus", "lstm_model", 1, False, True),
+            ("keno", "lstm_model", 0, False, True),
+            ("pick3", "lstm_model", 0, False, True),
+            ("vikinglotto", "lstm_model", 0, False, True),
+        ]
+
+        for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
+            try:
+                print(f"\n{dataset_name.capitalize()}")
+                modelPath = os.path.join(path, "data", "models", model_type)
+                dataPath = os.path.join(path, "data", "trainingData", dataset_name)
+                file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
+
+                kwargs_wget = {
+                    "folder": dataPath,
+                    "file": file
+                }
+
+                # Lets check if file exists
+                if os.path.exists(os.path.join(dataPath, file)):
+                    print("Starting data fetcher")
+                    filePath = os.path.join(dataPath, file)
+                    dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
+                    gameName = ""
+                    if "euromillions" in dataset_name:
+                        gameName = "Euro+Millions"
+                    if "lotto" in dataset_name:
+                        gameName = "Lotto"
+                    if "eurodreams" in dataset_name:
+                        gameName = "EuroDreams"
+                    if "jokerplus" in dataset_name:
+                        gameName = "Joker%2B"
+                    if "keno" in dataset_name:
+                        gameName = "Keno"
+                    if "pick3" in dataset_name:
+                        gameName = "Pick3"
+                    if "vikinglotto" in dataset_name:
+                        gameName = "Viking+Lotto"
+                    dataFetcher.getLatestData(gameName, filePath)
+                    #os.remove(os.path.join(dataPath, file))
+            
+
+                #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+
+                # Predict with hyperopt params
+                predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+
+                # Predict for current year
+                #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+
+                # Predict for current year + last year
+                #predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+
+                # Predict for current year + last two years
+                #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+
+            except Exception as e:
+                print(f"Failed to predict {dataset_name.capitalize()}: {e}")
+
+        
+        print("Finished with predictions")
+
+        # try:
+        #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
+        # except Exception as e:
+        #     print("Failed to generate txt file:", e)
+
+        try:
+            for filename in os.listdir(os.getcwd()):
+                if 'wget' in filename:
+                    file_path = os.path.join(os.getcwd(), filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted: {file_path}")
+        except Exception as e:
+            print("Failed to cleanup folder")
+
+        try:
+            helpers.git_push()
+        except Exception as e:
+            print("Failed to push latest predictions:", e)
+    finally:
+        remove_lock()  # Ensure the lock is removed even if an error occurs
     
     
 

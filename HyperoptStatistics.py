@@ -1,4 +1,4 @@
-import os, argparse, json
+import os, argparse, json, sys, time
 import numpy as np
 import subprocess
 import optuna
@@ -30,6 +30,27 @@ command = Command()
 helpers = Helpers()
 dataFetcher = DataFetcher()
 
+LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
+def is_running():
+    """Checks if another instance is running based on the lock file."""
+    return os.path.exists(LOCK_FILE)
+
+def create_lock():
+    """Creates the lock file."""
+    try:
+        with open(LOCK_FILE, "x") as f:  # "x" mode creates the file, failing if it exists
+            f.write(str(os.getpid()))  # Write the PID to the lock file (optional, but helpful for debugging)
+        return True
+    except FileExistsError:
+        return False
+
+def remove_lock():
+    """Removes the lock file."""
+    try:
+        os.remove(LOCK_FILE)
+    except FileNotFoundError:
+        pass  # It's okay if the lock file doesn't exist
 
 def print_intro():
     # Generate ASCII art with the text "LSTM"
@@ -533,194 +554,188 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
 
 if __name__ == "__main__":
 
-    try:
-        # Updated pattern to match either Predictor.py or Hyperopt.py
-        cmd = ['pgrep', '-f', 'python.*(Predictor.py|Hyperopt.py)']
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        my_pid, err = process.communicate()
+    if is_running():
+        print("Another instance is already running. Exiting.")
+        sys.exit(1)
 
-        if err:
-            print(f"Error running pgrep: {err.decode('utf-8')}")
-
-        pid_list = my_pid.decode('utf-8').strip().splitlines()
-        num_pids = len(pid_list)
-
-        if num_pids >= 2:
-            print("Multiple instances running (Predictor or Hyperopt). Exiting.")
-            exit()
-        else:
-            print("No conflicting instances running. Continuing.")
-
-    except Exception as e:
-        print(f"Failed to check if running: {e}")
+    if not create_lock():
+        print("Failed to create lock file. Exiting.")
+        sys.exit(1)
 
     try:
-        helpers.git_pull()
-    except Exception as e:
-        print("Failed to get latest changes")
 
-    parser = argparse.ArgumentParser(
-        prog='Sequence Predictor',
-        description='Tries to predict a sequence of numbers',
-        epilog='Check it out'
-    )
-
-    parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=31)
-    args = parser.parse_args()
-
-    print_intro()
-
-    current_year = datetime.now().year
-    print("Current Year:", current_year)
-
-    daysToRebuild = int(args.days)
-    rebuildHistory = bool(args.rebuild_history)
-
-
-    path = os.getcwd()
-
-    datasets = [
-        # (dataset_name, model_type, skip_last_columns)
-        ("euromillions", "tcn_model", 0),
-        ("lotto", "lstm_model", 0),
-        ("eurodreams", "lstm_model", 0),
-        #("jokerplus", "lstm_model", 0),
-        ("keno", "lstm_model", 0),
-        ("pick3", "lstm_model", 0),
-        ("vikinglotto", "lstm_model", 0),
-    ]
-
-    for dataset_name, model_type, skip_last_columns in datasets:
         try:
-            print(f"\n{dataset_name.capitalize()}")
-            modelPath = os.path.join(path, "data", "models", model_type)
-            dataPath = os.path.join(path, "data", "trainingData", dataset_name)
-            file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
-
-            kwargs_wget = {
-                "folder": dataPath,
-                "file": file
-            }
-
-            # Lets check if file exists
-            if os.path.exists(os.path.join(dataPath, file)):
-                print("Starting data fetcher")
-                filePath = os.path.join(dataPath, file)
-                dataFetcher.calculate_start_date(filePath)
-                dataFetcher.getLatestData(dataset_name, filePath)
-                #os.remove(os.path.join(dataPath, file))
-            #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
-
-            # Predict for current year + last year
-            def objective(trial):
-                numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                totalProfit = 0
-                results = [] # Intermediate results
-
-                all_values = [5, 6, 7, 8, 9, 10]
-                MIN_LEN = 1
-                MAX_LEN = 6
-
-                # Binary inclusion mask for each value
-                inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                
-                # Build the subset from the mask
-                subset = [v for v, include in zip(all_values, inclusion_mask) if include]
-
-                # Enforce length constraints
-                if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                    return float("-inf")  # Or float("inf") if minimizing
-
-                modelParams = {
-                    'yearsOfHistory': trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
-                    'useMarkov': trial.suggest_categorical("useMarkov", [True, False]),
-                    'useMarkovBayesian': trial.suggest_categorical("useMarkovBayesian", [True, False]),
-                    'usevMarkovBayesianEnhanced': trial.suggest_categorical("usevMarkovBayesianEnhanced", [True, False]),
-                    'usePoissonMonteCarlo': trial.suggest_categorical("usePoissonMonteCarlo", [True, False]),
-                    'usePoissonMarkov': trial.suggest_categorical("usePoissonMarkov", [True, False]),
-                    'useLaplaceMonteCarlo': trial.suggest_categorical("useLaplaceMonteCarlo", [True, False]),
-                    'useHybridStatisticalModel': trial.suggest_categorical("useHybridStatisticalModel", [True, False]),
-                    'kenoSubset': subset,
-                    'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0),
-                    'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
-                    'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.0),
-                    'markovRecencyWeight': trial.suggest_float('markovRecencyWeight', 0.1, 2.0),
-                    'markovRecencyMode': trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"]),
-                    'markovPairDecayFactor': trial.suggest_float('markovPairDecayFactor', 0.1, 2.0),
-                    'markovSmoothingFactor': trial.suggest_float('markovSmoothingFactor', 0.01, 1.0),
-                    'markovSubsetSelectionMode': trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"]),
-                    'markovBlendMode': trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"]),
-                    'markovBayesianSoftMaxTemperature': trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0),
-                    'markovBayesianMinOccurences': trial.suggest_int('markovBayesianMinOccurences', 1, 20),
-                    'markovBayesianAlpha': trial.suggest_float('markovBayesianAlpha', 0.1, 1.0),
-                    'markovBayesianEnhancedSoftMaxTemperature': trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0),
-                    'markovBayesianEnhancedAlpha': trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0),
-                    'markovBayesianEnhancedMinOccurences': trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20),
-                    'poissonMonteCarloNumberOfSimulations': trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100),
-                    'poissonMonteCarloWeightFactor': trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0),
-                    'poissonMarkovWeight': trial.suggest_float('poissonMarkovWeight', 0.1, 1.0),
-                    'poissonMarkovNumberOfSimulations': trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100),
-                    'laplaceMonteCarloNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
-                    'hybridStatisticalModelSoftMaxTemperature': trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0),
-                    'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0),
-                    'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
-                    'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
-                }
-                for _ in range(numOfRepeats):
-                    profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                    #print("Profit: ", profit)
-                    results.append(profit)
-
-                totalProfit = sum(results) / len(results)
-
-                return totalProfit
-
-            # Create an Optuna study object
-            study = optuna.create_study(
-                direction='maximize',
-                storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                study_name=f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-            )
-
-            # Run the automatic tuning process
-            study.optimize(objective, n_trials=100)
-
-            # Output the best hyperparameters and score
-            print("Best Parameters: ", study.best_params)
-            print("Best Score: ", study.best_value)
-
-            # Write best params to json
-            jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
-            existingData = {}
-            if os.path.exists(jsonBestParamsFilePath):
-                with open(jsonBestParamsFilePath, "r") as infile:
-                    existingData = json.load(infile)
-            
-            existingData.update(study.best_params)
-
-            with open(jsonBestParamsFilePath, "w+") as outfile:
-                json.dump(existingData, outfile, indent=4)
-            
-            clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}_twoYears"))
-
+            helpers.git_pull()
         except Exception as e:
-            print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
+            print("Failed to get latest changes")
 
-    try:
-        for filename in os.listdir(os.getcwd()):
-            if 'wget' in filename:
-                file_path = os.path.join(os.getcwd(), filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-                    print(f"Deleted: {file_path}")
-    except Exception as e:
-        print("Failed to cleanup folder")
+        parser = argparse.ArgumentParser(
+            prog='Sequence Predictor',
+            description='Tries to predict a sequence of numbers',
+            epilog='Check it out'
+        )
 
-    try:
-        helpers.git_push(commit_message="Saving latest statistical hyperopt")
-    except Exception as e:
-        print("Failed to push latest predictions:", e)
+        parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
+        parser.add_argument('-d', '--days', type=int, default=31)
+        args = parser.parse_args()
+
+        print_intro()
+
+        current_year = datetime.now().year
+        print("Current Year:", current_year)
+
+        daysToRebuild = int(args.days)
+        rebuildHistory = bool(args.rebuild_history)
+
+
+        path = os.getcwd()
+
+        datasets = [
+            # (dataset_name, model_type, skip_last_columns)
+            ("euromillions", "tcn_model", 0),
+            ("lotto", "lstm_model", 0),
+            ("eurodreams", "lstm_model", 0),
+            #("jokerplus", "lstm_model", 0),
+            ("keno", "lstm_model", 0),
+            ("pick3", "lstm_model", 0),
+            ("vikinglotto", "lstm_model", 0),
+        ]
+
+        for dataset_name, model_type, skip_last_columns in datasets:
+            try:
+                print(f"\n{dataset_name.capitalize()}")
+                modelPath = os.path.join(path, "data", "models", model_type)
+                dataPath = os.path.join(path, "data", "trainingData", dataset_name)
+                file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
+
+                kwargs_wget = {
+                    "folder": dataPath,
+                    "file": file
+                }
+
+                # Lets check if file exists
+                if os.path.exists(os.path.join(dataPath, file)):
+                    print("Starting data fetcher")
+                    filePath = os.path.join(dataPath, file)
+                    dataFetcher.calculate_start_date(filePath)
+                    dataFetcher.getLatestData(dataset_name, filePath)
+                    #os.remove(os.path.join(dataPath, file))
+                #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+
+                # Predict for current year + last year
+                def objective(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    all_values = [5, 6, 7, 8, 9, 10]
+                    MIN_LEN = 1
+                    MAX_LEN = 6
+
+                    # Binary inclusion mask for each value
+                    inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                    
+                    # Build the subset from the mask
+                    subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                    # Enforce length constraints
+                    if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                        return float("-inf")  # Or float("inf") if minimizing
+
+                    modelParams = {
+                        'yearsOfHistory': trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
+                        'useMarkov': trial.suggest_categorical("useMarkov", [True, False]),
+                        'useMarkovBayesian': trial.suggest_categorical("useMarkovBayesian", [True, False]),
+                        'usevMarkovBayesianEnhanced': trial.suggest_categorical("usevMarkovBayesianEnhanced", [True, False]),
+                        'usePoissonMonteCarlo': trial.suggest_categorical("usePoissonMonteCarlo", [True, False]),
+                        'usePoissonMarkov': trial.suggest_categorical("usePoissonMarkov", [True, False]),
+                        'useLaplaceMonteCarlo': trial.suggest_categorical("useLaplaceMonteCarlo", [True, False]),
+                        'useHybridStatisticalModel': trial.suggest_categorical("useHybridStatisticalModel", [True, False]),
+                        'kenoSubset': subset,
+                        'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0),
+                        'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
+                        'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.0),
+                        'markovRecencyWeight': trial.suggest_float('markovRecencyWeight', 0.1, 2.0),
+                        'markovRecencyMode': trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"]),
+                        'markovPairDecayFactor': trial.suggest_float('markovPairDecayFactor', 0.1, 2.0),
+                        'markovSmoothingFactor': trial.suggest_float('markovSmoothingFactor', 0.01, 1.0),
+                        'markovSubsetSelectionMode': trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"]),
+                        'markovBlendMode': trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"]),
+                        'markovBayesianSoftMaxTemperature': trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0),
+                        'markovBayesianMinOccurences': trial.suggest_int('markovBayesianMinOccurences', 1, 20),
+                        'markovBayesianAlpha': trial.suggest_float('markovBayesianAlpha', 0.1, 1.0),
+                        'markovBayesianEnhancedSoftMaxTemperature': trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0),
+                        'markovBayesianEnhancedAlpha': trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0),
+                        'markovBayesianEnhancedMinOccurences': trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20),
+                        'poissonMonteCarloNumberOfSimulations': trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100),
+                        'poissonMonteCarloWeightFactor': trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0),
+                        'poissonMarkovWeight': trial.suggest_float('poissonMarkovWeight', 0.1, 1.0),
+                        'poissonMarkovNumberOfSimulations': trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100),
+                        'laplaceMonteCarloNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
+                        'hybridStatisticalModelSoftMaxTemperature': trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0),
+                        'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0),
+                        'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
+                        'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
+                    }
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+
+                # Create an Optuna study object
+                #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                studyName = f"Sequence-Predictor-Statistical-{dataset_name}"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objective, n_trials=100)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters: ", study.best_params)
+                print("Best Score: ", study.best_value)
+
+                # Write best params to json
+                jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
+                existingData = {}
+                if os.path.exists(jsonBestParamsFilePath):
+                    with open(jsonBestParamsFilePath, "r") as infile:
+                        existingData = json.load(infile)
+                
+                existingData.update(study.best_params)
+
+                with open(jsonBestParamsFilePath, "w+") as outfile:
+                    json.dump(existingData, outfile, indent=4)
+                
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}_twoYears"))
+
+            except Exception as e:
+                print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
+
+        try:
+            for filename in os.listdir(os.getcwd()):
+                if 'wget' in filename:
+                    file_path = os.path.join(os.getcwd(), filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        print(f"Deleted: {file_path}")
+        except Exception as e:
+            print("Failed to cleanup folder")
+
+        try:
+            helpers.git_push(commit_message="Saving latest statistical hyperopt")
+        except Exception as e:
+            print("Failed to push latest predictions:", e)
+    finally:
+        remove_lock()  # Ensure the lock is removed even if an error occurs
     
     
 
