@@ -346,6 +346,10 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
 
 
 def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, skipRows=0):
+
+    subsets = []
+    if "keno" in name:
+        subsets = modelParams["kenoSubset"]
     
     if modelParams["useMarkov"] == True:
         try:
@@ -367,10 +371,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "name": "Markov Model",
                 "predictions": []
             }
-
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
 
             markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
             
@@ -398,10 +398,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
-
             markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets)
             markovBayesianPrediction["predictions"].append(markovBayesianSequence)
             for key in markovBayesianSubsets:
@@ -427,10 +423,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
-
             markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
             for key in markovBayesianEnhancedSubsets:
@@ -454,9 +446,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
 
             poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets)
 
@@ -481,9 +470,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
 
             poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets)
 
@@ -508,9 +494,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
 
             laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets)
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
@@ -536,10 +519,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "name": "HybridStatisticalModel",
                 "predictions": []
             }
-
-            subsets = []
-            if "keno" in name:
-                subsets = modelParams["kenoSubset"]
 
             hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets)
             hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
@@ -651,7 +630,6 @@ if __name__ == "__main__":
                         'usePoissonMarkov': trial.suggest_categorical("usePoissonMarkov", [True, False]),
                         'useLaplaceMonteCarlo': trial.suggest_categorical("useLaplaceMonteCarlo", [True, False]),
                         'useHybridStatisticalModel': trial.suggest_categorical("useHybridStatisticalModel", [True, False]),
-                        'kenoSubset': subset,
                         'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0),
                         'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
                         'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.0),
@@ -677,6 +655,10 @@ if __name__ == "__main__":
                         'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
                         'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
                     }
+
+                    if "keno" in dataset_name:
+                        modelParams["kenoSubset"] = subset
+
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
                         #print("Profit: ", profit)
