@@ -575,7 +575,7 @@ if __name__ == "__main__":
             ("lotto", "lstm_model", 0),
             ("eurodreams", "lstm_model", 0),
             #("jokerplus", "lstm_model", 0),
-            ("keno", "lstm_model", 0),
+            #("keno", "lstm_model", 0),
             ("pick3", "lstm_model", 0),
             ("vikinglotto", "lstm_model", 0),
         ]
@@ -611,6 +611,7 @@ if __name__ == "__main__":
                     MIN_LEN = 1
                     MAX_LEN = 6
 
+                    
                     # Binary inclusion mask for each value
                     inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
                     
@@ -620,6 +621,7 @@ if __name__ == "__main__":
                     # Enforce length constraints
                     if not (MIN_LEN <= len(subset) <= MAX_LEN):
                         return float("-inf")  # Or float("inf") if minimizing
+                
 
                     modelParams = {
                         'yearsOfHistory': trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
