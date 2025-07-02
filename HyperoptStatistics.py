@@ -663,7 +663,7 @@ if __name__ == "__main__":
                         
                         modelParams["kenoSubset"] = subset
 
-                    print("Params: ", modelParams)
+                    #print("Params: ", modelParams)
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
