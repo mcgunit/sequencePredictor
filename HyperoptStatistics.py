@@ -607,20 +607,7 @@ if __name__ == "__main__":
                     totalProfit = 0
                     results = [] # Intermediate results
 
-                    all_values = [5, 6, 7, 8, 9, 10]
-                    MIN_LEN = 1
-                    MAX_LEN = 6
-
                     
-                    # Binary inclusion mask for each value
-                    inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                    
-                    # Build the subset from the mask
-                    subset = [v for v, include in zip(all_values, inclusion_mask) if include]
-
-                    # Enforce length constraints
-                    if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                        return float("-inf")  # Or float("inf") if minimizing
                 
 
                     modelParams = {
@@ -659,7 +646,24 @@ if __name__ == "__main__":
                     }
 
                     if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
                         modelParams["kenoSubset"] = subset
+
+                    print("Params: ", modelParams)
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
@@ -672,7 +676,7 @@ if __name__ == "__main__":
 
                 # Create an Optuna study object
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                studyName = f"Sequence-Predictor-Statistical-{dataset_name}"
+                studyName = f"{dataset_name}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -681,7 +685,7 @@ if __name__ == "__main__":
                 )
 
                 # Run the automatic tuning process
-                study.optimize(objective, n_trials=200)
+                study.optimize(objective, n_trials=2)
 
                 # Output the best hyperparameters and score
                 print("Best Parameters: ", study.best_params)
