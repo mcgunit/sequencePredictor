@@ -5,9 +5,9 @@
       "name": "Markov Model",
       "predictions": [
         [
-          4,
-          7,
-          9
+          1,
+          5,
+          7
         ]
       ]
     },
@@ -15,9 +15,9 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
+          0,
           3,
-          4,
-          8
+          4
         ]
       ]
     },
@@ -25,9 +25,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          0,
-          1,
-          5
+          4,
+          7,
+          8
         ]
       ]
     },
@@ -35,9 +35,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          3,
-          6,
-          1
+          7,
+          4,
+          9
         ]
       ]
     },
@@ -45,8 +45,8 @@
       "name": "LaplaceMonteCarlo Model",
       "predictions": [
         [
+          4,
           5,
-          3,
           3
         ]
       ]
@@ -72,9 +72,9 @@
       "name": "Markov Model",
       "predictions": [
         [
-          4,
-          6,
-          9
+          1,
+          2,
+          7
         ]
       ]
     },
@@ -83,8 +83,8 @@
       "predictions": [
         [
           0,
-          1,
-          2
+          3,
+          4
         ]
       ]
     },
@@ -92,9 +92,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          0,
-          1,
-          5
+          6,
+          7,
+          8
         ]
       ]
     },
@@ -103,8 +103,8 @@
       "predictions": [
         [
           5,
-          8,
-          3
+          4,
+          8
         ]
       ]
     },
@@ -112,8 +112,8 @@
       "name": "LaplaceMonteCarlo Model",
       "predictions": [
         [
-          5,
-          3,
+          4,
+          4,
           3
         ]
       ]
@@ -131,14 +131,14 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "Markov Model",
+    "model": "PoissonMonteCarlo Model",
     "prediction": [
       4,
       7,
-      9
+      8
     ],
     "matching_numbers": [
-      9
+      8
     ],
     "match_count": 1
   },
@@ -155,15 +155,15 @@
     9
   ],
   "numberFrequency": {
+    "3": 0.0977088948787062,
+    "1": 0.10035938903863433,
+    "5": 0.09901168014375561,
+    "7": 0.09811320754716982,
+    "9": 0.09977538185085355,
+    "0": 0.10220125786163523,
+    "2": 0.1008984725965858,
     "6": 0.09982030548068284,
     "4": 0.10130278526504942,
-    "1": 0.10035938903863433,
-    "0": 0.10220125786163523,
-    "5": 0.09901168014375561,
-    "3": 0.0977088948787062,
-    "2": 0.1008984725965858,
-    "8": 0.10080862533692722,
-    "7": 0.09811320754716982,
-    "9": 0.09977538185085355
+    "8": 0.10080862533692722
   }
 }
