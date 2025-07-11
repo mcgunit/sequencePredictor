@@ -6,8 +6,8 @@
       "predictions": [
         [
           1,
-          5,
-          9
+          2,
+          8
         ]
       ]
     },
@@ -17,7 +17,7 @@
         [
           0,
           3,
-          4
+          6
         ]
       ]
     },
@@ -25,9 +25,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          4,
-          8,
-          9
+          3,
+          5,
+          7
         ]
       ]
     },
@@ -35,46 +35,36 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
+          7,
           3,
-          8,
-          9
+          4
         ]
       ]
     },
     {
-      "name": "LaplaceMonteCarlo Model",
+      "name": "HybridStatisticalModel",
       "predictions": [
         [
-          5,
-          3,
-          3
-        ]
-      ]
-    },
-    {
-      "name": "xgboost",
-      "predictions": [
-        [
-          8,
-          8,
-          0
+          7,
+          4,
+          5
         ]
       ]
     }
   ],
   "realResult": [
     9,
-    0,
-    7
+    4,
+    6
   ],
   "newPrediction": [
     {
       "name": "Markov Model",
       "predictions": [
         [
+          0,
           2,
-          5,
-          7
+          9
         ]
       ]
     },
@@ -83,8 +73,8 @@
       "predictions": [
         [
           0,
-          1,
-          4
+          2,
+          3
         ]
       ]
     },
@@ -92,9 +82,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          3,
-          5,
-          7
+          4,
+          7,
+          8
         ]
       ]
     },
@@ -102,57 +92,58 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          6,
-          4,
-          0
+          5,
+          0,
+          2
         ]
       ]
     },
     {
-      "name": "LaplaceMonteCarlo Model",
+      "name": "HybridStatisticalModel",
       "predictions": [
         [
+          5,
           3,
-          5,
-          3
-        ]
-      ]
-    },
-    {
-      "name": "xgboost",
-      "predictions": [
-        [
-          5,
-          5,
-          3
+          9
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "Markov Model",
+    "model": "MarkovBayesian Model",
     "prediction": [
-      1,
-      5,
-      9
+      0,
+      3,
+      6
     ],
     "matching_numbers": [
-      9
+      6
     ],
     "match_count": 1
   },
-  "labels": [],
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
   "numberFrequency": {
-    "6": 0.09980685442213538,
-    "4": 0.10128913443830571,
-    "1": 0.1003458653371064,
-    "0": 0.10223240353950501,
-    "5": 0.09899833804967884,
-    "3": 0.09769572833849885,
-    "2": 0.10088487625207744,
-    "8": 0.10079504109958226,
-    "7": 0.0981449041009747,
-    "9": 0.09980685442213538
+    "3": 0.09773828756058159,
+    "1": 0.10029617662897146,
+    "5": 0.09894991922455573,
+    "7": 0.09823191527553402,
+    "9": 0.09980254891401903,
+    "0": 0.10222581224196733,
+    "2": 0.10092443008436547,
+    "6": 0.09975767366720517,
+    "4": 0.10128343205887633,
+    "8": 0.10078980434392389
   }
 }
