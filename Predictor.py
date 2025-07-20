@@ -216,7 +216,7 @@ def process_single_history_entry_second_step(args):
         predictedSequence = latest_raw_predictions.tolist()
         unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 2)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 1)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -353,7 +353,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         current_json_object["labels"] = unique_labels.tolist()
 
             
-                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 2, current_json_object["realResult"], unique_labels, jsonFilePath, name)
+                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 1, current_json_object["realResult"], unique_labels, jsonFilePath, name)
                     else:
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         unique_labels = unique_labels.tolist()
@@ -458,7 +458,6 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
         
         listOfDecodedPredictions.append(nthPredictions)
 
-        return listOfDecodedPredictions
     except Exception as e:
         print("Failed to perform nth prediction: ", e)
 
@@ -480,7 +479,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
             "predictions": []
         }
 
-        for i in range(2):
+        for i in range(1):
             prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
             #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
             refinedPredictions["predictions"].append(prediction_highest_indices)
@@ -530,6 +529,8 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
 
     except Exception as e:
         print("Failed to perform ARIMA: ", e)
+
+    return listOfDecodedPredictions
 
 
 def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
