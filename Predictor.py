@@ -789,7 +789,7 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
             "use_9":True,
             "use_10":True,
             "useBoost": True,
-            "xgBoostEstimators": 1000,
+            "xgBoostEstimators": 500,
             "xgBoostLearningRate": 0.7014495252508934,
             "xgBoostMaxdepth": 3,
             "xgBoostPreviousDraws": 81,
@@ -893,14 +893,14 @@ if __name__ == "__main__":
 
         # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
         datasets = [
-            # (dataset_name, model_type, skip_last_columns, ai)
-            ("euromillions", "tcn_model", 0, False, False),
-            ("lotto", "lstm_model", 0, False, False),
-            ("eurodreams", "lstm_model", 0, False, False),
+            # (dataset_name, model_type, skip_last_columns, ai, xgboost)
+            ("euromillions", "tcn_model", 0, True, True),
+            ("lotto", "lstm_model", 0, True, True),
+            ("eurodreams", "lstm_model", 0, True, True),
             #("jokerplus", "lstm_model", 1, False, True),
-            ("keno", "lstm_model", 0, False, False),
-            ("pick3", "lstm_model", 0, False, False),
-            ("vikinglotto", "lstm_model", 0, False, False),
+            ("keno", "lstm_model", 0, False, True),    # For Keno subsets are need to ceated for ai
+            ("pick3", "lstm_model", 0, True, True),
+            ("vikinglotto", "lstm_model", 0, True, True),
         ]
 
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:

@@ -7,6 +7,7 @@ from itertools import combinations
 from typing import List, Dict, Tuple
 from collections import defaultdict
 import matplotlib.pyplot as plt
+from multiprocessing import cpu_count
 
 # Dynamically adjust the import path for Helpers
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -104,7 +105,8 @@ class XGBoostKenoPredictor:
                 max_depth=self.max_depth,
                 learning_rate=self.learning_rate,
                 #use_label_encoder=False,
-                eval_metric="mlogloss"
+                eval_metric="mlogloss",
+                nthread=cpu_count()-1
             )
 
             print(f"Ys[{pos}]: min={Ys[pos].min()}, max={Ys[pos].max()}")
