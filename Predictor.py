@@ -899,8 +899,8 @@ if __name__ == "__main__":
             ("lotto", "lstm_model", 0, True, True),
             ("eurodreams", "lstm_model", 0, True, True),
             #("jokerplus", "lstm_model", 1, False, True),
-            ("keno", "lstm_model", 0, False, True),    # For Keno subsets are need to ceated for ai
-            ("pick3", "lstm_model", 0, True, True),
+            ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
+            ("pick3", "lstm_model", 0, False, False),
             ("vikinglotto", "lstm_model", 0, True, True),
         ]
 
