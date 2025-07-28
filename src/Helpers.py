@@ -738,4 +738,38 @@ class Helpers():
 
         return normalized_frequencies
 
+
+    def count_number_frequencies_from_new_prediction(self, json_data):
+        """
+        Count normalized frequencies of numbers in 'newPrediction' field from the given JSON structure.
+
+        Parameters
+        ----------
+        json_data : dict
+            Dictionary parsed from a JSON containing 'newPrediction' with model predictions.
+
+        Returns
+        -------
+        dict
+            A dictionary where keys are numbers and values are their normalized frequencies.
+        """
+        number_frequencies = {}
+
+        # Iterate through each model's predictions in 'newPrediction'
+        for model in json_data.get("newPrediction", []):
+            predictions = model.get("predictions", [])
+            for pred_set in predictions:
+                for number in pred_set:
+                    if number in number_frequencies:
+                        number_frequencies[number] += 1
+                    else:
+                        number_frequencies[number] = 1
+
+        # Normalize frequencies
+        total_counts = sum(number_frequencies.values())
+        normalized_frequencies = {
+            number: count / total_counts for number, count in number_frequencies.items()
+        }
+
+        return normalized_frequencies
     

@@ -138,11 +138,6 @@ def process_single_history_entry_first_step(args):
         "labels": [],
         "numberFrequency": []
     }
-
-    try:
-        current_json_object["numberFrequency"] = helpers.count_number_frequencies(dataPath)
-    except Exception as e:
-        print("Failed to calculate the number frequencies: ", e)
     
     try:
         # Check the previous prediction with the real result
@@ -229,6 +224,12 @@ def process_single_history_entry_second_step(args):
     current_json_object["newPrediction"] = listOfDecodedPredictions
     current_json_object["labels"] = unique_labels
 
+    # Calculate the frequent numbers in prediction in last step
+    try:
+        current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(current_json_object)
+    except Exception as e:
+        print("Failed to calculate the number frequencies: ", e)
+
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
 
@@ -299,7 +300,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                 "newPredictionRaw": [],   # Raw prediction that contains the statistical data
                 "matchingNumbers": {},
                 "labels": [],             # Needed for decoding the raw predictions
-                "numberFrequency": helpers.count_number_frequencies(dataPath)
+                "numberFrequency": {}
             }
 
             doNewPrediction = True
@@ -368,6 +369,12 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
+
+                    # Calculate the frequent numbers in prediction
+                    try:
+                        current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(current_json_object)
+                    except Exception as e:
+                        print("Failed to calculate the number frequencies: ", e)
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
