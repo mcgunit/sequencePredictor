@@ -96,7 +96,7 @@ function calculateProfit(prediction, realResult, game, name) {
     front_pair: 50,
     back_pair: 50,
     last_number: 1,
-    lost: -1
+    lost: -4 // because we play with 4 kinds of order per prediction
   };
 
   const played = prediction.length;

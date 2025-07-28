@@ -181,7 +181,7 @@ def calculate_profit(name, path):
         "front_pair": 50,
         "back_pair": 50,
         "last_number": 1,
-        "lost": -1  # Because it cost 1 euro
+        "lost": -4  # Because it cost 1 euro but for each prediction we need to choose all win orders like: straight, etc...
     }
 
     total_profit = 0
