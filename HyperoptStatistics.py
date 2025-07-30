@@ -181,7 +181,7 @@ def calculate_profit(name, path):
         "front_pair": 50,
         "back_pair": 50,
         "last_number": 1,
-        "lost": -4  # Because it cost 1 euro but for each prediction we need to choose all win orders like: straight, etc...
+        "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
     }
 
     total_profit = 0
@@ -556,6 +556,7 @@ if __name__ == "__main__":
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
         parser.add_argument('-d', '--days', type=int, default=31)
+        parser.add_argument('-t', '--trials', type=int, default=200)
         args = parser.parse_args()
 
         print_intro()
@@ -565,6 +566,7 @@ if __name__ == "__main__":
 
         daysToRebuild = int(args.days)
         rebuildHistory = bool(args.rebuild_history)
+        n_trials = int(args.trials)
 
 
         path = os.getcwd()
@@ -602,13 +604,11 @@ if __name__ == "__main__":
                 #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
                 # Predict for current year + last year
+                """
                 def objective(trial):
                     numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
-
-                    
-                
 
                     modelParams = {
                         'yearsOfHistory': trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
@@ -673,10 +673,371 @@ if __name__ == "__main__":
                     totalProfit = sum(results) / len(results)
 
                     return totalProfit
+                """
 
+                defautParams = {
+                    'yearsOfHistory': 1,
+                    'useMarkov': False,
+                    'useMarkovBayesian': False,
+                    'usevMarkovBayesianEnhanced': False,
+                    'usePoissonMonteCarlo': False,
+                    'usePoissonMarkov': False,
+                    'useLaplaceMonteCarlo': False,
+                    'useHybridStatisticalModel': False,
+                    'markovSoftMaxTemperature': 1,
+                    'markovMinOccurences': 1,
+                    'markovAlpha': 1,
+                    'markovRecencyWeight': 1,
+                    'markovRecencyMode': 1,
+                    'markovPairDecayFactor': 1,
+                    'markovSmoothingFactor': 1,
+                    'markovSubsetSelectionMode': 1,
+                    'markovBlendMode': 1,
+                    'markovBayesianSoftMaxTemperature': 1,
+                    'markovBayesianMinOccurences': 1,
+                    'markovBayesianAlpha': 1,
+                    'markovBayesianEnhancedSoftMaxTemperature': 1,
+                    'markovBayesianEnhancedAlpha': 1,
+                    'markovBayesianEnhancedMinOccurences': 1,
+                    'poissonMonteCarloNumberOfSimulations': 1,
+                    'poissonMonteCarloWeightFactor': 1,
+                    'poissonMarkovWeight': 1,
+                    'poissonMarkovNumberOfSimulations': 1,
+                    'laplaceMonteCarloNumberOfSimulations': 1,
+                    'hybridStatisticalModelSoftMaxTemperature': 1,
+                    'hybridStatisticalModelAlpha': 1,
+                    'hybridStatisticalModelMinOcurrences': 1,
+                    'hybridStatisticalModelNumberOfSimulations': 1
+                }
+
+                def objectivePoissonMonteCarlo(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams["yearsOfHistory"] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['usePoissonMonteCarlo'] = True
+                    modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100)
+                    modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0)
+                    
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+                
+                def objectiveMarkov(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['useMarkov'] = True
+                    modelParams['markovSoftMaxTemperature'] = trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0)
+                    modelParams['markovMinOccurences'] = trial.suggest_int('markovMinOccurences', 1, 20)
+                    modelParams['markovAlpha'] = trial.suggest_float('markovAlpha', 0.1, 1.0)
+                    modelParams['markovRecencyWeight'] = trial.suggest_float('markovRecencyWeight', 0.1, 2.0)
+                    modelParams['markovRecencyMode'] = trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"])
+                    modelParams['markovPairDecayFactor'] = trial.suggest_float('markovPairDecayFactor', 0.1, 2.0)
+                    modelParams['markovSmoothingFactor'] = trial.suggest_float('markovSmoothingFactor', 0.01, 1.0)
+                    modelParams['markovSubsetSelectionMode'] = trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"])
+                    modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+
+                def objectiveMarkovBayesian(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['useMarkovBayesian'] = True
+                    modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
+                    modelParams['markovBayesianSoftMaxTemperature'] = trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0)
+                    modelParams['markovBayesianMinOccurences'] = trial.suggest_int('markovBayesianMinOccurences', 1, 20)
+                    modelParams['markovBayesianAlpha'] = trial.suggest_float('markovBayesianAlpha', 0.1, 1.0)
+                    modelParams['markovBayesianEnhancedSoftMaxTemperature'] = trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0)
+                    modelParams['markovBayesianEnhancedAlpha'] = trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0)
+                    modelParams['markovBayesianEnhancedMinOccurences'] = trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20)
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+                
+                def objectiveMarkovBayesianEnhanced(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['usevMarkovBayesianEnhanced'] = True
+                    modelParams['markovBayesianEnhancedSoftMaxTemperature'] = trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0)
+                    modelParams['markovBayesianEnhancedAlpha'] = trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0)
+                    modelParams['markovBayesianEnhancedMinOccurences'] = trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20)
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+                
+                def objectivePoissonMarkov(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['usePoissonMarkov'] = True
+                    modelParams['poissonMarkovWeight'] = trial.suggest_float('poissonMarkovWeight', 0.1, 1.0)
+                    modelParams['poissonMarkovNumberOfSimulations'] = trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100)
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+                
+                def objectiveLaPlaceMonteCarlo(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['useLaplaceMonteCarlo'] = True
+                    modelParams['laplaceMonteCarloNumberOfSimulations'] = trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100)
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+                
+                def objectiveHybridStatistical(trial):
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    totalProfit = 0
+                    results = [] # Intermediate results
+
+                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                    modelParams = defautParams
+
+                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
+                    modelParams['useHybridStatisticalModel'] = True
+                    modelParams['hybridStatisticalModelSoftMaxTemperature'] = trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0)
+                    modelParams['hybridStatisticalModelAlpha'] = trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0)
+                    modelParams['hybridStatisticalModelMinOcurrences'] = trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20)
+                    modelParams['hybridStatisticalModelNumberOfSimulations'] = trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
+                    
+
+                    if "keno" in dataset_name:
+                        all_values = [5, 6, 7, 8, 9, 10]
+                        MIN_LEN = 1
+                        MAX_LEN = 6
+
+                        
+                        # Binary inclusion mask for each value
+                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                        
+                        # Build the subset from the mask
+                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                        # Enforce length constraints
+                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                            return float("-inf")  # Or float("inf") if minimizing
+                        
+                        modelParams["kenoSubset"] = subset
+
+                    #print("Params: ", modelParams)
+
+                    for _ in range(numOfRepeats):
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        #print("Profit: ", profit)
+                        results.append(profit)
+
+                    totalProfit = sum(results) / len(results)
+
+                    return totalProfit
+
+                # Write best params to json
+                jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
+                existingData = {}
+                if os.path.exists(jsonBestParamsFilePath):
+                    with open(jsonBestParamsFilePath, "r") as infile:
+                        existingData = json.load(infile)
+
+                totalProfitPoissonMonteCarlo = 0
+                totalProfitMarkov = 0
+                totalProfitMarkovBayesian = 0
+                totalProfitMarkovBayesianEnhanced = 0
+                totalProfitPoissonMarkov = 0
+                totalProfitLaPlaceMonteCarlo = 0
+                totalProfitHybridStatistical = 0
+                
                 # Create an Optuna study object
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                studyName = f"{dataset_name}"
+                studyName = f"{dataset_name}-PoissonMonteCarlo"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -685,25 +1046,171 @@ if __name__ == "__main__":
                 )
 
                 # Run the automatic tuning process
-                study.optimize(objective, n_trials=200)
+                study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
 
                 # Output the best hyperparameters and score
-                print("Best Parameters: ", study.best_params)
-                print("Best Score: ", study.best_value)
+                print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
+                print("Best Score for Poisson MonteCarlo: ", study.best_value)
 
-                # Write best params to json
-                jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
-                existingData = {}
-                if os.path.exists(jsonBestParamsFilePath):
-                    with open(jsonBestParamsFilePath, "r") as infile:
-                        existingData = json.load(infile)
-                
+                totalProfitPoissonMonteCarlo = study.best_value
+                # save params
                 existingData.update(study.best_params)
 
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                studyName = f"{dataset_name}-Markov"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objectiveMarkov, n_trials=n_trials)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters for Markov: ", study.best_params)
+                print("Best Score for Markov: ", study.best_value)
+
+                totalProfitMarkov = study.best_value
+                # save params
+                existingData.update(study.best_params)
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                studyName = f"{dataset_name}-MarkovBayesian"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objectiveMarkovBayesian, n_trials=n_trials)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters for Markov Bayesian: ", study.best_params)
+                print("Best Score for Markov Bayesian: ", study.best_value)
+
+                totalProfitMarkovBayesian = study.best_value
+                # save params
+                existingData.update(study.best_params)
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                studyName = f"{dataset_name}-MarkovBayesianEnhanced"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objectiveMarkovBayesianEnhanced, n_trials=n_trials)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters for Markov Bayesian Enhanced: ", study.best_params)
+                print("Best Score for Markov Bayesian Enhanced: ", study.best_value)
+
+                totalProfitMarkovBayesianEnhanced = study.best_value
+                # save params
+                existingData.update(study.best_params)
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                studyName = f"{dataset_name}-PoissonMarkov"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objectivePoissonMarkov, n_trials=n_trials)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters for Poisson Markov: ", study.best_params)
+                print("Best Score for Poisson Markov: ", study.best_value)
+
+                totalProfitPoissonMarkov = study.best_value
+                # save params
+                existingData.update(study.best_params)
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                studyName = f"{dataset_name}-LaPlaceMonteCarlo"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objectiveLaPlaceMonteCarlo, n_trials=n_trials)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters for LaPlace MonteCarlo: ", study.best_params)
+                print("Best Score for LaPlace MonteCarlo: ", study.best_value)
+
+                totalProfitLaPlaceMonteCarlo = study.best_value
+                # save params
+                existingData.update(study.best_params)
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                studyName = f"{dataset_name}-HybridStatiscal"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
+
+                # Run the automatic tuning process
+                study.optimize(objectiveHybridStatistical, n_trials=n_trials)
+
+                # Output the best hyperparameters and score
+                print("Best Parameters for Hybrid Statistical: ", study.best_params)
+                print("Best Score for Hybrid Statistical: ", study.best_value)
+
+                totalProfitHybridStatistical = study.best_value
+                # save params
+                existingData.update(study.best_params)
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                
+
+                # Determine which strategy is best based on profit
+                profits = {
+                    'usePoissonMonteCarlo': totalProfitPoissonMonteCarlo,
+                    'useMarkov': totalProfitMarkov,
+                    'useMarkovBayesian': totalProfitMarkovBayesian,
+                    'usevMarkovBayesianEnhanced': totalProfitMarkovBayesianEnhanced,
+                    'usePoissonMarkov': totalProfitPoissonMarkov,
+                    'useLaplaceMonteCarlo': totalProfitLaPlaceMonteCarlo,
+                    'useHybridStatisticalModel': totalProfitHybridStatistical
+                }
+
+                # Find the strategy with the maximum profit
+                best_strategy = max(profits, key=profits.get)
+
+                # Create booleans for each strategy, only the best is set to True
+                strategy_flags = {k: (k == best_strategy) for k in profits}
+
+                print("Strategy outcome: ", strategy_flags)
+
+                existingData.update(strategy_flags)
+                
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)
                 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}_twoYears"))
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
