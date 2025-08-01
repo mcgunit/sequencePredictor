@@ -676,7 +676,7 @@ if __name__ == "__main__":
                 """
 
                 defautParams = {
-                    'yearsOfHistory': 1,
+                    'yearsOfHistory': None, # None = all available data
                     'useMarkov': False,
                     'useMarkovBayesian': False,
                     'usevMarkovBayesianEnhanced': False,
@@ -711,14 +711,13 @@ if __name__ == "__main__":
                 }
 
                 def objectivePoissonMonteCarlo(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams["yearsOfHistory"] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['usePoissonMonteCarlo'] = True
                     modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100)
                     modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0)
@@ -754,14 +753,13 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveMarkov(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['useMarkov'] = True
                     modelParams['markovSoftMaxTemperature'] = trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0)
                     modelParams['markovMinOccurences'] = trial.suggest_int('markovMinOccurences', 1, 20)
@@ -803,14 +801,13 @@ if __name__ == "__main__":
                     return totalProfit
 
                 def objectiveMarkovBayesian(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['useMarkovBayesian'] = True
                     modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
                     modelParams['markovBayesianSoftMaxTemperature'] = trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0)
@@ -850,14 +847,13 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveMarkovBayesianEnhanced(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['usevMarkovBayesianEnhanced'] = True
                     modelParams['markovBayesianEnhancedSoftMaxTemperature'] = trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0)
                     modelParams['markovBayesianEnhancedAlpha'] = trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0)
@@ -893,14 +889,13 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectivePoissonMarkov(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['usePoissonMarkov'] = True
                     modelParams['poissonMarkovWeight'] = trial.suggest_float('poissonMarkovWeight', 0.1, 1.0)
                     modelParams['poissonMarkovNumberOfSimulations'] = trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100)
@@ -935,14 +930,13 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveLaPlaceMonteCarlo(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['useLaplaceMonteCarlo'] = True
                     modelParams['laplaceMonteCarloNumberOfSimulations'] = trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100)
 
@@ -976,14 +970,13 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveHybridStatistical(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
                     modelParams = defautParams
 
-                    modelParams['yearsOfHistory'] = trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5])
                     modelParams['useHybridStatisticalModel'] = True
                     modelParams['hybridStatisticalModelSoftMaxTemperature'] = trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0)
                     modelParams['hybridStatisticalModelAlpha'] = trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0)

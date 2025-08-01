@@ -423,7 +423,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                 if len(argsList) > 0:
                     #print("Numbers of cpu needed: ", min(cpu_count() - 1, len(argsList)))
-                    with Pool(processes=min((cpu_count()-3), len(argsList))) as pool:
+                    with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
                         results = pool.map(process_single_history_entry_first_step, argsList)
 
                     print("Finished first step: multiprocessing rebuild of history entries and statistical method.")
