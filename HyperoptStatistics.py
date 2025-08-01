@@ -555,7 +555,7 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=31)
+        parser.add_argument('-d', '--days', type=int, default=61)
         parser.add_argument('-t', '--trials', type=int, default=200)
         args = parser.parse_args()
 
@@ -603,77 +603,6 @@ if __name__ == "__main__":
                     #os.remove(os.path.join(dataPath, file))
                 #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
-                # Predict for current year + last year
-                """
-                def objective(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
-                    results = [] # Intermediate results
-
-                    modelParams = {
-                        'yearsOfHistory': trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
-                        'useMarkov': trial.suggest_categorical("useMarkov", [True, False]),
-                        'useMarkovBayesian': trial.suggest_categorical("useMarkovBayesian", [True, False]),
-                        'usevMarkovBayesianEnhanced': trial.suggest_categorical("usevMarkovBayesianEnhanced", [True, False]),
-                        'usePoissonMonteCarlo': trial.suggest_categorical("usePoissonMonteCarlo", [True, False]),
-                        'usePoissonMarkov': trial.suggest_categorical("usePoissonMarkov", [True, False]),
-                        'useLaplaceMonteCarlo': trial.suggest_categorical("useLaplaceMonteCarlo", [True, False]),
-                        'useHybridStatisticalModel': trial.suggest_categorical("useHybridStatisticalModel", [True, False]),
-                        'markovSoftMaxTemperature': trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0),
-                        'markovMinOccurences': trial.suggest_int('markovMinOccurences', 1, 20),
-                        'markovAlpha': trial.suggest_float('markovAlpha', 0.1, 1.0),
-                        'markovRecencyWeight': trial.suggest_float('markovRecencyWeight', 0.1, 2.0),
-                        'markovRecencyMode': trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"]),
-                        'markovPairDecayFactor': trial.suggest_float('markovPairDecayFactor', 0.1, 2.0),
-                        'markovSmoothingFactor': trial.suggest_float('markovSmoothingFactor', 0.01, 1.0),
-                        'markovSubsetSelectionMode': trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"]),
-                        'markovBlendMode': trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"]),
-                        'markovBayesianSoftMaxTemperature': trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0),
-                        'markovBayesianMinOccurences': trial.suggest_int('markovBayesianMinOccurences', 1, 20),
-                        'markovBayesianAlpha': trial.suggest_float('markovBayesianAlpha', 0.1, 1.0),
-                        'markovBayesianEnhancedSoftMaxTemperature': trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0),
-                        'markovBayesianEnhancedAlpha': trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0),
-                        'markovBayesianEnhancedMinOccurences': trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20),
-                        'poissonMonteCarloNumberOfSimulations': trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100),
-                        'poissonMonteCarloWeightFactor': trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0),
-                        'poissonMarkovWeight': trial.suggest_float('poissonMarkovWeight', 0.1, 1.0),
-                        'poissonMarkovNumberOfSimulations': trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100),
-                        'laplaceMonteCarloNumberOfSimulations': trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100),
-                        'hybridStatisticalModelSoftMaxTemperature': trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0),
-                        'hybridStatisticalModelAlpha': trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0),
-                        'hybridStatisticalModelMinOcurrences': trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20),
-                        'hybridStatisticalModelNumberOfSimulations': trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
-                    }
-
-                    if "keno" in dataset_name:
-                        all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
-                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
-                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
-
-                        # Enforce length constraints
-                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
-                        
-                        modelParams["kenoSubset"] = subset
-
-                    #print("Params: ", modelParams)
-
-                    for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                    totalProfit = sum(results) / len(results)
-
-                    return totalProfit
-                """
 
                 defautParams = {
                     'yearsOfHistory': None, # None = all available data
@@ -711,7 +640,7 @@ if __name__ == "__main__":
                 }
 
                 def objectivePoissonMonteCarlo(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
@@ -753,7 +682,7 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveMarkov(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
@@ -801,7 +730,7 @@ if __name__ == "__main__":
                     return totalProfit
 
                 def objectiveMarkovBayesian(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
@@ -847,7 +776,7 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveMarkovBayesianEnhanced(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
@@ -889,7 +818,7 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectivePoissonMarkov(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
@@ -930,7 +859,7 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveLaPlaceMonteCarlo(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
@@ -970,7 +899,7 @@ if __name__ == "__main__":
                     return totalProfit
                 
                 def objectiveHybridStatistical(trial):
-                    numOfRepeats = 2 # To average out the rusults before continueing to the next result
+                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
                     results = [] # Intermediate results
 
