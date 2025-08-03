@@ -41,6 +41,13 @@ class LSTMModel:
         self.dense_units = 16
         self.dropout = 0.2
         self.l2Regularization = 0.0001
+        self.earlyStopPatience = 20
+        self.reduceLearningRatePatience = 5
+        self.reduceLearningRateFactor = 0.9
+        self.useFinalLSTMLayer = True
+        self.useGRU = True
+        self.denseActivation = "relu"
+        self.outputActivation = "softmax"
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -80,6 +87,27 @@ class LSTMModel:
     
     def setL2Regularization(self, value):
         self.l2Regularization = value
+    
+    def setEarlyStopPatience(self, value):
+        self.earlyStopPatience = value
+    
+    def setReduceLearningRatePAience(self, value):
+        self.reduceLearningRatePatience = value
+    
+    def setReducedLearningRateFactor(self, value):
+        self.reduceLearningRateFactor = value
+    
+    def setUseFinalLSTMLayer(self, value):
+        self.useFinalLSTMLayer = value
+    
+    def setUseGRU(self, value):
+        self.useGRU = value
+
+    def setDenseActivation(self, value):
+        self.denseActivation = value
+
+    def setOutpuActivation(self, value):
+        self.outputActivation = value
 
     """
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
@@ -104,11 +132,13 @@ class LSTMModel:
         # LSTM+GRU layers
         for _ in range(num_lstm_layers):
             model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
-            model.add(layers.GRU(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+            if self.useGRU:
+                model.add(layers.GRU(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
-
-        model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
-        model.add(layers.Dropout(dropout))
+        
+        if self.useFinalLSTMLayer:
+            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+            model.add(layers.Dropout(dropout))
         
         for _ in range(num_bidirectional_layers):
             model.add(layers.Bidirectional(layers.LSTM(bidirectional_lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization))))
@@ -116,11 +146,11 @@ class LSTMModel:
         
         for _ in range(num_dense_layers):
             # Dense layer to process sequence outputs
-            model.add(layers.TimeDistributed(layers.Dense(dense_units, activation='relu')))
+            model.add(layers.TimeDistributed(layers.Dense(dense_units, activation=self.denseActivation)))
             model.add(layers.Dropout(dropout))
 
         # Output layer
-        model.add(layers.TimeDistributed(layers.Dense(num_classes, activation='softmax')))
+        model.add(layers.TimeDistributed(layers.Dense(num_classes, activation=self.outputActivation)))
 
         model.build(input_shape=(None, None))
 
@@ -134,8 +164,8 @@ class LSTMModel:
         return model
 
     def train_model(self, model, train_data, train_labels, val_data, val_labels, model_name):
-        early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
-        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.9, patience=5)
+        early_stopping = EarlyStopping(monitor='val_loss', patience=self.earlyStopPatience, restore_best_weights=True)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=self.reduceLearningRateFactor, patience=self.reduceLearningRatePatience)
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),

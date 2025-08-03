@@ -1,6 +1,4 @@
-import os, argparse, json
-import numpy as np
-import subprocess
+import os, argparse, json, sys
 import optuna
 
 from art import text2art
@@ -40,6 +38,28 @@ xgboostPredictor = XGBoostKenoPredictor()
 command = Command()
 helpers = Helpers()
 dataFetcher = DataFetcher()
+
+LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
+def is_running():
+    """Checks if another instance is running based on the lock file."""
+    return os.path.exists(LOCK_FILE)
+
+def create_lock():
+    """Creates the lock file."""
+    try:
+        with open(LOCK_FILE, "x") as f:  # "x" mode creates the file, failing if it exists
+            f.write(str(os.getpid()))  # Write the PID to the lock file (optional, but helpful for debugging)
+        return True
+    except FileExistsError:
+        return False
+
+def remove_lock():
+    """Removes the lock file."""
+    try:
+        os.remove(LOCK_FILE)
+    except FileNotFoundError:
+        pass  # It's okay if the lock file doesn't exist
 
 
 def print_intro():
@@ -131,8 +151,24 @@ def process_single_history_entry(args):
 
     modelToUse.setDataPath(dataPath)
     modelToUse.setModelPath(modelPath)
-    modelToUse.setBatchSize(16)
-    modelToUse.setEpochs(1000)
+    modelToUse.setBatchSize(modelParams["batchSize"])
+    modelToUse.setEpochs(modelParams["epochs"])
+    modelToUse.setDenseActivation(modelParams["denseActivation"])
+    modelToUse.setNumberOfLSTMLayers(modelParams["num_lstm_layers"])
+    modelToUse.setNumberOfDenseLayers(modelParams["num_dense_layers"])
+    modelToUse.setNumberOfBidrectionalLayers(modelParams["num_bidirectional_layers"])
+    modelToUse.setNumberOfEmbeddingOutputDimension(modelParams["embedding_output_dimension"])
+    modelToUse.setNumberOfLstmUnits(modelParams["lstm_units"])
+    modelToUse.setNumberOfBidirectionalLstmUnits(modelParams["bidirectional_lstm_units"])
+    modelToUse.setNumberOfDenseUnits(modelParams["dense_units"])
+    modelToUse.setDropout(modelParams["dropout"])
+    modelToUse.setL2Regularization(modelParams["l2Regularization"])
+    modelToUse.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    modelToUse.setReduceLearningRatePAience(modelParams["reduceLearningRatePatience"])
+    modelToUse.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    modelToUse.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
+    modelToUse.setUseGRU(modelParams["useGRU"])
+    modelToUse.outputActivation(modelParams("outputActivation"))
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -396,26 +432,13 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
 
 if __name__ == "__main__":
 
-    try:
-        # Updated pattern to match either Predictor.py or Hyperopt.py
-        cmd = ['pgrep', '-f', 'python.*(Predictor.py|Hyperopt.py)']
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        my_pid, err = process.communicate()
+    if is_running():
+        print("Another instance is already running. Exiting.")
+        sys.exit(1)
 
-        if err:
-            print(f"Error running pgrep: {err.decode('utf-8')}")
-
-        pid_list = my_pid.decode('utf-8').strip().splitlines()
-        num_pids = len(pid_list)
-
-        if num_pids >= 2:
-            print("Multiple instances running (Predictor or Hyperopt). Exiting.")
-            exit()
-        else:
-            print("No conflicting instances running. Continuing.")
-
-    except Exception as e:
-        print(f"Failed to check if running: {e}")
+    if not create_lock():
+        print("Failed to create lock file. Exiting.")
+        sys.exit(1)
 
     try:
         helpers.git_pull()
@@ -449,15 +472,15 @@ if __name__ == "__main__":
         #("lotto", "lstm_model", 0),
         #("eurodreams", "lstm_model", 0),
         #("jokerplus", "lstm_model", 1),
-        ("keno", "lstm_model", 0),
-        #("pick3", "lstm_model", 0),
+        #("keno", "lstm_model", 0),
+        ("pick3", "lstm_model", 0),
         #("vikinglotto", "lstm_model", 0),
     ]
 
-    for dataset_name, model_type, skip_last_columns, ai in datasets:
+    for dataset_name, model_type, skip_last_columns in datasets:
         try:
             print(f"\n{dataset_name.capitalize()}")
-            modelPath = os.path.join(path, "data", "models", model_type)
+            modelPath = os.path.join(path, "data", "hyperOptCache", "models", model_type)
             dataPath = os.path.join(path, "data", "trainingData", dataset_name)
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
@@ -495,7 +518,26 @@ if __name__ == "__main__":
                 if not (MIN_LEN <= len(subset) <= MAX_LEN):
                     return float("-inf")  # Or float("inf") if minimizing
 
-                modelParams = {
+
+                modelParams =  {
+                    "epochs": trial.suggest_int("epochs", 100, 2000, step=100),
+                    "batchSize": trial.suggest_categorical("batchSize", [4, 8, 16, 32]),
+                    "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 3),
+                    "num_dense_layers": trial.suggest_int("num_dense_layers", 1, 3),
+                    "num_bidirectional_layers": trial.suggest_int("num_bidirectional_layers", 0, 2),
+                    "embedding_output_dimension": trial.suggest_categorical("embedding_output_dimension", [8, 16, 32, 64]),
+                    "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128]),
+                    "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64]),
+                    "dense_units": trial.suggest_categorical("dense_units", [16, 32, 64]),
+                    "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.05),
+                    "l2Regularization": trial.suggest_float("l2Regularization", 1e-6, 1e-2, log=True),
+                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 50),
+                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 3, 10),
+                    "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9),
+                    "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [True, False]),
+                    "useGRU": trial.suggest_categorical("useGRU", [True, False]),
+                    "denseActivation": trial.suggest_categorical("denseActivation", ["relu", "tanh", "elu"]),
+                    "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                 }
 
                 for _ in range(numOfRepeats):
@@ -534,20 +576,27 @@ if __name__ == "__main__":
                 json.dump(existingData, outfile, indent=4)
             
             clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+            clearFolder(os.path.join(path, "data", "hyperOptCache", "models", model_type))
 
         except Exception as e:
             print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 
-    # try:
-    #     helpers.generatePredictionTextFile(os.path.join(path, "data", "hyperOptCache"))
-    # except Exception as e:
-    #     print("Failed to generate txt file:", e)
+    try:
+        for filename in os.listdir(os.getcwd()):
+            if 'wget' in filename:
+                file_path = os.path.join(os.getcwd(), filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+    except Exception as e:
+        print("Failed to cleanup folder")
 
-    # try:
-    #     helpers.git_push()
-    # except Exception as e:
-    #     print("Failed to push latest predictions:", e)
-    
+    try:
+        helpers.git_push(commit_message="Saving latest statistical hyperopt")
+    except Exception as e:
+        print("Failed to push latest predictions:", e)
+    finally:
+        remove_lock()  # Ensure the lock is removed even if an error occurs
     
 
     
