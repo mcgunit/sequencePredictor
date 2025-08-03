@@ -25,15 +25,15 @@ class DataFetcher():
                     today = datetime.now()
                     days_ago = (today - latest_date).days
                    
-                    start_date = int(datetime.now().timestamp() - (days_ago * 24 * 3600)) * 10000000
+                    start_date = int(datetime.now().timestamp() - (days_ago * 24 * 3600)) * 1000
                     
                     return start_date
                 else:
                     # File is empty, so fetch data for the last 30 days
-                    return int(datetime.now().timestamp() - (30 * 24 * 3600))
+                    return int(datetime.now().timestamp() - (30 * 24 * 3600)) * 1000
         except FileNotFoundError:
             # File doesn't exist, so fetch data for the last 6 days
-            return int(datetime.now().timestamp() - (30 * 24 * 3600))
+            return int(datetime.now().timestamp() - (30 * 24 * 3600)) * 1000
 
     def getLatestData(self, game, filePath, dryRun=False):
 
