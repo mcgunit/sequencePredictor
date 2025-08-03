@@ -32,6 +32,15 @@ class LSTMModel:
         self.modelPath = ""
         self.epochs = 1000
         self.batchSize = 4
+        self.num_lstm_layers = 1
+        self.num_dense_layers = 1
+        self.num_bidirectional_layers = 1
+        self.embedding_output_dimension = 16
+        self.lstm_units = 16
+        self.bidirectional_lstm_units = 16
+        self.dense_units = 16
+        self.dropout = 0.2
+        self.l2Regularization = 0.0001
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -45,21 +54,47 @@ class LSTMModel:
     def setBatchSize(self, batchSize):
         self.batchSize = batchSize
 
+    def setNumberOfLSTMLayers(self, nLayers):
+        self.num_lstm_layers = nLayers
+    
+    def setNumberOfDenseLayers(self, nLayers):
+        self.num_dense_layers = nLayers
+
+    def setNumberOfBidrectionalLayers(self, nLayers):
+        self.num_bidirectional_layers = nLayers
+
+    def setNumberOfEmbeddingOutputDimension(self, dimension):
+        self.embedding_output_dimension = dimension
+
+    def setNumberOfLstmUnits(self, units):
+        self.lstm_units = units
+    
+    def setNumberOfBidirectionalLstmUnits(self, units):
+        self.bidirectional_lstm_units = units
+
+    def setNumberOfDenseUnits(self, units):
+        self.dense_units = units
+
+    def setDropout(self, dropout):
+        self.dropout = dropout
+    
+    def setL2Regularization(self, value):
+        self.l2Regularization = value
 
     """
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
     def create_model(self, max_value, num_classes=50, model_path=""):
-        num_lstm_layers = 1
-        num_dense_layers = 1
-        num_bidirectional_layers = 1
-        embedding_output_dimension = 16
-        lstm_units = 16
-        bidirectional_lstm_units = 16
-        dense_units = 16
-        dropout = 0.2
-        l2Regularization = 0.0001
+        num_lstm_layers = self.num_lstm_layers
+        num_dense_layers = self.num_dense_layers
+        num_bidirectional_layers = self.num_bidirectional_layers
+        embedding_output_dimension = self.embedding_output_dimension
+        lstm_units = self.lstm_units
+        bidirectional_lstm_units = self.bidirectional_lstm_units
+        dense_units = self.dense_units
+        dropout = self.dropout
+        l2Regularization = self.l2Regularization
 
         model = models.Sequential()
 
