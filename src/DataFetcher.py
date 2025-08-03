@@ -25,7 +25,7 @@ class DataFetcher():
                     today = datetime.now()
                     days_ago = (today - latest_date).days
                    
-                    start_date = int(datetime.now().timestamp() - (days_ago * 24 * 3600))*1000
+                    start_date = int(datetime.now().timestamp() - (days_ago * 24 * 3600)) * 10000000
                     
                     return start_date
                 else:
@@ -38,8 +38,9 @@ class DataFetcher():
     def getLatestData(self, game, filePath, dryRun=False):
 
         print("Startdate: ", self.startDate, datetime.fromtimestamp(self.startDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
+        print("Enddate: ", self.endDate, datetime.fromtimestamp(self.endDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
         url = f"https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from={self.startDate}&size=62&date-to={self.endDate}&game-names={game}"
-        #url = "https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=1746057600000&size=62&date-to=1751414400000&game-names=Keno"
+        #url = https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=1751328000000&size=62&date-to=1756684800000&game-names=Pick3
         #print("url: ", url)
         
         headers = {

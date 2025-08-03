@@ -945,21 +945,10 @@ if __name__ == "__main__":
                         gameName = "Viking+Lotto"
                     dataFetcher.getLatestData(gameName, filePath)
                     #os.remove(os.path.join(dataPath, file))
-            
-
                 #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
                 # Predict with hyperopt params
                 predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-                # Predict for current year
-                #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-                # Predict for current year + last year
-                #predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-                # Predict for current year + last two years
-                #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             except Exception as e:
                 print(f"Failed to predict {dataset_name.capitalize()}: {e}")
