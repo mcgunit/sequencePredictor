@@ -151,6 +151,7 @@ def process_single_history_entry(args):
 
     modelToUse.setDataPath(dataPath)
     modelToUse.setModelPath(modelPath)
+    modelToUse.setLoadModelWeights(True) 
     modelToUse.setBatchSize(modelParams["batchSize"])
     modelToUse.setEpochs(modelParams["epochs"])
     modelToUse.setDenseActivation(modelParams["denseActivation"])
@@ -168,7 +169,7 @@ def process_single_history_entry(args):
     modelToUse.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
     modelToUse.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
     modelToUse.setUseGRU(modelParams["useGRU"])
-    modelToUse.outputActivation(modelParams("outputActivation"))
+    modelToUse.setOutpuActivation(modelParams["outputActivation"])
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -236,6 +237,7 @@ def calculate_profit(name, path):
 
 
 def clearFolder(folderPath):
+    print("Clearing Folder: ", folderPath)
     try:
         for filename in os.listdir(folderPath):
             file_path = os.path.join(folderPath, filename)
@@ -484,6 +486,9 @@ if __name__ == "__main__":
             dataPath = os.path.join(path, "data", "trainingData", dataset_name)
             file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
+            # To prevent the hyperopt failing for loading an old model
+            clearFolder(os.path.join(path, "data", "hyperOptCache", "models", model_type))
+
             kwargs_wget = {
                 "folder": dataPath,
                 "file": file
@@ -534,7 +539,7 @@ if __name__ == "__main__":
 
 
                 modelParams =  {
-                    "epochs": trial.suggest_int("epochs", 100, 2000, step=100),
+                    "epochs": trial.suggest_int("epochs", 100, 5000, step=100),
                     "batchSize": trial.suggest_categorical("batchSize", [4, 8, 16, 32]),
                     "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 3),
                     "num_dense_layers": trial.suggest_int("num_dense_layers", 1, 3),
@@ -560,6 +565,9 @@ if __name__ == "__main__":
                     results.append(profit)
 
                 totalProfit = sum(results) / len(results)
+
+
+                clearFolder(os.path.join(path, "data", "hyperOptCache", "models", model_type))
 
                 return totalProfit
             

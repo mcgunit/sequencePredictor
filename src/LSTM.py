@@ -6,7 +6,6 @@ from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
 from keras import layers, regularizers, models
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-from keras.optimizers import Adam
 
 
 # Dynamically adjust the import path for Helpers
@@ -48,6 +47,8 @@ class LSTMModel:
         self.useGRU = True
         self.denseActivation = "relu"
         self.outputActivation = "softmax"
+        self.optimizer_type = 'adam'
+        self.loadModelWeights = True
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -109,6 +110,12 @@ class LSTMModel:
     def setOutpuActivation(self, value):
         self.outputActivation = value
 
+    def setOptimizer(self, optimizer): 
+        self.optimizer_type = optimizer.lower()
+
+    def setLoadModelWeights(self, value):
+        self.loadModelWeights = value
+
     """
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
@@ -155,11 +162,12 @@ class LSTMModel:
         model.build(input_shape=(None, None))
 
         # Compile the model
-        model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.005), metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=self.optimizer_type, metrics=['accuracy'])
 
-        if os.path.exists(model_path):
-            print(f"Loading weights from {model_path}")
-            model.load_weights(model_path)
+        if self.loadModelWeights:
+            if os.path.exists(model_path):
+                print(f"Loading weights from {model_path}")
+                model.load_weights(model_path)
 
         return model
 
