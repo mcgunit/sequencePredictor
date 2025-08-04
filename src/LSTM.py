@@ -186,7 +186,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=self.epochs/2)])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/100))])
         return history
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
@@ -272,6 +272,7 @@ if __name__ == "__main__":
     lstm_model.setNumberOfLstmUnits(32)
     lstm_model.setNumberOfBidrectionalLayers(3)
     lstm_model.setNumberOfBidirectionalLstmUnits(16)
+    lstm_model.setOptimizer("adam")
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
     num_classes = len(unique_labels)
