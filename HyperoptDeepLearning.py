@@ -195,47 +195,6 @@ def process_single_history_entry(args):
 
     return jsonFilePath
 
-def calculate_profit(name, path):
-    json_dir = os.path.join(path, "data", "hyperOptCache", name)
-    if not os.path.exists(json_dir):
-        print(f"Directory does not exist: {json_dir}")
-        return
-
-    payoutTableKeno = {
-        10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
-        9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
-        8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
-        7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
-        6: { 3: 1, 4: 4, 5: 20, 6: 200 },
-        5: { 3: 2, 4: 5, 5: 150 },
-        4: { 2: 1, 3: 2, 4: 30 },
-        3: { 2: 1, 3: 16 },
-        2: { 2: 6.50 },
-        "lost": -1
-    }
-
-    total_profit = 0
-
-    for filename in os.listdir(json_dir):
-        if filename.endswith(".json"):
-            filepath = os.path.join(json_dir, filename)
-            with open(filepath, "r") as file:
-                data = json.load(file)
-
-                real_result = set(data.get("realResult", []))
-                model_predictions = data.get("currentPrediction", [])
-
-                for model in model_predictions:
-                    for prediction in model["predictions"]:
-                        played = len(prediction)
-                        if played < 4 or played > 10:
-                            continue
-
-                        matches = len(set(prediction) & real_result)
-                        profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
-                        total_profit += profit
-    
-    return total_profit
 
 
 def clearFolder(folderPath):
@@ -341,7 +300,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             update_matching_numbers(name=name, path=path)
 
             # Calculate Profit
-            profit =  calculate_profit(name=name, path=path)
+            profit =  helpers.calculate_profit(name=name, path=path)
 
             return profit
         else:
@@ -472,7 +431,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=3)
+    parser.add_argument('-d', '--days', type=int, default=7)
     args = parser.parse_args()
 
     print_intro()
@@ -581,7 +540,7 @@ if __name__ == "__main__":
                     "windowSize": trial.suggest_int("windowSize", 2, 20, step=1),
                     "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0),
                     "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False]),
-                    "useTopPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False])
+                    "useTopPrediction": trial.suggest_categorical("useTopPrediction", [True, False])
                 }
 
                 for _ in range(numOfRepeats):

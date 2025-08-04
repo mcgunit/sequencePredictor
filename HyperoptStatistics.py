@@ -155,95 +155,6 @@ def process_single_history_entry(args):
 
     return jsonFilePath
 
-def calculate_profit(name, path):
-    json_dir = os.path.join(path, "data", "hyperOptCache", name)
-    if not os.path.exists(json_dir):
-        print(f"Directory does not exist: {json_dir}")
-        return
-
-    payoutTableKeno = {
-        10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
-        9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
-        8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
-        7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
-        6: { 3: 1, 4: 4, 5: 20, 6: 200 },
-        5: { 3: 2, 4: 5, 5: 150 },
-        4: { 2: 1, 3: 2, 4: 30 },
-        3: { 2: 1, 3: 16 },
-        2: { 2: 6.50 },
-        "lost": -1  # Because it cost 1 euro
-    }
-
-    payoutTablePick3 = {
-        "straight": 500,
-        "box_with_doubles": 160,
-        "box_no_doubles": 80,
-        "front_pair": 50,
-        "back_pair": 50,
-        "last_number": 1,
-        "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
-    }
-
-    total_profit = 0
-
-    for filename in os.listdir(json_dir):
-        if filename.endswith(".json"):
-            filepath = os.path.join(json_dir, filename)
-            with open(filepath, "r") as file:
-                data = json.load(file)
-
-                real_result = set(data.get("realResult", []))
-                model_predictions = data.get("currentPrediction", [])
-
-                for model in model_predictions:
-                    for prediction in model["predictions"]:
-                        # For keno and pick3 the profits can be calculated. For others we check the matches
-                        if "keno" in name:
-                            played = len(prediction)
-                            if played < 4 or played > 10:
-                                continue
-
-                            matches = len(set(prediction) & real_result)
-                            profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
-                            total_profit += profit
-                        elif "pick3" in name:
-                            played = len(prediction)
-                            if played != 3 or len(real_result) != 3:
-                                continue
-
-                            pred = prediction
-                            actual = list(real_result)
-
-                            if pred == actual:
-                                profit = payoutTablePick3["straight"]
-
-                            elif sorted(pred) == sorted(actual):
-                                # Check for doubles
-                                pred_counts = {x: pred.count(x) for x in pred}
-                                if 2 in pred_counts.values():
-                                    profit = payoutTablePick3["box_with_doubles"]
-                                else:
-                                    profit = payoutTablePick3["box_no_doubles"]
-
-                            elif pred[0:2] == actual[0:2]:
-                                profit = payoutTablePick3["front_pair"]
-
-                            elif pred[1:3] == actual[1:3]:
-                                profit = payoutTablePick3["back_pair"]
-
-                            elif pred[2] == actual[2]:
-                                profit = payoutTablePick3["last_number"]
-
-                            else:
-                                profit = payoutTablePick3["lost"]
-
-                            total_profit += profit
-                        else:
-                            matches = len(set(prediction) & real_result)
-                            total_profit += matches
-    #print("Total profit: ", total_profit)
-    return total_profit
-
 
 def clearFolder(folderPath):
     try:
@@ -336,7 +247,7 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
             update_matching_numbers(name=name, path=path)
 
             # Calculate Profit
-            profit = calculate_profit(name=name, path=path)
+            profit = helpers.calculate_profit(name=name, path=path)
 
             return profit
         else:
