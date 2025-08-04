@@ -171,6 +171,7 @@ def process_single_history_entry(args):
     modelToUse.setOptimizer(modelParams["optimizer"])
     modelToUse.setLearningRate(modelParams["learningRate"])
     modelToUse.setWindowSize(modelParams["windowSize"])
+    modelToUse.setMarkovAlpha(modelParams["markovAlpha"])
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -361,13 +362,24 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
     }
     # Decode prediction with nth highest probability
     predicted_digits = np.argmax(newPredictionRaw, axis=-1)
+    print("Prediction: ", predicted_digits.tolist())
     nthPredictions["predictions"].append(predicted_digits.tolist())
 
-    top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
+    
+    if modelParams["useTopPrediction"]:
+        try:
+            predicted_digits = np.argmax(newPredictionRaw, axis=-1) 
+            top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
+            nthPredictions["predictions"].append(top3_indices[0].tolist())
+        except Exception as e:
+            print("Failed to parse the top prediction: ", e)
 
-    for pos, top_digits in enumerate(top3_indices):
-        print(f"Position {pos + 1} top predictions: {top_digits}")
-        nthPredictions["predictions"].append(top_digits.tolist)
+    if modelParams["useLstmMarkovPrediction"]:
+        try:
+            top3_indices_lstm_markov = np.argsort(lstm.getLstmMArkov(), axis=-1)[:, -3:][:, ::-1]
+            nthPredictions["predictions"].append(top3_indices_lstm_markov[0].tolist())
+        except Exception as e:
+            print("Failed to parse lstm+markov: ", e)
     
     listOfDecodedPredictions.append(nthPredictions)
 
@@ -529,24 +541,28 @@ if __name__ == "__main__":
                 totalProfit = 0
                 results = [] # Intermediate results
 
-                all_values = [5, 6, 7, 8, 9, 10]
-                MIN_LEN = 1
-                MAX_LEN = 6
+                if "keno" in dataset_name:
+                    all_values = [5, 6, 7, 8, 9, 10]
+                    MIN_LEN = 1
+                    MAX_LEN = 6
 
-                # Binary inclusion mask for each value
-                inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                
-                # Build the subset from the mask
-                subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+                    
+                    # Binary inclusion mask for each value
+                    inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                    
+                    # Build the subset from the mask
+                    subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                # Enforce length constraints
-                if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                    return float("-inf")  # Or float("inf") if minimizing
+                    # Enforce length constraints
+                    if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                        return float("-inf")  # Or float("inf") if minimizing
+                    
+                    modelParams["kenoSubset"] = subset
 
 
                 modelParams =  {
                     "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
-                    "epochs": trial.suggest_int("epochs", 100, 5000, step=100),
+                    "epochs": trial.suggest_int("epochs", 100, 1000, step=100),
                     "batchSize": trial.suggest_categorical("batchSize", [4, 8, 16, 32]),
                     "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 3),
                     "num_bidirectional_layers": trial.suggest_int("num_bidirectional_layers", 0, 2),
@@ -562,7 +578,10 @@ if __name__ == "__main__":
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "sgd", "rmsprop", "adagrad", "nadam"]),
                     "learningRate": trial.suggest_float("learningRate", 0.0001, 0.1, log=True),
-                    "windowSize": trial.suggest_int("windowSize", 2, 20, step=1)
+                    "windowSize": trial.suggest_int("windowSize", 2, 20, step=1),
+                    "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0),
+                    "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False]),
+                    "useTopPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False])
                 }
 
                 for _ in range(numOfRepeats):

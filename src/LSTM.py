@@ -23,8 +23,10 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
+from Markov import Markov 
 
 helpers = Helpers()
+markov = Markov()
 
 
 class LSTMModel:
@@ -49,6 +51,10 @@ class LSTMModel:
         self.learning_rate = 0.005
         self.loadModelWeights = True
         self.window_size = 10
+
+        # LSTM + Markov
+        self.markovAlpha = 0.5
+        self.lstmMarkov = None
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -109,6 +115,14 @@ class LSTMModel:
 
     def setWindowSize(self, value):
         self.window_size = value
+
+    def setMarkovAlpha(self, value):
+        self.markovAlpha = value
+
+
+    def getLstmMArkov(self):
+        return self.lstmMarkov
+
 
     """
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
@@ -219,6 +233,17 @@ class LSTMModel:
         # Predict numbers
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.window_size)
 
+        try:
+            markov.build_markov_chain(numbers)
+            markovChain = markov.getTransformationMatrix()
+            lastDraw = numbers[len(numbers)-1]
+            #print("last draw: ", lastDraw)
+            markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
+            self.lstmMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
+
+        except Exception as e:
+            print("Failed to build Markov Chain: ", e)
+
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
@@ -244,6 +269,16 @@ class LSTMModel:
         latest_raw_predictions = helpers.predict_numbers(model, numbers)
 
         return latest_raw_predictions
+    
+    def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
+        markov_probs = np.zeros((len(last_draw), num_classes))
+
+        for i, from_number in enumerate(last_draw):
+            transitions = transition_matrix.get(from_number, {})
+            for to_number, prob in transitions.items():
+                markov_probs[i, to_number] = prob
+
+        return markov_probs
     
 
 
@@ -282,6 +317,7 @@ if __name__ == "__main__":
     lstm_model.setL2Regularization(0.0002)
     lstm_model.setEarlyStopPatience(5)
     lstm_model.setWindowSize(10)
+    lstm_model.setMarkovAlpha(0.6)
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=3)
     num_classes = len(unique_labels)
@@ -294,8 +330,11 @@ if __name__ == "__main__":
 
     top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -3:][:, ::-1]
 
-    for pos, top_digits in enumerate(top3_indices):
-        print(f"Position {pos + 1} top predictions: {top_digits.tolist()}")
+    print(f"Position top prediction: {top3_indices[0].tolist()}")
+
+    top3_indices_lstm_markov = np.argsort(lstm_model.getLstmMArkov(), axis=-1)[:, -3:][:, ::-1]
+
+    print(f"lstm+markov prediction: {top3_indices_lstm_markov[0].tolist()}")
 
     print("Prediction: ", predicted_digits.tolist())
     print("Real result: ", sequenceToPredict["realResult"])
