@@ -170,6 +170,7 @@ def process_single_history_entry(args):
     modelToUse.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
     modelToUse.setUseGRU(modelParams["useGRU"])
     modelToUse.setOutpuActivation(modelParams["outputActivation"])
+    modelToUse.setOptimizer(modelParams["optimizer"])
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -557,6 +558,7 @@ if __name__ == "__main__":
                     "useGRU": trial.suggest_categorical("useGRU", [True, False]),
                     "denseActivation": trial.suggest_categorical("denseActivation", ["relu", "tanh", "elu"]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
+                    "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "sgd", "rmsprop", "adagrad", "nadam"]),
                 }
 
                 for _ in range(numOfRepeats):

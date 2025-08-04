@@ -4,7 +4,7 @@ import pandas as pd
 
 from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
-from keras import layers, regularizers, models
+from keras import layers, regularizers, models, optimizers
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 
 
@@ -48,6 +48,7 @@ class LSTMModel:
         self.denseActivation = "relu"
         self.outputActivation = "softmax"
         self.optimizer_type = 'adam'
+        self.learning_rate = 0.005
         self.loadModelWeights = True
 
     def setDataPath(self, dataPath):
@@ -130,6 +131,20 @@ class LSTMModel:
         dense_units = self.dense_units
         dropout = self.dropout
         l2Regularization = self.l2Regularization
+        optimizer = optimizers.Adam(learning_rate=self.learning_rate)
+
+        if self.optimizer_type == "adam":
+            optimizer = optimizers.Adam(learning_rate=self.learning_rate)
+        elif self.optimizer_type == "sgd":
+            optimizer = optimizers.SGD(learning_rate=self.learning_rate, momentum=0.9)
+        elif self.optimizer_type == "rmsprop":
+            optimizer = optimizers.RMSprop(learning_rate=self.learning_rate)
+        elif self.optimizer_type == "adagrad":
+            optimizer = optimizers.Adagrad(learning_rate=self.learning_rate)
+        elif self.optimizer_type == "nadam":
+            optimizer = optimizers.Nadam(learning_rate=self.learning_rate)
+        else:
+            raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
 
         model = models.Sequential()
 
@@ -162,7 +177,7 @@ class LSTMModel:
         model.build(input_shape=(None, None))
 
         # Compile the model
-        model.compile(loss='categorical_crossentropy', optimizer=self.optimizer_type, metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
         if self.loadModelWeights:
             if os.path.exists(model_path):
