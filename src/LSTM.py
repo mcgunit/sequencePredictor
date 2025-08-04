@@ -1,11 +1,13 @@
 # Import necessary libraries
 import os, sys, json
 import pandas as pd
+import numpy as np
 
 from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
 from keras import layers, regularizers, models, optimizers
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from keras.utils import to_categorical
 
 
 # Dynamically adjust the import path for Helpers
@@ -32,12 +34,9 @@ class LSTMModel:
         self.epochs = 1000
         self.batchSize = 4
         self.num_lstm_layers = 1
-        self.num_dense_layers = 1
         self.num_bidirectional_layers = 1
-        self.embedding_output_dimension = 16
         self.lstm_units = 16
         self.bidirectional_lstm_units = 16
-        self.dense_units = 16
         self.dropout = 0.2
         self.l2Regularization = 0.0001
         self.earlyStopPatience = 20
@@ -65,24 +64,16 @@ class LSTMModel:
 
     def setNumberOfLSTMLayers(self, nLayers):
         self.num_lstm_layers = nLayers
-    
-    def setNumberOfDenseLayers(self, nLayers):
-        self.num_dense_layers = nLayers
 
     def setNumberOfBidrectionalLayers(self, nLayers):
         self.num_bidirectional_layers = nLayers
 
-    def setNumberOfEmbeddingOutputDimension(self, dimension):
-        self.embedding_output_dimension = dimension
 
     def setNumberOfLstmUnits(self, units):
         self.lstm_units = units
     
     def setNumberOfBidirectionalLstmUnits(self, units):
         self.bidirectional_lstm_units = units
-
-    def setNumberOfDenseUnits(self, units):
-        self.dense_units = units
 
     def setDropout(self, dropout):
         self.dropout = dropout
@@ -121,14 +112,11 @@ class LSTMModel:
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
     If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
     """
-    def create_model(self, max_value, num_classes=50, model_path=""):
+    def create_model(self, max_value, num_classes=50, model_path="", digitsPerDraw=7):
         num_lstm_layers = self.num_lstm_layers
-        num_dense_layers = self.num_dense_layers
         num_bidirectional_layers = self.num_bidirectional_layers
-        embedding_output_dimension = self.embedding_output_dimension
         lstm_units = self.lstm_units
         bidirectional_lstm_units = self.bidirectional_lstm_units
-        dense_units = self.dense_units
         dropout = self.dropout
         l2Regularization = self.l2Regularization
         optimizer = optimizers.Adam(learning_rate=self.learning_rate)
@@ -147,34 +135,40 @@ class LSTMModel:
             raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
 
         model = models.Sequential()
+        model.add(layers.Input(shape=(None, digitsPerDraw)))  # 3 features (e.g., digits in draw)
 
-        # Embedding layer
-        model.add(layers.Embedding(input_dim=max_value + 1, output_dim=embedding_output_dimension))
-
-        # LSTM+GRU layers
+        # LSTM layers
         for _ in range(num_lstm_layers):
-            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+            model.add(layers.LSTM(lstm_units, return_sequences=True,
+                                kernel_regularizer=regularizers.l2(l2Regularization)))
             if self.useGRU:
-                model.add(layers.GRU(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+                model.add(layers.GRU(lstm_units, return_sequences=True,
+                                    kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
-        
+
+        # Final LSTM if needed
         if self.useFinalLSTMLayer:
-            model.add(layers.LSTM(lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization)))
+            model.add(layers.LSTM(lstm_units, return_sequences=True,
+                                kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
-        
+
+        # Bidirectional layers — must come while input is still 3D
         for _ in range(num_bidirectional_layers):
-            model.add(layers.Bidirectional(layers.LSTM(bidirectional_lstm_units, return_sequences=True, kernel_regularizer=regularizers.l2(l2Regularization))))
-            model.add(layers.Dropout(dropout))
-        
-        for _ in range(num_dense_layers):
-            # Dense layer to process sequence outputs
-            model.add(layers.TimeDistributed(layers.Dense(dense_units, activation=self.denseActivation)))
+            model.add(layers.Bidirectional(layers.LSTM(
+                bidirectional_lstm_units,
+                return_sequences=True,
+                kernel_regularizer=regularizers.l2(l2Regularization)
+            )))
             model.add(layers.Dropout(dropout))
 
-        # Output layer
-        model.add(layers.TimeDistributed(layers.Dense(num_classes, activation=self.outputActivation)))
+        # Final LSTM layer — collapse time dimension to (batch, features)
+        model.add(layers.LSTM(lstm_units, return_sequences=False,
+                            kernel_regularizer=regularizers.l2(l2Regularization)))
+        model.add(layers.Dropout(dropout))
 
-        model.build(input_shape=(None, None))
+        # Dense output
+        model.add(layers.Dense(digitsPerDraw * num_classes, activation=self.outputActivation))
+        model.add(layers.Reshape((digitsPerDraw, num_classes)))
 
         # Compile the model
         model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
@@ -201,14 +195,27 @@ class LSTMModel:
 
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
+
+        # Use all numbers (raw data) instead of train_data. Because train_data is only 80 procent of all data 
+        X, y = helpers.create_sequences(numbers, window_size=10)
+        val_data_seq, val_labels_seq = helpers.create_sequences(val_data, window_size=10)
+
+        print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
+        print("y shape: ", y.shape)  # (n_samples - 10, 3)
+
+        print("val data shape: ", val_data_seq.shape)
+        print("val label shape: ", val_labels_seq.shape)
+
+        y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
+        val_labels_seq = np.array([to_categorical(draw, num_classes=num_classes) for draw in val_labels_seq])
         
-        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path)
+        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2])
 
         # Train the model
-        history = self.train_model(model, train_data, train_labels, val_data, val_labels, model_name=name)
+        history = self.train_model(model, X, y, val_data_seq, val_labels_seq, model_name=name)
 
         # Predict numbers
-        latest_raw_predictions = helpers.predict_numbers(model, numbers)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=10)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -240,21 +247,16 @@ class LSTMModel:
 
 # Run main function if this script is run directly (not imported as a module)
 if __name__ == "__main__":
-    from RefinemePrediction import RefinePrediction
-    from TopPrediction import TopPrediction
 
     lstm_model = LSTMModel()
-    refinePrediction = RefinePrediction()
-    topPrediction = TopPrediction()
 
-    name = 'keno'
+    name = 'pick3'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    pathToLatestJsonFile = os.path.join(jsonDirPath, "2025-1-31.json")
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-2-1.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-8-3.json")
 
     # Opening JSON file
     with open(sequenceToPredictFile, 'r') as openfile:
@@ -264,49 +266,27 @@ if __name__ == "__main__":
 
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(16)
+    lstm_model.setBatchSize(2)
     lstm_model.setEpochs(1000)
+    lstm_model.setNumberOfLSTMLayers(3)
+    lstm_model.setNumberOfLstmUnits(32)
+    lstm_model.setNumberOfBidrectionalLayers(3)
+    lstm_model.setNumberOfBidirectionalLstmUnits(16)
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
     num_classes = len(unique_labels)
 
+    print("Raw predictions: ", latest_raw_predictions)
 
-    # Check on prediction with nth highest probability
-    for i in range(2):
-        prediction_highest_indices = helpers.decode_predictions(latest_raw_predictions, unique_labels, nHighestProb=i)
-        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
-        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-    
+    predicted_digits = np.argmax(latest_raw_predictions, axis=-1) 
 
+    top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -3:][:, ::-1]
 
-    # Refine predictions
-    refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-    refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
+    for pos, top_digits in enumerate(top3_indices):
+        print(f"Position {pos + 1} top predictions: {top_digits}")
 
-    #print("refined_prediction_raw: ", refined_prediction_raw)
-
-    # Print refined predictions
-    for i in range(2):
-        prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-        print("Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-
-        matching_numbers = helpers.find_matching_numbers(sequenceToPredict["realResult"], prediction_highest_indices)
-        print("Matching Numbers with ", i+1 ,"highest probs: ", matching_numbers)
-
+    print("Prediction: ", predicted_digits)
+    print("Real result: ", sequenceToPredict["realResult"])
 
     
-    # Top prediction
-    topPrediction.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-    top_prediction_raw = topPrediction.topPrediction(name=name, pathToLatestPredictionFile=pathToLatestJsonFile, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-    topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-    # Print Top prediction
-    for i, prediction in enumerate(topPrediction):
-        prediction = [int(num) for num in prediction]
-        print(f"Top Prediction {i+1}: {sorted(prediction)}")
-
-        # Check for matching numbers    
-        matchingNumbers = helpers.find_matching_numbers(prediction, sequenceToPredict["realResult"])
-        print("Matching Numbers: ", matchingNumbers)
 

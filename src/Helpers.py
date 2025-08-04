@@ -158,23 +158,17 @@ class Helpers():
 
         return labels[selected_indices].tolist()
     
-    def predict_numbers(self, model, input_data):
-        # Get raw predictions from the model
-        raw_predictions = model.predict(input_data)
+    def predict_numbers(self, model, numbers, window_size=10):
+        # Take the last `window_size` draws
+        input_seq = numbers[-window_size:]  # shape (10, 3)
 
-        latest_raw_predictions = raw_predictions[::-1] # reverse
+        # Reshape to model input shape: (1 sample, 10 time steps, 3 features)
+        input_seq = np.expand_dims(input_seq, axis=0)  # shape (1, 10, 3)
 
-        latest_raw_predictions = latest_raw_predictions[0] # take the the latest
-        #print("Latest raw prediction: ", latest_raw_predictions)
+        # Predict
+        raw_predictions = model.predict(input_seq)
 
-        """
-            Structure of latest_raw_prediction is a list of each position a class and each class is a list of probabilities of what class it will be.
-            Fow example when the model has to predict a set of 3 numbers and each number can be 1, 2 or 3 you can get something like this:
-            [[0.1,0.2, 0.7], [0.8, 0.1, 0.1], [0.0, 0.9, 0.1]] --> This will be a prediction of a set of 3 numbers being [3, 1, 2].
-            The index of the highest probability in the list determines the predicted number (index+1) 
-        """
-
-        return latest_raw_predictions
+        return raw_predictions[0]  
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
@@ -410,6 +404,13 @@ class Helpers():
 
 
         return numbers
+
+    def create_sequences(self, data, window_size=10):
+        X, y = [], []
+        for i in range(len(data) - window_size):
+            X.append(data[i:i + window_size])       # window of draws
+            y.append(data[i + window_size])         # next draw
+        return np.array(X), np.array(y)
 
     
     def generatePredictionTextFile(self, path):
