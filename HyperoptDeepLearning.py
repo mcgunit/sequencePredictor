@@ -588,7 +588,8 @@ if __name__ == "__main__":
             study = optuna.create_study(
                 direction='maximize',
                 storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                study_name=f"{dataset_name}-LSTM"
+                study_name=f"{dataset_name}-LSTM",
+                load_if_exists=True
             )
 
             # Run the automatic tuning process
@@ -620,7 +621,7 @@ if __name__ == "__main__":
         print("Failed to cleanup folder")
 
     try:
-        helpers.git_push(commit_message="Saving latest statistical hyperopt")
+        helpers.git_push(commit_message="Saving latest deep learning hyperopt")
     except Exception as e:
         print("Failed to push latest predictions:", e)
     finally:
