@@ -44,7 +44,6 @@ class LSTMModel:
         self.reduceLearningRateFactor = 0.9
         self.useFinalLSTMLayer = True
         self.useGRU = True
-        self.denseActivation = "relu"
         self.outputActivation = "softmax"
         self.optimizer_type = 'adam'
         self.learning_rate = 0.005
@@ -96,14 +95,14 @@ class LSTMModel:
     def setUseGRU(self, value):
         self.useGRU = value
 
-    def setDenseActivation(self, value):
-        self.denseActivation = value
-
     def setOutpuActivation(self, value):
         self.outputActivation = value
 
     def setOptimizer(self, optimizer): 
         self.optimizer_type = optimizer.lower()
+
+    def setLearningRate(self, value):
+        self.learning_rate = value
 
     def setLoadModelWeights(self, value):
         self.loadModelWeights = value
@@ -186,7 +185,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/100))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/200))])
         return history
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
@@ -264,17 +263,19 @@ if __name__ == "__main__":
 
     numbersLength = len(sequenceToPredict["realResult"])
 
+    lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(2)
+    lstm_model.setBatchSize(16)
     lstm_model.setEpochs(1000)
-    lstm_model.setNumberOfLSTMLayers(3)
+    lstm_model.setNumberOfLSTMLayers(1)
     lstm_model.setNumberOfLstmUnits(32)
-    lstm_model.setNumberOfBidrectionalLayers(3)
+    lstm_model.setNumberOfBidrectionalLayers(1)
     lstm_model.setNumberOfBidirectionalLstmUnits(16)
     lstm_model.setOptimizer("adam")
+    lstm_model.setLearningRate(0.01)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=2)
     num_classes = len(unique_labels)
 
     print("Raw predictions: ", latest_raw_predictions)
