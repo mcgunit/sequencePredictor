@@ -562,7 +562,7 @@ if __name__ == "__main__":
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "sgd", "rmsprop", "adagrad", "nadam"]),
                     "learningRate": trial.suggest_float("learningRate", 0.0001, 0.1, log=True),
-                    "windowSize": trial.suggest_int("windowSize", 20, 2, step=1)
+                    "windowSize": trial.suggest_int("windowSize", 2, 20, step=1)
                 }
 
                 for _ in range(numOfRepeats):
