@@ -1,9 +1,11 @@
 import os, argparse, json, sys
 import optuna
+import numpy as np
 
 from art import text2art
 from datetime import datetime
 from multiprocessing import Pool, cpu_count
+
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
@@ -154,14 +156,10 @@ def process_single_history_entry(args):
     modelToUse.setLoadModelWeights(True) 
     modelToUse.setBatchSize(modelParams["batchSize"])
     modelToUse.setEpochs(modelParams["epochs"])
-    modelToUse.setDenseActivation(modelParams["denseActivation"])
     modelToUse.setNumberOfLSTMLayers(modelParams["num_lstm_layers"])
-    modelToUse.setNumberOfDenseLayers(modelParams["num_dense_layers"])
     modelToUse.setNumberOfBidrectionalLayers(modelParams["num_bidirectional_layers"])
-    modelToUse.setNumberOfEmbeddingOutputDimension(modelParams["embedding_output_dimension"])
     modelToUse.setNumberOfLstmUnits(modelParams["lstm_units"])
     modelToUse.setNumberOfBidirectionalLstmUnits(modelParams["bidirectional_lstm_units"])
-    modelToUse.setNumberOfDenseUnits(modelParams["dense_units"])
     modelToUse.setDropout(modelParams["dropout"])
     modelToUse.setL2Regularization(modelParams["l2Regularization"])
     modelToUse.setEarlyStopPatience(modelParams["earlyStopPatience"])
@@ -171,6 +169,8 @@ def process_single_history_entry(args):
     modelToUse.setUseGRU(modelParams["useGRU"])
     modelToUse.setOutpuActivation(modelParams["outputActivation"])
     modelToUse.setOptimizer(modelParams["optimizer"])
+    modelToUse.setLearningRate(modelParams["learningRate"])
+    modelToUse.setWindowSize(modelParams["windowSize"])
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -360,9 +360,14 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
         "predictions": []
     }
     # Decode prediction with nth highest probability
-    for i in range(nOfPredictions):
-        prediction_nth_indices = helpers.decode_predictions(newPredictionRaw, labels, i)
-        nthPredictions["predictions"].append(prediction_nth_indices)
+    predicted_digits = np.argmax(newPredictionRaw, axis=-1)
+    nthPredictions["predictions"].append(predicted_digits.tolist())
+
+    top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
+
+    for pos, top_digits in enumerate(top3_indices):
+        print(f"Position {pos + 1} top predictions: {top_digits}")
+        nthPredictions["predictions"].append(top_digits.tolist)
     
     listOfDecodedPredictions.append(nthPredictions)
 
@@ -540,15 +545,13 @@ if __name__ == "__main__":
 
 
                 modelParams =  {
+                    "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
                     "epochs": trial.suggest_int("epochs", 100, 5000, step=100),
                     "batchSize": trial.suggest_categorical("batchSize", [4, 8, 16, 32]),
                     "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 3),
-                    "num_dense_layers": trial.suggest_int("num_dense_layers", 1, 3),
                     "num_bidirectional_layers": trial.suggest_int("num_bidirectional_layers", 0, 2),
-                    "embedding_output_dimension": trial.suggest_categorical("embedding_output_dimension", [8, 16, 32, 64]),
                     "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128]),
                     "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64]),
-                    "dense_units": trial.suggest_categorical("dense_units", [16, 32, 64]),
                     "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.05),
                     "l2Regularization": trial.suggest_float("l2Regularization", 1e-6, 1e-2, log=True),
                     "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 50),
@@ -556,13 +559,14 @@ if __name__ == "__main__":
                     "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9),
                     "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [True, False]),
                     "useGRU": trial.suggest_categorical("useGRU", [True, False]),
-                    "denseActivation": trial.suggest_categorical("denseActivation", ["relu", "tanh", "elu"]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "sgd", "rmsprop", "adagrad", "nadam"]),
+                    "learningRate": trial.suggest_float("learningRate", 0.0001, 0.1, log=True),
+                    "windowSize": trial.suggest_int("windowSize", 20, 2, step=1)
                 }
 
                 for _ in range(numOfRepeats):
-                    profit = predict(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=None, daysToRebuild=daysToRebuild, modelParams=modelParams)
+                    profit = predict(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams)
                     #print("Profit: ", profit)
                     results.append(profit)
 
@@ -584,11 +588,11 @@ if __name__ == "__main__":
             study = optuna.create_study(
                 direction='maximize',
                 storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                study_name=f"Sequence-Predictor-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                study_name=f"{dataset_name}-LSTM"
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=50)
+            study.optimize(objective, n_trials=10)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)

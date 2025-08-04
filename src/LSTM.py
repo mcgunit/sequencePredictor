@@ -48,6 +48,7 @@ class LSTMModel:
         self.optimizer_type = 'adam'
         self.learning_rate = 0.005
         self.loadModelWeights = True
+        self.window_size = 10
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -66,7 +67,6 @@ class LSTMModel:
 
     def setNumberOfBidrectionalLayers(self, nLayers):
         self.num_bidirectional_layers = nLayers
-
 
     def setNumberOfLstmUnits(self, units):
         self.lstm_units = units
@@ -106,6 +106,9 @@ class LSTMModel:
 
     def setLoadModelWeights(self, value):
         self.loadModelWeights = value
+
+    def setWindowSize(self, value):
+        self.window_size = value
 
     """
     If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
@@ -196,14 +199,14 @@ class LSTMModel:
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
         # Use all numbers (raw data) instead of train_data. Because train_data is only 80 procent of all data 
-        X, y = helpers.create_sequences(numbers, window_size=10)
-        val_data_seq, val_labels_seq = helpers.create_sequences(val_data, window_size=10)
+        X, y = helpers.create_sequences(numbers, window_size=self.window_size)
+        val_data_seq, val_labels_seq = helpers.create_sequences(val_data, window_size=self.window_size)
 
-        print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
-        print("y shape: ", y.shape)  # (n_samples - 10, 3)
+        #print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
+        #print("y shape: ", y.shape)  # (n_samples - 10, 3)
 
-        print("val data shape: ", val_data_seq.shape)
-        print("val label shape: ", val_labels_seq.shape)
+        #print("val data shape: ", val_data_seq.shape)
+        #print("val label shape: ", val_labels_seq.shape)
 
         y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
         val_labels_seq = np.array([to_categorical(draw, num_classes=num_classes) for draw in val_labels_seq])
@@ -214,7 +217,7 @@ class LSTMModel:
         history = self.train_model(model, X, y, val_data_seq, val_labels_seq, model_name=name)
 
         # Predict numbers
-        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=10)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.window_size)
 
         # Plot training history
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -266,17 +269,24 @@ if __name__ == "__main__":
     lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(16)
+    lstm_model.setBatchSize(64)
     lstm_model.setEpochs(1000)
-    lstm_model.setNumberOfLSTMLayers(1)
-    lstm_model.setNumberOfLstmUnits(32)
-    lstm_model.setNumberOfBidrectionalLayers(1)
-    lstm_model.setNumberOfBidirectionalLstmUnits(16)
+    lstm_model.setNumberOfLSTMLayers(3)
+    lstm_model.setNumberOfLstmUnits(128)
+    lstm_model.setUseGRU(False)
+    lstm_model.setNumberOfBidrectionalLayers(3)
+    lstm_model.setNumberOfBidirectionalLstmUnits(128)
     lstm_model.setOptimizer("adam")
     lstm_model.setLearningRate(0.01)
+    lstm_model.setDropout(0.3)
+    lstm_model.setL2Regularization(0.0002)
+    lstm_model.setEarlyStopPatience(5)
+    lstm_model.setWindowSize(10)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=2)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=3)
     num_classes = len(unique_labels)
+
+    latest_raw_predictions = latest_raw_predictions.tolist()
 
     print("Raw predictions: ", latest_raw_predictions)
 
@@ -285,9 +295,9 @@ if __name__ == "__main__":
     top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -3:][:, ::-1]
 
     for pos, top_digits in enumerate(top3_indices):
-        print(f"Position {pos + 1} top predictions: {top_digits}")
+        print(f"Position {pos + 1} top predictions: {top_digits.tolist()}")
 
-    print("Prediction: ", predicted_digits)
+    print("Prediction: ", predicted_digits.tolist())
     print("Real result: ", sequenceToPredict["realResult"])
 
     
