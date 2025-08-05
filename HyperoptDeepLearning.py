@@ -321,7 +321,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
     }
     # Decode prediction with nth highest probability
     predicted_digits = np.argmax(newPredictionRaw, axis=-1)
-    print("Prediction: ", predicted_digits.tolist())
+    #print("Prediction: ", predicted_digits.tolist())
     nthPredictions["predictions"].append(predicted_digits.tolist())
 
     
@@ -431,7 +431,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=7)
+    parser.add_argument('-d', '--days', type=int, default=14)
     args = parser.parse_args()
 
     print_intro()
@@ -536,7 +536,7 @@ if __name__ == "__main__":
                     "useGRU": trial.suggest_categorical("useGRU", [True, False]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "sgd", "rmsprop", "adagrad", "nadam"]),
-                    "learningRate": trial.suggest_float("learningRate", 0.0001, 0.1, log=True),
+                    "learningRate": trial.suggest_float("learningRate", 1e-4, 1e-2, log=True),
                     "windowSize": trial.suggest_int("windowSize", 2, 20, step=1),
                     "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0),
                     "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False]),
@@ -571,7 +571,7 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=10)
+            study.optimize(objective, n_trials=100)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)

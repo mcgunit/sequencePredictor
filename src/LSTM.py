@@ -202,7 +202,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/200))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/3))])
         return history
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
@@ -249,7 +249,7 @@ class LSTMModel:
         plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
 
         # Save model
-        model.save(model_path)
+        model.save(model_path, include_optimizer=True)
 
         # Remove checkpoint if exists
         if os.path.exists(checkpoint_path):
@@ -263,7 +263,7 @@ class LSTMModel:
         """
         numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
-        model = load_model(modelPath)
+        model = load_model(modelPath, compile=True)
 
         # Predict numbers
         latest_raw_predictions = helpers.predict_numbers(model, numbers)

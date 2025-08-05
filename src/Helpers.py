@@ -775,11 +775,11 @@ class Helpers():
         return normalized_frequencies
     
 
-    def calculate_profit(name, path):
+    def calculate_profit(self, name, path):
         """
         Used for Hyperopt to calculate the profit of a given model.
         """
-        
+
         json_dir = os.path.join(path, "data", "hyperOptCache", name)
         if not os.path.exists(json_dir):
             print(f"Directory does not exist: {json_dir}")
