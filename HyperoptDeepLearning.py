@@ -321,7 +321,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
     }
     # Decode prediction with nth highest probability
     predicted_digits = np.argmax(newPredictionRaw, axis=-1)
-    #print("Prediction: ", predicted_digits.tolist())
+    print("Prediction: ", predicted_digits.tolist())
     nthPredictions["predictions"].append(predicted_digits.tolist())
 
     

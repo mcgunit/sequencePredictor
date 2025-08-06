@@ -163,6 +163,7 @@ cython_debug/
 
 node_modules/
 *.keras
+*.weights.h5
 wget-log*
 *.png
 

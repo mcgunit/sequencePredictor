@@ -51,6 +51,7 @@ class LSTMModel:
         self.learning_rate = 0.005
         self.loadModelWeights = True
         self.window_size = 10
+        self.predictionWindowSize = 20
 
         # LSTM + Markov
         self.markovAlpha = 0.5
@@ -115,10 +116,12 @@ class LSTMModel:
 
     def setWindowSize(self, value):
         self.window_size = value
+    
+    def setPredictionWindowSize(self, value):
+        self.predictionWindowSize = value
 
     def setMarkovAlpha(self, value):
         self.markovAlpha = value
-
 
     def getLstmMArkov(self):
         return self.lstmMarkov
@@ -190,9 +193,9 @@ class LSTMModel:
         model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
         if self.loadModelWeights:
-            if os.path.exists(model_path):
-                print(f"Loading weights from {model_path}")
-                model.load_weights(model_path)
+            if os.path.exists(f"{model_path}.weights.h5"):
+                print(f"Loading weights from {model_path}.weights.h5")
+                model.load_weights(f"{model_path}.weights.h5")
 
         return model
 
@@ -202,7 +205,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/3))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs))])
         return history
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
@@ -231,7 +234,7 @@ class LSTMModel:
         history = self.train_model(model, X, y, val_data_seq, val_labels_seq, model_name=name)
 
         # Predict numbers
-        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.window_size)
+        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
         try:
             markov.build_markov_chain(numbers)
@@ -248,8 +251,9 @@ class LSTMModel:
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
 
-        # Save model
-        model.save(model_path, include_optimizer=True)
+        # Save weights
+        model.save_weights(f"{model_path}.weights.h5")
+        model.save(model_path)
 
         # Remove checkpoint if exists
         if os.path.exists(checkpoint_path):
@@ -257,18 +261,18 @@ class LSTMModel:
 
         return latest_raw_predictions, unique_labels
 
-    def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
-        """
-        Do only a prediction. modelPath is the absolute path to the model
-        """
-        numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
+    # def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
+    #     """
+    #     Do only a prediction. modelPath is the absolute path to the model
+    #     """
+    #     numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
-        model = load_model(modelPath, compile=True)
+    #     model = load_model(modelPath, compile=True)
 
-        # Predict numbers
-        latest_raw_predictions = helpers.predict_numbers(model, numbers)
+    #     # Predict numbers
+    #     latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
-        return latest_raw_predictions
+    #     return latest_raw_predictions
     
     def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
         markov_probs = np.zeros((len(last_draw), num_classes))
@@ -293,7 +297,7 @@ if __name__ == "__main__":
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-8-3.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-7-31.json")
 
     # Opening JSON file
     with open(sequenceToPredictFile, 'r') as openfile:
@@ -301,7 +305,7 @@ if __name__ == "__main__":
 
     numbersLength = len(sequenceToPredict["realResult"])
 
-    lstm_model.setLoadModelWeights(False)
+    lstm_model.setLoadModelWeights(True)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(64)
@@ -315,9 +319,12 @@ if __name__ == "__main__":
     lstm_model.setLearningRate(0.01)
     lstm_model.setDropout(0.3)
     lstm_model.setL2Regularization(0.0002)
-    lstm_model.setEarlyStopPatience(5)
-    lstm_model.setWindowSize(10)
+    lstm_model.setEarlyStopPatience(1000)
+    lstm_model.setReduceLearningRatePAience(10)
+    lstm_model.setReducedLearningRateFactor(0.001)
+    lstm_model.setWindowSize(3)
     lstm_model.setMarkovAlpha(0.6)
+    lstm_model.setPredictionWindowSize(3)
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=3)
     num_classes = len(unique_labels)
