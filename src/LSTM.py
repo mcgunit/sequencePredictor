@@ -154,7 +154,7 @@ class LSTMModel:
             raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
 
         model = models.Sequential()
-        model.add(layers.Input(shape=(None, digitsPerDraw)))  # 3 features (e.g., digits in draw)
+        model.add(layers.Input(shape=(digitsPerDraw, num_classes)))  # 3 features (e.g., digits in draw)
 
         # LSTM layers
         for _ in range(num_lstm_layers):
@@ -205,7 +205,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
     def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
@@ -310,21 +310,21 @@ if __name__ == "__main__":
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(64)
     lstm_model.setEpochs(1000)
-    lstm_model.setNumberOfLSTMLayers(3)
-    lstm_model.setNumberOfLstmUnits(128)
+    lstm_model.setNumberOfLSTMLayers(1)
+    lstm_model.setNumberOfLstmUnits(64)
     lstm_model.setUseGRU(False)
-    lstm_model.setNumberOfBidrectionalLayers(3)
-    lstm_model.setNumberOfBidirectionalLstmUnits(128)
+    lstm_model.setNumberOfBidrectionalLayers(1)
+    lstm_model.setNumberOfBidirectionalLstmUnits(64)
     lstm_model.setOptimizer("adam")
-    lstm_model.setLearningRate(0.01)
+    lstm_model.setLearningRate(0.001)
     lstm_model.setDropout(0.3)
     lstm_model.setL2Regularization(0.0002)
     lstm_model.setEarlyStopPatience(1000)
-    lstm_model.setReduceLearningRatePAience(10)
-    lstm_model.setReducedLearningRateFactor(0.001)
-    lstm_model.setWindowSize(3)
+    lstm_model.setReduceLearningRatePAience(50)
+    lstm_model.setReducedLearningRateFactor(0.9)
+    lstm_model.setWindowSize(50)
     lstm_model.setMarkovAlpha(0.6)
-    lstm_model.setPredictionWindowSize(3)
+    lstm_model.setPredictionWindowSize(10)
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=3)
     num_classes = len(unique_labels)
