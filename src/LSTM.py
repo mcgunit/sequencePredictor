@@ -326,7 +326,7 @@ if __name__ == "__main__":
     lstm_model.setMarkovAlpha(0.6)
     lstm_model.setPredictionWindowSize(10)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=20)
     num_classes = len(unique_labels)
 
     latest_raw_predictions = latest_raw_predictions.tolist()
