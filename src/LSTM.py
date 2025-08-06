@@ -217,7 +217,7 @@ class LSTMModel:
 
         # Use all numbers (raw data) instead of train_data. Because train_data is only 80 procent of all data 
         X, y = helpers.create_sequences(numbers, window_size=self.window_size)
-        val_data_seq, val_labels_seq = helpers.create_sequences(val_data, window_size=self.window_size)
+        val_data_seq, val_labels_seq = helpers.create_sequences(numbers, window_size=self.window_size)
 
         #print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
         #print("y shape: ", y.shape)  # (n_samples - 10, 3)
@@ -326,7 +326,7 @@ if __name__ == "__main__":
     lstm_model.setMarkovAlpha(0.6)
     lstm_model.setPredictionWindowSize(10)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=3)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
     num_classes = len(unique_labels)
 
     latest_raw_predictions = latest_raw_predictions.tolist()
