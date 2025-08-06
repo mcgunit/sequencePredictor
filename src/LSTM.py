@@ -154,7 +154,7 @@ class LSTMModel:
             raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
 
         model = models.Sequential()
-        model.add(layers.Input(shape=(100, digitsPerDraw)))  # 3 features (e.g., digits in draw)
+        model.add(layers.Input(shape=(self.window_size, digitsPerDraw)))  # 3 features (e.g., digits in draw)
 
         # LSTM layers
         for _ in range(num_lstm_layers):
