@@ -154,7 +154,7 @@ class LSTMModel:
             raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
 
         model = models.Sequential()
-        model.add(layers.Input(shape=(digitsPerDraw, num_classes)))  # 3 features (e.g., digits in draw)
+        model.add(layers.Input(shape=(100, digitsPerDraw)))  # 3 features (e.g., digits in draw)
 
         # LSTM layers
         for _ in range(num_lstm_layers):
@@ -219,11 +219,11 @@ class LSTMModel:
         X, y = helpers.create_sequences(numbers, window_size=self.window_size)
         val_data_seq, val_labels_seq = helpers.create_sequences(numbers, window_size=self.window_size)
 
-        #print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
-        #print("y shape: ", y.shape)  # (n_samples - 10, 3)
+        print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
+        print("y shape: ", y.shape)  # (n_samples - 10, 3)
 
-        #print("val data shape: ", val_data_seq.shape)
-        #print("val label shape: ", val_labels_seq.shape)
+        print("val data shape: ", val_data_seq.shape)
+        print("val label shape: ", val_labels_seq.shape)
 
         y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
         val_labels_seq = np.array([to_categorical(draw, num_classes=num_classes) for draw in val_labels_seq])
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-7-31.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-8-3.json")
 
     # Opening JSON file
     with open(sequenceToPredictFile, 'r') as openfile:
@@ -308,7 +308,7 @@ if __name__ == "__main__":
     lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(64)
+    lstm_model.setBatchSize(4)
     lstm_model.setEpochs(1000)
     lstm_model.setNumberOfLSTMLayers(1)
     lstm_model.setNumberOfLstmUnits(64)
@@ -322,7 +322,7 @@ if __name__ == "__main__":
     lstm_model.setEarlyStopPatience(10)
     lstm_model.setReduceLearningRatePAience(500)
     lstm_model.setReducedLearningRateFactor(0.9)
-    lstm_model.setWindowSize(50)
+    lstm_model.setWindowSize(100)
     lstm_model.setMarkovAlpha(0.6)
     lstm_model.setPredictionWindowSize(10)
 
