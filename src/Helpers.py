@@ -390,7 +390,7 @@ class Helpers():
         # Convert the sorted data into a NumPy array
         sorted_data = np.array(data)
 
-        print("Sorted data: ", sorted_data)
+        #print("Sorted data: ", sorted_data)
 
         # If you want to separate the date and numbers into different arrays
         dates = sorted_data[:, 0]  # Dates
@@ -399,8 +399,8 @@ class Helpers():
         # Replace all -1 values with 0 (or you can remove them if it's not needed)
         numbers[numbers == -1] = 0
 
-        print("length of data: ", len(numbers))
-        print("shape of data: ", numbers.shape)
+        #print("length of data: ", len(numbers))
+        #print("shape of data: ", numbers.shape)
 
 
         return numbers

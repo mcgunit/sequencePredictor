@@ -261,18 +261,18 @@ class LSTMModel:
 
         return latest_raw_predictions, unique_labels
 
-    # def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
-    #     """
-    #     Do only a prediction. modelPath is the absolute path to the model
-    #     """
-    #     numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
+    def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
+        """
+        Do only a prediction. modelPath is the absolute path to the model
+        """
+        numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
 
-    #     model = load_model(modelPath, compile=True)
+        model = load_model(modelPath, compile=True)
 
-    #     # Predict numbers
-    #     latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
+        # Predict numbers
+        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
-    #     return latest_raw_predictions
+        return latest_raw_predictions
     
     def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
         markov_probs = np.zeros((len(last_draw), num_classes))
