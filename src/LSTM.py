@@ -305,11 +305,11 @@ if __name__ == "__main__":
 
     numbersLength = len(sequenceToPredict["realResult"])
 
-    lstm_model.setLoadModelWeights(False)
+    lstm_model.setLoadModelWeights(True)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(16)
-    lstm_model.setEpochs(10000)
+    lstm_model.setEpochs(20000)
     lstm_model.setNumberOfLSTMLayers(1)
     lstm_model.setNumberOfLstmUnits(64)
     lstm_model.setUseGRU(False)
@@ -319,14 +319,14 @@ if __name__ == "__main__":
     lstm_model.setLearningRate(0.001)
     lstm_model.setDropout(0.3)
     lstm_model.setL2Regularization(0.0002)
-    lstm_model.setEarlyStopPatience(10000)
+    lstm_model.setEarlyStopPatience(20000)
     lstm_model.setReduceLearningRatePAience(500)
     lstm_model.setReducedLearningRateFactor(0.9)
     lstm_model.setWindowSize(100)
     lstm_model.setMarkovAlpha(0.6)
-    lstm_model.setPredictionWindowSize(10)
+    lstm_model.setPredictionWindowSize(100)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=20)
     num_classes = len(unique_labels)
 
     latest_raw_predictions = latest_raw_predictions.tolist()
