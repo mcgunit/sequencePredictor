@@ -2,6 +2,7 @@
 import os, sys, json
 import pandas as pd
 import numpy as np
+import tensorflow as tf
 
 from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
@@ -27,6 +28,18 @@ from Markov import Markov
 
 helpers = Helpers()
 markov = Markov()
+
+class AttentionLayer(layers.Layer):
+    def __init__(self):
+        super().__init__()
+        # Create Dense layer ONCE here
+        self.score_dense = layers.Dense(1)
+
+    def call(self, inputs):
+        # inputs: (batch, timesteps, features)
+        score = tf.nn.softmax(self.score_dense(inputs), axis=1)  # (batch, timesteps, 1)
+        context = tf.reduce_sum(score * inputs, axis=1)          # (batch, features)
+        return context
 
 
 class LSTMModel:
@@ -168,12 +181,13 @@ class LSTMModel:
             raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
 
         model = models.Sequential()
-        model.add(layers.Input(shape=(self.window_size, digitsPerDraw)))  # 3 features (e.g., digits in draw)
+        model.add(layers.Input(shape=(self.window_size, digitsPerDraw)))
 
-        model.add(layers.Conv1D(filters=32, kernel_size=3, activation='relu', padding='causal'))
+        # CNN feature extractor
+        model.add(layers.Conv1D(filters=32, kernel_size=digitsPerDraw, activation='relu', padding='causal'))
         model.add(layers.MaxPooling1D(pool_size=2))
 
-        # LSTM layers
+        # Stacked LSTM layers
         for _ in range(num_lstm_layers):
             model.add(layers.LSTM(lstm_units, return_sequences=True,
                                 kernel_regularizer=regularizers.l2(l2Regularization)))
@@ -182,13 +196,13 @@ class LSTMModel:
                                     kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
 
-        # Final LSTM if needed
+        # Optional final LSTM
         if self.useFinalLSTMLayer:
             model.add(layers.LSTM(lstm_units, return_sequences=True,
                                 kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
 
-        # Bidirectional layers — must come while input is still 3D
+        # Bidirectional layers
         for _ in range(num_bidirectional_layers):
             model.add(layers.Bidirectional(layers.LSTM(
                 bidirectional_lstm_units,
@@ -197,19 +211,18 @@ class LSTMModel:
             )))
             model.add(layers.Dropout(dropout))
 
-        # Final LSTM layer — collapse time dimension to (batch, features)
-        model.add(layers.LSTM(lstm_units, return_sequences=False,
-                            kernel_regularizer=regularizers.l2(l2Regularization)))
-        model.add(layers.Dropout(dropout))
+        # Attention applied after all sequence modeling
+        model.add(AttentionLayer())
 
-        # Dense output
+        # Dense output per digit
         model.add(layers.Dense(digitsPerDraw * num_classes, activation=self.outputActivation))
         model.add(layers.Reshape((digitsPerDraw, num_classes)))
 
-        # Compile the model
+        # Compile with label smoothing
         loss = losses.CategoricalCrossentropy(label_smoothing=self.labelSmoothing)
         model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
+        # Optionally load weights
         if self.loadModelWeights:
             if os.path.exists(f"{model_path}.weights.h5"):
                 print(f"Loading weights from {model_path}.weights.h5")
