@@ -52,10 +52,15 @@ class LSTMModel:
         self.loadModelWeights = True
         self.window_size = 10
         self.predictionWindowSize = 20
+        self.labelSmoothing = 0.1
 
         # LSTM + Markov
         self.markovAlpha = 0.5
         self.lstmMarkov = None
+
+    """
+        Setters
+    """
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -123,8 +128,17 @@ class LSTMModel:
     def setMarkovAlpha(self, value):
         self.markovAlpha = value
 
+    def setLabelSmoothing(self, value):
+        self.labelSmoothing = value
+
+
+    """
+        Getters
+    """
+
     def getLstmMArkov(self):
         return self.lstmMarkov
+    
 
 
     """
@@ -190,7 +204,7 @@ class LSTMModel:
         model.add(layers.Reshape((digitsPerDraw, num_classes)))
 
         # Compile the model
-        loss = losses.CategoricalCrossentropy(label_smoothing=0.1)
+        loss = losses.CategoricalCrossentropy(label_smoothing=self.labelSmoothing)
         model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
         if self.loadModelWeights:
