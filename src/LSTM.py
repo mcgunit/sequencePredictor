@@ -170,6 +170,9 @@ class LSTMModel:
         model = models.Sequential()
         model.add(layers.Input(shape=(self.window_size, digitsPerDraw)))  # 3 features (e.g., digits in draw)
 
+        model.add(layers.Conv1D(filters=32, kernel_size=3, activation='relu', padding='causal'))
+        model.add(layers.MaxPooling1D(pool_size=2))
+
         # LSTM layers
         for _ in range(num_lstm_layers):
             model.add(layers.LSTM(lstm_units, return_sequences=True,
