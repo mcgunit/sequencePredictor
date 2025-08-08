@@ -5,7 +5,7 @@ import numpy as np
 
 from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
-from keras import layers, regularizers, models, optimizers
+from keras import layers, regularizers, models, optimizers, losses
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras.utils import to_categorical
 
@@ -190,7 +190,8 @@ class LSTMModel:
         model.add(layers.Reshape((digitsPerDraw, num_classes)))
 
         # Compile the model
-        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        loss = losses.CategoricalCrossentropy(label_smoothing=0.1)
+        model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
         if self.loadModelWeights:
             if os.path.exists(f"{model_path}.weights.h5"):
