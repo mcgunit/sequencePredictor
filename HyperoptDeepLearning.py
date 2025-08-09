@@ -166,12 +166,13 @@ def process_single_history_entry(args):
     modelToUse.setReduceLearningRatePAience(modelParams["reduceLearningRatePatience"])
     modelToUse.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
     modelToUse.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
-    modelToUse.setUseGRU(modelParams["useGRU"])
     modelToUse.setOutpuActivation(modelParams["outputActivation"])
     modelToUse.setOptimizer(modelParams["optimizer"])
     modelToUse.setLearningRate(modelParams["learningRate"])
     modelToUse.setWindowSize(modelParams["windowSize"])
+    modelToUse.setPredictionWindowSize(modelParams["windowSize"])
     modelToUse.setMarkovAlpha(modelParams["markovAlpha"])
+    modelToUse.setLabelSmoothing(modelParams["labelSmoothing"])
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -520,27 +521,27 @@ if __name__ == "__main__":
 
 
                 modelParams =  {
-                    "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3, 4, 5]),
-                    "epochs": trial.suggest_int("epochs", 100, 1000, step=100),
-                    "batchSize": trial.suggest_categorical("batchSize", [4, 8, 16, 32]),
+                    "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [None, 1, 2, 3]),
+                    "epochs": trial.suggest_int("epochs", 1000),
+                    "batchSize": trial.suggest_categorical("batchSize", [64]),
                     "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 3),
                     "num_bidirectional_layers": trial.suggest_int("num_bidirectional_layers", 0, 2),
                     "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128]),
                     "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64]),
-                    "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.05),
+                    "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
                     "l2Regularization": trial.suggest_float("l2Regularization", 1e-6, 1e-2, log=True),
-                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 50),
-                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 3, 10),
-                    "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9),
+                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 100, 1000, step=100),
+                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 100, 1000, step=100),
+                    "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
                     "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [True, False]),
-                    "useGRU": trial.suggest_categorical("useGRU", [True, False]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "sgd", "rmsprop", "adagrad", "nadam"]),
                     "learningRate": trial.suggest_float("learningRate", 1e-4, 1e-2, log=True),
-                    "windowSize": trial.suggest_int("windowSize", 2, 20, step=1),
-                    "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0),
+                    "windowSize": trial.suggest_int("windowSize", 5, 100, step=5),
+                    "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0, step=0.01),
                     "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False]),
-                    "useTopPrediction": trial.suggest_categorical("useTopPrediction", [True, False])
+                    "useTopPrediction": trial.suggest_categorical("useTopPrediction", [True, False]),
+                    "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
                 }
 
                 for _ in range(numOfRepeats):

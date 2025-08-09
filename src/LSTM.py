@@ -58,7 +58,6 @@ class LSTMModel:
         self.reduceLearningRatePatience = 5
         self.reduceLearningRateFactor = 0.9
         self.useFinalLSTMLayer = True
-        self.useGRU = True
         self.outputActivation = "softmax"
         self.optimizer_type = 'adam'
         self.learning_rate = 0.005
@@ -116,9 +115,7 @@ class LSTMModel:
     
     def setUseFinalLSTMLayer(self, value):
         self.useFinalLSTMLayer = value
-    
-    def setUseGRU(self, value):
-        self.useGRU = value
+
 
     def setOutpuActivation(self, value):
         self.outputActivation = value
@@ -191,9 +188,6 @@ class LSTMModel:
         for _ in range(num_lstm_layers):
             model.add(layers.LSTM(lstm_units, return_sequences=True,
                                 kernel_regularizer=regularizers.l2(l2Regularization)))
-            if self.useGRU:
-                model.add(layers.GRU(lstm_units, return_sequences=True,
-                                    kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
 
         # Optional final LSTM
@@ -340,20 +334,19 @@ if __name__ == "__main__":
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(64)
-    lstm_model.setEpochs(2000)
+    lstm_model.setEpochs(20000)
     lstm_model.setNumberOfLSTMLayers(1)
     lstm_model.setNumberOfLstmUnits(64)
-    lstm_model.setUseGRU(False)
     lstm_model.setNumberOfBidrectionalLayers(1)
     lstm_model.setNumberOfBidirectionalLstmUnits(64)
     lstm_model.setOptimizer("adam")
     lstm_model.setLearningRate(0.001)
     lstm_model.setDropout(0.5) # 0.2 - 0.5
     lstm_model.setL2Regularization(0.001) # 0.0001 - 0.001
-    lstm_model.setEarlyStopPatience(2000)
+    lstm_model.setEarlyStopPatience(20000)
     lstm_model.setReduceLearningRatePAience(500)
     lstm_model.setReducedLearningRateFactor(0.9)
-    lstm_model.setWindowSize(50) # 50 - 100
+    lstm_model.setWindowSize(100) # 50 - 100
     lstm_model.setMarkovAlpha(0.6)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
 
