@@ -521,7 +521,7 @@ if __name__ == "__main__":
 
 
                 modelParams =  {
-                    "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [1, 2, 3]),
+                    "yearsOfHistory": trial.suggest_int("yearsOfHistory", 1, 5, step=1),
                     "epochs": trial.suggest_int("epochs", 1000),
                     "batchSize": trial.suggest_categorical("batchSize", [64]),
                     "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 3),
