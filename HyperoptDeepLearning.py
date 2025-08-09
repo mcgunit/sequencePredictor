@@ -280,7 +280,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             
             # Remove all elements starting from dateOffset index
             #print("Date offset: ", dateOffset)
-            historyData = historyData[dateOffset:]  # Keep elements afer dateOffset because newer elements comes after the dateOffset index                
+            historyData = historyData[dateOffset:]  # Keep elements after dateOffset because newer elements comes after the dateOffset index                
             #print("History to rebuild: ", historyData)
 
             argsList = [
