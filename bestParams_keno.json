@@ -30,7 +30,7 @@
     "markovBayesianEnhancedAlpha": 0.2706761033511445,
     "markovBayesianEnhancedMinOccurences": 3,
     "poissonMonteCarloNumberOfSimulations": 100,
-    "poissonMonteCarloWeightFactor": 0.9987280077086865,
+    "poissonMonteCarloWeightFactor": 0.999077455219312,
     "poissonMarkovWeight": 0.5943773678673173,
     "poissonMarkovNumberOfSimulations": 200,
     "laplaceMonteCarloNumberOfSimulations": 1000,
