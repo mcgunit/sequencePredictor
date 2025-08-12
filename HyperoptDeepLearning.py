@@ -524,18 +524,18 @@ if __name__ == "__main__":
                     "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [1, 2, 3]),
                     "epochs": trial.suggest_categorical("epochs", [1000]),
                     "batchSize": trial.suggest_categorical("batchSize", [16]),
-                    "num_lstm_layers": trial.suggest_int("num_lstm_layers", 1, 2),
-                    "num_bidirectional_layers": trial.suggest_int("num_bidirectional_layers", 1, 2),
+                    "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1]),
+                    "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1]),
                     "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128]),
                     "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64]),
                     "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
                     "l2Regularization": trial.suggest_float("l2Regularization", 0.0001, 0.01, step=0.0001),
-                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 100, 1000, step=100),
-                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 100, 1000, step=100),
+                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 50, step=1),
+                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 1, 20, step=1),
                     "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
                     "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [True, False]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
-                    "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop"]), # "adagrad", "nadam", "sgd", does not work with categorical crossentropy
+                    "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
                     "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
                     "windowSize": trial.suggest_int("windowSize", 5, 50, step=5),
                     "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0, step=0.01),
