@@ -161,8 +161,8 @@ def process_single_history_entry_first_step(args):
     try: 
         listOfDecodedPredictions = []
 
-        listOfDecodedPredictions = statisticalMethod(
-            listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+        #listOfDecodedPredictions = statisticalMethod(
+        #    listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
 
         current_json_object["newPrediction"] = listOfDecodedPredictions
     except Exception as e:
@@ -206,6 +206,23 @@ def process_single_history_entry_second_step(args):
         modelToUse.setModelPath(modelPath)
         modelToUse.setBatchSize(16)
         modelToUse.setEpochs(1000)
+        modelToUse.setNumberOfLSTMLayers(1)
+        modelToUse.setNumberOfLstmUnits(32)
+        modelToUse.setNumberOfBidrectionalLayers(1)
+        modelToUse.setNumberOfBidirectionalLstmUnits(64)
+        modelToUse.setOptimizer("nadam")
+        modelToUse.setLearningRate(0.0002)
+        modelToUse.setDropout(0.3) # 0.2 - 0.5
+        modelToUse.setL2Regularization(0.0066) # 0.0001 - 0.001
+        modelToUse.setUseFinalLSTMLayer(False)
+        modelToUse.setEarlyStopPatience(41)
+        modelToUse.setReduceLearningRatePAience(50)
+        modelToUse.setReducedLearningRateFactor(0.7)
+        modelToUse.setWindowSize(20) # 50 - 100
+        modelToUse.setMarkovAlpha(0.19)
+        modelToUse.setPredictionWindowSize(modelToUse.window_size)
+        modelToUse.setLabelSmoothing(0.08)
+        
         latest_raw_predictions, unique_labels = modelToUse.run(
             name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
         predictedSequence = latest_raw_predictions.tolist()
@@ -344,6 +361,22 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         modelToUse.setModelPath(modelPath)
                         modelToUse.setBatchSize(16)
                         modelToUse.setEpochs(1000)
+                        modelToUse.setNumberOfLSTMLayers(1)
+                        modelToUse.setNumberOfLstmUnits(32)
+                        modelToUse.setNumberOfBidrectionalLayers(1)
+                        modelToUse.setNumberOfBidirectionalLstmUnits(64)
+                        modelToUse.setOptimizer("nadam")
+                        modelToUse.setLearningRate(0.0002)
+                        modelToUse.setDropout(0.3) # 0.2 - 0.5
+                        modelToUse.setL2Regularization(0.0066) # 0.0001 - 0.001
+                        modelToUse.setUseFinalLSTMLayer(False)
+                        modelToUse.setEarlyStopPatience(41)
+                        modelToUse.setReduceLearningRatePAience(50)
+                        modelToUse.setReducedLearningRateFactor(0.7)
+                        modelToUse.setWindowSize(20) # 50 - 100
+                        modelToUse.setMarkovAlpha(0.19)
+                        modelToUse.setPredictionWindowSize(modelToUse.window_size)
+                        modelToUse.setLabelSmoothing(0.08)
                         latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         
                         predictedSequence = latest_raw_predictions.tolist()
@@ -363,7 +396,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
+                    #listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
                     
                     if boost:
                         listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
@@ -458,10 +491,18 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
             "name": "LSTM Base Model",
             "predictions": []
         }
+
+        predicted_digits = np.argmax(newPredictionRaw, axis=-1)
+        nthPredictions["predictions"].append(predicted_digits.tolist())
+
+        top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
+
+        #print(f"Position top prediction: {top3_indices[0].tolist()}")
+
         # Decode prediction with nth highest probability
         for i in range(nOfPredictions):
-            prediction_nth_indices = helpers.decode_predictions(newPredictionRaw, labels, i)
-            nthPredictions["predictions"].append(prediction_nth_indices)
+            #print(f"Position top prediction: {top3_indices[i].tolist()}")
+            nthPredictions["predictions"].append(top3_indices[i].tolist())
         
         listOfDecodedPredictions.append(nthPredictions)
 
@@ -472,7 +513,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
     jsonDirPath = os.path.join(path, "data", "database", name)
     num_classes = len(unique_labels)
     numbersLength = len(historyResult)
-
+    """
 
     try:
         # Refine predictions
@@ -536,6 +577,8 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
 
     except Exception as e:
         print("Failed to perform ARIMA: ", e)
+
+    """
 
     return listOfDecodedPredictions
 
