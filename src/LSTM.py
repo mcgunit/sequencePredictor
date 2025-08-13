@@ -336,21 +336,21 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(16)
     lstm_model.setEpochs(20000)
     lstm_model.setNumberOfLSTMLayers(1)
-    lstm_model.setNumberOfLstmUnits(64)
+    lstm_model.setNumberOfLstmUnits(32)
     lstm_model.setNumberOfBidrectionalLayers(1)
-    lstm_model.setNumberOfBidirectionalLstmUnits(16)
-    lstm_model.setOptimizer("adam")
-    lstm_model.setLearningRate(0.001)
+    lstm_model.setNumberOfBidirectionalLstmUnits(64)
+    lstm_model.setOptimizer("nadam")
+    lstm_model.setLearningRate(0.0002)
     lstm_model.setDropout(0.3) # 0.2 - 0.5
-    lstm_model.setL2Regularization(0.004) # 0.0001 - 0.001
+    lstm_model.setL2Regularization(0.0066) # 0.0001 - 0.001
     lstm_model.setUseFinalLSTMLayer(False)
-    lstm_model.setEarlyStopPatience(50)
-    lstm_model.setReduceLearningRatePAience(5)
-    lstm_model.setReducedLearningRateFactor(0.8)
-    lstm_model.setWindowSize(15) # 50 - 100
-    lstm_model.setMarkovAlpha(0.51)
+    lstm_model.setEarlyStopPatience(41)
+    lstm_model.setReduceLearningRatePAience(19)
+    lstm_model.setReducedLearningRateFactor(0.7)
+    lstm_model.setWindowSize(20) # 50 - 100
+    lstm_model.setMarkovAlpha(0.19)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
-    lstm_model.setLabelSmoothing(0.069)
+    lstm_model.setLabelSmoothing(0.08)
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=3)
     num_classes = len(unique_labels)
