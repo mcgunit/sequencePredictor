@@ -210,7 +210,7 @@ def process_single_history_entry_second_step(args):
         modelToUse.setNumberOfLstmUnits(32)
         modelToUse.setNumberOfBidrectionalLayers(1)
         modelToUse.setNumberOfBidirectionalLstmUnits(64)
-        modelToUse.setOptimizer("nadam")
+        modelToUse.setOptimizer("adam")
         modelToUse.setLearningRate(0.0002)
         modelToUse.setDropout(0.3) # 0.2 - 0.5
         modelToUse.setL2Regularization(0.0066) # 0.0001 - 0.001
@@ -365,7 +365,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         modelToUse.setNumberOfLstmUnits(32)
                         modelToUse.setNumberOfBidrectionalLayers(1)
                         modelToUse.setNumberOfBidirectionalLstmUnits(64)
-                        modelToUse.setOptimizer("nadam")
+                        modelToUse.setOptimizer("adam")
                         modelToUse.setLearningRate(0.0002)
                         modelToUse.setDropout(0.3) # 0.2 - 0.5
                         modelToUse.setL2Regularization(0.0066) # 0.0001 - 0.001
