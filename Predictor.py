@@ -228,7 +228,7 @@ def process_single_history_entry_second_step(args):
         predictedSequence = latest_raw_predictions.tolist()
         unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 1)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, 1)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -387,7 +387,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         current_json_object["labels"] = unique_labels.tolist()
 
             
-                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 1, current_json_object["realResult"], unique_labels, jsonFilePath, name)
+                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
                     else:
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         unique_labels = unique_labels.tolist()
@@ -484,7 +484,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, historyResult, unique_labels, jsonFilePath, name):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, nOfPredictions):
     
     try:
         nthPredictions = {
@@ -509,76 +509,6 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
     except Exception as e:
         print("Failed to perform nth prediction: ", e)
 
-
-    jsonDirPath = os.path.join(path, "data", "database", name)
-    num_classes = len(unique_labels)
-    numbersLength = len(historyResult)
-    """
-
-    try:
-        # Refine predictions
-        #print("Refine predictions")
-        refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-
-        #print("refined_prediction_raw: ", refined_prediction_raw)
-        refinedPredictions = {
-            "name": "LSTM Refined Model",
-            "predictions": []
-        }
-
-        for i in range(1):
-            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-            refinedPredictions["predictions"].append(prediction_highest_indices)
-
-        listOfDecodedPredictions.append(refinedPredictions)
-    except Exception as e:
-        print("Was not able to run refine prediction model: ", e)
-
-    try:
-        # Top prediction
-        #print("Performing a Top Prediction")
-        topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-        topPrediction = {
-            "name": "LSTM Top Predictor",
-            "predictions": []
-        }
-
-        # Print Top prediction
-        for i, prediction in enumerate(topPrediction):
-            topHighestProbPrediction = [int(num) for num in prediction]
-            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-            topPrediction["predictions"].append(topHighestProbPrediction)
-        
-        listOfDecodedPredictions.append(topPrediction)
-    except Exception as e:
-        print("Was not able to run top prediction model: ", e)
-
-    try:
-        # Arima prediction
-        #print("Performing ARIMA Prediction")
-        lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
-        lstmArima.setDataPath(dataPath)
-        lstmArima.setBatchSize(8)
-        lstmArima.setEpochs(1000)
-
-        arimaPrediction = {
-            "name": "ARIMA Model",
-            "predictions": []
-        }
-
-        predicted_arima_sequence = lstmArima.run(name)
-        arimaPrediction["predictions"].append(predicted_arima_sequence)
-        listOfDecodedPredictions.append(arimaPrediction)
-
-    except Exception as e:
-        print("Failed to perform ARIMA: ", e)
-
-    """
 
     return listOfDecodedPredictions
 
