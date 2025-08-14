@@ -56,5 +56,6 @@
     "windowSize": 20,
     "useLstmMarkovPrediction": false,
     "useTopPrediction": true,
-    "labelSmoothing": 0.06999999999999999
+    "labelSmoothing": 0.06999999999999999,
+    "lstmMarkovAlpha": 0.21
 }

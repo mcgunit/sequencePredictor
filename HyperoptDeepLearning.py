@@ -171,7 +171,7 @@ def process_single_history_entry(args):
     modelToUse.setLearningRate(modelParams["learningRate"])
     modelToUse.setWindowSize(modelParams["windowSize"])
     modelToUse.setPredictionWindowSize(modelParams["windowSize"])
-    modelToUse.setMarkovAlpha(modelParams["markovAlpha"])
+    modelToUse.setMarkovAlpha(modelParams["lstmMarkovAlpha"])
     modelToUse.setLabelSmoothing(modelParams["labelSmoothing"])
 
     # Perform training
@@ -538,7 +538,7 @@ if __name__ == "__main__":
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
                     "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
                     "windowSize": trial.suggest_int("windowSize", 5, 50, step=5),
-                    "markovAlpha": trial.suggest_float("markovAlpha", 0.01, 1.0, step=0.01),
+                    "lstmMarkovAlpha": trial.suggest_float("lstmMarkovAlpha", 0.01, 1.0, step=0.01),
                     "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False]),
                     "useTopPrediction": trial.suggest_categorical("useTopPrediction", [True, False]),
                     "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
