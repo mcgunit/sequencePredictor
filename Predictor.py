@@ -862,7 +862,7 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=62)
+        parser.add_argument('-d', '--days', type=int, default=190)
         args = parser.parse_args()
 
         print_intro()
