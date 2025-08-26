@@ -100,6 +100,9 @@ def update_matching_numbers(name, path):
         with open(prev_file, "r") as f_prev, open(curr_file, "r") as f_curr:
             prev_json = json.load(f_prev)
             curr_json = json.load(f_curr)
+        
+        print("prev_json: ", prev_json)
+        print("curr_json: ", curr_json)
 
         curr_json["currentPredictionRaw"] = prev_json.get("newPredictionRaw", [])
         curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
