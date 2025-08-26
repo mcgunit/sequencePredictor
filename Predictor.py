@@ -158,7 +158,7 @@ def process_single_history_entry_first_step(args):
         
 
         with open(jsonFilePath, "w+") as outfile:
-            json.dump(current_json_object, outfile)
+            json.dump(current_json_object, outfile, indent=2)
     except Exception as e:
         print("Failed to check previous json: ", e)
 
@@ -173,7 +173,7 @@ def process_single_history_entry_first_step(args):
         print("Failed to perform statistical method: ", e)
 
     with open(jsonFilePath, "w+") as outfile:
-        json.dump(current_json_object, outfile)
+        json.dump(current_json_object, outfile, indent=2)
 
     return jsonFilePath
 
@@ -252,7 +252,7 @@ def process_single_history_entry_second_step(args):
         print("Failed to calculate the number frequencies: ", e)
 
     with open(jsonFilePath, "w+") as outfile:
-        json.dump(current_json_object, outfile)
+        json.dump(current_json_object, outfile, indent=2)
 
 
 
@@ -398,7 +398,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
 
                     with open(jsonFilePath, "w+") as outfile:
-                        json.dump(current_json_object, outfile)
+                        json.dump(current_json_object, outfile, indent=2)
                     
                     listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
                     
@@ -414,7 +414,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         print("Failed to calculate the number frequencies: ", e)
 
                     with open(jsonFilePath, "w+") as outfile:
-                        json.dump(current_json_object, outfile)
+                        json.dump(current_json_object, outfile, indent=2)
 
                     #return predictedSequence
                 
