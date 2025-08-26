@@ -5,9 +5,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          5,
-          7,
-          4
+          6,
+          0,
+          5
         ]
       ]
     }
@@ -22,9 +22,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          6,
-          1,
-          7
+          3,
+          9,
+          2
         ]
       ]
     }
@@ -33,12 +33,12 @@
   "matchingNumbers": {
     "model": "PoissonMarkov Model",
     "prediction": [
-      5,
-      7,
-      4
+      6,
+      0,
+      5
     ],
     "matching_numbers": [
-      4
+      6
     ],
     "match_count": 1
   },
@@ -55,8 +55,8 @@
     9
   ],
   "numberFrequency": {
-    "6": 0.3333333333333333,
-    "1": 0.3333333333333333,
-    "7": 0.3333333333333333
+    "3": 0.3333333333333333,
+    "9": 0.3333333333333333,
+    "2": 0.3333333333333333
   }
 }
