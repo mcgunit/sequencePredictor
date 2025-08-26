@@ -101,8 +101,8 @@ def update_matching_numbers(name, path):
             prev_json = json.load(f_prev)
             curr_json = json.load(f_curr)
         
-        print("prev_json: ", prev_json)
-        print("curr_json: ", curr_json)
+        #print("prev_json: ", prev_json)
+        #print("curr_json: ", curr_json)
 
         curr_json["currentPredictionRaw"] = prev_json.get("newPredictionRaw", [])
         curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
@@ -165,8 +165,8 @@ def process_single_history_entry_first_step(args):
     try: 
         listOfDecodedPredictions = []
 
-        #listOfDecodedPredictions = statisticalMethod(
-        #    listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+        listOfDecodedPredictions = statisticalMethod(
+           listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
 
         current_json_object["newPrediction"] = listOfDecodedPredictions
     except Exception as e:
@@ -400,7 +400,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile)
                     
-                    #listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
+                    listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
                     
                     if boost:
                         listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
