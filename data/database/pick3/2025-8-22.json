@@ -6,7 +6,7 @@
       "predictions": [
         [
           0,
-          6,
+          4,
           7
         ]
       ]
@@ -24,17 +24,23 @@
         [
           3,
           4,
-          9
+          7
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "PoissonMonteCarlo Model",
+    "prediction": [
+      0,
+      4,
+      7
+    ],
+    "matching_numbers": [
+      4
+    ],
+    "match_count": 1
   },
   "labels": [
     0,
@@ -51,6 +57,6 @@
   "numberFrequency": {
     "3": 0.3333333333333333,
     "4": 0.3333333333333333,
-    "9": 0.3333333333333333
+    "7": 0.3333333333333333
   }
 }

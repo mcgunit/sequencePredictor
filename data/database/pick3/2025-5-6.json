@@ -6,8 +6,8 @@
       "predictions": [
         [
           0,
-          3,
-          4
+          7,
+          8
         ]
       ]
     }
@@ -23,25 +23,18 @@
       "predictions": [
         [
           0,
-          7,
-          8
+          3,
+          4
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "PoissonMonteCarlo Model",
-    "prediction": [
-      0,
-      3,
-      4
-    ],
-    "matching_numbers": [
-      3,
-      4
-    ],
-    "match_count": 2
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [
     0,
@@ -57,7 +50,7 @@
   ],
   "numberFrequency": {
     "0": 0.3333333333333333,
-    "7": 0.3333333333333333,
-    "8": 0.3333333333333333
+    "3": 0.3333333333333333,
+    "4": 0.3333333333333333
   }
 }

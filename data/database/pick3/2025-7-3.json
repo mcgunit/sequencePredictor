@@ -6,8 +6,8 @@
       "predictions": [
         [
           0,
-          7,
-          8
+          3,
+          4
         ]
       ]
     }
@@ -22,9 +22,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
+          2,
           4,
-          5,
-          8
+          5
         ]
       ]
     }
@@ -34,14 +34,13 @@
     "model": "PoissonMonteCarlo Model",
     "prediction": [
       0,
-      7,
-      8
+      3,
+      4
     ],
     "matching_numbers": [
-      0,
-      7
+      0
     ],
-    "match_count": 2
+    "match_count": 1
   },
   "labels": [
     0,
@@ -56,8 +55,8 @@
     9
   ],
   "numberFrequency": {
+    "2": 0.3333333333333333,
     "4": 0.3333333333333333,
-    "5": 0.3333333333333333,
-    "8": 0.3333333333333333
+    "5": 0.3333333333333333
   }
 }
