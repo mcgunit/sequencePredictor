@@ -467,7 +467,7 @@ if __name__ == "__main__":
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
         parser.add_argument('-d', '--days', type=int, default=61)
-        parser.add_argument('-t', '--trials', type=int, default=200)
+        parser.add_argument('-t', '--trials', type=int, default=500)
         args = parser.parse_args()
 
         print_intro()
@@ -884,7 +884,7 @@ if __name__ == "__main__":
                 
                 # Create an Optuna study object
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                studyName = f"{dataset_name}-PoissonMonteCarlo"
+                studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -905,7 +905,7 @@ if __name__ == "__main__":
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-Markov"
+                studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -926,7 +926,7 @@ if __name__ == "__main__":
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-MarkovBayesian"
+                studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -947,7 +947,7 @@ if __name__ == "__main__":
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-MarkovBayesianEnhanced"
+                studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -968,7 +968,7 @@ if __name__ == "__main__":
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-PoissonMarkov"
+                studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -989,7 +989,7 @@ if __name__ == "__main__":
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-LaPlaceMonteCarlo"
+                studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
@@ -1010,7 +1010,7 @@ if __name__ == "__main__":
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-HybridStatiscal"
+                studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
