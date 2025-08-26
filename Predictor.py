@@ -143,6 +143,7 @@ def process_single_history_entry_first_step(args):
         # Check the previous prediction with the real result
         if previousJsonFilePath and os.path.exists(previousJsonFilePath):
             with open(previousJsonFilePath, 'r') as openfile:
+                print("openfile: ", openfile)
                 previous_json_object = json.load(openfile)
             current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
             current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
