@@ -2,12 +2,12 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "PoissonMonteCarlo Model",
+      "name": "PoissonMarkov Model",
       "predictions": [
         [
-          1,
-          3,
-          4
+          7,
+          4,
+          3
         ]
       ]
     }
@@ -19,29 +19,28 @@
   ],
   "newPrediction": [
     {
-      "name": "PoissonMonteCarlo Model",
+      "name": "PoissonMarkov Model",
       "predictions": [
         [
+          4,
           1,
-          2,
-          6
+          2
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "PoissonMonteCarlo Model",
+    "model": "PoissonMarkov Model",
     "prediction": [
-      1,
-      3,
-      4
-    ],
-    "matching_numbers": [
-      1,
+      7,
+      4,
       3
     ],
-    "match_count": 2
+    "matching_numbers": [
+      3
+    ],
+    "match_count": 1
   },
   "labels": [
     0,
@@ -56,8 +55,8 @@
     9
   ],
   "numberFrequency": {
+    "4": 0.3333333333333333,
     "1": 0.3333333333333333,
-    "2": 0.3333333333333333,
-    "6": 0.3333333333333333
+    "2": 0.3333333333333333
   }
 }

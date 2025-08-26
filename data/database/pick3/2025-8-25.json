@@ -1,1 +1,62 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "PoissonMonteCarlo Model", "predictions": [[3, 6, 8]]}], "realResult": [5, 8, 2], "newPrediction": [{"name": "PoissonMonteCarlo Model", "predictions": [[4, 5, 7]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "PoissonMonteCarlo Model", "prediction": [3, 6, 8], "matching_numbers": [8], "match_count": 1}, "labels": [], "numberFrequency": {"4": 0.3333333333333333, "5": 0.3333333333333333, "7": 0.3333333333333333}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          8,
+          4,
+          7
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    5,
+    8,
+    2
+  ],
+  "newPrediction": [
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          3,
+          4,
+          8
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "PoissonMarkov Model",
+    "prediction": [
+      8,
+      4,
+      7
+    ],
+    "matching_numbers": [
+      8
+    ],
+    "match_count": 1
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "3": 0.3333333333333333,
+    "4": 0.3333333333333333,
+    "8": 0.3333333333333333
+  }
+}
