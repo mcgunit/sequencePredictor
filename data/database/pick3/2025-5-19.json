@@ -2,12 +2,12 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "PoissonMarkov Model",
+      "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          2,
-          8,
-          7
+          4,
+          7,
+          9
         ]
       ]
     }
@@ -19,12 +19,12 @@
   ],
   "newPrediction": [
     {
-      "name": "PoissonMarkov Model",
+      "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          8,
+          5,
           7,
-          5
+          9
         ]
       ]
     }
@@ -49,8 +49,8 @@
     9
   ],
   "numberFrequency": {
-    "8": 0.3333333333333333,
+    "5": 0.3333333333333333,
     "7": 0.3333333333333333,
-    "5": 0.3333333333333333
+    "9": 0.3333333333333333
   }
 }
