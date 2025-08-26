@@ -1,5 +1,5 @@
 {
-    "yearsOfHistory": 5,
+    "yearsOfHistory": 3,
     "useMarkov": false,
     "useMarkovBayesian": false,
     "usevMarkovBayesianEnhanced": false,
@@ -24,7 +24,7 @@
     "markovBayesianEnhancedAlpha": 0.9370644617601608,
     "markovBayesianEnhancedMinOccurences": 11,
     "poissonMonteCarloNumberOfSimulations": 300,
-    "poissonMonteCarloWeightFactor": 0.10129905935307727,
+    "poissonMonteCarloWeightFactor": 0.1006424159306875,
     "poissonMarkovWeight": 0.9371896361912756,
     "poissonMarkovNumberOfSimulations": 100,
     "laplaceMonteCarloNumberOfSimulations": 700,

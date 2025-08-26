@@ -5,9 +5,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
+          3,
           4,
-          6,
-          8
+          9
         ]
       ]
     }
@@ -24,7 +24,7 @@
         [
           2,
           3,
-          6
+          9
         ]
       ]
     }
@@ -33,13 +33,13 @@
   "matchingNumbers": {
     "model": "PoissonMonteCarlo Model",
     "prediction": [
+      3,
       4,
-      6,
-      8
+      9
     ],
     "matching_numbers": [
-      4,
-      6
+      9,
+      4
     ],
     "match_count": 2
   },
@@ -58,6 +58,6 @@
   "numberFrequency": {
     "2": 0.3333333333333333,
     "3": 0.3333333333333333,
-    "6": 0.3333333333333333
+    "9": 0.3333333333333333
   }
 }
