@@ -1,18 +1,47 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [],
+  "currentPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          1,
+          4,
+          7
+        ]
+      ]
+    }
+  ],
   "realResult": [
     4,
     2,
     1
   ],
-  "newPrediction": [],
+  "newPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          1,
+          4,
+          7
+        ]
+      ]
+    }
+  ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "PoissonMonteCarlo Model",
+    "prediction": [
+      1,
+      4,
+      7
+    ],
+    "matching_numbers": [
+      1,
+      4
+    ],
+    "match_count": 2
   },
   "labels": [
     0,
@@ -26,5 +55,9 @@
     8,
     9
   ],
-  "numberFrequency": {}
+  "numberFrequency": {
+    "1": 0.3333333333333333,
+    "4": 0.3333333333333333,
+    "7": 0.3333333333333333
+  }
 }
