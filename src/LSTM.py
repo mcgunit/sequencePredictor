@@ -29,17 +29,28 @@ from Markov import Markov
 helpers = Helpers()
 markov = Markov()
 
-class AttentionLayer(layers.Layer):
-    def __init__(self):
+class SelfAttentionBlock(layers.Layer):
+    def __init__(self, num_heads=4, key_dim=32, ffn_factor=4, dropout=0.0):
         super().__init__()
-        # Create Dense layer ONCE here
-        self.score_dense = layers.Dense(1)
+        self.mha = layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim, dropout=dropout)
+        self.norm1 = layers.LayerNormalization(epsilon=1e-6)
+        self.ffn_factor = ffn_factor
+        self.dropout = layers.Dropout(dropout)
+        self.norm2 = layers.LayerNormalization(epsilon=1e-6)
 
-    def call(self, inputs):
-        # inputs: (batch, timesteps, features)
-        score = tf.nn.softmax(self.score_dense(inputs), axis=1)  # (batch, timesteps, 1)
-        context = tf.reduce_sum(score * inputs, axis=1)          # (batch, features)
-        return context
+    def build(self, input_shape):
+        d_model = input_shape[-1]  # dynamically match input dim (e.g. 128)
+        self.ffn = tf.keras.Sequential([
+            layers.Dense(self.ffn_factor * d_model, activation='relu'),
+            layers.Dense(d_model),   # project back to same dim
+        ])
+
+    def call(self, x, training=None):
+        attn_out = self.mha(query=x, key=x, value=x, training=training)
+        x = self.norm1(x + attn_out)
+        ffn_out = self.ffn(x, training=training)
+        x = self.norm2(x + ffn_out)
+        return x
 
 
 class LSTMModel:
@@ -65,6 +76,8 @@ class LSTMModel:
         self.window_size = 10
         self.predictionWindowSize = 20
         self.labelSmoothing = 0.1
+        self.num_heads = 2
+        self.key_dim = 16
 
         # LSTM + Markov
         self.markovAlpha = 0.5
@@ -141,6 +154,12 @@ class LSTMModel:
     def setLabelSmoothing(self, value):
         self.labelSmoothing = value
 
+    def setNumHeads(self, value):
+        self.num_heads = value
+
+    def setKeyDim(self, value):
+        self.key_dim = value
+
 
     """
         Getters
@@ -148,6 +167,37 @@ class LSTMModel:
 
     def getLstmMArkov(self):
         return self.lstmMarkov
+    
+
+    """
+        Custom Metric functions
+    """
+
+    # 1. Per-digit accuracy
+    # on average % of digits guessed correctly.
+    def digit_accuracy(self, y_true, y_pred):
+        # y_true, y_pred: (batch, 3, 10)
+        y_true_labels = tf.argmax(y_true, axis=-1)   # (batch, 3)
+        y_pred_labels = tf.argmax(y_pred, axis=-1)   # (batch, 3)
+        matches = tf.cast(tf.equal(y_true_labels, y_pred_labels), tf.float32)
+        return tf.reduce_mean(matches)  # average over digits and batch
+
+    # 2. Any-digit hit rate
+    # in % of draws, it guessed at least one digit right.
+    def any_digit_hit(self, y_true, y_pred):
+        y_true_labels = tf.argmax(y_true, axis=-1)   # (batch, 3)
+        y_pred_labels = tf.argmax(y_pred, axis=-1)   # (batch, 3)
+        # For each draw, check if ANY of the 3 digits are correct
+        correct_any = tf.reduce_any(tf.equal(y_true_labels, y_pred_labels), axis=-1)
+        return tf.reduce_mean(tf.cast(correct_any, tf.float32))  # average over batch
+
+    # 3. Full-draw accuracy (redundant with categorical_accuracy, but explicit)
+    # got the exact 3-digit combo % of the time (better than random 0.1%).
+    def full_draw_accuracy(self, y_true, y_pred):
+        y_true_labels = tf.argmax(y_true, axis=-1)
+        y_pred_labels = tf.argmax(y_pred, axis=-1)
+        correct_all = tf.reduce_all(tf.equal(y_true_labels, y_pred_labels), axis=-1)
+        return tf.reduce_mean(tf.cast(correct_all, tf.float32))
     
 
 
@@ -162,8 +212,8 @@ class LSTMModel:
         bidirectional_lstm_units = self.bidirectional_lstm_units
         dropout = self.dropout
         l2Regularization = self.l2Regularization
-        optimizer = optimizers.Adam(learning_rate=self.learning_rate)
 
+        # --- Optimizer selection ---
         if self.optimizer_type == "adam":
             optimizer = optimizers.Adam(learning_rate=self.learning_rate)
         elif self.optimizer_type == "sgd":
@@ -175,28 +225,29 @@ class LSTMModel:
         elif self.optimizer_type == "nadam":
             optimizer = optimizers.Nadam(learning_rate=self.learning_rate)
         else:
-            raise ValueError(f"Unsupported optimizer type: {self.optimizer_type}")
+            print(f"Unsupported optimizer type: {self.optimizer_type} using default")
+            optimizer = optimizers.Adam(learning_rate=self.learning_rate)
 
         model = models.Sequential()
         model.add(layers.Input(shape=(self.window_size, digitsPerDraw)))
 
-        # CNN feature extractor
+        # --- CNN feature extractor (local patterns across draws) ---
         model.add(layers.Conv1D(filters=32, kernel_size=digitsPerDraw, activation='relu', padding='causal'))
         model.add(layers.MaxPooling1D(pool_size=2))
 
-        # Stacked LSTM layers
+        # --- Stacked LSTMs (keep sequences) ---
         for _ in range(num_lstm_layers):
             model.add(layers.LSTM(lstm_units, return_sequences=True,
                                 kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
 
-        # Optional final LSTM
+        # --- Optional extra LSTM ---
         if self.useFinalLSTMLayer:
             model.add(layers.LSTM(lstm_units, return_sequences=True,
                                 kernel_regularizer=regularizers.l2(l2Regularization)))
             model.add(layers.Dropout(dropout))
 
-        # Bidirectional layers
+        # --- Optional BiLSTM stack (also keep sequences) ---
         for _ in range(num_bidirectional_layers):
             model.add(layers.Bidirectional(layers.LSTM(
                 bidirectional_lstm_units,
@@ -205,22 +256,36 @@ class LSTMModel:
             )))
             model.add(layers.Dropout(dropout))
 
-        # Attention applied after all sequence modeling
-        model.add(AttentionLayer())
+        # --- MultiHead Self-Attention block (keeps 3D shape) ---
+        # You can tune num_heads/key_dim; start small to avoid overfitting.
+        model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=max(self.key_dim, lstm_units // 4), dropout=0.0))
 
-        # Dense output per digit
+        # --- Collapse time dimension to 2D ---
+        model.add(layers.GlobalAveragePooling1D())  # (batch, features)
+
+        # --- Output per digit ---
         model.add(layers.Dense(digitsPerDraw * num_classes, activation=self.outputActivation))
         model.add(layers.Reshape((digitsPerDraw, num_classes)))
 
-        # Compile with label smoothing
         loss = losses.CategoricalCrossentropy(label_smoothing=self.labelSmoothing)
-        model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+        metrics = [
+            'accuracy', 
+            tf.keras.metrics.TopKCategoricalAccuracy(k=3, name='top3'),
+            self.digit_accuracy,
+            self.any_digit_hit,
+            self.full_draw_accuracy
+        ]
+        model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
-        # Optionally load weights
+        
         if self.loadModelWeights:
-            if os.path.exists(f"{model_path}.weights.h5"):
-                print(f"Loading weights from {model_path}.weights.h5")
-                model.load_weights(f"{model_path}.weights.h5")
+            try:
+                if os.path.exists(f"{model_path}.weights.h5"):
+                    print(f"Loading weights from {model_path}.weights.h5")
+                    model.load_weights(f"{model_path}.weights.h5")
+            except Exception as e:
+                print("Failed to load weights")
+                pass
 
         return model
 
@@ -233,54 +298,69 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
-    def run(self, name='euromillions', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None):
+    def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=True):
         # Load and preprocess data
-        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back)
+        train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(
+            self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back
+        )
 
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
-        # Use all numbers (raw data) instead of train_data. Because train_data is only 80 procent of all data 
-        X, y = helpers.create_sequences(numbers, window_size=self.window_size)
-        val_data_seq, val_labels_seq = helpers.create_sequences(numbers, window_size=self.window_size)
+        # -------- TIME-BASED SPLIT --------
+        n = len(numbers)
+        split_idx = int(n * 0.8)  # 80/20 split by time
 
-        print("X shape: ", X.shape)  # (n_samples - 10, 10, 3)
-        print("y shape: ", y.shape)  # (n_samples - 10, 3)
+        # Strict validation (no training history inside val windows)
+        if strict_val:
+            train_numbers = numbers[:split_idx]
+            val_numbers   = numbers[split_idx:]            # validation windows come only from val period
+            X, y = helpers.create_sequences(train_numbers, window_size=self.window_size)
+            X_val, y_val = helpers.create_sequences(val_numbers, window_size=self.window_size)
+        else:
+            # Forecast-style validation (first val input uses training history)
+            X, y = helpers.create_sequences(numbers[:split_idx], window_size=self.window_size)
+            # Build validation using the end of training history so the first val target is feasible
+            start = max(0, split_idx - self.window_size)
+            X_val, y_val = helpers.create_sequences(numbers[start:], window_size=self.window_size)
+            # Optionally drop any validation samples whose target index < split_idx to avoid leakage:
+            # (Assumes helpers.create_sequences returns inputs aligned to the next-step targets)
+            # Keep only targets that occur in the true val range
+            keep = np.where(np.arange(start + self.window_size, start + self.window_size + len(y_val)) >= split_idx)[0]
+            X_val, y_val = X_val[keep], y_val[keep]
 
-        print("val data shape: ", val_data_seq.shape)
-        print("val label shape: ", val_labels_seq.shape)
-
+        # One-hot labels to shape (batch, digitsPerDraw, num_classes)
         y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
-        val_labels_seq = np.array([to_categorical(draw, num_classes=num_classes) for draw in val_labels_seq])
-        
+        y_val = np.array([to_categorical(draw, num_classes=num_classes) for draw in y_val])
+
+        print("X shape: ", X.shape)       # (samples, window, 3)
+        print("y shape: ", y.shape)       # (samples, 3, num_classes)
+        print("X_val shape: ", X_val.shape)
+        print("y_val shape: ", y_val.shape)
+
+        # Build & train
         model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2])
+        history = self.train_model(model, X, y, X_val, y_val, model_name=name)
 
-        # Train the model
-        history = self.train_model(model, X, y, val_data_seq, val_labels_seq, model_name=name)
-
-        # Predict numbers
+        # Predict next draw using all history available
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
+        # Optional Markov blend
         try:
             markov.build_markov_chain(numbers)
             markovChain = markov.getTransformationMatrix()
-            lastDraw = numbers[len(numbers)-1]
-            #print("last draw: ", lastDraw)
+            lastDraw = numbers[-1]
             markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
             self.lstmMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
-
         except Exception as e:
             print("Failed to build Markov Chain: ", e)
 
-        # Plot training history
+        # Plot, save, cleanup (as you already do)
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
 
-        # Save weights
         model.save_weights(f"{model_path}.weights.h5")
         model.save(model_path)
-
-        # Remove checkpoint if exists
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
@@ -333,26 +413,28 @@ if __name__ == "__main__":
     lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(16)
+    lstm_model.setBatchSize(4)
     lstm_model.setEpochs(5000)
     lstm_model.setNumberOfLSTMLayers(1)
     lstm_model.setNumberOfLstmUnits(32)
     lstm_model.setNumberOfBidrectionalLayers(1)
-    lstm_model.setNumberOfBidirectionalLstmUnits(64)
-    lstm_model.setOptimizer("nadam")
+    lstm_model.setNumberOfBidirectionalLstmUnits(32)
+    lstm_model.setOptimizer("adam")
     lstm_model.setLearningRate(0.0002)
     lstm_model.setDropout(0.3) # 0.2 - 0.5
-    lstm_model.setL2Regularization(0.0066) # 0.0001 - 0.001
+    lstm_model.setL2Regularization(0.01) #0.005 - 0.00005
     lstm_model.setUseFinalLSTMLayer(False)
-    lstm_model.setEarlyStopPatience(41)
+    lstm_model.setEarlyStopPatience(5000)
     lstm_model.setReduceLearningRatePAience(50)
     lstm_model.setReducedLearningRateFactor(0.7)
     lstm_model.setWindowSize(20) # 50 - 100
     lstm_model.setMarkovAlpha(0.19)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
     lstm_model.setLabelSmoothing(0.08)
+    lstm_model.setNumHeads(2)
+    lstm_model.setKeyDim(16)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=1)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=20, strict_val=True)
     num_classes = len(unique_labels)
 
     latest_raw_predictions = latest_raw_predictions.tolist()

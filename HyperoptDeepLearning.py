@@ -521,23 +521,23 @@ if __name__ == "__main__":
 
 
                 modelParams =  {
-                    "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [1, 2, 3]),
+                    "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [10, 20]),
                     "epochs": trial.suggest_categorical("epochs", [1000]),
-                    "batchSize": trial.suggest_categorical("batchSize", [16]),
-                    "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1]),
-                    "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1]),
+                    "batchSize": trial.suggest_categorical("batchSize", [8]),
+                    "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1, 2, 3]),
+                    "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1, 2, 3]),
                     "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128]),
-                    "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64]),
+                    "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64, 128]),
                     "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
                     "l2Regularization": trial.suggest_float("l2Regularization", 0.0001, 0.01, step=0.0001),
-                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 50, step=1),
-                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 1, 20, step=1),
+                    "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 100, step=10),
+                    "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 1, 100, step=10),
                     "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
                     "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [True, False]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
                     "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
                     "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
-                    "windowSize": trial.suggest_int("windowSize", 5, 50, step=5),
+                    "windowSize": trial.suggest_int("windowSize", 5, 100, step=5),
                     "lstmMarkovAlpha": trial.suggest_float("lstmMarkovAlpha", 0.01, 1.0, step=0.01),
                     "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [True, False]),
                     "useTopPrediction": trial.suggest_categorical("useTopPrediction", [True, False]),
@@ -572,7 +572,7 @@ if __name__ == "__main__":
             )
 
             # Run the automatic tuning process
-            study.optimize(objective, n_trials=100)
+            study.optimize(objective, n_trials=500)
 
             # Output the best hyperparameters and score
             print("Best Parameters: ", study.best_params)
