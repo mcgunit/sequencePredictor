@@ -70,6 +70,9 @@ class Markov():
     
     def setBlendMode(self, mode):
         self.blend_mode = mode
+    
+    def getTransformationMatrix(self):
+        return self.transition_matrix
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a subset of numbers using weighted selection based on Markov probabilities and frequencies."""

@@ -100,6 +100,9 @@ def update_matching_numbers(name, path):
         with open(prev_file, "r") as f_prev, open(curr_file, "r") as f_curr:
             prev_json = json.load(f_prev)
             curr_json = json.load(f_curr)
+        
+        #print("prev_json: ", prev_json)
+        #print("curr_json: ", curr_json)
 
         curr_json["currentPredictionRaw"] = prev_json.get("newPredictionRaw", [])
         curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
@@ -143,6 +146,7 @@ def process_single_history_entry_first_step(args):
         # Check the previous prediction with the real result
         if previousJsonFilePath and os.path.exists(previousJsonFilePath):
             with open(previousJsonFilePath, 'r') as openfile:
+                print("openfile: ", openfile)
                 previous_json_object = json.load(openfile)
             current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
             current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
@@ -162,7 +166,7 @@ def process_single_history_entry_first_step(args):
         listOfDecodedPredictions = []
 
         listOfDecodedPredictions = statisticalMethod(
-            listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+           listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
 
         current_json_object["newPrediction"] = listOfDecodedPredictions
     except Exception as e:
@@ -180,7 +184,7 @@ def process_single_history_entry_second_step(args):
     """
     
     (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-     skipLastColumns, years_back, ai, previousJsonFilePath, path, boost) = args
+     skipLastColumns, years_back, ai, previousJsonFilePath, path, boost, bestParams_json_object) = args
 
     modelToUse = tcn if "lstm_model" not in model_type else lstm
     historyDate, historyResult = historyEntry
@@ -202,16 +206,33 @@ def process_single_history_entry_second_step(args):
 
     if ai:
         # Set the fundation for deepLearningMethod
-        modelToUse.setDataPath(dataPath)
         modelToUse.setModelPath(modelPath)
-        modelToUse.setBatchSize(16)
-        modelToUse.setEpochs(1000)
+        modelToUse.setBatchSize(bestParams_json_object["batchSize"])
+        modelToUse.setEpochs(bestParams_json_object["epochs"])
+        modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
+        modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
+        modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
+        modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
+        modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
+        modelToUse.setLearningRate(bestParams_json_object["learningRate"])
+        modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
+        modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
+        modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
+        modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
+        modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
+        modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
+        modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
+        modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
+        modelToUse.setPredictionWindowSize(modelToUse.window_size)
+        modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
+        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
+        
         latest_raw_predictions, unique_labels = modelToUse.run(
             name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
         predictedSequence = latest_raw_predictions.tolist()
         unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 1)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, 1)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -342,8 +363,24 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     if ai:
                         # Train and do a new prediction
                         modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(16)
-                        modelToUse.setEpochs(1000)
+                        modelToUse.setBatchSize(bestParams_json_object["batchSize"])
+                        modelToUse.setEpochs(bestParams_json_object["epochs"])
+                        modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
+                        modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
+                        modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
+                        modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
+                        modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
+                        modelToUse.setLearningRate(bestParams_json_object["learningRate"])
+                        modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
+                        modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
+                        modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
+                        modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
+                        modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
+                        modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
+                        modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
+                        modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
+                        modelToUse.setPredictionWindowSize(modelToUse.window_size)
+                        modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
                         latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         
                         predictedSequence = latest_raw_predictions.tolist()
@@ -354,7 +391,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         current_json_object["labels"] = unique_labels.tolist()
 
             
-                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], current_json_object["labels"], 1, current_json_object["realResult"], unique_labels, jsonFilePath, name)
+                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
                     else:
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
                         unique_labels = unique_labels.tolist()
@@ -430,7 +467,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     argsList = [
                         (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-                            skipLastColumns, bestParams_json_object['yearsOfHistory'], ai, previousJsonFilePath, path, boost)
+                            skipLastColumns, bestParams_json_object['yearsOfHistory'], ai, previousJsonFilePath, path, boost, bestParams_json_object)
                         for historyIndex, historyEntry in enumerate(historyData)
                     ]
 
@@ -451,91 +488,31 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, historyResult, unique_labels, jsonFilePath, name):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, nOfPredictions):
     
     try:
         nthPredictions = {
             "name": "LSTM Base Model",
             "predictions": []
         }
+
+        predicted_digits = np.argmax(newPredictionRaw, axis=-1)
+        nthPredictions["predictions"].append(predicted_digits.tolist())
+
+        top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
+
+        #print(f"Position top prediction: {top3_indices[0].tolist()}")
+
         # Decode prediction with nth highest probability
         for i in range(nOfPredictions):
-            prediction_nth_indices = helpers.decode_predictions(newPredictionRaw, labels, i)
-            nthPredictions["predictions"].append(prediction_nth_indices)
+            #print(f"Position top prediction: {top3_indices[i].tolist()}")
+            nthPredictions["predictions"].append(top3_indices[i].tolist())
         
         listOfDecodedPredictions.append(nthPredictions)
 
     except Exception as e:
         print("Failed to perform nth prediction: ", e)
 
-
-    jsonDirPath = os.path.join(path, "data", "database", name)
-    num_classes = len(unique_labels)
-    numbersLength = len(historyResult)
-
-
-    try:
-        # Refine predictions
-        #print("Refine predictions")
-        refinePrediction.trainRefinePredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        refined_prediction_raw = refinePrediction.refinePrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-
-        #print("refined_prediction_raw: ", refined_prediction_raw)
-        refinedPredictions = {
-            "name": "LSTM Refined Model",
-            "predictions": []
-        }
-
-        for i in range(1):
-            prediction_highest_indices = helpers.decode_predictions(refined_prediction_raw[0], unique_labels, nHighestProb=i)
-            #print("Refined Prediction with ", i+1 ,"highest probs: ", prediction_highest_indices)
-            refinedPredictions["predictions"].append(prediction_highest_indices)
-
-        listOfDecodedPredictions.append(refinedPredictions)
-    except Exception as e:
-        print("Was not able to run refine prediction model: ", e)
-
-    try:
-        # Top prediction
-        #print("Performing a Top Prediction")
-        topPredictor.trainTopPredictionsModel(name, jsonDirPath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        top_prediction_raw = topPredictor.topPrediction(name=name, pathToLatestPredictionFile=jsonFilePath, modelPath=modelPath, num_classes=num_classes, numbersLength=numbersLength)
-        topPrediction = helpers.getTopPredictions(top_prediction_raw, unique_labels, num_top=numbersLength)
-
-        topPrediction = {
-            "name": "LSTM Top Predictor",
-            "predictions": []
-        }
-
-        # Print Top prediction
-        for i, prediction in enumerate(topPrediction):
-            topHighestProbPrediction = [int(num) for num in prediction]
-            #print(f"Top Prediction {i+1}: {sorted(topHighestProbPrediction)}")
-            topPrediction["predictions"].append(topHighestProbPrediction)
-        
-        listOfDecodedPredictions.append(topPrediction)
-    except Exception as e:
-        print("Was not able to run top prediction model: ", e)
-
-    try:
-        # Arima prediction
-        #print("Performing ARIMA Prediction")
-        lstmArima.setModelPath(os.path.join(path, "data", "models", "lstm_arima_model"))
-        lstmArima.setDataPath(dataPath)
-        lstmArima.setBatchSize(8)
-        lstmArima.setEpochs(1000)
-
-        arimaPrediction = {
-            "name": "ARIMA Model",
-            "predictions": []
-        }
-
-        predicted_arima_sequence = lstmArima.run(name)
-        arimaPrediction["predictions"].append(predicted_arima_sequence)
-        listOfDecodedPredictions.append(arimaPrediction)
-
-    except Exception as e:
-        print("Failed to perform ARIMA: ", e)
 
     return listOfDecodedPredictions
 
@@ -885,7 +862,7 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=7)
+        parser.add_argument('-d', '--days', type=int, default=190)
         args = parser.parse_args()
 
         print_intro()
@@ -902,13 +879,13 @@ if __name__ == "__main__":
         # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
         datasets = [
             # (dataset_name, model_type, skip_last_columns, ai, xgboost)
-            ("euromillions", "tcn_model", 0, True, True),
-            ("lotto", "lstm_model", 0, True, True),
-            ("eurodreams", "lstm_model", 0, True, True),
+            # ("euromillions", "tcn_model", 0, True, True),
+            # ("lotto", "lstm_model", 0, True, True),
+            # ("eurodreams", "lstm_model", 0, True, True),
             #("jokerplus", "lstm_model", 1, False, True),
-            ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
+            # ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
             ("pick3", "lstm_model", 0, False, False),
-            ("vikinglotto", "lstm_model", 0, True, True),
+            # ("vikinglotto", "lstm_model", 0, True, True),
         ]
 
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
@@ -945,21 +922,10 @@ if __name__ == "__main__":
                         gameName = "Viking+Lotto"
                     dataFetcher.getLatestData(gameName, filePath)
                     #os.remove(os.path.join(dataPath, file))
-            
-
                 #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
                 # Predict with hyperopt params
                 predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-                # Predict for current year
-                #predict(f"{dataset_name}_currentYear", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=1, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-                # Predict for current year + last year
-                #predict(f"{dataset_name}_twoYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=2, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
-
-                # Predict for current year + last two years
-                #predict(f"{dataset_name}_threeYears", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=3, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
 
             except Exception as e:
                 print(f"Failed to predict {dataset_name.capitalize()}: {e}")

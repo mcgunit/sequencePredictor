@@ -2,52 +2,12 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          0,
-          3,
-          7
-        ]
-      ]
-    },
-    {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          1,
-          2,
-          3
-        ]
-      ]
-    },
-    {
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          1,
-          4,
-          6
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
-          9,
-          1,
-          2
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          1,
-          3,
-          4
+          0,
+          2,
+          8
         ]
       ]
     }
@@ -59,67 +19,27 @@
   ],
   "newPrediction": [
     {
-      "name": "Markov Model",
-      "predictions": [
-        [
-          3,
-          5,
-          7
-        ]
-      ]
-    },
-    {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          2,
-          4,
-          7
-        ]
-      ]
-    },
-    {
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
           0,
-          3,
-          5
-        ]
-      ]
-    },
-    {
-      "name": "PoissonMarkov Model",
-      "predictions": [
-        [
-          2,
           8,
           9
-        ]
-      ]
-    },
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          9,
-          1,
-          4
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "Markov Model",
+    "model": "PoissonMonteCarlo Model",
     "prediction": [
       0,
-      3,
-      7
+      2,
+      8
     ],
     "matching_numbers": [
       0,
-      7
+      8
     ],
     "match_count": 2
   },
@@ -136,15 +56,8 @@
     9
   ],
   "numberFrequency": {
-    "3": 0.09773828756058159,
-    "1": 0.10029617662897146,
-    "5": 0.09894991922455573,
-    "7": 0.09823191527553402,
-    "9": 0.09980254891401903,
-    "0": 0.10222581224196733,
-    "2": 0.10092443008436547,
-    "6": 0.09975767366720517,
-    "4": 0.10128343205887633,
-    "8": 0.10078980434392389
+    "0": 0.3333333333333333,
+    "8": 0.3333333333333333,
+    "9": 0.3333333333333333
   }
 }

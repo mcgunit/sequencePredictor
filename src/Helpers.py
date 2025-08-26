@@ -158,23 +158,17 @@ class Helpers():
 
         return labels[selected_indices].tolist()
     
-    def predict_numbers(self, model, input_data):
-        # Get raw predictions from the model
-        raw_predictions = model.predict(input_data)
+    def predict_numbers(self, model, numbers, window_size=10):
+        # Take the last `window_size` draws
+        input_seq = numbers[-window_size:]  # shape (10, 3)
 
-        latest_raw_predictions = raw_predictions[::-1] # reverse
+        # Reshape to model input shape: (1 sample, 10 time steps, 3 features)
+        input_seq = np.expand_dims(input_seq, axis=0)  # shape (1, 10, 3)
 
-        latest_raw_predictions = latest_raw_predictions[0] # take the the latest
-        #print("Latest raw prediction: ", latest_raw_predictions)
+        # Predict
+        raw_predictions = model.predict(input_seq)
 
-        """
-            Structure of latest_raw_prediction is a list of each position a class and each class is a list of probabilities of what class it will be.
-            Fow example when the model has to predict a set of 3 numbers and each number can be 1, 2 or 3 you can get something like this:
-            [[0.1,0.2, 0.7], [0.8, 0.1, 0.1], [0.0, 0.9, 0.1]] --> This will be a prediction of a set of 3 numbers being [3, 1, 2].
-            The index of the highest probability in the list determines the predicted number (index+1) 
-        """
-
-        return latest_raw_predictions
+        return raw_predictions[0]  
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
@@ -396,7 +390,7 @@ class Helpers():
         # Convert the sorted data into a NumPy array
         sorted_data = np.array(data)
 
-        print("Sorted data: ", sorted_data)
+        #print("Sorted data: ", sorted_data)
 
         # If you want to separate the date and numbers into different arrays
         dates = sorted_data[:, 0]  # Dates
@@ -405,11 +399,18 @@ class Helpers():
         # Replace all -1 values with 0 (or you can remove them if it's not needed)
         numbers[numbers == -1] = 0
 
-        print("length of data: ", len(numbers))
-        print("shape of data: ", numbers.shape)
+        #print("length of data: ", len(numbers))
+        #print("shape of data: ", numbers.shape)
 
 
         return numbers
+
+    def create_sequences(self, data, window_size=10):
+        X, y = [], []
+        for i in range(len(data) - window_size):
+            X.append(data[i:i + window_size])       # window of draws
+            y.append(data[i + window_size])         # next draw
+        return np.array(X), np.array(y)
 
     
     def generatePredictionTextFile(self, path):
@@ -773,3 +774,96 @@ class Helpers():
 
         return normalized_frequencies
     
+
+    def calculate_profit(self, name, path):
+        """
+        Used for Hyperopt to calculate the profit of a given model.
+        """
+
+        json_dir = os.path.join(path, "data", "hyperOptCache", name)
+        if not os.path.exists(json_dir):
+            print(f"Directory does not exist: {json_dir}")
+            return
+
+        payoutTableKeno = {
+            10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
+            9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
+            8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
+            7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
+            6: { 3: 1, 4: 4, 5: 20, 6: 200 },
+            5: { 3: 2, 4: 5, 5: 150 },
+            4: { 2: 1, 3: 2, 4: 30 },
+            3: { 2: 1, 3: 16 },
+            2: { 2: 6.50 },
+            "lost": -1  # Because it cost 1 euro
+        }
+
+        payoutTablePick3 = {
+            "straight": 500,
+            "box_with_doubles": 160,
+            "box_no_doubles": 80,
+            "front_pair": 50,
+            "back_pair": 50,
+            "last_number": 1,
+            "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
+        }
+
+        total_profit = 0
+
+        for filename in os.listdir(json_dir):
+            if filename.endswith(".json"):
+                filepath = os.path.join(json_dir, filename)
+                with open(filepath, "r") as file:
+                    data = json.load(file)
+
+                    real_result = set(data.get("realResult", []))
+                    model_predictions = data.get("currentPrediction", [])
+
+                    for model in model_predictions:
+                        for prediction in model["predictions"]:
+                            # For keno and pick3 the profits can be calculated. For others we check the matches
+                            if "keno" in name:
+                                played = len(prediction)
+                                if played < 4 or played > 10:
+                                    continue
+
+                                matches = len(set(prediction) & real_result)
+                                profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
+                                total_profit += profit
+                            elif "pick3" in name:
+                                played = len(prediction)
+                                if played != 3 or len(real_result) != 3:
+                                    continue
+
+                                pred = prediction
+                                actual = list(real_result)
+
+                                if pred == actual:
+                                    profit = payoutTablePick3["straight"]
+
+                                elif sorted(pred) == sorted(actual):
+                                    # Check for doubles
+                                    pred_counts = {x: pred.count(x) for x in pred}
+                                    if 2 in pred_counts.values():
+                                        profit = payoutTablePick3["box_with_doubles"]
+                                    else:
+                                        profit = payoutTablePick3["box_no_doubles"]
+
+                                elif pred[0:2] == actual[0:2]:
+                                    profit = payoutTablePick3["front_pair"]
+
+                                elif pred[1:3] == actual[1:3]:
+                                    profit = payoutTablePick3["back_pair"]
+
+                                elif pred[2] == actual[2]:
+                                    profit = payoutTablePick3["last_number"]
+
+                                else:
+                                    profit = payoutTablePick3["lost"]
+
+                                total_profit += profit
+                            else:
+                                matches = len(set(prediction) & real_result)
+                                total_profit += matches
+        #print("Total profit: ", total_profit)
+        return total_profit

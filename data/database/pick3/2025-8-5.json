@@ -1,1 +1,56 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "HybridStatisticalModel", "predictions": [[3, 8, 0]]}], "realResult": [2, 5, 8], "newPrediction": [{"name": "HybridStatisticalModel", "predictions": [[6, 2, 5]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "HybridStatisticalModel", "prediction": [3, 8, 0], "matching_numbers": [8], "match_count": 1}, "labels": [], "numberFrequency": {"6": 0.3333333333333333, "2": 0.3333333333333333, "5": 0.3333333333333333}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          3,
+          9
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    2,
+    5,
+    8
+  ],
+  "newPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          2,
+          8
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "0": 0.3333333333333333,
+    "2": 0.3333333333333333,
+    "8": 0.3333333333333333
+  }
+}

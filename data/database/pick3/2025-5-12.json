@@ -2,22 +2,12 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          1,
-          2,
-          3
-        ]
-      ]
-    },
-    {
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          1,
-          5,
-          8
+          2,
+          3,
+          9
         ]
       ]
     }
@@ -29,36 +19,26 @@
   ],
   "newPrediction": [
     {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          2,
-          5,
-          7
-        ]
-      ]
-    },
-    {
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          1,
-          5,
-          8
+          6,
+          7,
+          9
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "MarkovBayesian Model",
+    "model": "PoissonMonteCarlo Model",
     "prediction": [
-      1,
       2,
-      3
+      3,
+      9
     ],
     "matching_numbers": [
-      1
+      9
     ],
     "match_count": 1
   },
@@ -75,15 +55,8 @@
     9
   ],
   "numberFrequency": {
-    "6": 0.10005880490342425,
-    "4": 0.10123490297190935,
-    "1": 0.100194508526711,
-    "0": 0.10232053195820329,
-    "5": 0.09892794137603474,
-    "3": 0.09766137422535848,
-    "2": 0.10105396480752703,
-    "8": 0.10069208847876239,
-    "7": 0.09797801601302755,
-    "9": 0.09987786673904193
+    "6": 0.3333333333333333,
+    "7": 0.3333333333333333,
+    "9": 0.3333333333333333
   }
 }

@@ -1,1 +1,56 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "Markov Model", "predictions": [[0, 4, 5]]}, {"name": "MarkovBayesian Model", "predictions": [[0, 2, 4]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[2, 8, 9]]}, {"name": "PoissonMarkov Model", "predictions": [[1, 4, 7]]}, {"name": "HybridStatisticalModel", "predictions": [[2, 7, 9]]}], "realResult": [4, 2, 1], "newPrediction": [{"name": "Markov Model", "predictions": [[2, 6, 7]]}, {"name": "MarkovBayesian Model", "predictions": [[1, 2, 4]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[2, 6, 7]]}, {"name": "PoissonMarkov Model", "predictions": [[9, 8, 1]]}, {"name": "HybridStatisticalModel", "predictions": [[1, 4, 5]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "MarkovBayesian Model", "prediction": [0, 2, 4], "matching_numbers": [2, 4], "match_count": 2}, "labels": [], "numberFrequency": {"6": 0.09966375252185608, "4": 0.10141223940820444, "1": 0.1002465814839722, "0": 0.10226406635283569, "5": 0.0988567585743107, "3": 0.0976462676529926, "2": 0.10096390943734589, "8": 0.10078457744900246, "7": 0.09827392961219457, "9": 0.09988791750728536}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          8,
+          9
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    4,
+    2,
+    1
+  ],
+  "newPrediction": [
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          3,
+          9
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "0": 0.3333333333333333,
+    "3": 0.3333333333333333,
+    "9": 0.3333333333333333
+  }
+}
