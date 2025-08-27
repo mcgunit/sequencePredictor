@@ -479,6 +479,7 @@ if __name__ == "__main__":
         rebuildHistory = bool(args.rebuild_history)
         n_trials = int(args.trials)
 
+        numOfRepeats = 3 # To average out the rusults before continueing to the next result
 
         path = os.getcwd()
 
@@ -565,8 +566,6 @@ if __name__ == "__main__":
                 }
 
                 def objectivePoissonMonteCarlo(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -602,13 +601,17 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
                 
                 def objectiveMarkov(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -650,13 +653,17 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
 
                 def objectiveMarkovBayesian(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -696,13 +703,17 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
                 
                 def objectiveMarkovBayesianEnhanced(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -738,13 +749,17 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
                 
                 def objectivePoissonMarkov(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -779,13 +794,17 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
                 
                 def objectiveLaPlaceMonteCarlo(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -819,13 +838,17 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
                 
                 def objectiveHybridStatistical(trial):
-                    numOfRepeats = 1 # To average out the rusults before continueing to the next result
-                    totalProfit = 0
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
@@ -863,9 +886,15 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    totalProfit = sum(results) / len(results)
+                    # Aggregate results
+                    mean_profit = sum(results) / len(results)
+                    std_profit = np.std(results)
 
-                    return totalProfit
+                    # Option 1: Just return average (stable performance)
+                    #return mean_profit  
+
+                    # Option 2: Prefer stability (mean - penalty * std)
+                    return mean_profit - 0.2 * std_profit
 
                 # Write best params to json
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
