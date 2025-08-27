@@ -25,6 +25,7 @@
     "markovBayesianEnhancedMinOccurences": 9,
     "poissonMonteCarloNumberOfSimulations": 100,
     "poissonMonteCarloWeightFactor": 0.8658695540800199,
+    "poissonMonteCarloNumberOfRecentDraws": 300,
     "poissonMarkovWeight": 0.8308324554978347,
     "poissonMarkovNumberOfSimulations": 100,
     "laplaceMonteCarloNumberOfSimulations": 600,

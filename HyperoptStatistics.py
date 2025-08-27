@@ -350,6 +350,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             poissonMonteCarlo.setDataPath(dataPath)
             poissonMonteCarlo.setNumOfSimulations(modelParams["poissonMonteCarloNumberOfSimulations"])
             poissonMonteCarlo.setWeightFactor(modelParams["poissonMonteCarloWeightFactor"])
+            poissonMonteCarlo.setRecentDraws(modelParams["poissonMonteCarloNumberOfRecentDraws"])
             poissonMonteCarlo.clear()
 
             poissonMonteCarloPrediction = {
@@ -466,7 +467,7 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=61)
+        parser.add_argument('-d', '--days', type=int, default=14)
         parser.add_argument('-t', '--trials', type=int, default=500)
         args = parser.parse_args()
 
@@ -556,6 +557,7 @@ if __name__ == "__main__":
                     'markovBayesianEnhancedMinOccurences': 1,
                     'poissonMonteCarloNumberOfSimulations': 1,
                     'poissonMonteCarloWeightFactor': 1,
+                    'poissonMonteCarloNumberOfRecentDraws': 1,
                     'poissonMarkovWeight': 1,
                     'poissonMarkovNumberOfSimulations': 1,
                     'laplaceMonteCarloNumberOfSimulations': 1,
@@ -574,6 +576,7 @@ if __name__ == "__main__":
                     modelParams['usePoissonMonteCarlo'] = True
                     modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100)
                     modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0)
+                    modelParams["poissonMonteCarloNumberOfRecentDraws"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 30, 1000, step=10)
                     
 
                     if "keno" in dataset_name:
