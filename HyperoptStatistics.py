@@ -585,7 +585,7 @@ if __name__ == "__main__":
                     modelParams['usePoissonMonteCarlo'] = True
                     modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100)
                     modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0)
-                    modelParams["poissonMonteCarloNumberOfRecentDraws"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 30, 1000, step=10)
+                    modelParams["poissonMonteCarloNumberOfRecentDraws"] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 30, 1000, step=10)
                     
 
                     if "keno" in dataset_name:
