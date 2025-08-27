@@ -482,6 +482,15 @@ if __name__ == "__main__":
 
         numOfRepeats = 3 # To average out the rusults before continueing to the next result
 
+        """
+            Meaning of alpha:
+
+            Small (0.1-0.3): favors good performers even if they are a bit volatile.
+            Medium (0.5-1.0): strong emphasis on stability, might discard high but spiky profits.
+            Large (>1.0): almost only stable configs survive, but you risk converging to "boring safe" results.
+        """
+        alpha = 0.2 
+
         path = os.getcwd()
 
         datasets = [
@@ -612,7 +621,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
                 
                 def objectiveMarkov(trial):
                     results = [] # Intermediate results
@@ -664,7 +673,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
 
                 def objectiveMarkovBayesian(trial):
                     results = [] # Intermediate results
@@ -714,7 +723,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
                 
                 def objectiveMarkovBayesianEnhanced(trial):
                     results = [] # Intermediate results
@@ -760,7 +769,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
                 
                 def objectivePoissonMarkov(trial):
                     results = [] # Intermediate results
@@ -805,7 +814,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
                 
                 def objectiveLaPlaceMonteCarlo(trial):
                     results = [] # Intermediate results
@@ -849,7 +858,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
                 
                 def objectiveHybridStatistical(trial):
                     results = [] # Intermediate results
@@ -897,7 +906,7 @@ if __name__ == "__main__":
                     #return mean_profit  
 
                     # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - 0.2 * std_profit
+                    return mean_profit - alpha * std_profit
 
                 # Write best params to json
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
