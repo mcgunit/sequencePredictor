@@ -78,16 +78,32 @@ class PoissonMonteCarlo():
         """Runs Monte Carlo simulations using Poisson distribution for each position."""
         predicted_numbers = set()  # Use a set to ensure uniqueness
 
-        while len(predicted_numbers) < n_predictions:
+        max_attempts = 1000
+        attempts = 0
+
+        while len(predicted_numbers) < n_predictions and attempts < max_attempts:
+            attempts += 1
             simulated_counts = defaultdict(int)
             
+            # Run Poisson simulations
             for _ in range(self.num_simulations):
                 for num, lam in self.poisson_lambda.get(len(predicted_numbers), {}).items():
                     occurrence = poisson.rvs(lam)
                     if occurrence > 0:
                         simulated_counts[num] += 1
             
-            # Normalize and apply softmax filtering
+            # Fallback if no numbers were generated
+            if not simulated_counts:
+                # --- Option 1: dynamically get all numbers from poisson_lambda ---
+                all_numbers = set()
+                for pos_dict in self.poisson_lambda.values():
+                    all_numbers.update(pos_dict.keys())
+                
+                remaining_numbers = all_numbers - predicted_numbers
+                predicted_numbers.add(np.random.choice(list(remaining_numbers)))
+                continue  # Skip the rest of the loop and go to the next attempt
+
+            # Softmax and pick the top prediction
             raw_values = np.array([simulated_counts[num] for num in simulated_counts])
             probabilities = softmax(raw_values)
             sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
@@ -95,7 +111,7 @@ class PoissonMonteCarlo():
             for num in sorted_predictions:
                 if num not in predicted_numbers:
                     predicted_numbers.add(num)
-                    break  # Move to the next position
+                    break
 
         return sorted([int(num) for num in predicted_numbers]) 
     
@@ -108,13 +124,20 @@ class PoissonMonteCarlo():
         """
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
         numbers = [[int(num) for num in draw] for draw in numbers]
+        #print("Length of numbers: ", numbers[len(numbers)-1])
 
-        self.setRecentDraws(max(self.recent_draws, len(numbers)))
+        #self.setRecentDraws(max(self.recent_draws, len(numbers)))
+        #print("Recent Draws: ", self.recent_draws)
+        numbers_to_use = numbers[-self.recent_draws:]
+        #print("Numbers to use: ", numbers_to_use)
 
-        self.build_poisson_model(numbers)
-
+        self.build_poisson_model(numbers_to_use)
+        
+        #print("Build poisson model")
 
         predicted_numbers = self.monte_carlo_simulation(n_predictions=len(numbers[-1]))
+
+        #print("Predicted numbers: ", predicted_numbers)
 
         subsets = {}
         if generateSubsets:

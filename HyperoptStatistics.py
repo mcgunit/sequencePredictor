@@ -144,8 +144,13 @@ def process_single_history_entry(args):
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
 
+    #print("Date: ", f"{historyDate.year}-{historyDate.month}-{historyDate.day}", "Skip rows: ", (len(historyData)-historyIndex)-1)
+
     listOfDecodedPredictions = statisticalMethod(
-        listOfDecodedPredictions, dataPath, name, modelParams, skipRows=len(historyData)-historyIndex)
+        listOfDecodedPredictions, dataPath, name, modelParams, skipRows=(len(historyData)-historyIndex)-1)
+    
+    
+    #print("Prediction: ",listOfDecodedPredictions )
     
     current_json_object["newPrediction"] = listOfDecodedPredictions
     current_json_object["labels"] = unique_labels
@@ -309,7 +314,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets)
+            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
             markovBayesianPrediction["predictions"].append(markovBayesianSequence)
             for key in markovBayesianSubsets:
                 markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
@@ -334,7 +339,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
+            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
             for key in markovBayesianEnhancedSubsets:
                 markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
@@ -359,7 +364,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
 
-            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets)
+            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
 
             poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
             for key in poissonMonteCarloSubsets:
@@ -383,7 +388,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
 
-            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets)
+            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
 
             poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
             for key in poissonMarkovSubsets:
@@ -407,7 +412,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
 
-            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets)
+            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
             for key in laplaceMonteCarloSubsets:
                 laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
@@ -432,7 +437,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets)
+            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
             hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
             for key in hybridStatisticalModelSubsets:
                 hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
@@ -442,6 +447,25 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             print("Failed to perform Hybrid Statistical Model: ", e)
 
     return listOfDecodedPredictions
+
+def getBestParams(pareto_trials):
+    STD_THRESHOLD = 50  # adjust to your scale
+
+    candidates = [t for t in pareto_trials if t.values[1] < STD_THRESHOLD]
+
+    if candidates:
+        best_trial = max(candidates, key=lambda t: t.values[0])
+    else:
+        # fallback: pick most stable trial if none under threshold
+        best_trial = min(pareto_trials, key=lambda t: t.values[1])
+
+    print("✅ Selected trial:")
+    print(f"Mean Profit = {best_trial.values[0]:.2f}, Std = {best_trial.values[1]:.2f}")
+    print("Params:", best_trial.params)
+
+    return best_trial.params, best_trial.values[0]
+
+
 
 if __name__ == "__main__":
 
@@ -499,7 +523,7 @@ if __name__ == "__main__":
             #("lotto", "lstm_model", 0),
             #("eurodreams", "lstm_model", 0),
             #("jokerplus", "lstm_model", 0),
-            ("keno", "lstm_model", 0),
+            #("keno", "lstm_model", 0),
             ("pick3", "lstm_model", 0),
             #("vikinglotto", "lstm_model", 0),
         ]
@@ -583,9 +607,9 @@ if __name__ == "__main__":
                     modelParams = defautParams
 
                     modelParams['usePoissonMonteCarlo'] = True
-                    modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100)
-                    modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0)
-                    modelParams["poissonMonteCarloNumberOfRecentDraws"] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 30, 1000, step=10)
+                    modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 1, 20, step=1)
+                    modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 10.0, step=0.3)
+                    modelParams["poissonMonteCarloNumberOfRecentDraws"] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 1, 10, step=1)
                     
 
                     if "keno" in dataset_name:
@@ -610,18 +634,18 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
+                
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
                 
                 def objectiveMarkov(trial):
                     results = [] # Intermediate results
@@ -662,18 +686,17 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
 
                 def objectiveMarkovBayesian(trial):
                     results = [] # Intermediate results
@@ -712,18 +735,17 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
                 
                 def objectiveMarkovBayesianEnhanced(trial):
                     results = [] # Intermediate results
@@ -758,18 +780,17 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
                 
                 def objectivePoissonMarkov(trial):
                     results = [] # Intermediate results
@@ -803,18 +824,17 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
                 
                 def objectiveLaPlaceMonteCarlo(trial):
                     results = [] # Intermediate results
@@ -847,18 +867,17 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
                 
                 def objectiveHybridStatistical(trial):
                     results = [] # Intermediate results
@@ -895,18 +914,17 @@ if __name__ == "__main__":
 
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                        
                         #print("Profit: ", profit)
                         results.append(profit)
 
-                    # Aggregate results
-                    mean_profit = sum(results) / len(results)
+                    mean_profit = np.mean(results)
                     std_profit = np.std(results)
 
-                    # Option 1: Just return average (stable performance)
-                    #return mean_profit  
+                    # Save attributes for later analysis
+                    trial.set_user_attr("raw_results", results)
 
-                    # Option 2: Prefer stability (mean - penalty * std)
-                    return mean_profit - alpha * std_profit
+                    return mean_profit, std_profit
 
                 # Write best params to json
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
@@ -927,7 +945,7 @@ if __name__ == "__main__":
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -936,19 +954,20 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
-                print("Best Score for Poisson MonteCarlo: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitPoissonMonteCarlo = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitPoissonMonteCarlo = best_value
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -957,19 +976,20 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectiveMarkov, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Markov: ", study.best_params)
-                print("Best Score for Markov: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitMarkov = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitMarkov = best_value
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -978,19 +998,20 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectiveMarkovBayesian, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Markov Bayesian: ", study.best_params)
-                print("Best Score for Markov Bayesian: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitMarkovBayesian = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitMarkovBayesian = best_value
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -999,19 +1020,20 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectiveMarkovBayesianEnhanced, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Markov Bayesian Enhanced: ", study.best_params)
-                print("Best Score for Markov Bayesian Enhanced: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitMarkovBayesianEnhanced = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitMarkovBayesianEnhanced = best_value
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -1020,19 +1042,20 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectivePoissonMarkov, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Poisson Markov: ", study.best_params)
-                print("Best Score for Poisson Markov: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitPoissonMarkov = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitPoissonMarkov = best_value
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -1041,19 +1064,20 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectiveLaPlaceMonteCarlo, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for LaPlace MonteCarlo: ", study.best_params)
-                print("Best Score for LaPlace MonteCarlo: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitLaPlaceMonteCarlo = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitLaPlaceMonteCarlo = best_value
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
-                    direction='maximize',
+                    directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
@@ -1062,13 +1086,16 @@ if __name__ == "__main__":
                 # Run the automatic tuning process
                 study.optimize(objectiveHybridStatistical, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Hybrid Statistical: ", study.best_params)
-                print("Best Score for Hybrid Statistical: ", study.best_value)
+                # Extract Pareto front trials
+                pareto_trials = [t for t in study.best_trials]
 
-                totalProfitHybridStatistical = study.best_value
+                best_params, best_value = getBestParams(pareto_trials)
+
+                totalProfitHybridStatistical = best_value
+                
+                
                 # save params
-                existingData.update(study.best_params)
+                existingData.update(best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
