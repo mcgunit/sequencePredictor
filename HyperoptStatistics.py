@@ -607,9 +607,9 @@ if __name__ == "__main__":
                     modelParams = defautParams
 
                     modelParams['usePoissonMonteCarlo'] = True
-                    modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 1, 20, step=1)
-                    modelParams["poissonMonteCarloWeightFactor"] = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 10.0, step=0.3)
-                    modelParams["poissonMonteCarloNumberOfRecentDraws"] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 1, 10, step=1)
+                    modelParams['poissonMonteCarloNumberOfSimulations'] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 1, 20, step=1)
+                    modelParams['poissonMonteCarloWeightFactor']  = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 10.0)
+                    modelParams['poissonMonteCarloNumberOfRecentDraws'] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 1, 200)
                     
 
                     if "keno" in dataset_name:
@@ -636,12 +636,25 @@ if __name__ == "__main__":
                     for _ in range(numOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
                         
-                        #print("Profit: ", profit)
-                        results.append(profit)
+                       # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
                 
 
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
@@ -956,7 +969,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -979,7 +992,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1002,7 +1015,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1025,7 +1038,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1048,7 +1061,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1071,7 +1084,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1094,7 +1107,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
                 )
 
                 # Run the automatic tuning process
