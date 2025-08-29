@@ -603,63 +603,67 @@ if __name__ == "__main__":
                 def objectivePoissonMonteCarlo(trial):
                     results = [] # Intermediate results
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    try:
+                        # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
+                        modelParams = defautParams
 
-                    modelParams['usePoissonMonteCarlo'] = True
-                    modelParams['poissonMonteCarloNumberOfSimulations'] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 1, 20, step=1)
-                    modelParams['poissonMonteCarloWeightFactor']  = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 10.0)
-                    modelParams['poissonMonteCarloNumberOfRecentDraws'] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 1, 200)
+                        modelParams['usePoissonMonteCarlo'] = True
+                        modelParams['poissonMonteCarloNumberOfSimulations'] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 1, 20, step=1)
+                        modelParams['poissonMonteCarloWeightFactor']  = trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 10.0)
+                        modelParams['poissonMonteCarloNumberOfRecentDraws'] = trial.suggest_int('poissonMonteCarloNumberOfRecentDraws', 1, 200)
+                        
+
+                        if "keno" in dataset_name:
+                            all_values = [5, 6, 7, 8, 9, 10]
+                            MIN_LEN = 1
+                            MAX_LEN = 6
+
+                            
+                            # Binary inclusion mask for each value
+                            inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                            
+                            # Build the subset from the mask
+                            subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+
+                            # Enforce length constraints
+                            if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                                # Return very bad values instead of -inf to avoid crashing the sampler
+                                return -1e9, 1e9
+                            
+                            modelParams["kenoSubset"] = subset
+
+                        #print("Params: ", modelParams)
+
+                        for _ in range(numOfRepeats):
+                            profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
+                            
+                        # Guard against None / NaN / Inf from downstream code:
+                            if profit is None or isinstance(profit, (list, tuple, dict)):
+                                continue
+                            if not np.isfinite(profit):
+                                continue
+
+                            results.append(float(profit))
+
+                        # If nothing valid was produced, return finite “terrible” scores
+                        if len(results) == 0:
+                            return -1e9, 1e9
                     
 
-                    if "keno" in dataset_name:
-                        all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
+                        mean_profit = np.mean(results)
+                        std_profit = np.std(results)
 
-                        
-                        # Binary inclusion mask for each value
-                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
-                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
-
-                        # Enforce length constraints
-                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
+                        # Final safety: coerce to finite numbers
+                        if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
                             return -1e9, 1e9
-                        
-                        modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
+                        # Save attributes for later analysis
+                        trial.set_user_attr("raw_results", results)
 
-                    for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                       # Guard against None / NaN / Inf from downstream code:
-                        if profit is None or isinstance(profit, (list, tuple, dict)):
-                            continue
-                        if not np.isfinite(profit):
-                            continue
-
-                        results.append(float(profit))
-
-                    # If nothing valid was produced, return finite “terrible” scores
-                    if len(results) == 0:
+                        return mean_profit, std_profit
+                    except Exception as e:
+                        # If *anything* goes wrong at the trial level → punish trial
                         return -1e9, 1e9
-                
-
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
-                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
-                        return -1e9, 1e9
-
-                    # Save attributes for later analysis
-                    trial.set_user_attr("raw_results", results)
-
-                    return mean_profit, std_profit
                 
                 def objectiveMarkov(trial):
                     results = [] # Intermediate results
