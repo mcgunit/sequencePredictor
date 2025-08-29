@@ -492,7 +492,7 @@ if __name__ == "__main__":
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
         parser.add_argument('-d', '--days', type=int, default=14)
-        parser.add_argument('-t', '--trials', type=int, default=500)
+        parser.add_argument('-t', '--trials', type=int, default=50)
         args = parser.parse_args()
 
         print_intro()
@@ -947,8 +947,6 @@ if __name__ == "__main__":
                 totalProfitPoissonMarkov = 0
                 totalProfitLaPlaceMonteCarlo = 0
                 totalProfitHybridStatistical = 0
-
-                sampler = optuna.samplers.NSGAIISampler(population_size=20)
                 
                 # Create an Optuna study object
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
@@ -958,7 +956,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
@@ -981,7 +979,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
@@ -1004,7 +1002,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
@@ -1027,7 +1025,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
@@ -1050,7 +1048,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
@@ -1073,7 +1071,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
@@ -1096,7 +1094,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=sampler
+                    sampler=optuna.samplers.NSGAIISampler(population_size=20)
                 )
 
                 # Run the automatic tuning process
