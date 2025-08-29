@@ -626,7 +626,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -678,7 +679,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -727,7 +729,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -772,7 +775,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -816,7 +820,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -859,7 +864,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -906,7 +912,8 @@ if __name__ == "__main__":
 
                         # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
+                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            return -1e9, 1e9
                         
                         modelParams["kenoSubset"] = subset
 
@@ -926,7 +933,7 @@ if __name__ == "__main__":
 
                     return mean_profit, std_profit
 
-                # Write best params to json
+            
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
                 existingData = {}
                 if os.path.exists(jsonBestParamsFilePath):
@@ -940,6 +947,8 @@ if __name__ == "__main__":
                 totalProfitPoissonMarkov = 0
                 totalProfitLaPlaceMonteCarlo = 0
                 totalProfitHybridStatistical = 0
+
+                sampler = optuna.samplers.NSGAIISampler(population_size=20)
                 
                 # Create an Optuna study object
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
@@ -948,7 +957,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
@@ -970,7 +980,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
@@ -992,7 +1003,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
@@ -1014,7 +1026,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
@@ -1036,7 +1049,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
@@ -1058,7 +1072,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
@@ -1080,7 +1095,8 @@ if __name__ == "__main__":
                     directions=["maximize", "minimize"],
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
-                    load_if_exists=True
+                    load_if_exists=True,
+                    sampler=sampler
                 )
 
                 # Run the automatic tuning process
