@@ -1,1 +1,38 @@
-{"currentPredictionRaw": [], "currentPrediction": [{"name": "Markov Model", "predictions": [[5, 6, 21, 22, 24, 26, 36]]}, {"name": "MarkovBayesian Model", "predictions": [[1, 4, 36, 39, 42, 11, 44]]}, {"name": "MarkovBayesianEnhanched Model", "predictions": [[7, 9, 14, 15, 18, 20, 23, 27, 36, 37, 40, 41, 42, 43]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[2, 10, 12, 25, 30, 38, 41]]}, {"name": "PoissonMarkov Model", "predictions": [[33, 27, 22, 3, 11, 14, 38]]}, {"name": "HybridStatisticalModel", "predictions": [[8, 11, 24, 28, 41, 1, 3]]}], "realResult": [4, 8, 10, 19, 22, 23, 7], "newPrediction": [{"name": "Markov Model", "predictions": [[10, 17, 20, 22, 28, 29, 40]]}, {"name": "MarkovBayesian Model", "predictions": [[4, 6, 7, 8, 9, 10, 11]]}, {"name": "MarkovBayesianEnhanched Model", "predictions": [[5, 15, 32, 39, 41, 42, 45]]}, {"name": "PoissonMonteCarlo Model", "predictions": [[2, 12, 15, 29, 35, 38, 42]]}, {"name": "PoissonMarkov Model", "predictions": [[42, 28, 34, 12, 16, 1, 13]]}, {"name": "LaplaceMonteCarlo Model", "predictions": [[8, 13, 17, 26, 33, 36, 25]]}, {"name": "HybridStatisticalModel", "predictions": [[7, 4, 5, 10, 11, 23, 25]]}, {"name": "xgboost", "predictions": [[5, 20, 28, 33, 29, 26, 20]]}], "newPredictionRaw": [], "matchingNumbers": {"model": "MarkovBayesianEnhanched Model", "prediction": [7, 9, 14, 15, 18, 20, 23, 27, 36, 37, 40, 41, 42, 43], "matching_numbers": [23, 7], "match_count": 2}, "labels": [], "numberFrequency": {"4": 0.022745662141508586, "5": 0.023419940663490065, "8": 0.02238604692978513, "14": 0.023330036860559202, "27": 0.023330036860559202, "40": 0.0222062393239234, "23": 0.022745662141508586, "16": 0.02530792052503821, "17": 0.022745662141508586, "20": 0.022925469747370315, "34": 0.02261080643711229, "35": 0.02310527735323204, "9": 0.02288051784590488, "19": 0.02463364200305673, "28": 0.02373460397374809, "33": 0.023644700170817226, "39": 0.021891576013665377, "3": 0.023419940663490065, "24": 0.02395936348107525, "32": 0.02076777847702958, "15": 0.02103748988582217, "29": 0.02324013305762834, "41": 0.023509844466420928, "2": 0.023195181156162904, "12": 0.025262968623572777, "37": 0.021397105097545627, "42": 0.023689652072282658, "7": 0.023599748269351795, "1": 0.023599748269351795, "25": 0.02418412298840241, "26": 0.023464892564955497, "30": 0.021621864604872785, "31": 0.021352153196080192, "6": 0.022475950732715994, "18": 0.023195181156162904, "21": 0.02324013305762834, "22": 0.024139171086936976, "10": 0.021981479816596244, "38": 0.024723545805987592, "13": 0.02238604692978513, "11": 0.0223410950283197, "36": 0.023195181156162904, "44": 0.010428841139980221, "43": 0.011058167760496269, "45": 0.009889418322395037}}
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [],
+  "realResult": [
+    4,
+    8,
+    10,
+    19,
+    22,
+    23,
+    7
+  ],
+  "newPrediction": [
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          7,
+          26,
+          29,
+          36,
+          38,
+          1,
+          2
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
+  },
+  "labels": [],
+  "numberFrequency": []
+}

@@ -17,26 +17,26 @@
     }
   ],
   "realResult": [
-    1,
-    6,
-    7,
-    10,
-    27,
-    35,
-    34
+    4,
+    12,
+    15,
+    37,
+    42,
+    44,
+    13
   ],
   "newPrediction": [
     {
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          9,
-          13,
-          16,
+          3,
+          20,
           25,
-          29,
-          35,
-          2
+          39,
+          2,
+          5,
+          6
         ]
       ]
     }
@@ -54,10 +54,9 @@
       1
     ],
     "matching_numbers": [
-      1,
-      7
+      42
     ],
-    "match_count": 2
+    "match_count": 1
   },
   "labels": [],
   "numberFrequency": []
