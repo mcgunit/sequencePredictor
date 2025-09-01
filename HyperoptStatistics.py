@@ -637,7 +637,7 @@ if __name__ == "__main__":
                         for _ in range(numOfRepeats):
                             profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
                             
-                        # Guard against None / NaN / Inf from downstream code:
+                            # Guard against None / NaN / Inf from downstream code:
                             if profit is None or isinstance(profit, (list, tuple, dict)):
                                 continue
                             if not np.isfinite(profit):
@@ -709,8 +709,24 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
+                        # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
+
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
@@ -759,8 +775,24 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
+                        # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
+
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
@@ -805,8 +837,24 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
+                        # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
+
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
@@ -850,8 +898,24 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
+                        # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
+
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
@@ -894,8 +958,24 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
+                        # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
+
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
@@ -942,8 +1022,24 @@ if __name__ == "__main__":
                         #print("Profit: ", profit)
                         results.append(profit)
 
+                        # Guard against None / NaN / Inf from downstream code:
+                        if profit is None or isinstance(profit, (list, tuple, dict)):
+                            continue
+                        if not np.isfinite(profit):
+                            continue
+
+                        results.append(float(profit))
+
+                    # If nothing valid was produced, return finite “terrible” scores
+                    if len(results) == 0:
+                        return -1e9, 1e9
+
                     mean_profit = np.mean(results)
                     std_profit = np.std(results)
+
+                    # Final safety: coerce to finite numbers
+                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                        return -1e9, 1e9
 
                     # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
