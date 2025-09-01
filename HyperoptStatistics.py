@@ -605,7 +605,7 @@ if __name__ == "__main__":
 
                     try:
                         # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                        modelParams = defautParams
+                        modelParams = defautParams.copy()
 
                         modelParams['usePoissonMonteCarlo'] = True
                         modelParams['poissonMonteCarloNumberOfSimulations'] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 1, 20, step=1)
@@ -666,79 +666,72 @@ if __name__ == "__main__":
                         return -1e9, 1e9
                 
                 def objectiveMarkov(trial):
-                    results = [] # Intermediate results
+                    results = []  # Intermediate results
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    try:
+                        # Reset to defaults
+                        modelParams = defautParams.copy()
 
-                    modelParams['useMarkov'] = True
-                    modelParams['markovSoftMaxTemperature'] = trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0)
-                    modelParams['markovMinOccurences'] = trial.suggest_int('markovMinOccurences', 1, 20)
-                    modelParams['markovAlpha'] = trial.suggest_float('markovAlpha', 0.1, 1.0)
-                    modelParams['markovRecencyWeight'] = trial.suggest_float('markovRecencyWeight', 0.1, 2.0)
-                    modelParams['markovRecencyMode'] = trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"])
-                    modelParams['markovPairDecayFactor'] = trial.suggest_float('markovPairDecayFactor', 0.1, 2.0)
-                    modelParams['markovSmoothingFactor'] = trial.suggest_float('markovSmoothingFactor', 0.01, 1.0)
-                    modelParams['markovSubsetSelectionMode'] = trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"])
-                    modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
+                        modelParams['useMarkov'] = True
+                        modelParams['markovSoftMaxTemperature'] = trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0)
+                        modelParams['markovMinOccurences'] = trial.suggest_int('markovMinOccurences', 1, 20)
+                        modelParams['markovAlpha'] = trial.suggest_float('markovAlpha', 0.1, 1.0)
+                        modelParams['markovRecencyWeight'] = trial.suggest_float('markovRecencyWeight', 0.1, 2.0)
+                        modelParams['markovRecencyMode'] = trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"])
+                        modelParams['markovPairDecayFactor'] = trial.suggest_float('markovPairDecayFactor', 0.1, 2.0)
+                        modelParams['markovSmoothingFactor'] = trial.suggest_float('markovSmoothingFactor', 0.01, 1.0)
+                        modelParams['markovSubsetSelectionMode'] = trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"])
+                        modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
 
-                    if "keno" in dataset_name:
-                        all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
+                        if "keno" in dataset_name:
+                            all_values = [5, 6, 7, 8, 9, 10]
+                            MIN_LEN, MAX_LEN = 1, 6
 
-                        
-                        # Binary inclusion mask for each value
-                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
-                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
+                            inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
+                            subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                        # Enforce length constraints
-                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
+                            if not (MIN_LEN <= len(subset) <= MAX_LEN):
+                                return -1e9, 1e9  # finite terrible score
+
+                            modelParams["kenoSubset"] = subset
+
+                        for _ in range(numOfRepeats):
+                            try:
+                                profit = predict(
+                                    f"{dataset_name}", dataPath,
+                                    skipLastColumns=skip_last_columns,
+                                    years_back=modelParams['yearsOfHistory'],
+                                    daysToRebuild=daysToRebuild,
+                                    modelParams=modelParams
+                                )
+
+                                if profit is None or not np.isfinite(profit):
+                                    results.append(-1e9)
+                                else:
+                                    results.append(float(profit))
+
+                            except Exception:
+                                results.append(-1e9)
+
+                        if len(results) == 0:
                             return -1e9, 1e9
-                        
-                        modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
+                        mean_profit = float(np.mean(results))
+                        std_profit = float(np.std(results))
 
-                    for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                        #print("Profit: ", profit)
-                        results.append(profit)
+                        if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
+                            return -1e9, 1e9
 
-                        # Guard against None / NaN / Inf from downstream code:
-                        if profit is None or isinstance(profit, (list, tuple, dict)):
-                            continue
-                        if not np.isfinite(profit):
-                            continue
+                        trial.set_user_attr("raw_results", results)
+                        return mean_profit, std_profit
 
-                        results.append(float(profit))
-
-                    # If nothing valid was produced, return finite “terrible” scores
-                    if len(results) == 0:
+                    except Exception:
                         return -1e9, 1e9
-
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
-                    if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
-                        return -1e9, 1e9
-
-                    # Save attributes for later analysis
-                    trial.set_user_attr("raw_results", results)
-
-                    return mean_profit, std_profit
-
+                    
                 def objectiveMarkovBayesian(trial):
-                    results = [] # Intermediate results
+                    results = []
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
-
+                    modelParams = defautParams.copy()
                     modelParams['useMarkovBayesian'] = True
                     modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
                     modelParams['markovBayesianSoftMaxTemperature'] = trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0)
@@ -750,122 +743,78 @@ if __name__ == "__main__":
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
+                        MIN_LEN, MAX_LEN = 1, 6
                         inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
                         subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                        # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
-                            return -1e9, 1e9
-                        
+                            return -1e9, 1e9  # bad values, not inf
                         modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
-
                     for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                        # Guard against None / NaN / Inf from downstream code:
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns,
+                                        years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild,
+                                        modelParams=modelParams)
                         if profit is None or isinstance(profit, (list, tuple, dict)):
                             continue
                         if not np.isfinite(profit):
                             continue
-
                         results.append(float(profit))
 
-                    # If nothing valid was produced, return finite “terrible” scores
                     if len(results) == 0:
                         return -1e9, 1e9
 
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
+                    mean_profit, std_profit = np.mean(results), np.std(results)
                     if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
                         return -1e9, 1e9
 
-                    # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
-
                     return mean_profit, std_profit
-                
+
+
                 def objectiveMarkovBayesianEnhanced(trial):
-                    results = [] # Intermediate results
+                    results = []
+                    modelParams = defautParams.copy()
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
-
-                    modelParams['usevMarkovBayesianEnhanced'] = True
+                    modelParams['useMarkovBayesianEnhanced'] = True
                     modelParams['markovBayesianEnhancedSoftMaxTemperature'] = trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0)
                     modelParams['markovBayesianEnhancedAlpha'] = trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0)
                     modelParams['markovBayesianEnhancedMinOccurences'] = trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20)
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
+                        MIN_LEN, MAX_LEN = 1, 6
                         inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
                         subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                        # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
                             return -1e9, 1e9
-                        
                         modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
-
                     for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                        # Guard against None / NaN / Inf from downstream code:
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns,
+                                        years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild,
+                                        modelParams=modelParams)
                         if profit is None or isinstance(profit, (list, tuple, dict)):
                             continue
                         if not np.isfinite(profit):
                             continue
-
                         results.append(float(profit))
 
-                    # If nothing valid was produced, return finite “terrible” scores
                     if len(results) == 0:
                         return -1e9, 1e9
 
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
+                    mean_profit, std_profit = np.mean(results), np.std(results)
                     if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
                         return -1e9, 1e9
 
-                    # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
-
                     return mean_profit, std_profit
-                
-                def objectivePoissonMarkov(trial):
-                    results = [] # Intermediate results
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+
+                def objectivePoissonMarkov(trial):
+                    results = []
+                    modelParams = defautParams.copy()
 
                     modelParams['usePoissonMarkov'] = True
                     modelParams['poissonMarkovWeight'] = trial.suggest_float('poissonMarkovWeight', 0.1, 1.0)
@@ -873,179 +822,112 @@ if __name__ == "__main__":
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
+                        MIN_LEN, MAX_LEN = 1, 6
                         inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
                         subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                        # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
                             return -1e9, 1e9
-                        
                         modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
-
                     for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                        # Guard against None / NaN / Inf from downstream code:
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns,
+                                        years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild,
+                                        modelParams=modelParams)
                         if profit is None or isinstance(profit, (list, tuple, dict)):
                             continue
                         if not np.isfinite(profit):
                             continue
-
                         results.append(float(profit))
 
-                    # If nothing valid was produced, return finite “terrible” scores
                     if len(results) == 0:
                         return -1e9, 1e9
 
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
+                    mean_profit, std_profit = np.mean(results), np.std(results)
                     if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
                         return -1e9, 1e9
 
-                    # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
-
                     return mean_profit, std_profit
-                
-                def objectiveLaPlaceMonteCarlo(trial):
-                    results = [] # Intermediate results
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+
+                def objectiveLaPlaceMonteCarlo(trial):
+                    results = []
+                    modelParams = defautParams.copy()
 
                     modelParams['useLaplaceMonteCarlo'] = True
                     modelParams['laplaceMonteCarloNumberOfSimulations'] = trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100)
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
+                        MIN_LEN, MAX_LEN = 1, 6
                         inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
                         subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                        # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
                             return -1e9, 1e9
-                        
                         modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
-
                     for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                        # Guard against None / NaN / Inf from downstream code:
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns,
+                                        years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild,
+                                        modelParams=modelParams)
                         if profit is None or isinstance(profit, (list, tuple, dict)):
                             continue
                         if not np.isfinite(profit):
                             continue
-
                         results.append(float(profit))
 
-                    # If nothing valid was produced, return finite “terrible” scores
                     if len(results) == 0:
                         return -1e9, 1e9
 
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
+                    mean_profit, std_profit = np.mean(results), np.std(results)
                     if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
                         return -1e9, 1e9
 
-                    # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
-
                     return mean_profit, std_profit
-                
-                def objectiveHybridStatistical(trial):
-                    results = [] # Intermediate results
 
-                    # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+
+                def objectiveHybridStatistical(trial):
+                    results = []
+                    modelParams = defautParams.copy()
 
                     modelParams['useHybridStatisticalModel'] = True
                     modelParams['hybridStatisticalModelSoftMaxTemperature'] = trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0)
                     modelParams['hybridStatisticalModelAlpha'] = trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0)
                     modelParams['hybridStatisticalModelMinOcurrences'] = trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20)
                     modelParams['hybridStatisticalModelNumberOfSimulations'] = trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100)
-                    
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
+                        MIN_LEN, MAX_LEN = 1, 6
                         inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
                         subset = [v for v, include in zip(all_values, inclusion_mask) if include]
 
-                        # Enforce length constraints
                         if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            # Return very bad values instead of -inf to avoid crashing the sampler
                             return -1e9, 1e9
-                        
                         modelParams["kenoSubset"] = subset
 
-                    #print("Params: ", modelParams)
-
                     for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                        # Guard against None / NaN / Inf from downstream code:
+                        profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns,
+                                        years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild,
+                                        modelParams=modelParams)
                         if profit is None or isinstance(profit, (list, tuple, dict)):
                             continue
                         if not np.isfinite(profit):
                             continue
-
                         results.append(float(profit))
 
-                    # If nothing valid was produced, return finite “terrible” scores
                     if len(results) == 0:
                         return -1e9, 1e9
 
-                    mean_profit = np.mean(results)
-                    std_profit = np.std(results)
-
-                    # Final safety: coerce to finite numbers
+                    mean_profit, std_profit = np.mean(results), np.std(results)
                     if not np.isfinite(mean_profit) or not np.isfinite(std_profit):
                         return -1e9, 1e9
 
-                    # Save attributes for later analysis
                     trial.set_user_attr("raw_results", results)
-
                     return mean_profit, std_profit
-
             
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
                 existingData = {}
@@ -1069,7 +951,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
@@ -1092,7 +974,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
@@ -1115,7 +997,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
@@ -1138,7 +1020,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
@@ -1161,7 +1043,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
@@ -1184,7 +1066,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
@@ -1207,7 +1089,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42, with_replacement=True)
                 )
 
                 # Run the automatic tuning process
