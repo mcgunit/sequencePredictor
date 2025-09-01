@@ -730,7 +730,8 @@ if __name__ == "__main__":
                     
                 def objectiveMarkovBayesian(trial):
                     results = []
-
+                    print("Trial number:", trial.number)
+                    print("Relative params:", trial.study.sampler.__class__.__name__)
                     modelParams = defautParams.copy()
                     modelParams['useMarkovBayesian'] = True
                     modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
@@ -951,7 +952,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -974,7 +975,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -997,7 +998,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1020,7 +1021,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1043,7 +1044,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1066,7 +1067,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
@@ -1089,7 +1090,7 @@ if __name__ == "__main__":
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True,
-                    sampler=optuna.samplers.NSGAIISampler(population_size=6, seed=42)
+                    sampler=optuna.samplers.MOTPESampler(seed=42)
                 )
 
                 # Run the automatic tuning process
