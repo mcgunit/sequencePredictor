@@ -124,31 +124,31 @@ def process_single_history_entry(args):
         "numberFrequency": helpers.count_number_frequencies(dataPath)
     }
 
-    if previousJsonFilePath and os.path.exists(previousJsonFilePath):
-        with open(previousJsonFilePath, 'r') as openfile:
-            previous_json_object = json.load(openfile)
-        current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
-        current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+    # if previousJsonFilePath and os.path.exists(previousJsonFilePath):
+    #     with open(previousJsonFilePath, 'r') as openfile:
+    #         previous_json_object = json.load(openfile)
+    #     current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+    #     current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-    best_matching_prediction = helpers.find_best_matching_prediction(
-        current_json_object["realResult"], current_json_object["currentPrediction"])
-    current_json_object["matchingNumbers"] = best_matching_prediction
+    # best_matching_prediction = helpers.find_best_matching_prediction(
+    #     current_json_object["realResult"], current_json_object["currentPrediction"])
+    # current_json_object["matchingNumbers"] = best_matching_prediction
 
-    listOfDecodedPredictions = []
-    unique_labels = []
+    # listOfDecodedPredictions = []
+    # unique_labels = []
 
-    _, _, _, _, _, _, _, unique_labels = helpers.load_data(
-        dataPath, skipLastColumns, years_back=years_back)
-    unique_labels = unique_labels.tolist()
+    # _, _, _, _, _, _, _, unique_labels = helpers.load_data(
+    #     dataPath, skipLastColumns, years_back=years_back)
+    # unique_labels = unique_labels.tolist()
 
-    with open(jsonFilePath, "w+") as outfile:
-        json.dump(current_json_object, outfile)
+    # with open(jsonFilePath, "w+") as outfile:
+    #     json.dump(current_json_object, outfile)
 
     listOfDecodedPredictions = statisticalMethod(
         listOfDecodedPredictions, dataPath, name, modelParams, skipRows=len(historyData)-historyIndex)
     
     current_json_object["newPrediction"] = listOfDecodedPredictions
-    current_json_object["labels"] = unique_labels
+    # current_json_object["labels"] = unique_labels
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
@@ -194,8 +194,8 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
             os.makedirs(folderPath, exist_ok=True)
         else:
             # Clear the hyperOptCache
+            #print("Clearing folder")
             clearFolder(folderPath)
-
 
         # Compare the latest result with the previous new prediction
         if not os.path.exists(jsonFilePath):
@@ -309,7 +309,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets)
+            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
             markovBayesianPrediction["predictions"].append(markovBayesianSequence)
             for key in markovBayesianSubsets:
                 markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
@@ -334,7 +334,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets)
+            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
             for key in markovBayesianEnhancedSubsets:
                 markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
@@ -358,7 +358,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
 
-            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets)
+            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
 
             poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
             for key in poissonMonteCarloSubsets:
@@ -382,7 +382,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
 
-            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets)
+            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
 
             poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
             for key in poissonMarkovSubsets:
@@ -406,7 +406,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
 
-            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets)
+            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
             for key in laplaceMonteCarloSubsets:
                 laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
@@ -431,7 +431,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
                 "predictions": []
             }
 
-            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets)
+            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
             hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
             for key in hybridStatisticalModelSubsets:
                 hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])
@@ -569,7 +569,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['usePoissonMonteCarlo'] = True
                     modelParams["poissonMonteCarloNumberOfSimulations"] = trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100)
@@ -610,7 +610,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['useMarkov'] = True
                     modelParams['markovSoftMaxTemperature'] = trial.suggest_float('markovSoftMaxTemperature', 0.1, 1.0)
@@ -645,7 +645,7 @@ if __name__ == "__main__":
 
                     for _ in range(numberOfRepeats):
                         profit = predict(f"{dataset_name}", dataPath, skipLastColumns=skip_last_columns, years_back=modelParams['yearsOfHistory'], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        #print("Profit: ", profit)
+                        print("Profit MARAKOV: ", profit)
                         results.append(profit)
 
                     totalProfit = sum(results) / len(results)
@@ -657,7 +657,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['useMarkovBayesian'] = True
                     modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
@@ -702,7 +702,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['usevMarkovBayesianEnhanced'] = True
                     modelParams['markovBayesianEnhancedSoftMaxTemperature'] = trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0)
@@ -743,7 +743,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['usePoissonMarkov'] = True
                     modelParams['poissonMarkovWeight'] = trial.suggest_float('poissonMarkovWeight', 0.1, 1.0)
@@ -783,7 +783,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['useLaplaceMonteCarlo'] = True
                     modelParams['laplaceMonteCarloNumberOfSimulations'] = trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100)
@@ -822,7 +822,7 @@ if __name__ == "__main__":
                     results = [] # Intermediate results
 
                     # this is needed to reset values to default for preventing non used parameters high jacking the hyperopt
-                    modelParams = defautParams
+                    modelParams = defautParams.copy()
 
                     modelParams['useHybridStatisticalModel'] = True
                     modelParams['hybridStatisticalModelSoftMaxTemperature'] = trial.suggest_float('hybridStatisticalModelSoftMaxTemperature', 0.1, 1.0)
@@ -875,28 +875,28 @@ if __name__ == "__main__":
                 totalProfitLaPlaceMonteCarlo = 0
                 totalProfitHybridStatistical = 0
                 
-                # Create an Optuna study object
-                #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                # # Create an Optuna study object
+                # #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                # studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                # study = optuna.create_study(
+                #     direction='maximize',
+                #     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                #     study_name=studyName,
+                #     load_if_exists=True
+                # )
 
-                # Run the automatic tuning process
-                study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
+                # # Run the automatic tuning process
+                # study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
-                print("Best Score for Poisson MonteCarlo: ", study.best_value)
+                # # Output the best hyperparameters and score
+                # print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
+                # print("Best Score for Poisson MonteCarlo: ", study.best_value)
 
-                totalProfitPoissonMonteCarlo = study.best_value
-                # save params
-                existingData.update(study.best_params)
+                # totalProfitPoissonMonteCarlo = study.best_value
+                # # save params
+                # existingData.update(study.best_params)
 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                # clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -918,6 +918,8 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
+                exit()
 
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(

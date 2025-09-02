@@ -121,36 +121,51 @@ class Markov():
         return blended
 
     def build_markov_chain(self, numbers):
-        """Creates the transition matrix with weighted recency and removes rare transitions."""
+        """Creates the transition matrix with weighted recency, decay, smoothing, and rare transition pruning."""
+        self.clear()  # reset state before building
         total_draws = len(numbers)
 
         for draw_index, draw in enumerate(numbers):
+            # --- Recency weight ---
             if self.recency_mode == "linear":
                 weight = 1 + (self.recency_weight * draw_index / total_draws)
             elif self.recency_mode == "log":
                 weight = 1 + np.log1p(draw_index) * self.recency_weight
-            else:
-                weight = 1
+            else:  # constant
+                weight = 1.0
 
             draw = list(map(int, draw))
+            recency_factor = self.pair_decay_factor ** (total_draws - draw_index)
 
+            # --- Transitions (Markov step) ---
             for i in range(len(draw) - 1):
                 self.transition_matrix[draw[i]][draw[i + 1]] += weight
-            
+
+            # --- Pairwise counts (decayed) ---
             for i in range(len(draw)):
                 for j in range(i + 1, len(draw)):
-                    self.pair_counts[draw[i]][draw[j]] += 1
-                    self.pair_counts[draw[j]][draw[i]] += 1
-            
-            for num in draw:
-                self.number_frequencies[int(num)] += 1
+                    self.pair_counts[draw[i]][draw[j]] += weight * recency_factor
+                    self.pair_counts[draw[j]][draw[i]] += weight * recency_factor
 
+            # --- Frequency counts ---
+            for num in draw:
+                self.number_frequencies[int(num)] += weight
+
+        # --- Normalize transitions with smoothing & min_occurrences ---
+        cleaned_matrix = {}
         for number, transitions in self.transition_matrix.items():
-            total = sum(transitions.values()) + self.smoothing_factor * len(transitions)
-            self.transition_matrix[number] = {
-                int(k): (v + self.smoothing_factor) / total 
-                for k, v in transitions.items()
+            # prune weak transitions
+            filtered = {k: v for k, v in transitions.items() if v >= self.min_occurrences}
+            if not filtered:
+                continue
+
+            total = sum(filtered.values()) + self.smoothing_factor * len(filtered)
+            cleaned_matrix[number] = {
+                int(k): (v + self.smoothing_factor) / total
+                for k, v in filtered.items()
             }
+
+        self.transition_matrix = cleaned_matrix
 
     def predict_next_numbers(self, previous_numbers, n_predictions=20, temperature=0.7):
         """Predicts the next numbers using Markov Chain with all fine-tuning strategies."""
@@ -201,7 +216,7 @@ class Markov():
         generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
         """
 
-        #print("Running Markov with params: ", self.alpha, self.min_occurrences, self.softMaxTemperature)
+        print("Running Markov with params: ", "Alpha", self.alpha, "min_occurrences", self.min_occurrences, "softMAxtemperature ", self.softMaxTemperature, "skipRows", skipRows)
     
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
@@ -210,6 +225,8 @@ class Markov():
 
         last_draw = numbers[-1]
         predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(last_draw), temperature=self.softMaxTemperature)
+
+        print("Predicted numbers from last draw: ", last_draw, predicted_numbers)
 
         subsets = {}
         if generateSubsets:
@@ -225,7 +242,7 @@ if __name__ == "__main__":
 
     markov = Markov()
 
-    name = 'keno'
+    name = 'pick3'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
@@ -237,5 +254,5 @@ if __name__ == "__main__":
 
     if "keno" in name:
         generateSubsets = [6, 7]
-
-    print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets))
+    for _ in range(3):
+        print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets))
