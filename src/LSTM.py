@@ -258,7 +258,8 @@ class LSTMModel:
 
         # --- MultiHead Self-Attention block (keeps 3D shape) ---
         # You can tune num_heads/key_dim; start small to avoid overfitting.
-        model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=max(self.key_dim, lstm_units // 4), dropout=0.0))
+        model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=0.0))
+        model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=0.0))
 
         # --- Collapse time dimension to 2D ---
         model.add(layers.GlobalAveragePooling1D())  # (batch, features)
@@ -413,26 +414,26 @@ if __name__ == "__main__":
     lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(4)
+    lstm_model.setBatchSize(64)
     lstm_model.setEpochs(5000)
-    lstm_model.setNumberOfLSTMLayers(1)
-    lstm_model.setNumberOfLstmUnits(32)
-    lstm_model.setNumberOfBidrectionalLayers(1)
+    lstm_model.setNumberOfLSTMLayers(2)
+    lstm_model.setNumberOfLstmUnits(64)
+    lstm_model.setNumberOfBidrectionalLayers(64)
     lstm_model.setNumberOfBidirectionalLstmUnits(32)
-    lstm_model.setOptimizer("adam")
-    lstm_model.setLearningRate(0.0002)
+    lstm_model.setOptimizer("adagrad")
+    lstm_model.setLearningRate(0.00064)
     lstm_model.setDropout(0.3) # 0.2 - 0.5
-    lstm_model.setL2Regularization(0.01) #0.005 - 0.00005
-    lstm_model.setUseFinalLSTMLayer(False)
-    lstm_model.setEarlyStopPatience(5000)
-    lstm_model.setReduceLearningRatePAience(50)
-    lstm_model.setReducedLearningRateFactor(0.7)
-    lstm_model.setWindowSize(20) # 50 - 100
-    lstm_model.setMarkovAlpha(0.19)
+    lstm_model.setL2Regularization(0.0005) #0.001 - 0.00005
+    lstm_model.setUseFinalLSTMLayer(True)
+    lstm_model.setEarlyStopPatience(60)
+    lstm_model.setReduceLearningRatePAience(20)
+    lstm_model.setReducedLearningRateFactor(0.5)
+    lstm_model.setWindowSize(10) # 50 - 100
+    lstm_model.setMarkovAlpha(0.59)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
-    lstm_model.setLabelSmoothing(0.08)
-    lstm_model.setNumHeads(2)
-    lstm_model.setKeyDim(16)
+    lstm_model.setLabelSmoothing(0.03)
+    lstm_model.setNumHeads(4)
+    lstm_model.setKeyDim(64)
 
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=20, strict_val=True)
     num_classes = len(unique_labels)
