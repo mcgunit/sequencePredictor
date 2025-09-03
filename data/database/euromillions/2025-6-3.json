@@ -2,13 +2,13 @@
   "currentPredictionRaw": [],
   "currentPrediction": [],
   "realResult": [
-    8,
-    10,
-    33,
-    35,
-    49,
-    2,
-    9
+    12,
+    15,
+    38,
+    47,
+    48,
+    5,
+    7
   ],
   "newPrediction": [
     {
@@ -16,18 +16,23 @@
       "predictions": [
         [
           3,
-          2,
           5,
-          7,
-          15,
           1,
-          4
+          2,
+          4,
+          7,
+          15
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
-  "matchingNumbers": {},
+  "matchingNumbers": {
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
+  },
   "labels": [],
   "numberFrequency": []
 }

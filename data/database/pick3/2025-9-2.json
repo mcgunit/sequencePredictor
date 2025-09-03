@@ -2,55 +2,29 @@
   "currentPredictionRaw": [],
   "currentPrediction": [
     {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          33,
-          3,
-          6,
-          11,
-          12,
-          44,
-          17
-        ]
-      ]
-    },
-    {
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
+          1,
           2,
-          3,
-          11,
-          12,
-          29,
-          38,
-          50
+          7
         ]
       ]
     }
   ],
   "realResult": [
-    7,
-    16,
-    31,
-    43,
-    46,
+    3,
     5,
-    9
+    4
   ],
   "newPrediction": [
     {
-      "name": "HybridStatisticalModel",
+      "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          3,
-          2,
+          4,
           5,
-          6,
-          15,
-          44,
-          1
+          7
         ]
       ]
     }
@@ -63,5 +37,9 @@
     "match_count": 0
   },
   "labels": [],
-  "numberFrequency": []
+  "numberFrequency": {
+    "4": 0.3333333333333333,
+    "5": 0.3333333333333333,
+    "7": 0.3333333333333333
+  }
 }
