@@ -3,25 +3,25 @@
   "currentPrediction": [],
   "realResult": [
     2,
-    5,
-    9,
-    12,
-    24,
-    31,
-    5
+    3,
+    4,
+    7,
+    36,
+    46,
+    2
   ],
   "newPrediction": [
     {
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          5,
           1,
-          2,
           4,
-          22,
+          2,
+          5,
+          28,
           32,
-          38
+          44
         ]
       ]
     }
