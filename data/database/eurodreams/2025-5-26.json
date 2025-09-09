@@ -15,13 +15,13 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          5,
           1,
-          3,
+          5,
           4,
-          23,
-          31,
-          34
+          15,
+          16,
+          18,
+          36
         ]
       ]
     }

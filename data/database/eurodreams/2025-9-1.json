@@ -6,12 +6,12 @@
       "predictions": [
         [
           1,
-          5,
           3,
+          5,
+          15,
           16,
-          19,
-          31,
-          32
+          18,
+          36
         ]
       ]
     }
@@ -30,34 +30,23 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          5,
           15,
           1,
-          2,
-          3,
-          4,
-          8
+          5,
+          35,
+          7,
+          23,
+          2
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      1,
-      5,
-      3,
-      16,
-      19,
-      31,
-      32
-    ],
-    "matching_numbers": [
-      32,
-      31
-    ],
-    "match_count": 2
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [],
   "numberFrequency": []

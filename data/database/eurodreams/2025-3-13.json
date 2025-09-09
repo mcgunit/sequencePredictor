@@ -16,23 +16,18 @@
       "predictions": [
         [
           1,
+          15,
           3,
           5,
-          21,
-          24,
-          31,
-          34
+          16,
+          18,
+          21
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
-  "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
-  },
+  "matchingNumbers": {},
   "labels": [],
   "numberFrequency": []
 }

@@ -17,22 +17,17 @@
         [
           1,
           2,
-          5,
-          3,
           16,
-          31,
-          34
+          18,
+          5,
+          15,
+          3
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
-  "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
-  },
+  "matchingNumbers": {},
   "labels": [],
   "numberFrequency": []
 }
