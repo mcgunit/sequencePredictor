@@ -6,5 +6,5 @@ RUN python3 -m pip install numpy tensorflow==2.18 keras art pandas scikit-learn 
 
 
 # You can run this docker after building:
-    # docker run --rm -it -v {absolute path to folder sequencePredictor}:/opt/sequencePredictor sequence_predictor /bin/bash
+    # docker run --rm -it -u $(id -u) -v {absolute path to folder sequencePredictor}:/opt/sequencePredictor sequence_predictor /bin/bash
     

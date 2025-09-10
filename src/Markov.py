@@ -153,6 +153,7 @@ class Markov():
 
         # --- Normalize transitions with smoothing & min_occurrences ---
         cleaned_matrix = {}
+        
         for number, transitions in self.transition_matrix.items():
             # prune weak transitions
             filtered = {k: v for k, v in transitions.items() if v >= self.min_occurrences}
@@ -206,6 +207,8 @@ class Markov():
                 if next_best is not None and int(next_best) not in predictions:
                     predictions.add(int(next_best))
 
+        
+
         return sorted(map(int, list(predictions)[:n_predictions]))
 
     def run(self, generateSubsets=[], skipRows=0):
@@ -216,14 +219,16 @@ class Markov():
         generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
         """
 
-        print("Running Markov with params: ", "Alpha", self.alpha, "min_occurrences", self.min_occurrences, "softMAxtemperature ", self.softMaxTemperature, "skipRows", skipRows)
+        #print("Running Markov with params: ", "Alpha", self.alpha, "min_occurrences", self.min_occurrences, "softMAxtemperature ", self.softMaxTemperature, "skipRows", skipRows)
     
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
 
-
+        #print("Building chain")
         self.build_markov_chain(numbers)
 
+
         last_draw = numbers[-1]
+        #print("Last draw: ", last_draw)
         predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(last_draw), temperature=self.softMaxTemperature)
 
         print("Predicted numbers from last draw: ", last_draw, predicted_numbers)
@@ -248,9 +253,15 @@ if __name__ == "__main__":
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
     markov.setDataPath(dataPath)
-    markov.setSoftMAxTemperature(0.1)
-    markov.setAlpha(0.5)
-    markov.setMinOccurrences(5)
+    markov.setSoftMAxTemperature(0.45549133296465505)
+    markov.setAlpha(0.5756199713439012)
+    markov.setMinOccurrences(15)
+    markov.setSubsetSelectionMode("softmax")
+    markov.setBlendMode("linear")
+    markov.setRecencyMode("constant")
+    markov.setRecencyWeight(1.7071181120445589)
+    #markov.setPairDecayFactor(1.2286344216885279)
+    markov.setPairDecayFactor(1)
 
     if "keno" in name:
         generateSubsets = [6, 7]

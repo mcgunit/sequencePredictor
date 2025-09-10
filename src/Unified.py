@@ -304,9 +304,9 @@ if __name__ == "__main__":
         model.setDataPath(dataPath)
         model.setBatchSize(64)
         model.setEpochs(1000)            # keep reasonable for quick tests
-        model.setWindowSize(20)
-        model.setPredictionWindowSize(20)
-        model.setLearningRate(0.001)
+        model.setWindowSize(30)
+        model.setPredictionWindowSize(30)
+        model.setLearningRate(0.0001)
         model.setDropout(0.3)
         model.setL2Regularization(0.0005)
         model.setEarlyStopPatience(50)
@@ -325,7 +325,7 @@ if __name__ == "__main__":
             model.setGruUnits(64)
         if arch == "tcn":
             model.setTcnUnits(64)
-            model.setNumTcnLayers(2)
+            model.setNumTcnLayers(4)
 
         raw_pred, unique_labels = model.train_and_predict(name, years_back=20, strict_val=True)
         predicted_digits = np.argmax(raw_pred, axis=-1)

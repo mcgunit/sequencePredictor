@@ -19,7 +19,7 @@ from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
 
 
-markov = Markov()
+
 markovBayesian = MarkovBayesian()
 markovBayesianEnhanced = MarkovBayesianEnhanced()
 poissonMonteCarlo = PoissonMonteCarlo()
@@ -124,22 +124,22 @@ def process_single_history_entry(args):
         "numberFrequency": helpers.count_number_frequencies(dataPath)
     }
 
-    # if previousJsonFilePath and os.path.exists(previousJsonFilePath):
-    #     with open(previousJsonFilePath, 'r') as openfile:
-    #         previous_json_object = json.load(openfile)
-    #     current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
-    #     current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+    if previousJsonFilePath and os.path.exists(previousJsonFilePath):
+        with open(previousJsonFilePath, 'r') as openfile:
+            previous_json_object = json.load(openfile)
+        current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
+        current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
-    # best_matching_prediction = helpers.find_best_matching_prediction(
-    #     current_json_object["realResult"], current_json_object["currentPrediction"])
-    # current_json_object["matchingNumbers"] = best_matching_prediction
+    best_matching_prediction = helpers.find_best_matching_prediction(
+        current_json_object["realResult"], current_json_object["currentPrediction"])
+    current_json_object["matchingNumbers"] = best_matching_prediction
 
-    # listOfDecodedPredictions = []
-    # unique_labels = []
+    listOfDecodedPredictions = []
+    unique_labels = []
 
-    # _, _, _, _, _, _, _, unique_labels = helpers.load_data(
-    #     dataPath, skipLastColumns, years_back=years_back)
-    # unique_labels = unique_labels.tolist()
+    _, _, _, _, _, _, _, unique_labels = helpers.load_data(
+        dataPath, skipLastColumns, years_back=years_back)
+    unique_labels = unique_labels.tolist()
 
     # with open(jsonFilePath, "w+") as outfile:
     #     json.dump(current_json_object, outfile)
@@ -148,7 +148,7 @@ def process_single_history_entry(args):
         listOfDecodedPredictions, dataPath, name, modelParams, skipRows=len(historyData)-historyIndex)
     
     current_json_object["newPrediction"] = listOfDecodedPredictions
-    # current_json_object["labels"] = unique_labels
+    current_json_object["labels"] = unique_labels
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
@@ -236,7 +236,8 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
                 for historyIndex, historyEntry in enumerate(historyData)
             ]
 
-            numberOfProcesses = min((cpu_count()-1), len(argsList))
+            #numberOfProcesses = min((cpu_count()-1), len(argsList))
+            numberOfProcesses = 1
 
             with Pool(processes=numberOfProcesses) as pool:
                 results = pool.map(process_single_history_entry, argsList)
@@ -266,6 +267,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
         try:
             # Markov
             # print("Performing Markov Prediction")
+            markov = Markov()
             markov.setDataPath(dataPath)
             markov.setSoftMAxTemperature(modelParams["markovSoftMaxTemperature"])
             markov.setMinOccurrences(modelParams["markovMinOccurences"])
@@ -284,14 +286,30 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             }
 
             markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
+
+            #print(">>> Trial params:", modelParams)
+            #print(">>> Markov sequence sample:", markov.run(generateSubsets=subsets, skipRows=skipRows)[0])
             
             markovPrediction["predictions"].append(markovSequence)
             for key in markovSubsets:
                 markovPrediction["predictions"].append(markovSubsets[key])
 
             listOfDecodedPredictions.append(markovPrediction)
+            del markov
         except Exception as e:
             print("Failed to perform Markov: ", e)
+            print(
+                "Params: ", 
+                "temperature: ", modelParams["markovSoftMaxTemperature"], 
+                "min occurences: ", modelParams["markovMinOccurences"],
+                "markovAlpha: ", modelParams["markovAlpha"],
+                "markovRecencyWeight: ", modelParams["markovRecencyWeight"],
+                "markovRecencyMode: ", modelParams["markovRecencyMode"],
+                "markovPairDecayFactor: ", modelParams["markovPairDecayFactor"],
+                "markovSmoothingFactor: ", modelParams["markovSmoothingFactor"],
+                "markovSubsetSelectionMode: ", modelParams["markovSubsetSelectionMode"],
+                "markovBlendMode: ", modelParams["markovBlendMode"]
+            )
 
     
     if modelParams["useMarkovBayesian"] == True:
@@ -479,7 +497,7 @@ if __name__ == "__main__":
         rebuildHistory = bool(args.rebuild_history)
         n_trials = int(args.trials)
 
-        numberOfRepeats = 3
+        numberOfRepeats = 1
         path = os.getcwd()
 
         datasets = [
@@ -618,7 +636,7 @@ if __name__ == "__main__":
                     modelParams['markovAlpha'] = trial.suggest_float('markovAlpha', 0.1, 1.0)
                     modelParams['markovRecencyWeight'] = trial.suggest_float('markovRecencyWeight', 0.1, 2.0)
                     modelParams['markovRecencyMode'] = trial.suggest_categorical("markovRecencyMode", ["linear", "log", "constant"])
-                    modelParams['markovPairDecayFactor'] = trial.suggest_float('markovPairDecayFactor', 0.1, 2.0)
+                    modelParams['markovPairDecayFactor'] = trial.suggest_float('markovPairDecayFactor', 0.1, 1.0)
                     modelParams['markovSmoothingFactor'] = trial.suggest_float('markovSmoothingFactor', 0.01, 1.0)
                     modelParams['markovSubsetSelectionMode'] = trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"])
                     modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
