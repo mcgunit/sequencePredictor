@@ -1,0 +1,38 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [],
+  "realResult": [
+    10,
+    17,
+    19,
+    28,
+    31,
+    32,
+    3
+  ],
+  "newPrediction": [
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          5,
+          15,
+          18,
+          1,
+          16,
+          32,
+          2
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
+  },
+  "labels": [],
+  "numberFrequency": []
+}
