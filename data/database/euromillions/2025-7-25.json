@@ -7,10 +7,10 @@
         [
           3,
           2,
-          5,
-          6,
-          15,
-          44,
+          4,
+          9,
+          26,
+          42,
           1
         ]
       ]
@@ -31,32 +31,22 @@
       "predictions": [
         [
           8,
+          1,
           2,
           3,
-          6,
+          5,
           7,
-          9,
-          1
+          9
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      3,
-      2,
-      5,
-      6,
-      15,
-      44,
-      1
-    ],
-    "matching_numbers": [
-      6
-    ],
-    "match_count": 1
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [],
   "numberFrequency": []

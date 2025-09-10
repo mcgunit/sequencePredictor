@@ -5,38 +5,26 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          2,
+          4,
           3,
-          15,
-          5,
-          9,
-          29,
-          1
+          8
         ]
       ]
     }
   ],
   "realResult": [
-    7,
-    16,
-    21,
-    23,
-    39,
-    7,
-    11
+    2,
+    1,
+    2
   ],
   "newPrediction": [
     {
-      "name": "HybridStatisticalModel",
+      "name": "LaplaceMonteCarlo Model",
       "predictions": [
         [
-          3,
-          1,
           4,
           5,
-          9,
-          26,
-          47
+          3
         ]
       ]
     }
@@ -49,5 +37,9 @@
     "match_count": 0
   },
   "labels": [],
-  "numberFrequency": []
+  "numberFrequency": {
+    "4": 0.3333333333333333,
+    "5": 0.3333333333333333,
+    "3": 0.3333333333333333
+  }
 }
