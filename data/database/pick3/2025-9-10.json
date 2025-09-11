@@ -1,0 +1,51 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          5,
+          3
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    5,
+    1,
+    4
+  ],
+  "newPrediction": [
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          4,
+          3
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "LaplaceMonteCarlo Model",
+    "prediction": [
+      4,
+      5,
+      3
+    ],
+    "matching_numbers": [
+      4,
+      5
+    ],
+    "match_count": 2
+  },
+  "labels": [],
+  "numberFrequency": {
+    "4": 0.6666666666666666,
+    "3": 0.3333333333333333
+  }
+}
