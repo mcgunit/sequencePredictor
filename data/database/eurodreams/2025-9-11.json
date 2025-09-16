@@ -6,23 +6,23 @@
       "predictions": [
         [
           1,
-          15,
+          24,
           3,
+          4,
           5,
-          16,
-          18,
-          21
+          15,
+          19
         ]
       ]
     }
   ],
   "realResult": [
     1,
-    8,
+    9,
+    15,
     17,
-    35,
-    38,
-    39,
+    19,
+    37,
     2
   ],
   "newPrediction": [
@@ -33,10 +33,10 @@
           1,
           2,
           3,
+          5,
+          15,
           4,
-          19,
-          23,
-          24
+          11
         ]
       ]
     }
@@ -46,17 +46,19 @@
     "model": "HybridStatisticalModel",
     "prediction": [
       1,
-      15,
+      24,
       3,
+      4,
       5,
-      16,
-      18,
-      21
+      15,
+      19
     ],
     "matching_numbers": [
-      1
+      1,
+      19,
+      15
     ],
-    "match_count": 1
+    "match_count": 3
   },
   "labels": [],
   "numberFrequency": []
