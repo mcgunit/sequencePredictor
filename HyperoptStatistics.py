@@ -236,11 +236,18 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
                 for historyIndex, historyEntry in enumerate(historyData)
             ]
 
+            """
+                pooling is causing a lot of cache result and very bad
+            """
             #numberOfProcesses = min((cpu_count()-1), len(argsList))
-            numberOfProcesses = 1
+            #numberOfProcesses = 1
 
-            with Pool(processes=numberOfProcesses) as pool:
-                results = pool.map(process_single_history_entry, argsList)
+            # with Pool(processes=numberOfProcesses) as pool:
+            #     results = pool.map(process_single_history_entry, argsList)
+
+            for entry in argsList:
+                results = process_single_history_entry(entry)
+
 
             print("Finished multiprocessing rebuild of history entries.")
 
@@ -484,7 +491,7 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=14)
+        parser.add_argument('-d', '--days', type=int, default=8)
         parser.add_argument('-t', '--trials', type=int, default=150)
         args = parser.parse_args()
 
@@ -497,7 +504,7 @@ if __name__ == "__main__":
         rebuildHistory = bool(args.rebuild_history)
         n_trials = int(args.trials)
 
-        numberOfRepeats = 1
+        numberOfRepeats = 2
         path = os.getcwd()
 
         datasets = [
@@ -893,28 +900,28 @@ if __name__ == "__main__":
                 totalProfitLaPlaceMonteCarlo = 0
                 totalProfitHybridStatistical = 0
                 
-                # # Create an Optuna study object
-                # #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                # studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                # study = optuna.create_study(
-                #     direction='maximize',
-                #     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                #     study_name=studyName,
-                #     load_if_exists=True
-                # )
+                # Create an Optuna study object
+                #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                study = optuna.create_study(
+                    direction='maximize',
+                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    study_name=studyName,
+                    load_if_exists=True
+                )
 
-                # # Run the automatic tuning process
-                # study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
+                # Run the automatic tuning process
+                study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
 
-                # # Output the best hyperparameters and score
-                # print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
-                # print("Best Score for Poisson MonteCarlo: ", study.best_value)
+                # Output the best hyperparameters and score
+                print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
+                print("Best Score for Poisson MonteCarlo: ", study.best_value)
 
-                # totalProfitPoissonMonteCarlo = study.best_value
-                # # save params
-                # existingData.update(study.best_params)
+                totalProfitPoissonMonteCarlo = study.best_value
+                # save params
+                existingData.update(study.best_params)
 
-                # clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -936,8 +943,6 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
-
-                exit()
 
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(

@@ -176,6 +176,7 @@ class MarkovBayesian():
         predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=n_predictions, temperature=self.softMaxTemperature)
 
         #print("predicted_numbers", len(predicted_numbers))
+        #print("Predicted numbers from last draw: ", last_draw, predicted_numbers)
 
         # Get predictions from the Bayesian model
         bayesian_predictions = self.bayesian_prediction(n_predictions=n_predictions)
