@@ -1,6 +1,21 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [],
+  "currentPrediction": [
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          8,
+          9,
+          12,
+          30,
+          31,
+          37,
+          2
+        ]
+      ]
+    }
+  ],
   "realResult": [
     7,
     19,
@@ -16,12 +31,12 @@
       "predictions": [
         [
           8,
-          12,
+          10,
+          14,
+          16,
           19,
-          22,
-          37,
-          2,
-          3
+          28,
+          1
         ]
       ]
     }
