@@ -414,22 +414,22 @@ if __name__ == "__main__":
     lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
-    lstm_model.setBatchSize(64)
+    lstm_model.setBatchSize(8)
     lstm_model.setEpochs(5000)
-    lstm_model.setNumberOfLSTMLayers(2)
-    lstm_model.setNumberOfLstmUnits(64)
-    lstm_model.setNumberOfBidrectionalLayers(64)
-    lstm_model.setNumberOfBidirectionalLstmUnits(32)
-    lstm_model.setOptimizer("adagrad")
-    lstm_model.setLearningRate(0.00064)
-    lstm_model.setDropout(0.3) # 0.2 - 0.5
-    lstm_model.setL2Regularization(0.0005) #0.001 - 0.00005
+    lstm_model.setNumberOfLSTMLayers(1)
+    lstm_model.setNumberOfLstmUnits(32)
+    lstm_model.setNumberOfBidrectionalLayers(3)
+    lstm_model.setNumberOfBidirectionalLstmUnits(16)
+    lstm_model.setOptimizer("nadam")
+    lstm_model.setLearningRate(0.00044)
+    lstm_model.setDropout(0.1) # 0.2 - 0.5
+    lstm_model.setL2Regularization(0.0054) #0.001 - 0.00005
     lstm_model.setUseFinalLSTMLayer(True)
-    lstm_model.setEarlyStopPatience(60)
-    lstm_model.setReduceLearningRatePAience(20)
-    lstm_model.setReducedLearningRateFactor(0.5)
-    lstm_model.setWindowSize(10) # 50 - 100
-    lstm_model.setMarkovAlpha(0.59)
+    lstm_model.setEarlyStopPatience(10)
+    lstm_model.setReduceLearningRatePAience(71)
+    lstm_model.setReducedLearningRateFactor(0.1)
+    lstm_model.setWindowSize(95) # 50 - 100
+    lstm_model.setMarkovAlpha(0.4)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
     lstm_model.setLabelSmoothing(0.03)
     lstm_model.setNumHeads(4)
