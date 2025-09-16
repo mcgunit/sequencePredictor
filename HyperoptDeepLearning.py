@@ -4,7 +4,6 @@ import numpy as np
 
 from art import text2art
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
 
 
 from src.TCN import TCNModel
@@ -289,11 +288,6 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                 for historyIndex, historyEntry in enumerate(historyData)
             ]
 
-            
-            # numberOfProcesses = 1
-
-            # with Pool(processes=numberOfProcesses) as pool:
-            #     results = pool.map(process_single_history_entry, argsList)
 
             for args in argsList:
                 results = process_single_history_entry(args)

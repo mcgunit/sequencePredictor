@@ -5,7 +5,6 @@ import optuna
 
 from art import text2art
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
 
 from src.Markov import Markov
 from src.MarkovBayesian import MarkovBayesian
@@ -237,14 +236,9 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
             ]
 
             """
-                pooling is causing a lot of cache result and very bad
+                Already tried with pooling for multi processing
+                but it caused a lot of issues with returning the same values
             """
-            #numberOfProcesses = min((cpu_count()-1), len(argsList))
-            #numberOfProcesses = 1
-
-            # with Pool(processes=numberOfProcesses) as pool:
-            #     results = pool.map(process_single_history_entry, argsList)
-
             for entry in argsList:
                 results = process_single_history_entry(entry)
 
