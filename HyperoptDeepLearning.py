@@ -290,10 +290,13 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             ]
 
             
-            numberOfProcesses = 1
+            # numberOfProcesses = 1
 
-            with Pool(processes=numberOfProcesses) as pool:
-                results = pool.map(process_single_history_entry, argsList)
+            # with Pool(processes=numberOfProcesses) as pool:
+            #     results = pool.map(process_single_history_entry, argsList)
+
+            for args in argsList:
+                results = process_single_history_entry(args)
 
             print("Finished rebuild of history entries.")
 
