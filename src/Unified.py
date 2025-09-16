@@ -320,12 +320,12 @@ if __name__ == "__main__":
 
         # optional: tune model sizes for archs
         if arch == "lstm":
-            model.setLstmUnits(64)
+            model.setLstmUnits(128)
         if arch == "gru":
-            model.setGruUnits(64)
+            model.setGruUnits(128)
         if arch == "tcn":
-            model.setTcnUnits(64)
-            model.setNumTcnLayers(4)
+            model.setTcnUnits(128)
+            model.setNumTcnLayers(2)
 
         raw_pred, unique_labels = model.train_and_predict(name, years_back=20, strict_val=True)
         predicted_digits = np.argmax(raw_pred, axis=-1)
