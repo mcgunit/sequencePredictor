@@ -683,9 +683,6 @@ if __name__ == "__main__":
                     modelParams['markovBayesianSoftMaxTemperature'] = trial.suggest_float('markovBayesianSoftMaxTemperature', 0.1, 1.0)
                     modelParams['markovBayesianMinOccurences'] = trial.suggest_int('markovBayesianMinOccurences', 1, 20)
                     modelParams['markovBayesianAlpha'] = trial.suggest_float('markovBayesianAlpha', 0.1, 1.0)
-                    modelParams['markovBayesianEnhancedSoftMaxTemperature'] = trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0)
-                    modelParams['markovBayesianEnhancedAlpha'] = trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0)
-                    modelParams['markovBayesianEnhancedMinOccurences'] = trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20)
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
