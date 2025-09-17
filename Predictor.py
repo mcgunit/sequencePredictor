@@ -8,9 +8,6 @@ from multiprocessing import Pool, cpu_count
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
-from src.LSTM_ARIMA_Model import LSTM_ARIMA_Model
-from src.RefinemePrediction import RefinePrediction
-from src.TopPrediction import TopPrediction
 from src.Markov import Markov
 from src.MarkovBayesian import MarkovBayesian
 from src.MarkovBayesianEnhanched import MarkovBayesianEnhanced
@@ -25,9 +22,6 @@ from src.DataFetcher import DataFetcher
 
 tcn = TCNModel()
 lstm = LSTMModel()
-lstmArima = LSTM_ARIMA_Model()
-refinePrediction = RefinePrediction()
-topPredictor = TopPrediction()
 markov = Markov()
 markovBayesian = MarkovBayesian()
 markovBayesianEnhanced = MarkovBayesianEnhanced()
