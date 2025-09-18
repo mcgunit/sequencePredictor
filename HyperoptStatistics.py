@@ -486,7 +486,7 @@ if __name__ == "__main__":
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
         parser.add_argument('-d', '--days', type=int, default=8)
-        parser.add_argument('-t', '--trials', type=int, default=150)
+        parser.add_argument('-t', '--trials', type=int, default=15)
         args = parser.parse_args()
 
         print_intro()
