@@ -219,7 +219,8 @@ def process_single_history_entry_second_step(args):
         modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
         modelToUse.setPredictionWindowSize(modelToUse.window_size)
         modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
-        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
+        yearsOfHistory = bestParams_json_object['yearsOfHistory']
+        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=yearsOfHistory)
         
         latest_raw_predictions, unique_labels = modelToUse.run(
             name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
@@ -271,7 +272,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
     # Get the hyperopted parameters 
     bestParams_json_object = {
-        "yearsOfHistory": 2,   
+        "yearsOfHistory": 20,   
     }
 
     try:
@@ -375,7 +376,8 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
                         modelToUse.setPredictionWindowSize(modelToUse.window_size)
                         modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
+                        yearsOfHistory = bestParams_json_object['yearsOfHistory']
+                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=yearsOfHistory)
                         
                         predictedSequence = latest_raw_predictions.tolist()
 
@@ -387,7 +389,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
             
                         listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
                     else:
-                        _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=bestParams_json_object['yearsOfHistory'])
+                        _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=yearsOfHistory)
                         unique_labels = unique_labels.tolist()
 
 
@@ -459,9 +461,11 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     print("Finished first step: multiprocessing rebuild of history entries and statistical method.")
 
+                    yearsOfHistory = bestParams_json_object['yearsOfHistory']
+
                     argsList = [
                         (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-                            skipLastColumns, bestParams_json_object['yearsOfHistory'], ai, previousJsonFilePath, path, boost, bestParams_json_object)
+                            skipLastColumns, yearsOfHistory, ai, previousJsonFilePath, path, boost, bestParams_json_object)
                         for historyIndex, historyEntry in enumerate(historyData)
                     ]
 
@@ -520,7 +524,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "use_8":True,
         "use_9":True,
         "use_10":True,
-        "yearsOfHistory": 2,
+        "yearsOfHistory": 20,
         "useMarkov":False,
         "useMarkovBayesian":True,
         "usevMarkovBayesianEnhanced":True,
