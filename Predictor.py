@@ -861,7 +861,7 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=190)
+        parser.add_argument('-d', '--days', type=int, default=31)
         args = parser.parse_args()
 
         print_intro()
@@ -878,13 +878,13 @@ if __name__ == "__main__":
         # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
         datasets = [
             # (dataset_name, model_type, skip_last_columns, ai, xgboost)
-            ("euromillions", "tcn_model", 0, True, False),
-            ("lotto", "lstm_model", 0, True, False),
-            ("eurodreams", "lstm_model", 0, True, False),
+            # ("euromillions", "tcn_model", 0, True, False),
+            # ("lotto", "lstm_model", 0, True, False),
+            # ("eurodreams", "lstm_model", 0, True, False),
             #("jokerplus", "lstm_model", 1, False, True),
-            ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
-            ("pick3", "lstm_model", 0, False, False),
-            ("vikinglotto", "lstm_model", 0, True, False),
+            # ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
+            ("pick3", "lstm_model", 0, True, False),
+            # ("vikinglotto", "lstm_model", 0, True, False),
         ]
 
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
