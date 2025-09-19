@@ -389,6 +389,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
             
                         listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
                     else:
+                        yearsOfHistory = bestParams_json_object['yearsOfHistory']
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=yearsOfHistory)
                         unique_labels = unique_labels.tolist()
 
