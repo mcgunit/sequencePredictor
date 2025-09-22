@@ -231,7 +231,7 @@ class Markov():
         #print("Last draw: ", last_draw)
         predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(last_draw), temperature=self.softMaxTemperature)
 
-        #print("Predicted numbers from last draw: ", last_draw, predicted_numbers)
+        print("Predicted numbers from last draw: ", last_draw, predicted_numbers)
 
         subsets = {}
         if generateSubsets:

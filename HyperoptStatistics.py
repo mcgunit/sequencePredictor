@@ -1,8 +1,6 @@
-import os, argparse, json, sys
-import optuna
-from concurrent.futures import ThreadPoolExecutor
+import os, argparse, json, sys, random, optuna, multiprocessing
 
-
+from multiprocessing import Process, Queue
 from art import text2art
 from datetime import datetime
 
@@ -107,6 +105,8 @@ def update_matching_numbers(name, path):
 def process_single_history_entry(args):
     (historyIndex, historyEntry, historyData, name, dataPath,
         skipLastColumns, years_back, previousJsonFilePath, path, modelParams) = args
+
+    random.seed(os.getpid() + historyIndex + int(random.random() * 1e6))
 
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
@@ -240,9 +240,19 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
                 but it caused a lot of issues with returning the same values
             """
 
-            with ThreadPoolExecutor() as executor:
-                results = list(executor.map(process_single_history_entry, argsList))
+            # with ThreadPoolExecutor() as executor:
+            #     results = list(executor.map(process_single_history_entry, argsList))
+            # with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+            #     results = list(executor.map(process_single_history_entry, argsList))
+            processes = []
+            
+            for args in argsList:
+                p = Process(target=process_single_history_entry, args=(args, ))
+                p.start()
+                processes.append(p)
 
+            for p in processes:
+                p.join()
 
             print("Finished multiprocessing rebuild of history entries.")
 
@@ -463,6 +473,8 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
     return listOfDecodedPredictions
 
 if __name__ == "__main__":
+    # Verry important!! By default it is fork but then it reuses the same process every time resulting in same values 
+    multiprocessing.set_start_method('spawn')
 
     if is_running():
         print("Another instance is already running. Exiting.")
