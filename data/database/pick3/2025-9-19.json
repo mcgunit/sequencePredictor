@@ -5,38 +5,26 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          19,
-          3,
+          2,
           4,
-          13,
-          14,
-          29,
-          36
+          0
         ]
       ]
     }
   ],
   "realResult": [
-    2,
     7,
     8,
-    10,
-    25,
-    45,
-    40
+    9
   ],
   "newPrediction": [
     {
-      "name": "HybridStatisticalModel",
+      "name": "Markov Model",
       "predictions": [
         [
-          1,
-          2,
-          14,
-          24,
-          38,
           3,
-          4
+          6,
+          9
         ]
       ]
     }
@@ -49,5 +37,9 @@
     "match_count": 0
   },
   "labels": [],
-  "numberFrequency": []
+  "numberFrequency": {
+    "3": 0.3333333333333333,
+    "6": 0.3333333333333333,
+    "9": 0.3333333333333333
+  }
 }

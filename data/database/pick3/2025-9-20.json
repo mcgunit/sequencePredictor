@@ -1,27 +1,30 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [],
+  "currentPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          3,
+          6,
+          9
+        ]
+      ]
+    }
+  ],
   "realResult": [
-    1,
     7,
-    16,
-    23,
-    27,
-    32,
-    12
+    5,
+    4
   ],
   "newPrediction": [
     {
-      "name": "HybridStatisticalModel",
+      "name": "Markov Model",
       "predictions": [
         [
-          19,
           3,
-          4,
           7,
-          24,
-          2,
-          8
+          9
         ]
       ]
     }
@@ -34,5 +37,9 @@
     "match_count": 0
   },
   "labels": [],
-  "numberFrequency": []
+  "numberFrequency": {
+    "3": 0.3333333333333333,
+    "7": 0.3333333333333333,
+    "9": 0.3333333333333333
+  }
 }
