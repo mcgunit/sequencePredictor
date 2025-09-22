@@ -1,7 +1,7 @@
-import os, argparse, json, sys, time
-import numpy as np
-import subprocess
+import os, argparse, json, sys
 import optuna
+from concurrent.futures import ThreadPoolExecutor
+
 
 from art import text2art
 from datetime import datetime
@@ -239,9 +239,11 @@ def predict(name, dataPath, skipLastColumns=0, years_back=None, daysToRebuild=31
                 Already tried with pooling for multi processing
                 but it caused a lot of issues with returning the same values
             """
-            for entry in argsList:
-                results = process_single_history_entry(entry)
+            # for entry in argsList:
+            #     results = process_single_history_entry(entry)
 
+            with ThreadPoolExecutor() as executor:
+                results = list(executor.map(process_single_history_entry, argsList))
 
             print("Finished multiprocessing rebuild of history entries.")
 
@@ -934,6 +936,7 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+
 
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
