@@ -175,7 +175,7 @@ def process_single_history_entry(args):
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
-        name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
+        name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back, strict_val=False)
     
     predictedSequence = latest_raw_predictions.tolist()
     unique_labels = unique_labels.tolist()
