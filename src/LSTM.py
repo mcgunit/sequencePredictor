@@ -435,7 +435,7 @@ if __name__ == "__main__":
     lstm_model.setNumHeads(4)
     lstm_model.setKeyDim(64)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=20, strict_val=True)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=20, strict_val=False)
     num_classes = len(unique_labels)
 
     latest_raw_predictions = latest_raw_predictions.tolist()
