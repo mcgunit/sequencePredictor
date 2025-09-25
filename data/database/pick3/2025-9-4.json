@@ -5,9 +5,9 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          3,
+          1,
           4,
-          8
+          6
         ]
       ]
     }
@@ -31,17 +31,10 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      3,
-      4,
-      8
-    ],
-    "matching_numbers": [
-      8,
-      3
-    ],
-    "match_count": 2
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [
     0,

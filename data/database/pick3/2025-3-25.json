@@ -5,9 +5,9 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          2,
-          8,
-          4
+          3,
+          5,
+          8
         ]
       ]
     }
@@ -24,7 +24,7 @@
         [
           8,
           1,
-          2
+          3
         ]
       ]
     }
@@ -33,12 +33,12 @@
   "matchingNumbers": {
     "model": "HybridStatisticalModel",
     "prediction": [
-      2,
-      8,
-      4
+      3,
+      5,
+      8
     ],
     "matching_numbers": [
-      2
+      3
     ],
     "match_count": 1
   },
@@ -57,6 +57,6 @@
   "numberFrequency": {
     "8": 0.3333333333333333,
     "1": 0.3333333333333333,
-    "2": 0.3333333333333333
+    "3": 0.3333333333333333
   }
 }

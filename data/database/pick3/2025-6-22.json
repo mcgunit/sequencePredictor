@@ -6,8 +6,8 @@
       "predictions": [
         [
           7,
-          5,
-          8
+          6,
+          9
         ]
       ]
     }
@@ -34,11 +34,11 @@
     "model": "HybridStatisticalModel",
     "prediction": [
       7,
-      5,
-      8
+      6,
+      9
     ],
     "matching_numbers": [
-      5
+      9
     ],
     "match_count": 1
   },

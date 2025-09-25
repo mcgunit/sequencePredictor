@@ -5,9 +5,9 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          9,
           0,
-          1
+          2,
+          5
         ]
       ]
     }
@@ -22,25 +22,19 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          6,
           1,
-          4
+          2,
+          3
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      9,
-      0,
-      1
-    ],
-    "matching_numbers": [
-      1
-    ],
-    "match_count": 1
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [
     0,
@@ -55,8 +49,8 @@
     9
   ],
   "numberFrequency": {
-    "6": 0.3333333333333333,
     "1": 0.3333333333333333,
-    "4": 0.3333333333333333
+    "2": 0.3333333333333333,
+    "3": 0.3333333333333333
   }
 }

@@ -6,8 +6,8 @@
       "predictions": [
         [
           0,
-          2,
-          4
+          3,
+          5
         ]
       ]
     }
@@ -22,8 +22,8 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          2,
           3,
+          4,
           5
         ]
       ]
@@ -31,16 +31,10 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      0,
-      2,
-      4
-    ],
-    "matching_numbers": [
-      4
-    ],
-    "match_count": 1
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [
     0,
@@ -55,8 +49,8 @@
     9
   ],
   "numberFrequency": {
-    "2": 0.3333333333333333,
     "3": 0.3333333333333333,
+    "4": 0.3333333333333333,
     "5": 0.3333333333333333
   }
 }
