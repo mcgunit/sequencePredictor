@@ -5,17 +5,17 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
+          3,
           8,
-          0,
-          1
+          6
         ]
       ]
     }
   ],
   "realResult": [
-    7,
-    3,
-    5
+    9,
+    1,
+    4
   ],
   "newPrediction": [
     {

@@ -6,16 +6,16 @@
       "predictions": [
         [
           8,
-          0,
-          1
+          1,
+          2
         ]
       ]
     }
   ],
   "realResult": [
-    7,
-    3,
-    5
+    9,
+    8,
+    6
   ],
   "newPrediction": [
     {
@@ -24,17 +24,23 @@
         [
           8,
           1,
-          2
+          6
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "HybridStatisticalModel",
+    "prediction": [
+      8,
+      1,
+      2
+    ],
+    "matching_numbers": [
+      8
+    ],
+    "match_count": 1
   },
   "labels": [
     0,
@@ -51,6 +57,6 @@
   "numberFrequency": {
     "8": 0.3333333333333333,
     "1": 0.3333333333333333,
-    "2": 0.3333333333333333
+    "6": 0.3333333333333333
   }
 }

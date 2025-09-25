@@ -6,16 +6,16 @@
       "predictions": [
         [
           8,
-          0,
+          2,
           1
         ]
       ]
     }
   ],
   "realResult": [
-    7,
-    3,
-    5
+    0,
+    1,
+    6
   ],
   "newPrediction": [
     {
@@ -31,10 +31,16 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "HybridStatisticalModel",
+    "prediction": [
+      8,
+      2,
+      1
+    ],
+    "matching_numbers": [
+      1
+    ],
+    "match_count": 1
   },
   "labels": [
     0,
