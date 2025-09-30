@@ -61,8 +61,8 @@ class SelfAttentionBlock(layers.Layer):
 # Unified Model Class
 # ---------------------------
 class UnifiedModel:
-    def __init__(self, arch="lstm"):
-        self.arch = arch  # "lstm", "gru", "tcn"
+    def __init__(self):
+        self.arch = "gru"  # "lstm", "gru", "tcn"
         # paths & training config
         self.dataPath = ""
         self.modelPath = ""
@@ -190,16 +190,13 @@ class UnifiedModel:
         return model
 
     # ---------------------------
-    # Training + predict (single call)
+    # Training + Ensemble Predict
     # ---------------------------
     def train_and_predict(self, name, years_back=1, strict_val=True):
         # load_data returns: train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(
             self.dataPath, 0, maxRows=0, skipRows=0, years_back=years_back
         )
-
-        model_path = os.path.join(self.modelPath, f"model_{name}_{self.arch}.keras")
-        checkpoint_path = os.path.join(self.modelPath, f"model_{name}_{self.arch}_checkpoint.keras")
 
         # prepare sequences (time-based split like before)
         n = len(numbers)
@@ -221,62 +218,61 @@ class UnifiedModel:
         y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
         y_val = np.array([to_categorical(draw, num_classes=num_classes) for draw in y_val])
 
-        print(f"[{self.arch.upper()}] X shape: {X.shape}, y shape: {y.shape}")
-        print(f"[{self.arch.upper()}] X_val shape: {X_val.shape}, y_val shape: {y_val.shape}")
+        # ---------------------------
+        # Train all 3 architectures
+        # ---------------------------
+        archs = ["lstm", "gru", "tcn"]
+        preds = []
 
-        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2])
+        for arch in archs:
+            print(f"\n--- Training {arch.upper()} model ---")
+            self.arch = arch  # set arch dynamically
 
-        # Ensure modelPath exists
-        os.makedirs(self.modelPath, exist_ok=True)
+            model_path = os.path.join(self.modelPath, f"model_{name}_{arch}.keras")
+            checkpoint_path = os.path.join(self.modelPath, f"model_{name}_{arch}_checkpoint.keras")
 
-        # Train
-        history = model.fit(X, y,
-                            validation_data=(X_val, y_val),
-                            epochs=self.epochs,
-                            batch_size=self.batchSize,
-                            verbose=False,
-                            callbacks=[
-                                EarlyStopping(monitor="val_loss", patience=self.earlyStopPatience, restore_best_weights=True),
-                                ReduceLROnPlateau(monitor="val_loss", factor=self.reduceLearningRateFactor, patience=self.reduceLearningRatePatience),
-                                ModelCheckpoint(checkpoint_path, save_best_only=True),
-                                SelectiveProgbarLogger(verbose=1, epoch_interval=50)
-                            ])
+            model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2])
 
-        # Predict using all available numbers (helper uses window param)
-        latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
+            # Ensure modelPath exists
+            os.makedirs(self.modelPath, exist_ok=True)
 
-        # Markov blending
-        try:
-            markov.build_markov_chain(numbers)
-            markovChain = markov.getTransformationMatrix()
-            lastDraw = numbers[-1]
-            markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
-            self.hybridMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
-        except Exception as e:
-            print("Failed to build Markov Chain: ", e)
+            history = model.fit(
+                X, y,
+                validation_data=(X_val, y_val),
+                epochs=self.epochs,
+                batch_size=self.batchSize,
+                verbose=False,
+                callbacks=[
+                    EarlyStopping(monitor="val_loss", patience=self.earlyStopPatience, restore_best_weights=True),
+                    ReduceLROnPlateau(monitor="val_loss", factor=self.reduceLearningRateFactor, patience=self.reduceLearningRatePatience),
+                    ModelCheckpoint(checkpoint_path, save_best_only=True),
+                    SelectiveProgbarLogger(verbose=1, epoch_interval=50)
+                ]
+            )
 
-        # Save performance plot, weights and model
-        try:
-            pd.DataFrame(history.history).plot(figsize=(8, 5))
-            plt.savefig(os.path.join(self.modelPath, f"model_{name}_{self.arch}_performance.png"))
-            plt.close()
-        except Exception:
-            pass
+            # Save performance plot, weights and model
+            try:
+                pd.DataFrame(history.history).plot(figsize=(8, 5))
+                plt.savefig(os.path.join(self.modelPath, f"model_{name}_{arch}_performance.png"))
+                plt.close()
+            except Exception:
+                pass
 
-        model.save_weights(f"{model_path}.weights.h5")
-        model.save(model_path)
-        if os.path.exists(checkpoint_path):
-            os.remove(checkpoint_path)
+            model.save_weights(f"{model_path}.weights.h5")
+            model.save(model_path)
+            if os.path.exists(checkpoint_path):
+                os.remove(checkpoint_path)
 
-        return latest_raw_predictions, unique_labels
+            # Get predictions from this model
+            pred = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
+            preds.append(pred)
 
-    def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
-        markov_probs = np.zeros((len(last_draw), num_classes))
-        for i, from_number in enumerate(last_draw):
-            transitions = transition_matrix.get(from_number, {})
-            for to_number, prob in transitions.items():
-                markov_probs[i, to_number] = prob
-        return markov_probs
+        # ---------------------------
+        # Combine predictions (average ensemble)
+        # ---------------------------
+        combined_pred = np.mean(preds, axis=0)
+
+        return combined_pred, unique_labels
 
 
 # ---------------------------
@@ -293,62 +289,39 @@ if __name__ == "__main__":
     with open(sequenceToPredictFile, "r") as openfile:
         sequenceToPredict = json.load(openfile)
 
-    results = {}
-    # loop through architectures
-    for arch in ["lstm", "gru", "tcn"]:
-        print(f"\n--- Training {arch.upper()} model ---")
-        model = UnifiedModel(arch=arch)
+    # initialize unified ensemble model
+    model = UnifiedModel()
+    model.setModelPath(modelPath)
+    model.setDataPath(dataPath)
+    model.setBatchSize(8)
+    model.setEpochs(1000)   # adjust for quicker runs if needed
+    model.setWindowSize(30)
+    model.setPredictionWindowSize(30)
+    model.setLearningRate(0.0001)
+    model.setDropout(0.3)
+    model.setL2Regularization(0.0005)
+    model.setEarlyStopPatience(50)
+    model.setReduceLearningRatePatience(15)
+    model.setReducedLearningRateFactor(0.5)
+    model.setLabelSmoothing(0.05)
+    model.setNumHeads(4)
+    model.setKeyDim(32)
+    model.setLoadModelWeights(False)
+    model.setLstmUnits(16)
+    model.setNumTcnLayers(1)
+    model.setTcnUnits(16)
+    model.setGruUnits(16)
 
-        # setters
-        model.setModelPath(modelPath)
-        model.setDataPath(dataPath)
-        model.setBatchSize(64)
-        model.setEpochs(1000)            # keep reasonable for quick tests
-        model.setWindowSize(30)
-        model.setPredictionWindowSize(30)
-        model.setLearningRate(0.0001)
-        model.setDropout(0.3)
-        model.setL2Regularization(0.0005)
-        model.setEarlyStopPatience(50)
-        model.setReduceLearningRatePatience(15)
-        model.setReducedLearningRateFactor(0.5)
-        model.setLabelSmoothing(0.05)
-        model.setNumHeads(4)
-        model.setKeyDim(32)
-        model.setMarkovAlpha(0.6)
-        model.setLoadModelWeights(False)
+    # train all three models and get combined predictions
+    raw_pred, unique_labels = model.train_and_predict(name, years_back=20, strict_val=True)
 
-        # optional: tune model sizes for archs
-        if arch == "lstm":
-            model.setLstmUnits(128)
-        if arch == "gru":
-            model.setGruUnits(128)
-        if arch == "tcn":
-            model.setTcnUnits(128)
-            model.setNumTcnLayers(2)
+    # convert probabilities into predictions
+    predicted_digits = np.argmax(raw_pred, axis=-1)
+    top3_indices = np.argsort(raw_pred, axis=-1)[:, -3:][:, ::-1]
 
-        raw_pred, unique_labels = model.train_and_predict(name, years_back=20, strict_val=True)
-        predicted_digits = np.argmax(raw_pred, axis=-1)
-        top3_indices = np.argsort(raw_pred, axis=-1)[:, -3:][:, ::-1]
-
-        # hybrid (model+markov) top3
-        if model.hybridMarkov is not None:
-            top3_indices_markov = np.argsort(model.hybridMarkov, axis=-1)[:, -3:][:, ::-1]
-            hybrid_top3 = top3_indices_markov[0].tolist()
-        else:
-            hybrid_top3 = None
-
-        results[arch] = {
-            "prediction": predicted_digits.tolist(),
-            "top3": top3_indices[0].tolist(),
-            "hybrid_top3": hybrid_top3
-        }
-
-    # Final comparison
-    print("\n=== Final Comparison ===")
+    print("\n=== Ensemble Prediction ===")
     print("Real result:", sequenceToPredict["realResult"])
-    for arch, res in results.items():
-        print(f"\n{arch.upper()} Prediction:")
-        print(" Raw:", res["prediction"])
-        print(" Top3:", res["top3"])
-        print(" Hybrid (Model+Markov) Top3:", res["hybrid_top3"])
+    print(" Predicted digits:", predicted_digits.tolist())
+    print(" Top3 per digit:", top3_indices[0].tolist())
+
+
