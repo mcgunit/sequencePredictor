@@ -6,12 +6,12 @@
       "predictions": [
         [
           7,
+          20,
           25,
           26,
           36,
-          2,
-          8,
-          9
+          38,
+          2
         ]
       ]
     }
@@ -46,12 +46,12 @@
     "model": "HybridStatisticalModel",
     "prediction": [
       7,
+      20,
       25,
       26,
       36,
-      2,
-      8,
-      9
+      38,
+      2
     ],
     "matching_numbers": [
       36

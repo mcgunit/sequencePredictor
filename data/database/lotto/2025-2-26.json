@@ -5,13 +5,13 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          33,
-          34,
-          35,
+          1,
           36,
-          37,
-          5,
-          8
+          4,
+          6,
+          39,
+          7,
+          12
         ]
       ]
     },
@@ -57,20 +57,21 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "PoissonMonteCarlo Model",
+    "model": "MarkovBayesian Model",
     "prediction": [
-      3,
-      6,
-      16,
-      29,
+      1,
       36,
+      4,
+      6,
       39,
-      42
+      7,
+      12
     ],
     "matching_numbers": [
+      12,
       39
     ],
-    "match_count": 1
+    "match_count": 2
   },
   "labels": [],
   "numberFrequency": []

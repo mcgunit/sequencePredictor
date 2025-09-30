@@ -5,13 +5,13 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          33,
+          1,
+          2,
           3,
-          6,
+          7,
+          42,
           11,
-          12,
-          44,
-          17
+          43
         ]
       ]
     },
@@ -21,8 +21,8 @@
         [
           2,
           3,
-          11,
-          12,
+          9,
+          15,
           29,
           38,
           50
@@ -57,10 +57,21 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "MarkovBayesian Model",
+    "prediction": [
+      1,
+      2,
+      3,
+      7,
+      42,
+      11,
+      43
+    ],
+    "matching_numbers": [
+      43,
+      7
+    ],
+    "match_count": 2
   },
   "labels": [],
   "numberFrequency": []

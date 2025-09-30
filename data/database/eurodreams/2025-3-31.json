@@ -6,12 +6,12 @@
       "predictions": [
         [
           1,
-          15,
           3,
+          4,
           5,
-          16,
-          18,
-          21
+          19,
+          24,
+          37
         ]
       ]
     }
@@ -46,15 +46,15 @@
     "model": "HybridStatisticalModel",
     "prediction": [
       1,
-      15,
       3,
+      4,
       5,
-      16,
-      18,
-      21
+      19,
+      24,
+      37
     ],
     "matching_numbers": [
-      21
+      4
     ],
     "match_count": 1
   },

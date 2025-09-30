@@ -1,6 +1,21 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [],
+  "currentPrediction": [
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          3,
+          6,
+          2,
+          7,
+          9,
+          1,
+          5
+        ]
+      ]
+    }
+  ],
   "realResult": [
     9,
     24,
@@ -28,10 +43,20 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "HybridStatisticalModel",
+    "prediction": [
+      3,
+      6,
+      2,
+      7,
+      9,
+      1,
+      5
+    ],
+    "matching_numbers": [
+      9
+    ],
+    "match_count": 1
   },
   "labels": [],
   "numberFrequency": []

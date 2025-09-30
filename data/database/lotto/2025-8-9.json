@@ -5,13 +5,13 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          19,
+          1,
+          10,
+          34,
+          2,
           3,
           4,
-          13,
-          14,
-          29,
-          36
+          6
         ]
       ]
     }
@@ -45,13 +45,13 @@
   "matchingNumbers": {
     "model": "HybridStatisticalModel",
     "prediction": [
-      19,
+      1,
+      10,
+      34,
+      2,
       3,
       4,
-      13,
-      14,
-      29,
-      36
+      6
     ],
     "matching_numbers": [
       3
