@@ -155,11 +155,19 @@ class UnifiedModel:
             model.add(layers.Dropout(self.dropout))
 
         elif self.arch == "tcn":
-            for _ in range(self.num_tcn_layers):
-                model.add(TCN(nb_filters=self.tcn_units,
-                              kernel_size=3,
-                              return_sequences=True,
-                              dropout_rate=self.dropout))
+            dilation_depth = 4  # gives dilations [1, 2, 4, 8]
+            dilations = [2 ** i for i in range(dilation_depth)]
+            for i in range(self.num_tcn_layers):
+                model.add(TCN(
+                    nb_filters=self.tcn_units,
+                    kernel_size=5,
+                    dilations=dilations,
+                    activation='relu',
+                    padding='causal',
+                    use_skip_connections=True,
+                    dropout_rate=self.dropout,
+                    return_sequences=True
+                ))
 
         # Attention blocks (shared across architectures)
         model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=self.dropout))
@@ -246,7 +254,7 @@ class UnifiedModel:
                     EarlyStopping(monitor="val_loss", patience=self.earlyStopPatience, restore_best_weights=True),
                     ReduceLROnPlateau(monitor="val_loss", factor=self.reduceLearningRateFactor, patience=self.reduceLearningRatePatience),
                     ModelCheckpoint(checkpoint_path, save_best_only=True),
-                    SelectiveProgbarLogger(verbose=1, epoch_interval=50)
+                    SelectiveProgbarLogger(verbose=1, epoch_interval=int(self.epochs/2))
                 ]
             )
 
@@ -295,8 +303,8 @@ if __name__ == "__main__":
     model.setDataPath(dataPath)
     model.setBatchSize(8)
     model.setEpochs(10000)
-    model.setWindowSize(30)
-    model.setPredictionWindowSize(30)
+    model.setWindowSize(60)
+    model.setPredictionWindowSize(60)
     model.setLearningRate(0.0003)
     model.setDropout(0.15)
     model.setL2Regularization(0.001)
@@ -307,7 +315,7 @@ if __name__ == "__main__":
     model.setNumHeads(4)
     model.setKeyDim(32)
     model.setLstmUnits(64)
-    model.setNumTcnLayers(3)
+    model.setNumTcnLayers(2)
     model.setTcnUnits(64)
     model.setGruUnits(64)
     model.setMarkovAlpha(0.5)
