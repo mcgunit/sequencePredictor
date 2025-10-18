@@ -315,9 +315,9 @@ if __name__ == "__main__":
     model.setNumHeads(4)
     model.setKeyDim(32)
     model.setLstmUnits(64)
-    model.setNumTcnLayers(2)
+    model.setNumTcnLayers(3)
     model.setTcnUnits(64)
-    model.setGruUnits(64)
+    model.setGruUnits(48)
     model.setMarkovAlpha(0.5)
 
     # train all three models and get combined predictions
