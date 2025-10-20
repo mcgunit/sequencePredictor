@@ -1,0 +1,51 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          4,
+          6
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    6,
+    3,
+    7
+  ],
+  "newPrediction": [
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          3,
+          4,
+          6
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "MarkovBayesian Model",
+    "prediction": [
+      0,
+      4,
+      6
+    ],
+    "matching_numbers": [
+      6
+    ],
+    "match_count": 1
+  },
+  "labels": [],
+  "numberFrequency": {
+    "3": 0.3333333333333333,
+    "4": 0.3333333333333333,
+    "6": 0.3333333333333333
+  }
+}

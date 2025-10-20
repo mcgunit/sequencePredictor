@@ -1,0 +1,71 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          2,
+          5,
+          3,
+          4,
+          23,
+          28,
+          30
+        ]
+      ]
+    }
+  ],
+  "realResult": [
+    4,
+    7,
+    18,
+    19,
+    22,
+    29,
+    1
+  ],
+  "newPrediction": [
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          1,
+          4,
+          2,
+          5,
+          15,
+          22,
+          29
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "HybridStatisticalModel",
+    "prediction": [
+      2,
+      5,
+      3,
+      4,
+      23,
+      28,
+      30
+    ],
+    "matching_numbers": [
+      4
+    ],
+    "match_count": 1
+  },
+  "labels": [],
+  "numberFrequency": {
+    "1": 0.14285714285714285,
+    "4": 0.14285714285714285,
+    "2": 0.14285714285714285,
+    "5": 0.14285714285714285,
+    "15": 0.14285714285714285,
+    "22": 0.14285714285714285,
+    "29": 0.14285714285714285
+  }
+}
