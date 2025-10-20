@@ -867,3 +867,24 @@ class Helpers():
                                 total_profit += matches
         #print("Total profit: ", total_profit)
         return total_profit
+    
+    def cleanupDatabase(self, storage_url):
+
+        # Connect to the existing storage
+        storage = optuna.storages.RDBStorage(url=storage_url)
+
+        # Load all studies
+        studies = optuna.get_all_study_summaries(storage=storage)
+
+        if not studies:
+            print("No studies found. Nothing to delete.")
+            return
+
+        print(f"Found {len(studies)} studies. Deleting all...")
+
+        # Delete all studies
+        for s in studies:
+            print(f"Deleting study: {s.study_name}")
+            optuna.delete_study(study_name=s.study_name, storage=storage)
+
+        print("All studies deleted successfully.")

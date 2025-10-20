@@ -514,6 +514,10 @@ if __name__ == "__main__":
         numberOfRepeats = 3
         path = os.getcwd()
 
+        optunaDatabase = "sqlite:///db.sqlite3"
+
+        helpers.cleanupDatabase(optunaDatabase)
+
         datasets = [
             # (dataset_name, model_type, skip_last_columns)
             #("euromillions", "tcn_model", 0),
@@ -909,7 +913,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
@@ -930,7 +934,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
@@ -951,7 +955,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
@@ -972,7 +976,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
@@ -993,7 +997,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
@@ -1014,7 +1018,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
@@ -1035,7 +1039,7 @@ if __name__ == "__main__":
                 studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
                     direction='maximize',
-                    storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
+                    storage=optunaDatabase,  # Specify the storage URL here.
                     study_name=studyName,
                     load_if_exists=True
                 )
