@@ -511,7 +511,7 @@ if __name__ == "__main__":
         rebuildHistory = bool(args.rebuild_history)
         n_trials = int(args.trials)
 
-        numberOfRepeats = 3
+        numberOfRepeats = 5
         path = os.getcwd()
 
         optunaDatabase = "sqlite:///db.sqlite3"
