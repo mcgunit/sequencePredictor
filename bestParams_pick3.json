@@ -1,7 +1,7 @@
 {
     "yearsOfHistory": 5,
-    "useMarkov": true,
-    "useMarkovBayesian": false,
+    "useMarkov": false,
+    "useMarkovBayesian": true,
     "usevMarkovBayesianEnhanced": false,
     "usePoissonMonteCarlo": false,
     "usePoissonMarkov": false,

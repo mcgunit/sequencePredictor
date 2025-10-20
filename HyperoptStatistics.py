@@ -524,7 +524,7 @@ if __name__ == "__main__":
             #("lotto", "lstm_model", 0),
             #("eurodreams", "lstm_model", 0),
             #("jokerplus", "lstm_model", 0),
-            ("keno", "lstm_model", 0),
+            #("keno", "lstm_model", 0),
             ("pick3", "lstm_model", 0),
             #("vikinglotto", "lstm_model", 0),
         ]

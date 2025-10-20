@@ -1,4 +1,4 @@
-import os, json, subprocess
+import os, json, subprocess, optuna
 import numpy as np
 import asciichartpy
 
