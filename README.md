@@ -126,7 +126,7 @@ To build:
 Run:
 
 ```
-    docker run --rm -it -v {absolute path to sequencePredictor repo}:/opt/sequencePredictor sequence_predictor /bin/bash
+    docker run --rm -it -u $(id -u) -v {absolute path to sequencePredictor repo}:/opt/sequencePredictor sequence_predictor /bin/bash
 ```
 
 From this point you are inside the docker container with bash active. Now you can run or test code.
