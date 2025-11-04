@@ -54,16 +54,28 @@ class MarkovBayesian:
 
     # ===== Core Methods =====
     def softmax_with_temperature(self, probabilities, temperature=1.0):
-        probs = np.array(probabilities) / max(temperature, 1e-8)
-        return scipy.special.softmax(probs)
+        """Applies softmax with temperature scaling — safely handles empty or zero arrays."""
+        if probabilities is None or len(probabilities) == 0:
+            return np.array([])
+
+        probs = np.array(probabilities, dtype=float)
+        if np.all(probs == 0):
+            return np.ones_like(probs) / len(probs)
+
+        probs = probs / max(float(temperature), 1e-8)
+        try:
+            return scipy.special.softmax(probs)
+        except ValueError:
+            # Catch edge cases like zero-size arrays
+            return np.array([])
 
     def blended_probability(self, markov_probs, num_frequencies):
         freq_sum = sum(num_frequencies.values()) or 1
         base_blend = {}
         for num in set(markov_probs) | set(num_frequencies):
             base_blend[num] = (
-                self.alpha * markov_probs.get(num, 0) +
-                (1 - self.alpha) * (num_frequencies.get(num, 0) / freq_sum)
+                self.alpha * markov_probs.get(num, 0)
+                + (1 - self.alpha) * (num_frequencies.get(num, 0) / freq_sum)
             )
         return base_blend
 
@@ -92,6 +104,8 @@ class MarkovBayesian:
         # normalize and filter
         for prefix, transitions in self.transition_matrix.items():
             total = sum(transitions.values())
+            if total == 0:
+                continue
             self.transition_matrix[prefix] = {
                 k: v / total for k, v in transitions.items() if v >= self.min_occurrences
             }
@@ -102,6 +116,8 @@ class MarkovBayesian:
 
     def bayesian_prediction(self, n_predictions=20):
         total = sum(self.bayesian_priors.values())
+        if total == 0:
+            return {}
         probs = {num: c / total for num, c in self.bayesian_priors.items()}
         return probs
 
@@ -114,10 +130,18 @@ class MarkovBayesian:
         if prefix in self.transition_matrix:
             next_nums = list(self.transition_matrix[prefix].keys())
             probs = list(self.transition_matrix[prefix].values())
+
             adjusted = self.softmax_with_temperature(probs, self.softMaxTemperature)
+
+            if len(adjusted) == 0 or len(next_nums) == 0:
+                return []  # gracefully skip empty predictions
 
             for num, p in zip(next_nums, adjusted):
                 markov_probs[num] += p
+        else:
+            # fallback to frequency-based prediction if no transition found
+            sorted_freq = sorted(self.number_frequencies, key=self.number_frequencies.get, reverse=True)
+            return [int(x) for x in sorted_freq[:n_predictions]]
 
         # (2) dynamic alpha via entropy
         if self.dynamic_alpha and markov_probs:
@@ -170,7 +194,6 @@ class MarkovBayesian:
                 )
 
             combined = sorted(total, key=total.get, reverse=True)[:n_predictions]
-
         else:
             combined = list(set(markov_pred_probs) | set(map(int, bayesian_probs.keys())))
 
@@ -184,7 +207,6 @@ class MarkovBayesian:
             subsets[int(size)] = [int(x) for x in subset]
 
         return combined, subsets
-
 
     # ===== Subset Selector =====
     def generate_best_subset(self, predicted_numbers, nSubset):

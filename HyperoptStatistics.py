@@ -539,33 +539,36 @@ if __name__ == "__main__":
                 dataPath = os.path.join(path, "data", "trainingData", dataset_name)
                 file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
-                kwargs_wget = {
-                    "folder": dataPath,
-                    "file": file
-                }
+                try:
+                    kwargs_wget = {
+                        "folder": dataPath,
+                        "file": file
+                    }
 
-                if os.path.exists(os.path.join(dataPath, file)):
-                    print("Starting data fetcher")
-                    filePath = os.path.join(dataPath, file)
-                    dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
-                    gameName = ""
-                    if "euromillions" in dataset_name:
-                        gameName = "Euro+Millions"
-                    if "lotto" in dataset_name:
-                        gameName = "Lotto"
-                    if "eurodreams" in dataset_name:
-                        gameName = "EuroDreams"
-                    if "jokerplus" in dataset_name:
-                        gameName = "Joker%2B"
-                    if "keno" in dataset_name:
-                        gameName = "Keno"
-                    if "pick3" in dataset_name:
-                        gameName = "Pick3"
-                    if "vikinglotto" in dataset_name:
-                        gameName = "Viking+Lotto"
-                    dataFetcher.getLatestData(gameName, filePath)
-                    #os.remove(os.path.join(dataPath, file))
-                #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+                    if os.path.exists(os.path.join(dataPath, file)):
+                        print("Starting data fetcher")
+                        filePath = os.path.join(dataPath, file)
+                        dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
+                        gameName = ""
+                        if "euromillions" in dataset_name:
+                            gameName = "Euro+Millions"
+                        if "lotto" in dataset_name:
+                            gameName = "Lotto"
+                        if "eurodreams" in dataset_name:
+                            gameName = "EuroDreams"
+                        if "jokerplus" in dataset_name:
+                            gameName = "Joker%2B"
+                        if "keno" in dataset_name:
+                            gameName = "Keno"
+                        if "pick3" in dataset_name:
+                            gameName = "Pick3"
+                        if "vikinglotto" in dataset_name:
+                            gameName = "Viking+Lotto"
+                        dataFetcher.getLatestData(gameName, filePath)
+                        #os.remove(os.path.join(dataPath, file))
+                    #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+                except Exception as e:
+                    print("Failed to fetch data: ", e)
 
 
                 defautParams = {
@@ -919,6 +922,7 @@ if __name__ == "__main__":
                 totalProfitHybridStatistical = 0
                 
                 # Create an Optuna study object
+                """
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -959,8 +963,9 @@ if __name__ == "__main__":
                 totalProfitMarkov = study.best_value
                 # save params
                 existingData.update(study.best_params)
-
+                
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                """
 
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -982,6 +987,7 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                """
 
                 studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -1066,7 +1072,7 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
-
+                """
                 
 
                 # Determine which strategy is best based on profit
