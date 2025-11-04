@@ -528,7 +528,7 @@ if __name__ == "__main__":
             #("eurodreams", "lstm_model", 0),
             #("jokerplus", "lstm_model", 0),
             ("keno", "lstm_model", 0),
-            #("pick3", "lstm_model", 0),
+            ("pick3", "lstm_model", 0),
             #("vikinglotto", "lstm_model", 0),
         ]
 
@@ -922,7 +922,7 @@ if __name__ == "__main__":
                 totalProfitHybridStatistical = 0
                 
                 # Create an Optuna study object
-                """
+                
                 #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -965,7 +965,7 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
                 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
-                """
+                
 
                 studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -987,7 +987,7 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
-                """
+                
 
                 studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                 study = optuna.create_study(
@@ -1072,7 +1072,7 @@ if __name__ == "__main__":
                 existingData.update(study.best_params)
 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
-                """
+            
                 
 
                 # Determine which strategy is best based on profit
