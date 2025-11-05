@@ -5,9 +5,9 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          0,
-          2,
-          7
+          1,
+          3,
+          5
         ]
       ]
     }
@@ -33,17 +33,27 @@
   "matchingNumbers": {
     "model": "MarkovBayesian Model",
     "prediction": [
-      0,
-      2,
-      7
+      1,
+      3,
+      5
     ],
     "matching_numbers": [
-      2,
-      7
+      5
     ],
-    "match_count": 2
+    "match_count": 1
   },
-  "labels": [],
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
   "numberFrequency": {
     "1": 0.3333333333333333,
     "2": 0.3333333333333333,
