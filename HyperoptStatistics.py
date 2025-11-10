@@ -503,6 +503,13 @@ if __name__ == "__main__":
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
         parser.add_argument('-d', '--days', type=int, default=15)
         parser.add_argument('-t', '--trials', type=int, default=150)
+        parser.add_argument(
+            '-s', '--strategies',
+            type=str,
+            default="PoissonMonteCarlo,Markov,MarkovBayesian,MarkovBayesianEnhanced,PoissonMarkov,LaPlaceMonteCarlo,HybridStatistical",
+            help='Comma-separated list of strategies, e.g. "PoissonMonteCarlo,Markov,..."'
+        )
+
         args = parser.parse_args()
 
         print_intro()
@@ -513,6 +520,11 @@ if __name__ == "__main__":
         daysToRebuild = int(args.days)
         rebuildHistory = bool(args.rebuild_history)
         n_trials = int(args.trials)
+
+        # Convert the comma-separated string into a clean list
+        strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
+
+        print("Selected strategies:", strategies)
 
         numberOfRepeats = 5
         path = os.getcwd()
@@ -923,155 +935,162 @@ if __name__ == "__main__":
                 
                 # Create an Optuna study object
                 
-                #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                if "PoissonMonteCarlo" in strategies:
+                    #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
 
-                # Run the automatic tuning process
-                study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
+                    # Run the automatic tuning process
+                    study.optimize(objectivePoissonMonteCarlo, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
-                print("Best Score for Poisson MonteCarlo: ", study.best_value)
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for Poisson MonteCarlo: ", study.best_params)
+                    print("Best Score for Poisson MonteCarlo: ", study.best_value)
 
-                totalProfitPoissonMonteCarlo = study.best_value
-                # save params
-                existingData.update(study.best_params)
+                    totalProfitPoissonMonteCarlo = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                if "Markov" in strategies:
+                    studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
 
-                # Run the automatic tuning process
-                study.optimize(objectiveMarkov, n_trials=n_trials)
+                    # Run the automatic tuning process
+                    study.optimize(objectiveMarkov, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Markov: ", study.best_params)
-                print("Best Score for Markov: ", study.best_value)
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for Markov: ", study.best_params)
+                    print("Best Score for Markov: ", study.best_value)
 
-                totalProfitMarkov = study.best_value
-                # save params
-                existingData.update(study.best_params)
-                
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
-                
-
-                studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
-
-                # Run the automatic tuning process
-                study.optimize(objectiveMarkovBayesian, n_trials=n_trials)
-
-                # Output the best hyperparameters and score
-                print("Best Parameters for Markov Bayesian: ", study.best_params)
-                print("Best Score for Markov Bayesian: ", study.best_value)
-
-                totalProfitMarkovBayesian = study.best_value
-                # save params
-                existingData.update(study.best_params)
-
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                    totalProfitMarkov = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
+                    
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
                 
 
-                studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                if "MarkovBayesian" in strategies:
+                    studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
 
-                # Run the automatic tuning process
-                study.optimize(objectiveMarkovBayesianEnhanced, n_trials=n_trials)
+                    # Run the automatic tuning process
+                    study.optimize(objectiveMarkovBayesian, n_trials=n_trials)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Markov Bayesian Enhanced: ", study.best_params)
-                print("Best Score for Markov Bayesian Enhanced: ", study.best_value)
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for Markov Bayesian: ", study.best_params)
+                    print("Best Score for Markov Bayesian: ", study.best_value)
 
-                totalProfitMarkovBayesianEnhanced = study.best_value
-                # save params
-                existingData.update(study.best_params)
+                    totalProfitMarkovBayesian = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                
+                
+                if "MarkovBayesianEnhanced" in strategies:
+                    studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
 
-                studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                    # Run the automatic tuning process
+                    study.optimize(objectiveMarkovBayesianEnhanced, n_trials=n_trials)
 
-                # Run the automatic tuning process
-                study.optimize(objectivePoissonMarkov, n_trials=n_trials)
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for Markov Bayesian Enhanced: ", study.best_params)
+                    print("Best Score for Markov Bayesian Enhanced: ", study.best_value)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Poisson Markov: ", study.best_params)
-                print("Best Score for Poisson Markov: ", study.best_value)
+                    totalProfitMarkovBayesianEnhanced = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
 
-                totalProfitPoissonMarkov = study.best_value
-                # save params
-                existingData.update(study.best_params)
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                if "PoissonMarkov" in strategies:
+                    studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
 
-                studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                    # Run the automatic tuning process
+                    study.optimize(objectivePoissonMarkov, n_trials=n_trials)
 
-                # Run the automatic tuning process
-                study.optimize(objectiveLaPlaceMonteCarlo, n_trials=n_trials)
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for Poisson Markov: ", study.best_params)
+                    print("Best Score for Poisson Markov: ", study.best_value)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for LaPlace MonteCarlo: ", study.best_params)
-                print("Best Score for LaPlace MonteCarlo: ", study.best_value)
+                    totalProfitPoissonMarkov = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
 
-                totalProfitLaPlaceMonteCarlo = study.best_value
-                # save params
-                existingData.update(study.best_params)
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                if "LaPlaceMonteCarlo" in strategies:
+                    studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
 
-                studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,  # Specify the storage URL here.
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                    # Run the automatic tuning process
+                    study.optimize(objectiveLaPlaceMonteCarlo, n_trials=n_trials)
 
-                # Run the automatic tuning process
-                study.optimize(objectiveHybridStatistical, n_trials=n_trials)
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for LaPlace MonteCarlo: ", study.best_params)
+                    print("Best Score for LaPlace MonteCarlo: ", study.best_value)
 
-                # Output the best hyperparameters and score
-                print("Best Parameters for Hybrid Statistical: ", study.best_params)
-                print("Best Score for Hybrid Statistical: ", study.best_value)
+                    totalProfitLaPlaceMonteCarlo = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
 
-                totalProfitHybridStatistical = study.best_value
-                # save params
-                existingData.update(study.best_params)
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
-                clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
+                if "HybridStatiscal" in strategies:
+                    studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    study = optuna.create_study(
+                        direction='maximize',
+                        storage=optunaDatabase,  # Specify the storage URL here.
+                        study_name=studyName,
+                        load_if_exists=True
+                    )
+
+                    # Run the automatic tuning process
+                    study.optimize(objectiveHybridStatistical, n_trials=n_trials)
+
+                    # Output the best hyperparameters and score
+                    print("Best Parameters for Hybrid Statistical: ", study.best_params)
+                    print("Best Score for Hybrid Statistical: ", study.best_value)
+
+                    totalProfitHybridStatistical = study.best_value
+                    # save params
+                    existingData.update(study.best_params)
+
+                    clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
             
                 
 
