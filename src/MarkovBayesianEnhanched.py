@@ -54,8 +54,9 @@ class MarkovBayesianEnhanced(MarkovBayesian):
                 }
 
     def ensemble_prediction(self, last_draw, n_predictions=20):
-        markov_preds = self.predict_next_numbers(last_draw, n_predictions=40, temperature=self.softMaxTemperature)
-        bayes_preds = self.bayesian_prediction(n_predictions=40)
+        #markov_preds = self.predict_next_numbers(last_draw, n_predictions=40, temperature=self.softMaxTemperature)
+        markov_preds = self.predict_next_numbers(last_draw, n_predictions=n_predictions)
+        bayes_preds = self.bayesian_prediction(n_predictions=n_predictions)
         scores = defaultdict(float)
 
         for i, num in enumerate(markov_preds):
@@ -119,7 +120,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
 
         subsets = {}
         if generateSubsets:
-            # print("Creating subsets of:", generateSubsets)
+            #print("Creating subsets of:", generateSubsets)
             for subset_size in generateSubsets:
                 best = self.generate_best_subset(combined_predictions, subset_size)
                 subsets[subset_size] = [int(n) for n in best]
@@ -133,7 +134,7 @@ if __name__ == "__main__":
 
     markovBayesian = MarkovBayesianEnhanced()
 
-    name = 'lotto'
+    name = 'keno'
     generateSubsets = []
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
