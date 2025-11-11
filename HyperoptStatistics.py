@@ -1105,6 +1105,8 @@ if __name__ == "__main__":
                     'useHybridStatisticalModel': totalProfitHybridStatistical
                 }
 
+                """
+                Do not make a choice for best strategy yet
                 # Find the strategy with the maximum profit
                 best_strategy = max(profits, key=profits.get)
 
@@ -1114,9 +1116,11 @@ if __name__ == "__main__":
                 print("Strategy outcome: ", strategy_flags)
 
                 existingData.update(strategy_flags)
+                """
                 
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)
+            
                 
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
