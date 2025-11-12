@@ -332,9 +332,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             markovBayesian.setSoftMAxTemperature(modelParams["markovBayesianSoftMaxTemperature"])
             markovBayesian.setAlpha(modelParams["markovBayesianAlpha"])
             markovBayesian.setMinOccurrences(modelParams["markovBayesianMinOccurences"])
-            markovBayesian.setDecayRate(modelParams['markovBayesianDecayRate'])
-            markovBayesian.setLambdaDecay(modelParams['markovBayesianLambdaDecay'])
-            markovBayesian.setNgramOrder(modelParams['markovBayesianNgramOrder'])
             markovBayesian.clear()
 
             markovBayesianPrediction = {
@@ -604,9 +601,6 @@ if __name__ == "__main__":
                     'markovBayesianSoftMaxTemperature': 1,
                     'markovBayesianMinOccurences': 1,
                     'markovBayesianAlpha': 1,
-                    "markovBayesianDecayRate": 0.1,
-                    "markovBayesianLambdaDecay": 0.001,
-                    "markovBayesianNgramOrder": 1,
                     'markovBayesianEnhancedSoftMaxTemperature': 1,
                     'markovBayesianEnhancedAlpha': 1,
                     'markovBayesianEnhancedMinOccurences': 1,
@@ -721,9 +715,6 @@ if __name__ == "__main__":
                     modelParams['markovBayesianSoftMaxTemperature'] = trial.suggest_float('markovBayesianSoftMaxTemperature', 0.05, 1.0)
                     modelParams['markovBayesianMinOccurences'] = trial.suggest_int('markovBayesianMinOccurences', 3, 15)
                     modelParams['markovBayesianAlpha'] = trial.suggest_float('markovBayesianAlpha', 0.2, 0.9)
-                    modelParams['markovBayesianDecayRate'] = trial.suggest_float('markovBayesianDecayRate', 0.1, 2.0)
-                    modelParams['markovBayesianLambdaDecay'] = trial.suggest_float('markovBayesianLambdaDecay', 0.001, 0.02)
-                    modelParams['markovBayesianNgramOrder'] = trial.suggest_categorical('markovBayesianNgramOrder', [1, 2, 3])
 
 
                     if "keno" in dataset_name:
