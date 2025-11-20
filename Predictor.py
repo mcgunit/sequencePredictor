@@ -556,7 +556,24 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "hybridStatisticalModelSoftMaxTemperature":0.918188590362822,
         "hybridStatisticalModelAlpha":0.7874157368729954,
         "hybridStatisticalModelMinOcurrences": 19,
-        "hybridStatisticalModelNumberOfSimulations": 900
+        "hybridStatisticalModelNumberOfSimulations": 900,
+        "batchSize": 8,
+        "epochs": 1000,
+        "num_lstm_layers": 1,
+        "lstm_units": 32,
+        "num_bidirectional_layers": 1,
+        "bidirectional_lstm_units": 16,
+        "optimizer_type": "adam",
+        "learningRate": 0.005,
+        "dropout": 0.2,
+        "l2Regularization": 0.0001,
+        "useFinalLSTMLayer": False,
+        "earlyStopPatience": 100,
+        "reduceLearningRatePatience": 50,
+        "reduceLearningRateFactor": 0.9,
+        "windowSize": 14,
+        "lstmMarkovAlpha": 0.2,
+        "labelSmoothing": 0.05
     }
 
     try:
