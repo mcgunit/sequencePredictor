@@ -79,7 +79,6 @@ class UnifiedModel:
         self.labelSmoothing = 0.05
         self.num_heads = 4
         self.key_dim = 32
-        self.markovAlpha = 0.5
         # model sizes
         self.lstm_units = 64
         self.gru_units = 64
@@ -108,7 +107,6 @@ class UnifiedModel:
     def setLabelSmoothing(self, value): self.labelSmoothing = value
     def setNumHeads(self, value): self.num_heads = value
     def setKeyDim(self, value): self.key_dim = value
-    def setMarkovAlpha(self, value): self.markovAlpha = value
     def setLoadModelWeights(self, value): self.loadModelWeights = value
     def setLstmUnits(self, value): self.lstm_units = value
     def setGruUnits(self, value): self.gru_units = value
@@ -301,7 +299,7 @@ if __name__ == "__main__":
     model = UnifiedModel()
     model.setModelPath(modelPath)
     model.setDataPath(dataPath)
-    model.setBatchSize(8)
+    model.setBatchSize(2)
     model.setEpochs(10000)
     model.setWindowSize(60)
     model.setPredictionWindowSize(60)
@@ -313,15 +311,14 @@ if __name__ == "__main__":
     model.setReducedLearningRateFactor(0.7)
     model.setLabelSmoothing(0.05)
     model.setNumHeads(4)
-    model.setKeyDim(32)
-    model.setLstmUnits(64)
-    model.setNumTcnLayers(3)
-    model.setTcnUnits(64)
-    model.setGruUnits(48)
-    model.setMarkovAlpha(0.5)
+    model.setKeyDim(8)
+    model.setLstmUnits(4)
+    model.setNumTcnLayers(1)
+    model.setTcnUnits(4)
+    model.setGruUnits(4)
 
     # train all three models and get combined predictions
-    raw_pred, unique_labels = model.train_and_predict(name, years_back=20, strict_val=True)
+    raw_pred, unique_labels = model.train_and_predict(name, years_back=1, strict_val=True)
 
     # convert probabilities into predictions
     predicted_digits = np.argmax(raw_pred, axis=-1)

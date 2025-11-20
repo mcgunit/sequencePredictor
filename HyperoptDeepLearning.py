@@ -166,7 +166,7 @@ def process_single_history_entry(args):
     modelToUse.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
     modelToUse.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
     modelToUse.setOutpuActivation(modelParams["outputActivation"])
-    modelToUse.setOptimizer(modelParams["optimizer"])
+    modelToUse.setOptimizer(modelParams["optimizer_type"])
     modelToUse.setLearningRate(modelParams["learningRate"])
     modelToUse.setWindowSize(modelParams["windowSize"])
     modelToUse.setPredictionWindowSize(modelParams["windowSize"])
@@ -532,7 +532,7 @@ if __name__ == "__main__":
                     "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
                     "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [True, False]),
                     "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
-                    "optimizer": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
+                    "optimize_type": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
                     "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
                     "windowSize": trial.suggest_int("windowSize", 5, 100, step=5),
                     "lstmMarkovAlpha": trial.suggest_float("lstmMarkovAlpha", 0.01, 1.0, step=0.01),
