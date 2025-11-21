@@ -853,6 +853,15 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
 
     return listOfDecodedPredictions
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 if __name__ == "__main__":
     
@@ -877,9 +886,9 @@ if __name__ == "__main__":
             epilog='Check it out'
         )
 
-        parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
+        parser.add_argument('-r', '--rebuild_history', type=str2bool, default=False)
         parser.add_argument('-d', '--days', type=int, default=31)
-        parser.add_argument('-s', '--save', type=bool, default=True)
+        parser.add_argument('-s', '--save', type=str2bool, default=True)
         parser.add_argument(
             '-g', '--games',
             type=str,
@@ -896,6 +905,8 @@ if __name__ == "__main__":
         daysToRebuild = int(args.days)
         rebuildHistory = bool(args.rebuild_history)
         pushToGit = bool(args.save)
+
+        print("Push to git: ", pushToGit)
 
         # Convert the comma-separated string into a clean list
         games = [g.strip() for g in args.games.split(',') if g.strip()]
