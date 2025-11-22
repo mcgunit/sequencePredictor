@@ -356,38 +356,41 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     unique_labels = []
 
                     if ai:
-                        # Train and do a new prediction
-                        modelToUse.setModelPath(modelPath)
-                        modelToUse.setBatchSize(bestParams_json_object["batchSize"])
-                        modelToUse.setEpochs(bestParams_json_object["epochs"])
-                        modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
-                        modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
-                        modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
-                        modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
-                        modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
-                        modelToUse.setLearningRate(bestParams_json_object["learningRate"])
-                        modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
-                        modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
-                        modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
-                        modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
-                        modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
-                        modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
-                        modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
-                        modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
-                        modelToUse.setPredictionWindowSize(modelToUse.window_size)
-                        modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
-                        yearsOfHistory = bestParams_json_object['yearsOfHistory']
-                        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=yearsOfHistory)
-                        
-                        predictedSequence = latest_raw_predictions.tolist()
+                        try:
+                            # Train and do a new prediction
+                            modelToUse.setModelPath(modelPath)
+                            modelToUse.setBatchSize(bestParams_json_object["batchSize"])
+                            modelToUse.setEpochs(bestParams_json_object["epochs"])
+                            modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
+                            modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
+                            modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
+                            modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
+                            modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
+                            modelToUse.setLearningRate(bestParams_json_object["learningRate"])
+                            modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
+                            modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
+                            modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
+                            modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
+                            modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
+                            modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
+                            modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
+                            modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
+                            modelToUse.setPredictionWindowSize(modelToUse.window_size)
+                            modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
+                            yearsOfHistory = bestParams_json_object['yearsOfHistory']
+                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=yearsOfHistory)
+                            
+                            predictedSequence = latest_raw_predictions.tolist()
+
+                    
+                            # Save the current prediction as newPrediction
+                            current_json_object["newPredictionRaw"] = predictedSequence
+                            current_json_object["labels"] = unique_labels.tolist()
 
                 
-                        # Save the current prediction as newPrediction
-                        current_json_object["newPredictionRaw"] = predictedSequence
-                        current_json_object["labels"] = unique_labels.tolist()
-
-            
-                        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
+                            listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
+                        except Exception as e:
+                            print("Failed to perform deep learning method: ", e)
                     else:
                         yearsOfHistory = bestParams_json_object['yearsOfHistory']
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=yearsOfHistory)

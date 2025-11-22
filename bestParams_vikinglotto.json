@@ -1,5 +1,5 @@
 {
-    "yearsOfHistory": 10,
+    "yearsOfHistory": 5,
     "useMarkov": true,
     "useMarkovBayesian": true,
     "usevMarkovBayesianEnhanced": true,
