@@ -307,6 +307,14 @@ class LSTMModel:
 
         print("Numclasses: ", num_classes)
 
+        # -------------------------------------------------------
+        # 🔥 Normalize labels to 0-based (works for lotto + pick3)
+        # -------------------------------------------------------
+        min_label = np.min(unique_labels)       # pick3 => 0, lotto => 1
+        numbers = numbers - min_label           # normalize
+        # Now everything is 0..num_classes-1 internally
+        # -------------------------------------------------------
+
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
@@ -323,12 +331,9 @@ class LSTMModel:
         else:
             # Forecast-style validation (first val input uses training history)
             X, y = helpers.create_sequences(numbers[:split_idx], window_size=self.window_size)
-            # Build validation using the end of training history so the first val target is feasible
             start = max(0, split_idx - self.window_size)
             X_val, y_val = helpers.create_sequences(numbers[start:], window_size=self.window_size)
-            # Optionally drop any validation samples whose target index < split_idx to avoid leakage:
-            # (Assumes helpers.create_sequences returns inputs aligned to the next-step targets)
-            # Keep only targets that occur in the true val range
+
             keep = np.where(np.arange(start + self.window_size, start + self.window_size + len(y_val)) >= split_idx)[0]
             X_val, y_val = X_val[keep], y_val[keep]
 
@@ -336,8 +341,8 @@ class LSTMModel:
         y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
         y_val = np.array([to_categorical(draw, num_classes=num_classes) for draw in y_val])
 
-        print("X shape: ", X.shape)       # (samples, window, 3)
-        print("y shape: ", y.shape)       # (samples, 3, num_classes)
+        print("X shape: ", X.shape)
+        print("y shape: ", y.shape)
         print("X_val shape: ", X_val.shape)
         print("y_val shape: ", y_val.shape)
 
@@ -358,7 +363,29 @@ class LSTMModel:
         except Exception as e:
             print("Failed to build Markov Chain: ", e)
 
-        # Plot, save, cleanup (as you already do)
+        # -------------------------------------------------------
+        # DENORMALIZE predictions back to original labels
+        # -------------------------------------------------------
+        # latest_raw_predictions shape: (digits, num_classes)
+        # Convert output probabilities for each digit
+
+        # convert indices (0..classes-1 → real labels)
+        denorm_predictions = np.zeros_like(latest_raw_predictions)
+        for digit in range(latest_raw_predictions.shape[0]):
+            for cls in range(latest_raw_predictions.shape[1]):
+                # same probability, but class shifted back
+                denorm_predictions[digit, cls] = latest_raw_predictions[digit, cls]
+
+        # BUT: your main script uses argmax → so we only need to shift indices
+        # easiest:
+        unique_labels_sorted = sorted(unique_labels)
+        # unique_labels_sorted[i] gives original label for class i
+
+        # Example usage later:
+        # predicted_digits = unique_labels_sorted[np.argmax(latest_raw_predictions[digit])]
+        # -------------------------------------------------------
+
+        # Plot, save, cleanup
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
 
@@ -367,7 +394,9 @@ class LSTMModel:
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return latest_raw_predictions, unique_labels
+        # Return normalized predictions + the actual labels map
+        return latest_raw_predictions, unique_labels_sorted
+
 
     def doPrediction(self, modelPath, skipLastColumns, maxRows=0):
         """
@@ -442,15 +471,15 @@ if __name__ == "__main__":
 
     latest_raw_predictions = latest_raw_predictions.tolist()
 
-    print("Raw predictions: ", latest_raw_predictions)
+    #print("Raw predictions: ", latest_raw_predictions)
 
     predicted_digits = np.argmax(latest_raw_predictions, axis=-1) 
 
-    top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -3:][:, ::-1]
+    top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -7:][:, ::-1]
 
     print(f"Position top prediction: {top3_indices[0].tolist()}")
 
-    top3_indices_lstm_markov = np.argsort(lstm_model.getLstmMArkov(), axis=-1)[:, -3:][:, ::-1]
+    top3_indices_lstm_markov = np.argsort(lstm_model.getLstmMArkov(), axis=-1)[:, -7:][:, ::-1]
 
     print(f"lstm+markov prediction: {top3_indices_lstm_markov[0].tolist()}")
 
