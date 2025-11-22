@@ -1,28 +1,13 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          5,
-          6,
-          3,
-          17,
-          34,
-          2,
-          4
-        ]
-      ]
-    }
-  ],
+  "currentPrediction": [],
   "realResult": [
-    7,
-    8,
-    25,
-    31,
-    45,
-    7,
+    2,
+    4,
+    15,
+    21,
+    48,
+    6,
     12
   ],
   "newPrediction": [
@@ -30,13 +15,13 @@
       "name": "Markov Model",
       "predictions": [
         [
+          2,
           3,
-          6,
           10,
-          15,
-          19,
-          26,
-          30
+          11,
+          12,
+          48,
+          50
         ]
       ]
     },
@@ -44,13 +29,13 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          1,
+          4,
           5,
-          38,
-          7,
-          6,
-          41,
-          40
+          8,
+          9,
+          11,
+          12,
+          45
         ]
       ]
     },
@@ -58,13 +43,13 @@
       "name": "MarkovBayesianEnhanched Model",
       "predictions": [
         [
-          3,
+          1,
           5,
-          7,
-          12,
+          6,
+          35,
+          36,
           39,
-          41,
-          45
+          40
         ]
       ]
     },
@@ -72,13 +57,13 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          3,
-          9,
+          1,
+          5,
           10,
-          12,
-          40,
+          24,
+          29,
           41,
-          49
+          50
         ]
       ]
     },
@@ -86,13 +71,13 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          15,
-          7,
-          44,
+          6,
+          11,
+          3,
+          10,
           4,
-          20,
-          45,
-          35
+          24,
+          44
         ]
       ]
     },
@@ -101,12 +86,12 @@
       "predictions": [
         [
           9,
-          16,
-          26,
+          18,
+          23,
           32,
-          42,
-          5,
-          6
+          41,
+          4,
+          7
         ]
       ]
     },
@@ -114,13 +99,13 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          5,
+          9,
           2,
           3,
-          6,
+          4,
           8,
-          12,
-          7
+          45,
+          1
         ]
       ]
     }
