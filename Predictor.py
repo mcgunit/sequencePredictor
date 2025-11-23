@@ -914,7 +914,7 @@ if __name__ == "__main__":
         # Here we can force disable ai and boost methods. If enabled here we let hyperopt decide
         datasets = [
             # (dataset_name, model_type, skip_last_columns, ai, xgboost)
-            ("euromillions", "tcn_model", 0, True, False),
+            ("euromillions", "lstm_model", 0, True, False),
             ("lotto", "lstm_model", 0, True, False),
             ("eurodreams", "lstm_model", 0, True, False),
             #("jokerplus", "lstm_model", 1, False, True),
