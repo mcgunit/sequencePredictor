@@ -1,17 +1,6 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [
-    {
-      "name": "MarkovBayesian Model",
-      "predictions": [
-        [
-          1,
-          2,
-          5
-        ]
-      ]
-    }
-  ],
+  "currentPrediction": [],
   "realResult": [
     5,
     3,
@@ -19,11 +8,61 @@
   ],
   "newPrediction": [
     {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          4,
+          5,
+          7
+        ]
+      ]
+    },
+    {
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          1,
+          2,
           3,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          1,
+          5,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          4,
+          7,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          3,
+          4,
           6
         ]
       ]
@@ -31,33 +70,11 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "MarkovBayesian Model",
-    "prediction": [
-      1,
-      2,
-      5
-    ],
-    "matching_numbers": [
-      2,
-      5
-    ],
-    "match_count": 2
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
-  "labels": [
-    0,
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9
-  ],
-  "numberFrequency": {
-    "1": 0.3333333333333333,
-    "3": 0.3333333333333333,
-    "6": 0.3333333333333333
-  }
+  "labels": [],
+  "numberFrequency": []
 }
