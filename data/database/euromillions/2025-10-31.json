@@ -1,21 +1,6 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          7,
-          3,
-          5,
-          6,
-          8,
-          17,
-          25
-        ]
-      ]
-    }
-  ],
+  "currentPrediction": [],
   "realResult": [
     5,
     14,
@@ -27,97 +12,106 @@
   ],
   "newPrediction": [
     {
-      "name": "HybridStatisticalModel",
+      "name": "Markov Model",
+      "predictions": [
+        [
+          3,
+          9,
+          11,
+          12,
+          15,
+          26,
+          42
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
       "predictions": [
         [
           2,
           3,
-          5,
+          35,
           6,
+          39,
+          7,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesianEnhanched Model",
+      "predictions": [
+        [
+          1,
+          6,
+          8,
+          35,
+          37,
+          38,
+          41
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          2,
+          5,
+          10,
+          30,
+          35,
+          44,
+          47
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          8,
+          24,
+          30,
+          21,
+          1,
+          16,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          7,
+          18,
+          27,
+          34,
+          43,
+          1,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
           7,
           8,
-          17
+          2,
+          3,
+          12,
+          24,
+          35
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
-  "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      7,
-      3,
-      5,
-      6,
-      8,
-      17,
-      25
-    ],
-    "matching_numbers": [
-      5,
-      7
-    ],
-    "match_count": 2
-  },
-  "labels": [
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9,
-    10,
-    11,
-    12,
-    13,
-    14,
-    15,
-    16,
-    17,
-    18,
-    19,
-    20,
-    21,
-    22,
-    23,
-    24,
-    25,
-    26,
-    27,
-    28,
-    29,
-    30,
-    31,
-    32,
-    33,
-    34,
-    35,
-    36,
-    37,
-    38,
-    39,
-    40,
-    41,
-    42,
-    43,
-    44,
-    45,
-    46,
-    47,
-    48,
-    49,
-    50
-  ],
-  "numberFrequency": {
-    "2": 0.14285714285714285,
-    "3": 0.14285714285714285,
-    "5": 0.14285714285714285,
-    "6": 0.14285714285714285,
-    "7": 0.14285714285714285,
-    "8": 0.14285714285714285,
-    "17": 0.14285714285714285
-  }
+  "matchingNumbers": {},
+  "labels": [],
+  "numberFrequency": []
 }

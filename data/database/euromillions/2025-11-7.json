@@ -1,21 +1,6 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [
-    {
-      "name": "HybridStatisticalModel",
-      "predictions": [
-        [
-          5,
-          3,
-          6,
-          7,
-          17,
-          34,
-          2
-        ]
-      ]
-    }
-  ],
+  "currentPrediction": [],
   "realResult": [
     11,
     21,
@@ -27,45 +12,111 @@
   ],
   "newPrediction": [
     {
-      "name": "HybridStatisticalModel",
+      "name": "Markov Model",
+      "predictions": [
+        [
+          7,
+          9,
+          10,
+          11,
+          26,
+          29,
+          49
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
       "predictions": [
         [
           1,
-          2,
-          6,
-          8,
           3,
           4,
-          5
+          6,
+          9,
+          10,
+          12
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesianEnhanched Model",
+      "predictions": [
+        [
+          2,
+          5,
+          6,
+          9,
+          36,
+          39,
+          40
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          2,
+          5,
+          17,
+          29,
+          30,
+          41,
+          49
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          10,
+          18,
+          17,
+          36,
+          15,
+          46,
+          39
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          7,
+          18,
+          25,
+          35,
+          43,
+          1,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          4,
+          1,
+          2,
+          9,
+          11,
+          44,
+          3
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": "HybridStatisticalModel",
-    "prediction": [
-      5,
-      3,
-      6,
-      7,
-      17,
-      34,
-      2
-    ],
-    "matching_numbers": [
-      2
-    ],
-    "match_count": 1
+    "model": null,
+    "prediction": null,
+    "matching_numbers": [],
+    "match_count": 0
   },
   "labels": [],
-  "numberFrequency": {
-    "1": 0.14285714285714285,
-    "2": 0.14285714285714285,
-    "6": 0.14285714285714285,
-    "8": 0.14285714285714285,
-    "3": 0.14285714285714285,
-    "4": 0.14285714285714285,
-    "5": 0.14285714285714285
-  }
+  "numberFrequency": []
 }
