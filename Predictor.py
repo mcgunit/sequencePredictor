@@ -219,15 +219,14 @@ def process_single_history_entry_second_step(args):
         modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
         modelToUse.setPredictionWindowSize(modelToUse.window_size)
         modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
-        yearsOfHistory = bestParams_json_object['yearsOfHistory']
-        latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=yearsOfHistory)
         
         latest_raw_predictions, unique_labels = modelToUse.run(
             name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
+        
         predictedSequence = latest_raw_predictions.tolist()
-        unique_labels = unique_labels.tolist()
+        #unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, 1)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -385,10 +384,10 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     
                             # Save the current prediction as newPrediction
                             current_json_object["newPredictionRaw"] = predictedSequence
-                            current_json_object["labels"] = unique_labels.tolist()
+                            current_json_object["labels"] = unique_labels
 
                 
-                            listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], 1)
+                            listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels)
                         except Exception as e:
                             print("Failed to perform deep learning method: ", e)
                     else:
@@ -490,7 +489,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, nOfPredictions):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels):
     
     try:
         nthPredictions = {
@@ -498,17 +497,11 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, nOfPrediction
             "predictions": []
         }
 
-        predicted_digits = np.argmax(newPredictionRaw, axis=-1)
-        nthPredictions["predictions"].append(predicted_digits.tolist())
+        predicted_indices = np.argmax(newPredictionRaw, axis=-1)
+        predicted_digits = [int(unique_labels[i]) for i in predicted_indices]
 
-        top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
+        nthPredictions["predictions"].append(predicted_digits)
 
-        #print(f"Position top prediction: {top3_indices[0].tolist()}")
-
-        # Decode prediction with nth highest probability
-        for i in range(nOfPredictions):
-            #print(f"Position top prediction: {top3_indices[i].tolist()}")
-            nthPredictions["predictions"].append(top3_indices[i].tolist())
         
         listOfDecodedPredictions.append(nthPredictions)
 
