@@ -1,4 +1,4 @@
-import os, json, subprocess, optuna
+import os, json, subprocess, optuna, argparse
 import numpy as np
 import asciichartpy
 
@@ -888,3 +888,13 @@ class Helpers():
             optuna.delete_study(study_name=s.study_name, storage=storage)
 
         print("All studies deleted successfully.")
+
+    def str2bool(self, v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
