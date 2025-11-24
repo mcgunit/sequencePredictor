@@ -299,7 +299,7 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
-    def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=True):
+    def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=False):
         # Load and preprocess data
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(
             self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back
@@ -429,13 +429,13 @@ if __name__ == "__main__":
 
     lstm_model = LSTMModel()
 
-    name = 'vikinglotto'
+    name = 'euromillions'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-11-19.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-11-21.json")
 
     # Opening JSON file
     with open(sequenceToPredictFile, 'r') as openfile:
@@ -449,19 +449,19 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(4)
     lstm_model.setEpochs(5000)
     lstm_model.setNumberOfLSTMLayers(1)
-    lstm_model.setNumberOfLstmUnits(64)
+    lstm_model.setNumberOfLstmUnits(128)
     lstm_model.setNumberOfBidrectionalLayers(1)
-    lstm_model.setNumberOfBidirectionalLstmUnits(64)
+    lstm_model.setNumberOfBidirectionalLstmUnits(256)
     lstm_model.setOptimizer("adam")
     lstm_model.setLearningRate(0.00044)
-    lstm_model.setDropout(0.3) # 0.2 - 0.5
-    lstm_model.setL2Regularization(0.0002) #0.001 - 0.00005
+    lstm_model.setDropout(0.2) # 0.2 - 0.5
+    lstm_model.setL2Regularization(0.00005) #0.001 - 0.00005
     lstm_model.setUseFinalLSTMLayer(False)
     lstm_model.setEarlyStopPatience(100)
     lstm_model.setReduceLearningRatePAience(71)
     lstm_model.setReducedLearningRateFactor(0.1)
     lstm_model.setWindowSize(4)
-    lstm_model.setMarkovAlpha(0.1)
+    lstm_model.setMarkovAlpha(0.01)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
     lstm_model.setLabelSmoothing(0.03)
     lstm_model.setNumHeads(4)
@@ -470,23 +470,27 @@ if __name__ == "__main__":
     latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=4, strict_val=False)
     num_classes = len(unique_labels)
 
-    print("Labels: ", unique_labels)
+    #print("Labels: ", unique_labels)
     latest_raw_predictions = latest_raw_predictions.tolist()
 
     predicted_indices = np.argmax(latest_raw_predictions, axis=-1)
     predicted_digits = [int(unique_labels[i]) for i in predicted_indices]
 
-    top7_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -numbersLength:][:, ::-1]
-    top7_labels = [[int(unique_labels[i]) for i in row] for row in top7_indices]
-    print(f"Position top prediction: {top7_labels[0]}")
+    # top7_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -numbersLength:][:, ::-1]
+    # top7_labels = [[int(unique_labels[i]) for i in row] for row in top7_indices]
+    # #print(f"Position top prediction: {top7_labels[0]}")
 
-    lstm_markov = lstm_model.getLstmMArkov()
-    top_indices_markov = np.argsort(lstm_markov, axis=-1)[:, -numbersLength:][:, ::-1]
-    top_labels_markov = [[int(unique_labels[i]) for i in row] for row in top_indices_markov]
-    print(f"lstm+markov prediction: {top_labels_markov[0]}")
+    # lstm_markov = lstm_model.getLstmMArkov()
+    # top_indices_markov = np.argsort(lstm_markov, axis=-1)[:, -numbersLength:][:, ::-1]
+    # top_labels_markov = [[int(unique_labels[i]) for i in row] for row in top_indices_markov]
+    # #print(f"lstm+markov prediction: {top_labels_markov[0]}")
+
+    matches = set(predicted_digits) & set(sequenceToPredict["realResult"])
+
 
     print("Prediction: ", predicted_digits)
     print("Real result: ", sequenceToPredict["realResult"])
+    print("Numbers that matches: ", matches)
 
 
     
