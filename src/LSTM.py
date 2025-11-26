@@ -443,7 +443,7 @@ if __name__ == "__main__":
 
     numbersLength = len(sequenceToPredict["realResult"])
 
-    lstm_model.setLoadModelWeights(True)
+    lstm_model.setLoadModelWeights(False)
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(4)

@@ -172,7 +172,7 @@ def process_single_history_entry(args):
         name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back, strict_val=False)
     
     predictedSequence = latest_raw_predictions.tolist()
-    unique_labels = unique_labels.tolist()
+    unique_labels = unique_labels
     current_json_object["newPredictionRaw"] = predictedSequence
     listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 1, name, historyResult, jsonFilePath, modelParams)
 
@@ -312,9 +312,11 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
         "predictions": []
     }
     # Decode prediction with nth highest probability
-    predicted_digits = np.argmax(newPredictionRaw, axis=-1)
-    print("Prediction: ", predicted_digits.tolist())
-    nthPredictions["predictions"].append(predicted_digits.tolist())
+    predicted_indices = np.argmax(newPredictionRaw, axis=-1)
+    predicted_digits = [int(labels[i]) for i in predicted_indices]
+    
+    print("Prediction: ", predicted_digits)
+    nthPredictions["predictions"].append(predicted_digits)
 
     
     if modelParams["useTopPrediction"]:
@@ -359,6 +361,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
     parser.add_argument('-d', '--days', type=int, default=8)
+    parser.add_argument('-t', '--trials', type=int, default=150)
     parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
     parser.add_argument(
         '-g', '--games',
@@ -375,6 +378,7 @@ if __name__ == "__main__":
 
     daysToRebuild = int(args.days)
     rebuildHistory = bool(args.rebuild_history)
+    n_trials = int(args.trials)
     pushToGit = bool(args.save)
 
     print("Push to git: ", pushToGit)
@@ -513,7 +517,7 @@ if __name__ == "__main__":
                 )
 
                 # Run the automatic tuning process
-                study.optimize(objective, n_trials=500)
+                study.optimize(objective, n_trials=n_trials)
 
                 # Output the best hyperparameters and score
                 print("Best Parameters: ", study.best_params)
