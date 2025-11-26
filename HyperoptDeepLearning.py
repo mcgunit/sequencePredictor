@@ -382,6 +382,7 @@ if __name__ == "__main__":
     pushToGit = bool(args.save)
 
     print("Push to git: ", pushToGit)
+    print("Running ", n_trials, "trials")
 
     # Convert the comma-separated string into a clean list
     games = [g.strip() for g in args.games.split(',') if g.strip()]
