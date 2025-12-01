@@ -819,6 +819,8 @@ class Helpers():
                     real_result = set(data.get("realResult", []))
                     model_predictions = data.get("currentPrediction", [])
 
+                    # We need to calculate the lost even at winning. Because the ticket costs needs to be deducted
+
                     for model in model_predictions:
                         for prediction in model["predictions"]:
                             # For keno and pick3 the profits can be calculated. For others we check the matches
@@ -829,7 +831,10 @@ class Helpers():
 
                                 matches = len(set(prediction) & real_result)
                                 profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
-                                total_profit += profit
+                                if profit != payoutTableKeno["lost"]:
+                                    total_profit += profit
+                                else:
+                                    total_profit += (profit + payoutTableKeno["lost"])
                             elif "pick3" in name:
                                 played = len(prediction)
                                 if played != 3 or len(real_result) != 3:
@@ -839,24 +844,24 @@ class Helpers():
                                 actual = list(real_result)
 
                                 if pred == actual:
-                                    profit = payoutTablePick3["straight"]
+                                    profit = payoutTablePick3["straight"] + payoutTablePick3["lost"]
 
                                 elif sorted(pred) == sorted(actual):
                                     # Check for doubles
                                     pred_counts = {x: pred.count(x) for x in pred}
                                     if 2 in pred_counts.values():
-                                        profit = payoutTablePick3["box_with_doubles"]
+                                        profit = payoutTablePick3["box_with_doubles"] + payoutTablePick3["lost"]
                                     else:
-                                        profit = payoutTablePick3["box_no_doubles"]
+                                        profit = payoutTablePick3["box_no_doubles"] + payoutTablePick3["lost"]
 
                                 elif pred[0:2] == actual[0:2]:
-                                    profit = payoutTablePick3["front_pair"]
+                                    profit = payoutTablePick3["front_pair"] + payoutTablePick3["lost"]
 
                                 elif pred[1:3] == actual[1:3]:
-                                    profit = payoutTablePick3["back_pair"]
+                                    profit = payoutTablePick3["back_pair"] + payoutTablePick3["lost"]
 
                                 elif pred[2] == actual[2]:
-                                    profit = payoutTablePick3["last_number"]
+                                    profit = payoutTablePick3["last_number"] + payoutTablePick3["lost"]
 
                                 else:
                                     profit = payoutTablePick3["lost"]
