@@ -11,9 +11,9 @@
       "name": "Markov Model",
       "predictions": [
         [
-          1,
+          0,
           2,
-          4
+          7
         ]
       ]
     },
@@ -23,7 +23,7 @@
         [
           0,
           2,
-          6
+          7
         ]
       ]
     },
@@ -32,7 +32,7 @@
       "predictions": [
         [
           0,
-          5,
+          3,
           9
         ]
       ]
@@ -41,9 +41,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          9,
+          0,
           2,
-          4
+          3
         ]
       ]
     },
@@ -51,9 +51,9 @@
       "name": "LaplaceMonteCarlo Model",
       "predictions": [
         [
-          4,
+          5,
           3,
-          4
+          3
         ]
       ]
     },
@@ -61,9 +61,9 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
+          9,
           2,
-          7,
-          9
+          6
         ]
       ]
     }

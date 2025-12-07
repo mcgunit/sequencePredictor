@@ -12,7 +12,7 @@
       "predictions": [
         [
           0,
-          4,
+          2,
           8
         ]
       ]
@@ -21,9 +21,9 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
+          0,
           2,
-          6,
-          7
+          6
         ]
       ]
     },
@@ -32,8 +32,8 @@
       "predictions": [
         [
           3,
-          6,
-          8
+          7,
+          9
         ]
       ]
     },
@@ -41,9 +41,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
+          0,
           9,
-          8,
-          5
+          3
         ]
       ]
     },
@@ -52,8 +52,8 @@
       "predictions": [
         [
           4,
-          5,
-          4
+          3,
+          3
         ]
       ]
     },
@@ -62,8 +62,8 @@
       "predictions": [
         [
           6,
-          1,
-          2
+          2,
+          7
         ]
       ]
     }

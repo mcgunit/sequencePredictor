@@ -12,8 +12,8 @@
       "predictions": [
         [
           0,
-          1,
-          2
+          3,
+          8
         ]
       ]
     },
@@ -21,8 +21,8 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          2,
           3,
+          4,
           6
         ]
       ]
@@ -31,9 +31,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          1,
-          4,
-          8
+          0,
+          3,
+          9
         ]
       ]
     },
@@ -41,9 +41,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          0,
-          1,
-          2
+          9,
+          3,
+          0
         ]
       ]
     },
@@ -53,7 +53,7 @@
         [
           5,
           5,
-          5
+          3
         ]
       ]
     },
@@ -61,9 +61,9 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          1,
-          6,
-          2
+          9,
+          3,
+          6
         ]
       ]
     }

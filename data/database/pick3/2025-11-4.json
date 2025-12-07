@@ -12,8 +12,8 @@
       "predictions": [
         [
           0,
-          4,
-          9
+          2,
+          8
         ]
       ]
     },
@@ -31,9 +31,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
+          2,
           3,
-          8,
-          9
+          8
         ]
       ]
     },
@@ -42,8 +42,8 @@
       "predictions": [
         [
           3,
-          8,
-          1
+          0,
+          4
         ]
       ]
     },
@@ -51,9 +51,9 @@
       "name": "LaplaceMonteCarlo Model",
       "predictions": [
         [
+          4,
           5,
-          3,
-          5
+          4
         ]
       ]
     },
@@ -61,20 +61,15 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          7,
-          9,
-          4
+          4,
+          5,
+          7
         ]
       ]
     }
   ],
   "newPredictionRaw": [],
-  "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
-  },
+  "matchingNumbers": {},
   "labels": [],
   "numberFrequency": []
 }
