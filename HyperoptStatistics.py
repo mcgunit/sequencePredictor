@@ -498,8 +498,8 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=bool, default=False)
-        parser.add_argument('-d', '--days', type=int, default=15)
-        parser.add_argument('-t', '--trials', type=int, default=150)
+        parser.add_argument('-d', '--days', type=int, default=31)
+        parser.add_argument('-t', '--trials', type=int, default=15)
         parser.add_argument(
             '-s', '--strategies',
             type=str,
@@ -528,7 +528,7 @@ if __name__ == "__main__":
 
         optunaDatabase = "sqlite:///db.sqlite3"
 
-        helpers.cleanupDatabase(optunaDatabase)
+        #helpers.cleanupDatabase(optunaDatabase)
 
         datasets = [
             # (dataset_name, model_type, skip_last_columns)
@@ -928,7 +928,8 @@ if __name__ == "__main__":
                 
                 if "PoissonMonteCarlo" in strategies:
                     #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -950,7 +951,8 @@ if __name__ == "__main__":
                     clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 if "Markov" in strategies:
-                    studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -973,7 +975,8 @@ if __name__ == "__main__":
                 
 
                 if "MarkovBayesian" in strategies:
-                    studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -996,7 +999,8 @@ if __name__ == "__main__":
                 
                 
                 if "MarkovBayesianEnhanced" in strategies:
-                    studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1018,7 +1022,8 @@ if __name__ == "__main__":
                     clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 if "PoissonMarkov" in strategies:
-                    studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1040,7 +1045,8 @@ if __name__ == "__main__":
                     clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 if "LaPlaceMonteCarlo" in strategies:
-                    studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1062,7 +1068,8 @@ if __name__ == "__main__":
                     clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
 
                 if "HybridStatiscal" in strategies:
-                    studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    #studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                    studyName = f"{dataset_name}"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
