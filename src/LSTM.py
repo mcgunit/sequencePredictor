@@ -429,13 +429,13 @@ if __name__ == "__main__":
 
     lstm_model = LSTMModel()
 
-    name = 'euromillions'
+    name = 'pick3'
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-11-21.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-11-15.json")
 
     # Opening JSON file
     with open(sequenceToPredictFile, 'r') as openfile:
@@ -449,25 +449,25 @@ if __name__ == "__main__":
     lstm_model.setBatchSize(4)
     lstm_model.setEpochs(5000)
     lstm_model.setNumberOfLSTMLayers(1)
-    lstm_model.setNumberOfLstmUnits(64)
+    lstm_model.setNumberOfLstmUnits(128)
     lstm_model.setNumberOfBidrectionalLayers(1)
-    lstm_model.setNumberOfBidirectionalLstmUnits(32)
+    lstm_model.setNumberOfBidirectionalLstmUnits(16)
     lstm_model.setOptimizer("adagrad")
-    lstm_model.setLearningRate(0.00028)
-    lstm_model.setDropout(0.4) # 0.2 - 0.5
-    lstm_model.setL2Regularization(0.0083) #0.001 - 0.00005
+    lstm_model.setLearningRate(0.003)
+    lstm_model.setDropout(0.2) # 0.2 - 0.5
+    lstm_model.setL2Regularization(0.001) #0.001 - 0.00005
     lstm_model.setUseFinalLSTMLayer(False)
-    lstm_model.setEarlyStopPatience(20)
-    lstm_model.setReduceLearningRatePAience(20)
-    lstm_model.setReducedLearningRateFactor(0.4)
-    lstm_model.setWindowSize(14)
-    lstm_model.setMarkovAlpha(0.03)
+    lstm_model.setEarlyStopPatience(1000)
+    lstm_model.setReduceLearningRatePAience(30)
+    lstm_model.setReducedLearningRateFactor(0.9)
+    lstm_model.setWindowSize(7)
+    lstm_model.setMarkovAlpha(0.01)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
-    lstm_model.setLabelSmoothing(0.03)
+    lstm_model.setLabelSmoothing(0.01)
     lstm_model.setNumHeads(2)
-    lstm_model.setKeyDim(16)
+    lstm_model.setKeyDim(64)
 
-    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=4, strict_val=False)
+    latest_raw_predictions, unique_labels = lstm_model.run(name, years_back=10, strict_val=False)
     num_classes = len(unique_labels)
 
     #print("Labels: ", unique_labels)
