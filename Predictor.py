@@ -949,7 +949,8 @@ if __name__ == "__main__":
                             gameName = "Viking+Lotto"
                         dataFetcher.getLatestData(gameName, filePath)
                         #os.remove(os.path.join(dataPath, file))
-                    #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
+                    else:
+                        command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
                     # Predict with hyperopt params
                     predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
