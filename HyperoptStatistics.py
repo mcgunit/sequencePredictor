@@ -929,7 +929,7 @@ if __name__ == "__main__":
                 if "PoissonMonteCarlo" in strategies:
                     #studyName = f"Sequence-Predictor-Statistical-{dataset_name}-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                     #studyName = f"{dataset_name}-PoissonMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_PoissonMonteCarlo"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -952,7 +952,7 @@ if __name__ == "__main__":
 
                 if "Markov" in strategies:
                     #studyName = f"{dataset_name}-Markov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_Markov"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -976,7 +976,7 @@ if __name__ == "__main__":
 
                 if "MarkovBayesian" in strategies:
                     #studyName = f"{dataset_name}-MarkovBayesian_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_MarkovBayesian"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1000,7 +1000,7 @@ if __name__ == "__main__":
                 
                 if "MarkovBayesianEnhanced" in strategies:
                     #studyName = f"{dataset_name}-MarkovBayesianEnhanced_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_MarkovBayesianEnhanced"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1023,7 +1023,7 @@ if __name__ == "__main__":
 
                 if "PoissonMarkov" in strategies:
                     #studyName = f"{dataset_name}-PoissonMarkov_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_PoissonMarkov"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1046,7 +1046,7 @@ if __name__ == "__main__":
 
                 if "LaPlaceMonteCarlo" in strategies:
                     #studyName = f"{dataset_name}-LaPlaceMonteCarlo_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_LaPlaceMonteCarlo"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
@@ -1069,7 +1069,7 @@ if __name__ == "__main__":
 
                 if "HybridStatiscal" in strategies:
                     #studyName = f"{dataset_name}-HybridStatiscal_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                    studyName = f"{dataset_name}"
+                    studyName = f"{dataset_name}_HybridStatiscal"
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,  # Specify the storage URL here.
