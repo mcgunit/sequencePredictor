@@ -24,86 +24,49 @@ class Markov():
         self.softMaxTemperature = 0.5
         self.alpha = 0.7
         self.min_occurrences = 5
-        self.transition_matrix = defaultdict(lambda: defaultdict(int))
+        
+        # We now need a list of transition matrices (one per position/column)
+        # transition_matrices[0] stores transitions for Column 1, etc.
+        self.transition_matrices = [] 
+        
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
 
-        # New hyperparameters
-        self.recency_weight = 1.0  # Coefficient for recent draws
-        self.recency_mode = "linear" # linear, log or constant
-        self.pair_decay_factor = 0.9  # Discount for older pairs
-        self.smoothing_factor = 0.01  # Additive smoothing
-        self.subset_selection_mode = "top"  # top/softmax
-        self.blend_mode = "linear" # options: linear, harmonic and log
+        self.recency_weight = 1.0
+        self.recency_mode = "linear"
+        self.pair_decay_factor = 0.9
+        self.smoothing_factor = 0.01
+        self.subset_selection_mode = "softmax"
+        self.blend_mode = "linear"
     
     def clear(self):
-        self.transition_matrix = defaultdict(lambda: defaultdict(int))
+        self.transition_matrices = []
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
 
-    def setDataPath(self, dataPath):
-        self.dataPath = dataPath
-    
-    def setSoftMAxTemperature(self, temperature):
-        self.softMaxTemperature = temperature
-    
-    def setAlpha(self, nAlpha):
-        self.alpha = nAlpha
-
-    def setMinOccurrences(self, nMinOccurrences):
-        self.min_occurrences = nMinOccurrences
-
-    def setRecencyWeight(self, weight):
-        self.recency_weight = weight
-    
-    def setPairDecayFactor(self, decay):
-        self.pair_decay_factor = decay
-    
-    def setRecencyMode(self, recencyMode):
-        self.recency_mode = recencyMode
-    
-    def setSmoothingFactor(self, smoothing):
-        self.smoothing_factor = smoothing
-    
-    def setSubsetSelectionMode(self, mode):
-        self.subset_selection_mode = mode
-    
-    def setBlendMode(self, mode):
-        self.blend_mode = mode
-    
-    def getTransformationMatrix(self):
-        return self.transition_matrix
-
-    def generate_best_subset(self, predicted_numbers, nSubset):
-        """Generate a subset of numbers using weighted selection based on Markov probabilities and frequencies."""
-        unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure unique standard integers
-
-        if len(unique_numbers) < nSubset:
-            return unique_numbers  # Fallback if not enough numbers
-
-        # Compute blended probabilities using Markov and frequency data
-        blended_probs = self.blended_probability({int(num): 1 for num in unique_numbers}, self.number_frequencies)
-
-        if self.subset_selection_mode == "softmax":
-            probs = np.array([blended_probs[n] for n in unique_numbers])
-            indices = np.random.choice(len(unique_numbers), nSubset, replace=False,
-                                    p=self.softmax_with_temperature(probs, self.softMaxTemperature))
-            best_subset = sorted(map(int, [unique_numbers[i] for i in indices]))
-        else:
-            sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(int(x), 0), reverse=True)
-            best_subset = sorted(map(int, sorted_numbers[:nSubset]))
-
-        return best_subset
+    # ... Setters (Keep your existing setters) ...
+    def setDataPath(self, dataPath): self.dataPath = dataPath
+    def setSoftMAxTemperature(self, t): self.softMaxTemperature = t
+    def setAlpha(self, a): self.alpha = a
+    def setMinOccurrences(self, n): self.min_occurrences = n
+    def setRecencyWeight(self, w): self.recency_weight = w
+    def setRecencyMode(self, m): self.recency_mode = m
+    def setPairDecayFactor(self, d): self.pair_decay_factor = d
+    def setSmoothingFactor(self, s): self.smoothing_factor = s
+    def setSubsetSelectionMode(self, m): self.subset_selection_mode = m
+    def setBlendMode(self, m): self.blend_mode = m
 
     def softmax_with_temperature(self, probabilities, temperature=1.0):
-        """Applies temperature scaling to control randomness."""
-        probs = np.array(probabilities) / temperature
+        probs = np.array(probabilities)
+        # Safety for 0 temperature
+        if temperature < 1e-5:
+            return probs / probs.sum()
+        probs = probs / temperature
         return scipy.special.softmax(probs)
 
     def blended_probability(self, markov_probs, num_frequencies):
-        """Combines Markov transition probabilities with frequency analysis using different blend modes."""
-        total_freq = sum(num_frequencies.values()) or 1  # Prevent division by zero
-
+        """Combines Markov transition probabilities with frequency analysis."""
+        total_freq = sum(num_frequencies.values()) or 1
         all_nums = set(map(int, markov_probs)) | set(map(int, num_frequencies))
         blended = {}
 
@@ -115,132 +78,155 @@ class Markov():
                 blended[num] = np.log1p(mp) + np.log1p(freq)
             elif self.blend_mode == "harmonic":
                 blended[num] = 2 * mp * freq / (mp + freq + 1e-8)
-            else:  # default to linear
+            else:  # linear
                 blended[num] = self.alpha * mp + (1 - self.alpha) * freq
-
         return blended
 
     def build_markov_chain(self, numbers):
-        """Creates the transition matrix with weighted recency, decay, smoothing, and rare transition pruning."""
-        self.clear()  # reset state before building
+        """
+        Builds TEMPORAL Markov chains for each column.
+        numbers: List of draws, where each draw is [col1, col2, col3].
+        Assumes 'numbers' is sorted chronologically (Oldest -> Newest).
+        """
+        self.clear()
+        #if not numbers: return
+
+        num_columns = len(numbers[0])
+        # Initialize one dict per column
+        self.transition_matrices = [defaultdict(lambda: defaultdict(int)) for _ in range(num_columns)]
+        
         total_draws = len(numbers)
 
-        for draw_index, draw in enumerate(numbers):
-            # --- Recency weight ---
+        for t in range(total_draws - 1):
+            current_draw = numbers[t]
+            next_draw = numbers[t + 1]
+
+            # Calculate Weight based on T (Recency)
             if self.recency_mode == "linear":
-                weight = 1 + (self.recency_weight * draw_index / total_draws)
+                weight = 1 + (self.recency_weight * t / total_draws)
             elif self.recency_mode == "log":
-                weight = 1 + np.log1p(draw_index) * self.recency_weight
-            else:  # constant
+                weight = 1 + np.log1p(t) * self.recency_weight
+            else:
                 weight = 1.0
 
-            draw = list(map(int, draw))
-            recency_factor = self.pair_decay_factor ** (total_draws - draw_index)
+            recency_factor = self.pair_decay_factor ** (total_draws - t)
 
-            # --- Transitions (Markov step) ---
-            for i in range(len(draw) - 1):
-                self.transition_matrix[draw[i]][draw[i + 1]] += weight
+            # 1. Temporal Transitions (Per Column)
+            for col_idx in range(num_columns):
+                u = int(current_draw[col_idx])
+                v = int(next_draw[col_idx])
+                self.transition_matrices[col_idx][u][v] += weight
 
-            # --- Pairwise counts (decayed) ---
-            for i in range(len(draw)):
-                for j in range(i + 1, len(draw)):
-                    self.pair_counts[draw[i]][draw[j]] += weight * recency_factor
-                    self.pair_counts[draw[j]][draw[i]] += weight * recency_factor
-
-            # --- Frequency counts ---
-            for num in draw:
+            # 2. Pairwise Counts (Intra-draw, for 'Boxed' or global patterns)
+            # We use the 'next_draw' for frequency counting to align with the weight
+            for i in range(len(next_draw)):
+                for j in range(i + 1, len(next_draw)):
+                    n1, n2 = int(next_draw[i]), int(next_draw[j])
+                    self.pair_counts[n1][n2] += weight * recency_factor
+                    self.pair_counts[n2][n1] += weight * recency_factor
+            
+            # 3. Frequencies
+            for num in next_draw:
                 self.number_frequencies[int(num)] += weight
 
-        # --- Normalize transitions with smoothing & min_occurrences ---
-        cleaned_matrix = {}
+        # Normalize Matrices
+        self._normalize_matrices()
+
+    def _normalize_matrices(self):
+        """Helper to normalize all transition matrices."""
+        for col_idx in range(len(self.transition_matrices)):
+            raw_matrix = self.transition_matrices[col_idx]
+            cleaned = {}
+            for number, transitions in raw_matrix.items():
+                filtered = {k: v for k, v in transitions.items() if v >= self.min_occurrences}
+                if not filtered: continue
+                
+                total = sum(filtered.values()) + self.smoothing_factor * len(filtered)
+                cleaned[number] = {
+                    int(k): (v + self.smoothing_factor) / total
+                    for k, v in filtered.items()
+                }
+            self.transition_matrices[col_idx] = cleaned
+
+    def predict_next_numbers(self, previous_draw, temperature=0.7):
+        """
+        Predicts the next number for EACH column specifically.
+        previous_draw: [col1, col2, col3] from the last known draw.
+        """
+        predictions = []
+        previous_draw = list(map(int, previous_draw))
         
-        for number, transitions in self.transition_matrix.items():
-            # prune weak transitions
-            filtered = {k: v for k, v in transitions.items() if v >= self.min_occurrences}
-            if not filtered:
+        # We need to predict one number per column
+        for col_idx, prev_num in enumerate(previous_draw):
+            matrix = self.transition_matrices[col_idx] if col_idx < len(self.transition_matrices) else {}
+            
+            # Get Markov Probabilities for this column
+            if prev_num in matrix:
+                next_nums = list(matrix[prev_num].keys())
+                probs = list(matrix[prev_num].values())
+                
+                # Blend with global frequencies to handle sparsity
+                # (We treat the matrix prob as primary, frequency as fallback/smoothing)
+                markov_probs_dict = dict(zip(next_nums, probs))
+                blended = self.blended_probability(markov_probs_dict, self.number_frequencies)
+                
+                candidates = list(blended.keys())
+                candidate_probs = list(blended.values())
+            else:
+                # Fallback: Just use global frequencies if no transition history for this number
+                candidates = list(self.number_frequencies.keys())
+                total_freq = sum(self.number_frequencies.values())
+                candidate_probs = [self.number_frequencies[c]/total_freq for c in candidates]
+
+            # Selection
+            if not candidates:
+                predictions.append(np.random.randint(0, 10)) # Absolute fallback
                 continue
 
-            total = sum(filtered.values()) + self.smoothing_factor * len(filtered)
-            cleaned_matrix[number] = {
-                int(k): (v + self.smoothing_factor) / total
-                for k, v in filtered.items()
-            }
+            # Apply Temperature Softmax
+            adjusted_probs = self.softmax_with_temperature(candidate_probs, temperature=temperature)
+            
+            # Renormalize ensures sum is 1.0 explicitly
+            adjusted_probs = adjusted_probs / adjusted_probs.sum()
+            
+            pred_num = int(np.random.choice(candidates, p=adjusted_probs))
+            predictions.append(pred_num)
 
-        self.transition_matrix = cleaned_matrix
+        return predictions
 
-    def predict_next_numbers(self, previous_numbers, n_predictions=20, temperature=0.7):
-        """Predicts the next numbers using Markov Chain with all fine-tuning strategies."""
-        predictions = set()
-        previous_numbers = list(map(int, previous_numbers))
-
-        for num in previous_numbers:
-            if num in self.transition_matrix and self.transition_matrix[num]:
-                next_nums = list(self.transition_matrix[num].keys())
-                probs = list(self.transition_matrix[num].values())
-
-                adjusted_probs = self.softmax_with_temperature(probs, temperature=temperature)
-                predicted_num = int(np.random.choice(next_nums, p=adjusted_probs))
-                predictions.add(predicted_num)
-
-        if len(predictions) < n_predictions:
-            all_numbers = list(self.transition_matrix.keys())
-            blended_probs = self.blended_probability(
-                self.transition_matrix.get(num, {}),
-                self.number_frequencies
-            )
-
-            sorted_freq = sorted(blended_probs, key=blended_probs.get, reverse=True)
-
-            while len(predictions) < n_predictions and sorted_freq:
-                next_best = int(sorted_freq.pop(0))
-                if next_best not in predictions:
-                    predictions.add(next_best)
-
-        while len(predictions) < n_predictions:
-            last_predicted = list(predictions)[-1]
-            if last_predicted in self.pair_counts:
-                next_best = max(
-                    self.pair_counts[last_predicted],
-                    key=self.pair_counts[last_predicted].get,
-                    default=None
-                )
-                if next_best is not None and int(next_best) not in predictions:
-                    predictions.add(int(next_best))
-
+    def generate_best_subset(self, predicted_numbers, nSubset):
+        # Keeps your original logic for generating subsets (e.g. for Keno)
+        # Using the predicted numbers as seeds
+        unique_numbers = list(set(map(int, predicted_numbers)))
+        if len(unique_numbers) < nSubset:
+            # Add top frequent numbers to fill
+            sorted_freq = sorted(self.number_frequencies, key=self.number_frequencies.get, reverse=True)
+            for f in sorted_freq:
+                if f not in unique_numbers:
+                    unique_numbers.append(f)
+                if len(unique_numbers) >= nSubset: break
         
-
-        return sorted(map(int, list(predictions)[:n_predictions]))
+        return unique_numbers[:nSubset]
 
     def run(self, generateSubsets=[], skipRows=0):
-        """
-        Runs the Markov Chain prediction process with optional subset generation.
-        
-        Parameters:
-        generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
-        """
-
-        #print("Running Markov with params: ", "Alpha", self.alpha, "min_occurrences", self.min_occurrences, "softMAxtemperature ", self.softMaxTemperature, "skipRows", skipRows)
-    
+        # Load Data
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
+        
 
-        #print("Building chain")
+        # Numbers is sorted oldest -> newest
+        print("number: ", numbers[0])
+
         self.build_markov_chain(numbers)
 
-
-        last_draw = numbers[-1]
-        #print("Last draw: ", last_draw)
-        predicted_numbers = self.predict_next_numbers(last_draw, n_predictions=len(last_draw), temperature=self.softMaxTemperature)
-
-        #print("Predicted numbers from last draw: ", last_draw, predicted_numbers)
+        last_draw = numbers[-1] # The most recent draw
+        predicted_numbers = self.predict_next_numbers(last_draw, temperature=self.softMaxTemperature)
 
         subsets = {}
         if generateSubsets:
-            #print("Creating subsets of:", generateSubsets)
             for subset_size in generateSubsets:
                 subsets[subset_size] = self.generate_best_subset(predicted_numbers, subset_size)
 
         return predicted_numbers, subsets
-
 
 if __name__ == "__main__":
     print("Trying Markov")
@@ -253,13 +239,14 @@ if __name__ == "__main__":
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
 
     markov.setDataPath(dataPath)
-    markov.setSoftMAxTemperature(0.45549133296465505)
-    markov.setAlpha(0.5756199713439012)
-    markov.setMinOccurrences(15)
+    markov.setSoftMAxTemperature(0.45)
+    markov.setAlpha(0.6)
+    markov.setMinOccurrences(2) 
+    markov.setRecencyWeight(1.7)
+
     markov.setSubsetSelectionMode("softmax")
     markov.setBlendMode("linear")
     markov.setRecencyMode("constant")
-    markov.setRecencyWeight(1.7071181120445589)
     #markov.setPairDecayFactor(1.2286344216885279)
     markov.setPairDecayFactor(1)
 
@@ -274,5 +261,5 @@ if __name__ == "__main__":
 
     if "keno" in name:
         generateSubsets = [6, 7]
-    for _ in range(3):
+    for _ in range(1):
         print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets))
