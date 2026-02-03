@@ -201,98 +201,70 @@ class LSTMModel:
     
 
 
-    """
-    If training loss is high: The model is underfitting. Increase complexity or train for more epochs.
-    If validation loss diverges from training loss: The model is overfitting. Add more regularization (dropout, L2).
-    """
-    def create_model(self, max_value, num_classes=50, model_path="", digitsPerDraw=7):
-        num_lstm_layers = self.num_lstm_layers
-        num_bidirectional_layers = self.num_bidirectional_layers
-        lstm_units = self.lstm_units
-        bidirectional_lstm_units = self.bidirectional_lstm_units
-        dropout = self.dropout
-        l2Regularization = self.l2Regularization
+    def create_model(self, max_value, num_classes=10, model_path="", digitsPerDraw=3):
+        # --- Parameters ---
+        # A smaller embedding dim is usually fine for 10 digits
+        embedding_dim = 8  
+        lstm_units = self.lstm_units     # Enough capacity without massive overfitting
+        dropout = self.dropout       # Higher dropout due to noisy data
+        learning_rate = self.learning_rate
 
-        # --- Optimizer selection ---
-        if self.optimizer_type == "adam":
-            optimizer = optimizers.Adam(learning_rate=self.learning_rate)
-        elif self.optimizer_type == "sgd":
-            optimizer = optimizers.SGD(learning_rate=self.learning_rate, momentum=0.9)
-        elif self.optimizer_type == "rmsprop":
-            optimizer = optimizers.RMSprop(learning_rate=self.learning_rate)
-        elif self.optimizer_type == "adagrad":
-            optimizer = optimizers.Adagrad(learning_rate=self.learning_rate)
-        elif self.optimizer_type == "nadam":
-            optimizer = optimizers.Nadam(learning_rate=self.learning_rate)
-        else:
-            print(f"Unsupported optimizer type: {self.optimizer_type} using default")
-            optimizer = optimizers.Adam(learning_rate=self.learning_rate)
+        # --- Architecture ---
+        # Input Shape: (Window_Size, 3 Digits)
+        input_layer = layers.Input(shape=(self.window_size, digitsPerDraw))
 
-        model = models.Sequential()
-        model.add(layers.Input(shape=(self.window_size, digitsPerDraw)))
+        # 1. Flatten to treating the stream as a single sequence of symbols
+        #    If window is 5 and digits is 3, we flatten to a sequence of length 15.
+        #    This often helps the LSTM see the relationship between Digit 1 and Digit 2 
+        #    within the same draw, not just across time.
+        x = layers.Reshape((self.window_size * digitsPerDraw,))(input_layer)
 
-        # --- CNN feature extractor (local patterns across draws) ---
-        model.add(layers.Conv1D(filters=32, kernel_size=digitsPerDraw, activation='relu', padding='causal'))
-        model.add(layers.MaxPooling1D(pool_size=2))
+        # 2. Embedding Layer
+        #    Converts integer 0-9 into a vector of size 16. 
+        #    This removes the "magnitude" bias.
+        x = layers.Embedding(input_dim=num_classes, output_dim=embedding_dim)(x)
 
-        # --- Stacked LSTMs (keep sequences) ---
-        for _ in range(num_lstm_layers):
-            model.add(layers.LSTM(lstm_units, return_sequences=True,
-                                kernel_regularizer=regularizers.l2(l2Regularization)))
-            model.add(layers.Dropout(dropout))
+        # 3. Bidirectional LSTM
+        #    We use one strong layer. 'return_sequences=False' because we only 
+        #    care about the final prediction after seeing the whole window.
+        x = layers.Bidirectional(layers.LSTM(lstm_units, return_sequences=False))(x)
+        x = layers.Dropout(dropout)(x)
 
-        # --- Optional extra LSTM ---
-        if self.useFinalLSTMLayer:
-            model.add(layers.LSTM(lstm_units, return_sequences=True,
-                                kernel_regularizer=regularizers.l2(l2Regularization)))
-            model.add(layers.Dropout(dropout))
+        # 4. Dense Intermediary (Optional "Thinking" layer)
+        x = layers.Dense(lstm_units, activation='relu')(x)
+        
+        # 5. Output Head (The Logic We Fixed)
+        #    Linear projection -> Reshape -> Independent Softmax
+        x = layers.Dense(digitsPerDraw * num_classes)(x)
+        x = layers.Reshape((digitsPerDraw, num_classes))(x)
+        output_layer = layers.Softmax(axis=-1)(x)
 
-        # --- Optional BiLSTM stack (also keep sequences) ---
-        for _ in range(num_bidirectional_layers):
-            model.add(layers.Bidirectional(layers.LSTM(
-                bidirectional_lstm_units,
-                return_sequences=True,
-                kernel_regularizer=regularizers.l2(l2Regularization)
-            )))
-            model.add(layers.Dropout(dropout))
+        model = models.Model(inputs=input_layer, outputs=output_layer)
 
-        # --- MultiHead Self-Attention block (keeps 3D shape) ---
-        # You can tune num_heads/key_dim; start small to avoid overfitting.
-        model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=0.0))
-        model.add(SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=0.0))
-
-        # --- Collapse time dimension to 2D ---
-        model.add(layers.GlobalAveragePooling1D())  # (batch, features)
-
-        # --- Output per digit ---
-        # Change Dense activation to None or 'linear'
-        model.add(layers.Dense(digitsPerDraw * num_classes)) 
-        model.add(layers.Reshape((digitsPerDraw, num_classes)))
-        # Apply Softmax strictly on the last axis (the classes)
-        model.add(layers.Softmax(axis=-1))
-
-        loss = losses.CategoricalCrossentropy(label_smoothing=self.labelSmoothing, from_logits=False)
+        # --- Compilation ---
+        optimizer = optimizers.Adam(learning_rate=learning_rate)
+        
+        loss = losses.CategoricalCrossentropy() # from_logits=False is default, which matches Softmax output
+        
         metrics = [
             'accuracy', 
-            tf.keras.metrics.TopKCategoricalAccuracy(k=3, name='top3'),
+            # We can keep your custom metrics here
             self.digit_accuracy,
-            self.any_digit_hit,
-            self.full_draw_accuracy
+            self.any_digit_hit
         ]
-        model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
-
         
+        model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+        
+        # Load weights logic...
         if self.loadModelWeights:
             try:
                 if os.path.exists(f"{model_path}.weights.h5"):
                     print(f"Loading weights from {model_path}.weights.h5")
                     model.load_weights(f"{model_path}.weights.h5")
-            except Exception as e:
-                print("Failed to load weights")
+            except Exception:
                 pass
 
         return model
-
     
     def train_model(self, model, train_data, train_labels, val_data, val_labels, model_name):
         early_stopping = EarlyStopping(monitor='val_loss', patience=self.earlyStopPatience, restore_best_weights=True)
@@ -451,14 +423,14 @@ if __name__ == "__main__":
     lstm_model.setModelPath(modelPath)
     lstm_model.setDataPath(dataPath)
     lstm_model.setBatchSize(4)
-    lstm_model.setEpochs(5000)
+    lstm_model.setEpochs(500)
     lstm_model.setNumberOfLSTMLayers(1)
-    lstm_model.setNumberOfLstmUnits(128)
+    lstm_model.setNumberOfLstmUnits(32)
     lstm_model.setNumberOfBidrectionalLayers(1)
     lstm_model.setNumberOfBidirectionalLstmUnits(16)
     lstm_model.setOptimizer("adagrad")
-    lstm_model.setLearningRate(0.003)
-    lstm_model.setDropout(0.2) # 0.2 - 0.5
+    lstm_model.setLearningRate(0.0005)
+    lstm_model.setDropout(0.5) # 0.2 - 0.5
     lstm_model.setL2Regularization(0.001) #0.001 - 0.00005
     lstm_model.setUseFinalLSTMLayer(False)
     lstm_model.setEarlyStopPatience(1000)

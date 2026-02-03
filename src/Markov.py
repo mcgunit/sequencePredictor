@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, json
 import numpy as np
 import scipy.special
 from collections import defaultdict
@@ -243,7 +243,7 @@ class Markov():
 
 
 if __name__ == "__main__":
-    print("Trying Markov with Fine-Tuning")
+    print("Trying Markov")
 
     markov = Markov()
 
@@ -262,6 +262,15 @@ if __name__ == "__main__":
     markov.setRecencyWeight(1.7071181120445589)
     #markov.setPairDecayFactor(1.2286344216885279)
     markov.setPairDecayFactor(1)
+
+    jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-08-02.json")
+
+    # Opening JSON file
+    with open(sequenceToPredictFile, 'r') as openfile:
+        sequenceToPredict = json.load(openfile)
+
+    print("Real result: ", sequenceToPredict["realResult"])
 
     if "keno" in name:
         generateSubsets = [6, 7]
