@@ -265,10 +265,13 @@ class LSTMModel:
         model.add(layers.GlobalAveragePooling1D())  # (batch, features)
 
         # --- Output per digit ---
-        model.add(layers.Dense(digitsPerDraw * num_classes, activation=self.outputActivation))
+        # Change Dense activation to None or 'linear'
+        model.add(layers.Dense(digitsPerDraw * num_classes)) 
         model.add(layers.Reshape((digitsPerDraw, num_classes)))
+        # Apply Softmax strictly on the last axis (the classes)
+        model.add(layers.Softmax(axis=-1))
 
-        loss = losses.CategoricalCrossentropy(label_smoothing=self.labelSmoothing)
+        loss = losses.CategoricalCrossentropy(label_smoothing=self.labelSmoothing, from_logits=False)
         metrics = [
             'accuracy', 
             tf.keras.metrics.TopKCategoricalAccuracy(k=3, name='top3'),
@@ -290,6 +293,7 @@ class LSTMModel:
 
         return model
 
+    
     def train_model(self, model, train_data, train_labels, val_data, val_labels, model_name):
         early_stopping = EarlyStopping(monitor='val_loss', patience=self.earlyStopPatience, restore_best_weights=True)
         reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=self.reduceLearningRateFactor, patience=self.reduceLearningRatePatience)
@@ -435,7 +439,7 @@ if __name__ == "__main__":
     modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "lstm_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-11-15.json")
+    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-08-02.json")
 
     # Opening JSON file
     with open(sequenceToPredictFile, 'r') as openfile:
