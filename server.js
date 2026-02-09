@@ -13,7 +13,7 @@ app.use(express.json());
 
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
-const modelsPath = path.join(__dirname, 'data', 'models');
+// modelsPath removed as it is no longer used
 
 // --- GLOBAL STATE ---
 var selectedPlayedNumbers = [4, 5, 6, 7, 8, 9, 10]; // Default for Keno
@@ -170,8 +170,7 @@ function generateHeader(title = "Sequence Predictor") {
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">Database</a>
-        <a href="/models">Models</a>
-        <a href="http://localhost:8080" target="_blank">Optuna</a>
+        <a id="optuna-link" href="#" target="_blank">Optuna</a>
       </div>
 
       <div class="nav-group">
@@ -215,6 +214,15 @@ function generateHeader(title = "Sequence Predictor") {
         const card = header.parentElement;
         card.classList.toggle('expanded');
       }
+
+      // Dynamic Optuna Link
+      document.addEventListener("DOMContentLoaded", function() {
+        const optunaLink = document.getElementById("optuna-link");
+        if(optunaLink) {
+            // Uses current window hostname (e.g., localhost, 192.168.x.x, etc.) and adds port 8080
+            optunaLink.href = \`\${window.location.protocol}//\${window.location.hostname}:8080\`;
+        }
+      });
 
       // Settings Logic
       document.getElementById('globalModelForm').addEventListener('submit', async (e) => {
@@ -555,46 +563,19 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-app.get('/models', (req, res) => { 
-    const folders = fs.readdirSync(modelsPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-    let html = generateHeader("Models");
-    html += '<h1>Available Models</h1><ul>';
-    folders.forEach((folder) => { html += `<li><a href="/models/${folder}" style="font-size: 1.2em;">📁 ${folder}</a></li>`; });
-    html += '</ul>';
-    html += generateFooter();
-    res.send(html);
-});
-
-app.get('/models/:folder', (req, res) => {
-    const folder = req.params.folder;
-    const folderPath = path.join(modelsPath, folder);
-    if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
-    const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.png'));
-    let html = generateHeader(`${folder} Images`);
-    html += `<h1>Images in ${folder}</h1><div style="display: flex; flex-wrap: wrap; gap: 20px;">`;
-    files.forEach((file) => {
-      html += `<div style="border: 1px solid #ccc; padding: 10px; background: white; border-radius: 5px;">
-        <h3>${file}</h3><img src="/models/${folder}/${file}" alt="${file}" style="max-width: 400px; height: auto;">
-      </div>`;
-    });
-    html += '</div>';
-    html += generateFooter();
-    res.send(html);
-});
-
 app.post('/playedNumbers', (req, res) => {
-    let playedNumbers = req.body.playedNumbers;
-    if (!playedNumbers) return res.status(400).send('No numbers');
-    if (!Array.isArray(playedNumbers)) playedNumbers = [playedNumbers];
-    selectedPlayedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-    res.json({ success: true });
+  let playedNumbers = req.body.playedNumbers;
+  if (!playedNumbers) return res.status(400).send('No numbers');
+  if (!Array.isArray(playedNumbers)) playedNumbers = [playedNumbers];
+  selectedPlayedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
+  res.json({ success: true });
 });
   
 app.post('/playedModel', (req, res) => {
-    let playedModel = req.body.selectedModel;
-    if (!Array.isArray(playedModel)) playedModel = [playedModel];
-    selectedModel = playedModel;
-    res.json({ success: true });
+  let playedModel = req.body.selectedModel;
+  if (!Array.isArray(playedModel)) playedModel = [playedModel];
+  selectedModel = playedModel;
+  res.json({ success: true });
 });
 
 app.listen(config.PORT, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
