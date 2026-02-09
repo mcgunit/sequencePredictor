@@ -261,7 +261,6 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
   if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
     Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => html += `<th>Num ${i + 1}</th>`);
   }
-  // FIXED: Show Profit if calcProfit is strictly true
   if(calcProfit) html += '<th>Profit</th>';
   html += '</tr>';
 
@@ -275,7 +274,6 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
         const isMatching = matchingNumbers.includes(cell);
         html += `<td style="text-align: center; ${isMatching ? 'background: #2ecc71; color: white;' : ''}">${cell}</td>`;
       });
-      // FIXED: Show Profit Cell if calcProfit is strictly true
       if(calcProfit) {
         const profit = calculateProfit(row, matchingNumbers, game, modelType);
         html += `<td style="background: #f9f9f9;">${profit} €</td>`;
@@ -305,23 +303,18 @@ function calculateProfit(prediction, realResult, game, name) {
     straight: 500, box_with_doubles: 160, box_no_doubles: 80,
     front_pair: 50, back_pair: 50, last_number: 1, lost: -4 
   };
-  let played = prediction.length;
-  
-  // FIX: For Keno, if prediction is > 10, assume we play the Top 10
-  let effectivePrediction = prediction;
-  if (game === "keno" && played > 10) {
-      effectivePrediction = prediction.slice(0, 10);
-      played = 10;
-  }
+  const played = prediction.length;
 
   switch (game) {
     case "keno": {
-      const correctNumbers = effectivePrediction.filter(n => realResult.includes(n)).length;
+      // NEW LOGIC: Strictly ignore profit if prediction row > 10 numbers
+      if (played > 10) return 0;
+
+      const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
       if (played >= 2 && played <= 10 && payoutTableKeno[played]) return payoutTableKeno[played][correctNumbers] ?? payoutTableKeno["lost"];
       return 0; 
     }
     case "pick3": {
-      // Pick3 logic remains the same (Prediction is usually 3)
       if (played != 3 || realResult.length != 3) return 0;
       const pred = prediction; const actual = realResult;
       const isSame = pred[0] === actual[0] && pred[1] === actual[1] && pred[2] === actual[2];
