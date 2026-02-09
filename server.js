@@ -9,61 +9,236 @@ const app = express();
 
 // Middleware to parse form data
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // To parse JSON body
+app.use(express.json()); 
 
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
 const modelsPath = path.join(__dirname, 'data', 'models');
 
+// --- GLOBAL STATE ---
+var selectedPlayedNumbers = [4, 5, 6, 7, 8, 9, 10]; // Default for Keno
+var selectedModel = ["all"]; // Global filter for which models to show/calculate
 
-var selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for Keno
-var selectedModel = ["all"]; // To select with wich model's predictions is played
+// --- HELPER: Generate HTML Header ---
+function generateHeader(title = "Sequence Predictor") {
+  return `
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding-top: 60px; background-color: #f4f4f9; }
+      
+      /* STICKY NAVBAR */
+      .navbar {
+        position: fixed;
+        top: 0;
+        width: 100%;
+        background-color: #333;
+        color: white;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 1000;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+      .navbar a {
+        color: white;
+        text-decoration: none;
+        margin-right: 15px;
+        font-weight: bold;
+      }
+      .navbar a:hover { text-decoration: underline; }
+      
+      .nav-group { display: flex; align-items: center; }
+      
+      /* DROPDOWN SETTINGS */
+      .settings-container {
+        position: relative;
+        display: inline-block;
+      }
+      .settings-btn {
+        background-color: #555;
+        color: white;
+        padding: 8px 12px;
+        border: none;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .settings-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        background-color: #f9f9f9;
+        min-width: 250px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        padding: 15px;
+        z-index: 1;
+        border-radius: 5px;
+        color: black;
+      }
+      .settings-container:hover .settings-content { display: block; }
+      
+      /* GLOBAL STYLES */
+      h1, h2 { color: #333; }
+      .container { padding: 20px; max-width: 1200px; margin: auto; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+      th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+      th { background-color: #444; color: white; }
+      tr:nth-child(even) { background-color: #f2f2f2; }
+      
+      .status-bar {
+        font-size: 0.85em;
+        color: #bbb;
+        margin-left: 20px;
+      }
+      
+      input, select, button { padding: 5px; margin: 5px 0; }
+    </style>
+  </head>
+  <body>
+    <div class="navbar">
+      <div class="nav-group">
+        <a href="/">Home</a>
+        <a href="/database">Database</a>
+        <a href="/models">Models</a>
+        <a href="http://localhost:8080" target="_blank">Optuna Dashboard</a>
+      </div>
 
+      <div class="nav-group">
+        <div class="status-bar">
+          Model: <b>${selectedModel.join(', ')}</b> | Numbers: <b>${selectedPlayedNumbers.join(',')}</b>
+        </div>
+        
+        <div class="settings-container" style="margin-left: 15px;">
+          <button class="settings-btn">⚙️ Settings</button>
+          <div class="settings-content">
+            <h4>Global Settings</h4>
+            
+            <form id="globalModelForm">
+              <label><strong>Select Model(s):</strong></label><br>
+              <select id="globalSelectedModel" multiple style="width: 100%; height: 100px;">
+                <option value="all" ${selectedModel.includes('all') ? 'selected' : ''}>All Models</option>
+                <option value="HybridStatisticalModel" ${selectedModel.includes('HybridStatisticalModel') ? 'selected' : ''}>HybridStatisticalModel</option>
+                <option value="LaplaceMonteCarlo Model" ${selectedModel.includes('LaplaceMonteCarlo Model') ? 'selected' : ''}>LaplaceMonteCarlo</option>
+                <option value="PoissonMarkov Model" ${selectedModel.includes('PoissonMarkov Model') ? 'selected' : ''}>PoissonMarkov</option>
+                <option value="PoissonMonteCarlo Model" ${selectedModel.includes('PoissonMonteCarlo Model') ? 'selected' : ''}>PoissonMonteCarlo</option>
+                <option value="MarkovBayesian Model" ${selectedModel.includes('MarkovBayesian Model') ? 'selected' : ''}>MarkovBayesian</option>
+                <option value="Markov Model" ${selectedModel.includes('Markov Model') ? 'selected' : ''}>Markov</option>
+                <option value="MarkovBayesianEnhanched Model" ${selectedModel.includes('MarkovBayesianEnhanched Model') ? 'selected' : ''}>MarkovBayesianEnhanced</option>
+              </select>
+              <button type="submit" style="width: 100%; background: #4CAF50; color: white; border: none;">Apply Models</button>
+            </form>
+            <hr>
+            
+            <form id="globalPlayedNumbersForm">
+              <label><strong>Keno Played Numbers:</strong></label><br>
+              <input type="text" id="globalPlayedNumbers" value="${selectedPlayedNumbers.join(',')}" style="width: 90%;">
+              <button type="submit" style="width: 100%; background: #2196F3; color: white; border: none;">Update Numbers</button>
+            </form>
+            
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Model Form Handler
+      document.getElementById('globalModelForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const options = document.getElementById('globalSelectedModel').selectedOptions;
+        const values = Array.from(options).map(o => o.value);
+        
+        await fetch('/playedModel', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ selectedModel: values })
+        });
+        window.location.reload();
+      });
+
+      // Numbers Form Handler
+      document.getElementById('globalPlayedNumbersForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const val = document.getElementById('globalPlayedNumbers').value;
+        const arr = val.split(',').map(n => n.trim()).filter(n => n);
+        
+        await fetch('/playedNumbers', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ playedNumbers: arr })
+        });
+        window.location.reload();
+      });
+    </script>
+    <div class="container">
+  `;
+}
+
+function generateFooter() {
+  return `</div></body></html>`;
+}
+
+// --- LOGIC: Filter Data by Selected Model ---
+function filterDataByModel(data) {
+  if (!data) return [];
+  if (selectedModel.includes("all")) return data;
+  
+  // Filter the predictions array to only include selected models
+  return data.filter(modelItem => {
+    // Check if model.name is in selectedModel list
+    // (Ensure exact matching or partial matching depending on your naming convention)
+    return selectedModel.some(sel => modelItem.name === sel || modelItem.name.includes(sel));
+  });
+}
+
+// --- LOGIC: Table Generation (Updated with Filter) ---
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
+  // 1. Filter Data First
+  const filteredData = filterDataByModel(data);
+
+  if (filteredData.length === 0) return `<p>No data for selected model(s): ${selectedModel.join(', ')}</p>`;
+
   let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
 
-  // Add title if provided
   if (title) table += `<caption><strong>${title}</strong></caption>`;
   
-  // Define column headers
+  // Headers
   table += '<tr>' +
-    '<th style="padding: 5px; text-align: center; background: #333; color: white; min-width: 150px;">Model</th>' +
-    '<th style="padding: 5px; text-align: center; background: #333; color: white; width: 50px;">#</th>';
+    '<th style="min-width: 150px;">Model</th>' +
+    '<th style="width: 50px;">#</th>';
 
-  // Add number headers
-  if (data.length > 0 && data[0].predictions.length > 0) {
-    Array.from({ length: data[0].predictions[0].length }).forEach((_, i) => {
-      table += `<th style="padding: 5px; text-align: center; background: #333; color: white;">Number ${i + 1}</th>`;
+  if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
+    Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => {
+      table += `<th>Number ${i + 1}</th>`;
     });
   }
   if(title.includes("Current Prediction") && calcProfit) {
-    table += '<th style="padding: 5px; text-align: center; background: #333; color: white;">Profit</th>';
+    table += '<th>Profit</th>';
   }
   table += '</tr>';
 
-  // Add data rows with model identification
-  data.forEach((model, modelIndex) => {
+  // Rows
+  filteredData.forEach((model) => {
     model.predictions.forEach((row, rowIndex) => {
       const modelType = model.name || "not known";
       table += `<tr>
-        <td style="padding: 5px; background: #f8f9fa; font-weight: bold; border-right: 2px solid #ddd;">
-          ${modelType}
-        </td>
-        <td style="padding: 5px; text-align: center; font-weight: bold; background: #f8f9fa;">${rowIndex + 1}</td>`;
+        <td style="font-weight: bold; background: #f9f9f9;">${modelType}</td>
+        <td style="font-weight: bold; background: #f9f9f9;">${rowIndex + 1}</td>`;
 
-      let correctNumbers = 0;
       row.forEach((cell) => {
         const isMatching = matchingNumbers.includes(cell);
-        if (isMatching) correctNumbers++;
-        table += `<td style="padding: 5px; text-align: center; 
-          ${isMatching ? 'background: #2ecc71; color: white;' : ''}">
-          ${cell}
-        </td>`;
+        table += `<td style="text-align: center; ${isMatching ? 'background: #2ecc71; color: white;' : ''}">${cell}</td>`;
       });
 
       if(title.includes("Current Prediction") && calcProfit) {
         const profit = calculateProfit(row, matchingNumbers, game, modelType);
-        table += `<td style="padding: 5px; text-align: center; background: #f8f9fa;">${profit} €</td>`;
+        table += `<td style="background: #f9f9f9;">${profit} €</td>`;
       }
       table += '</tr>';
     });
@@ -74,8 +249,6 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
 }
 
 function calculateProfit(prediction, realResult, game, name) {
-  //console.log("prediction: ", prediction);
-  //console.log("realResult: ", realResult);
   const payoutTableKeno = {
     10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
     9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
@@ -96,501 +269,287 @@ function calculateProfit(prediction, realResult, game, name) {
     front_pair: 50,
     back_pair: 50,
     last_number: 1,
-    lost: -4 // because we play with 4 kinds of order per prediction
+    lost: -4 
   };
 
   const played = prediction.length;
 
   switch (game) {
     case "keno": {
+      // Use selectedPlayedNumbers size to determine payout tier, assuming user plays subset
+      // Or if prediction size matches logic. For now, use prediction length.
       const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
       if (played >= 2 && played <= 10 && payoutTableKeno[played]) {
         return payoutTableKeno[played][correctNumbers] ?? payoutTableKeno["lost"];
-      } else {
-        return 0;
-      }
+      } 
+      // Keno typically implies picking X numbers. If model predicts 20, we assume user picks 'selectedPlayedNumbers' amount from top.
+      return 0; 
     }
 
     case "pick3": {
       if (played != 3 || realResult.length != 3) return 0;
-
       const pred = prediction;
       const actual = realResult;
-
       const isSame = pred[0] === actual[0] && pred[1] === actual[1] && pred[2] === actual[2];
       const isPermutation = [...pred].sort().join('') === [...actual].sort().join('');
 
-      if (isSame) {
-        return payoutTablePick3.straight;
-      } else if (isPermutation) {
+      if (isSame) return payoutTablePick3.straight;
+      else if (isPermutation) {
         const countMap = {};
-        for (let n of pred) {
-          countMap[n] = (countMap[n] || 0) + 1;
-        }
+        for (let n of pred) countMap[n] = (countMap[n] || 0) + 1;
         const hasDouble = Object.values(countMap).includes(2);
         return hasDouble ? payoutTablePick3.box_with_doubles : payoutTablePick3.box_no_doubles;
-      } else if (pred[0] === actual[0] && pred[1] === actual[1]) {
-        return payoutTablePick3.front_pair;
-      } else if (pred[1] === actual[1] && pred[2] === actual[2]) {
-        return payoutTablePick3.back_pair;
-      } else if (pred[2] === actual[2]) {
-        return payoutTablePick3.last_number;
-      } else {
-        return payoutTablePick3.lost;
-      }
+      } 
+      else if (pred[0] === actual[0] && pred[1] === actual[1]) return payoutTablePick3.front_pair;
+      else if (pred[1] === actual[1] && pred[2] === actual[2]) return payoutTablePick3.back_pair;
+      else if (pred[2] === actual[2]) return payoutTablePick3.last_number;
+      else return payoutTablePick3.lost;
     }
-
     default:
       const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
       return `${correctNumbers}/${played}`;
   }
 }
 
-
 function generateList(data, title = '') {
   if(Array.isArray(data) && data.length > 0) {
-    let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
+    let table = '<table style="width: auto; margin-bottom: 20px;">';
     if (title) table += `<caption><strong>${title}</strong></caption>`;
     table += '<tr>';
     data.forEach((item) => {
-      table += `<td style="padding: 5px; text-align: center; width: 100px; min-width: 100px;">${item}</td>`;
+      table += `<td style="padding: 10px; background: #eee; font-size: 1.1em; font-weight: bold;">${item}</td>`;
     });
-    table += '</tr>';
-    table += '</table>';
+    table += '</tr></table>';
     return table;
   }
+  return '';
 }
 
 
-// Serve static files
-app.use('/models', express.static(modelsPath)); // Serves PNGs from models directory
+// --- ROUTES ---
 
-// Router to handle database data
+// 1. Database Index
 app.get('/database', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((dir) => dir.name);
 
-  let html = '<h1>Available Database Folders</h1><ul>';
+  let html = generateHeader("Database Folders");
+  html += '<h1>Available Database Folders</h1><div style="display: flex; gap: 10px; flex-wrap: wrap;">';
+  
   folders.forEach((folder) => {
-    html += `<li><form action="/database/${folder}" method="get"><button type="submit">${folder}</button></form></li>`;
+    html += `<form action="/database/${folder}" method="get">
+      <button type="submit" style="padding: 15px 30px; font-size: 1.1em; cursor: pointer;">${folder}</button>
+    </form>`;
   });
-  html += '</ul><form action="/" method="get"><button type="submit">Back to Home</button></form>';
-
+  
+  html += '</div>';
+  html += generateFooter();
   res.send(html);
 });
 
+// 2. Folder View (Months)
 app.get('/database/:folder', (req, res) => {
   const folder = req.params.folder;
   const folderPath = path.join(dataPath, folder);
   let calcProfit = false;
   let game = "";
 
-  if (!fs.existsSync(folderPath)) {
-    return res.status(404).send('Folder not found');
-  }
+  if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
   
-  if (folder.includes("keno")) {
-    calcProfit = true;
-    game = "keno";
-  } if (folder.includes("pick3")) {
-    calcProfit = true;
-    game = "pick3";
-  }
-  
+  if (folder.includes("keno")) { calcProfit = true; game = "keno"; } 
+  if (folder.includes("pick3")) { calcProfit = true; game = "pick3"; }
 
-  const files = fs.readdirSync(folderPath)
-    .filter((file) => file.endsWith('.json'));
+  const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.json'));
 
-  // Group files by month and year
+  // Group by month
   const filesByMonth = files.reduce((acc, file) => {
     const date = new Date(file.replace('.json', ''));
-    const monthYear = `${date.getFullYear()}-${date.getMonth() + 1}`;
-    if (!acc[monthYear]) acc[monthYear] = [];
-    acc[monthYear].push(file);
+    if(!isNaN(date)) {
+        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (!acc[monthYear]) acc[monthYear] = [];
+        acc[monthYear].push(file);
+    }
     return acc;
   }, {});
 
-  // Sort months
   const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(a) - new Date(b));
 
-  let html = `<h1>Predictions in ${folder}</h1>`;
-  if(game == "keno") {
-    html += `
-    <form id="playedNumberForm">
-      <label for="playedNumbers">Enter Numbers (comma separated):</label>
-      <input type="text" id="playedNumbers" name="playedNumbers" placeholder="e.g. 4,5,6,7,8,9,10" required>
-      <button type="submit">Submit</button>
-      <button type="button" id="resetPlayedNumbers">Reset</button>
-    </form>
+  let html = generateHeader(`${folder} Predictions`);
+  html += `<h1>Predictions in ${folder}</h1>`;
 
-    <form id="selectedModelForm">
-      <label for="selectedModel">Enter Selected Model:</label>
-      <select id="selectedModel" name="selectedModel(s)" multiple required>
-        <option value="all">all</option>
-        <option value="HybridStatisticalModel">HybridStatisticalModel</option>
-        <option value="LaplaceMonteCarlo Model">LaplaceMonteCarlo Model</option>
-        <option value="PoissonMarkov Model">PoissonMarkov Model</option>
-        <option value="PoissonMonteCarlo Model">PoissonMonteCarlo Model</option>
-        <option value="MarkovBayesian Model">MarkovBayesian Model</option>
-        <option value="Markov Model">Markov Model</option>
-        <option value="MarkovBayesianEnhanched Model">MarkovBayesianEnhanched Model</option>
-      </select>
-      <button type="submit">Submit</button>
-      <button type="button" id="resetSelectedModel">Reset</button>
-    </form>
+  // Grid layout for months
+  html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">';
 
-    <div id="result">Played numbers: ${selectedPlayedNumbers}</div>
-    <div id="result">Played model: ${selectedModel}</div>
+  sortedMonths.forEach(month => {
+    // Sort files descending
+    filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
+    
+    // Calculate Monthly Stats based on SELECTED MODEL
+    let monthProfit = 0;
+    let monthMaxCorrect = 0;
 
-    <script>
-      const form = document.getElementById('playedNumberForm');
-
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const rawInput = document.getElementById('playedNumbers').value;
-        const playedNumbersArray = rawInput.split(',').map(n => n.trim()).filter(n => n !== '');
-
-        await fetch('/playedNumbers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playedNumbers: playedNumbersArray }),
-        });
-
-        form.reset();
-        window.location.reload();
-      });
-
-      document.getElementById('resetPlayedNumbers').addEventListener('click', async () => {
-        await fetch('/resetPlayedNumbers', { method: 'POST' });
-        window.location.reload();
-      });
-    </script>
-
-    <script>
-      const modelForm = document.getElementById('selectedModelForm');
-
-      modelForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const selectedOptions = Array.from(document.getElementById('selectedModel').selectedOptions);
-        const selectedModelsArray = selectedOptions.map(option => option.value);
-
-        await fetch('/playedModel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selectedModel: selectedModelsArray }),
-        });
-
-        modelForm.reset();
-        window.location.reload();
-      });
-
-      document.getElementById('resetSelectedModel').addEventListener('click', async () => {
-        await fetch('/resetSelectedModel', { method: 'POST' });
-        window.location.reload();
-      });
-    </script>
-  `;
-  }
-
-  html += '<table border="1" style="border-collapse: collapse; width: 100%;">';
-
-  // Create rows with a maximum of 3 columns per row
-  for (let i = 0; i < sortedMonths.length; i += 3) {
-    html += '<tr>';
-    for (let j = i; j < i + 3 && j < sortedMonths.length; j++) {
-      const month = sortedMonths[j];
-      let monthTotalProfit = 0;
-      let monthHighestRatio = `0/0`; // numbersCorrect/numbersPlayed
-      let highestCorrectNumbers = 0;
-
-      // Calculate total profit for the month
-      filesByMonth[month].forEach((file) => {
+    const fileListHtml = filesByMonth[month].map(file => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        
+        let fileProfit = 0;
+        let fileMaxCorrect = 0;
+        
+        // Filter predictions by global selectedModel
+        const validPredictions = filterDataByModel(jsonData.currentPrediction);
 
-        if (jsonData.currentPrediction) {
-          if(calcProfit) {
-            monthTotalProfit += jsonData.currentPrediction.reduce((acc, prediction) => {
-              let predictionProfit = 0;
-              prediction.predictions.forEach((pred) => {
-                //const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-                predictionProfit += calculateProfit(pred, jsonData.realResult, game, prediction.name);
-              });
-              return acc + predictionProfit;
-            }, 0);
-          } else {
-            //console.log(jsonData.currentPrediction)
-            if(Array.isArray(jsonData.currentPrediction) && jsonData.currentPrediction.length > 0) {
-              jsonData.currentPrediction.forEach((prediction) => {
-                prediction.predictions.forEach((pred) => {
-                  const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-                  if(correctNumbers > highestCorrectNumbers) {
-                    highestCorrectNumbers = correctNumbers;
-                    monthHighestRatio = `${highestCorrectNumbers}/${pred.length}`
-                  }
+        if (validPredictions && validPredictions.length > 0) {
+            if(calcProfit) {
+                fileProfit = validPredictions.reduce((acc, predObj) => {
+                    let pProfit = 0;
+                    predObj.predictions.forEach(p => {
+                        pProfit += calculateProfit(p, jsonData.realResult, game, predObj.name);
+                    });
+                    return acc + pProfit;
+                }, 0);
+            } else {
+                // Count matching
+                validPredictions.forEach(predObj => {
+                    predObj.predictions.forEach(p => {
+                        const match = p.filter(n => jsonData.realResult.includes(n)).length;
+                        if(match > fileMaxCorrect) fileMaxCorrect = match;
+                    });
                 });
-              });
             }
-          }
-        } 
-      });
-
-      //console.log("highest month match: ", monthHighestRatio)
-
-      let profitColor = 'white';
-      if (monthTotalProfit > 0) {
-        profitColor = 'green';
-      } else if (monthTotalProfit < 0) {
-        profitColor = 'red';
-      }
-
-      if(game.includes("keno") || game.includes("pick3")) {
-        html += `<th style="padding: 5px; text-align: center; background: #333; color: white;">
-          ${month}<br><span style="color: ${profitColor};">Total Profit: ${monthTotalProfit} €</span>
-        </th>`;
-      } else {
-        html += `<th style="padding: 5px; text-align: center; background: #333; color: white;">
-          ${month}<br><span style="color: ${profitColor};">Highest matching number: ${monthHighestRatio}</span>
-        </th>`;
-      }
-    }
-    html += '</tr><tr>';
-    for (let j = i; j < i + 3 && j < sortedMonths.length; j++) {
-      const month = sortedMonths[j];
-      html += '<td style="vertical-align: top;">';
-      html += '<ul>';
-      // Sort files within the month in descending order
-      filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
-      filesByMonth[month].forEach((file) => {
-        const filePath = path.join(folderPath, file);
-        const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-
-        let totalProfit = 0;
-        let dayHighestRatio = `0/0`; // numbersCorrect/numbersPlayed
-        let highestCorrectNumbers = 0;
-
-        if (jsonData.currentPrediction) {
-          if(calcProfit) {
-            totalProfit = jsonData.currentPrediction.reduce((acc, prediction) => {
-              let predictionProfit = 0;
-              prediction.predictions.forEach((pred) => {
-                //const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-                predictionProfit += calculateProfit(pred, jsonData.realResult, game, prediction.name);
-              });
-              return acc + predictionProfit;
-            }, 0);
-          } else {
-            //console.log(jsonData.currentPrediction)
-            if(Array.isArray(jsonData.currentPrediction) && jsonData.currentPrediction.length > 0) {
-              jsonData.currentPrediction.forEach((prediction) => {
-                prediction.predictions.forEach((pred) => {
-                  const correctNumbers = pred.filter(num => jsonData.realResult.includes(num)).length;
-                  if(correctNumbers > highestCorrectNumbers) {
-                    highestCorrectNumbers = correctNumbers;
-                    dayHighestRatio = `${highestCorrectNumbers}/${pred.length}`
-                  }
-                });
-              });
-            }
-          }
-        } 
-
-        let profitColor = 'orange';
-        if (totalProfit > 0) {
-          profitColor = 'green';
-        } else if (totalProfit < 0) {
-          profitColor = 'red';
-        }
-
-        if(game.includes("keno") || game.includes("pick3")) {
-          html += `<li>
-            <form action="/database/${folder}/${file}" method="get" style="display: inline;">
-              <button type="submit">${file}</button>
-            </form>
-            <span style="color: ${profitColor};">Profit: ${totalProfit} €</span>
-          </li>`;
-        } else {
-          html += `<li>
-            <form action="/database/${folder}/${file}" method="get" style="display: inline;">
-              <button type="submit">${file}</button>
-            </form>
-            <span style="color: ${profitColor};">Matching: ${dayHighestRatio} </span>
-          </li>`;
         }
         
-      });
-      html += '</ul>';
-      html += '</td>';
-    }
-    html += '</tr>';
-  }
+        monthProfit += fileProfit;
+        if(fileMaxCorrect > monthMaxCorrect) monthMaxCorrect = fileMaxCorrect;
+        
+        const color = fileProfit > 0 ? 'green' : (fileProfit < 0 ? 'red' : 'orange');
+        const displayStat = calcProfit ? `${fileProfit} €` : `Match: ${fileMaxCorrect}`;
 
-  html += '</table>';
-  html += '<form action="/database" method="get"><button type="submit">Back to Database</button></form>';
-  html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
+        return `<li style="margin-bottom: 5px; display: flex; justify-content: space-between;">
+            <a href="/database/${folder}/${file}" style="text-decoration: none; color: #333;">📄 ${file}</a>
+            <span style="font-weight: bold; color: ${color};">${displayStat}</span>
+        </li>`;
+    }).join('');
 
+    const monthColor = monthProfit > 0 ? 'green' : (monthProfit < 0 ? 'red' : '#333');
+    const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
+
+    html += `
+    <div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="background: #444; color: white; padding: 10px; text-align: center;">
+            <div style="font-size: 1.2em; font-weight: bold;">${month}</div>
+            <div style="color: ${monthColor}; background: white; border-radius: 4px; padding: 2px 8px; margin-top: 5px; display: inline-block;">
+                ${headerStat}
+            </div>
+        </div>
+        <ul style="list-style: none; padding: 15px; margin: 0; max-height: 300px; overflow-y: auto;">
+            ${fileListHtml}
+        </ul>
+    </div>`;
+  });
+
+  html += '</div>';
+  html += generateFooter();
   res.send(html);
 });
 
+// 3. File Detail View
 app.get('/database/:folder/:file', (req, res) => {
   const folder = req.params.folder;
   const file = req.params.file;
   const filePath = path.join(dataPath, folder, file);
-  let calculateProfit = false;
+  let calculateProfitFlag = false;
   let game = "";
 
-  if (fs.existsSync(filePath)) {
-    const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    
-    if(folder.includes("keno")) {
-      calculateProfit = true;
-      game = "keno";
-    } if (folder.includes("pick3")) {
-      calcProfit = true;
-      game = "pick3";
-    }
+  if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
 
-    // Generate HTML content
-    let html = `
-      <h1>${file} Results</h1>
-      <h2>Current Prediction</h2>
-      ${generateTable(
-        jsonData.currentPrediction, 
-        'Current Prediction', 
-        [].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))),
-        calculateProfit,
-        game
-      )}
-      <h2>Real Result</h2>
-      ${generateList(jsonData.realResult, 'Real Result')}
-      <h2>Matching Numbers</h2>
-      <p><strong>Best Match Index:</strong> ${jsonData.matchingNumbers.model}</p>
-      <p><strong>Best Match Sequence:</strong> ${generateList(jsonData.matchingNumbers.prediction)}</p>
-      <!--<p><strong>Matching Numbers:</strong> ${generateList([].concat(...jsonData.currentPrediction.map(prediction => prediction.predictions.flat().filter(num => jsonData.realResult.includes(num)))))}</p>--!>
-      <h2>New Prediction</h2>
-      ${generateTable(
-        jsonData.newPrediction,
-        'New Prediction', 
-        [],
-        calculateProfit,
-        game
-      )}
-      <form action="/database/${folder}" method="get" style="margin-top: 20px;"><button type="submit">Back to ${folder}</button></form>
-      <form action="/" method="get"><button type="submit">Back to Home</button></form>
-    `;
+  const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  
+  if(folder.includes("keno")) { calculateProfitFlag = true; game = "keno"; } 
+  if(folder.includes("pick3")) { calculateProfitFlag = true; game = "pick3"; }
 
-    res.send(html);
-  } else {
-    res.status(404).send('File not found');
-  }
+  let html = generateHeader(`${file} Details`);
+  
+  html += `
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>${file}</h1>
+        <a href="/database/${folder}" class="settings-btn" style="text-decoration: none;">Back to ${folder}</a>
+    </div>
+
+    <h2>Real Result</h2>
+    ${generateList(jsonData.realResult)}
+
+    <h2>Current Prediction (Filtered by: ${selectedModel.join(', ')})</h2>
+    ${generateTable(
+      jsonData.currentPrediction, 
+      '', 
+      jsonData.realResult,
+      calculateProfitFlag,
+      game
+    )}
+
+    <h2>New Prediction for Next Draw</h2>
+    ${generateTable(
+      jsonData.newPrediction,
+      '', 
+      [],
+      calculateProfitFlag,
+      game
+    )}
+  `;
+  html += generateFooter();
+  res.send(html);
 });
 
-// Router to display available PNGs
+// 4. Models View
 app.get('/models', (req, res) => {
-  const folders = fs.readdirSync(modelsPath, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((dir) => dir.name);
-
-  let html = '<h1>Available Models</h1><ul>';
-  folders.forEach((folder) => {
-    html += `<li><form action="/models/${folder}" method="get"><button type="submit">${folder}</button></form></li>`;
-  });
-  html += '</ul><form action="/" method="get"><button type="submit">Back to Home</button></form>';
-
-  res.send(html);
+    const folders = fs.readdirSync(modelsPath, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((dir) => dir.name);
+  
+    let html = generateHeader("Models");
+    html += '<h1>Available Models</h1><ul>';
+    folders.forEach((folder) => {
+      html += `<li><a href="/models/${folder}" style="font-size: 1.2em;">📁 ${folder}</a></li>`;
+    });
+    html += '</ul>';
+    html += generateFooter();
+    res.send(html);
 });
 
-// Router to list PNGs in subfolders
 app.get('/models/:folder', (req, res) => {
-  const folder = req.params.folder;
-  const folderPath = path.join(modelsPath, folder);
-
-  if (!fs.existsSync(folderPath)) {
-    return res.status(404).send('Folder not found');
-  }
-
-  const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.png'));
-
-  let html = `<h1>Images in ${folder}</h1><ul>`;
-  files.forEach((file) => {
-    html += `
-    <li>
-      <h2>${file}</h2>
-      <img src="/models/${folder}/${file}" alt="${file}" style="max-width: 100%; margin: 10px;">
-    </li>`;
-  });
-  html += '</ul><form action="/models" method="get"><button type="submit">Back to Models</button></form>';
-  html += '<form action="/" method="get" style="margin-top: 10px;"><button type="submit">Back to Home</button></form>';
-
-  res.send(html);
+    const folder = req.params.folder;
+    const folderPath = path.join(modelsPath, folder);
+  
+    if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
+  
+    const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.png'));
+  
+    let html = generateHeader(`${folder} Images`);
+    html += `<h1>Images in ${folder}</h1><div style="display: flex; flex-wrap: wrap; gap: 20px;">`;
+    files.forEach((file) => {
+      html += `
+      <div style="border: 1px solid #ccc; padding: 10px; background: white; border-radius: 5px;">
+        <h3>${file}</h3>
+        <img src="/models/${folder}/${file}" alt="${file}" style="max-width: 400px; height: auto;">
+      </div>`;
+    });
+    html += '</div>';
+    html += generateFooter();
+    res.send(html);
 });
 
-// Home Page
+// 5. Home Page
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((dir) => dir.name);
 
-  let html = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Sequence Predictor Results</title>
-      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-      <style>
-        .folder {
-          margin: 10px 0;
-          border: 1px solid #ddd;
-          border-radius: 5px;
-          padding: 10px;
-          background-color: #f9f9f9;
-        }
-        .folder-title {
-          cursor: pointer;
-          font-weight: bold;
-          background-color: #f9f9f9;
-          padding: 10px;
-          border-radius: 5px;
-        }
-        .folder-content {
-          display: none;
-          margin-top: 10px;
-          background-color: white;
-        }
-        .charts-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 10px;
-        }
-        canvas {
-          width: 100%;
-          height: auto;
-          max-height: 150px;
-          background-color: white;
-        }
-        body {
-         background-color: white;
-        }
-        .save-btn {
-          margin-top: 20px;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>Sequence Predictor Results</h1>
-      <div class="button-container" style="margin-top: 20px;">
-        <form action="/database" method="get" style="display: inline;">
-          <button type="submit">Go to Database</button>
-        </form>
-        <button id="saveAsPng" class="save-btn" style="display: inline;">Save as PNG</button>
-      </div>
-      <div>
+  let html = generateHeader("Home - Dashboard");
+  html += `
+    <h1>Dashboard</h1>
+    <p>Welcome! Use the settings gear ⚙️ in the top right to filter models globally.</p>
+    <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
   `;
 
   folders.forEach((folder) => {
@@ -601,165 +560,75 @@ app.get('/', (req, res) => {
 
     if (files.length > 0) {
       const latestFile = files[0];
-      const latestFilePath = path.join(folderPath, latestFile);
-      const jsonData = JSON.parse(fs.readFileSync(latestFilePath, 'utf-8'));
+      const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
       html += `
-        <div class="folder">
-          <div class="folder-title">${folder}</div>
-          <div class="folder-content">
-            <h3>${latestFile}</h3>
-            ${generateTable(jsonData.newPrediction, 'New Prediction')}
-            <div class="charts-grid">
-      `;
+        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+          <h2>${folder} <span style="font-size: 0.6em; color: #888;">(${latestFile})</span></h2>
+          
+          <h4>Next Prediction:</h4>
+          ${generateTable(jsonData.newPrediction, '')}
 
-      if (jsonData.numberFrequency) {
-        const labels = Object.keys(jsonData.numberFrequency);
-        const dataValues = Object.values(jsonData.numberFrequency);
-      
-        html += `
-          <div>
-            <h4>Number Frequency</h4>
-            <canvas id="chart-${folder}"></canvas>
-          </div>
-          <script>
-            const ctx${folder} = document.getElementById('chart-${folder}').getContext('2d');
-            new Chart(ctx${folder}, {
-              type: 'bar',
-              data: {
-                labels: ${JSON.stringify(labels)},
-                datasets: [{
-                  label: 'Probability',
-                  data: ${JSON.stringify(dataValues)},
-                  borderColor: 'rgba(75, 192, 192, 1)',
-                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                  borderWidth: 1,
-                }]
-              },
-              options: {
-                responsive: true,
-                plugins: {
-                  legend: {
-                    display: false,
-                  }
-                },
-                scales: {
-                  x: { title: { display: true, text: "Number" } },
-                  y: { title: { display: true, text: "Probability" } }
-                }
-              }
-            });
-          </script>
-        `;
-      }
-
-      html += `
+          ${jsonData.numberFrequency ? `
+            <div style="margin-top: 15px;">
+                <canvas id="chart-${folder}" style="max-height: 200px;"></canvas>
             </div>
-            <form action="/database/${folder}/${latestFile}" method="get" style="margin-top: 10px;">
-              <button type="submit">View Comparison</button>
-            </form>
+            <script>
+                new Chart(document.getElementById('chart-${folder}').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ${JSON.stringify(Object.keys(jsonData.numberFrequency))},
+                    datasets: [{
+                    label: 'Frequency',
+                    data: ${JSON.stringify(Object.values(jsonData.numberFrequency))},
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+                });
+            </script>
+          ` : ''}
+          
+          <div style="margin-top: 15px; text-align: right;">
+            <a href="/database/${folder}" class="settings-btn" style="text-decoration: none; background: #333;">View History</a>
           </div>
         </div>
       `;
     }
   });
 
-  html += `
-      </div>
-      <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          const folderTitles = document.querySelectorAll('.folder-title');
-          folderTitles.forEach(title => {
-            title.addEventListener('click', () => {
-              const content = title.nextElementSibling;
-              content.style.display = content.style.display === 'none' || !content.style.display ? 'block' : 'none';
-            });
-          });
-        });
-
-        document.getElementById('saveAsPng').addEventListener('click', () => {
-          html2canvas(document.body).then((canvas) => {
-            const link = document.createElement('a');
-            link.download = 'page_snapshot.png';
-            link.href = canvas.toDataURL();
-            link.click();
-          });
-        });
-      </script>
-    </body>
-    </html>
-  `;
-
+  html += `</div>`;
+  html += generateFooter();
   res.send(html);
 });
 
-app.use(express.json()); // To parse JSON bodies
-
+// API Routes
 app.post('/playedNumbers', (req, res) => {
-  let playedNumbers = req.body.playedNumbers;
-
-  if (!playedNumbers) {
-    return res.status(400).send('No numbers provided');
-  }
-
-  // Ensure it's always an array
-  if (!Array.isArray(playedNumbers)) {
-    playedNumbers = [playedNumbers];
-  }
-
-  // Convert all values to Numbers
-  playedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-
-  if (playedNumbers.length === 0) {
-    return res.status(400).send('Provided values are not valid numbers');
-  }
-
-  console.log('Received numbers:', playedNumbers);
-
-  selectedPlayedNumbers = playedNumbers;
-
-  res.send(`Played numbers: ${playedNumbers.join(', ')}`);
+    let playedNumbers = req.body.playedNumbers;
+    if (!playedNumbers) return res.status(400).send('No numbers provided');
+    if (!Array.isArray(playedNumbers)) playedNumbers = [playedNumbers];
+    playedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
+    
+    selectedPlayedNumbers = playedNumbers;
+    console.log('Updated played numbers:', selectedPlayedNumbers);
+    res.json({ success: true });
 });
-
+  
 app.post('/playedModel', (req, res) => {
-  let playedModel = req.body.selectedModel;
-
-  if (!Array.isArray(playedModel)) {
-    playedModel = [playedModel];
-  }
-
-  console.log('Received selectedModel:', playedModel);
-
-  selectedModel = playedModel; 
-
-  res.send('Selected model saved');
+    let playedModel = req.body.selectedModel;
+    if (!Array.isArray(playedModel)) playedModel = [playedModel];
+    
+    selectedModel = playedModel;
+    console.log('Updated model filter:', selectedModel);
+    res.json({ success: true });
 });
 
-app.post('/resetPlayedNumbers', (req, res) => {
-
-  selectedPlayedNumbers = [4,5,6,7,8,9,10]; // To select played numbers  for Keno
-  res.send('Played numbers reset');
-});
-
-app.post('/resetSelectedModel', (req, res) => {
-  selectedModel = "all"; // To select with wich model's predictions is played
-  res.send('Selected model reset');
-});
-
-// Start the server
+// Start Server
 app.listen(config.PORT, () => {
   console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`);
 });
 
-// Start optuna-dashboard server by default running on port 8080
-exec('optuna-dashboard sqlite:///db.sqlite3 --host 0.0.0.0 --port 8080', (error, stdout, stderr) => {
-  if (error) {
-    console.error(`Error running optuna-dashboard: ${error.message}`);
-    return;
-  }
-  if (stderr) {
-    console.error(`optuna-dashboard stderr: ${stderr}`);
-    return;
-  }
-  console.log(`optuna-dashboard stdout: ${stdout}`);
+// Start Optuna Dashboard (Optional)
+exec('optuna-dashboard sqlite:///db.sqlite3 --host 0.0.0.0 --port 8080', (error) => {
+    if(error) console.log("Optuna dashboard not started (optional).");
 });
