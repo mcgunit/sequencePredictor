@@ -7,7 +7,7 @@ const config = require("./config");
 
 const app = express();
 
-// Middleware to parse form data
+// Middleware to parse form data and JSON
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); 
 
@@ -31,29 +31,43 @@ function generateHeader(title = "Sequence Predictor") {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-      body { font-family: Arial, sans-serif; margin: 0; padding-top: 60px; background-color: #f4f4f9; }
+      /* GLOBAL RESET */
+      * { box-sizing: border-box; }
+
+      body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        margin: 0; 
+        padding-top: 100px; /* Space for fixed header */
+        background-color: #f0f2f5; 
+        color: #333;
+      }
       
       /* STICKY NAVBAR */
       .navbar {
         position: fixed;
         top: 0;
+        left: 0;
         width: 100%;
-        background-color: #333;
+        background-color: #2c3e50;
         color: white;
-        padding: 10px 20px;
+        padding: 15px 30px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         z-index: 1000;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        height: 80px;
       }
+      
       .navbar a {
-        color: white;
+        color: #ecf0f1;
         text-decoration: none;
-        margin-right: 15px;
-        font-weight: bold;
+        margin-right: 20px;
+        font-weight: 600;
+        font-size: 1.1em;
+        transition: color 0.2s;
       }
-      .navbar a:hover { text-decoration: underline; }
+      .navbar a:hover { color: #3498db; }
       
       .nav-group { display: flex; align-items: center; }
       
@@ -63,66 +77,103 @@ function generateHeader(title = "Sequence Predictor") {
         display: inline-block;
       }
       .settings-btn {
-        background-color: #555;
+        background-color: #34495e;
         color: white;
-        padding: 8px 12px;
-        border: none;
+        padding: 10px 15px;
+        border: 1px solid #455a64;
         cursor: pointer;
-        border-radius: 4px;
+        border-radius: 6px;
+        font-size: 1em;
+        transition: background 0.2s;
       }
+      .settings-btn:hover { background-color: #2c3e50; }
+      
       .settings-content {
         display: none;
         position: absolute;
         right: 0;
-        background-color: #f9f9f9;
-        min-width: 250px;
-        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-        padding: 15px;
-        z-index: 1;
-        border-radius: 5px;
-        color: black;
+        top: 100%;
+        background-color: white;
+        min-width: 300px;
+        box-shadow: 0px 8px 20px rgba(0,0,0,0.2);
+        padding: 20px;
+        z-index: 2000; /* Higher than charts */
+        border-radius: 8px;
+        color: #333;
+        border: 1px solid #ddd;
       }
       .settings-container:hover .settings-content { display: block; }
       
-      /* GLOBAL STYLES */
-      h1, h2 { color: #333; }
-      .container { padding: 20px; max-width: 1200px; margin: auto; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
-      th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
-      th { background-color: #444; color: white; }
-      tr:nth-child(even) { background-color: #f2f2f2; }
-      
-      .status-bar {
-        font-size: 0.85em;
-        color: #bbb;
-        margin-left: 20px;
+      /* LAYOUT */
+      .container { 
+        padding: 20px; 
+        max-width: 1400px; 
+        margin: auto; 
       }
       
-      input, select, button { padding: 5px; margin: 5px 0; }
+      .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 25px;
+        margin-top: 20px;
+      }
+
+      /* CARDS */
+      .card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow: hidden; 
+      }
+
+      /* TABLES */
+      table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; font-size: 0.9em; }
+      th, td { padding: 12px 8px; border: 1px solid #e1e4e8; text-align: center; }
+      th { background-color: #f8f9fa; color: #333; font-weight: bold; }
+      tr:nth-child(even) { background-color: #f8f9fa; }
+      
+      /* FORMS & BUTTONS */
+      input, select { 
+        padding: 10px; 
+        margin: 5px 0 15px 0; 
+        border: 1px solid #ccc; 
+        border-radius: 4px; 
+        width: 100%;
+        box-sizing: border-box;
+      }
+      button { cursor: pointer; }
+
+      .status-bar { font-size: 0.9em; color: #bdc3c7; margin-right: 15px; text-align: right;}
+      .status-bar b { color: white; }
     </style>
   </head>
   <body>
     <div class="navbar">
       <div class="nav-group">
-        <a href="/">Home</a>
+        <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">Database</a>
         <a href="/models">Models</a>
-        <a href="http://localhost:8080" target="_blank">Optuna Dashboard</a>
+        <a href="http://localhost:8080" target="_blank">Optuna</a>
       </div>
 
       <div class="nav-group">
         <div class="status-bar">
-          Model: <b>${selectedModel.join(', ')}</b> | Numbers: <b>${selectedPlayedNumbers.join(',')}</b>
+          <div>Model: <b>${selectedModel.join(', ')}</b></div>
+          <div>Numbers: <b>${selectedPlayedNumbers.join(',')}</b></div>
         </div>
         
-        <div class="settings-container" style="margin-left: 15px;">
+        <div class="settings-container">
           <button class="settings-btn">⚙️ Settings</button>
           <div class="settings-content">
-            <h4>Global Settings</h4>
+            <h3 style="margin-top: 0;">Global Settings</h3>
             
             <form id="globalModelForm">
               <label><strong>Select Model(s):</strong></label><br>
-              <select id="globalSelectedModel" multiple style="width: 100%; height: 100px;">
+              <select id="globalSelectedModel" multiple style="width: 100%; height: 120px;">
                 <option value="all" ${selectedModel.includes('all') ? 'selected' : ''}>All Models</option>
                 <option value="HybridStatisticalModel" ${selectedModel.includes('HybridStatisticalModel') ? 'selected' : ''}>HybridStatisticalModel</option>
                 <option value="LaplaceMonteCarlo Model" ${selectedModel.includes('LaplaceMonteCarlo Model') ? 'selected' : ''}>LaplaceMonteCarlo</option>
@@ -132,14 +183,14 @@ function generateHeader(title = "Sequence Predictor") {
                 <option value="Markov Model" ${selectedModel.includes('Markov Model') ? 'selected' : ''}>Markov</option>
                 <option value="MarkovBayesianEnhanched Model" ${selectedModel.includes('MarkovBayesianEnhanched Model') ? 'selected' : ''}>MarkovBayesianEnhanced</option>
               </select>
-              <button type="submit" style="width: 100%; background: #4CAF50; color: white; border: none;">Apply Models</button>
+              <button type="submit" style="width: 100%; background: #27ae60; color: white; border: none; padding: 10px; margin-top: 5px; border-radius: 4px;">Apply Models</button>
             </form>
-            <hr>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
             
             <form id="globalPlayedNumbersForm">
               <label><strong>Keno Played Numbers:</strong></label><br>
-              <input type="text" id="globalPlayedNumbers" value="${selectedPlayedNumbers.join(',')}" style="width: 90%;">
-              <button type="submit" style="width: 100%; background: #2196F3; color: white; border: none;">Update Numbers</button>
+              <input type="text" id="globalPlayedNumbers" value="${selectedPlayedNumbers.join(',')}" placeholder="4,5,6...">
+              <button type="submit" style="width: 100%; background: #2980b9; color: white; border: none; padding: 10px; border-radius: 4px;">Update Numbers</button>
             </form>
             
           </div>
@@ -189,23 +240,18 @@ function filterDataByModel(data) {
   if (!data) return [];
   if (selectedModel.includes("all")) return data;
   
-  // Filter the predictions array to only include selected models
   return data.filter(modelItem => {
-    // Check if model.name is in selectedModel list
-    // (Ensure exact matching or partial matching depending on your naming convention)
     return selectedModel.some(sel => modelItem.name === sel || modelItem.name.includes(sel));
   });
 }
 
-// --- LOGIC: Table Generation (Updated with Filter) ---
+// --- LOGIC: Table Generation ---
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
-  // 1. Filter Data First
   const filteredData = filterDataByModel(data);
 
-  if (filteredData.length === 0) return `<p>No data for selected model(s): ${selectedModel.join(', ')}</p>`;
+  if (filteredData.length === 0) return `<p style="padding: 10px; color: #888; font-style: italic;">No predictions for selected model(s): ${selectedModel.join(', ')}</p>`;
 
-  let table = '<table border="1" style="border-collapse: collapse; width: 100%;">';
-
+  let table = '<table border="1">';
   if (title) table += `<caption><strong>${title}</strong></caption>`;
   
   // Headers
@@ -215,7 +261,7 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
 
   if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
     Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => {
-      table += `<th>Number ${i + 1}</th>`;
+      table += `<th>Num ${i + 1}</th>`;
     });
   }
   if(title.includes("Current Prediction") && calcProfit) {
@@ -276,13 +322,10 @@ function calculateProfit(prediction, realResult, game, name) {
 
   switch (game) {
     case "keno": {
-      // Use selectedPlayedNumbers size to determine payout tier, assuming user plays subset
-      // Or if prediction size matches logic. For now, use prediction length.
       const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
       if (played >= 2 && played <= 10 && payoutTableKeno[played]) {
         return payoutTableKeno[played][correctNumbers] ?? payoutTableKeno["lost"];
       } 
-      // Keno typically implies picking X numbers. If model predicts 20, we assume user picks 'selectedPlayedNumbers' amount from top.
       return 0; 
     }
 
@@ -325,7 +368,6 @@ function generateList(data, title = '') {
   return '';
 }
 
-
 // --- ROUTES ---
 
 // 1. Database Index
@@ -339,7 +381,7 @@ app.get('/database', (req, res) => {
   
   folders.forEach((folder) => {
     html += `<form action="/database/${folder}" method="get">
-      <button type="submit" style="padding: 15px 30px; font-size: 1.1em; cursor: pointer;">${folder}</button>
+      <button type="submit" style="padding: 15px 30px; font-size: 1.1em; cursor: pointer; background: white; border: 1px solid #ccc; border-radius: 5px;">${folder}</button>
     </form>`;
   });
   
@@ -382,10 +424,8 @@ app.get('/database/:folder', (req, res) => {
   html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">';
 
   sortedMonths.forEach(month => {
-    // Sort files descending
     filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
     
-    // Calculate Monthly Stats based on SELECTED MODEL
     let monthProfit = 0;
     let monthMaxCorrect = 0;
 
@@ -396,7 +436,6 @@ app.get('/database/:folder', (req, res) => {
         let fileProfit = 0;
         let fileMaxCorrect = 0;
         
-        // Filter predictions by global selectedModel
         const validPredictions = filterDataByModel(jsonData.currentPrediction);
 
         if (validPredictions && validPredictions.length > 0) {
@@ -409,7 +448,6 @@ app.get('/database/:folder', (req, res) => {
                     return acc + pProfit;
                 }, 0);
             } else {
-                // Count matching
                 validPredictions.forEach(predObj => {
                     predObj.predictions.forEach(p => {
                         const match = p.filter(n => jsonData.realResult.includes(n)).length;
@@ -435,7 +473,7 @@ app.get('/database/:folder', (req, res) => {
     const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
 
     html += `
-    <div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div class="card" style="padding: 0; display: block;">
         <div style="background: #444; color: white; padding: 10px; text-align: center;">
             <div style="font-size: 1.2em; font-weight: bold;">${month}</div>
             <div style="color: ${monthColor}; background: white; border-radius: 4px; padding: 2px 8px; margin-top: 5px; display: inline-block;">
@@ -476,26 +514,16 @@ app.get('/database/:folder/:file', (req, res) => {
         <a href="/database/${folder}" class="settings-btn" style="text-decoration: none;">Back to ${folder}</a>
     </div>
 
-    <h2>Real Result</h2>
-    ${generateList(jsonData.realResult)}
+    <div class="card">
+        <h2>Real Result</h2>
+        ${generateList(jsonData.realResult)}
 
-    <h2>Current Prediction (Filtered by: ${selectedModel.join(', ')})</h2>
-    ${generateTable(
-      jsonData.currentPrediction, 
-      '', 
-      jsonData.realResult,
-      calculateProfitFlag,
-      game
-    )}
+        <h2>Current Prediction (Filtered)</h2>
+        ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
 
-    <h2>New Prediction for Next Draw</h2>
-    ${generateTable(
-      jsonData.newPrediction,
-      '', 
-      [],
-      calculateProfitFlag,
-      game
-    )}
+        <h2>New Prediction for Next Draw</h2>
+        ${generateTable(jsonData.newPrediction, '', [], calculateProfitFlag, game)}
+    </div>
   `;
   html += generateFooter();
   res.send(html);
@@ -547,9 +575,8 @@ app.get('/', (req, res) => {
 
   let html = generateHeader("Home - Dashboard");
   html += `
-    <h1>Dashboard</h1>
-    <p>Welcome! Use the settings gear ⚙️ in the top right to filter models globally.</p>
-    <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+    <h1 style="margin-bottom: 20px;">Dashboard</h1>
+    <div class="charts-grid">
   `;
 
   folders.forEach((folder) => {
@@ -563,15 +590,18 @@ app.get('/', (req, res) => {
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
       html += `
-        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-          <h2>${folder} <span style="font-size: 0.6em; color: #888;">(${latestFile})</span></h2>
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="margin: 0;">${folder}</h2>
+            <span style="font-size: 0.8em; color: #888;">${latestFile}</span>
+          </div>
           
-          <h4>Next Prediction:</h4>
+          <h4 style="margin: 10px 0;">Next Prediction:</h4>
           ${generateTable(jsonData.newPrediction, '')}
 
           ${jsonData.numberFrequency ? `
-            <div style="margin-top: 15px;">
-                <canvas id="chart-${folder}" style="max-height: 200px;"></canvas>
+            <div style="margin-top: 20px; position: relative; height: 200px; width: 100%;">
+                <canvas id="chart-${folder}"></canvas>
             </div>
             <script>
                 new Chart(document.getElementById('chart-${folder}').getContext('2d'), {
@@ -581,16 +611,23 @@ app.get('/', (req, res) => {
                     datasets: [{
                     label: 'Frequency',
                     data: ${JSON.stringify(Object.values(jsonData.numberFrequency))},
-                    backgroundColor: 'rgba(54, 162, 235, 0.5)'
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
                     }]
                 },
-                options: { responsive: true, plugins: { legend: { display: false } } }
+                options: { 
+                  responsive: true, 
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true } }
+                }
                 });
             </script>
           ` : ''}
           
-          <div style="margin-top: 15px; text-align: right;">
-            <a href="/database/${folder}" class="settings-btn" style="text-decoration: none; background: #333;">View History</a>
+          <div style="margin-top: auto; padding-top: 15px; text-align: right;">
+            <a href="/database/${folder}" class="settings-btn" style="text-decoration: none; background: #34495e; font-size: 0.9em;">View History</a>
           </div>
         </div>
       `;
@@ -628,7 +665,7 @@ app.listen(config.PORT, () => {
   console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`);
 });
 
-// Start Optuna Dashboard (Optional)
+// Start Optuna Dashboard
 exec('optuna-dashboard sqlite:///db.sqlite3 --host 0.0.0.0 --port 8080', (error) => {
     if(error) console.log("Optuna dashboard not started (optional).");
 });
