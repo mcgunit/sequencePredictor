@@ -582,14 +582,16 @@ app.post('/playedNumbers', (req, res) => {
     if (!playedNumbers) return res.status(400).send('No numbers');
     if (!Array.isArray(playedNumbers)) playedNumbers = [playedNumbers];
     selectedPlayedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
+    console.log("Changed played numbers to: ", selectedPlayedNumbers)
     res.json({ success: true });
 });
   
 app.post('/playedModel', (req, res) => {
-    let playedModel = req.body.selectedModel;
-    if (!Array.isArray(playedModel)) playedModel = [playedModel];
-    selectedModel = playedModel;
-    res.json({ success: true });
+  let playedModel = req.body.selectedModel;
+  if (!Array.isArray(playedModel)) playedModel = [playedModel];
+  selectedModel = playedModel;
+  console.log("Changed model to: ", selectedModel)
+  res.json({ success: true });
 });
 
 app.listen(config.PORT, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
