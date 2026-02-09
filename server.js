@@ -133,6 +133,7 @@ function generateHeader(title = "Sequence Predictor") {
         padding: 20px;
         animation: fadeIn 0.3s ease-in-out;
       }
+      /* Only show when expanded class is present */
       .card.expanded .card-body { display: block; }
 
       @keyframes fadeIn {
@@ -142,13 +143,13 @@ function generateHeader(title = "Sequence Predictor") {
       /* SCROLLABLE TABLES */
       .table-wrapper {
         width: 100%;
-        overflow-x: auto; /* Adds horizontal scrollbar if needed */
+        overflow-x: auto; 
         margin-top: 15px;
         border: 1px solid #e1e4e8;
         border-radius: 4px;
       }
 
-      table { width: 100%; border-collapse: collapse; background: white; font-size: 0.9em; min-width: 600px; /* Force scroll on small screens */ }
+      table { width: 100%; border-collapse: collapse; background: white; font-size: 0.9em; min-width: 600px; }
       th, td { padding: 12px 15px; border: 1px solid #e1e4e8; text-align: center; white-space: nowrap; }
       th { background-color: #f8f9fa; color: #333; font-weight: bold; }
       tr:nth-child(even) { background-color: #f8f9fa; }
@@ -240,52 +241,39 @@ function generateFooter() {
   return `</div></body></html>`;
 }
 
-// --- LOGIC: Filter Data by Selected Model ---
+// --- LOGIC: Filter Data ---
 function filterDataByModel(data) {
   if (!data) return [];
   if (selectedModel.includes("all")) return data;
   return data.filter(modelItem => selectedModel.some(sel => modelItem.name === sel || modelItem.name.includes(sel)));
 }
 
-// --- LOGIC: Table Generation (Wrapped in .table-wrapper) ---
+// --- LOGIC: Table Generation ---
 function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
   const filteredData = filterDataByModel(data);
-
   if (filteredData.length === 0) return `<p style="padding: 10px; color: #888;">No predictions for selected model(s).</p>`;
 
-  // Start with wrapper div for scrolling
   let html = `<div class="table-wrapper">`;
-  
   if (title) html += `<div style="padding: 10px; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ddd;">${title}</div>`;
-  
   html += '<table border="1">';
   
-  // Headers
   html += '<tr><th style="min-width: 150px;">Model</th><th style="width: 50px;">#</th>';
-
   if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
-    Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => {
-      html += `<th>Num ${i + 1}</th>`;
-    });
+    Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => html += `<th>Num ${i + 1}</th>`);
   }
-  if(title.includes("Current Prediction") && calcProfit) {
-    html += '<th>Profit</th>';
-  }
+  if(title.includes("Current Prediction") && calcProfit) html += '<th>Profit</th>';
   html += '</tr>';
 
-  // Rows
   filteredData.forEach((model) => {
     model.predictions.forEach((row, rowIndex) => {
       const modelType = model.name || "not known";
       html += `<tr>
         <td style="font-weight: bold; background: #f9f9f9;">${modelType}</td>
         <td style="font-weight: bold; background: #f9f9f9;">${rowIndex + 1}</td>`;
-
       row.forEach((cell) => {
         const isMatching = matchingNumbers.includes(cell);
         html += `<td style="text-align: center; ${isMatching ? 'background: #2ecc71; color: white;' : ''}">${cell}</td>`;
       });
-
       if(title.includes("Current Prediction") && calcProfit) {
         const profit = calculateProfit(row, matchingNumbers, game, modelType);
         html += `<td style="background: #f9f9f9;">${profit} €</td>`;
@@ -294,12 +282,11 @@ function generateTable(data, title = '', matchingNumbers = [], calcProfit = fals
     });
   });
 
-  html += '</table></div>'; // Close table and wrapper
+  html += '</table></div>';
   return html;
 }
 
 function calculateProfit(prediction, realResult, game, name) {
-  // ... (Keep existing Profit Logic exactly as is) ...
   const payoutTableKeno = {
     10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
     9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
@@ -396,19 +383,15 @@ app.get('/database/:folder', (req, res) => {
     return acc;
   }, {});
 
-  const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(b) - new Date(a)); // Newest months first
+  const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(b) - new Date(a));
 
   let html = generateHeader(`${folder} Predictions`);
-  html += `<h1>${folder}</h1>`;
-
-  // Use simple div stack for collapsible months
-  html += '<div>';
+  html += `<h1>${folder}</h1><div>`;
 
   sortedMonths.forEach((month, index) => {
     filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
     let monthProfit = 0; let monthMaxCorrect = 0;
     
-    // Calculate stats loop
     const fileListHtml = filesByMonth[month].map(file => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
@@ -444,16 +427,12 @@ app.get('/database/:folder', (req, res) => {
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
     const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
-    // Expand first month by default
     const isExpanded = index === 0 ? 'expanded' : '';
 
     html += `
     <div class="card ${isExpanded}">
         <div class="card-header" onclick="toggleCard(this)">
-            <div>
-                <span class="card-title">${month}</span>
-                <span style="margin-left: 10px; font-size: 0.9em; background: ${monthColor}; color: white; padding: 2px 8px; border-radius: 4px;">${headerStat}</span>
-            </div>
+            <div><span class="card-title">${month}</span><span style="margin-left: 10px; font-size: 0.9em; background: ${monthColor}; color: white; padding: 2px 8px; border-radius: 4px;">${headerStat}</span></div>
             <div class="card-icon">▼</div>
         </div>
         <div class="card-body">
@@ -487,18 +466,14 @@ app.get('/database/:folder/:file', (req, res) => {
 
     <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
-            <span class="card-title">Real Result</span>
-            <div class="card-icon">▼</div>
+            <span class="card-title">Real Result</span><div class="card-icon">▼</div>
         </div>
-        <div class="card-body">
-             ${generateList(jsonData.realResult)}
-        </div>
+        <div class="card-body">${generateList(jsonData.realResult)}</div>
     </div>
 
     <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
-             <span class="card-title">Analysis of Prediction</span>
-             <div class="card-icon">▼</div>
+             <span class="card-title">Analysis of Prediction</span><div class="card-icon">▼</div>
         </div>
         <div class="card-body">
             ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
@@ -507,8 +482,7 @@ app.get('/database/:folder/:file', (req, res) => {
 
     <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
-             <span class="card-title">Next Draw Prediction</span>
-             <div class="card-icon">▼</div>
+             <span class="card-title">Next Draw Prediction</span><div class="card-icon">▼</div>
         </div>
         <div class="card-body">
             ${generateTable(jsonData.newPrediction, '', [], calculateProfitFlag, game)}
@@ -522,20 +496,19 @@ app.get('/database/:folder/:file', (req, res) => {
 // 5. Home Page
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-
   let html = generateHeader("Home - Dashboard");
   html += `<h1 style="margin-bottom: 20px;">Dashboard</h1>`;
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
     const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.json')).sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
-
     if (files.length > 0) {
       const latestFile = files[0];
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
+      // NOTE: Added "expanded" class so cards are OPEN by default
       html += `
-        <div class="card">
+        <div class="card expanded">
           <div class="card-header" onclick="toggleCard(this)">
             <div>
                 <span class="card-title">${folder}</span>
@@ -544,7 +517,8 @@ app.get('/', (req, res) => {
             <div class="card-icon">▼</div>
           </div>
           
-          <div class="card-body" style="display: block;"> ${generateTable(jsonData.newPrediction, '')}
+          <div class="card-body">
+            ${generateTable(jsonData.newPrediction, '')}
 
             ${jsonData.numberFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -555,17 +529,12 @@ app.get('/', (req, res) => {
                     type: 'bar',
                     data: {
                         labels: ${JSON.stringify(Object.keys(jsonData.numberFrequency))},
-                        datasets: [{
-                        label: 'Freq',
-                        data: ${JSON.stringify(Object.values(jsonData.numberFrequency))},
-                        backgroundColor: 'rgba(52, 152, 219, 0.6)'
-                        }]
+                        datasets: [{ label: 'Freq', data: ${JSON.stringify(Object.values(jsonData.numberFrequency))}, backgroundColor: 'rgba(52, 152, 219, 0.6)' }]
                     },
                     options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
                     });
                 </script>
             ` : ''}
-            
             <div style="margin-top: 15px; text-align: right;">
                 <a href="/database/${folder}" style="color: #3498db; text-decoration: none; font-weight: bold;">View History →</a>
             </div>
@@ -579,7 +548,7 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-app.get('/models', (req, res) => { /* Same as before, wrap output in generateHeader/Footer */ 
+app.get('/models', (req, res) => { 
     const folders = fs.readdirSync(modelsPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
     let html = generateHeader("Models");
     html += '<h1>Available Models</h1><ul>';
@@ -589,7 +558,7 @@ app.get('/models', (req, res) => { /* Same as before, wrap output in generateHea
     res.send(html);
 });
 
-app.get('/models/:folder', (req, res) => { /* Same as before */
+app.get('/models/:folder', (req, res) => {
     const folder = req.params.folder;
     const folderPath = path.join(modelsPath, folder);
     if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
