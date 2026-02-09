@@ -427,9 +427,11 @@ app.get('/database/:folder', (req, res) => {
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
     const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
-    // No expanded class here by default
+    // NOTE: Added "expanded" here so folders are OPEN by default
+    const isExpanded = 'expanded';
+
     html += `
-    <div class="card">
+    <div class="card ${isExpanded}">
         <div class="card-header" onclick="toggleCard(this)">
             <div><span class="card-title">${month}</span><span style="margin-left: 10px; font-size: 0.9em; background: ${monthColor}; color: white; padding: 2px 8px; border-radius: 4px;">${headerStat}</span></div>
             <div class="card-icon">▼</div>
@@ -463,14 +465,14 @@ app.get('/database/:folder/:file', (req, res) => {
         <a href="/database/${folder}" class="settings-btn" style="text-decoration: none;">Back to History</a>
     </div>
 
-    <div class="card">
+    <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
             <span class="card-title">Real Result</span><div class="card-icon">▼</div>
         </div>
         <div class="card-body">${generateList(jsonData.realResult)}</div>
     </div>
 
-    <div class="card">
+    <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
              <span class="card-title">Analysis of Prediction</span><div class="card-icon">▼</div>
         </div>
@@ -479,7 +481,7 @@ app.get('/database/:folder/:file', (req, res) => {
         </div>
     </div>
 
-    <div class="card">
+    <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
              <span class="card-title">Next Draw Prediction</span><div class="card-icon">▼</div>
         </div>
@@ -507,7 +509,7 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
-      // Removed "expanded" class
+      // NOTE: Removed "expanded" class so cards are CLOSED by default
       html += `
         <div class="card">
           <div class="card-header" onclick="toggleCard(this)">
@@ -582,16 +584,14 @@ app.post('/playedNumbers', (req, res) => {
     if (!playedNumbers) return res.status(400).send('No numbers');
     if (!Array.isArray(playedNumbers)) playedNumbers = [playedNumbers];
     selectedPlayedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-    console.log("Changed played numbers to: ", selectedPlayedNumbers)
     res.json({ success: true });
 });
   
 app.post('/playedModel', (req, res) => {
-  let playedModel = req.body.selectedModel;
-  if (!Array.isArray(playedModel)) playedModel = [playedModel];
-  selectedModel = playedModel;
-  console.log("Changed model to: ", selectedModel)
-  res.json({ success: true });
+    let playedModel = req.body.selectedModel;
+    if (!Array.isArray(playedModel)) playedModel = [playedModel];
+    selectedModel = playedModel;
+    res.json({ success: true });
 });
 
 app.listen(config.PORT, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
