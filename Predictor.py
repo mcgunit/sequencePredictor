@@ -538,6 +538,10 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "markovSmoothingFactor":0.6342058116675424,
         "markovSubsetSelectionMode":"softmax",
         "markovBlendMode":"log",
+        "markovOrder": 1,             
+        "markovPairScoringWeight": 0, 
+        "markovSortedPrediction": False, 
+        "markovUsePairScoring": False, 
         "markovBayesianSoftMaxTemperature":0.24235148017270242,
         "markovBayesianMinOccurences":14,
         "markovBayesianAlpha":0.1452615422969012,
@@ -613,6 +617,10 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
             markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
             markov.setBlendMode(bestParams_json_object["markovBlendMode"])
+            markov.setMarkovOrder(bestParams_json_object["markovOrder"])
+            markov.setSortedPrediction(bestParams_json_object["markovSortedPrediction"])
+            markov.setUsePairScoring(bestParams_json_object["markovUsePairScoring"])
+            markov.setPairScoringWeight(bestParams_json_object["markovPairScoringWeight"])
             markov.clear()
 
             markovPrediction = {

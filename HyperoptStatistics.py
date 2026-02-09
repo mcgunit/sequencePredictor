@@ -290,6 +290,10 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, name, modelParams, ski
             markov.setSmoothingFactor(modelParams["markovSmoothingFactor"])
             markov.setSubsetSelectionMode(modelParams["markovSubsetSelectionMode"])
             markov.setBlendMode(modelParams["markovBlendMode"])
+            markov.setMarkovOrder(modelParams["markovOrder"])
+            markov.setSortedPrediction(modelParams["markovSortedPrediction"])
+            markov.setUsePairScoring(modelParams["markovUsePairScoring"])
+            markov.setPairScoringWeight(modelParams["markovPairScoringWeight"])
             markov.clear()
 
             markovPrediction = {
@@ -598,6 +602,10 @@ if __name__ == "__main__":
                     'markovSmoothingFactor': 1,
                     'markovSubsetSelectionMode': 1,
                     'markovBlendMode': 1,
+                    'markovOrder': 1,             
+                    'markovPairScoringWeight': 0, 
+                    'markovSortedPrediction': False, 
+                    'markovUsePairScoring': False, 
                     'markovBayesianSoftMaxTemperature': 1,
                     'markovBayesianMinOccurences': 1,
                     'markovBayesianAlpha': 1,
@@ -673,6 +681,21 @@ if __name__ == "__main__":
                     modelParams['markovSmoothingFactor'] = trial.suggest_float('markovSmoothingFactor', 0.01, 1.0)
                     modelParams['markovSubsetSelectionMode'] = trial.suggest_categorical("markovSubsetSelectionMode", ["top", "softmax"])
                     modelParams['markovBlendMode'] = trial.suggest_categorical("markovBlendMode", ["linear", "harmonic", "log"])
+                    modelParams['markovOrder'] = trial.suggest_int('markovOrder', 1, 3)
+
+                    
+
+                    if "keno" in dataset_name or "lotto" in dataset_name or "euro" in dataset_name:
+                        # SORTED GAMES (Keno, Lotto, Euromillions)
+                        modelParams['markovSortedPrediction'] = True   # MUST be True
+                        modelParams['markovUsePairScoring'] = False    # MUST be False (Too slow/crash)
+                        modelParams['markovPairScoringWeight'] = 0.0   # Irrelevant
+                    else:
+                        # POSITIONAL GAMES (Pick3, Pick4)
+                        modelParams['markovSortedPrediction'] = False  # MUST be False
+                        modelParams['markovUsePairScoring'] = True     # Beneficial for Pick3
+                        # Only optimize weight if we are actually using it
+                        modelParams['markovPairScoringWeight'] = trial.suggest_float('markovPairScoringWeight', 0.1, 2.0)
 
                     if "keno" in dataset_name:
                         all_values = [5, 6, 7, 8, 9, 10]
