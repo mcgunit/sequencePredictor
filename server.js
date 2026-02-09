@@ -427,7 +427,8 @@ app.get('/database/:folder', (req, res) => {
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
     const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
-    const isExpanded = index === 0 ? 'expanded' : '';
+    // ADDED "expanded" class to ensure cards are OPEN by default
+    const isExpanded = 'expanded';
 
     html += `
     <div class="card ${isExpanded}">
@@ -496,17 +497,19 @@ app.get('/database/:folder/:file', (req, res) => {
 // 5. Home Page
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
+
   let html = generateHeader("Home - Dashboard");
   html += `<h1 style="margin-bottom: 20px;">Dashboard</h1>`;
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
     const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.json')).sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
+
     if (files.length > 0) {
       const latestFile = files[0];
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
-      // NOTE: Added "expanded" class so cards are OPEN by default
+      // Added "expanded" class
       html += `
         <div class="card expanded">
           <div class="card-header" onclick="toggleCard(this)">
@@ -535,6 +538,7 @@ app.get('/', (req, res) => {
                     });
                 </script>
             ` : ''}
+            
             <div style="margin-top: 15px; text-align: right;">
                 <a href="/database/${folder}" style="color: #3498db; text-decoration: none; font-weight: bold;">View History →</a>
             </div>
