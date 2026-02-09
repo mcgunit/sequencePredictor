@@ -427,11 +427,9 @@ app.get('/database/:folder', (req, res) => {
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
     const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
-    // ADDED "expanded" class to ensure cards are OPEN by default
-    const isExpanded = 'expanded';
-
+    // No expanded class here by default
     html += `
-    <div class="card ${isExpanded}">
+    <div class="card">
         <div class="card-header" onclick="toggleCard(this)">
             <div><span class="card-title">${month}</span><span style="margin-left: 10px; font-size: 0.9em; background: ${monthColor}; color: white; padding: 2px 8px; border-radius: 4px;">${headerStat}</span></div>
             <div class="card-icon">▼</div>
@@ -465,14 +463,14 @@ app.get('/database/:folder/:file', (req, res) => {
         <a href="/database/${folder}" class="settings-btn" style="text-decoration: none;">Back to History</a>
     </div>
 
-    <div class="card expanded">
+    <div class="card">
         <div class="card-header" onclick="toggleCard(this)">
             <span class="card-title">Real Result</span><div class="card-icon">▼</div>
         </div>
         <div class="card-body">${generateList(jsonData.realResult)}</div>
     </div>
 
-    <div class="card expanded">
+    <div class="card">
         <div class="card-header" onclick="toggleCard(this)">
              <span class="card-title">Analysis of Prediction</span><div class="card-icon">▼</div>
         </div>
@@ -481,7 +479,7 @@ app.get('/database/:folder/:file', (req, res) => {
         </div>
     </div>
 
-    <div class="card expanded">
+    <div class="card">
         <div class="card-header" onclick="toggleCard(this)">
              <span class="card-title">Next Draw Prediction</span><div class="card-icon">▼</div>
         </div>
@@ -509,9 +507,9 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
-      // Added "expanded" class
+      // Removed "expanded" class
       html += `
-        <div class="card expanded">
+        <div class="card">
           <div class="card-header" onclick="toggleCard(this)">
             <div>
                 <span class="card-title">${folder}</span>
