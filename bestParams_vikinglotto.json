@@ -22,7 +22,7 @@
     "markovBlendMode": "log",
     "markovBayesianSoftMaxTemperature": 0.857580421651361,
     "markovBayesianMinOccurences": 9,
-    "markovBayesianAlpha": 0.4510678443385486,
+    "markovBayesianAlpha": 0.6882180201919125,
     "markovBayesianDecayRate": 0.14983369593976475,
     "markovBayesianLambdaDecay": 0.01556869588639834,
     "markovBayesianNgramOrder": 2,
