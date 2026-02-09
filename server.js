@@ -427,8 +427,10 @@ app.get('/database/:folder', (req, res) => {
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
     const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
-    // NOTE: Added "expanded" here so folders are OPEN by default
-    const isExpanded = 'expanded';
+    
+    // --- UPDATED LOGIC HERE ---
+    // Only expand if it is the first month (index === 0)
+    const isExpanded = index === 0 ? 'expanded' : '';
 
     html += `
     <div class="card ${isExpanded}">
@@ -497,7 +499,6 @@ app.get('/database/:folder/:file', (req, res) => {
 // 5. Home Page
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-
   let html = generateHeader("Home - Dashboard");
   html += `<h1 style="margin-bottom: 20px;">Dashboard</h1>`;
 
@@ -509,7 +510,7 @@ app.get('/', (req, res) => {
       const latestFile = files[0];
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
 
-      // NOTE: Removed "expanded" class so cards are CLOSED by default
+      // Collapsed by default (No 'expanded' class)
       html += `
         <div class="card">
           <div class="card-header" onclick="toggleCard(this)">
