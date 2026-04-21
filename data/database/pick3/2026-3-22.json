@@ -1,6 +1,67 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [],
+  "currentPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          7,
+          7,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "MarkovBayesian Model",
+      "predictions": [
+        [
+          0,
+          1,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          1,
+          5,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMarkov Model",
+      "predictions": [
+        [
+          3,
+          4,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          5,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "HybridStatisticalModel",
+      "predictions": [
+        [
+          0,
+          3,
+          6
+        ]
+      ]
+    }
+  ],
   "realResult": [
     4,
     1,
@@ -22,8 +83,8 @@
       "predictions": [
         [
           0,
-          3,
-          4
+          2,
+          3
         ]
       ]
     },
@@ -31,9 +92,9 @@
       "name": "PoissonMonteCarlo Model",
       "predictions": [
         [
-          3,
+          4,
           5,
-          7
+          9
         ]
       ]
     },
@@ -41,9 +102,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          1,
+          4,
           8,
-          5
+          7
         ]
       ]
     },
@@ -51,9 +112,9 @@
       "name": "LaplaceMonteCarlo Model",
       "predictions": [
         [
-          5,
-          3,
-          3
+          4,
+          4,
+          4
         ]
       ]
     },
@@ -61,20 +122,94 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          3,
+          2,
           4,
-          5
+          6
+        ]
+      ]
+    },
+    {
+      "name": "LSTM Base Model",
+      "predictions": [
+        [
+          5,
+          8,
+          4
         ]
       ]
     }
   ],
-  "newPredictionRaw": [],
+  "newPredictionRaw": [
+    [
+      0.0901360958814621,
+      0.056653257459402084,
+      0.13124142587184906,
+      0.059674154967069626,
+      0.08851275593042374,
+      0.27593812346458435,
+      0.04723822697997093,
+      0.11300473660230637,
+      0.10183268040418625,
+      0.0357685387134552
+    ],
+    [
+      0.19364513456821442,
+      0.06375450640916824,
+      0.05878983065485954,
+      0.06945743411779404,
+      0.030166298151016235,
+      0.14069077372550964,
+      0.06413555145263672,
+      0.09145703911781311,
+      0.2444605529308319,
+      0.04344284534454346
+    ],
+    [
+      0.13689647614955902,
+      0.09189587086439133,
+      0.04925762489438057,
+      0.09446252882480621,
+      0.35056358575820923,
+      0.04220287501811981,
+      0.10787305980920792,
+      0.020095882937312126,
+      0.08507948368787766,
+      0.0216725692152977
+    ]
+  ],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0
+    "model": "MarkovBayesian Model",
+    "prediction": [
+      0,
+      1,
+      8
+    ],
+    "matching_numbers": [
+      1
+    ],
+    "match_count": 1
   },
-  "labels": [],
-  "numberFrequency": []
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "8": 0.14285714285714285,
+    "5": 0.14285714285714285,
+    "2": 0.14285714285714285,
+    "0": 0.047619047619047616,
+    "3": 0.047619047619047616,
+    "4": 0.3333333333333333,
+    "9": 0.047619047619047616,
+    "7": 0.047619047619047616,
+    "6": 0.047619047619047616
+  }
 }

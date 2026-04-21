@@ -5,9 +5,9 @@
       "name": "Markov Model",
       "predictions": [
         [
-          7,
-          7,
-          3
+          4,
+          6,
+          0
         ]
       ]
     },
@@ -15,9 +15,9 @@
       "name": "MarkovBayesian Model",
       "predictions": [
         [
-          0,
-          1,
-          2
+          4,
+          5,
+          7
         ]
       ]
     },
@@ -26,8 +26,8 @@
       "predictions": [
         [
           0,
-          1,
-          9
+          3,
+          8
         ]
       ]
     },
@@ -35,9 +35,9 @@
       "name": "PoissonMarkov Model",
       "predictions": [
         [
-          5,
           4,
-          2
+          2,
+          6
         ]
       ]
     },
@@ -55,8 +55,8 @@
       "name": "HybridStatisticalModel",
       "predictions": [
         [
-          5,
           7,
+          5,
           8
         ]
       ]
@@ -133,12 +133,12 @@
   "matchingNumbers": {
     "model": "Markov Model",
     "prediction": [
-      7,
-      7,
-      3
+      4,
+      6,
+      0
     ],
     "matching_numbers": [
-      3
+      6
     ],
     "match_count": 1
   },
