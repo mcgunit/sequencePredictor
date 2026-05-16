@@ -305,21 +305,29 @@ class Markov():
     def generate_best_subset(self, predicted_numbers, nSubset):
         unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
         
-        if len(unique_numbers) < nSubset:
+        # Rank the predicted numbers by their global historical frequency (highest first)
+        ranked_prediction = sorted(unique_numbers, key=lambda x: self.global_frequencies.get(x, 0), reverse=True)
+        
+        if len(ranked_prediction) < nSubset:
             # Fallback to global frequent numbers
             sorted_freq = sorted(self.global_frequencies, key=self.global_frequencies.get, reverse=True)
             for f in sorted_freq:
-                if f not in unique_numbers:
-                    unique_numbers.append(f)
-                if len(unique_numbers) >= nSubset: break
+                if f not in ranked_prediction:
+                    ranked_prediction.append(f)
+                if len(ranked_prediction) >= nSubset: 
+                    break
                 
             # Random fallback if still empty
-            while len(unique_numbers) < nSubset:
-                r = np.random.randint(1, 81)
-                if r not in unique_numbers:
-                    unique_numbers.append(r)
+            while len(ranked_prediction) < nSubset:
+                r = np.random.randint(1, 81) # Assuming Keno max is 80
+                if r not in ranked_prediction:
+                    ranked_prediction.append(r)
         
-        return unique_numbers[:nSubset]
+        # Slice the top N most historically frequent numbers from our prediction
+        best_subset = ranked_prediction[:nSubset]
+        
+        # Return them sorted numerically (standard for lottery tickets)
+        return sorted(best_subset)
 
     def run(self, generateSubsets=[], skipRows=0):
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
