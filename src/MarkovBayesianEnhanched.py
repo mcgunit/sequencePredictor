@@ -104,8 +104,8 @@ class MarkovBayesianEnhanced(MarkovBayesian):
         scored = sorted(candidate_sets, key=self.score_meta_features, reverse=True)
         return [sorted(set(int(n) for n in s)) for s in scored[:top_n]]
 
-    def run(self, generateSubsets=[], skipRows=0):
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
+    def run(self, generateSubsets=[], skipRows=0,skipLastColumns=0):
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
         self.numbers = numbers
         self.build_markov_chain(numbers)
 

@@ -153,14 +153,14 @@ class MarkovBayesian():
 
         return [int(num) for num in predictions][:n_predictions]
 
-    def run(self, generateSubsets=[], skipRows=0):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
         """
         Runs the Markov Chain prediction process with optional subset generation.
         
         Parameters:
         generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
         """
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
 
         # Build the enhanced Markov Chain model
         self.build_markov_chain(numbers)

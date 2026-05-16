@@ -193,6 +193,8 @@ class Helpers():
         # Initialize an empty list to hold the data
         data = []
 
+        #print("skip last column: ", skipLastColumns)
+
         for csvFile in os.listdir(dataPath):
             if csvFile.endswith(".csv"):
                 try:
@@ -232,6 +234,8 @@ class Helpers():
 
                 except Exception as e:
                     print(f"Error processing file {csvFile}: {e}")
+
+        #print("data: ", data[len(data)-1])
 
         # Sort the data by date
         data.sort(key=lambda x: x[0], reverse=False)  # Oldest to newest
@@ -325,6 +329,8 @@ class Helpers():
         max_value = np.max(numbers)
 
         #print("Length of data: ", len(numbers))
+        #print("Numbers: ", numbers)
+        
 
         return train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels
 

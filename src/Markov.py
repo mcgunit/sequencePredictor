@@ -329,8 +329,8 @@ class Markov():
         # Return them sorted numerically (standard for lottery tickets)
         return sorted(best_subset)
 
-    def run(self, generateSubsets=[], skipRows=0):
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows)
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
         if len(numbers) == 0: return [], {}
 
         self.build_markov_chain(numbers)
@@ -349,7 +349,7 @@ if __name__ == "__main__":
     print("Trying Markov")
 
     markov = Markov()
-    name = 'keno' 
+    name = 'lotto' 
     generateSubsets = []
     
     path = os.getcwd()
@@ -390,4 +390,4 @@ if __name__ == "__main__":
         generateSubsets = [6, 7]
         
     for _ in range(1):
-        print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets))
+        print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets, skipLastColumns=0))

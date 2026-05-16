@@ -119,7 +119,7 @@ def process_single_history_entry_first_step(args):
     In this step we can process multible files.
     """
     
-    (historyIndex, historyEntry, historyData, name, dataPath, previousJsonFilePath, path) = args
+    (historyIndex, historyEntry, historyData, name, dataPath, previousJsonFilePath, path, skipLastColumns) = args
 
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
@@ -160,7 +160,9 @@ def process_single_history_entry_first_step(args):
         listOfDecodedPredictions = []
 
         listOfDecodedPredictions = statisticalMethod(
-           listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex)
+           listOfDecodedPredictions, dataPath, path, name, skipRows=len(historyData)-historyIndex
+           , skipLastColumns=skipLastColumns
+        )
 
         current_json_object["newPrediction"] = listOfDecodedPredictions
     except Exception as e:
@@ -399,7 +401,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile, indent=2)
                     
-                    listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name)
+                    listOfDecodedPredictions = statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipLastColumns=skipLastColumns)
                     
                     if boost:
                         listOfDecodedPredictions = boostingMethod(listOfDecodedPredictions, dataPath, path, name)
@@ -451,7 +453,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                 argsList = [
                     (historyIndex, historyEntry, historyData, name, dataPath,
-                    previousJsonFilePath, path)
+                    previousJsonFilePath, path, skipLastColumns)
                     for historyIndex, historyEntry in enumerate(historyData)
                 ]
 
@@ -512,7 +514,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
     return listOfDecodedPredictions
 
 
-def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
+def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, skipLastColumns=0):
 
     bestParams_json_object = {
         "use_5":True,
@@ -628,7 +630,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows)
+            markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
             
             markovPrediction["predictions"].append(markovSequence)
             for key in markovSubsets:
@@ -653,7 +655,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows)
+            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
             markovBayesianPrediction["predictions"].append(markovBayesianSequence)
             for key in markovBayesianSubsets:
                 markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
@@ -677,7 +679,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows)
+            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
             for key in markovBayesianEnhancedSubsets:
                 markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
@@ -700,7 +702,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
+            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
 
             poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
             for key in poissonMonteCarloSubsets:
@@ -723,7 +725,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows)
+            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
 
             poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
             for key in poissonMarkovSubsets:
@@ -747,7 +749,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             }
 
 
-            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows)
+            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
             for key in laplaceMonteCarloSubsets:
                 laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
@@ -772,7 +774,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows)
+            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
             hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
             for key in hybridStatisticalModelSubsets:
                 hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])

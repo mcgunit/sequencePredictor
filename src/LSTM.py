@@ -330,14 +330,14 @@ class LSTMModel:
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
         # Optional Markov blend
-        try:
-            markov.build_markov_chain(numbers)
-            markovChain = markov.getTransformationMatrix()
-            lastDraw = numbers[-1]
-            markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
-            self.lstmMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
-        except Exception as e:
-            print("Failed to build Markov Chain: ", e)
+        # try:
+        #     markov.build_markov_chain(numbers)
+        #     markovChain = markov.getTransformationMatrix()
+        #     lastDraw = numbers[-1]
+        #     markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
+        #     self.lstmMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
+        # except Exception as e:
+        #     print("Failed to build Markov Chain: ", e)
 
         # -------------------------------------------------------
         # DENORMALIZE predictions back to original labels
