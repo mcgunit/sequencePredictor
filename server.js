@@ -169,7 +169,7 @@ function generateHeader(title = "Sequence Predictor") {
     <div class="navbar">
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
-        <a href="/database">Database</a>
+        <a href="/database">History</a>
         <a id="optuna-link" href="#" target="_blank">Optuna</a>
       </div>
 
@@ -219,8 +219,8 @@ function generateHeader(title = "Sequence Predictor") {
       document.addEventListener("DOMContentLoaded", function() {
         const optunaLink = document.getElementById("optuna-link");
         if(optunaLink) {
-            // Uses current window hostname (e.g., localhost, 192.168.x.x, etc.) and adds port 8080
-            optunaLink.href = \`\${window.location.protocol}//\${window.location.hostname}:8080\`;
+            // Uses current window hostname (e.g., localhost, 192.168.x.x, etc.) and adds port 3002
+            optunaLink.href = \`\${window.location.protocol}//\${window.location.hostname}:3002\`;
         }
       });
 
@@ -510,7 +510,7 @@ app.get('/database/:folder/:file', (req, res) => {
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
   let html = generateHeader("Home - Dashboard");
-  html += `<h1 style="margin-bottom: 20px;">Dashboard</h1>`;
+  html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>`;
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
@@ -526,7 +526,7 @@ app.get('/', (req, res) => {
           <div class="card-header" onclick="toggleCard(this)">
             <div>
                 <span class="card-title">${folder}</span>
-                <span class="card-meta">(${latestFile})</span>
+                <!--<span class="card-meta">(${latestFile})</span>-->
             </div>
             <div class="card-icon">▼</div>
           </div>
