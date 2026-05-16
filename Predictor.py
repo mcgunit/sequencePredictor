@@ -914,7 +914,7 @@ if __name__ == "__main__":
         datasets = [
             # (dataset_name, model_type, skip_last_columns, ai, xgboost)
             ("euromillions", "lstm_model", 0, True, False),
-            ("lotto", "lstm_model", 0, True, False),
+            ("lotto", "lstm_model", 1, True, False),
             ("eurodreams", "lstm_model", 0, True, False),
             #("jokerplus", "lstm_model", 1, False, True),
             ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
