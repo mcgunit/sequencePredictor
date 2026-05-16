@@ -220,7 +220,7 @@ class HybridStatisticalModel():
             for num in set(markov_probs) | set(num_frequencies)}
 
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
-        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows)
+        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
 
         self.build_markov_chain(numbers)
         last_draw = numbers[-1]
@@ -250,7 +250,7 @@ class HybridStatisticalModel():
 
         unique, counts = np.unique(all_predictions, return_counts=True)
 
-        # 🔹 Sort first by frequency, then numerically in case of ties
+        # Sort first by frequency, then numerically in case of ties
         sorted_indices = np.lexsort((unique, -counts))  # Sort first by count (descending), then by number
         sorted_numbers = unique[sorted_indices][:n_predictions]  # Take the top `n_predictions`
 
