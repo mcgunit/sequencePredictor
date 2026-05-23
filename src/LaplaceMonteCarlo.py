@@ -52,23 +52,42 @@ class LaplaceMonteCarlo():
         best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
 
         return sorted(map(int, best_subset))
+
+    def ensure_unique_prediction(self, predicted_numbers, n_predictions):
+        unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
+
+        all_numbers = list(range(self.min_number, self.max_number + 1))
+        remaining = [n for n in all_numbers if n not in unique_numbers]
+
+        while len(unique_numbers) < n_predictions and remaining:
+            chosen = int(np.random.choice(remaining))
+            unique_numbers.append(chosen)
+            remaining.remove(chosen)
+
+        return sorted(unique_numbers[:n_predictions])
     
     def build_laplace_model(self, numbers):
         """Computes Laplace distribution parameters for each position."""
-        total_draws = len(numbers)
-        
+
         self.min_number = min(min(draw) for draw in numbers)
         self.max_number = max(max(draw) for draw in numbers)
-        
-        for i, draw in enumerate(numbers[-self.recent_draws:]):  # Consider only recent draws
+
+        for draw in numbers[-self.recent_draws:]:
             for pos, num in enumerate(draw):
-                self.position_stats[pos].append(num)
-        
-        # Compute Laplace parameters (location = mean, scale = MAD/sqrt(2))
-        self.laplace_params = {
-            pos: (np.mean(nums), max(0.1, np.median(np.abs(nums - np.median(nums))) / np.sqrt(2)))
-            for pos, nums in self.position_stats.items()
-        }
+                self.position_stats[pos].append(int(num))
+
+        self.laplace_params = {}
+
+        for pos, nums in self.position_stats.items():
+            arr = np.array(nums, dtype=float)
+
+            loc = np.mean(arr)
+            scale = max(
+                0.1,
+                np.median(np.abs(arr - np.median(arr))) / np.sqrt(2)
+            )
+
+            self.laplace_params[pos] = (loc, scale)
     
     def monte_carlo_simulation(self, n_predictions=20):
         """Runs Monte Carlo simulations using Laplace distribution for each position."""
@@ -91,13 +110,16 @@ class LaplaceMonteCarlo():
                 sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
                 predicted_numbers.append(int(np.random.choice(sorted_predictions[:3])))  # Pick from the top 3
 
-        return predicted_numbers
+        return self.ensure_unique_prediction(predicted_numbers, n_predictions)
     
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
         """Runs the Laplace Monte Carlo prediction process with optional subset generation."""
+
+        self.clear()
+        
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
 
-        self.setRecentDraws(max(self.recent_draws, len(numbers)))
+        self.setRecentDraws(min(self.recent_draws, len(numbers)))
 
         self.build_laplace_model(numbers)
         

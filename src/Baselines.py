@@ -38,5 +38,28 @@ class Baselines:
             best = max(freq, key=freq.get)
             ticket.append(best)
 
-        # For sorted games, avoid duplicates
-        return sorted(dict.fromkeys(ticket))
+        # Remove duplicates while preserving order
+        ticket = list(dict.fromkeys(ticket))
+
+        # Fill missing values using global frequency
+        if len(ticket) < num_columns:
+            global_freq = defaultdict(float)
+
+            for draw in train_numbers:
+                for n in draw:
+                    global_freq[int(n)] += 1
+
+            ranked_global = sorted(
+                global_freq,
+                key=global_freq.get,
+                reverse=True
+            )
+
+            for n in ranked_global:
+                if n not in ticket:
+                    ticket.append(n)
+
+                if len(ticket) >= num_columns:
+                    break
+
+        return sorted(ticket[:num_columns])

@@ -122,6 +122,9 @@ class PoissonMonteCarlo():
         Parameters:
         generateSubset is an array to generate subsets of numbers, e.g., [6, 7] creates subsets of 6 and 7 numbers.
         """
+
+        self.clear()
+        
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
         numbers = [[int(num) for num in draw] for draw in numbers]
         #print("Length of numbers: ", numbers[len(numbers)-1])
