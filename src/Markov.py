@@ -1,8 +1,9 @@
-import os, sys, json
+import os, sys, json, itertools
 import numpy as np
 import scipy.special
 from collections import defaultdict
-import itertools
+from Backtester import Backtester
+from collections import Counter
 
 # Dynamically adjust the import path for Helpers
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +26,10 @@ class Markov():
         self.softMaxTemperature = 0.5
         self.alpha = 0.7
         self.min_occurrences = 5
-        
+        self.min_number = 1
+        self.max_number = 80
+        self.draw_size = None
+        self.random_seed = None
         # --- CONFIGURATION FLAGS ---
         self.markov_order = 1
         self.use_pair_scoring = False
@@ -74,6 +78,16 @@ class Markov():
     def setMarkovOrder(self, order): self.markov_order = max(1, int(order))
     def setUsePairScoring(self, use): self.use_pair_scoring = bool(use)
     def setPairScoringWeight(self, w): self.pair_scoring_weight = float(w)
+    def setGameRange(self, min_number, max_number):
+        self.min_number = int(min_number)
+        self.max_number = int(max_number)
+
+    def setDrawSize(self, draw_size):
+        self.draw_size = int(draw_size)
+
+    def setRandomSeed(self, seed):
+        self.random_seed = seed
+        np.random.seed(seed)
     
     def setSortedPrediction(self, use):
         """
@@ -81,6 +95,15 @@ class Markov():
         Enforces that the predicted sequence is strictly increasing.
         """
         self.sorted_prediction = bool(use)
+
+    def load_numbers(self, skipRows=0, skipLastColumns=0, years_back=None):
+        _, _, _, _, _, numbers, num_classes, unique_labels = helpers.load_data(
+            self.dataPath,
+            skipRows=skipRows,
+            skipLastColumns=skipLastColumns,
+            years_back=years_back
+        )
+        return numbers, num_classes, unique_labels
 
     def softmax_with_temperature(self, probabilities, temperature=1.0):
         # FIX: Convert linear probabilities to logits before applying softmax
@@ -255,7 +278,18 @@ class Markov():
                 
                 if not cands:
                     # Hard Fallback: Last val + 1 (or 1 if first)
-                    pred = last_pred_val + 1 if last_pred_val > 0 else 1
+                    remaining_slots = num_columns - col
+
+                    if self.sorted_prediction:
+                        min_allowed = last_pred_val + 1 if last_pred_val >= self.min_number else self.min_number
+                        max_allowed = self.max_number - remaining_slots + 1
+
+                        if min_allowed <= max_allowed:
+                            pred = int(np.random.randint(min_allowed, max_allowed + 1))
+                        else:
+                            pred = min(self.max_number, last_pred_val + 1)
+                    else:
+                        pred = int(np.random.randint(self.min_number, self.max_number + 1))
                 else:
                     # Ensure sum 1.0
                     p = p / p.sum()
@@ -275,8 +309,11 @@ class Markov():
                 zipped = sorted(zip(cands, p), key=lambda x: x[1], reverse=True)
                 col_candidates.append(zipped[:top_k])
             
-            all_combinations = list(itertools.product(*[c[0] for c in col_candidates]))
-            all_probs = list(itertools.product(*[c[1] for c in col_candidates]))
+            candidate_nums = [[num for num, prob in col] for col in col_candidates]
+            candidate_probs = [[prob for num, prob in col] for col in col_candidates]
+
+            all_combinations = list(itertools.product(*candidate_nums))
+            all_probs = list(itertools.product(*candidate_probs))
             
             final_scores = []
             
@@ -328,20 +365,94 @@ class Markov():
         
         # Return them sorted numerically (standard for lottery tickets)
         return sorted(best_subset)
+    
+    def generate_candidate_tickets(self, history_draws, n_tickets=1000, temperature=None):
+        if temperature is None:
+            temperature = self.softMaxTemperature
+
+        tickets = []
+
+        for _ in range(n_tickets):
+            ticket = self.predict_next_numbers(
+                history_draws,
+                temperature=temperature
+            )
+
+            if self.sorted_prediction:
+                ticket = sorted(dict.fromkeys(ticket))
+
+            tickets.append(tuple(ticket))
+
+        return tickets
+    
+    def rank_candidate_tickets(self, history_draws, n_tickets=5000, top_n=10, temperature=None):
+
+        tickets = self.generate_candidate_tickets(
+            history_draws,
+            n_tickets=n_tickets,
+            temperature=temperature
+        )
+
+        ranked = Counter(tickets).most_common(top_n)
+
+        return [
+            {
+                "ticket": list(ticket),
+                "count": count
+            }
+            for ticket, count in ranked
+        ]
+    def generate_voted_ticket(self, history_draws, n_tickets=10000, ticket_size=None, temperature=None):
+
+        if temperature is None:
+            temperature = self.softMaxTemperature
+
+        if ticket_size is None:
+            ticket_size = self.draw_size
+
+        votes = defaultdict(float)
+
+        tickets = self.generate_candidate_tickets(
+            history_draws,
+            n_tickets=n_tickets,
+            temperature=temperature
+        )
+
+        for ticket in tickets:
+            unique_ticket = set(ticket)
+            for n in unique_ticket:
+                votes[int(n)] += 1
+
+        ranked_numbers = sorted(
+            votes,
+            key=votes.get,
+            reverse=True
+        )
+
+        final_ticket = ranked_numbers[:ticket_size]
+
+        return sorted(final_ticket), dict(votes)
 
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
-        if len(numbers) == 0: return [], {}
+        numbers, _, _ = self.load_numbers(
+            skipRows=skipRows,
+            skipLastColumns=skipLastColumns
+        )
+
+        if len(numbers) == 0:
+            return [], {}
 
         self.build_markov_chain(numbers)
 
         history_context = numbers[-self.markov_order:]
-        predicted_numbers = self.predict_next_numbers(history_context, temperature=self.softMaxTemperature)
+        predicted_numbers = self.predict_next_numbers(
+            history_context,
+            temperature=self.softMaxTemperature
+        )
 
         subsets = {}
-        if generateSubsets:
-            for subset_size in generateSubsets:
-                subsets[subset_size] = self.generate_best_subset(predicted_numbers, subset_size)
+        for subset_size in generateSubsets:
+            subsets[subset_size] = self.generate_best_subset(predicted_numbers, subset_size)
 
         return predicted_numbers, subsets
 
@@ -388,6 +499,84 @@ if __name__ == "__main__":
 
     if "keno" in name.lower():
         generateSubsets = [6, 7]
-        
-    for _ in range(1):
-        print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets, skipLastColumns=0))
+
+    # plan prediction
+    # for _ in range(1):
+    #     print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets, skipLastColumns=0))
+
+    #############################
+    #  Prediction with backtest #
+    #############################
+    skipLastColumn = 0
+    if "keno" in name.lower():
+        markov.setGameRange(1, 80)
+        markov.setDrawSize(20)
+
+    elif "lotto" in name.lower():
+        markov.setGameRange(1, 45)
+        markov.setDrawSize(6)
+        skipLastColumn = 1
+
+    elif "vikinglotto" in name.lower():
+        markov.setGameRange(1, 48)
+        markov.setDrawSize(6)
+
+    elif "euro" in name.lower():
+        markov.setGameRange(1, 50)
+        markov.setDrawSize(5)
+
+    elif "pick3" in name.lower():
+        markov.setGameRange(0, 9)
+        markov.setDrawSize(3)
+
+    backtester = Backtester(markov)
+
+    results = backtester.backtest(
+        start_index=200,
+        generate_subsets=generateSubsets,
+        skipLastColumns=skipLastColumn,
+        include_baselines=True,
+        verbose=True
+    )
+
+    summary = backtester.summarize(
+        results,
+        subset_sizes=generateSubsets
+    )
+
+    print("\nBacktest summary:")
+    print(json.dumps(summary, indent=4))
+
+    ########################
+    # Generate top tickets #
+    ########################
+    numbers, _, _ = markov.load_numbers(skipLastColumns=skipLastColumn)
+    markov.build_markov_chain(numbers)
+
+    history = numbers[-markov.markov_order:]
+
+    ranked = markov.rank_candidate_tickets(
+        history,
+        n_tickets=10000,
+        top_n=10
+    )
+
+    print("\nTop generated tickets:")
+    print(json.dumps(ranked, indent=4))
+
+    #####################
+    # Top voted numbers #
+    #####################
+
+    numbers, _, _ = markov.load_numbers(skipLastColumns=skipLastColumn)
+    markov.build_markov_chain(numbers)
+
+    history = numbers[-markov.markov_order:]
+
+    voted_ticket, votes = markov.generate_voted_ticket(
+        history,
+        n_tickets=10000,
+        ticket_size=6
+    )
+
+    print("Voted ticket:", voted_ticket)
