@@ -235,6 +235,11 @@ if __name__ == "__main__":
     from MarkovMonteCarlo import MarkovMonteCarlo
     from PoissonMonteCarlo import PoissonMonteCarlo
     from LaplaceMonteCarlo import LaplaceMonteCarlo
+
+
+    import numpy as np
+    np.random.seed(42)
+
     
     print("Running global backtest")
 
@@ -269,7 +274,21 @@ if __name__ == "__main__":
     # -------------------------
     # Markov Monte Carlo / voted-ticket Markov
     # -------------------------
-    markov_mc = MarkovMonteCarlo(markov)
+    markov_mc_base = Markov()
+    markov_mc_base.setDataPath(dataPath)
+    markov_mc_base.setGameRange(1, 45)
+    markov_mc_base.setDrawSize(6)
+    markov_mc_base.setSoftMAxTemperature(0.45)
+    markov_mc_base.setAlpha(0.6)
+    markov_mc_base.setMinOccurrences(2)
+    markov_mc_base.setRecencyWeight(1.7)
+    markov_mc_base.setRecencyMode("constant")
+    markov_mc_base.setPairDecayFactor(1)
+    markov_mc_base.setSortedPrediction(True)
+    markov_mc_base.setUsePairScoring(False)
+    markov_mc_base.setMarkovOrder(2)
+
+    markov_mc = MarkovMonteCarlo(markov_mc_base)
     markov_mc.setNumOfSimulations(250)
 
     # -------------------------
@@ -300,7 +319,8 @@ if __name__ == "__main__":
     backtester.add_model("laplace_mc", laplace)
 
     results = backtester.backtest(
-        start_index=200,
+        start_index=2700,
+        end_index=3223,
         skipLastColumns=1,
         generate_subsets=generateSubsets,
         include_baselines=True,
