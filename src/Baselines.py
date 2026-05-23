@@ -2,7 +2,7 @@ import numpy as np
 from collections import defaultdict
 
 
-class MarkovBaselines:
+class Baselines:
     @staticmethod
     def random_ticket(min_number, max_number, draw_size):
         return sorted(
