@@ -36,7 +36,7 @@
     "poissonMonteCarloNumberOfSimulations": 100,
     "poissonMonteCarloWeightFactor": 0.6556103133024466,
     "poissonMonteCarloNumberOfRecentDraws": 300,
-    "poissonMarkovWeight": 0.6790308029416392,
+    "poissonMarkovWeight": 0.6416011817276391,
     "poissonMarkovNumberOfSimulations": 800,
     "laplaceMonteCarloNumberOfSimulations": 1000,
     "hybridStatisticalModelSoftMaxTemperature": 0.5975119711505296,
