@@ -3,17 +3,18 @@
 
 ## The main idea
 
-MarkovMonteCarlo:
-    "Given recent transition patterns and column frequencies, which numbers are repeatedly generated?"
+This project compares several probabilistic simulation methods for lottery-style number prediction.
 
-PoissonMonteCarlo:
-    "Given historical count rates per position, which numbers repeatedly occur in simulated count scenarios?"
+Each method generates predictions based on a different statistical interpretation of historical draw data:
 
-LaplaceMonteCarlo:
-    "Given the typical center/spread of each position, which values repeatedly appear in simulated positional draws?"
+- MarkovMonteCarlo estimates which numbers are repeatedly generated from recent transition patterns and column-specific frequencies.
+- PoissonMonteCarlo estimates which numbers repeatedly occur under historical position-based count rates.
+- LaplaceMonteCarlo estimates which values repeatedly appear when each sorted position is modeled by its historical center and spread.
+- Baseline models provide random, global-frequency, and column-frequency comparisons.
 
-Backtester:
-    "Which of these actually produces more 2+, 3+, and 4+ hits than baselines over many historical draws?"
+The Backtester evaluates each method using rolling historical validation. For every historical draw, each model is trained only on previous draws and then compared against the next real result.
+
+The goal is not to prove deterministic prediction, but to measure whether any method produces more 2+, 3+, or 4+ hits than simple baselines over many historical draws.
 
 
 ## Installation
