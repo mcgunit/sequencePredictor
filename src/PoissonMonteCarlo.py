@@ -26,21 +26,29 @@ class PoissonMonteCarlo():
         self.recent_weight_factor = 1.5  # Weighting for recent draws
         self.recent_draws = 100 # look back
         self.position_frequencies = defaultdict(lambda: defaultdict(int))
+        self.sorted_prediction = True  # Set False for positional games like Pick3
 
     def clear(self):
         self.position_frequencies = defaultdict(lambda: defaultdict(int))
-    
+
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
 
     def setNumOfSimulations(self, nSimulations):
         self.num_simulations = nSimulations
-    
+
     def setWeightFactor(self, nWeightFactor):
         self.recent_weight_factor = nWeightFactor
 
     def setRecentDraws(self, nRecentDraws):
         self.recent_draws = nRecentDraws
+
+    def setSortedPrediction(self, use):
+        """
+        Disable for positional games (Pick3) so the returned digits keep their
+        drawn (per-position) order instead of being reordered ascending by value.
+        """
+        self.sorted_prediction = bool(use)
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a unique subset using weighted probability selection."""
@@ -76,7 +84,9 @@ class PoissonMonteCarlo():
     
     def monte_carlo_simulation(self, n_predictions=20):
         """Runs Monte Carlo simulations using Poisson distribution for each position."""
-        predicted_numbers = set()  # Use a set to ensure uniqueness
+        # A list (not a set) so the per-position sampling order below is preserved -
+        # needed for positional games (Pick3) when sorted_prediction is False.
+        predicted_numbers = []
 
         max_attempts = 1000
         attempts = 0
@@ -84,37 +94,38 @@ class PoissonMonteCarlo():
         while len(predicted_numbers) < n_predictions and attempts < max_attempts:
             attempts += 1
             simulated_counts = defaultdict(int)
-            
+
             # Run Poisson simulations
             for _ in range(self.num_simulations):
                 for num, lam in self.poisson_lambda.get(len(predicted_numbers), {}).items():
                     occurrence = poisson.rvs(lam)
                     if occurrence > 0:
                         simulated_counts[num] += 1
-            
+
             # Fallback if no numbers were generated
             if not simulated_counts:
                 # --- Option 1: dynamically get all numbers from poisson_lambda ---
                 all_numbers = set()
                 for pos_dict in self.poisson_lambda.values():
                     all_numbers.update(pos_dict.keys())
-                
-                remaining_numbers = all_numbers - predicted_numbers
-                predicted_numbers.add(np.random.choice(list(remaining_numbers)))
+
+                remaining_numbers = all_numbers - set(predicted_numbers)
+                predicted_numbers.append(np.random.choice(list(remaining_numbers)))
                 continue  # Skip the rest of the loop and go to the next attempt
 
             # Softmax and pick the top prediction
             raw_values = np.array([simulated_counts[num] for num in simulated_counts])
             probabilities = softmax(raw_values)
             sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
-            
+
             for num in sorted_predictions:
                 if num not in predicted_numbers:
-                    predicted_numbers.add(num)
+                    predicted_numbers.append(num)
                     break
 
-        return sorted([int(num) for num in predicted_numbers]) 
-    
+        final_predictions = [int(num) for num in predicted_numbers]
+        return sorted(final_predictions) if self.sorted_prediction else final_predictions
+
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         """
         Runs the Poisson Monte Carlo prediction process.

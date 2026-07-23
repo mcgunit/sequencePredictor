@@ -21,6 +21,19 @@ class PoissonMarkov:
         self.markov_model = Markov()
         self.poisson_weight = 0.5  # Weight assigned to Poisson predictions
         self.markov_weight = 0.5   # Weight assigned to Markov predictions
+        self.sorted_prediction = True  # Set False for positional games like Pick3
+
+    def setSortedPrediction(self, use):
+        """
+        Disable for positional games (Pick3). Propagated to both sub-models so
+        their own per-position order (see PoissonMonteCarlo/Markov) survives as
+        far as possible before blend_predictions ranks by confidence - note that
+        blend_predictions itself pools numbers into a flat weighted bag with no
+        positional identity, so this alone does not make Pick3 output correct.
+        """
+        self.sorted_prediction = bool(use)
+        self.poisson_model.setSortedPrediction(use)
+        self.markov_model.setSortedPrediction(use)
 
     def setDataPath(self, dataPath):
         """Set data path for both models."""

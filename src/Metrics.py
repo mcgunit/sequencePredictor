@@ -28,29 +28,15 @@ class Metrics:
 
     @staticmethod
     def threshold_summary(values):
+        """Rate (not raw count - recoverable via rate * runs) of draws with >= N hits, N=2..6."""
         total = len(values)
 
         if total == 0:
             return {}
 
-        hits_2_or_more = sum(1 for v in values if v >= 2)
-        hits_3_or_more = sum(1 for v in values if v >= 3)
-        hits_4_or_more = sum(1 for v in values if v >= 4)
-        hits_5_or_more = sum(1 for v in values if v >= 5)
-        hits_6_or_more = sum(1 for v in values if v >= 6)
-
         return {
-            "hits_2_or_more": hits_2_or_more,
-            "hits_3_or_more": hits_3_or_more,
-            "hits_4_or_more": hits_4_or_more,
-            "hits_5_or_more": hits_5_or_more,
-            "hits_6_or_more": hits_6_or_more,
-
-            "rate_2_or_more": hits_2_or_more / total,
-            "rate_3_or_more": hits_3_or_more / total,
-            "rate_4_or_more": hits_4_or_more / total,
-            "rate_5_or_more": hits_5_or_more / total,
-            "rate_6_or_more": hits_6_or_more / total,
+            f"rate_{n}_or_more": sum(1 for v in values if v >= n) / total
+            for n in range(2, 7)
         }
 
     @staticmethod
@@ -67,16 +53,20 @@ class Metrics:
         }
 
     @staticmethod
-    def summarize(values):
+    def summarize(values, include_distribution=False):
         if not values:
             return {}
 
-        return {
+        summary = {
             "avg": float(np.mean(values)),
             "median": float(np.median(values)),
             "max": int(np.max(values)),
             "min": int(np.min(values)),
             "std": float(np.std(values)),
-            "distribution": Metrics.distribution(values),
             "thresholds": Metrics.threshold_summary(values)
         }
+
+        if include_distribution:
+            summary["distribution"] = Metrics.distribution(values)
+
+        return summary

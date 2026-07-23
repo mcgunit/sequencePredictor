@@ -28,6 +28,7 @@ class MarkovBayesian():
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
         self.bayesian_priors = defaultdict(lambda: 1)  # Prior counts for Bayesian model
+        self.sorted_prediction = True  # Set False for positional games like Pick3
 
     def clear(self):
         self.transition_matrix = defaultdict(lambda: defaultdict(int))
@@ -46,6 +47,13 @@ class MarkovBayesian():
 
     def setMinOccurrences(self, nMinOccurrences):
         self.min_occurrences = nMinOccurrences
+
+    def setSortedPrediction(self, use):
+        """
+        Disable for positional games (Pick3) so the returned digits keep their
+        drawn order instead of being reordered ascending by value.
+        """
+        self.sorted_prediction = bool(use)
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a subset of numbers using weighted selection based on Markov probabilities and frequencies."""
@@ -183,11 +191,13 @@ class MarkovBayesian():
 
         #print("bayesian_predictions", len(bayesian_predictions))
 
-        # Combine predictions from Markov and Bayesian models
-        combined_predictions = list(set(predicted_numbers) | set(bayesian_predictions))
+        # Combine predictions from Markov and Bayesian models.
+        # Order-preserving dedup (instead of a set union) so positional games
+        # (Pick3) keep a deterministic order when sorted_prediction is False.
+        combined_predictions = list(dict.fromkeys([int(num) for num in predicted_numbers] + [int(num) for num in bayesian_predictions]))
 
-        # Convert combined predictions from np.int64 to Python int
-        combined_predictions = [int(num) for num in combined_predictions]
+        if self.sorted_prediction:
+            combined_predictions = sorted(combined_predictions)
 
         # Generate subsets if requested
         subsets = {}

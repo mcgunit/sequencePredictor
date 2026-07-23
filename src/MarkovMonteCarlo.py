@@ -1,9 +1,16 @@
 import os
-from collections import Counter, defaultdict
-import numpy as np
 
 
 class MarkovMonteCarlo:
+    """
+    Thin voting wrapper around a Markov model: instead of Markov.run()'s single
+    sample per column, repeatedly samples predict_next_numbers() (via the
+    Markov model's own generate_candidate_tickets/rank_candidate_tickets/
+    generate_voted_ticket) and keeps the numbers that win the most votes across
+    simulations. The ticket-generation/voting logic itself lives on Markov,
+    not here, to avoid maintaining two copies of the same code.
+    """
+
     def __init__(self, markov_model):
         self.model = markov_model
         self.num_simulations = 1000
@@ -12,77 +19,27 @@ class MarkovMonteCarlo:
         self.num_simulations = int(n)
 
     def generate_candidate_tickets(self, history_draws, n_tickets=None, temperature=None):
-        if n_tickets is None:
-            n_tickets = self.num_simulations
-
-        if temperature is None:
-            temperature = self.model.softMaxTemperature
-
-        tickets = []
-
-        for _ in range(n_tickets):
-            ticket = self.model.predict_next_numbers(
-                history_draws,
-                temperature=temperature
-            )
-
-            if self.model.sorted_prediction:
-                ticket = sorted(dict.fromkeys(map(int, ticket)))
-            else:
-                ticket = list(map(int, ticket))
-
-            tickets.append(tuple(ticket))
-
-        return tickets
+        return self.model.generate_candidate_tickets(
+            history_draws,
+            n_tickets=n_tickets if n_tickets is not None else self.num_simulations,
+            temperature=temperature if temperature is not None else self.model.softMaxTemperature
+        )
 
     def rank_candidate_tickets(self, history_draws, n_tickets=None, top_n=10, temperature=None):
-        tickets = self.generate_candidate_tickets(
+        return self.model.rank_candidate_tickets(
             history_draws,
-            n_tickets=n_tickets,
-            temperature=temperature
+            n_tickets=n_tickets if n_tickets is not None else self.num_simulations,
+            top_n=top_n,
+            temperature=temperature if temperature is not None else self.model.softMaxTemperature
         )
-
-        ranked = Counter(tickets).most_common(top_n)
-
-        return [
-            {
-                "ticket": list(ticket),
-                "count": count
-            }
-            for ticket, count in ranked
-        ]
 
     def generate_voted_ticket(self, history_draws, n_tickets=None, ticket_size=None, temperature=None):
-        if n_tickets is None:
-            n_tickets = self.num_simulations
-
-        if temperature is None:
-            temperature = self.model.softMaxTemperature
-
-        if ticket_size is None:
-            ticket_size = self.model.draw_size or len(history_draws[0])
-
-        votes = defaultdict(float)
-
-        tickets = self.generate_candidate_tickets(
+        return self.model.generate_voted_ticket(
             history_draws,
-            n_tickets=n_tickets,
-            temperature=temperature
+            n_tickets=n_tickets if n_tickets is not None else self.num_simulations,
+            ticket_size=ticket_size if ticket_size is not None else (self.model.draw_size or len(history_draws[0])),
+            temperature=temperature if temperature is not None else self.model.softMaxTemperature
         )
-
-        for ticket in tickets:
-            for number in set(ticket):
-                votes[int(number)] += 1
-
-        ranked_numbers = sorted(
-            votes,
-            key=votes.get,
-            reverse=True
-        )
-
-        final_ticket = ranked_numbers[:ticket_size]
-
-        return sorted(final_ticket), dict(votes)
 
     def run(self, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         if generateSubsets is None:

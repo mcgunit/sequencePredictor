@@ -24,18 +24,26 @@ class LaplaceMonteCarlo():
         self.num_simulations = 5000  # Fine-tuned Monte Carlo simulations
         self.recent_draws = 100  # Look-back window
         self.position_stats = defaultdict(lambda: [])
+        self.sorted_prediction = True  # Set False for positional games like Pick3
 
     def clear(self):
         self.position_stats = defaultdict(lambda: [])
-    
+
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
 
     def setNumOfSimulations(self, nSimulations):
         self.num_simulations = nSimulations
-    
+
     def setRecentDraws(self, nRecentDraws):
         self.recent_draws = nRecentDraws
+
+    def setSortedPrediction(self, use):
+        """
+        Disable for positional games (Pick3) so the returned digits keep their
+        drawn (per-position) order instead of being reordered ascending by value.
+        """
+        self.sorted_prediction = bool(use)
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         """Generate a unique subset using weighted probability selection."""
@@ -64,7 +72,8 @@ class LaplaceMonteCarlo():
             unique_numbers.append(chosen)
             remaining.remove(chosen)
 
-        return sorted(unique_numbers[:n_predictions])
+        final_predictions = unique_numbers[:n_predictions]
+        return sorted(final_predictions) if self.sorted_prediction else final_predictions
     
     def build_laplace_model(self, numbers):
         """Computes Laplace distribution parameters for each position."""

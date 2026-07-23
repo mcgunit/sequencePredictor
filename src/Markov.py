@@ -379,12 +379,14 @@ class Markov():
             )
 
             if self.sorted_prediction:
-                ticket = sorted(dict.fromkeys(ticket))
+                ticket = sorted(dict.fromkeys(map(int, ticket)))
+            else:
+                ticket = list(map(int, ticket))
 
             tickets.append(tuple(ticket))
 
         return tickets
-    
+
     def rank_candidate_tickets(self, history_draws, n_tickets=5000, top_n=10, temperature=None):
 
         tickets = self.generate_candidate_tickets(

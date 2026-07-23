@@ -29,7 +29,8 @@ class HybridStatisticalModel():
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
         self.bayesian_priors = defaultdict(lambda: 1)
-        self.positional_frequencies = defaultdict(lambda: defaultdict(int))  
+        self.positional_frequencies = defaultdict(lambda: defaultdict(int))
+        self.sorted_prediction = True  # Set False for positional games like Pick3
 
     def clear(self):
         self.transition_matrix.clear()
@@ -53,6 +54,13 @@ class HybridStatisticalModel():
     
     def setNumberOfSimulations(self, nSimulations):
         self.numberOfSimulations = nSimulations
+
+    def setSortedPrediction(self, use):
+        """
+        Disable for positional games (Pick3) so the returned digits keep their
+        drawn order instead of being reordered ascending by value.
+        """
+        self.sorted_prediction = bool(use)
 
     def build_markov_chain(self, numbers):
         total_draws = len(numbers)
@@ -255,8 +263,17 @@ class HybridStatisticalModel():
 
         unique, counts = np.unique(all_predictions, return_counts=True)
 
-        # Sort first by frequency, then numerically in case of ties
-        sorted_indices = np.lexsort((unique, -counts))  # Sort first by count (descending), then by number
+        # Rank by frequency (descending); numeric tie-break only applied when
+        # sorted_prediction is on (ascending "tidy ticket" display for
+        # non-positional games). Note: bayesian/multinomial/hypergeometric
+        # predictions above are already frequency pools with no positional
+        # identity, so disabling sorted_prediction here avoids an extra forced
+        # value-sort but does not make this model positionally correct for
+        # Pick3 - only monte_carlo_predictions is genuinely per-position.
+        if self.sorted_prediction:
+            sorted_indices = np.lexsort((unique, -counts))  # frequency desc, then value asc
+        else:
+            sorted_indices = np.argsort(-counts, kind="stable")
         sorted_numbers = unique[sorted_indices][:n_predictions]  # Take the top `n_predictions`
 
         # Convert to Python int

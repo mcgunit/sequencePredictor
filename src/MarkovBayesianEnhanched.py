@@ -81,9 +81,10 @@ class MarkovBayesianEnhanced(MarkovBayesian):
             a = list(a)
             b = list(b)
             try:
-                mixed = list(set(random.sample(a, min(10, len(a))) + random.sample(b, min(10, len(b)))))
+                mixed = list(dict.fromkeys(random.sample(a, min(10, len(a))) + random.sample(b, min(10, len(b)))))
                 if len(mixed) >= 10:
-                    new_combos.append(sorted(mixed[:predictionLenght]))
+                    combo = mixed[:predictionLenght]
+                    new_combos.append(sorted(combo) if self.sorted_prediction else combo)
             except ValueError:
                 continue  # skip invalid combos where sample size is too large
 
@@ -102,7 +103,10 @@ class MarkovBayesianEnhanced(MarkovBayesian):
 
     def best_scored_subset(self, candidate_sets, top_n=1):
         scored = sorted(candidate_sets, key=self.score_meta_features, reverse=True)
-        return [sorted(set(int(n) for n in s)) for s in scored[:top_n]]
+        deduped = [list(dict.fromkeys(int(n) for n in s)) for s in scored[:top_n]]
+        if self.sorted_prediction:
+            return [sorted(s) for s in deduped]
+        return deduped
 
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)

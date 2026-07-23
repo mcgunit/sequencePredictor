@@ -594,6 +594,12 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # played), so it keeps being fully dropped via skipLastColumns.
     hasSpecialColumn = any(game in name for game in ("euromillions", "eurodreams", "vikinglotto"))
 
+    # Pick3 is positional (digit order matters for straight/box/pair payouts), so
+    # every model must return digits in drawn order instead of ascending-sorted.
+    # Explicitly set every run (not just for pick3) since these model instances
+    # are module-level singletons reused sequentially across games/history days.
+    sortedPrediction = not ("pick3" in name)
+
     subsets = []
     if "keno" in name:
         if bestParams_json_object["use_5"]:
@@ -647,7 +653,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Markov: ", e)
 
-    if bestParams_json_object["useMarkovBayesian"]:
+    if not "pick3" in name and bestParams_json_object["useMarkovBayesian"]:
         try:
             # Markov Bayesian
             #print("Performing Markov Bayesian Prediction")
@@ -655,6 +661,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
             markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"] )
             markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
+            markovBayesian.setSortedPrediction(sortedPrediction)
             markovBayesian.clear()
 
             markovBayesianPrediction = {
@@ -679,6 +686,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
             markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
             markovBayesianEnhanced.setMinOccurrences(bestParams_json_object["markovBayesianEnhancedMinOccurences"])
+            markovBayesianEnhanced.setSortedPrediction(sortedPrediction)
             markovBayesianEnhanced.clear()
 
             markovBayesianEnhancedPrediction = {
@@ -702,6 +710,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             poissonMonteCarlo.setDataPath(dataPath)
             poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
             poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
+            poissonMonteCarlo.setSortedPrediction(sortedPrediction)
             poissonMonteCarlo.clear()
 
             poissonMonteCarloPrediction = {
@@ -719,13 +728,14 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
-    if bestParams_json_object["usePoissonMarkov"]:
+    if not "pick3" in name and bestParams_json_object["usePoissonMarkov"]:
         try:
             # Poisson-Markov Distribution
             #print("Performing Poisson-Markov Prediction")
             poissonMarkov.setDataPath(dataPath)
             poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1-bestParams_json_object["poissonMarkovWeight"]))
             poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
+            poissonMarkov.setSortedPrediction(sortedPrediction)
 
             poissonMarkovPrediction = {
                 "name": "PoissonMarkov Model",
@@ -748,6 +758,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             #print("Performing Laplace Monte Carlo Prediction")
             laplaceMonteCarlo.setDataPath(dataPath)
             laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
+            laplaceMonteCarlo.setSortedPrediction(sortedPrediction)
             laplaceMonteCarlo.clear()
 
             laplaceMonteCarloPrediction = {
@@ -765,7 +776,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
 
-    if bestParams_json_object["useHybridStatisticalModel"]:
+    if not "pick3" in name and bestParams_json_object["useHybridStatisticalModel"]:
         try:
             # Hybrid Statistical Model
             #print("Performing Hybrid Statistical Model Prediction")
@@ -774,6 +785,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             hybridStatisticalModel.setAlpha(bestParams_json_object["hybridStatisticalModelAlpha"])
             hybridStatisticalModel.setMinOccurrences(bestParams_json_object["hybridStatisticalModelMinOcurrences"])
             hybridStatisticalModel.setNumberOfSimulations(bestParams_json_object["hybridStatisticalModelNumberOfSimulations"])
+            hybridStatisticalModel.setSortedPrediction(sortedPrediction)
             hybridStatisticalModel.clear()
 
             hybridStatisticalModelPrediction = {
