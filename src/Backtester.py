@@ -1,13 +1,13 @@
-import os, sys, json, time, re
+import os, sys, json, time, re, random
 import numpy as np
 from multiprocessing import Pool, cpu_count
-from Metrics import Metrics
-from Baselines import Baselines
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
+from Metrics import Metrics
+from Baselines import Baselines
 from Helpers import Helpers
 
 helpers = Helpers()
@@ -33,13 +33,19 @@ def _backtest_single_day(i):
     skipLastColumns = ctx["skipLastColumns"]
     include_baselines = ctx["include_baselines"]
     game = ctx["game"]
+    special_column_count = ctx["special_column_count"]
 
     total_rows = len(numbers)
 
     # Deterministic-but-distinct randomness per day, independent of which
     # worker/order actually processes it (forked workers otherwise start from
-    # an identical inherited RNG state).
+    # an identical inherited RNG state - the exact issue HyperoptStatistics.py's
+    # "very important" fork/spawn comment documents). Both numpy's RNG and the
+    # stdlib random module need reseeding: some models (e.g.
+    # MarkovBayesianEnhanced.generate_crossover_combinations) use random.sample/
+    # random.uniform directly instead of numpy.
     np.random.seed(i)
+    random.seed(i)
 
     actual = list(map(int, numbers[i]))
 
@@ -55,10 +61,12 @@ def _backtest_single_day(i):
 
     for model_name, model in models.items():
         try:
-            predicted_numbers, subsets = model.run(
+            predicted_numbers, subsets = helpers.run_model_with_special_column(
+                model,
                 generateSubsets=generate_subsets,
                 skipRows=rows_to_skip,
-                skipLastColumns=skipLastColumns
+                skipLastColumns=skipLastColumns,
+                specialColumnCount=special_column_count
             )
 
             predicted_numbers = list(map(int, predicted_numbers))
@@ -207,7 +215,8 @@ class Backtester:
         include_baselines=True,
         verbose=True,
         save_results_path=None,
-        game=None
+        game=None,
+        special_column_count=0
     ):
         """
         game: "keno" or "pick3" enables profit calculation (in euro) alongside hit
@@ -218,6 +227,16 @@ class Backtester:
         generate_subsets) since that's the playable range with real payouts.
         For "pick3", profit is computed on the full (positionally-ordered)
         prediction, since Pick3 payouts depend on digit order.
+
+        special_column_count: for Euromillions (2 star columns), EuroDreams (1
+        dream number), VikingLotto (1 super viking) - the trailing special
+        column(s) have their own smaller range and must be modeled
+        independently rather than mixed into the main numbers - see
+        Helpers.run_model_with_special_column. When >0, skipLastColumns should
+        be 0 so the special column(s) stay present in `numbers` for
+        ground-truth comparison; each model's own run() is then internally
+        split into a main-numbers call (skipLastColumns=special_column_count)
+        and a specialColumnCount call, combined without merging/re-sorting them.
         """
         if generate_subsets is None:
             generate_subsets = []
@@ -257,6 +276,7 @@ class Backtester:
             "skipLastColumns": skipLastColumns,
             "include_baselines": include_baselines,
             "game": game,
+            "special_column_count": special_column_count,
         }
 
         num_workers = max(1, min(cpu_count()-1, total_iterations))
@@ -282,19 +302,25 @@ class Backtester:
     # {model}_hits / {model}_profit / {model}_error (also matches baselines: random_hits, etc.)
     _PLAIN_KEY_RE = re.compile(r"^(?P<model>.+)_(?P<metric>hits|profit|error)$")
 
-    def summarize(self, results, include_distribution=False):
+    def summarize(self, results, detailed=False, include_distribution=False):
         """
         Groups everything by model instead of spreading model x subset-size
-        combinations across dozens of flat top-level keys. Each model gets:
-          - "totals": one-line-glance avg hits / total profit across the
-            model's own main prediction and all its subsets combined.
-          - "main": full hits/profit stats for the model's main prediction.
-          - "subsets": per-subset-size hits/profit stats, nested under size.
+        combinations across dozens of flat top-level keys.
+
+        By default (detailed=False) each model gets just the numbers needed to
+        compare models at a glance:
+          - "hits_avg" / "profit_total": combined across the model's main
+            prediction and all its subsets.
+          - "main": {"hits_avg", "profit_total"} for the model's main prediction.
+          - "subsets": {size: {"hits_avg", "profit_total"}} per subset size.
           - "errors": only present if that model raised errors.
 
-        include_distribution: also emit the full per-value hit-count histogram
-        (one line per possible hit count) inside every "hits" block - off by
-        default since it's the single biggest source of bloat.
+        detailed=True restores the fuller per-key stats (median/max/min/std/
+        thresholds) nested under "hits"/"profit" instead of the two plain
+        numbers above - use this when you actually need to dig into one
+        specific model/subset rather than compare across all of them.
+        include_distribution: only relevant with detailed=True - also emits the
+        full per-value hit-count histogram, the single biggest source of bloat.
         """
         if not results:
             return {}
@@ -302,7 +328,7 @@ class Backtester:
         summary = {"runs": len(results), "models": {}}
 
         def get_model(name):
-            return summary["models"].setdefault(name, {"totals": {"hits_avg": None, "profit_total": None}})
+            return summary["models"].setdefault(name, {})
 
         def int_values(key):
             return [row[key] for row in results if key in row and isinstance(row[key], int)]
@@ -327,15 +353,15 @@ class Backtester:
                 if metric == "hits":
                     values = int_values(key)
                     if values:
-                        stats = Metrics.summarize(values, include_distribution=include_distribution)
-                        subsets["hits"] = stats
-                        hit_avgs.setdefault(model_name, []).append(stats["avg"])
+                        avg = float(np.mean(values))
+                        subsets["hits"] = Metrics.summarize(values, include_distribution=include_distribution) if detailed else avg
+                        hit_avgs.setdefault(model_name, []).append(avg)
                 else:
                     values = num_values(key)
                     if values:
-                        stats = Metrics.summarize_profit(values)
-                        subsets["profit"] = stats
-                        profit_totals[model_name] = profit_totals.get(model_name, 0) + stats["total"]
+                        total = float(np.sum(values))
+                        subsets["profit"] = Metrics.summarize_profit(values) if detailed else total
+                        profit_totals[model_name] = profit_totals.get(model_name, 0) + total
                 continue
 
             plain_match = self._PLAIN_KEY_RE.match(key)
@@ -349,15 +375,17 @@ class Backtester:
             if metric == "hits":
                 values = int_values(key)
                 if values:
-                    stats = Metrics.summarize(values, include_distribution=include_distribution)
-                    model["main"] = {"hits": stats}
-                    hit_avgs.setdefault(model_name, []).append(stats["avg"])
+                    avg = float(np.mean(values))
+                    model["main"] = model.get("main", {})
+                    model["main"]["hits"] = Metrics.summarize(values, include_distribution=include_distribution) if detailed else avg
+                    hit_avgs.setdefault(model_name, []).append(avg)
             elif metric == "profit":
                 values = num_values(key)
                 if values:
-                    stats = Metrics.summarize_profit(values)
-                    model.setdefault("main", {})["profit"] = stats
-                    profit_totals[model_name] = profit_totals.get(model_name, 0) + stats["total"]
+                    total = float(np.sum(values))
+                    model["main"] = model.get("main", {})
+                    model["main"]["profit"] = Metrics.summarize_profit(values) if detailed else total
+                    profit_totals[model_name] = profit_totals.get(model_name, 0) + total
             elif metric == "error":
                 errors = [row[key] for row in results if key in row]
                 model["errors"] = {
@@ -367,10 +395,13 @@ class Backtester:
 
         for model_name, model in summary["models"].items():
             avgs = hit_avgs.get(model_name)
-            model["totals"] = {
+            # Insert hits_avg/profit_total first so they read before "main"/"subsets"/"errors"
+            model_ordered = {
                 "hits_avg": float(np.mean(avgs)) if avgs else None,
                 "profit_total": profit_totals.get(model_name)
             }
+            model_ordered.update(model)
+            summary["models"][model_name] = model_ordered
 
         return summary
 

@@ -82,13 +82,13 @@ class PoissonMarkov:
 
         return sorted(int(num) for num in best_subset)
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):
         """Runs both models, blends predictions, and generates subsets if needed."""
         self.poisson_model.clear()
         self.markov_model.clear()
-        poisson_numbers, _ = self.poisson_model.run(skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
+        poisson_numbers, _ = self.poisson_model.run(skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
         #print("poisson numbers: ", poisson_numbers)
-        markov_numbers, _ = self.markov_model.run(skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
+        markov_numbers, _ = self.markov_model.run(skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
         #print("markov numbers: ", markov_numbers)
 
         # Flatten if returned as nested lists

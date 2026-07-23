@@ -41,14 +41,14 @@ class MarkovMonteCarlo:
             temperature=temperature if temperature is not None else self.model.softMaxTemperature
         )
 
-    def run(self, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnOnly=False):
+    def run(self, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnCount=0):
         if generateSubsets is None:
             generateSubsets = []
 
         numbers, _, _ = self.model.load_numbers(
             skipRows=skipRows,
             skipLastColumns=skipLastColumns,
-            specialColumnOnly=specialColumnOnly
+            specialColumnCount=specialColumnCount
         )
 
         if len(numbers) == 0:

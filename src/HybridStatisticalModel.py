@@ -227,8 +227,14 @@ class HybridStatisticalModel():
         return {num: (self.alpha * markov_probs.get(num, 0) + (1 - self.alpha) * (num_frequencies.get(num, 0) / sum(num_frequencies.values())))
             for num in set(markov_probs) | set(num_frequencies)}
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
-        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        # Every run() must start from a clean slate - without this, pair_counts/
+        # number_frequencies/positional_frequencies/bayesian_priors silently
+        # accumulate across every call on the same instance (e.g. every
+        # backtest day), instead of reflecting only the data before that day.
+        self.clear()
 
         self.build_markov_chain(numbers)
         last_draw = numbers[-1]
@@ -237,7 +243,7 @@ class HybridStatisticalModel():
         n_predictions = len(last_draw)
 
         # Use the actual observed number range rather than numClasses, since numClasses
-        # reflects the full game's main-number range even when specialColumnOnly=True
+        # reflects the full game's main-number range even when specialColumnCount>0
         # narrows `numbers` down to a smaller-range column (e.g. Euromillions stars).
         population_size = int(numbers.max())
 

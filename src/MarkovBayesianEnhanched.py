@@ -108,8 +108,16 @@ class MarkovBayesianEnhanced(MarkovBayesian):
             return [sorted(s) for s in deduped]
         return deduped
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        # Every run() must start from a clean slate: build_markov_chain
+        # normalizes each transition_matrix/bigram_matrix entry from a
+        # defaultdict into a plain dict, so a stale (unreset) matrix from a
+        # prior run() would raise KeyError on the next call's `+=` for any
+        # newly-filtered key.
+        self.clear()
+
         self.numbers = numbers
         self.build_markov_chain(numbers)
 

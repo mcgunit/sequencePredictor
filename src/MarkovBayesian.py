@@ -127,6 +127,7 @@ class MarkovBayesian():
     def predict_next_numbers(self, previous_numbers, n_predictions=20, temperature=0.7):
         """Predicts the next numbers using Markov Chain with all fine-tuning strategies."""
         predictions = set()
+        last_num = previous_numbers[-1] if len(previous_numbers) > 0 else None
 
         for num in previous_numbers:
             if num in self.transition_matrix and self.transition_matrix[num]:
@@ -142,7 +143,10 @@ class MarkovBayesian():
         # If predictions are incomplete, use frequency-based fallback
         if len(predictions) < n_predictions:
             all_numbers = list(self.transition_matrix.keys())
-            blended_probs = self.blended_probability(self.transition_matrix[num], self.number_frequencies)
+            # .get(..., {}) - last_num may have no transition-matrix entry at
+            # all (filtered out by min_occurrences, or never seen as a "from"
+            # number in training), which used to raise a bare KeyError here.
+            blended_probs = self.blended_probability(self.transition_matrix.get(last_num, {}), self.number_frequencies)
 
             sorted_freq = sorted(blended_probs, key=blended_probs.get, reverse=True)
 
@@ -161,14 +165,20 @@ class MarkovBayesian():
 
         return [int(num) for num in predictions][:n_predictions]
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):
         """
         Runs the Markov Chain prediction process with optional subset generation.
 
         Parameters:
         generateSubsets (list): List of subset sizes to generate, e.g., [6, 7] will generate subsets of size 6 and 7.
         """
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        # Every run() must start from a clean slate: build_markov_chain
+        # normalizes each transition_matrix[number] from a defaultdict into a
+        # plain dict, so a stale (unreset) matrix from a prior run() would
+        # raise KeyError on the next call's `+=` for any newly-filtered key.
+        self.clear()
 
         # Build the enhanced Markov Chain model
         self.build_markov_chain(numbers)

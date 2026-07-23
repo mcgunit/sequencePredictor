@@ -95,13 +95,13 @@ class Markov():
         """
         self.sorted_prediction = bool(use)
 
-    def load_numbers(self, skipRows=0, skipLastColumns=0, years_back=None, specialColumnOnly=False):
+    def load_numbers(self, skipRows=0, skipLastColumns=0, years_back=None, specialColumnCount=0):
         _, _, _, _, _, numbers, num_classes, unique_labels = helpers.load_data(
             self.dataPath,
             skipRows=skipRows,
             skipLastColumns=skipLastColumns,
             years_back=years_back,
-            specialColumnOnly=specialColumnOnly
+            specialColumnCount=specialColumnCount
         )
         return numbers, num_classes, unique_labels
 
@@ -435,11 +435,11 @@ class Markov():
 
         return sorted(final_ticket), dict(votes)
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):
         numbers, _, _ = self.load_numbers(
             skipRows=skipRows,
             skipLastColumns=skipLastColumns,
-            specialColumnOnly=specialColumnOnly
+            specialColumnCount=specialColumnCount
         )
 
         if len(numbers) == 0:

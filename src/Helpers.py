@@ -33,16 +33,17 @@ class Helpers():
         "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
     }
 
-    def run_model_with_special_column(self, model, generateSubsets=None, skipRows=0, skipLastColumns=0, hasSpecialColumn=False):
+    def run_model_with_special_column(self, model, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnCount=0):
         """
-        Runs a statistical model's run() for games with a trailing special/bonus
-        column (Euromillions stars, EuroDreams dream number, VikingLotto super
-        viking). The special column has its own, smaller number range, so it is
-        modeled completely independently from the main numbers (own transition
-        matrix/frequencies/range) and simply appended to the main-number
-        prediction afterwards - never merged or re-sorted together with it.
+        Runs a statistical model's run() for games with trailing special/bonus
+        columns (Euromillions has 2 star columns, EuroDreams 1 dream number,
+        VikingLotto 1 super viking). Those columns have their own, smaller
+        number range, so they're modeled completely independently from the
+        main numbers (own transition matrix/frequencies/range) as a single
+        group and simply appended to the main-number prediction afterwards -
+        never merged or re-sorted together with it.
 
-        For games without a special column (hasSpecialColumn=False), this is
+        For games without a special column (specialColumnCount=0), this is
         equivalent to a plain model.run(...) call, using skipLastColumns as-is
         (e.g. Lotto passes skipLastColumns=1 to drop its unplayed bonus number).
         """
@@ -52,21 +53,20 @@ class Helpers():
         main_prediction, subsets = model.run(
             generateSubsets=generateSubsets,
             skipRows=skipRows,
-            skipLastColumns=1 if hasSpecialColumn else skipLastColumns
+            skipLastColumns=specialColumnCount if specialColumnCount > 0 else skipLastColumns
         )
 
-        if not hasSpecialColumn:
+        if specialColumnCount <= 0:
             return main_prediction, subsets
 
         special_prediction, _ = model.run(
             generateSubsets=[],
             skipRows=skipRows,
             skipLastColumns=0,
-            specialColumnOnly=True
+            specialColumnCount=specialColumnCount
         )
 
-        special_number = special_prediction[0] if special_prediction else None
-        combined_prediction = list(main_prediction) + ([special_number] if special_number is not None else [])
+        combined_prediction = list(main_prediction) + list(special_prediction)
 
         return combined_prediction, subsets
 
@@ -298,7 +298,7 @@ class Helpers():
 
         
         
-    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None, specialColumnOnly=False):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None, specialColumnCount=0):
         # Initialize an empty list to hold the data
         data = []
 
@@ -374,12 +374,13 @@ class Helpers():
             #print("Length after skipping rows: ", len(numbers))
             #print("last entry: ", numbers[len(numbers)-1])
 
-        # Isolate the special/bonus column (e.g. Euromillions stars, EuroDreams
-        # dream number, VikingLotto super viking) so it can be modeled with its
-        # own range, independently from the main numbers. Requires
-        # skipLastColumns=0 so the special column is still present in `numbers`.
-        if specialColumnOnly:
-            numbers = numbers[:, -1:]
+        # Isolate the trailing special/bonus column(s) (e.g. Euromillions's 2
+        # star columns, EuroDreams's 1 dream number, VikingLotto's 1 super
+        # viking) so they can be modeled with their own range, independently
+        # from the main numbers. Requires skipLastColumns=0 so they're still
+        # present in `numbers`.
+        if specialColumnCount > 0:
+            numbers = numbers[:, -specialColumnCount:]
 
         # Unique labels for one-hot encoding
         # Euromillions are 50 numbers, Lotto are 45 numbers
