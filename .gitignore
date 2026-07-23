@@ -172,3 +172,4 @@ test/database/*
 data/hyperOptCache/*
 *.joblib
 process.lock
+test/backtestResults/keno_global_backtest.json
