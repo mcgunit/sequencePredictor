@@ -425,6 +425,7 @@ class Backtester:
 
 if __name__ == "__main__":
     import os, json
+    from art import text2art
 
     from Markov import Markov
     from MarkovMonteCarlo import MarkovMonteCarlo
@@ -440,18 +441,34 @@ if __name__ == "__main__":
     np.random.seed(42)
 
 
-    print("Running global backtest")
+    ascii_art = text2art("Predictor Backtester")
+    print(ascii_art)
 
     name = "keno"
-    generateSubsets = [5, 6, 7, 8, 9, 10]
-
     path = os.getcwd()
-    dataPath = os.path.join(
-        os.path.abspath(os.path.join(path, os.pardir)),
-        "test",
-        "trainingData",
-        name
-    )
+    repoRoot = os.path.abspath(os.path.join(path, os.pardir))
+    dataPath = os.path.join(repoRoot, "test", "trainingData", name)
+
+    # Load whatever HyperoptStatistics.py has tuned so far for this game, so
+    # this demo reflects real tuned parameters instead of hardcoded guesses.
+    # Falls back to the old hardcoded defaults for any key that isn't (yet)
+    # present - e.g. a strategy that was never hyperopted for this game.
+    bestParamsPath = os.path.join(repoRoot, f"bestParams_{name}.json")
+    bestParams = {}
+    if os.path.exists(bestParamsPath):
+        try:
+            with open(bestParamsPath, "r") as openfile:
+                bestParams = json.load(openfile)
+            print(f"Loaded tuned params from {bestParamsPath}")
+        except Exception as e:
+            print(f"Failed to load {bestParamsPath}, using defaults: ", e)
+
+    generateSubsets = [5, 6, 7, 8, 9, 10]
+    if "keno" in name:
+        generateSubsets = [
+            size for size in generateSubsets
+            if bestParams.get(f"use_{size}", True)
+        ]
 
     # -------------------------
     # Markov
@@ -460,15 +477,19 @@ if __name__ == "__main__":
     markov.setDataPath(dataPath)
     markov.setGameRange(1, 80)
     markov.setDrawSize(20)
-    markov.setSoftMAxTemperature(0.45)
-    markov.setAlpha(0.6)
-    markov.setMinOccurrences(2)
-    markov.setRecencyWeight(1.7)
-    markov.setRecencyMode("constant")
-    markov.setPairDecayFactor(1)
-    markov.setSortedPrediction(True)
-    markov.setUsePairScoring(False)
-    markov.setMarkovOrder(2)
+    markov.setSoftMAxTemperature(bestParams.get("markovSoftMaxTemperature", 0.45))
+    markov.setAlpha(bestParams.get("markovAlpha", 0.6))
+    markov.setMinOccurrences(bestParams.get("markovMinOccurences", 2))
+    markov.setRecencyWeight(bestParams.get("markovRecencyWeight", 1.7))
+    markov.setRecencyMode(bestParams.get("markovRecencyMode", "constant"))
+    markov.setPairDecayFactor(bestParams.get("markovPairDecayFactor", 1))
+    markov.setSmoothingFactor(bestParams.get("markovSmoothingFactor", 0.01))
+    markov.setSubsetSelectionMode(bestParams.get("markovSubsetSelectionMode", "softmax"))
+    markov.setBlendMode(bestParams.get("markovBlendMode", "linear"))
+    markov.setMarkovOrder(bestParams.get("markovOrder", 2))
+    markov.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
+    markov.setUsePairScoring(bestParams.get("markovUsePairScoring", False))
+    markov.setPairScoringWeight(bestParams.get("markovPairScoringWeight", 0.0))
 
     # -------------------------
     # Markov Monte Carlo / voted-ticket Markov
@@ -477,71 +498,78 @@ if __name__ == "__main__":
     markov_mc_base.setDataPath(dataPath)
     markov_mc_base.setGameRange(1, 80)
     markov_mc_base.setDrawSize(20)
-    markov_mc_base.setSoftMAxTemperature(0.45)
-    markov_mc_base.setAlpha(0.6)
-    markov_mc_base.setMinOccurrences(2)
-    markov_mc_base.setRecencyWeight(1.7)
-    markov_mc_base.setRecencyMode("constant")
-    markov_mc_base.setPairDecayFactor(1)
-    markov_mc_base.setSortedPrediction(True)
-    markov_mc_base.setUsePairScoring(False)
-    markov_mc_base.setMarkovOrder(2)
+    markov_mc_base.setSoftMAxTemperature(bestParams.get("markovMcSoftMaxTemperature", 0.45))
+    markov_mc_base.setAlpha(bestParams.get("markovMcAlpha", 0.6))
+    markov_mc_base.setMinOccurrences(bestParams.get("markovMcMinOccurences", 2))
+    markov_mc_base.setRecencyWeight(bestParams.get("markovMcRecencyWeight", 1.7))
+    markov_mc_base.setRecencyMode(bestParams.get("markovMcRecencyMode", "constant"))
+    markov_mc_base.setPairDecayFactor(bestParams.get("markovMcPairDecayFactor", 1))
+    markov_mc_base.setSmoothingFactor(bestParams.get("markovMcSmoothingFactor", 0.01))
+    markov_mc_base.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
+    markov_mc_base.setMarkovOrder(bestParams.get("markovMcOrder", 2))
 
     markov_mc = MarkovMonteCarlo(markov_mc_base)
-    markov_mc.setNumOfSimulations(250)
+    markov_mc.setNumOfSimulations(bestParams.get("markovMcNumSimulations", 250))
 
     # -------------------------
     # Poisson Monte Carlo
     # -------------------------
     poisson = PoissonMonteCarlo()
     poisson.setDataPath(dataPath)
-    poisson.setNumOfSimulations(1000)
-    poisson.setRecentDraws(500)
-    poisson.setWeightFactor(1.0)
+    poisson.setNumOfSimulations(bestParams.get("poissonMonteCarloNumberOfSimulations", 1000))
+    poisson.setRecentDraws(bestParams.get("poissonMonteCarloNumberOfRecentDraws", 500))
+    poisson.setWeightFactor(bestParams.get("poissonMonteCarloWeightFactor", 1.0))
+    poisson.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
 
     # -------------------------
     # Laplace Monte Carlo
     # -------------------------
     laplace = LaplaceMonteCarlo()
     laplace.setDataPath(dataPath)
-    laplace.setNumOfSimulations(1000)
+    laplace.setNumOfSimulations(bestParams.get("laplaceMonteCarloNumberOfSimulations", 1000))
     laplace.setRecentDraws(500)
+    laplace.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
 
     # -------------------------
     # Markov Bayesian
     # -------------------------
     markov_bayesian = MarkovBayesian()
     markov_bayesian.setDataPath(dataPath)
-    markov_bayesian.setSoftMAxTemperature(0.1)
-    markov_bayesian.setAlpha(0.5)
-    markov_bayesian.setMinOccurrences(5)
+    markov_bayesian.setSoftMAxTemperature(bestParams.get("markovBayesianSoftMaxTemperature", 0.1))
+    markov_bayesian.setAlpha(bestParams.get("markovBayesianAlpha", 0.5))
+    markov_bayesian.setMinOccurrences(bestParams.get("markovBayesianMinOccurences", 5))
+    markov_bayesian.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
 
     # -------------------------
     # Markov Bayesian Enhanced
     # -------------------------
     markov_bayesian_enhanced = MarkovBayesianEnhanced()
     markov_bayesian_enhanced.setDataPath(dataPath)
-    markov_bayesian_enhanced.setSoftMAxTemperature(0.1)
-    markov_bayesian_enhanced.setAlpha(0.5)
-    markov_bayesian_enhanced.setMinOccurrences(5)
+    markov_bayesian_enhanced.setSoftMAxTemperature(bestParams.get("markovBayesianEnhancedSoftMaxTemperature", 0.1))
+    markov_bayesian_enhanced.setAlpha(bestParams.get("markovBayesianEnhancedAlpha", 0.5))
+    markov_bayesian_enhanced.setMinOccurrences(bestParams.get("markovBayesianEnhancedMinOccurences", 5))
+    markov_bayesian_enhanced.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
 
     # -------------------------
     # Poisson-Markov (blended)
     # -------------------------
     poisson_markov = PoissonMarkov()
     poisson_markov.setDataPath(dataPath)
-    poisson_markov.setWeights(poisson_weight=0.5, markov_weight=0.5)
-    poisson_markov.setNumberOfSimulations(1000)
+    poissonMarkovWeight = bestParams.get("poissonMarkovWeight", 0.5)
+    poisson_markov.setWeights(poisson_weight=poissonMarkovWeight, markov_weight=1 - poissonMarkovWeight)
+    poisson_markov.setNumberOfSimulations(bestParams.get("poissonMarkovNumberOfSimulations", 1000))
+    poisson_markov.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
 
     # -------------------------
     # Hybrid Statistical Model
     # -------------------------
     hybrid = HybridStatisticalModel()
     hybrid.setDataPath(dataPath)
-    hybrid.setSoftMaxTemperature(0.1)
-    hybrid.setAlpha(0.5)
-    hybrid.setMinOccurrences(5)
-    hybrid.setNumberOfSimulations(5000)
+    hybrid.setSoftMaxTemperature(bestParams.get("hybridStatisticalModelSoftMaxTemperature", 0.1))
+    hybrid.setAlpha(bestParams.get("hybridStatisticalModelAlpha", 0.5))
+    hybrid.setMinOccurrences(bestParams.get("hybridStatisticalModelMinOcurrences", 5))
+    hybrid.setNumberOfSimulations(bestParams.get("hybridStatisticalModelNumberOfSimulations", 5000))
+    hybrid.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
 
     # -------------------------
     # Backtester
