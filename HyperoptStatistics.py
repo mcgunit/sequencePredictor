@@ -74,16 +74,24 @@ def print_intro():
     print("Find best parameters for Predictor")
 
 
-def suggest_keno_subset(trial):
+def suggest_keno_subset(trial, model_name):
     """
-    Binary inclusion mask over the 5-10 playable Keno subset sizes. Returns
-    None (caller should treat the trial as invalid) if the resulting subset is
-    empty or covers every size - both make for a meaningless/expensive trial.
+    Binary inclusion mask over the 5-10 playable Keno subset sizes, for one
+    specific model. Returns None (caller should treat the trial as invalid) if
+    the resulting subset is empty - a meaningless trial.
+
+    Param names are prefixed with `model_name` (e.g. "markov_use_5") rather
+    than a shared "use_5" - each strategy runs its own independent Optuna
+    study and searches its own subset choice, so sharing bare "use_5"/etc.
+    keys across strategies means whichever strategy's study.optimize() call
+    happens to run last silently overwrites every other strategy's tuned
+    choice in bestParams_<game>.json when merged in. Prefixing keeps each
+    strategy's own choice distinct so nothing gets clobbered.
     """
-    inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in KENO_SUBSET_VALUES]
+    inclusion_mask = [trial.suggest_categorical(f"{model_name}_use_{v}", [True, False]) for v in KENO_SUBSET_VALUES]
     subset = [v for v, include in zip(KENO_SUBSET_VALUES, inclusion_mask) if include]
 
-    if not (1 <= len(subset) <= 6):
+    if not subset:
         return None
 
     return subset
@@ -175,7 +183,7 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "markov")
         if subsets is None:
             return float("-inf")
 
@@ -202,7 +210,7 @@ def objective_markov_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "markov_mc")
         if subsets is None:
             return float("-inf")
 
@@ -219,7 +227,7 @@ def objective_markov_bayesian(trial, dataset_name, dataPath, game_cfg, days_to_r
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "markov_bayesian")
         if subsets is None:
             return float("-inf")
 
@@ -236,7 +244,7 @@ def objective_markov_bayesian_enhanced(trial, dataset_name, dataPath, game_cfg, 
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "markov_bayesian_enhanced")
         if subsets is None:
             return float("-inf")
 
@@ -252,7 +260,7 @@ def objective_poisson_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "poisson_mc")
         if subsets is None:
             return float("-inf")
 
@@ -269,7 +277,7 @@ def objective_poisson_markov(trial, dataset_name, dataPath, game_cfg, days_to_re
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "poisson_markov")
         if subsets is None:
             return float("-inf")
 
@@ -284,7 +292,7 @@ def objective_laplace_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "laplace_mc")
         if subsets is None:
             return float("-inf")
 
@@ -302,7 +310,7 @@ def objective_hybrid(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial)
+        subsets = suggest_keno_subset(trial, "hybrid_statistical")
         if subsets is None:
             return float("-inf")
 
@@ -352,6 +360,12 @@ if __name__ == "__main__":
             default=",".join(STRATEGIES.keys()),
             help='Comma-separated list of strategies, e.g. "PoissonMonteCarlo,Markov,..."'
         )
+        parser.add_argument(
+            '-g', '--games',
+            type=str,
+            default=",".join(GAME_CONFIG.keys()),
+            help='Comma-separated list of games, e.g. "keno,pick3"'
+        )
 
         args = parser.parse_args()
 
@@ -367,10 +381,18 @@ if __name__ == "__main__":
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
         print("Selected strategies:", strategies)
 
+        games = [g.strip() for g in args.games.split(',') if g.strip()]
+        unknown_games = [g for g in games if g not in GAME_CONFIG]
+        if unknown_games:
+            print(f"Unknown game(s), ignoring: {unknown_games}")
+        print("Selected games:", games)
+
         path = os.getcwd()
         optunaDatabase = "sqlite:///db.sqlite3"
 
         for dataset_name, game_cfg in GAME_CONFIG.items():
+            if dataset_name not in games:
+                continue
             try:
                 print(f"\n{dataset_name.capitalize()}")
                 dataPath = os.path.join(path, "data", "trainingData", dataset_name)

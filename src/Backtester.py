@@ -463,12 +463,26 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Failed to load {bestParamsPath}, using defaults: ", e)
 
+    # Each strategy's own bestParams entry stores its subset choice under a
+    # model-prefixed key (e.g. "markov_use_5", "hybrid_statistical_use_10") -
+    # see HyperoptStatistics.py's suggest_keno_subset - since a shared bare
+    # "use_5" key would get silently overwritten by whichever strategy's study
+    # happened to run last. Backtester runs every model through ONE shared
+    # backtest() pass though, so we take the union of every model's own tuned
+    # sizes: nothing any model was individually tuned for gets silently
+    # dropped, at the (harmless) cost of a few models also computing subsets
+    # for sizes they personally don't care about.
+    KENO_MODEL_NAMES = [
+        "markov", "markov_mc", "markov_bayesian", "markov_bayesian_enhanced",
+        "poisson_mc", "poisson_markov", "laplace_mc", "hybrid_statistical"
+    ]
+
+    def tuned_subset_sizes(model_name):
+        return [size for size in [5, 6, 7, 8, 9, 10] if bestParams.get(f"{model_name}_use_{size}", True)]
+
     generateSubsets = [5, 6, 7, 8, 9, 10]
     if "keno" in name:
-        generateSubsets = [
-            size for size in generateSubsets
-            if bestParams.get(f"use_{size}", True)
-        ]
+        generateSubsets = sorted(set().union(*(tuned_subset_sizes(m) for m in KENO_MODEL_NAMES)))
 
     # -------------------------
     # Markov
