@@ -259,7 +259,7 @@ class Backtester:
             "game": game,
         }
 
-        num_workers = max(1, min(cpu_count(), total_iterations))
+        num_workers = max(1, min(cpu_count()-1, total_iterations))
         results = []
 
         with Pool(processes=num_workers) as pool:
