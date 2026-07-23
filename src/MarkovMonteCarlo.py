@@ -84,13 +84,14 @@ class MarkovMonteCarlo:
 
         return sorted(final_ticket), dict(votes)
 
-    def run(self, generateSubsets=None, skipRows=0, skipLastColumns=0):
+    def run(self, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         if generateSubsets is None:
             generateSubsets = []
 
         numbers, _, _ = self.model.load_numbers(
             skipRows=skipRows,
-            skipLastColumns=skipLastColumns
+            skipLastColumns=skipLastColumns,
+            specialColumnOnly=specialColumnOnly
         )
 
         if len(numbers) == 0:

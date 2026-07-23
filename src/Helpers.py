@@ -10,6 +10,115 @@ from sklearn.preprocessing import OneHotEncoder
 
 class Helpers():
 
+    PAYOUT_TABLE_KENO = {
+        10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
+        9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
+        8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
+        7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
+        6: { 3: 1, 4: 4, 5: 20, 6: 200 },
+        5: { 3: 2, 4: 5, 5: 150 },
+        4: { 2: 1, 3: 2, 4: 30 },
+        3: { 2: 1, 3: 16 },
+        2: { 2: 6.50 },
+        "lost": -1  # Because it cost 1 euro
+    }
+
+    PAYOUT_TABLE_PICK3 = {
+        "straight": 500,
+        "box_with_doubles": 160,
+        "box_no_doubles": 80,
+        "front_pair": 50,
+        "back_pair": 50,
+        "last_number": 1,
+        "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
+    }
+
+    def run_model_with_special_column(self, model, generateSubsets=None, skipRows=0, skipLastColumns=0, hasSpecialColumn=False):
+        """
+        Runs a statistical model's run() for games with a trailing special/bonus
+        column (Euromillions stars, EuroDreams dream number, VikingLotto super
+        viking). The special column has its own, smaller number range, so it is
+        modeled completely independently from the main numbers (own transition
+        matrix/frequencies/range) and simply appended to the main-number
+        prediction afterwards - never merged or re-sorted together with it.
+
+        For games without a special column (hasSpecialColumn=False), this is
+        equivalent to a plain model.run(...) call, using skipLastColumns as-is
+        (e.g. Lotto passes skipLastColumns=1 to drop its unplayed bonus number).
+        """
+        if generateSubsets is None:
+            generateSubsets = []
+
+        main_prediction, subsets = model.run(
+            generateSubsets=generateSubsets,
+            skipRows=skipRows,
+            skipLastColumns=1 if hasSpecialColumn else skipLastColumns
+        )
+
+        if not hasSpecialColumn:
+            return main_prediction, subsets
+
+        special_prediction, _ = model.run(
+            generateSubsets=[],
+            skipRows=skipRows,
+            skipLastColumns=0,
+            specialColumnOnly=True
+        )
+
+        special_number = special_prediction[0] if special_prediction else None
+        combined_prediction = list(main_prediction) + ([special_number] if special_number is not None else [])
+
+        return combined_prediction, subsets
+
+    def keno_ticket_profit(self, prediction, real_result):
+        """
+        Net profit (in euro) for a single Keno subset ticket.
+        Only subsets of 5-10 numbers have real payouts; below that, profit is not tracked.
+        """
+        played = len(prediction)
+        if played < 5 or played > 10:
+            return None
+
+        table = self.PAYOUT_TABLE_KENO
+        matches = len(set(map(int, prediction)) & set(map(int, real_result)))
+        profit = table.get(played, {}).get(matches, table["lost"])
+
+        if profit != table["lost"]:
+            return profit
+        else:
+            return profit + table["lost"]
+
+    def pick3_ticket_profit(self, prediction, real_result):
+        """
+        Net profit (in euro) for a single Pick3 ticket. Order matters (straight/pair payouts).
+        """
+        if len(prediction) != 3 or len(real_result) != 3:
+            return None
+
+        table = self.PAYOUT_TABLE_PICK3
+        pred = [int(p) for p in prediction]
+        actual = [int(a) for a in real_result]
+
+        if pred == actual:
+            return table["straight"] + table["lost"]
+
+        if sorted(pred) == sorted(actual):
+            pred_counts = {x: pred.count(x) for x in pred}
+            if 2 in pred_counts.values():
+                return table["box_with_doubles"] + table["lost"]
+            return table["box_no_doubles"] + table["lost"]
+
+        if pred[0:2] == actual[0:2]:
+            return table["front_pair"] + table["lost"]
+
+        if pred[1:3] == actual[1:3]:
+            return table["back_pair"] + table["lost"]
+
+        if pred[2] == actual[2]:
+            return table["last_number"] + table["lost"]
+
+        return table["lost"]
+
     def getLatestPrediction(self, csvPath, dateRange=None):
         """
             Get latest result from csv file.
@@ -189,7 +298,7 @@ class Helpers():
 
         
         
-    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None):
+    def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None, specialColumnOnly=False):
         # Initialize an empty list to hold the data
         data = []
 
@@ -264,8 +373,13 @@ class Helpers():
             numbers = numbers[:-skipRows]
             #print("Length after skipping rows: ", len(numbers))
             #print("last entry: ", numbers[len(numbers)-1])
-        
-        
+
+        # Isolate the special/bonus column (e.g. Euromillions stars, EuroDreams
+        # dream number, VikingLotto super viking) so it can be modeled with its
+        # own range, independently from the main numbers. Requires
+        # skipLastColumns=0 so the special column is still present in `numbers`.
+        if specialColumnOnly:
+            numbers = numbers[:, -1:]
 
         # Unique labels for one-hot encoding
         # Euromillions are 50 numbers, Lotto are 45 numbers
@@ -791,29 +905,6 @@ class Helpers():
             print(f"Directory does not exist: {json_dir}")
             return
 
-        payoutTableKeno = {
-            10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
-            9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
-            8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
-            7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
-            6: { 3: 1, 4: 4, 5: 20, 6: 200 },
-            5: { 3: 2, 4: 5, 5: 150 },
-            4: { 2: 1, 3: 2, 4: 30 },
-            3: { 2: 1, 3: 16 },
-            2: { 2: 6.50 },
-            "lost": -1  # Because it cost 1 euro
-        }
-
-        payoutTablePick3 = {
-            "straight": 500,
-            "box_with_doubles": 160,
-            "box_no_doubles": 80,
-            "front_pair": 50,
-            "back_pair": 50,
-            "last_number": 1,
-            "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
-        }
-
         total_profit = 0
 
         for filename in os.listdir(json_dir):
@@ -822,7 +913,8 @@ class Helpers():
                 with open(filepath, "r") as file:
                     data = json.load(file)
 
-                    real_result = set(data.get("realResult", []))
+                    real_result = data.get("realResult", [])
+                    real_result_set = set(real_result)
                     model_predictions = data.get("currentPrediction", [])
 
                     # We need to calculate the lost even at winning. Because the ticket costs needs to be deducted
@@ -831,50 +923,15 @@ class Helpers():
                         for prediction in model["predictions"]:
                             # For keno and pick3 the profits can be calculated. For others we check the matches
                             if "keno" in name:
-                                played = len(prediction)
-                                if played < 4 or played > 10:
-                                    continue
-
-                                matches = len(set(prediction) & real_result)
-                                profit = payoutTableKeno.get(played, {}).get(matches, payoutTableKeno["lost"])
-                                if profit != payoutTableKeno["lost"]:
+                                profit = self.keno_ticket_profit(prediction, real_result_set)
+                                if profit is not None:
                                     total_profit += profit
-                                else:
-                                    total_profit += (profit + payoutTableKeno["lost"])
                             elif "pick3" in name:
-                                played = len(prediction)
-                                if played != 3 or len(real_result) != 3:
-                                    continue
-
-                                pred = prediction
-                                actual = list(real_result)
-
-                                if pred == actual:
-                                    profit = payoutTablePick3["straight"] + payoutTablePick3["lost"]
-
-                                elif sorted(pred) == sorted(actual):
-                                    # Check for doubles
-                                    pred_counts = {x: pred.count(x) for x in pred}
-                                    if 2 in pred_counts.values():
-                                        profit = payoutTablePick3["box_with_doubles"] + payoutTablePick3["lost"]
-                                    else:
-                                        profit = payoutTablePick3["box_no_doubles"] + payoutTablePick3["lost"]
-
-                                elif pred[0:2] == actual[0:2]:
-                                    profit = payoutTablePick3["front_pair"] + payoutTablePick3["lost"]
-
-                                elif pred[1:3] == actual[1:3]:
-                                    profit = payoutTablePick3["back_pair"] + payoutTablePick3["lost"]
-
-                                elif pred[2] == actual[2]:
-                                    profit = payoutTablePick3["last_number"] + payoutTablePick3["lost"]
-
-                                else:
-                                    profit = payoutTablePick3["lost"]
-
-                                total_profit += profit
+                                profit = self.pick3_ticket_profit(prediction, real_result)
+                                if profit is not None:
+                                    total_profit += profit
                             else:
-                                matches = len(set(prediction) & real_result)
+                                matches = len(set(prediction) & real_result_set)
                                 total_profit += matches
         #print("Total profit: ", total_profit)
         return total_profit

@@ -54,6 +54,19 @@ class Metrics:
         }
 
     @staticmethod
+    def summarize_profit(values):
+        if not values:
+            return {}
+
+        return {
+            "total": float(np.sum(values)),
+            "avg": float(np.mean(values)),
+            "median": float(np.median(values)),
+            "max": float(np.max(values)),
+            "min": float(np.min(values)),
+        }
+
+    @staticmethod
     def summarize(values):
         if not values:
             return {}

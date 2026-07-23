@@ -219,8 +219,8 @@ class HybridStatisticalModel():
         return {num: (self.alpha * markov_probs.get(num, 0) + (1 - self.alpha) * (num_frequencies.get(num, 0) / sum(num_frequencies.values())))
             for num in set(markov_probs) | set(num_frequencies)}
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
-        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
+        _, _, _, _, _, numbers, _, numClasses = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
 
         self.build_markov_chain(numbers)
         last_draw = numbers[-1]
@@ -228,10 +228,15 @@ class HybridStatisticalModel():
 
         n_predictions = len(last_draw)
 
+        # Use the actual observed number range rather than numClasses, since numClasses
+        # reflects the full game's main-number range even when specialColumnOnly=True
+        # narrows `numbers` down to a smaller-range column (e.g. Euromillions stars).
+        population_size = int(numbers.max())
+
         bayesian_predictions = self.bayesian_prediction(n_predictions=n_predictions)
         bayesian_predictions = [int(num) for num in bayesian_predictions]
-        multinomial_predictions = self.multinomial_prediction(n_draws=n_predictions, total_numbers=len(numClasses))
-        hypergeometric_predictions = self.hypergeometric_prediction(n_draws=n_predictions, n_success=n_predictions, population_size=len(numClasses))
+        multinomial_predictions = self.multinomial_prediction(n_draws=n_predictions, total_numbers=population_size)
+        hypergeometric_predictions = self.hypergeometric_prediction(n_draws=n_predictions, n_success=n_predictions, population_size=population_size)
         hypergeometric_predictions = [int(num) for num in hypergeometric_predictions]
         monte_carlo_predictions = self.monte_carlo_simulation(n_simulations=self.numberOfSimulations, n_draws=n_predictions)
 

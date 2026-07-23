@@ -1,6 +1,14 @@
-import os, json
+import os, sys, json
 from Metrics import Metrics
 from Baselines import Baselines
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
+
+from Helpers import Helpers
+
+helpers = Helpers()
 
 
 class Backtester:
@@ -34,8 +42,19 @@ class Backtester:
         years_back=None,
         include_baselines=True,
         verbose=True,
-        save_results_path=None
+        save_results_path=None,
+        game=None
     ):
+        """
+        game: "keno" or "pick3" enables profit calculation (in euro) alongside hit
+        counts, reusing the same payout tables as Helpers.calculate_profit. Other
+        games have no payout model yet, so only hit/matching-number stats apply.
+
+        For "keno", profit is only computed for subsets of 5-10 numbers (in
+        generate_subsets) since that's the playable range with real payouts.
+        For "pick3", profit is computed on the full (positionally-ordered)
+        prediction, since Pick3 payouts depend on digit order.
+        """
         if generate_subsets is None:
             generate_subsets = []
 
@@ -88,9 +107,19 @@ class Backtester:
                         actual
                     )
 
+                    if game == "pick3":
+                        profit = helpers.pick3_ticket_profit(predicted_numbers, actual)
+                        if profit is not None:
+                            row[f"{model_name}_profit"] = profit
+
                     if subsets:
                         for subset_size, subset in subsets.items():
                             subset = list(map(int, subset))
+
+                            if game == "keno":
+                                profit = helpers.keno_ticket_profit(subset, actual)
+                                if profit is not None:
+                                    row[f"{model_name}_subset_{subset_size}_profit"] = profit
 
                             row[f"{model_name}_subset_{subset_size}"] = sorted(subset)
                             row[f"{model_name}_subset_{subset_size}_hits"] = Metrics.count_hits(
@@ -193,6 +222,24 @@ class Backtester:
             if values:
                 summary[key] = Metrics.summarize(values)
 
+        # Collect profit keys (only present when game="keno"/"pick3" was passed to backtest())
+        profit_keys = sorted({
+            key
+            for row in results
+            for key in row.keys()
+            if key.endswith("_profit")
+        })
+
+        for key in profit_keys:
+            values = [
+                row[key]
+                for row in results
+                if key in row and isinstance(row[key], (int, float))
+            ]
+
+            if values:
+                summary[key] = Metrics.summarize_profit(values)
+
         # Optional: collect model errors
         error_keys = sorted({
             key
@@ -243,8 +290,8 @@ if __name__ == "__main__":
     
     print("Running global backtest")
 
-    name = "lotto"
-    generateSubsets = []
+    name = "keno"
+    generateSubsets = [5, 6, 7, 8, 9, 10]
 
     path = os.getcwd()
     dataPath = os.path.join(
@@ -259,8 +306,8 @@ if __name__ == "__main__":
     # -------------------------
     markov = Markov()
     markov.setDataPath(dataPath)
-    markov.setGameRange(1, 45)
-    markov.setDrawSize(6)
+    markov.setGameRange(1, 80)
+    markov.setDrawSize(20)
     markov.setSoftMAxTemperature(0.45)
     markov.setAlpha(0.6)
     markov.setMinOccurrences(2)
@@ -276,8 +323,8 @@ if __name__ == "__main__":
     # -------------------------
     markov_mc_base = Markov()
     markov_mc_base.setDataPath(dataPath)
-    markov_mc_base.setGameRange(1, 45)
-    markov_mc_base.setDrawSize(6)
+    markov_mc_base.setGameRange(1, 80)
+    markov_mc_base.setDrawSize(20)
     markov_mc_base.setSoftMAxTemperature(0.45)
     markov_mc_base.setAlpha(0.6)
     markov_mc_base.setMinOccurrences(2)
@@ -318,13 +365,19 @@ if __name__ == "__main__":
     backtester.add_model("poisson_mc", poisson)
     backtester.add_model("laplace_mc", laplace)
 
+    # Backtest only the last ~60 draws (Keno has one draw/day, so 500+ draws
+    # of history are available for every prediction well before that window)
+    total_rows = len(markov.load_numbers()[0])
+    start_index = max(500, total_rows - 60)
+
     results = backtester.backtest(
-        start_index=2700,
-        end_index=3223,
-        skipLastColumns=1,
+        start_index=start_index,
+        end_index=total_rows,
+        skipLastColumns=0,
         generate_subsets=generateSubsets,
         include_baselines=True,
         verbose=True,
+        game=name,
         save_results_path=os.path.join(
             os.path.abspath(os.path.join(path, os.pardir)),
             "test",

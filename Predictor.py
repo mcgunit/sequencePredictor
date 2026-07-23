@@ -587,6 +587,13 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
+    # Euromillions stars, EuroDreams dream number, and VikingLotto super viking are
+    # drawn from their own, smaller range - model them independently from the main
+    # numbers (see Helpers.run_model_with_special_column) instead of mixing them
+    # into the same pool/sort. Lotto's bonus number is not modeled at all (it isn't
+    # played), so it keeps being fully dropped via skipLastColumns.
+    hasSpecialColumn = any(game in name for game in ("euromillions", "eurodreams", "vikinglotto"))
+
     subsets = []
     if "keno" in name:
         if bestParams_json_object["use_5"]:
@@ -630,7 +637,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            markovSequence, markovSubsets = markov.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            markovSequence, markovSubsets = helpers.run_model_with_special_column(markov, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
             
             markovPrediction["predictions"].append(markovSequence)
             for key in markovSubsets:
@@ -655,7 +662,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            markovBayesianSequence, markovBayesianSubsets = markovBayesian.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            markovBayesianSequence, markovBayesianSubsets = helpers.run_model_with_special_column(markovBayesian, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
             markovBayesianPrediction["predictions"].append(markovBayesianSequence)
             for key in markovBayesianSubsets:
                 markovBayesianPrediction["predictions"].append(markovBayesianSubsets[key])
@@ -679,7 +686,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = markovBayesianEnhanced.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            markovBayesianEnhancedSequence, markovBayesianEnhancedSubsets = helpers.run_model_with_special_column(markovBayesianEnhanced, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
             markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSequence)
             for key in markovBayesianEnhancedSubsets:
                 markovBayesianEnhancedPrediction["predictions"].append(markovBayesianEnhancedSubsets[key])
@@ -702,7 +709,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            poissonMonteCarloSequence, poissonMonteCarloSubsets = poissonMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            poissonMonteCarloSequence, poissonMonteCarloSubsets = helpers.run_model_with_special_column(poissonMonteCarlo, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
 
             poissonMonteCarloPrediction["predictions"].append(poissonMonteCarloSequence)
             for key in poissonMonteCarloSubsets:
@@ -725,7 +732,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            poissonMarkovSequence, poissonMarkovSubsets = poissonMarkov.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            poissonMarkovSequence, poissonMarkovSubsets = helpers.run_model_with_special_column(poissonMarkov, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
 
             poissonMarkovPrediction["predictions"].append(poissonMarkovSequence)
             for key in poissonMarkovSubsets:
@@ -749,7 +756,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             }
 
 
-            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = laplaceMonteCarlo.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            laplaceMonteCarloSequence, laplaceMonteCarloSubsets = helpers.run_model_with_special_column(laplaceMonteCarlo, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
             laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSequence)
             for key in laplaceMonteCarloSubsets:
                 laplaceMonteCarloPrediction["predictions"].append(laplaceMonteCarloSubsets[key])
@@ -774,7 +781,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "predictions": []
             }
 
-            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = hybridStatisticalModel.run(generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns)
+            hybridStatisticalModelSequence, hybridStatisticalModelSubsets = helpers.run_model_with_special_column(hybridStatisticalModel, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, hasSpecialColumn=hasSpecialColumn)
             hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSequence)
             for key in hybridStatisticalModelSubsets:
                 hybridStatisticalModelPrediction["predictions"].append(hybridStatisticalModelSubsets[key])

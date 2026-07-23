@@ -115,7 +115,7 @@ class PoissonMonteCarlo():
 
         return sorted([int(num) for num in predicted_numbers]) 
     
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         """
         Runs the Poisson Monte Carlo prediction process.
 
@@ -124,8 +124,8 @@ class PoissonMonteCarlo():
         """
 
         self.clear()
-        
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
+
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
         numbers = [[int(num) for num in draw] for draw in numbers]
         #print("Length of numbers: ", numbers[len(numbers)-1])
 

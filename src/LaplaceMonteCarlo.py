@@ -112,12 +112,12 @@ class LaplaceMonteCarlo():
 
         return self.ensure_unique_prediction(predicted_numbers, n_predictions)
     
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         """Runs the Laplace Monte Carlo prediction process with optional subset generation."""
 
         self.clear()
-        
-        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns)
+
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnOnly=specialColumnOnly)
 
         self.setRecentDraws(min(self.recent_draws, len(numbers)))
 

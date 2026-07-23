@@ -2,7 +2,6 @@ import os, sys, json, itertools
 import numpy as np
 import scipy.special
 from collections import defaultdict
-from Backtester import Backtester
 from collections import Counter
 
 # Dynamically adjust the import path for Helpers
@@ -96,12 +95,13 @@ class Markov():
         """
         self.sorted_prediction = bool(use)
 
-    def load_numbers(self, skipRows=0, skipLastColumns=0, years_back=None):
+    def load_numbers(self, skipRows=0, skipLastColumns=0, years_back=None, specialColumnOnly=False):
         _, _, _, _, _, numbers, num_classes, unique_labels = helpers.load_data(
             self.dataPath,
             skipRows=skipRows,
             skipLastColumns=skipLastColumns,
-            years_back=years_back
+            years_back=years_back,
+            specialColumnOnly=specialColumnOnly
         )
         return numbers, num_classes, unique_labels
 
@@ -433,10 +433,11 @@ class Markov():
 
         return sorted(final_ticket), dict(votes)
 
-    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0):
+    def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnOnly=False):
         numbers, _, _ = self.load_numbers(
             skipRows=skipRows,
-            skipLastColumns=skipLastColumns
+            skipLastColumns=skipLastColumns,
+            specialColumnOnly=specialColumnOnly
         )
 
         if len(numbers) == 0:
@@ -490,6 +491,7 @@ if __name__ == "__main__":
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
     sequenceToPredictFile = os.path.join(jsonDirPath, "2025-6-15.json")
 
+    sequenceToPredict = None
     try:
         with open(sequenceToPredictFile, 'r') as openfile:
             sequenceToPredict = json.load(openfile)
@@ -497,20 +499,11 @@ if __name__ == "__main__":
     except:
         pass
 
-    if "keno" in name.lower():
-        generateSubsets = [6, 7]
-
-    # plan prediction
-    # for _ in range(1):
-    #     print("Predicted Numbers: ", markov.run(generateSubsets=generateSubsets, skipLastColumns=0))
-
-    #############################
-    #  Prediction with backtest #
-    #############################
     skipLastColumn = 0
     if "keno" in name.lower():
         markov.setGameRange(1, 80)
         markov.setDrawSize(20)
+        generateSubsets = [6, 7]
 
     elif "lotto" in name.lower():
         markov.setGameRange(1, 45)
@@ -529,23 +522,22 @@ if __name__ == "__main__":
         markov.setGameRange(0, 9)
         markov.setDrawSize(3)
 
-    backtester = Backtester(markov)
-
-    results = backtester.backtest(
-        start_index=200,
-        generate_subsets=generateSubsets,
-        skipLastColumns=skipLastColumn,
-        include_baselines=True,
-        verbose=True
+    #####################
+    # Single prediction #
+    #####################
+    predicted_numbers, subsets = markov.run(
+        generateSubsets=generateSubsets,
+        skipLastColumns=skipLastColumn
     )
 
-    summary = backtester.summarize(
-        results,
-        subset_sizes=generateSubsets
-    )
+    print("Predicted Numbers: ", predicted_numbers)
+    if subsets:
+        print("Subsets: ", subsets)
 
-    print("\nBacktest summary:")
-    print(json.dumps(summary, indent=4))
+    if sequenceToPredict is not None:
+        matches = set(predicted_numbers) & set(sequenceToPredict["realResult"])
+        print("Real result: ", sequenceToPredict["realResult"])
+        print("Numbers that matches: ", matches)
 
     ########################
     # Generate top tickets #
@@ -568,15 +560,10 @@ if __name__ == "__main__":
     # Top voted numbers #
     #####################
 
-    numbers, _, _ = markov.load_numbers(skipLastColumns=skipLastColumn)
-    markov.build_markov_chain(numbers)
-
-    history = numbers[-markov.markov_order:]
-
     voted_ticket, votes = markov.generate_voted_ticket(
         history,
         n_tickets=10000,
-        ticket_size=6
+        ticket_size=markov.draw_size
     )
 
     print("Voted ticket:", voted_ticket)
