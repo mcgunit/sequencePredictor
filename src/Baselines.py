@@ -62,4 +62,24 @@ class Baselines:
                 if len(ticket) >= num_columns:
                     break
 
-        return sorted(ticket[:num_columns])
+        # Not sorted - each entry's position corresponds to its column index,
+        # which matters for positional games (Pick3). Callers wanting a tidy
+        # display order (Keno) should sort at the point of display, not here.
+        return ticket[:num_columns]
+
+    @staticmethod
+    def column_frequency_subset(train_numbers, subset_size):
+        """
+        A Keno-style playable subset from column_frequency_ticket's full
+        per-column-best ticket, ranked by each number's overall historical
+        frequency (not column position, since a subset has no fixed slots).
+        """
+        full_ticket = Baselines.column_frequency_ticket(train_numbers)
+
+        freq = defaultdict(float)
+        for draw in train_numbers:
+            for n in draw:
+                freq[int(n)] += 1
+
+        ranked = sorted(full_ticket, key=lambda n: freq.get(n, 0), reverse=True)
+        return sorted(ranked[:subset_size])

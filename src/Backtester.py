@@ -130,35 +130,43 @@ def _backtest_single_day(i):
             train_numbers
         )
 
-        row["random_prediction"] = sorted(random_prediction)
-        row["random_hits"] = Metrics.count_hits(
-            random_prediction,
-            actual
-        )
-        row["random_matching_numbers"] = Metrics.matching_numbers(
-            random_prediction,
-            actual
-        )
+        baseline_predictions = {
+            "random": random_prediction,
+            "global_frequency": global_frequency_prediction,
+            "column_frequency": column_frequency_prediction,
+        }
 
-        row["global_frequency_prediction"] = sorted(global_frequency_prediction)
-        row["global_frequency_hits"] = Metrics.count_hits(
-            global_frequency_prediction,
-            actual
-        )
-        row["global_frequency_matching_numbers"] = Metrics.matching_numbers(
-            global_frequency_prediction,
-            actual
-        )
+        for baseline_name, prediction in baseline_predictions.items():
+            row[f"{baseline_name}_prediction"] = sorted(prediction)
+            row[f"{baseline_name}_hits"] = Metrics.count_hits(prediction, actual)
+            row[f"{baseline_name}_matching_numbers"] = Metrics.matching_numbers(prediction, actual)
 
-        row["column_frequency_prediction"] = sorted(column_frequency_prediction)
-        row["column_frequency_hits"] = Metrics.count_hits(
-            column_frequency_prediction,
-            actual
-        )
-        row["column_frequency_matching_numbers"] = Metrics.matching_numbers(
-            column_frequency_prediction,
-            actual
-        )
+            if game == "pick3":
+                profit = helpers.pick3_ticket_profit(prediction, actual)
+                if profit is not None:
+                    row[f"{baseline_name}_profit"] = profit
+
+        # Keno-style playable subsets (5-10 numbers) for each baseline, so their
+        # profit is comparable against the real models' subset profit instead
+        # of only being scored on the full (non-playable) 20-number ticket.
+        if game == "keno":
+            for subset_size in generate_subsets:
+                baseline_subsets = {
+                    "random": Baselines.random_ticket(data_loader_model.min_number, data_loader_model.max_number, subset_size),
+                    "global_frequency": Baselines.global_frequency_ticket(train_numbers, subset_size),
+                    "column_frequency": Baselines.column_frequency_subset(train_numbers, subset_size),
+                }
+
+                for baseline_name, subset in baseline_subsets.items():
+                    subset = list(map(int, subset))
+
+                    profit = helpers.keno_ticket_profit(subset, actual)
+                    if profit is not None:
+                        row[f"{baseline_name}_subset_{subset_size}_profit"] = profit
+
+                    row[f"{baseline_name}_subset_{subset_size}"] = sorted(subset)
+                    row[f"{baseline_name}_subset_{subset_size}_hits"] = Metrics.count_hits(subset, actual)
+                    row[f"{baseline_name}_subset_{subset_size}_matching_numbers"] = Metrics.matching_numbers(subset, actual)
 
     return row
 
