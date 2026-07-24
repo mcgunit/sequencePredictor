@@ -371,6 +371,7 @@ class Backtester:
 
         hit_avgs = {}
         profit_totals = {}
+        profit_bet_counts = {}
 
         for key in all_keys:
             subset_match = self._SUBSET_KEY_RE.match(key)
@@ -393,6 +394,7 @@ class Backtester:
                         total = float(np.sum(values))
                         subsets["profit"] = Metrics.summarize_profit(values) if detailed else total
                         profit_totals[model_name] = profit_totals.get(model_name, 0) + total
+                        profit_bet_counts[model_name] = profit_bet_counts.get(model_name, 0) + len(values)
                 continue
 
             plain_match = self._PLAIN_KEY_RE.match(key)
@@ -417,6 +419,7 @@ class Backtester:
                     model["main"] = model.get("main", {})
                     model["main"]["profit"] = Metrics.summarize_profit(values) if detailed else total
                     profit_totals[model_name] = profit_totals.get(model_name, 0) + total
+                    profit_bet_counts[model_name] = profit_bet_counts.get(model_name, 0) + len(values)
             elif metric == "error":
                 errors = [row[key] for row in results if key in row]
                 model["errors"] = {
@@ -426,10 +429,19 @@ class Backtester:
 
         for model_name, model in summary["models"].items():
             avgs = hit_avgs.get(model_name)
+            bet_count = profit_bet_counts.get(model_name)
+            total_profit = profit_totals.get(model_name)
             # Insert hits_avg/profit_total first so they read before "main"/"subsets"/"errors"
             model_ordered = {
                 "hits_avg": float(np.mean(avgs)) if avgs else None,
-                "profit_total": profit_totals.get(model_name)
+                "profit_total": total_profit,
+                # Average profit per individual bet placed (one subset-size on
+                # one day = one bet) - unlike profit_total, this stays directly
+                # comparable across models even when they place different
+                # numbers of bets (e.g. one model tuned to only bet subset
+                # size 5, another betting all 6 sizes, or Pick3's single bet
+                # vs Keno's several subset bets per day).
+                "profit_per_bet": (total_profit / bet_count) if total_profit is not None and bet_count else None
             }
             model_ordered.update(model)
             summary["models"][model_name] = model_ordered
