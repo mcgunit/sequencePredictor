@@ -61,9 +61,16 @@ def _backtest_single_day(i):
 
     for model_name, model in models.items():
         try:
+            # generate_subsets may be a flat list (same sizes for every model)
+            # or a {model_name: [sizes]} dict for genuinely per-model subset
+            # selection - e.g. each model's own Hyperopt-tuned use_N choice,
+            # rather than diluting everyone down to whichever sizes the least
+            # tuned model happens to want.
+            model_subsets = generate_subsets.get(model_name, []) if isinstance(generate_subsets, dict) else generate_subsets
+
             predicted_numbers, subsets = helpers.run_model_with_special_column(
                 model,
-                generateSubsets=generate_subsets,
+                generateSubsets=model_subsets,
                 skipRows=rows_to_skip,
                 skipLastColumns=skipLastColumns,
                 specialColumnCount=special_column_count
@@ -149,8 +156,15 @@ def _backtest_single_day(i):
         # Keno-style playable subsets (5-10 numbers) for each baseline, so their
         # profit is comparable against the real models' subset profit instead
         # of only being scored on the full (non-playable) 20-number ticket.
+        # Baselines aren't individually tuned like the real models, so if
+        # generate_subsets is a per-model dict, just union every model's sizes.
         if game == "keno":
-            for subset_size in generate_subsets:
+            baseline_subset_sizes = (
+                sorted(set().union(*generate_subsets.values())) if isinstance(generate_subsets, dict) and generate_subsets
+                else (generate_subsets if isinstance(generate_subsets, list) else [])
+            )
+
+            for subset_size in baseline_subset_sizes:
                 baseline_subsets = {
                     "random": Baselines.random_ticket(data_loader_model.min_number, data_loader_model.max_number, subset_size),
                     "global_frequency": Baselines.global_frequency_ticket(train_numbers, subset_size),
@@ -235,6 +249,15 @@ class Backtester:
         generate_subsets) since that's the playable range with real payouts.
         For "pick3", profit is computed on the full (positionally-ordered)
         prediction, since Pick3 payouts depend on digit order.
+
+        generate_subsets can be either:
+          - a flat list, e.g. [5, 6, 10] - every model in self.models gets
+            asked for the same subset sizes.
+          - a {model_name: [sizes]} dict - each model only gets asked for its
+            own sizes (e.g. each model's individually Hyperopt-tuned use_N
+            choice). A model missing from the dict gets no subsets at all.
+            Baselines (random/global_frequency/column_frequency) aren't
+            individually tuned, so they get the union of every model's sizes.
 
         special_column_count: for Euromillions (2 star columns), EuroDreams (1
         dream number), VikingLotto (1 super viking) - the trailing special
@@ -467,22 +490,25 @@ if __name__ == "__main__":
     # model-prefixed key (e.g. "markov_use_5", "hybrid_statistical_use_10") -
     # see HyperoptStatistics.py's suggest_keno_subset - since a shared bare
     # "use_5" key would get silently overwritten by whichever strategy's study
-    # happened to run last. Backtester runs every model through ONE shared
-    # backtest() pass though, so we take the union of every model's own tuned
-    # sizes: nothing any model was individually tuned for gets silently
-    # dropped, at the (harmless) cost of a few models also computing subsets
-    # for sizes they personally don't care about.
+    # happened to run last. Backtester.backtest() accepts a per-model dict for
+    # generate_subsets (see its docstring), so each model genuinely only gets
+    # asked for the sizes it was individually tuned for - a model that hasn't
+    # been hyperopted yet (no "<model>_use_N" keys at all) falls back to all
+    # 6 sizes rather than silently getting none.
     KENO_MODEL_NAMES = [
         "markov", "markov_mc", "markov_bayesian", "markov_bayesian_enhanced",
         "poisson_mc", "poisson_markov", "laplace_mc", "hybrid_statistical"
     ]
 
     def tuned_subset_sizes(model_name):
-        return [size for size in [5, 6, 7, 8, 9, 10] if bestParams.get(f"{model_name}_use_{size}", True)]
+        has_any_tuned_flag = any(f"{model_name}_use_{size}" in bestParams for size in [5, 6, 7, 8, 9, 10])
+        if not has_any_tuned_flag:
+            return [5, 6, 7, 8, 9, 10]
+        return [size for size in [5, 6, 7, 8, 9, 10] if bestParams.get(f"{model_name}_use_{size}", False)]
 
     generateSubsets = [5, 6, 7, 8, 9, 10]
     if "keno" in name:
-        generateSubsets = sorted(set().union(*(tuned_subset_sizes(m) for m in KENO_MODEL_NAMES)))
+        generateSubsets = {model_name: tuned_subset_sizes(model_name) for model_name in KENO_MODEL_NAMES}
 
     # -------------------------
     # Markov
