@@ -39,6 +39,16 @@ class Metrics:
             for n in range(2, 7)
         }
 
+    # Comfortably above typical win/loss swings (-2 to +5 for most Keno/Pick3
+    # outcomes) but below the smallest genuine high-payout tier (e.g. Keno's
+    # 6-of-7 match pays 30) - a single hit at/above this is a rare jackpot-tier
+    # event, not routine variance, and can dominate a small-sample profit total.
+    LUCKY_STRIKE_THRESHOLD = 20
+
+    @staticmethod
+    def count_lucky_strikes(values, threshold=LUCKY_STRIKE_THRESHOLD):
+        return sum(1 for v in values if v >= threshold)
+
     @staticmethod
     def summarize_profit(values):
         if not values:
@@ -50,6 +60,7 @@ class Metrics:
             "median": float(np.median(values)),
             "max": float(np.max(values)),
             "min": float(np.min(values)),
+            "lucky_strikes": Metrics.count_lucky_strikes(values),
         }
 
     @staticmethod

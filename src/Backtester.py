@@ -1,4 +1,4 @@
-import os, sys, json, time, re, random
+import os, sys, json, time, re, random, zlib
 import numpy as np
 from multiprocessing import Pool, cpu_count
 
@@ -37,16 +37,6 @@ def _backtest_single_day(i):
 
     total_rows = len(numbers)
 
-    # Deterministic-but-distinct randomness per day, independent of which
-    # worker/order actually processes it (forked workers otherwise start from
-    # an identical inherited RNG state - the exact issue HyperoptStatistics.py's
-    # "very important" fork/spawn comment documents). Both numpy's RNG and the
-    # stdlib random module need reseeding: some models (e.g.
-    # MarkovBayesianEnhanced.generate_crossover_combinations) use random.sample/
-    # random.uniform directly instead of numpy.
-    np.random.seed(i)
-    random.seed(i)
-
     actual = list(map(int, numbers[i]))
 
     # Important:
@@ -61,6 +51,19 @@ def _backtest_single_day(i):
 
     for model_name, model in models.items():
         try:
+            # Reseed per (day, model) - not once per day shared across every
+            # model - so each model's random draws depend only on the day and
+            # its own name, not on which other models happen to be in the same
+            # ensemble or what order dict iteration processes them in. Without
+            # this, model X run alongside 10 other models gets genuinely
+            # different results than model X run alone, since they'd all be
+            # consuming from one shared, continuing RNG stream. crc32 (not
+            # Python's built-in hash()) because str hashing is randomized per
+            # process (PYTHONHASHSEED) unless this is used.
+            model_seed = (i * 1_000_003 + zlib.crc32(model_name.encode())) % (2**32)
+            np.random.seed(model_seed)
+            random.seed(model_seed)
+
             # generate_subsets may be a flat list (same sizes for every model)
             # or a {model_name: [sizes]} dict for genuinely per-model subset
             # selection - e.g. each model's own Hyperopt-tuned use_N choice,
@@ -119,6 +122,13 @@ def _backtest_single_day(i):
     # Baselines
     # -------------------------
     if include_baselines:
+        # Own seed for the same reason models get their own above - otherwise
+        # baselines would inherit whatever RNG state the last model in the
+        # ensemble happened to leave behind.
+        baseline_seed = (i * 1_000_003 + zlib.crc32(b"__baselines__")) % (2**32)
+        np.random.seed(baseline_seed)
+        random.seed(baseline_seed)
+
         train_numbers = numbers[:i]
         draw_size = len(actual)
 
@@ -367,11 +377,24 @@ class Backtester:
         def num_values(key):
             return [row[key] for row in results if key in row and isinstance(row[key], (int, float))]
 
+        def num_values_with_index(key):
+            return [(row["index"], row[key]) for row in results if key in row and isinstance(row[key], (int, float))]
+
         all_keys = sorted({key for row in results for key in row.keys()})
 
         hit_avgs = {}
         profit_totals = {}
         profit_bet_counts = {}
+        lucky_strikes = {}
+
+        def record_lucky_strikes(model_name, indexed_values, subset_label):
+            for day_index, value in indexed_values:
+                if value >= Metrics.LUCKY_STRIKE_THRESHOLD:
+                    lucky_strikes.setdefault(model_name, []).append({
+                        "day_index": day_index,
+                        "subset": subset_label,
+                        "profit": value
+                    })
 
         for key in all_keys:
             subset_match = self._SUBSET_KEY_RE.match(key)
@@ -389,12 +412,14 @@ class Backtester:
                         subsets["hits"] = Metrics.summarize(values, include_distribution=include_distribution) if detailed else avg
                         hit_avgs.setdefault(model_name, []).append(avg)
                 else:
-                    values = num_values(key)
+                    indexed_values = num_values_with_index(key)
+                    values = [v for _, v in indexed_values]
                     if values:
                         total = float(np.sum(values))
                         subsets["profit"] = Metrics.summarize_profit(values) if detailed else total
                         profit_totals[model_name] = profit_totals.get(model_name, 0) + total
                         profit_bet_counts[model_name] = profit_bet_counts.get(model_name, 0) + len(values)
+                        record_lucky_strikes(model_name, indexed_values, size)
                 continue
 
             plain_match = self._PLAIN_KEY_RE.match(key)
@@ -413,13 +438,15 @@ class Backtester:
                     model["main"]["hits"] = Metrics.summarize(values, include_distribution=include_distribution) if detailed else avg
                     hit_avgs.setdefault(model_name, []).append(avg)
             elif metric == "profit":
-                values = num_values(key)
+                indexed_values = num_values_with_index(key)
+                values = [v for _, v in indexed_values]
                 if values:
                     total = float(np.sum(values))
                     model["main"] = model.get("main", {})
                     model["main"]["profit"] = Metrics.summarize_profit(values) if detailed else total
                     profit_totals[model_name] = profit_totals.get(model_name, 0) + total
                     profit_bet_counts[model_name] = profit_bet_counts.get(model_name, 0) + len(values)
+                    record_lucky_strikes(model_name, indexed_values, "main")
             elif metric == "error":
                 errors = [row[key] for row in results if key in row]
                 model["errors"] = {
@@ -431,6 +458,7 @@ class Backtester:
             avgs = hit_avgs.get(model_name)
             bet_count = profit_bet_counts.get(model_name)
             total_profit = profit_totals.get(model_name)
+            strikes = lucky_strikes.get(model_name, [])
             # Insert hits_avg/profit_total first so they read before "main"/"subsets"/"errors"
             model_ordered = {
                 "hits_avg": float(np.mean(avgs)) if avgs else None,
@@ -441,8 +469,19 @@ class Backtester:
                 # numbers of bets (e.g. one model tuned to only bet subset
                 # size 5, another betting all 6 sizes, or Pick3's single bet
                 # vs Keno's several subset bets per day).
-                "profit_per_bet": (total_profit / bet_count) if total_profit is not None and bet_count else None
+                "profit_per_bet": (total_profit / bet_count) if total_profit is not None and bet_count else None,
+                # Count of individual bets that hit a rare jackpot-tier payout
+                # (>= Metrics.LUCKY_STRIKE_THRESHOLD) - watch for this: a high
+                # profit_total driven mostly by a couple of these is a very
+                # different (much less trustworthy) result than the same
+                # profit_total spread evenly across many modest wins. Also
+                # useful for spotting models whose predictions barely move
+                # across different hyperparameters (so many tuning trials
+                # end up chasing/repeating the same lucky strike).
+                "lucky_strikes": len(strikes)
             }
+            if strikes:
+                model_ordered["lucky_strike_details"] = sorted(strikes, key=lambda s: -s["profit"])[:10]
             model_ordered.update(model)
             summary["models"][model_name] = model_ordered
 
