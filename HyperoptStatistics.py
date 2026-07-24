@@ -149,13 +149,23 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
 
 
 def score_from_summary(model_summary):
-    """Optuna objective value: profit if this game has a payout model, else avg hits."""
+    """
+    Optuna objective value: profit_per_bet if this game has a payout model,
+    else avg hits. profit_per_bet (not profit_total) so trials aren't scored
+    unfairly by how many subset sizes they happen to bet on - e.g. a trial
+    betting only subset size 5 shouldn't look "worse" than one betting all 6
+    sizes purely because it places fewer bets. Note this does NOT protect
+    against a single rare jackpot-tier payout dominating the score (see
+    Backtester.summarize()'s "lucky_strikes" field to check for that
+    separately - profit_per_bet is just as vulnerable to one big hit as
+    profit_total is, only rescaled).
+    """
     if not model_summary:
         return float("-inf")
 
-    profit = model_summary.get("profit_total")
-    if profit is not None:
-        return profit
+    profit_per_bet = model_summary.get("profit_per_bet")
+    if profit_per_bet is not None:
+        return profit_per_bet
 
     hits = model_summary.get("hits_avg")
     return hits if hits is not None else float("-inf")
