@@ -4,6 +4,7 @@ from art import text2art
 from datetime import datetime
 
 from src.Backtester import Backtester
+from src.DataLoader import DataLoader
 from src.Markov import Markov
 from src.MarkovMonteCarlo import MarkovMonteCarlo
 from src.MarkovBayesian import MarkovBayesian
@@ -99,9 +100,9 @@ def suggest_keno_subset(trial, model_name):
 
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back):
     """
-    Builds a dedicated data-loader Markov instance configured with this game's
-    real number range (so Backtester's baselines/bookkeeping aren't stuck on
-    Markov's defaults), runs `model` through Backtester over the last
+    Builds a dedicated DataLoader configured with this game's real number
+    range (so Backtester's baselines/bookkeeping aren't stuck on Markov's
+    defaults), runs `model` through Backtester over the last
     `days_to_rebuild` days, and returns that model's compact summary dict
     (see Backtester.summarize): {"hits_avg", "profit_total", "main": {...},
     "subsets": {...}, "errors": {...}}.
@@ -111,7 +112,7 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     to repeat/average multiple runs per trial like the old Process-based
     pipeline did.
     """
-    loader = Markov()
+    loader = DataLoader()
     loader.setDataPath(dataPath)
     loader.setGameRange(game_cfg["min"], game_cfg["max"])
     loader.setDrawSize(game_cfg["draw_size"])
