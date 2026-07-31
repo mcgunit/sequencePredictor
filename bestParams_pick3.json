@@ -32,7 +32,7 @@
     "poissonMonteCarloNumberOfRecentDraws": 10,
     "poissonMarkovWeight": 0.14217093064859854,
     "poissonMarkovNumberOfSimulations": 600,
-    "laplaceMonteCarloNumberOfSimulations": 700,
+    "laplaceMonteCarloNumberOfSimulations": 500,
     "hybridStatisticalModelSoftMaxTemperature": 0.32890372665615547,
     "hybridStatisticalModelAlpha": 0.22291349147102263,
     "hybridStatisticalModelMinOcurrences": 6,
@@ -74,5 +74,11 @@
     "markovMcPairDecayFactor": 0.8226916867635217,
     "markovMcSmoothingFactor": 0.797324710252568,
     "markovMcOrder": 2,
-    "markovMcNumSimulations": 1100
+    "markovMcNumSimulations": 1100,
+    "modelScores": {
+        "Markov Model": 16.322580645161292,
+        "MarkovMonteCarlo Model": 2.870967741935484,
+        "PoissonMonteCarlo Model": 12.193548387096774,
+        "LaplaceMonteCarlo Model": -0.7096774193548387
+    }
 }
