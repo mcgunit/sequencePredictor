@@ -499,6 +499,22 @@ app.get('/database/:folder/:file', (req, res) => {
         </div>
         <div class="card-body">
             ${generateTable(jsonData.newPrediction, '', [], false, game)}
+
+            ${jsonData.numberFrequency ? `
+                <div style="margin-top: 20px; height: 200px; width: 100%;">
+                    <canvas id="chart-detail"></canvas>
+                </div>
+                <script>
+                    new Chart(document.getElementById('chart-detail').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: ${JSON.stringify(Object.keys(jsonData.numberFrequency))},
+                        datasets: [{ label: 'Freq', data: ${JSON.stringify(Object.values(jsonData.numberFrequency))}, backgroundColor: 'rgba(52, 152, 219, 0.6)' }]
+                    },
+                    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                    });
+                </script>
+            ` : ''}
         </div>
     </div>
   `;

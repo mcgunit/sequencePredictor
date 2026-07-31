@@ -341,6 +341,21 @@ STRATEGIES = {
     "HybridStatistical": {"objective": objective_hybrid, "use_key": "useHybridStatisticalModel"},
 }
 
+# Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
+# prediction entry in listOfDecodedPredictions - so the per-model backtest
+# score saved here can be looked up directly by Helpers.count_number_frequencies_from_new_prediction
+# without a second translation step.
+STRATEGY_DISPLAY_NAMES = {
+    "Markov": "Markov Model",
+    "MarkovMonteCarlo": "MarkovMonteCarlo Model",
+    "MarkovBayesian": "MarkovBayesian Model",
+    "MarkovBayesianEnhanced": "MarkovBayesianEnhanched Model",
+    "PoissonMonteCarlo": "PoissonMonteCarlo Model",
+    "PoissonMarkov": "PoissonMarkov Model",
+    "LaPlaceMonteCarlo": "LaplaceMonteCarlo Model",
+    "HybridStatistical": "HybridStatisticalModel",
+}
+
 
 if __name__ == "__main__":
     if is_running():
@@ -476,12 +491,20 @@ if __name__ == "__main__":
                         if not is_pick3:
                             existingData['markovPairScoringWeight'] = 0.0
 
-                # Do not make a choice for best strategy yet - just record
-                # each strategy's own best profit/hits score for reference.
-                # (Predictor.py currently runs every enabled model, not just
-                # the single best one.)
+                # Do not make a choice for best strategy - Predictor.py still
+                # runs every enabled model so their real-life performance can
+                # be compared over time. The score is only used to weight each
+                # model's vote in Helpers.count_number_frequencies_from_new_prediction's
+                # combined numberFrequency view, not to disable any model.
                 if profits:
                     print("Strategy scores: ", profits)
+                    modelScores = existingData.get("modelScores", {})
+                    modelScores.update({
+                        STRATEGY_DISPLAY_NAMES[strategy_name]: score
+                        for strategy_name, score in profits.items()
+                        if strategy_name in STRATEGY_DISPLAY_NAMES
+                    })
+                    existingData["modelScores"] = modelScores
 
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)

@@ -861,7 +861,7 @@ class Helpers():
         return normalized_frequencies
 
 
-    def count_number_frequencies_from_new_prediction(self, json_data):
+    def count_number_frequencies_from_new_prediction(self, json_data, model_scores=None):
         """
         Count normalized frequencies of numbers in 'newPrediction' field from the given JSON structure.
 
@@ -869,23 +869,47 @@ class Helpers():
         ----------
         json_data : dict
             Dictionary parsed from a JSON containing 'newPrediction' with model predictions.
+        model_scores : dict, optional
+            Maps a model's "name" (as used in each newPrediction entry) to its
+            own Hyperopt/Backtester score (e.g. hits_avg or profit_total), so
+            better-performing models get more weight in the combined vote
+            instead of every model counting equally. This only affects the
+            combined numberFrequency view - it does not filter, reorder, or
+            otherwise change any individual model's own prediction. Missing or
+            absent scores (e.g. LSTM/xgboost, or when model_scores is None)
+            fall back to a neutral weight of 1, i.e. today's unweighted count.
 
         Returns
         -------
         dict
-            A dictionary where keys are numbers and values are their normalized frequencies.
+            A dictionary where keys are numbers and values are their normalized weighted frequencies.
         """
+        model_scores = model_scores or {}
+
+        # Min-max scale scores to a [1, 2] weight range so every model still
+        # contributes at least the old neutral weight of 1 - a poorly scoring
+        # model isn't zeroed out, just outweighted by better ones. Unscored
+        # models (not in model_scores) get the same neutral weight of 1.
+        scored_values = list(model_scores.values())
+        score_min = min(scored_values) if scored_values else 0
+        score_max = max(scored_values) if scored_values else 0
+        score_range = score_max - score_min
+
+        def weight_for(model_name):
+            score = model_scores.get(model_name)
+            if score is None or score_range == 0:
+                return 1.0
+            return 1.0 + (score - score_min) / score_range
+
         number_frequencies = {}
 
         # Iterate through each model's predictions in 'newPrediction'
         for model in json_data.get("newPrediction", []):
+            weight = weight_for(model.get("name"))
             predictions = model.get("predictions", [])
             for pred_set in predictions:
                 for number in pred_set:
-                    if number in number_frequencies:
-                        number_frequencies[number] += 1
-                    else:
-                        number_frequencies[number] = 1
+                    number_frequencies[number] = number_frequencies.get(number, 0) + weight
 
         # Normalize frequencies
         total_counts = sum(number_frequencies.values())

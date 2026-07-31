@@ -246,7 +246,8 @@ def process_single_history_entry_second_step(args):
 
     # Calculate the frequent numbers in prediction in last step
     try:
-        current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(current_json_object)
+        current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
+            current_json_object, model_scores=bestParams_json_object.get("modelScores"))
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
 
@@ -413,7 +414,8 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     # Calculate the frequent numbers in prediction
                     try:
-                        current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(current_json_object)
+                        current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
+                            current_json_object, model_scores=bestParams_json_object.get("modelScores"))
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
 
