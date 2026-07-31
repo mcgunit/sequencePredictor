@@ -103,6 +103,7 @@ def update_matching_numbers(name, path):
 
         curr_json["currentPredictionRaw"] = prev_json.get("newPredictionRaw", [])
         curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
+        curr_json["currentNumberFrequency"] = prev_json.get("numberFrequency", {})
 
         best_match = helpers.find_best_matching_prediction(
             curr_json["realResult"], curr_json["currentPrediction"]
@@ -131,6 +132,7 @@ def process_single_history_entry_first_step(args):
     current_json_object = {
         "currentPredictionRaw": [],
         "currentPrediction": [],
+        "currentNumberFrequency": {},
         "realResult": historyResult,
         "newPrediction": [],
         "newPredictionRaw": [],
@@ -138,7 +140,7 @@ def process_single_history_entry_first_step(args):
         "labels": [],
         "numberFrequency": []
     }
-    
+
     try:
         # Check the previous prediction with the real result
         if previousJsonFilePath and os.path.exists(previousJsonFilePath):
@@ -147,6 +149,7 @@ def process_single_history_entry_first_step(args):
                 previous_json_object = json.load(openfile)
             current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
             current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+            current_json_object["currentNumberFrequency"] = previous_json_object.get("numberFrequency", {})
 
         best_matching_prediction = helpers.find_best_matching_prediction(
             current_json_object["realResult"], current_json_object["currentPrediction"])
@@ -317,6 +320,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
             current_json_object = {
                 "currentPredictionRaw": [],
                 "currentPrediction": [],
+                "currentNumberFrequency": {},
                 "realResult": latestResult,
                 "newPrediction": [],      # Decoded prediction with help of labels
                 "newPredictionRaw": [],   # Raw prediction that contains the statistical data
@@ -349,6 +353,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     # The current prediction is the new prediction from the previous one
                     current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
                     current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
+                    current_json_object["currentNumberFrequency"] = previous_json_object.get("numberFrequency", {})
 
                     # Check on prediction with nth highest probability
                     print("find matching numbers")
