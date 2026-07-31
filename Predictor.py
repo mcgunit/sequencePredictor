@@ -9,6 +9,7 @@ from multiprocessing import Pool, cpu_count
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
 from src.Markov import Markov
+from src.MarkovMonteCarlo import MarkovMonteCarlo
 from src.MarkovBayesian import MarkovBayesian
 from src.MarkovBayesianEnhanched import MarkovBayesianEnhanced
 from src.PoissonMonteCarlo import PoissonMonteCarlo
@@ -23,6 +24,8 @@ from src.DataFetcher import DataFetcher
 tcn = TCNModel()
 lstm = LSTMModel()
 markov = Markov()
+markovMcBase = Markov()
+markovMonteCarlo = MarkovMonteCarlo(markovMcBase)
 markovBayesian = MarkovBayesian()
 markovBayesianEnhanced = MarkovBayesianEnhanced()
 poissonMonteCarlo = PoissonMonteCarlo()
@@ -525,6 +528,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "use_10":True,
         "yearsOfHistory": 20,
         "useMarkov":False,
+        "useMarkovMonteCarlo":False,
         "useMarkovBayesian":True,
         "usevMarkovBayesianEnhanced":True,
         "usePoissonMonteCarlo":False,
@@ -543,7 +547,16 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "markovOrder": 1,             
         "markovPairScoringWeight": 0, 
         "markovSortedPrediction": False, 
-        "markovUsePairScoring": False, 
+        "markovUsePairScoring": False,
+        "markovMcSoftMaxTemperature":0.1,
+        "markovMcMinOccurences":9,
+        "markovMcAlpha":0.2,
+        "markovMcRecencyWeight":1.0,
+        "markovMcRecencyMode":"constant",
+        "markovMcPairDecayFactor":0.3,
+        "markovMcSmoothingFactor":0.6,
+        "markovMcOrder": 1,
+        "markovMcNumSimulations": 1000,
         "markovBayesianSoftMaxTemperature":0.24235148017270242,
         "markovBayesianMinOccurences":14,
         "markovBayesianAlpha":0.1452615422969012,
@@ -654,6 +667,37 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             listOfDecodedPredictions.append(markovPrediction)
         except Exception as e:
             print("Failed to perform Markov: ", e)
+
+    if bestParams_json_object["useMarkovMonteCarlo"]:
+        try:
+            # Markov Monte Carlo
+            #print("Performing Markov Monte Carlo Prediction")
+            markovMcBase.setDataPath(dataPath)
+            markovMcBase.setSoftMAxTemperature(bestParams_json_object["markovMcSoftMaxTemperature"])
+            markovMcBase.setMinOccurrences(bestParams_json_object["markovMcMinOccurences"])
+            markovMcBase.setAlpha(bestParams_json_object["markovMcAlpha"])
+            markovMcBase.setRecencyWeight(bestParams_json_object["markovMcRecencyWeight"])
+            markovMcBase.setRecencyMode(bestParams_json_object["markovMcRecencyMode"])
+            markovMcBase.setPairDecayFactor(bestParams_json_object["markovMcPairDecayFactor"])
+            markovMcBase.setSmoothingFactor(bestParams_json_object["markovMcSmoothingFactor"])
+            markovMcBase.setMarkovOrder(bestParams_json_object["markovMcOrder"])
+            markovMcBase.setSortedPrediction(sortedPrediction)
+            markovMonteCarlo.setNumOfSimulations(bestParams_json_object["markovMcNumSimulations"])
+
+            markovMcPrediction = {
+                "name": "MarkovMonteCarlo Model",
+                "predictions": []
+            }
+
+            markovMcSequence, markovMcSubsets = helpers.run_model_with_special_column(markovMonteCarlo, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+            markovMcPrediction["predictions"].append(markovMcSequence)
+            for key in markovMcSubsets:
+                markovMcPrediction["predictions"].append(markovMcSubsets[key])
+
+            listOfDecodedPredictions.append(markovMcPrediction)
+        except Exception as e:
+            print("Failed to perform Markov Monte Carlo: ", e)
 
     if not "pick3" in name and bestParams_json_object["useMarkovBayesian"]:
         try:
