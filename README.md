@@ -3,18 +3,46 @@
 
 ## The main idea
 
-This project compares several probabilistic simulation methods for lottery-style number prediction.
+This project compares several probabilistic/statistical models, plus deep learning (LSTM/TCN) and gradient boosting (XGBoost), for lottery-style number prediction across multiple games (Euromillions, Lotto, EuroDreams, Keno, Pick3, VikingLotto).
 
-Each method generates predictions based on a different statistical interpretation of historical draw data:
+### Statistical models (`src/`)
 
-- MarkovMonteCarlo estimates which numbers are repeatedly generated from recent transition patterns and column-specific frequencies.
-- PoissonMonteCarlo estimates which numbers repeatedly occur under historical position-based count rates.
-- LaplaceMonteCarlo estimates which values repeatedly appear when each sorted position is modeled by its historical center and spread.
-- Baseline models provide random, global-frequency, and column-frequency comparisons.
+Each model generates predictions based on a different statistical interpretation of historical draw data:
 
-The Backtester evaluates each method using rolling historical validation. For every historical draw, each model is trained only on previous draws and then compared against the next real result.
+- **Markov** builds a (configurable order) transition chain over historical draws, with recency weighting, pair-decay, smoothing, and softmax-based subset selection.
+- **MarkovMonteCarlo** wraps a `Markov` instance and repeatedly samples/votes over many simulated tickets (instead of a single deterministic sample) to pick the numbers that win the most votes.
+- **MarkovBayesian** / **MarkovBayesianEnhanced** apply Bayesian smoothing (alpha, softmax temperature, min-occurrence thresholds) on top of the Markov transition counts.
+- **PoissonMonteCarlo** estimates which numbers repeatedly occur under historical position-based count rates, sampled via Monte Carlo simulation.
+- **PoissonMarkov** blends Poisson and Markov probabilities using a tunable weight.
+- **LaplaceMonteCarlo** estimates which values repeatedly appear when each sorted position is modeled by its historical center and spread.
+- **HybridStatisticalModel** combines several of the above signals (softmax temperature, alpha, min occurrences, simulation count) into one blended model.
 
-The goal is not to prove deterministic prediction, but to measure whether any method produces more 2+, 3+, or 4+ hits than simple baselines over many historical draws.
+Every model shares the same interface (`setDataPath`, `run(...)`/`run_model_with_special_column`) so the Backtester and Predictor can drive them interchangeably. Euromillions' star numbers, EuroDreams' dream number, and VikingLotto's super viking number are modeled independently from the main numbers (see `Helpers.run_model_with_special_column`); Pick3 is positional, so predictions are kept in drawn order instead of sorted.
+
+### Deep learning & boosting
+
+- **LSTM/TCN** (`src/LSTM.py`, `src/TCN.py`) train a sequence model on the encoded draw history and predict the next draw directly.
+- **XGBoost** (`src/XGBoost.py`) is an optional boosting pass over the statistical/DL predictions, enabled per game via the `useBoost` flag.
+
+### How predictions are combined
+
+`Predictor.py` runs every statistical model that is enabled in `bestParams_<game>.json` (in practice, hyperopt tunes each model's parameters individually but does not disable any of them — all enabled models run every time) and stores each model's raw output. The predictions are then combined into a single ranked frequency table by `Helpers.count_number_frequencies_from_new_prediction`, which does an **unweighted vote count**: every number suggested by any model/subset gets +1, normalized at the end. There is currently no weighting by a model's individual backtest performance.
+
+### Hyperopt & backtesting
+
+`HyperoptStatistics.py` uses Optuna to tune each statistical model's parameters per game, driven by `src/Backtester.py`, which evaluates each model using rolling historical validation: for every historical draw, the model is trained only on previous draws and compared against the next real result. Each model's best parameters and best backtest score are written to `bestParams_<game>.json` (used by `Predictor.py` at prediction time) and printed as a `profits` summary per model/game — that score is currently for reference only and does not feed back into model selection or weighting.
+
+The goal is not to prove deterministic prediction, but to measure whether any method (or combination) produces more 2+, 3+, or 4+ hits than simple baselines over many historical draws.
+
+## Ideas worth researching further
+
+These are unimplemented directions worth exploring while pushing the statistical models further:
+
+- **Ensemble / meta-learning layer** — replace the current unweighted vote count with a learned blend (e.g. logistic regression or gradient-boosted meta-model over each model's per-number probabilities), or at minimum weight votes by each model's own backtest score already computed by `HyperoptStatistics.py`/`Backtester.py`.
+- **Hidden Markov Model with regime states** — model "hot/cold" number streaks as latent states (Baum-Welch/EM) instead of the current exponential recency-weight heuristics.
+- **Dirichlet-multinomial priors** — replace the ad hoc `smoothingFactor`/`alpha` knobs in the Markov/Bayesian models with proper conjugate Bayesian updating, giving principled uncertainty estimates.
+- **Negative-binomial / Poisson-Gamma mixture** — `PoissonMonteCarlo` currently assumes plain Poisson counts; lottery draw counts are typically overdispersed, so a Gamma-Poisson mixture may fit better than tuning `weightFactor` alone.
+- **Copula-based co-occurrence modeling** — model the joint dependency structure between numbers directly (Gaussian/empirical copula) instead of the current pairwise decay-factor approximation.
 
 
 ## Installation
