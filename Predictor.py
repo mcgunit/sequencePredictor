@@ -248,6 +248,7 @@ def process_single_history_entry_second_step(args):
     try:
         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
             current_json_object, model_scores=bestParams_json_object.get("modelScores"))
+        addWeightedEnsemblePrediction(current_json_object, name)
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
 
@@ -416,6 +417,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     try:
                         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
                             current_json_object, model_scores=bestParams_json_object.get("modelScores"))
+                        addWeightedEnsemblePrediction(current_json_object, name)
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
 
@@ -494,6 +496,27 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
             print("Prediction already made")
     else:
         print("Did not found entries")
+
+
+def addWeightedEnsemblePrediction(current_json_object, name):
+    """
+    Appends the score-weighted numberFrequency vote as its own ticket/row in
+    newPrediction (so it shows up in the Model table next to every individual
+    model's own prediction), instead of only existing as a separate chart.
+    Skipped for Pick3, since it's positional and a frequency vote across
+    models has no notion of position.
+    """
+    if "pick3" in name:
+        return
+
+    predictions = current_json_object.get("newPrediction", [])
+    ticket_size = next((len(model["predictions"][0]) for model in predictions if model.get("predictions")), 0)
+
+    ensemblePrediction = helpers.build_weighted_ensemble_prediction(
+        current_json_object.get("numberFrequency", {}), ticket_size)
+
+    if ensemblePrediction:
+        predictions.append(ensemblePrediction)
 
 
 def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels):

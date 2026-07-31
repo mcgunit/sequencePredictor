@@ -918,7 +918,50 @@ class Helpers():
         }
 
         return normalized_frequencies
-    
+
+
+    def build_weighted_ensemble_prediction(self, number_frequencies, ticket_size, sorted_prediction=True, name="WeightedEnsemble Model"):
+        """
+        Turns the (optionally score-weighted) numberFrequency vote into an
+        actual ticket - the ticket_size numbers with the highest combined
+        vote - so it can be shown as its own row in the Model table
+        (newPrediction), next to every individual model's own prediction,
+        instead of only existing as a separate chart.
+
+        Note: this only makes sense for non-positional games. Pick3 predicts
+        digits in drawn order, and a frequency vote across models has no
+        notion of position, so callers should skip this for Pick3.
+
+        Parameters
+        ----------
+        number_frequencies : dict
+            Output of count_number_frequencies_from_new_prediction.
+        ticket_size : int
+            How many numbers the ticket should contain (e.g. the draw size).
+        sorted_prediction : bool
+            Whether to sort the resulting ticket ascending (matches how the
+            other non-positional models format their predictions).
+
+        Returns
+        -------
+        dict or None
+            {"name": name, "predictions": [[...]]}, or None if there isn't
+            enough data to build a ticket_size-length ticket.
+        """
+        if not number_frequencies or ticket_size <= 0:
+            return None
+
+        top_numbers = sorted(number_frequencies, key=number_frequencies.get, reverse=True)[:ticket_size]
+
+        if len(top_numbers) < ticket_size:
+            return None
+
+        top_numbers = [int(n) for n in top_numbers]
+        if sorted_prediction:
+            top_numbers = sorted(top_numbers)
+
+        return {"name": name, "predictions": [top_numbers]}
+
 
     def calculate_profit(self, name, path):
         """
