@@ -74,7 +74,33 @@ class MarkovMonteCarlo:
             )
 
         return predicted_numbers, subsets
-    
+
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-number score for stacking (Phase 1): same voting call run() makes,
+        returning the full {number: votes} dict instead of the winning ticket.
+        """
+        numbers, _, _ = self.model.load_numbers(
+            skipRows=skipRows,
+            skipLastColumns=skipLastColumns,
+            specialColumnCount=specialColumnCount
+        )
+
+        if len(numbers) == 0:
+            return {}
+
+        self.model.build_markov_chain(numbers)
+        history = numbers[-self.model.markov_order:]
+
+        _, votes = self.generate_voted_ticket(
+            history,
+            n_tickets=self.num_simulations,
+            ticket_size=len(numbers[-1]),
+            temperature=self.model.softMaxTemperature
+        )
+
+        return votes
+
 if __name__ == "__main__":
     from Markov import Markov
 

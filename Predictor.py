@@ -1,6 +1,7 @@
 import os, argparse, json, sys, time
 import numpy as np
 import subprocess
+import joblib
 
 from art import text2art
 from datetime import datetime
@@ -38,6 +39,11 @@ helpers = Helpers()
 dataFetcher = DataFetcher()
 
 LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
+# Caches loaded meta_learner.joblib artifacts (see TrainMetaLearner.py) by
+# path, so a rebuild loop over many history days doesn't reload the same
+# artifact from disk on every single day.
+metaLearnerCache = {}
 
 
 def print_intro():
@@ -289,7 +295,11 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
         if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
             with open(hyperoptParamsJsonFile, 'r') as openfile:
-                bestParams_json_object = json.load(openfile)
+                # Merge over the in-code defaults rather than replacing them
+                # outright - an existing bestParams_<game>.json predating a
+                # newer default key (e.g. useMarkovMonteCarlo) would otherwise
+                # crash every lookup of that key with a KeyError.
+                bestParams_json_object.update(json.load(openfile))
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
@@ -626,7 +636,11 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
         if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
             with open(hyperoptParamsJsonFile, 'r') as openfile:
-                bestParams_json_object = json.load(openfile)
+                # Merge over the in-code defaults rather than replacing them
+                # outright - an existing bestParams_<game>.json predating a
+                # newer default key (e.g. useMarkovMonteCarlo) would otherwise
+                # crash every lookup of that key with a KeyError.
+                bestParams_json_object.update(json.load(openfile))
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
@@ -878,6 +892,113 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Hybrid Statistical Model: ", e)
 
+    # Phase 1 stacking meta-learner (see TrainMetaLearner.py): blends each
+    # base model's own per-number score into one learned P(drawn), instead of
+    # the flat/weighted vote WeightedEnsemble Model uses. Skipped gracefully
+    # if this game hasn't been trained yet (no meta_learner.joblib), and
+    # always skipped for Pick3 for the same reason WeightedEnsemble Model is
+    # (positional game, a per-number score ranking has no notion of digit
+    # order).
+    if not "pick3" in name:
+        try:
+            metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
+            if os.path.exists(metaLearnerPath):
+                metaLearnerArtifact = metaLearnerCache.get(metaLearnerPath)
+                if metaLearnerArtifact is None:
+                    metaLearnerArtifact = joblib.load(metaLearnerPath)
+                    metaLearnerCache[metaLearnerPath] = metaLearnerArtifact
+
+                # Re-apply this game's tuned params to every base model
+                # feeding the meta-learner, independent of whether that
+                # model's own useX flag happens to be enabled above - these
+                # are module-level singletons reused across games/history
+                # days, so without this they could still hold a previous
+                # game's config.
+                markov.setDataPath(dataPath)
+                markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"])
+                markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"])
+                markov.setAlpha(bestParams_json_object["markovAlpha"])
+                markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
+                markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
+                markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
+                markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
+                markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
+                markov.setBlendMode(bestParams_json_object["markovBlendMode"])
+                markov.setMarkovOrder(bestParams_json_object["markovOrder"])
+                markov.setSortedPrediction(bestParams_json_object["markovSortedPrediction"])
+                markov.setUsePairScoring(bestParams_json_object["markovUsePairScoring"])
+                markov.setPairScoringWeight(bestParams_json_object["markovPairScoringWeight"])
+
+                markovMcBase.setDataPath(dataPath)
+                markovMcBase.setSoftMAxTemperature(bestParams_json_object["markovMcSoftMaxTemperature"])
+                markovMcBase.setMinOccurrences(bestParams_json_object["markovMcMinOccurences"])
+                markovMcBase.setAlpha(bestParams_json_object["markovMcAlpha"])
+                markovMcBase.setRecencyWeight(bestParams_json_object["markovMcRecencyWeight"])
+                markovMcBase.setRecencyMode(bestParams_json_object["markovMcRecencyMode"])
+                markovMcBase.setPairDecayFactor(bestParams_json_object["markovMcPairDecayFactor"])
+                markovMcBase.setSmoothingFactor(bestParams_json_object["markovMcSmoothingFactor"])
+                markovMcBase.setMarkovOrder(bestParams_json_object["markovMcOrder"])
+                markovMcBase.setSortedPrediction(sortedPrediction)
+                markovMonteCarlo.setNumOfSimulations(bestParams_json_object["markovMcNumSimulations"])
+
+                markovBayesian.setDataPath(dataPath)
+                markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
+                markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"])
+                markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
+                markovBayesian.setSortedPrediction(sortedPrediction)
+
+                markovBayesianEnhanced.setDataPath(dataPath)
+                markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
+                markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
+                markovBayesianEnhanced.setMinOccurrences(bestParams_json_object["markovBayesianEnhancedMinOccurences"])
+                markovBayesianEnhanced.setSortedPrediction(sortedPrediction)
+
+                poissonMonteCarlo.setDataPath(dataPath)
+                poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
+                poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
+                poissonMonteCarlo.setSortedPrediction(sortedPrediction)
+
+                poissonMarkov.setDataPath(dataPath)
+                poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1 - bestParams_json_object["poissonMarkovWeight"]))
+                poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
+                poissonMarkov.setSortedPrediction(sortedPrediction)
+
+                laplaceMonteCarlo.setDataPath(dataPath)
+                laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
+                laplaceMonteCarlo.setSortedPrediction(sortedPrediction)
+
+                modelInstances = {
+                    "Markov Model": markov,
+                    "MarkovMonteCarlo Model": markovMonteCarlo,
+                    "MarkovBayesian Model": markovBayesian,
+                    "MarkovBayesianEnhanched Model": markovBayesianEnhanced,
+                    "PoissonMonteCarlo Model": poissonMonteCarlo,
+                    "PoissonMarkov Model": poissonMarkov,
+                    "LaplaceMonteCarlo Model": laplaceMonteCarlo,
+                }
+
+                featureNames = metaLearnerArtifact["feature_names"]
+                perModelScores = {
+                    featureName: modelInstances[featureName].score_numbers(
+                        skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+                    for featureName in featureNames if featureName in modelInstances
+                }
+
+                minNumber = metaLearnerArtifact["min_number"]
+                maxNumber = metaLearnerArtifact["max_number"]
+                numberRange = list(range(minNumber, maxNumber + 1))
+                featureMatrix = [
+                    [perModelScores.get(featureName, {}).get(number, 0.0) for featureName in featureNames]
+                    for number in numberRange
+                ]
+
+                probabilities = metaLearnerArtifact["model"].predict_proba(featureMatrix)[:, 1]
+                rankedNumbers = [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
+                metaTicket = sorted(rankedNumbers[:metaLearnerArtifact["draw_size"]])
+
+                listOfDecodedPredictions.append({"name": "MetaLearner Model", "predictions": [metaTicket]})
+        except Exception as e:
+            print("Failed to perform Meta-Learner prediction: ", e)
 
     return listOfDecodedPredictions
 
@@ -904,7 +1025,7 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0):
             hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
             if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
                 with open(hyperoptParamsJsonFile, 'r') as openfile:
-                    bestParams_json_object = json.load(openfile)
+                    bestParams_json_object.update(json.load(openfile))
         except Exception as e:
             print("Failed to parse parameter file in boost method: ", e)
 

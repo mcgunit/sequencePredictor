@@ -1,6 +1,6 @@
 import os, sys, random
 import numpy as np
-from collections import Counter
+from collections import Counter, defaultdict
 from PoissonMonteCarlo import PoissonMonteCarlo
 from Markov import Markov
 
@@ -111,6 +111,26 @@ class PoissonMarkov:
                 subsets[subset_size] = self.generate_best_subset(hybrid_predictions, subset_size)
 
         return hybrid_predictions, subsets
+
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-number score for stacking (Phase 1): weighted blend of each
+        sub-model's own per-number score (reusing PoissonMonteCarlo.score_numbers
+        and Markov.score_numbers), analogous to how run() weight-blends their
+        final tickets via blend_predictions.
+        """
+        poisson_scores = self.poisson_model.score_numbers(
+            skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+        markov_scores = self.markov_model.score_numbers(
+            skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        combined = defaultdict(float)
+        for num, score in poisson_scores.items():
+            combined[int(num)] += self.poisson_weight * score
+        for num, score in markov_scores.items():
+            combined[int(num)] += self.markov_weight * score
+
+        return dict(combined)
 
 if __name__ == "__main__":
     print("Running Hybrid Poisson-Markov Model")

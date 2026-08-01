@@ -161,6 +161,35 @@ class PoissonMonteCarlo():
 
         return predicted_numbers, subsets
 
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-number score for stacking (Phase 1): same Poisson Monte Carlo
+        simulation build_poisson_model/monte_carlo_simulation already run,
+        but merging the simulated counts across every position into one
+        {number: score} dict instead of picking one winning number per
+        position and discarding the rest.
+        """
+        self.clear()
+
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(
+            self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+        numbers = [[int(num) for num in draw] for draw in numbers]
+
+        if len(numbers) == 0:
+            return {}
+
+        numbers_to_use = numbers[-self.recent_draws:]
+        self.build_poisson_model(numbers_to_use)
+
+        merged_counts = defaultdict(int)
+        for pos_lambda in self.poisson_lambda.values():
+            for num, lam in pos_lambda.items():
+                for _ in range(self.num_simulations):
+                    if poisson.rvs(lam) > 0:
+                        merged_counts[int(num)] += 1
+
+        return dict(merged_counts)
+
 if __name__ == "__main__":
     print("Running Poisson Monte Carlo Simulation")
     

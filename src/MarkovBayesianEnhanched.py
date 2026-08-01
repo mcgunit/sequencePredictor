@@ -98,6 +98,38 @@ class MarkovBayesianEnhanced(MarkovBayesian):
 
         return predicted_numbers, subsets
 
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-number score for stacking (Phase 1): same weighted Markov-rank +
+        Bayesian-rank blend ensemble_prediction uses, returning the full
+        {number: score} dict instead of collapsing it to a ranked ticket (and
+        skipping the tie-break jitter, which would make scores non-
+        deterministic across calls otherwise).
+        """
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(
+            self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        if len(numbers) == 0:
+            return {}
+
+        self.clear()
+        self.build_markov_chain(numbers)
+
+        last_draw = numbers[-1]
+        self.update_bayesian_model(last_draw)
+
+        n_predictions = len(last_draw)
+        markov_preds = self.predict_next_numbers(last_draw, n_predictions=n_predictions)
+        bayes_preds = self.bayesian_prediction(n_predictions=n_predictions)
+
+        scores = defaultdict(float)
+        for i, num in enumerate(markov_preds):
+            scores[int(num)] += (n_predictions - i) * 1.5
+        for i, num in enumerate(bayes_preds):
+            scores[int(num)] += (n_predictions - i) * 1.0
+
+        return dict(scores)
+
 
 if __name__ == "__main__":
     print("Trying Markov-Bayesian Enhanced Model")

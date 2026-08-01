@@ -34,6 +34,7 @@ def _backtest_single_day(i):
     include_baselines = ctx["include_baselines"]
     game = ctx["game"]
     special_column_count = ctx["special_column_count"]
+    collect_scores = ctx.get("collect_scores", False)
 
     total_rows = len(numbers)
 
@@ -114,6 +115,21 @@ def _backtest_single_day(i):
                         subset,
                         actual
                     )
+
+            # Phase 1 stacking meta-learner training data only - not used by
+            # normal hyperopt/backtest runs (collect_scores defaults False).
+            # Note: unlike run_model_with_special_column, this does not split
+            # main/special columns into separate calls, so for special-column
+            # games (euromillions/eurodreams/vikinglotto) the score dict mixes
+            # both ranges together - an approximation acceptable for a first
+            # meta-learner pass, not full special-column-aware scoring.
+            if collect_scores and hasattr(model, "score_numbers"):
+                scores = model.score_numbers(
+                    skipRows=rows_to_skip,
+                    skipLastColumns=skipLastColumns,
+                    specialColumnCount=special_column_count
+                )
+                row[f"{model_name}_scores"] = {int(n): float(s) for n, s in scores.items()}
 
         except Exception as e:
             row[f"{model_name}_error"] = str(e)
@@ -248,7 +264,8 @@ class Backtester:
         verbose=True,
         save_results_path=None,
         game=None,
-        special_column_count=0
+        special_column_count=0,
+        collect_scores=False
     ):
         """
         game: "keno" or "pick3" enables profit calculation (in euro) alongside hit
@@ -278,6 +295,13 @@ class Backtester:
         ground-truth comparison; each model's own run() is then internally
         split into a main-numbers call (skipLastColumns=special_column_count)
         and a specialColumnCount call, combined without merging/re-sorting them.
+
+        collect_scores: when True, also calls each model's score_numbers(...)
+        (Phase 1 stacking meta-learner) and stores the resulting {number:
+        score} dict as row[f"{model_name}_scores"] - used only by
+        TrainMetaLearner.py to build its training table. Off by default so
+        normal hyperopt/backtest runs (which never read this) pay no extra
+        cost.
         """
         if generate_subsets is None:
             generate_subsets = []
@@ -318,6 +342,7 @@ class Backtester:
             "include_baselines": include_baselines,
             "game": game,
             "special_column_count": special_column_count,
+            "collect_scores": collect_scores,
         }
 
         num_workers = max(1, min(cpu_count()-1, total_iterations))

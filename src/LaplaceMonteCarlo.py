@@ -142,6 +142,34 @@ class LaplaceMonteCarlo():
         
         return predicted_numbers, subsets
 
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-number score for stacking (Phase 1): same Laplace Monte Carlo
+        simulation build_laplace_model/monte_carlo_simulation already run,
+        but merging the simulated counts across every position into one
+        {number: score} dict instead of picking the top-3-per-position winner
+        and discarding the rest.
+        """
+        self.clear()
+
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(
+            self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        if len(numbers) == 0:
+            return {}
+
+        self.setRecentDraws(min(self.recent_draws, len(numbers)))
+        self.build_laplace_model(numbers)
+
+        merged_counts = defaultdict(int)
+        for pos, (loc, scale) in self.laplace_params.items():
+            for _ in range(self.num_simulations):
+                sampled_value = int(laplace.rvs(loc=loc, scale=scale))
+                sampled_value = max(self.min_number, min(self.max_number, sampled_value))
+                merged_counts[sampled_value] += 1
+
+        return dict(merged_counts)
+
 if __name__ == "__main__":
     print("Running Laplace Monte Carlo Simulation")
     

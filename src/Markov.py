@@ -459,6 +459,33 @@ class Markov():
 
         return predicted_numbers, subsets
 
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0, n_tickets=2000):
+        """
+        Per-number score for stacking (Phase 1): builds the same Monte Carlo
+        voted-ticket distribution run() draws its single ticket from, but
+        returns the full {number: votes} dict instead of collapsing it to one
+        ticket - reuses generate_voted_ticket, no new prediction logic.
+        """
+        numbers, _, _ = self.load_numbers(
+            skipRows=skipRows,
+            skipLastColumns=skipLastColumns,
+            specialColumnCount=specialColumnCount
+        )
+
+        if len(numbers) == 0:
+            return {}
+
+        self.build_markov_chain(numbers)
+        history_context = numbers[-self.markov_order:]
+
+        _, votes = self.generate_voted_ticket(
+            history_context,
+            n_tickets=n_tickets,
+            temperature=self.softMaxTemperature
+        )
+
+        return votes
+
 if __name__ == "__main__":
     print("Trying Markov")
 

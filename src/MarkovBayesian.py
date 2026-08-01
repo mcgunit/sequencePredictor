@@ -221,6 +221,39 @@ class MarkovBayesian():
 
         return combined_predictions[:n_predictions], subsets
 
+    def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-number score for stacking (Phase 1): combines the same two
+        signals run() blends into its ticket - the Markov transition/
+        frequency blended probability and the Bayesian prior probability -
+        into one {number: score} dict instead of collapsing to a ticket.
+        """
+        _, _, _, _, _, numbers, _, _ = helpers.load_data(
+            self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        if len(numbers) == 0:
+            return {}
+
+        self.clear()
+        self.build_markov_chain(numbers)
+
+        last_draw = numbers[-1]
+        self.update_bayesian_model(last_draw)
+
+        last_num = last_draw[-1] if len(last_draw) > 0 else None
+        blended = self.blended_probability(self.transition_matrix.get(last_num, {}), self.number_frequencies)
+
+        total_draws = sum(self.bayesian_priors.values()) or 1
+        bayesian_probs = {num: count / total_draws for num, count in self.bayesian_priors.items()}
+
+        scores = defaultdict(float)
+        for num, score in blended.items():
+            scores[int(num)] += score
+        for num, score in bayesian_probs.items():
+            scores[int(num)] += score
+
+        return dict(scores)
+
 
 if __name__ == "__main__":
     print("Trying Markov with Fine-Tuning and Bayesian Model")
