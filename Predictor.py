@@ -473,9 +473,17 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                 historyData = historyData[dateOffset:]  # Keep elements after dateOffset because newer elements comes after the dateOffset index                
                 #print("History to rebuild: ", historyData)
 
+                # Only historyIndex 0 has a legitimate pre-existing "previous"
+                # file (the one found above, right before the rebuild range).
+                # Every other entry's true previous file is produced by a
+                # sibling worker in this same parallel batch - reading it here
+                # would race against that worker's own concurrent write to
+                # the exact same path (and is logically wrong regardless,
+                # since it'd compare every day against one fixed file instead
+                # of the correct rolling previous day).
                 argsList = [
                     (historyIndex, historyEntry, historyData, name, dataPath,
-                    previousJsonFilePath, path, skipLastColumns)
+                    previousJsonFilePath if historyIndex == 0 else "", path, skipLastColumns)
                     for historyIndex, historyEntry in enumerate(historyData)
                 ]
 
@@ -496,8 +504,14 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         for historyIndex, historyEntry in enumerate(historyData)
                     ]
 
-                    with Pool(processes=1) as pool:
-                        results = pool.map(process_single_history_entry_second_step, argsList)
+                    # Deliberately not a Pool: this step trains/uses the GPU
+                    # (TCN/LSTM) and only ever ran with a single worker anyway
+                    # (no parallelism gained), but forking a worker after the
+                    # parent has touched CUDA leaves the child with a broken,
+                    # non-reinitializable CUDA context - every GPU op in the
+                    # fork then fails with CUDA_ERROR_NOT_INITIALIZED. Running
+                    # directly in the parent avoids the fork entirely.
+                    results = [process_single_history_entry_second_step(args) for args in argsList]
 
                     print("Finished second step: single process rebuild of history entries and ai or boosting method.")
 

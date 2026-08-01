@@ -82,6 +82,14 @@ class DataFetcher():
                     if bonus_list:
                         bonus = [int(n) for n in bonus_list]
 
+            # Skip draws with no published numbers yet (e.g. today's draw is
+            # scheduled but hasn't happened/been published) - writing a
+            # date-only row (no numbers) corrupts the CSV's column count for
+            # every downstream numpy.genfromtxt load.
+            if not primary:
+                print(f"Skipping {draw_date}: no numbers published yet")
+                continue
+
             # Compose the line
             numbers_string = ";".join(map(str, primary))
             if bonus:
