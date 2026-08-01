@@ -885,21 +885,7 @@ class Helpers():
             A dictionary where keys are numbers and values are their normalized weighted frequencies.
         """
         model_scores = model_scores or {}
-
-        # Min-max scale scores to a [1, 2] weight range so every model still
-        # contributes at least the old neutral weight of 1 - a poorly scoring
-        # model isn't zeroed out, just outweighted by better ones. Unscored
-        # models (not in model_scores) get the same neutral weight of 1.
-        scored_values = list(model_scores.values())
-        score_min = min(scored_values) if scored_values else 0
-        score_max = max(scored_values) if scored_values else 0
-        score_range = score_max - score_min
-
-        def weight_for(model_name):
-            score = model_scores.get(model_name)
-            if score is None or score_range == 0:
-                return 1.0
-            return 1.0 + (score - score_min) / score_range
+        weight_for = self._build_model_weight_lookup(model_scores)
 
         number_frequencies = {}
 
@@ -918,6 +904,75 @@ class Helpers():
         }
 
         return normalized_frequencies
+
+
+    def _build_model_weight_lookup(self, model_scores):
+        """
+        Shared by count_number_frequencies_from_new_prediction and
+        count_number_frequencies_by_position: min-max scales scores to a
+        [1, 2] weight range so every model still contributes at least the old
+        neutral weight of 1 - a poorly scoring model isn't zeroed out, just
+        outweighted by better ones. Unscored models (not in model_scores) get
+        the same neutral weight of 1.
+        """
+        scored_values = list(model_scores.values())
+        score_min = min(scored_values) if scored_values else 0
+        score_max = max(scored_values) if scored_values else 0
+        score_range = score_max - score_min
+
+        def weight_for(model_name):
+            score = model_scores.get(model_name)
+            if score is None or score_range == 0:
+                return 1.0
+            return 1.0 + (score - score_min) / score_range
+
+        return weight_for
+
+
+    def count_number_frequencies_by_position(self, json_data, main_count, model_scores=None):
+        """
+        Like count_number_frequencies_from_new_prediction, but splits each
+        model's main prediction row (predictions[0]) into its first
+        main_count numbers vs whatever comes after (a game's special
+        column(s) - Euromillions star numbers, EuroDreams dream number,
+        VikingLotto super viking - see Predictor.py's SPECIAL_COLUMN_COUNTS),
+        counting weighted votes separately for each range. Without this, a
+        combined ensemble ticket built from one flat vote lets main-range
+        numbers crowd out the special slot(s), producing an out-of-range
+        special number - unlike every individual model, which already keeps
+        the two separate via Helpers.run_model_with_special_column.
+
+        Subset rows (predictions[1:], only ever populated for Keno, which has
+        no special columns) are ignored here - only the main ticket carries
+        positional meaning.
+
+        Returns
+        -------
+        (main_frequencies, special_frequencies) : tuple of dict
+            special_frequencies is empty if main_count covers the whole row
+            (no special columns for this game).
+        """
+        model_scores = model_scores or {}
+        weight_for = self._build_model_weight_lookup(model_scores)
+
+        main_frequencies = {}
+        special_frequencies = {}
+
+        for model in json_data.get("newPrediction", []):
+            predictions = model.get("predictions", [])
+            if not predictions:
+                continue
+
+            weight = weight_for(model.get("name"))
+            main_row = predictions[0][:main_count]
+            special_row = predictions[0][main_count:]
+
+            for number in main_row:
+                main_frequencies[number] = main_frequencies.get(number, 0) + weight
+            for number in special_row:
+                special_frequencies[number] = special_frequencies.get(number, 0) + weight
+
+        return main_frequencies, special_frequencies
 
 
     def build_weighted_ensemble_prediction(self, number_frequencies, ticket_size, sorted_prediction=True, name="WeightedEnsemble Model"):

@@ -26,19 +26,32 @@ Every model shares the same interface (`setDataPath`, `run(...)`/`run_model_with
 
 ### How predictions are combined
 
-`Predictor.py` runs every statistical model that is enabled in `bestParams_<game>.json` (in practice, hyperopt tunes each model's parameters individually but does not disable any of them — all enabled models run every time) and stores each model's raw output. The predictions are then combined into a single ranked frequency table by `Helpers.count_number_frequencies_from_new_prediction`, which does an **unweighted vote count**: every number suggested by any model/subset gets +1, normalized at the end. There is currently no weighting by a model's individual backtest performance.
+`Predictor.py` runs every statistical model that is enabled in `bestParams_<game>.json` (in practice, hyperopt tunes each model's parameters individually but does not disable any of them — all enabled models run every time) and stores each model's raw output as its own row, so each model's real-life performance can be tracked independently over time. Two additional, purely additive rows are then appended alongside them:
+
+- **`WeightedEnsemble Model`** (Phase 0) — `Helpers.count_number_frequencies_from_new_prediction` counts every number suggested by any model/subset, weighted by that model's own Hyperopt/Backtester score (`bestParams_<game>.json["modelScores"]`, min-max scaled to a `[1, 2]` range so a poorly-scoring model is outweighted, never zeroed out; unscored models default to a neutral weight of 1). `addWeightedEnsemblePrediction` (`Predictor.py`) then turns that weighted vote into an actual ticket. For games with special columns (Euromillions star numbers, EuroDreams dream number, VikingLotto super viking), the main numbers and special column(s) are voted on and picked **separately** via `Helpers.count_number_frequencies_by_position`, then concatenated — the same positional split every individual model already keeps via `Helpers.run_model_with_special_column` — so the special slot(s) can't get crowded out by more numerous main-range numbers. The same weighted frequency also drives the `numberFrequency` chart shown in the web UI (home page and per-day history detail page), and is skipped entirely for Pick3 (positional, no notion of a frequency-ranked ticket).
+- **`MetaLearner Model`** (Phase 1) — a real stacking meta-learner: instead of a hand-weighted vote, a small `LogisticRegression` (see `TrainMetaLearner.py` below) is trained to predict `P(number is drawn)` from each base model's own per-number score (`score_numbers()`, added to `Markov`, `MarkovMonteCarlo`, `MarkovBayesian`, `MarkovBayesianEnhanced`, `PoissonMonteCarlo`, `PoissonMarkov`, `LaplaceMonteCarlo` — `HybridStatisticalModel` is deliberately excluded since it's itself a vote-based ensemble of several of these, which would be circular). `Predictor.py` loads `data/models/<game>/meta_learner.joblib` if present, re-scores each base model, and ranks numbers by the trained model's predicted probability. If that file doesn't exist yet (no `TrainMetaLearner.py` run for that game), this row is skipped gracefully — no crash, no effect on anything else. Also skipped for Pick3.
 
 ### Hyperopt & backtesting
 
-`HyperoptStatistics.py` uses Optuna to tune each statistical model's parameters per game, driven by `src/Backtester.py`, which evaluates each model using rolling historical validation: for every historical draw, the model is trained only on previous draws and compared against the next real result. Each model's best parameters and best backtest score are written to `bestParams_<game>.json` (used by `Predictor.py` at prediction time) and printed as a `profits` summary per model/game — that score is currently for reference only and does not feed back into model selection or weighting.
+`HyperoptStatistics.py` uses Optuna to tune each statistical model's parameters per game, driven by `src/Backtester.py`, which evaluates each model using rolling historical validation: for every historical draw, the model is trained only on previous draws and compared against the next real result. Each model's best parameters and best backtest score are written to `bestParams_<game>.json` (used by `Predictor.py` at prediction time), including a `modelScores` entry per model (its best backtest score, keyed by the same display name `Predictor.py` uses) that now feeds `WeightedEnsemble Model`'s weighting above. `Backtester.backtest()` also has an opt-in `collect_scores` param (off by default, so normal hyperopt runs are unaffected) that captures each model's `score_numbers()` output per backtested day — used only by `TrainMetaLearner.py`.
 
 The goal is not to prove deterministic prediction, but to measure whether any method (or combination) produces more 2+, 3+, or 4+ hits than simple baselines over many historical draws.
 
+### Training the meta-learner (`TrainMetaLearner.py`)
+
+Trains the Phase 1 `MetaLearner Model` per game:
+
+```
+python3 TrainMetaLearner.py --games lotto,keno --days 300
+```
+
+For each game, it instantiates the 7 base models using that game's already-tuned `bestParams_<game>.json`, backtests them with `collect_scores=True` over the last `--days` draws, builds a (day, number) → [each model's score, actual-drawn label] training table across the game's full number range, and trains a `LogisticRegression(class_weight="balanced")` — evaluated on a walk-forward holdout split (last 20% of days) for an honest accuracy/AUC sanity check, then refit on the full window before saving to `data/models/<game>/meta_learner.joblib` (same persistence convention as `XGBoost.py`). Skips Pick3 (positional, a per-number score ranking has no notion of digit order). `runHyperopt.sh` runs this automatically right after `HyperoptStatistics.py`, so the meta-learner is retrained on every fresh hyperopt pass.
+
 ## Ideas worth researching further
 
-These are unimplemented directions worth exploring while pushing the statistical models further:
+Unimplemented directions worth exploring while pushing the statistical models further:
 
-- **Ensemble / meta-learning layer** — replace the current unweighted vote count with a learned blend (e.g. logistic regression or gradient-boosted meta-model over each model's per-number probabilities), or at minimum weight votes by each model's own backtest score already computed by `HyperoptStatistics.py`/`Backtester.py`.
+- **Perspective/lens diversity in the meta-learner** — right now `MetaLearner Model` is a single logistic regression; a small panel of differently-regularized or differently-featured meta-models (voted or stacked again) could reduce variance further.
 - **Hidden Markov Model with regime states** — model "hot/cold" number streaks as latent states (Baum-Welch/EM) instead of the current exponential recency-weight heuristics.
 - **Dirichlet-multinomial priors** — replace the ad hoc `smoothingFactor`/`alpha` knobs in the Markov/Bayesian models with proper conjugate Bayesian updating, giving principled uncertainty estimates.
 - **Negative-binomial / Poisson-Gamma mixture** — `PoissonMonteCarlo` currently assumes plain Poisson counts; lottery draw counts are typically overdispersed, so a Gamma-Poisson mixture may fit better than tuning `weightFactor` alone.

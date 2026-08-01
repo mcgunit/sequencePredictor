@@ -40,6 +40,14 @@ dataFetcher = DataFetcher()
 
 LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 
+# Euromillions (2 star columns), EuroDreams (1 dream number), and
+# VikingLotto (1 super viking) are drawn from their own, smaller range -
+# model them independently from the main numbers (see
+# Helpers.run_model_with_special_column) instead of mixing them into the
+# same pool/sort. Lotto's bonus number is not modeled at all (it isn't
+# played), so it keeps being fully dropped via skipLastColumns.
+SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
+
 # Caches loaded meta_learner.joblib artifacts (see TrainMetaLearner.py) by
 # path, so a rebuild loop over many history days doesn't reload the same
 # artifact from disk on every single day.
@@ -257,7 +265,7 @@ def process_single_history_entry_second_step(args):
     try:
         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
             current_json_object, model_scores=bestParams_json_object.get("modelScores"))
-        addWeightedEnsemblePrediction(current_json_object, name)
+        addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"))
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
 
@@ -432,7 +440,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     try:
                         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
                             current_json_object, model_scores=bestParams_json_object.get("modelScores"))
-                        addWeightedEnsemblePrediction(current_json_object, name)
+                        addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"))
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
 
@@ -527,25 +535,49 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
-def addWeightedEnsemblePrediction(current_json_object, name):
+def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None):
     """
-    Appends the score-weighted numberFrequency vote as its own ticket/row in
-    newPrediction (so it shows up in the Model table next to every individual
-    model's own prediction), instead of only existing as a separate chart.
-    Skipped for Pick3, since it's positional and a frequency vote across
-    models has no notion of position.
+    Appends the score-weighted vote as its own ticket/row in newPrediction (so
+    it shows up in the Model table next to every individual model's own
+    prediction), instead of only existing as a separate chart. Skipped for
+    Pick3, since it's positional and a frequency vote across models has no
+    notion of position.
+
+    For games with special columns (Euromillions star numbers, EuroDreams
+    dream number, VikingLotto super viking - see SPECIAL_COLUMN_COUNTS), the
+    main and special numbers are voted on and picked separately, then
+    concatenated - the same way every individual model already keeps them
+    separate via Helpers.run_model_with_special_column. A single flat vote
+    over the whole row would let main-range numbers (a much bigger pool)
+    crowd out the special slot(s), producing an out-of-range special number.
     """
     if "pick3" in name:
         return
 
     predictions = current_json_object.get("newPrediction", [])
     ticket_size = next((len(model["predictions"][0]) for model in predictions if model.get("predictions")), 0)
+    if ticket_size == 0:
+        return
 
-    ensemblePrediction = helpers.build_weighted_ensemble_prediction(
-        current_json_object.get("numberFrequency", {}), ticket_size)
+    specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
+    mainCount = ticket_size - specialColumnCount
 
-    if ensemblePrediction:
-        predictions.append(ensemblePrediction)
+    mainFrequencies, specialFrequencies = helpers.count_number_frequencies_by_position(
+        current_json_object, mainCount, model_scores=model_scores)
+
+    mainTicket = helpers.build_weighted_ensemble_prediction(mainFrequencies, mainCount)
+    if not mainTicket:
+        return
+
+    ticketNumbers = mainTicket["predictions"][0]
+
+    if specialColumnCount > 0:
+        specialTicket = helpers.build_weighted_ensemble_prediction(specialFrequencies, specialColumnCount)
+        if not specialTicket:
+            return
+        ticketNumbers = ticketNumbers + specialTicket["predictions"][0]
+
+    predictions.append({"name": "WeightedEnsemble Model", "predictions": [ticketNumbers]})
 
 
 def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels):
@@ -658,13 +690,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
-    # Euromillions (2 star columns), EuroDreams (1 dream number), and
-    # VikingLotto (1 super viking) are drawn from their own, smaller range -
-    # model them independently from the main numbers (see
-    # Helpers.run_model_with_special_column) instead of mixing them into the
-    # same pool/sort. Lotto's bonus number is not modeled at all (it isn't
-    # played), so it keeps being fully dropped via skipLastColumns.
-    SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
     specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
 
     # Pick3 is positional (digit order matters for straight/box/pair payouts), so
