@@ -145,5 +145,6 @@
     "match_count": 3
   },
   "labels": [],
-  "numberFrequency": []
+  "numberFrequency": [],
+  "currentNumberFrequency": []
 }
