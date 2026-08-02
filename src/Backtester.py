@@ -50,6 +50,17 @@ def _backtest_single_day(i):
         "actual": sorted(actual)
     }
 
+    # Phase 1 stacking meta-learner training data only. "actual" above is
+    # sorted, which loses which drawn numbers were main vs special columns
+    # (their ranges often overlap, e.g. Euromillions main 1-50 and star 1-12
+    # both include values like 9) - these keep the original per-column order
+    # (main columns first, special column(s) trailing, same convention as
+    # skipLastColumns/specialColumnCount) so TrainMetaLearner.py can label
+    # main and special training rows correctly.
+    if special_column_count > 0:
+        row["actual_main"] = actual[:-special_column_count]
+        row["actual_special"] = actual[-special_column_count:]
+
     for model_name, model in models.items():
         try:
             # Reseed per (day, model) - not once per day shared across every
@@ -118,18 +129,30 @@ def _backtest_single_day(i):
 
             # Phase 1 stacking meta-learner training data only - not used by
             # normal hyperopt/backtest runs (collect_scores defaults False).
-            # Note: unlike run_model_with_special_column, this does not split
-            # main/special columns into separate calls, so for special-column
-            # games (euromillions/eurodreams/vikinglotto) the score dict mixes
-            # both ranges together - an approximation acceptable for a first
-            # meta-learner pass, not full special-column-aware scoring.
+            # Mirrors run_model_with_special_column's two-call convention: a
+            # main-only call (drops the special column(s) via skipLastColumns)
+            # and, for special-column games (euromillions/eurodreams/
+            # vikinglotto), a second special-only call (Helpers.load_data
+            # slices to just the trailing special column(s) whenever
+            # specialColumnCount>0, requiring skipLastColumns=0 for that call
+            # so they aren't dropped first). Passing both skipLastColumns>0
+            # and specialColumnCount>0 in the same call - the previous
+            # approach - collapses to special-only, silently discarding the
+            # main numbers entirely.
             if collect_scores and hasattr(model, "score_numbers"):
-                scores = model.score_numbers(
+                main_scores = model.score_numbers(
                     skipRows=rows_to_skip,
-                    skipLastColumns=skipLastColumns,
-                    specialColumnCount=special_column_count
+                    skipLastColumns=special_column_count if special_column_count > 0 else skipLastColumns
                 )
-                row[f"{model_name}_scores"] = {int(n): float(s) for n, s in scores.items()}
+                row[f"{model_name}_scores"] = {int(n): float(s) for n, s in main_scores.items()}
+
+                if special_column_count > 0:
+                    special_scores = model.score_numbers(
+                        skipRows=rows_to_skip,
+                        skipLastColumns=0,
+                        specialColumnCount=special_column_count
+                    )
+                    row[f"{model_name}_special_scores"] = {int(n): float(s) for n, s in special_scores.items()}
 
         except Exception as e:
             row[f"{model_name}_error"] = str(e)
@@ -298,10 +321,12 @@ class Backtester:
 
         collect_scores: when True, also calls each model's score_numbers(...)
         (Phase 1 stacking meta-learner) and stores the resulting {number:
-        score} dict as row[f"{model_name}_scores"] - used only by
-        TrainMetaLearner.py to build its training table. Off by default so
-        normal hyperopt/backtest runs (which never read this) pay no extra
-        cost.
+        score} dict as row[f"{model_name}_scores"] (main numbers) and, for
+        special-column games, row[f"{model_name}_special_scores"] (the
+        special column(s), scored independently - see the split logic
+        below). Used only by TrainMetaLearner.py to build its training table.
+        Off by default so normal hyperopt/backtest runs (which never read
+        this) pay no extra cost.
         """
         if generate_subsets is None:
             generate_subsets = []

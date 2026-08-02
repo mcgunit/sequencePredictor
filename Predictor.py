@@ -48,6 +48,20 @@ LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 # played), so it keeps being fully dropped via skipLastColumns.
 SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
 
+
+def getKenoSubsetSizes(name, bestParams_json_object):
+    """
+    Keno is the only game with sub-selections (playable 5-10-number tickets
+    out of the full 20). Shared by statisticalMethod (individual models),
+    addWeightedEnsemblePrediction, and the MetaLearner block, so all three
+    respect the same use_5..use_10 hyperopt-tuned toggles instead of each
+    reimplementing this lookup.
+    """
+    if "keno" not in name:
+        return []
+    return [size for size in (5, 6, 7, 8, 9, 10) if bestParams_json_object.get(f"use_{size}")]
+
+
 # Caches loaded meta_learner.joblib artifacts (see TrainMetaLearner.py) by
 # path, so a rebuild loop over many history days doesn't reload the same
 # artifact from disk on every single day.
@@ -265,7 +279,7 @@ def process_single_history_entry_second_step(args):
     try:
         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
             current_json_object, model_scores=bestParams_json_object.get("modelScores"))
-        addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"))
+        addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
 
@@ -440,7 +454,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     try:
                         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
                             current_json_object, model_scores=bestParams_json_object.get("modelScores"))
-                        addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"))
+                        addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
 
@@ -535,7 +549,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
-def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None):
+def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, bestParams_json_object=None):
     """
     Appends the score-weighted vote as its own ticket/row in newPrediction (so
     it shows up in the Model table next to every individual model's own
@@ -550,9 +564,16 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None):
     separate via Helpers.run_model_with_special_column. A single flat vote
     over the whole row would let main-range numbers (a much bigger pool)
     crowd out the special slot(s), producing an out-of-range special number.
+
+    For Keno, also generates the same use_5..use_10 sub-selections every
+    individual model produces (previously missing entirely for this row),
+    using Helpers.generate_subset_from_scores over the already-computed main
+    vote so a subset is just "which of these 20 numbers", not a fresh vote.
     """
     if "pick3" in name:
         return
+
+    bestParams_json_object = bestParams_json_object or {}
 
     predictions = current_json_object.get("newPrediction", [])
     ticket_size = next((len(model["predictions"][0]) for model in predictions if model.get("predictions")), 0)
@@ -571,13 +592,25 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None):
 
     ticketNumbers = mainTicket["predictions"][0]
 
+    # Subsets (Keno only) are drawn from the main-number vote before any
+    # special-column concatenation below - Keno has no special columns
+    # (mutually exclusive with SPECIAL_COLUMN_COUNTS), so this ordering never
+    # actually interacts with the special-column branch in practice.
+    ensemblePredictions = [ticketNumbers] + [
+        helpers.generate_subset_from_scores(
+            mainFrequencies, ticketNumbers, subsetSize,
+            mode=bestParams_json_object.get("weightedEnsembleSubsetMode", "softmax"),
+            temperature=bestParams_json_object.get("weightedEnsembleSubsetTemperature", 0.5))
+        for subsetSize in getKenoSubsetSizes(name, bestParams_json_object)
+    ]
+
     if specialColumnCount > 0:
         specialTicket = helpers.build_weighted_ensemble_prediction(specialFrequencies, specialColumnCount)
         if not specialTicket:
             return
-        ticketNumbers = ticketNumbers + specialTicket["predictions"][0]
+        ensemblePredictions[0] = ticketNumbers + specialTicket["predictions"][0]
 
-    predictions.append({"name": "WeightedEnsemble Model", "predictions": [ticketNumbers]})
+    predictions.append({"name": "WeightedEnsemble Model", "predictions": ensemblePredictions})
 
 
 def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels):
@@ -698,21 +731,8 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # are module-level singletons reused sequentially across games/history days.
     sortedPrediction = not ("pick3" in name)
 
-    subsets = []
-    if "keno" in name:
-        if bestParams_json_object["use_5"]:
-            subsets.append(5)
-        if bestParams_json_object["use_6"]:
-            subsets.append(6)
-        if bestParams_json_object["use_7"]:
-            subsets.append(7)
-        if bestParams_json_object["use_8"]:
-            subsets.append(8)
-        if bestParams_json_object["use_9"]:
-            subsets.append(9)
-        if bestParams_json_object["use_10"]:
-            subsets.append(10)
-        
+    subsets = getKenoSubsetSizes(name, bestParams_json_object)
+
 
     
     
@@ -1017,25 +1037,52 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 }
 
                 featureNames = metaLearnerArtifact["feature_names"]
-                perModelScores = {
-                    featureName: modelInstances[featureName].score_numbers(
-                        skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
-                    for featureName in featureNames if featureName in modelInstances
-                }
+
+                def scoreNumbersFor(skipLast, special):
+                    return {
+                        featureName: modelInstances[featureName].score_numbers(
+                            skipRows=skipRows, skipLastColumns=skipLast, specialColumnCount=special)
+                        for featureName in featureNames if featureName in modelInstances
+                    }
+
+                def rankByModel(model, featureNames, perModelScores, numberRange):
+                    featureMatrix = [
+                        [perModelScores.get(featureName, {}).get(number, 0.0) for featureName in featureNames]
+                        for number in numberRange
+                    ]
+                    probabilities = model.predict_proba(featureMatrix)[:, 1]
+                    return probabilities, [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
+
+                # Main numbers: same main-only call (drops the special
+                # column(s) via skipLastColumns) every individual model's own
+                # run() makes via Helpers.run_model_with_special_column - see
+                # Backtester.py's collect_scores split for why this must not
+                # also pass specialColumnCount in the same call.
+                perModelScores = scoreNumbersFor(
+                    specialColumnCount if specialColumnCount > 0 else skipLastColumns, 0)
 
                 minNumber = metaLearnerArtifact["min_number"]
                 maxNumber = metaLearnerArtifact["max_number"]
                 numberRange = list(range(minNumber, maxNumber + 1))
-                featureMatrix = [
-                    [perModelScores.get(featureName, {}).get(number, 0.0) for featureName in featureNames]
-                    for number in numberRange
-                ]
-
-                probabilities = metaLearnerArtifact["model"].predict_proba(featureMatrix)[:, 1]
-                rankedNumbers = [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
+                probabilities, rankedNumbers = rankByModel(metaLearnerArtifact["model"], featureNames, perModelScores, numberRange)
                 metaTicket = sorted(rankedNumbers[:metaLearnerArtifact["draw_size"]])
 
-                listOfDecodedPredictions.append({"name": "MetaLearner Model", "predictions": [metaTicket]})
+                if specialColumnCount > 0 and "special_model" in metaLearnerArtifact:
+                    perModelSpecialScores = scoreNumbersFor(0, specialColumnCount)
+                    specialNumberRange = list(range(metaLearnerArtifact["special_min_number"], metaLearnerArtifact["special_max_number"] + 1))
+                    _, rankedSpecialNumbers = rankByModel(metaLearnerArtifact["special_model"], featureNames, perModelSpecialScores, specialNumberRange)
+                    metaTicket = metaTicket + sorted(rankedSpecialNumbers[:metaLearnerArtifact["special_draw_size"]])
+
+                metaLearnerPredictions = [metaTicket]
+
+                for subsetSize in subsets:
+                    mainScoreByNumber = dict(zip(numberRange, probabilities))
+                    metaLearnerPredictions.append(helpers.generate_subset_from_scores(
+                        mainScoreByNumber, metaTicket, subsetSize,
+                        mode=bestParams_json_object.get("metaLearnerSubsetMode", "softmax"),
+                        temperature=bestParams_json_object.get("metaLearnerSubsetTemperature", 0.5)))
+
+                listOfDecodedPredictions.append({"name": "MetaLearner Model", "predictions": metaLearnerPredictions})
         except Exception as e:
             print("Failed to perform Meta-Learner prediction: ", e)
 

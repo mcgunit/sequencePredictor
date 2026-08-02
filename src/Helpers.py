@@ -1,5 +1,6 @@
 import os, json, subprocess, optuna, argparse
 import numpy as np
+import scipy.special
 import asciichartpy
 
 from dateutil.parser import parse
@@ -1016,6 +1017,59 @@ class Helpers():
             top_numbers = sorted(top_numbers)
 
         return {"name": name, "predictions": [top_numbers]}
+
+
+    def generate_subset_from_scores(self, number_scores, ticket_numbers, subset_size, mode="softmax", temperature=0.5):
+        """
+        Shared subset generator: picks subset_size numbers out of a scored
+        ticket, for callers (WeightedEnsemble Model, MetaLearner Model, or any
+        future model/method) that already have a {number: score} dict rather
+        than the raw vote/probability arrays each individual model's own
+        generate_best_subset works from. Currently only used for Keno, the
+        only game with sub-selections (5-10 out of 20).
+
+        Parameters
+        ----------
+        number_scores : dict
+            {number: score}, higher = more likely. Only numbers already in
+            ticket_numbers are considered (a subset is a subset of the full
+            ticket, not a re-ranking over the whole game range).
+        ticket_numbers : list
+            The full ticket (e.g. the 20 Keno numbers) to select from.
+        subset_size : int
+        mode : str
+            "top" - deterministic top-N by score (always the same numbers for
+            a given score dict - maximizes expected hits, zero diversity).
+            "softmax" (default) - probability-weighted sample without
+            replacement using softmax(score/temperature) as weights, the same
+            idea as Markov's own softmax-temperature subset selection: still
+            favors higher-scored numbers but keeps some variation between
+            runs instead of always producing the identical subset.
+        temperature : float
+            Only used for mode="softmax". Lower = closer to deterministic
+            top-N; higher = closer to a uniform random subset.
+
+        Returns
+        -------
+        list
+            sorted list of subset_size ints, or the full ticket_numbers list
+            if there aren't enough numbers to form a subset.
+        """
+        candidates = [int(n) for n in ticket_numbers if n in number_scores]
+        if len(candidates) < subset_size:
+            candidates = [int(n) for n in ticket_numbers]
+        if len(candidates) <= subset_size:
+            return sorted(candidates)
+
+        if mode == "top":
+            chosen = sorted(candidates, key=lambda n: number_scores.get(n, 0), reverse=True)[:subset_size]
+            return sorted(int(n) for n in chosen)
+
+        scores = np.array([number_scores.get(n, 0) for n in candidates], dtype=float)
+        temperature = max(temperature, 1e-3)
+        probabilities = scipy.special.softmax(scores / temperature)
+        chosen = np.random.choice(candidates, size=subset_size, replace=False, p=probabilities)
+        return sorted(int(n) for n in chosen)
 
 
     def calculate_profit(self, name, path):
