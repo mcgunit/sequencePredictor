@@ -209,17 +209,26 @@ class MarkovBayesian():
         if self.sorted_prediction:
             combined_predictions = sorted(combined_predictions)
 
+        # combined_predictions can hold up to ~2x n_predictions unique values
+        # (union of Markov's and Bayesian's own predictions, before dedup
+        # collapses any overlap) - the actual returned main ticket is only
+        # the first n_predictions of that. Subsets must be drawn from that
+        # same truncated ticket, or they can end up containing numbers that
+        # aren't even part of the main prediction they're supposed to be a
+        # subset of.
+        final_predictions = combined_predictions[:n_predictions]
+
         # Generate subsets if requested
         subsets = {}
         if generateSubsets:
             # print("Creating subsets of:", generateSubsets)
             for subset_size in generateSubsets:
-                subsets[subset_size] = self.generate_best_subset(combined_predictions, subset_size)
+                subsets[subset_size] = self.generate_best_subset(final_predictions, subset_size)
 
         # Convert subsets from np.int64 to Python int
         subsets = {size: [int(num) for num in numbers] for size, numbers in subsets.items()}
 
-        return combined_predictions[:n_predictions], subsets
+        return final_predictions, subsets
 
     def score_numbers(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
         """
