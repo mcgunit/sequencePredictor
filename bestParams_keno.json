@@ -135,5 +135,9 @@
         "PoissonMarkov Model": 1.1935483870967742,
         "LaplaceMonteCarlo Model": -1.1129032258064515,
         "HybridStatisticalModel": -0.6935483870967742
-    }
+    },
+    "weightedEnsembleSubsetMode": "top",
+    "weightedEnsembleSubsetTemperature": 0.5497890812746898,
+    "metaLearnerSubsetMode": "softmax",
+    "metaLearnerSubsetTemperature": 0.6778553493831059
 }

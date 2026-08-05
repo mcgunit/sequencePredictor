@@ -1,5 +1,6 @@
 import os, argparse, json, sys
 import optuna
+import joblib
 from art import text2art
 from datetime import datetime
 
@@ -13,6 +14,7 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
+from src.ModelFactory import BASE_MODEL_NAMES, build_models
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -328,6 +330,171 @@ def objective_hybrid(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
     return score_from_summary(run_backtest("hybrid_statistical", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
+# Caches the (expensive, one-time) precompute build_keno_ensemble_day_data does
+# for objective_keno_subset_tuning, keyed by dataset_name - study.optimize()
+# calls the objective once per trial in the same process, and none of that
+# precompute depends on the subset mode/temperature being searched, so it only
+# needs to run once per hyperopt invocation instead of once per trial.
+_KENO_SUBSET_TUNING_CACHE = {}
+
+
+def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
+    """
+    Backtests the 7 base models once, using their OWN already-tuned
+    bestParams_<dataset_name>.json params (not re-tuned here), then
+    reconstructs - for each backtested day - the exact WeightedEnsemble Model
+    and MetaLearner Model main tickets and per-number score dicts Predictor.py
+    would have produced that day. This is Keno-only (the only game with
+    sub-selections), and everything here is independent of the subset
+    mode/temperature objective_keno_subset_tuning searches over.
+
+    Returns {"subset_sizes": [...], "days": [{"actual", "weighted_ticket",
+    "weighted_scores", "meta_ticket"|None, "meta_scores"|None}, ...]}.
+    """
+    bestParamsPath = os.path.join(os.getcwd(), f"bestParams_{dataset_name}.json")
+    bestParams = {}
+    if os.path.exists(bestParamsPath):
+        with open(bestParamsPath, "r") as infile:
+            bestParams = json.load(infile)
+
+    # Same lookup Predictor.py's getKenoSubsetSizes does - a single global
+    # choice shared by every model/row, not the per-model-prefixed use_X
+    # choices the individual objectives above each search independently.
+    subset_sizes = [size for size in (5, 6, 7, 8, 9, 10) if bestParams.get(f"use_{size}")]
+    if not subset_sizes:
+        return {"subset_sizes": [], "days": []}
+
+    loader = DataLoader()
+    loader.setDataPath(dataPath)
+    loader.setGameRange(game_cfg["min"], game_cfg["max"])
+    loader.setDrawSize(game_cfg["draw_size"])
+
+    numbers, _, _ = loader.load_numbers(skipLastColumns=game_cfg["skip_last_columns"], years_back=years_back)
+    total_rows = len(numbers)
+    if total_rows == 0:
+        return {"subset_sizes": subset_sizes, "days": []}
+
+    start_index = max(0, total_rows - days_to_rebuild)
+
+    models = build_models(dataPath, bestParams, is_pick3=False)
+    model_names = [name for name in BASE_MODEL_NAMES if name in models]
+
+    backtester = Backtester(loader)
+    for name, model in models.items():
+        backtester.add_model(name, model)
+
+    results = backtester.backtest(
+        start_index=start_index,
+        end_index=total_rows,
+        skipLastColumns=game_cfg["skip_last_columns"],
+        years_back=years_back,
+        include_baselines=False,
+        collect_scores=True,
+        verbose=False
+    )
+
+    model_scores = bestParams.get("modelScores", {})
+
+    meta_artifact = None
+    meta_path = os.path.join(os.getcwd(), "data", "models", dataset_name, "meta_learner.joblib")
+    if os.path.exists(meta_path):
+        try:
+            meta_artifact = joblib.load(meta_path)
+        except Exception as e:
+            print(f"Failed to load meta-learner for {dataset_name}, skipping MetaLearner subset tuning: {e}")
+
+    days = []
+    for row in results:
+        actual = row.get("actual", [])
+
+        newPrediction = [
+            {"name": name, "predictions": [row.get(f"{name}_prediction", [])]}
+            for name in model_names
+        ]
+        weighted_scores = helpers.count_number_frequencies_from_new_prediction(
+            {"newPrediction": newPrediction}, model_scores=model_scores)
+        weighted_ticket_entry = helpers.build_weighted_ensemble_prediction(weighted_scores, game_cfg["draw_size"])
+        if not weighted_ticket_entry:
+            continue
+
+        day = {
+            "actual": actual,
+            "weighted_ticket": weighted_ticket_entry["predictions"][0],
+            "weighted_scores": weighted_scores,
+            "meta_ticket": None,
+            "meta_scores": None,
+        }
+
+        if meta_artifact is not None:
+            feature_names = meta_artifact["feature_names"]
+            number_range = list(range(meta_artifact["min_number"], meta_artifact["max_number"] + 1))
+            feature_matrix = [
+                [row.get(f"{name}_scores", {}).get(number, 0.0) for name in feature_names]
+                for number in number_range
+            ]
+            probabilities = meta_artifact["model"].predict_proba(feature_matrix)[:, 1]
+            ranked_numbers = [n for _, n in sorted(zip(probabilities, number_range), reverse=True)]
+            day["meta_ticket"] = sorted(ranked_numbers[:meta_artifact["draw_size"]])
+            day["meta_scores"] = dict(zip(number_range, probabilities))
+
+        days.append(day)
+
+    return {"subset_sizes": subset_sizes, "days": days}
+
+
+def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
+    """
+    Tunes Helpers.generate_subset_from_scores' mode/temperature for
+    WeightedEnsemble Model and MetaLearner Model - Keno only (the only game
+    with sub-selections). Unlike every other objective above, this doesn't
+    re-tune any base model or subset size choice; it reuses the (cached,
+    one-time) backtest from build_keno_ensemble_day_data and only searches
+    over how each ensemble's already-ranked ticket gets sliced into a
+    playable 5-10-number subset.
+    """
+    if "keno" not in dataset_name:
+        return 0.0
+
+    cached = _KENO_SUBSET_TUNING_CACHE.get(dataset_name)
+    if cached is None:
+        cached = build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebuild, years_back)
+        _KENO_SUBSET_TUNING_CACHE[dataset_name] = cached
+
+    if not cached["days"]:
+        return float("-inf")
+
+    weighted_mode = trial.suggest_categorical("weightedEnsembleSubsetMode", ["top", "softmax"])
+    weighted_temperature = trial.suggest_float("weightedEnsembleSubsetTemperature", 0.05, 2.0)
+    meta_mode = trial.suggest_categorical("metaLearnerSubsetMode", ["top", "softmax"])
+    meta_temperature = trial.suggest_float("metaLearnerSubsetTemperature", 0.05, 2.0)
+
+    total_profit = 0.0
+    bet_count = 0
+
+    for day in cached["days"]:
+        for subset_size in cached["subset_sizes"]:
+            subset = helpers.generate_subset_from_scores(
+                day["weighted_scores"], day["weighted_ticket"], subset_size,
+                mode=weighted_mode, temperature=weighted_temperature)
+            profit = helpers.keno_ticket_profit(subset, day["actual"])
+            if profit is not None:
+                total_profit += profit
+                bet_count += 1
+
+            if day["meta_ticket"] is None:
+                continue
+
+            subset = helpers.generate_subset_from_scores(
+                day["meta_scores"], day["meta_ticket"], subset_size,
+                mode=meta_mode, temperature=meta_temperature)
+            profit = helpers.keno_ticket_profit(subset, day["actual"])
+            if profit is not None:
+                total_profit += profit
+                bet_count += 1
+
+    return total_profit / bet_count if bet_count else float("-inf")
+
+
 # Maps a -s/--strategies CLI name to its objective + the "use<X>" flag Predictor.py
 # reads from bestParams_<game>.json to decide whether to run that model live.
 STRATEGIES = {
@@ -339,6 +506,12 @@ STRATEGIES = {
     "PoissonMarkov": {"objective": objective_poisson_markov, "use_key": "usePoissonMarkov"},
     "LaPlaceMonteCarlo": {"objective": objective_laplace_mc, "use_key": "useLaplaceMonteCarlo"},
     "HybridStatistical": {"objective": objective_hybrid, "use_key": "useHybridStatisticalModel"},
+    # Not a base model - tunes WeightedEnsemble/MetaLearner's Keno subset
+    # mode/temperature (see objective_keno_subset_tuning). No use_key: it
+    # doesn't gate a run/skip flag, Predictor.py reads its tuned params
+    # unconditionally whenever it builds a Keno subset. No-ops (returns 0.0
+    # immediately) for every other game.
+    "KenoSubsetTuning": {"objective": objective_keno_subset_tuning, "use_key": None},
 }
 
 # Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
