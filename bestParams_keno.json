@@ -136,8 +136,8 @@
         "LaplaceMonteCarlo Model": -1.1129032258064515,
         "HybridStatisticalModel": -0.6935483870967742
     },
-    "weightedEnsembleSubsetMode": "top",
-    "weightedEnsembleSubsetTemperature": 0.5497890812746898,
+    "weightedEnsembleSubsetMode": "softmax",
+    "weightedEnsembleSubsetTemperature": 1.2752073933415469,
     "metaLearnerSubsetMode": "softmax",
-    "metaLearnerSubsetTemperature": 0.6778553493831059
+    "metaLearnerSubsetTemperature": 0.132881469221641
 }
