@@ -395,13 +395,30 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
 
     model_scores = bestParams.get("modelScores", {})
 
-    meta_artifact = None
-    meta_path = os.path.join(os.getcwd(), "data", "models", dataset_name, "meta_learner.joblib")
-    if os.path.exists(meta_path):
+    def load_meta_artifact(filename):
+        artifact_path = os.path.join(os.getcwd(), "data", "models", dataset_name, filename)
+        if not os.path.exists(artifact_path):
+            return None
         try:
-            meta_artifact = joblib.load(meta_path)
+            return joblib.load(artifact_path)
         except Exception as e:
-            print(f"Failed to load meta-learner for {dataset_name}, skipping MetaLearner subset tuning: {e}")
+            print(f"Failed to load {filename} for {dataset_name}, skipping its subset tuning: {e}")
+            return None
+
+    meta_artifact = load_meta_artifact("meta_learner.joblib")
+    meta_v2_artifact = load_meta_artifact("meta_learner_v2.joblib")
+
+    def rank_by_meta_artifact(artifact, row):
+        feature_names = artifact["feature_names"]
+        number_range = list(range(artifact["min_number"], artifact["max_number"] + 1))
+        feature_matrix = [
+            [row.get(f"{name}_scores", {}).get(number, 0.0) for name in feature_names]
+            for number in number_range
+        ]
+        probabilities = artifact["model"].predict_proba(feature_matrix)[:, 1]
+        ranked_numbers = [n for _, n in sorted(zip(probabilities, number_range), reverse=True)]
+        ticket = sorted(ranked_numbers[:artifact["draw_size"]])
+        return ticket, dict(zip(number_range, probabilities))
 
     days = []
     for row in results:
@@ -423,19 +440,15 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
             "weighted_scores": weighted_scores,
             "meta_ticket": None,
             "meta_scores": None,
+            "meta_v2_ticket": None,
+            "meta_v2_scores": None,
         }
 
         if meta_artifact is not None:
-            feature_names = meta_artifact["feature_names"]
-            number_range = list(range(meta_artifact["min_number"], meta_artifact["max_number"] + 1))
-            feature_matrix = [
-                [row.get(f"{name}_scores", {}).get(number, 0.0) for name in feature_names]
-                for number in number_range
-            ]
-            probabilities = meta_artifact["model"].predict_proba(feature_matrix)[:, 1]
-            ranked_numbers = [n for _, n in sorted(zip(probabilities, number_range), reverse=True)]
-            day["meta_ticket"] = sorted(ranked_numbers[:meta_artifact["draw_size"]])
-            day["meta_scores"] = dict(zip(number_range, probabilities))
+            day["meta_ticket"], day["meta_scores"] = rank_by_meta_artifact(meta_artifact, row)
+
+        if meta_v2_artifact is not None:
+            day["meta_v2_ticket"], day["meta_v2_scores"] = rank_by_meta_artifact(meta_v2_artifact, row)
 
         days.append(day)
 
@@ -445,12 +458,12 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
 def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
     """
     Tunes Helpers.generate_subset_from_scores' mode/temperature for
-    WeightedEnsemble Model and MetaLearner Model - Keno only (the only game
-    with sub-selections). Unlike every other objective above, this doesn't
-    re-tune any base model or subset size choice; it reuses the (cached,
-    one-time) backtest from build_keno_ensemble_day_data and only searches
-    over how each ensemble's already-ranked ticket gets sliced into a
-    playable 5-10-number subset.
+    WeightedEnsemble Model, MetaLearner Model, and MetaLearnerV2 Model - Keno
+    only (the only game with sub-selections). Unlike every other objective
+    above, this doesn't re-tune any base model or subset size choice; it
+    reuses the (cached, one-time) backtest from build_keno_ensemble_day_data
+    and only searches over how each ensemble's already-ranked ticket gets
+    sliced into a playable 5-10-number subset.
     """
     if "keno" not in dataset_name:
         return 0.0
@@ -467,6 +480,8 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
     weighted_temperature = trial.suggest_float("weightedEnsembleSubsetTemperature", 0.05, 2.0)
     meta_mode = trial.suggest_categorical("metaLearnerSubsetMode", ["top", "softmax"])
     meta_temperature = trial.suggest_float("metaLearnerSubsetTemperature", 0.05, 2.0)
+    meta_v2_mode = trial.suggest_categorical("metaLearnerV2SubsetMode", ["top", "softmax"])
+    meta_v2_temperature = trial.suggest_float("metaLearnerV2SubsetTemperature", 0.05, 2.0)
 
     total_profit = 0.0
     bet_count = 0
@@ -481,16 +496,23 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
                 total_profit += profit
                 bet_count += 1
 
-            if day["meta_ticket"] is None:
-                continue
+            if day["meta_ticket"] is not None:
+                subset = helpers.generate_subset_from_scores(
+                    day["meta_scores"], day["meta_ticket"], subset_size,
+                    mode=meta_mode, temperature=meta_temperature)
+                profit = helpers.keno_ticket_profit(subset, day["actual"])
+                if profit is not None:
+                    total_profit += profit
+                    bet_count += 1
 
-            subset = helpers.generate_subset_from_scores(
-                day["meta_scores"], day["meta_ticket"], subset_size,
-                mode=meta_mode, temperature=meta_temperature)
-            profit = helpers.keno_ticket_profit(subset, day["actual"])
-            if profit is not None:
-                total_profit += profit
-                bet_count += 1
+            if day["meta_v2_ticket"] is not None:
+                subset = helpers.generate_subset_from_scores(
+                    day["meta_v2_scores"], day["meta_v2_ticket"], subset_size,
+                    mode=meta_v2_mode, temperature=meta_v2_temperature)
+                profit = helpers.keno_ticket_profit(subset, day["actual"])
+                if profit is not None:
+                    total_profit += profit
+                    bet_count += 1
 
     return total_profit / bet_count if bet_count else float("-inf")
 

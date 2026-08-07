@@ -951,24 +951,27 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Hybrid Statistical Model: ", e)
 
-    # Phase 1 stacking meta-learner (see TrainMetaLearner.py): blends each
+    # Phase 1 stacking meta-learner(s) (see TrainMetaLearner.py): blends each
     # base model's own per-number score into one learned P(drawn), instead of
     # the flat/weighted vote WeightedEnsemble Model uses. Skipped gracefully
-    # if this game hasn't been trained yet (no meta_learner.joblib), and
+    # if this game hasn't been trained yet (no meta_learner*.joblib), and
     # always skipped for Pick3 for the same reason WeightedEnsemble Model is
     # (positional game, a per-number score ranking has no notion of digit
     # order).
+    #
+    # MetaLearnerV2 Model (lens diversity, see README) reuses the exact same
+    # base-model scores as MetaLearner Model - only the trained model class
+    # differs (GradientBoostingClassifier vs LogisticRegression, see
+    # TrainMetaLearner.py) - so both are computed from one shared score pass
+    # instead of scoring every base model twice.
     if not "pick3" in name:
-        try:
-            metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
-            if os.path.exists(metaLearnerPath):
-                metaLearnerArtifact = metaLearnerCache.get(metaLearnerPath)
-                if metaLearnerArtifact is None:
-                    metaLearnerArtifact = joblib.load(metaLearnerPath)
-                    metaLearnerCache[metaLearnerPath] = metaLearnerArtifact
+        metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
+        metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
 
+        if os.path.exists(metaLearnerPath) or os.path.exists(metaLearnerV2Path):
+            try:
                 # Re-apply this game's tuned params to every base model
-                # feeding the meta-learner, independent of whether that
+                # feeding the meta-learner(s), independent of whether that
                 # model's own useX flag happens to be enabled above - these
                 # are module-level singletons reused across games/history
                 # days, so without this they could still hold a previous
@@ -1036,9 +1039,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                     "LaplaceMonteCarlo Model": laplaceMonteCarlo,
                 }
 
-                featureNames = metaLearnerArtifact["feature_names"]
-
-                def scoreNumbersFor(skipLast, special):
+                def scoreNumbersFor(featureNames, skipLast, special):
                     return {
                         featureName: modelInstances[featureName].score_numbers(
                             skipRows=skipRows, skipLastColumns=skipLast, specialColumnCount=special)
@@ -1053,38 +1054,66 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                     probabilities = model.predict_proba(featureMatrix)[:, 1]
                     return probabilities, [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
 
-                # Main numbers: same main-only call (drops the special
-                # column(s) via skipLastColumns) every individual model's own
-                # run() makes via Helpers.run_model_with_special_column - see
-                # Backtester.py's collect_scores split for why this must not
-                # also pass specialColumnCount in the same call.
-                perModelScores = scoreNumbersFor(
-                    specialColumnCount if specialColumnCount > 0 else skipLastColumns, 0)
+                # Cached by feature-name tuple so MetaLearner Model and
+                # MetaLearnerV2 Model (same 7 base models, different trained
+                # classifier - see TrainMetaLearner.py) don't score everything
+                # twice when both artifacts exist and share the same features.
+                mainScoresByFeatures = {}
+                specialScoresByFeatures = {}
 
-                minNumber = metaLearnerArtifact["min_number"]
-                maxNumber = metaLearnerArtifact["max_number"]
-                numberRange = list(range(minNumber, maxNumber + 1))
-                probabilities, rankedNumbers = rankByModel(metaLearnerArtifact["model"], featureNames, perModelScores, numberRange)
-                metaTicket = sorted(rankedNumbers[:metaLearnerArtifact["draw_size"]])
+                def runMetaLearnerVariant(artifactPath, displayName, subsetModeKey, subsetTemperatureKey):
+                    if not os.path.exists(artifactPath):
+                        return
+                    try:
+                        artifact = metaLearnerCache.get(artifactPath)
+                        if artifact is None:
+                            artifact = joblib.load(artifactPath)
+                            metaLearnerCache[artifactPath] = artifact
 
-                if specialColumnCount > 0 and "special_model" in metaLearnerArtifact:
-                    perModelSpecialScores = scoreNumbersFor(0, specialColumnCount)
-                    specialNumberRange = list(range(metaLearnerArtifact["special_min_number"], metaLearnerArtifact["special_max_number"] + 1))
-                    _, rankedSpecialNumbers = rankByModel(metaLearnerArtifact["special_model"], featureNames, perModelSpecialScores, specialNumberRange)
-                    metaTicket = metaTicket + sorted(rankedSpecialNumbers[:metaLearnerArtifact["special_draw_size"]])
+                        featureNames = tuple(artifact["feature_names"])
 
-                metaLearnerPredictions = [metaTicket]
+                        # Main numbers: same main-only call (drops the special
+                        # column(s) via skipLastColumns) every individual
+                        # model's own run() makes via
+                        # Helpers.run_model_with_special_column - see
+                        # Backtester.py's collect_scores split for why this
+                        # must not also pass specialColumnCount in the same
+                        # call.
+                        if featureNames not in mainScoresByFeatures:
+                            mainScoresByFeatures[featureNames] = scoreNumbersFor(
+                                featureNames, specialColumnCount if specialColumnCount > 0 else skipLastColumns, 0)
+                        perModelScores = mainScoresByFeatures[featureNames]
 
-                for subsetSize in subsets:
-                    mainScoreByNumber = dict(zip(numberRange, probabilities))
-                    metaLearnerPredictions.append(helpers.generate_subset_from_scores(
-                        mainScoreByNumber, metaTicket, subsetSize,
-                        mode=bestParams_json_object.get("metaLearnerSubsetMode", "softmax"),
-                        temperature=bestParams_json_object.get("metaLearnerSubsetTemperature", 0.5)))
+                        minNumber = artifact["min_number"]
+                        maxNumber = artifact["max_number"]
+                        numberRange = list(range(minNumber, maxNumber + 1))
+                        probabilities, rankedNumbers = rankByModel(artifact["model"], featureNames, perModelScores, numberRange)
+                        ticket = sorted(rankedNumbers[:artifact["draw_size"]])
 
-                listOfDecodedPredictions.append({"name": "MetaLearner Model", "predictions": metaLearnerPredictions})
-        except Exception as e:
-            print("Failed to perform Meta-Learner prediction: ", e)
+                        if specialColumnCount > 0 and "special_model" in artifact:
+                            if featureNames not in specialScoresByFeatures:
+                                specialScoresByFeatures[featureNames] = scoreNumbersFor(featureNames, 0, specialColumnCount)
+                            perModelSpecialScores = specialScoresByFeatures[featureNames]
+                            specialNumberRange = list(range(artifact["special_min_number"], artifact["special_max_number"] + 1))
+                            _, rankedSpecialNumbers = rankByModel(artifact["special_model"], featureNames, perModelSpecialScores, specialNumberRange)
+                            ticket = ticket + sorted(rankedSpecialNumbers[:artifact["special_draw_size"]])
+
+                        predictions = [ticket]
+                        mainScoreByNumber = dict(zip(numberRange, probabilities))
+                        for subsetSize in subsets:
+                            predictions.append(helpers.generate_subset_from_scores(
+                                mainScoreByNumber, ticket, subsetSize,
+                                mode=bestParams_json_object.get(subsetModeKey, "softmax"),
+                                temperature=bestParams_json_object.get(subsetTemperatureKey, 0.5)))
+
+                        listOfDecodedPredictions.append({"name": displayName, "predictions": predictions})
+                    except Exception as e:
+                        print(f"Failed to perform {displayName} prediction: ", e)
+
+                runMetaLearnerVariant(metaLearnerPath, "MetaLearner Model", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature")
+                runMetaLearnerVariant(metaLearnerV2Path, "MetaLearnerV2 Model", "metaLearnerV2SubsetMode", "metaLearnerV2SubsetTemperature")
+            except Exception as e:
+                print("Failed to perform Meta-Learner prediction: ", e)
 
     return listOfDecodedPredictions
 

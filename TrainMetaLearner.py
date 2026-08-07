@@ -3,6 +3,8 @@ import numpy as np
 import joblib
 
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.metrics import accuracy_score, roc_auc_score
 
 from src.Backtester import Backtester
@@ -59,7 +61,27 @@ def determine_special_range(dataPath, special_column_count):
     return int(numbers.min()), int(numbers.max())
 
 
-def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, actual_key, label):
+def fit_logistic_regression(X, y):
+    model = LogisticRegression(class_weight="balanced", max_iter=1000)
+    model.fit(X, y)
+    return model
+
+
+def fit_gradient_boosting(X, y):
+    """
+    The "lens diversity" companion to fit_logistic_regression (see README's
+    Ideas section) - a tree-based classifier sees nonlinear interactions
+    between base models' scores a linear model can't, so its errors won't
+    necessarily correlate with LogisticRegression's. GradientBoostingClassifier
+    has no built-in class_weight, so class balance is applied via sample_weight
+    instead, to match fit_logistic_regression's class_weight="balanced".
+    """
+    model = GradientBoostingClassifier(n_estimators=100, max_depth=3, learning_rate=0.1)
+    model.fit(X, y, sample_weight=compute_sample_weight(class_weight="balanced", y=y))
+    return model
+
+
+def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, actual_key, label, fit_func):
     """
     Splits results into a walk-forward holdout (last 20% of days - Backtester
     preserves day order via pool.imap, not imap_unordered, so this is a
@@ -73,8 +95,7 @@ def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, 
     X_train, y_train = build_training_table(train_rows, model_names, min_number, max_number, scores_suffix, actual_key)
     X_test, y_test = build_training_table(test_rows, model_names, min_number, max_number, scores_suffix, actual_key)
 
-    meta_model = LogisticRegression(class_weight="balanced", max_iter=1000)
-    meta_model.fit(X_train, y_train)
+    meta_model = fit_func(X_train, y_train)
 
     if len(test_rows) > 0 and len(set(y_test.tolist())) > 1:
         y_pred = meta_model.predict(X_test)
@@ -86,7 +107,7 @@ def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, 
               f"(train_days={len(train_rows)}, test_days={len(test_rows)})")
 
     X_full, y_full = build_training_table(results, model_names, min_number, max_number, scores_suffix, actual_key)
-    meta_model.fit(X_full, y_full)
+    meta_model = fit_func(X_full, y_full)
 
     return meta_model
 
@@ -149,36 +170,52 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
     # Backtester.py's collect_scores fix) and couldn't produce a
     # correctly-ranged special-column prediction either way.
     main_actual_key = "actual_main" if specialColumnCount > 0 else "actual"
-    meta_model = fit_meta_model(
-        results, model_names, game_cfg["min"], game_cfg["max"],
-        scores_suffix="_scores", actual_key=main_actual_key, label=dataset_name)
 
-    artifact = {
-        "model": meta_model,
-        "feature_names": model_names,
-        "min_number": game_cfg["min"],
-        "max_number": game_cfg["max"],
-        "draw_size": game_cfg["draw_size"],
-    }
-
+    special_min = special_max = None
     if specialColumnCount > 0:
         special_min, special_max = determine_special_range(dataPath, specialColumnCount)
-        special_meta_model = fit_meta_model(
-            results, model_names, special_min, special_max,
-            scores_suffix="_special_scores", actual_key="actual_special", label=f"{dataset_name} (special column)")
-
-        artifact.update({
-            "special_model": special_meta_model,
-            "special_min_number": special_min,
-            "special_max_number": special_max,
-            "special_draw_size": specialColumnCount,
-        })
 
     modelDir = os.path.join(path, "data", "models", dataset_name)
     os.makedirs(modelDir, exist_ok=True)
-    artifact_path = os.path.join(modelDir, "meta_learner.joblib")
-    joblib.dump(artifact, artifact_path)
-    print(f"{dataset_name}: saved meta-learner to {artifact_path}")
+
+    # "Lens diversity" (see README's Ideas section): a second, independently
+    # trained model class per game, added as its own MetaLearnerV2 Model row
+    # in Predictor.py rather than replacing MetaLearner Model - both get
+    # tracked side by side.
+    variants = [
+        (fit_logistic_regression, "meta_learner.joblib", dataset_name),
+        (fit_gradient_boosting, "meta_learner_v2.joblib", f"{dataset_name} (v2)"),
+    ]
+
+    for fit_func, artifact_filename, label in variants:
+        meta_model = fit_meta_model(
+            results, model_names, game_cfg["min"], game_cfg["max"],
+            scores_suffix="_scores", actual_key=main_actual_key, label=label, fit_func=fit_func)
+
+        artifact = {
+            "model": meta_model,
+            "feature_names": model_names,
+            "min_number": game_cfg["min"],
+            "max_number": game_cfg["max"],
+            "draw_size": game_cfg["draw_size"],
+        }
+
+        if specialColumnCount > 0:
+            special_meta_model = fit_meta_model(
+                results, model_names, special_min, special_max,
+                scores_suffix="_special_scores", actual_key="actual_special",
+                label=f"{label} (special column)", fit_func=fit_func)
+
+            artifact.update({
+                "special_model": special_meta_model,
+                "special_min_number": special_min,
+                "special_max_number": special_max,
+                "special_draw_size": specialColumnCount,
+            })
+
+        artifact_path = os.path.join(modelDir, artifact_filename)
+        joblib.dump(artifact, artifact_path)
+        print(f"{label}: saved meta-learner to {artifact_path}")
 
 
 if __name__ == "__main__":
