@@ -23,8 +23,14 @@ Every model shares the same interface (`setDataPath`, `run(...)`/`run_model_with
 
 ### Deep learning & boosting
 
-- **LSTM/TCN** (`src/LSTM.py`, `src/TCN.py`) train a sequence model on the encoded draw history and predict the next draw directly.
+Both `LSTM.py` and `TCN.py` frame prediction the same way: a sliding window of `windowSize` past draws (each draw's numbers embedded/encoded) feeds the network, whose output is one independent softmax per digit/number slot (`Reshape((digitsPerDraw, num_classes))` + softmax on the last axis) — effectively "which number is most likely at this position," not a joint draw-level distribution.
+
+- **LSTM** (`src/LSTM.py`) — `Embedding` → single `Bidirectional(LSTM)` layer → `Dropout` → `Dense` → reshaped per-position softmax. Trains with Adam, categorical cross-entropy, `EarlyStopping`/`ReduceLROnPlateau`/`ModelCheckpoint`, and custom `digit_accuracy`/`any_digit_hit`/`full_draw_accuracy` metrics. This is the model type every game in `Predictor.py`/`HyperoptDeepLearning.py` currently uses. Two rough edges worth knowing about: a `SelfAttentionBlock` class is defined but never actually used in `create_model`, and the `num_lstm_layers`/`num_bidirectional_layers` setters have no effect on the built architecture (always one layer) despite being exposed as tunable — dead configuration surface from an earlier iteration.
+- **TCN** (`src/TCN.py`, via the `keras-tcn` package) — stacked dilated-convolution `TCN` layers → **two actually-wired `SelfAttentionBlock`s** (custom `MultiHeadAttention` + FFN + LayerNorm, hand-rolled rather than a library dependency) → `GlobalAveragePooling1D` → dense softmax. More complete than `LSTM.py` today: it also blends its raw prediction with a live Markov chain over the same history (`lstmMarkovAlpha`-equivalent), and adds a `TopKCategoricalAccuracy(k=3)` metric. It's fully wired (same `run()` interface, same setters) but **not currently exercised** — every dataset in `HyperoptDeepLearning.py`'s sweep is hardcoded to `"lstm_model"`, so TCN's architecture is live code that never actually gets tuned or run in practice.
+- **Unified** (`src/Unified.py`) — despite the name, doesn't fuse LSTM+TCN into one network; `arch` is a switch between `"lstm"`/`"gru"`/`"tcn"` blocks (each followed by the same two attention blocks), and `train_and_predict()` trains all three separately and **averages their output probabilities** as an ensemble. It's an experimental prototype only — nothing in `Predictor.py` or any `Hyperopt*.py` script imports or runs it, so it's orphaned code, not a live model.
 - **XGBoost** (`src/XGBoost.py`) is an optional boosting pass over the statistical/DL predictions, enabled per game via the `useBoost` flag.
+
+For reference, [sminerport/SequencePredictionANN](https://github.com/sminerport/SequencePredictionANN) — suggested as a comparison point — uses a much simpler single-hidden-layer sigmoid feedforward network trained with MSE, no recurrence/convolution/attention at all. It's a smaller step *below* what `LSTM.py`/`TCN.py` already do here, not an upgrade; its own README lists LSTM/GRU as a suggested future improvement. Not something to port in, but a useful baseline data point.
 
 ### How predictions are combined
 
@@ -57,12 +63,19 @@ Skips Pick3 (positional, a per-number score ranking has no notion of digit order
 
 ## Ideas worth researching further
 
-Unimplemented directions worth exploring while pushing the statistical models further:
+Unimplemented directions worth exploring further:
 
+**Statistical models:**
 - **Hidden Markov Model with regime states** — model "hot/cold" number streaks as latent states (Baum-Welch/EM) instead of the current exponential recency-weight heuristics.
 - **Dirichlet-multinomial priors** — replace the ad hoc `smoothingFactor`/`alpha` knobs in the Markov/Bayesian models with proper conjugate Bayesian updating, giving principled uncertainty estimates.
 - **Negative-binomial / Poisson-Gamma mixture** — `PoissonMonteCarlo` currently assumes plain Poisson counts; lottery draw counts are typically overdispersed, so a Gamma-Poisson mixture may fit better than tuning `weightFactor` alone.
 - **Copula-based co-occurrence modeling** — model the joint dependency structure between numbers directly (Gaussian/empirical copula) instead of the current pairwise decay-factor approximation.
+
+**Deep learning:**
+- **Transformer-based sequence model** — a real self-attention-over-time architecture (multiple transformer encoder blocks over the windowed draw sequence, learned/positional embeddings) rather than the single post-hoc `SelfAttentionBlock` `TCN.py` already bolts on after its convolutions. Worth prototyping as a new `src/Transformer.py` following the same `run()`/setter interface as `LSTM.py`/`TCN.py` so it drops into `Predictor.py`/`HyperoptDeepLearning.py` the same way.
+- **Actually exercise `TCN.py`** — it's fully wired and arguably more complete than `LSTM.py` (live Markov blend, top-3 accuracy metric) but every game in `HyperoptDeepLearning.py`'s sweep is hardcoded to `"lstm_model"`, so it never gets tuned or run today. Lowest-effort item on this list: just add TCN entries to that sweep and compare.
+- **Finish or remove `Unified.py`** — its LSTM/GRU/TCN-averaging ensemble is a reasonable idea (same spirit as `WeightedEnsemble Model`/`MetaLearner Model` for the statistical side) but was never wired into `Predictor.py`, and trains all three architectures per cycle (3x cost). Either finish integrating it as an additional DL row or remove it to stop it going further stale.
+- **Clean up dead LSTM configuration** — `LSTM.py`'s `num_lstm_layers`/`num_bidirectional_layers` setters don't affect the built architecture (always one layer) despite being tunable in `HyperoptDeepLearning.py`; either wire them up for real multi-layer stacking or drop them so the tunable surface matches what's actually built.
 
 
 ## Installation
