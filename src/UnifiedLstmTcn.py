@@ -1,4 +1,9 @@
-# Import necessary libraries
+# UnifiedLstmTcn.py
+# Real fusion (not ensemble-averaging like the old Unified.py prototype): a
+# BiLSTM branch and a TCN branch process the same embedded input window and
+# get concatenated *before* the shared attention/output head, so the network
+# learns from both representations jointly instead of blending two
+# independently-trained models' outputs after the fact.
 import os, sys, json
 import pandas as pd
 import numpy as np
@@ -23,10 +28,9 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
-from Markov import Markov 
 
 helpers = Helpers()
-markov = Markov()
+
 
 # ---------------------------
 # Self-Attention block
@@ -56,9 +60,9 @@ class SelfAttentionBlock(layers.Layer):
 
 
 # ---------------------------
-# TCN Model Class
+# UnifiedLstmTcn Model Class
 # ---------------------------
-class TCNModel:
+class UnifiedLstmTcnModel:
     def __init__(self):
         self.dataPath = ""
         self.modelPath = ""
@@ -75,10 +79,9 @@ class TCNModel:
         self.labelSmoothing = 0.05
         self.num_heads = 4
         self.key_dim = 32
-        self.markovAlpha = 0.5
+        self.lstm_units = 64
         self.tcn_units = 64
         self.num_tcn_layers = 2
-        self.tcnMarkov = None
         self.loadModelWeights = True
 
     # ---------------------------
@@ -96,11 +99,13 @@ class TCNModel:
     def setLearningRate(self, value): self.learning_rate = value
     def setWindowSize(self, value): self.window_size = value
     def setPredictionWindowSize(self, value): self.predictionWindowSize = value
-    def setMarkovAlpha(self, value): self.markovAlpha = value
     def setLabelSmoothing(self, value): self.labelSmoothing = value
     def setNumHeads(self, value): self.num_heads = value
     def setKeyDim(self, value): self.key_dim = value
     def setLoadModelWeights(self, value): self.loadModelWeights = value
+    def setLstmUnits(self, value): self.lstm_units = value
+    def setTcnUnits(self, value): self.tcn_units = value
+    def setNumTcnLayers(self, value): self.num_tcn_layers = value
 
     # ---------------------------
     # Custom metrics
@@ -124,41 +129,53 @@ class TCNModel:
         return tf.reduce_mean(tf.cast(correct_all, tf.float32))
 
     # ---------------------------
-    # Model Creation
+    # Model creation
     # ---------------------------
     def create_model(self, max_value, num_classes=50, model_path="", digitsPerDraw=3, specialColumnCount=0, specialNumClasses=0):
+        embedding_dim = 8
+
         # Trailing specialColumnCount positions (stars/dream number/viking
         # number) have their own, smaller number range than the main
-        # positions - see the second output head below. Converted from
-        # Sequential to the functional API to allow that branch.
+        # positions - see the second output head below.
         mainDigits = digitsPerDraw - specialColumnCount
 
         input_layer = layers.Input(shape=(self.window_size, digitsPerDraw))
-        x = input_layer
 
-        # --- TCN layers ---
+        # Shared embedding: keeps window_size as the time dimension (unlike
+        # LSTM.py, which flattens to window_size*digitsPerDraw) so the LSTM
+        # and TCN branches below produce sequences of the same length and can
+        # be concatenated along the feature axis.
+        embedded = layers.Embedding(input_dim=num_classes, output_dim=embedding_dim)(input_layer)
+        embedded = layers.Reshape((self.window_size, digitsPerDraw * embedding_dim))(embedded)
+
+        lstm_branch = layers.Bidirectional(
+            layers.LSTM(self.lstm_units, return_sequences=True,
+                        kernel_regularizer=regularizers.l2(self.l2Regularization))
+        )(embedded)
+        lstm_branch = layers.Dropout(self.dropout)(lstm_branch)
+
+        tcn_branch = embedded
         for _ in range(self.num_tcn_layers):
-            x = TCN(
+            tcn_branch = TCN(
                 nb_filters=self.tcn_units,
                 kernel_size=3,
                 return_sequences=True,
                 dropout_rate=self.dropout
-            )(x)
+            )(tcn_branch)
 
-        # --- Attention ---
-        x = SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=self.dropout)(x)
+        fused = layers.Concatenate(axis=-1)([lstm_branch, tcn_branch])
+
+        # Attention blocks (over the fused representation)
+        x = SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=self.dropout)(fused)
         x = SelfAttentionBlock(num_heads=self.num_heads, key_dim=self.key_dim, dropout=self.dropout)(x)
 
-        # --- Global pooling ---
         x = layers.GlobalAveragePooling1D()(x)
 
-        # --- Output head(s) ---
-        # Softmax was previously applied inside the Dense layer before
-        # Reshape, which normalizes over the whole flattened
+        # Output head(s). Softmax was previously applied inside the Dense
+        # layer before Reshape, which normalizes over the whole flattened
         # digitsPerDraw*num_classes vector instead of per position - fixed
-        # here to Dense (linear) -> Reshape -> Softmax(axis=-1), matching
-        # LSTM.py's (correct) pattern, so each position's probabilities
-        # actually sum to 1 independently.
+        # here to Dense (linear) -> Reshape -> Softmax(axis=-1) so each
+        # position's probabilities actually sum to 1 independently.
         main_logits = layers.Dense(mainDigits * num_classes,
                                     kernel_regularizer=regularizers.l2(self.l2Regularization))(x)
         main_logits = layers.Reshape((mainDigits, num_classes))(main_logits)
@@ -197,7 +214,7 @@ class TCNModel:
         optimizer = optimizers.Adam(learning_rate=self.learning_rate)
         model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
-        if self.loadModelWeights and os.path.exists(f"{model_path}.weights.h5"):
+        if self.loadModelWeights and model_path and os.path.exists(f"{model_path}.weights.h5"):
             print(f"Loading weights from {model_path}.weights.h5")
             model.load_weights(f"{model_path}.weights.h5")
 
@@ -237,6 +254,13 @@ class TCNModel:
             special_unique_labels = helpers.get_unique_labels(self.dataPath, special=True)
             special_num_classes = len(special_unique_labels)
 
+        # Normalize labels to 0-based (Embedding requires indices in
+        # [0, num_classes) - matches LSTM.py's normalization, needed here
+        # because unlike TCN.py this model embeds its input).
+        min_label = np.min(unique_labels)
+        numbers = numbers - min_label
+
+        os.makedirs(self.modelPath, exist_ok=True)
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
@@ -288,25 +312,23 @@ class TCNModel:
             latest_raw_predictions, combined_labels = helpers.combine_special_prediction(
                 main_prediction, special_prediction, unique_labels, special_unique_labels)
             unique_labels = combined_labels
-        else:
-            try:
-                markov.build_markov_chain(numbers)
-                markovChain = markov.getTransformationMatrix()
-                lastDraw = numbers[-1]
-                markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
-                self.tcnMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
-            except Exception as e:
-                print("Failed to build Markov Chain: ", e)
 
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f"model_{name}_performance.png"))
+        plt.close()
 
         model.save_weights(f"{model_path}.weights.h5")
         model.save(model_path)
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
-        return latest_raw_predictions, unique_labels
+        # NOTE: must NOT re-sort here when specialColumnCount>0 - unique_labels
+        # is combined_labels at that point, whose ordering (main labels then
+        # special labels, each already sorted within their own segment) is
+        # what makes each position's class index decode correctly. Sorting
+        # the combined list globally would scramble that index->label mapping.
+        unique_labels_sorted = unique_labels if specialColumnCount > 0 else sorted(int(v) for v in unique_labels)
+        return latest_raw_predictions, unique_labels_sorted
 
     # ---------------------------
     # Prediction only
@@ -316,25 +338,17 @@ class TCNModel:
         model = load_model(modelPath, compile=True)
         return helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
-    def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
-        markov_probs = np.zeros((len(last_draw), num_classes))
-        for i, from_number in enumerate(last_draw):
-            transitions = transition_matrix.get(from_number, {})
-            for to_number, prob in transitions.items():
-                markov_probs[i, to_number] = prob
-        return markov_probs
-
 
 # ---------------------------
 # Main
 # ---------------------------
 if __name__ == "__main__":
-    tcn_model = TCNModel()
+    model = UnifiedLstmTcnModel()
 
     name = "pick3"
     path = os.getcwd()
     dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
-    modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "tcn_model")
+    modelPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "models", "unified_lstm_tcn_model")
 
     jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
     sequenceToPredictFile = os.path.join(jsonDirPath, "2025-8-3.json")
@@ -342,34 +356,30 @@ if __name__ == "__main__":
     with open(sequenceToPredictFile, "r") as openfile:
         sequenceToPredict = json.load(openfile)
 
-    tcn_model.setLoadModelWeights(False)
-    tcn_model.setModelPath(modelPath)
-    tcn_model.setDataPath(dataPath)
-    tcn_model.setBatchSize(64)
-    tcn_model.setEpochs(2000)
-    tcn_model.setLearningRate(0.001)
-    tcn_model.setDropout(0.3)
-    tcn_model.setL2Regularization(0.0005)
-    tcn_model.setEarlyStopPatience(300)
-    tcn_model.setReduceLearningRatePatience(15)
-    tcn_model.setReducedLearningRateFactor(0.5)
-    tcn_model.setWindowSize(20)
-    tcn_model.setPredictionWindowSize(20)
-    tcn_model.setLabelSmoothing(0.05)
-    tcn_model.setNumHeads(4)
-    tcn_model.setKeyDim(32)
-    tcn_model.setMarkovAlpha(0.6)
+    model.setLoadModelWeights(False)
+    model.setModelPath(modelPath)
+    model.setDataPath(dataPath)
+    model.setBatchSize(64)
+    model.setEpochs(2000)
+    model.setLearningRate(0.001)
+    model.setDropout(0.3)
+    model.setL2Regularization(0.0005)
+    model.setEarlyStopPatience(300)
+    model.setReduceLearningRatePatience(15)
+    model.setReducedLearningRateFactor(0.5)
+    model.setWindowSize(20)
+    model.setPredictionWindowSize(20)
+    model.setLabelSmoothing(0.05)
+    model.setNumHeads(4)
+    model.setKeyDim(32)
+    model.setLstmUnits(32)
+    model.setTcnUnits(32)
+    model.setNumTcnLayers(2)
 
-    latest_raw_predictions, unique_labels = tcn_model.run(name, years_back=20, strict_val=True)
-    num_classes = len(unique_labels)
+    latest_raw_predictions, unique_labels = model.run(name, years_back=20, strict_val=True)
 
     latest_raw_predictions = latest_raw_predictions.tolist()
     predicted_digits = np.argmax(latest_raw_predictions, axis=-1)
-    top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -3:][:, ::-1]
-
-    print(f"Top prediction per digit: {top3_indices[0].tolist()}")
-    top3_indices_tcn_markov = np.argsort(tcn_model.tcnMarkov, axis=-1)[:, -3:][:, ::-1]
-    print(f"TCN+Markov prediction: {top3_indices_tcn_markov[0].tolist()}")
 
     print("Prediction: ", predicted_digits.tolist())
     print("Real result: ", sequenceToPredict["realResult"])

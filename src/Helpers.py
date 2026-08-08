@@ -34,6 +34,63 @@ class Helpers():
         "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
     }
 
+    # The trailing special/bonus column(s)' own number range - distinct from
+    # the main numbers' range (Euromillions stars 1-12, EuroDreams dream
+    # number 1-5, VikingLotto viking number 1-8; observed directly from the
+    # training CSVs). Lotto's bonus column isn't included here because it's
+    # dropped entirely via skipLastColumns rather than modeled.
+    SPECIAL_UNIQUE_LABELS = {
+        "euromillions": np.arange(1, 13),
+        "eurodreams": np.arange(1, 6),
+        "vikinglotto": np.arange(1, 9),
+    }
+
+    def get_unique_labels(self, dataPath, special=False):
+        """
+        Fixed one-hot label range for a game - kept constant regardless of
+        which data window a given call loads, so a model's Dense/Embedding
+        output shapes never change between training calls and saved weights
+        can always be reloaded (see e.g. the `Numclasses:` prints staying
+        identical across HyperoptDeepLearning.py's history-rebuild loop).
+
+        special=True returns the trailing special/bonus column(s)' own
+        (smaller) range instead of the main-number range - see
+        SPECIAL_UNIQUE_LABELS. Falls back to the main range if dataPath
+        doesn't match a known special-column game (shouldn't happen in
+        practice - callers only pass special=True for those games).
+        """
+        if special:
+            for game, labels in self.SPECIAL_UNIQUE_LABELS.items():
+                if game in dataPath:
+                    return labels
+            return np.arange(1, 51)
+
+        # Euromillions are 50 numbers, Lotto are 45 numbers
+        unique_labels = np.arange(1, 51)  # This should create an array [1, 2, ..., 50]
+        if "lotto" in dataPath:
+            unique_labels = np.arange(1, 46)  # This should create an array [1, 2, ..., 45]
+        if "keno" in dataPath:
+            unique_labels = np.arange(1, 81)  # This should create an array [1, 2, ..., 80]
+        if "vikinglotto" in dataPath:
+            unique_labels = np.arange(1, 49)  # This should create an array [1, 2, ..., 49]
+        if "pick3" in dataPath:
+            unique_labels = np.arange(0, 10)  # This should create an array [0, 2, ..., 9]
+        if "jokerplus" in dataPath:
+            unique_labels = np.arange(0, 10).tolist()
+            unique_labels.append("Boogschutter")
+            unique_labels.append("Kreeft")
+            unique_labels.append("Weegschaal")
+            unique_labels.append("Schorpioen")
+            unique_labels.append("Stier")
+            unique_labels.append("Leeuw")
+            unique_labels.append("Maagd")
+            unique_labels.append("Ram")
+            unique_labels.append("Waterman")
+            unique_labels.append("Vissen")
+            unique_labels.append("Steenbok")
+            unique_labels.append("Tweeling")
+        return unique_labels
+
     def run_model_with_special_column(self, model, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnCount=0):
         """
         Runs a statistical model's run() for games with trailing special/bonus
@@ -191,13 +248,15 @@ class Helpers():
                     return (latest_entry, previous_entry)  # Return the most recent entry
             else:
                 data.sort(key=lambda x: x[0], reverse=False)  # Sort in ascending order
-                # Calculate the cutoff date based on the dateRange
-                cutoff_date = datetime.now() - relativedelta(days=dateRange)
-                #print("Cutoff date: ", cutoff_date)
-                # Filter data to include only entries within the date range
-                filtered_data = [entry for entry in data if entry[0] >= cutoff_date]
-                #print("Filtered data: ", filtered_data)
-            
+                # dateRange counts actual draw rows, not calendar days - a
+                # calendar cutoff (datetime.now() - relativedelta(days=...))
+                # silently starves games with fewer than 7 draws/week (e.g.
+                # Euromillions draws twice a week, so dateRange=8 calendar
+                # days would only ever resolve to ~2 real draws). Matches
+                # HyperoptStatistics.py's row-index-based day-to-rebuild
+                # semantics (start_index = total_rows - days_to_rebuild).
+                filtered_data = data[-dateRange:] if dateRange > 0 else []
+
                 return filtered_data
         else:
             print("No data found.")
@@ -278,7 +337,63 @@ class Helpers():
         # Predict
         raw_predictions = model.predict(input_seq)
 
-        return raw_predictions[0]  
+        # Dual-head models (main numbers + special/bonus column, see
+        # LSTM.py/TCN.py/UnifiedLstmTcn.py/UnifiedLstmGruTcn.py create_model)
+        # return a list of two batched outputs instead of one - unwrap both.
+        if isinstance(raw_predictions, (list, tuple)):
+            return [output[0] for output in raw_predictions]
+
+        return raw_predictions[0]
+
+    def combine_special_prediction(self, main_prediction, special_prediction, main_labels, special_labels):
+        """
+        Recombines a dual-head DL model's separate main/special predictions
+        (see LSTM.py/TCN.py/UnifiedLstmTcn.py/UnifiedLstmGruTcn.py create_model)
+        back into the single flat (digitsPerDraw, num_classes) array + shared
+        labels list that deepLearningMethod's decode (np.argmax + labels[i])
+        expects, so nothing downstream of run() needs to know two heads exist.
+
+        Each head's class axis is zero-padded to sit in its own disjoint slice
+        of a combined (main_num_classes + special_num_classes)-wide axis
+        (main first, special appended) - so per-position argmax still only
+        ever picks a class index within that position's own valid range, and
+        one shared `combined_labels[class_index]` correctly decodes any
+        position regardless of which head it came from.
+        """
+        main_prediction = np.asarray(main_prediction)
+        special_prediction = np.asarray(special_prediction)
+
+        main_num_classes = main_prediction.shape[-1]
+        special_num_classes = special_prediction.shape[-1]
+
+        main_padded = np.pad(main_prediction, ((0, 0), (0, special_num_classes)))
+        special_padded = np.pad(special_prediction, ((0, 0), (main_num_classes, 0)))
+
+        combined_prediction = np.concatenate([main_padded, special_padded], axis=0)
+        combined_labels = [int(v) for v in sorted(main_labels)] + [int(v) for v in sorted(special_labels)]
+
+        return combined_prediction, combined_labels
+
+    def score_numbers_from_prediction(self, raw_predictions, unique_labels):
+        """
+        Turns a DL model's per-position softmax prediction (shape
+        (digitsPerDraw, num_classes)) into a single {number: score} dict, by
+        taking - for each number - the highest probability it received across
+        every draw position that could produce it. Mirrors what the
+        statistical models' own score_numbers() provides, so Keno subset
+        generation (generate_subset_from_scores) works the same way for both:
+        no DL model tracks per-position "which slot is this" meaning (Keno's
+        20 positions are unordered), so max-across-positions is the right
+        aggregation rather than e.g. summing (which would double-count a
+        number the model is confident about in multiple positions).
+        """
+        raw_predictions = np.asarray(raw_predictions)
+        scores = {}
+        for position_probs in raw_predictions:
+            for class_index, probability in enumerate(position_probs):
+                number = int(unique_labels[class_index])
+                scores[number] = max(scores.get(number, 0.0), float(probability))
+        return scores
 
     # Function to print the predicted numbers
     def print_predicted_numbers(self, predicted_numbers):
@@ -384,30 +499,7 @@ class Helpers():
             numbers = numbers[:, -specialColumnCount:]
 
         # Unique labels for one-hot encoding
-        # Euromillions are 50 numbers, Lotto are 45 numbers
-        unique_labels = np.arange(1, 51)  # This should create an array [1, 2, ..., 50]
-        if "lotto" in dataPath:
-            unique_labels = np.arange(1, 46)  # This should create an array [1, 2, ..., 45]
-        if "keno" in dataPath:
-            unique_labels = np.arange(1, 81)  # This should create an array [1, 2, ..., 80]
-        if "vikinglotto" in dataPath:
-            unique_labels = np.arange(1, 49)  # This should create an array [1, 2, ..., 49]
-        if "pick3" in dataPath:
-            unique_labels = np.arange(0, 10)  # This should create an array [0, 2, ..., 9]
-        if "jokerplus" in dataPath:
-            unique_labels = np.arange(0, 10).tolist()
-            unique_labels.append("Boogschutter")
-            unique_labels.append("Kreeft")
-            unique_labels.append("Weegschaal")
-            unique_labels.append("Schorpioen")
-            unique_labels.append("Stier")
-            unique_labels.append("Leeuw")
-            unique_labels.append("Maagd")
-            unique_labels.append("Ram")
-            unique_labels.append("Waterman")
-            unique_labels.append("Vissen")
-            unique_labels.append("Steenbok")
-            unique_labels.append("Tweeling")
+        unique_labels = self.get_unique_labels(dataPath, special=specialColumnCount > 0)
 
         #print("unique_labels: ", unique_labels)
 

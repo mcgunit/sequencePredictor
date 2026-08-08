@@ -201,13 +201,20 @@ class LSTMModel:
     
 
 
-    def create_model(self, max_value, num_classes=10, model_path="", digitsPerDraw=3):
+    def create_model(self, max_value, num_classes=10, model_path="", digitsPerDraw=3, specialColumnCount=0, specialNumClasses=0):
         # --- Parameters ---
         # A smaller embedding dim is usually fine for 10 digits
-        embedding_dim = 8  
+        embedding_dim = 8
         lstm_units = self.lstm_units     # Enough capacity without massive overfitting
         dropout = self.dropout       # Higher dropout due to noisy data
         learning_rate = self.learning_rate
+
+        # Trailing specialColumnCount positions (Euromillions stars, EuroDreams
+        # dream number, VikingLotto viking number) have their own, smaller
+        # number range than the main positions - see the second output head
+        # below. mainDigits stays digitsPerDraw for games without a special
+        # column (specialColumnCount=0), so that path is unchanged.
+        mainDigits = digitsPerDraw - specialColumnCount
 
         # --- Architecture ---
         # Input Shape: (Window_Size, 3 Digits)
@@ -215,44 +222,60 @@ class LSTMModel:
 
         # 1. Flatten to treating the stream as a single sequence of symbols
         #    If window is 5 and digits is 3, we flatten to a sequence of length 15.
-        #    This often helps the LSTM see the relationship between Digit 1 and Digit 2 
+        #    This often helps the LSTM see the relationship between Digit 1 and Digit 2
         #    within the same draw, not just across time.
         x = layers.Reshape((self.window_size * digitsPerDraw,))(input_layer)
 
         # 2. Embedding Layer
-        #    Converts integer 0-9 into a vector of size 16. 
+        #    Converts integer 0-9 into a vector of size 16.
         #    This removes the "magnitude" bias.
         x = layers.Embedding(input_dim=num_classes, output_dim=embedding_dim)(x)
 
         # 3. Bidirectional LSTM
-        #    We use one strong layer. 'return_sequences=False' because we only 
+        #    We use one strong layer. 'return_sequences=False' because we only
         #    care about the final prediction after seeing the whole window.
         x = layers.Bidirectional(layers.LSTM(lstm_units, return_sequences=False))(x)
         x = layers.Dropout(dropout)(x)
 
         # 4. Dense Intermediary (Optional "Thinking" layer)
         x = layers.Dense(lstm_units, activation='relu')(x)
-        
-        # 5. Output Head (The Logic We Fixed)
-        #    Linear projection -> Reshape -> Independent Softmax
-        x = layers.Dense(digitsPerDraw * num_classes)(x)
-        x = layers.Reshape((digitsPerDraw, num_classes))(x)
-        output_layer = layers.Softmax(axis=-1)(x)
 
-        model = models.Model(inputs=input_layer, outputs=output_layer)
+        # 5. Output Head(s) - Linear projection -> Reshape -> Independent Softmax.
+        #    Main numbers always get their own head; special columns (if any)
+        #    get a second, independently-classed head off the same backbone -
+        #    so the model isn't forced to predict e.g. a star number (1-12)
+        #    from a 50-class softmax built for the main numbers.
+        main_logits = layers.Dense(mainDigits * num_classes)(x)
+        main_logits = layers.Reshape((mainDigits, num_classes))(main_logits)
+        main_output = layers.Softmax(axis=-1, name="main_output")(main_logits)
+
+        if specialColumnCount > 0:
+            special_logits = layers.Dense(specialColumnCount * specialNumClasses)(x)
+            special_logits = layers.Reshape((specialColumnCount, specialNumClasses))(special_logits)
+            special_output = layers.Softmax(axis=-1, name="special_output")(special_logits)
+
+            model = models.Model(inputs=input_layer, outputs=[main_output, special_output])
+            loss = {
+                "main_output": losses.CategoricalCrossentropy(),
+                "special_output": losses.CategoricalCrossentropy(),
+            }
+            metrics = {
+                "main_output": ['accuracy', self.digit_accuracy, self.any_digit_hit],
+                "special_output": ['accuracy', self.digit_accuracy, self.any_digit_hit],
+            }
+        else:
+            model = models.Model(inputs=input_layer, outputs=main_output)
+            loss = losses.CategoricalCrossentropy() # from_logits=False is default, which matches Softmax output
+            metrics = [
+                'accuracy',
+                # We can keep your custom metrics here
+                self.digit_accuracy,
+                self.any_digit_hit
+            ]
 
         # --- Compilation ---
         optimizer = optimizers.Adam(learning_rate=learning_rate)
-        
-        loss = losses.CategoricalCrossentropy() # from_logits=False is default, which matches Softmax output
-        
-        metrics = [
-            'accuracy', 
-            # We can keep your custom metrics here
-            self.digit_accuracy,
-            self.any_digit_hit
-        ]
-        
+
         model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
         
         # Load weights logic...
@@ -275,13 +298,23 @@ class LSTMModel:
                             epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
-    def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=False):
+    def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=False, specialColumnCount=0):
         # Load and preprocess data
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(
             self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back
         )
 
         print("Numclasses: ", num_classes)
+
+        # Trailing specialColumnCount positions (stars/dream number/viking
+        # number) get their own num_classes/label range, distinct from the
+        # main numbers - see create_model's second output head.
+        mainDigits = numbers.shape[1] - specialColumnCount
+        special_num_classes = 0
+        special_unique_labels = None
+        if specialColumnCount > 0:
+            special_unique_labels = helpers.get_unique_labels(self.dataPath, special=True)
+            special_num_classes = len(special_unique_labels)
 
         # -------------------------------------------------------
         # Normalize labels to 0-based (works for lotto + pick3)
@@ -313,21 +346,43 @@ class LSTMModel:
             keep = np.where(np.arange(start + self.window_size, start + self.window_size + len(y_val)) >= split_idx)[0]
             X_val, y_val = X_val[keep], y_val[keep]
 
-        # One-hot labels to shape (batch, digitsPerDraw, num_classes)
-        y = np.array([to_categorical(draw, num_classes=num_classes) for draw in y])
-        y_val = np.array([to_categorical(draw, num_classes=num_classes) for draw in y_val])
+        # One-hot labels to shape (batch, digitsPerDraw, num_classes) - main
+        # and special positions are one-hot encoded separately (different
+        # num_classes) and trained as two heads off the same backbone.
+        y_main = np.array([to_categorical(draw, num_classes=num_classes) for draw in y[:, :mainDigits]])
+        y_val_main = np.array([to_categorical(draw, num_classes=num_classes) for draw in y_val[:, :mainDigits]])
+
+        if specialColumnCount > 0:
+            y_special = np.array([to_categorical(draw, num_classes=special_num_classes) for draw in y[:, mainDigits:]])
+            y_val_special = np.array([to_categorical(draw, num_classes=special_num_classes) for draw in y_val[:, mainDigits:]])
+            train_targets = {"main_output": y_main, "special_output": y_special}
+            val_targets = {"main_output": y_val_main, "special_output": y_val_special}
+        else:
+            train_targets = y_main
+            val_targets = y_val_main
 
         print("X shape: ", X.shape)
-        print("y shape: ", y.shape)
+        print("y shape: ", y_main.shape)
         print("X_val shape: ", X_val.shape)
-        print("y_val shape: ", y_val.shape)
+        print("y_val shape: ", y_val_main.shape)
 
         # Build & train
-        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2])
-        history = self.train_model(model, X, y, X_val, y_val, model_name=name)
+        model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2],
+                                   specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes)
+        history = self.train_model(model, X, train_targets, X_val, val_targets, model_name=name)
+
+        # Best (not last) val_loss - EarlyStopping uses restore_best_weights=True,
+        # so the epoch history ends on may not be the epoch the saved weights
+        # came from. Read by HyperoptDeepLearning.py as a hyperopt signal.
+        self.last_val_loss = float(min(history.history.get("val_loss", [float("inf")])))
 
         # Predict next draw using all history available
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
+
+        if specialColumnCount > 0:
+            main_prediction, special_prediction = latest_raw_predictions
+            latest_raw_predictions, combined_labels = helpers.combine_special_prediction(
+                main_prediction, special_prediction, unique_labels, special_unique_labels)
 
         # Optional Markov blend
         # try:
@@ -354,8 +409,11 @@ class LSTMModel:
 
         # BUT: your main script uses argmax → so we only need to shift indices
         # easiest:
-        unique_labels_sorted = sorted(unique_labels)
-        unique_labels_sorted = [int(v) for v in unique_labels_sorted]
+        if specialColumnCount > 0:
+            unique_labels_sorted = combined_labels
+        else:
+            unique_labels_sorted = sorted(unique_labels)
+            unique_labels_sorted = [int(v) for v in unique_labels_sorted]
         # unique_labels_sorted[i] gives original label for class i
 
         # Example usage later:

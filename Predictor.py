@@ -9,6 +9,8 @@ from multiprocessing import Pool, cpu_count
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
+from src.UnifiedLstmTcn import UnifiedLstmTcnModel
+from src.UnifiedLstmGruTcn import UnifiedLstmGruTcnModel
 from src.Markov import Markov
 from src.MarkovMonteCarlo import MarkovMonteCarlo
 from src.MarkovBayesian import MarkovBayesian
@@ -24,6 +26,8 @@ from src.DataFetcher import DataFetcher
 
 tcn = TCNModel()
 lstm = LSTMModel()
+unifiedLstmTcn = UnifiedLstmTcnModel()
+unifiedLstmGruTcn = UnifiedLstmGruTcnModel()
 markov = Markov()
 markovMcBase = Markov()
 markovMonteCarlo = MarkovMonteCarlo(markovMcBase)
@@ -263,6 +267,9 @@ def process_single_history_entry_second_step(args):
         #unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
         listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels)
+        listOfDecodedPredictions = runUnifiedDeepLearningModels(
+            listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
+            skipRows=len(historyData) - historyIndex, years_back=years_back)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -432,6 +439,9 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                 
                             listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels)
+                            listOfDecodedPredictions = runUnifiedDeepLearningModels(
+                                listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
+                                years_back=yearsOfHistory)
                         except Exception as e:
                             print("Failed to perform deep learning method: ", e)
                     else:
@@ -613,11 +623,11 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     predictions.append({"name": "WeightedEnsemble Model", "predictions": ensemblePredictions})
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels):
-    
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, name="LSTM Base Model"):
+
     try:
         nthPredictions = {
-            "name": "LSTM Base Model",
+            "name": name,
             "predictions": []
         }
 
@@ -632,6 +642,64 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
     except Exception as e:
         print("Failed to perform nth prediction: ", e)
 
+    return listOfDecodedPredictions
+
+
+# (model instance, bestParams key prefix, display name, model_type folder) -
+# shared by both places the LSTM deep learning model runs, so
+# UnifiedLstmTcn Model / UnifiedLstmGruTcn Model show up as their own
+# additional rows next to LSTM Base Model, tracked independently in
+# real-life results. Each model gets its own isolated try/except (like every
+# other model in this file) so one failing doesn't take down the others.
+UNIFIED_DL_MODELS = [
+    (unifiedLstmTcn, "unifiedLstmTcn", "UnifiedLstmTcn Model", "unified_lstm_tcn_model"),
+    (unifiedLstmGruTcn, "unifiedLstmGruTcn", "UnifiedLstmGruTcn Model", "unified_lstm_gru_tcn_model"),
+]
+
+
+def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath, skipLastColumns,
+                                  bestParams_json_object, skipRows=0, years_back=None):
+    """
+    Runs UnifiedLstmTcn Model and UnifiedLstmGruTcn Model (see
+    src/UnifiedLstmTcn.py / src/UnifiedLstmGruTcn.py) alongside the existing
+    LSTM Base Model row. Uses bestParams_json_object.get(..., default) - not
+    bracket indexing - since these are new keys that won't exist in any
+    bestParams_<game>.json written before this feature landed (the project
+    already hit a real KeyError crash once from assuming a new key always
+    exists).
+    """
+    for model, prefix, displayName, modelTypeFolder in UNIFIED_DL_MODELS:
+        try:
+            modelPath = os.path.join(path, "data", "models", modelTypeFolder)
+            model.setDataPath(dataPath)
+            model.setModelPath(modelPath)
+            model.setLoadModelWeights(True)
+            model.setBatchSize(bestParams_json_object.get(f"{prefix}_batchSize", 16))
+            model.setEpochs(bestParams_json_object.get(f"{prefix}_epochs", 1000))
+            model.setLstmUnits(bestParams_json_object.get(f"{prefix}_lstmUnits", 64))
+            model.setTcnUnits(bestParams_json_object.get(f"{prefix}_tcnUnits", 64))
+            model.setNumTcnLayers(bestParams_json_object.get(f"{prefix}_numTcnLayers", 2))
+            if hasattr(model, "setGruUnits"):
+                model.setGruUnits(bestParams_json_object.get(f"{prefix}_gruUnits", 64))
+            model.setDropout(bestParams_json_object.get(f"{prefix}_dropout", 0.3))
+            model.setL2Regularization(bestParams_json_object.get(f"{prefix}_l2Regularization", 0.0005))
+            model.setLearningRate(bestParams_json_object.get(f"{prefix}_learningRate", 0.001))
+            model.setEarlyStopPatience(bestParams_json_object.get(f"{prefix}_earlyStopPatience", 20))
+            model.setReduceLearningRatePatience(bestParams_json_object.get(f"{prefix}_reduceLearningRatePatience", 5))
+            model.setReducedLearningRateFactor(bestParams_json_object.get(f"{prefix}_reduceLearningRateFactor", 0.5))
+            model.setWindowSize(bestParams_json_object.get(f"{prefix}_windowSize", 20))
+            model.setPredictionWindowSize(model.window_size)
+            model.setLabelSmoothing(bestParams_json_object.get(f"{prefix}_labelSmoothing", 0.05))
+            model.setNumHeads(bestParams_json_object.get(f"{prefix}_numHeads", 4))
+            model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
+
+            latest_raw_predictions, unique_labels = model.run(
+                name, skipLastColumns, skipRows=skipRows, years_back=years_back)
+
+            listOfDecodedPredictions = deepLearningMethod(
+                listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, name=displayName)
+        except Exception as e:
+            print(f"Failed to perform {displayName} prediction: ", e)
 
     return listOfDecodedPredictions
 

@@ -8,6 +8,8 @@ from datetime import datetime
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
+from src.UnifiedLstmTcn import UnifiedLstmTcnModel
+from src.UnifiedLstmGruTcn import UnifiedLstmGruTcnModel
 from src.Markov import Markov
 from src.MarkovBayesian import MarkovBayesian
 from src.MarkovBayesianEnhanched import MarkovBayesianEnhanced
@@ -22,6 +24,8 @@ from src.DataFetcher import DataFetcher
 
 tcn = TCNModel()
 lstm = LSTMModel()
+unifiedLstmTcn = UnifiedLstmTcnModel()
+unifiedLstmGruTcn = UnifiedLstmGruTcnModel()
 markov = Markov()
 markovBayesian = MarkovBayesian()
 markovBayesianEnhanced = MarkovBayesianEnhanced()
@@ -35,6 +39,135 @@ helpers = Helpers()
 dataFetcher = DataFetcher()
 
 LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
+# Prefix used for each new model's Optuna param names / bestParams_<game>.json
+# keys - Predictor.py's runUnifiedDeepLearningModels() reads these same
+# prefixed keys. Without a prefix, two independent per-model_type Optuna
+# studies writing e.g. a bare "batchSize" would silently clobber each other
+# (and LSTM's own already-tuned bare "batchSize") in bestParams_<game>.json -
+# same reasoning as HyperoptStatistics.py's suggest_keno_subset docstring.
+MODEL_PARAM_PREFIX = {
+    "unified_lstm_tcn_model": "unifiedLstmTcn",
+    "unified_lstm_gru_tcn_model": "unifiedLstmGruTcn",
+}
+
+MODEL_DISPLAY_NAMES = {
+    "lstm_model": "LSTM Base Model",
+    "tcn_model": "TCN Base Model",
+    "unified_lstm_tcn_model": "UnifiedLstmTcn Model",
+    "unified_lstm_gru_tcn_model": "UnifiedLstmGruTcn Model",
+}
+
+
+def configure_lstm(model, modelParams):
+    model.setBatchSize(modelParams["batchSize"])
+    model.setEpochs(modelParams["epochs"])
+    model.setNumberOfLSTMLayers(modelParams["num_lstm_layers"])
+    model.setNumberOfLstmUnits(modelParams["lstm_units"])
+    model.setNumberOfBidrectionalLayers(modelParams["num_bidirectional_layers"])
+    model.setNumberOfBidirectionalLstmUnits(modelParams["bidirectional_lstm_units"])
+    model.setDropout(modelParams["dropout"])
+    model.setL2Regularization(modelParams["l2Regularization"])
+    model.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    model.setReduceLearningRatePAience(modelParams["reduceLearningRatePatience"])
+    model.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    model.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
+    model.setOutpuActivation(modelParams["outputActivation"])
+    model.setOptimizer(modelParams["optimizer_type"])
+    model.setLearningRate(modelParams["learningRate"])
+    model.setWindowSize(modelParams["windowSize"])
+    model.setPredictionWindowSize(modelParams["windowSize"])
+    model.setMarkovAlpha(modelParams["lstmMarkovAlpha"])
+    model.setLabelSmoothing(modelParams["labelSmoothing"])
+
+
+def configure_tcn(model, modelParams):
+    model.setBatchSize(modelParams["batchSize"])
+    model.setEpochs(modelParams["epochs"])
+    model.setTcnUnits(modelParams["tcnUnits"])
+    model.setNumTcnLayers(modelParams["numTcnLayers"])
+    model.setDropout(modelParams["dropout"])
+    model.setL2Regularization(modelParams["l2Regularization"])
+    model.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    model.setReduceLearningRatePatience(modelParams["reduceLearningRatePatience"])
+    model.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    model.setLearningRate(modelParams["learningRate"])
+    model.setWindowSize(modelParams["windowSize"])
+    model.setPredictionWindowSize(modelParams["windowSize"])
+    model.setLabelSmoothing(modelParams["labelSmoothing"])
+    model.setNumHeads(modelParams["numHeads"])
+    model.setKeyDim(modelParams["keyDim"])
+    model.setMarkovAlpha(modelParams["lstmMarkovAlpha"])
+
+
+def configure_unified_lstm_tcn(model, modelParams):
+    model.setBatchSize(modelParams["batchSize"])
+    model.setEpochs(modelParams["epochs"])
+    model.setLstmUnits(modelParams["lstmUnits"])
+    model.setTcnUnits(modelParams["tcnUnits"])
+    model.setNumTcnLayers(modelParams["numTcnLayers"])
+    model.setDropout(modelParams["dropout"])
+    model.setL2Regularization(modelParams["l2Regularization"])
+    model.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    model.setReduceLearningRatePatience(modelParams["reduceLearningRatePatience"])
+    model.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    model.setLearningRate(modelParams["learningRate"])
+    model.setWindowSize(modelParams["windowSize"])
+    model.setPredictionWindowSize(modelParams["windowSize"])
+    model.setLabelSmoothing(modelParams["labelSmoothing"])
+    model.setNumHeads(modelParams["numHeads"])
+    model.setKeyDim(modelParams["keyDim"])
+
+
+def configure_unified_lstm_gru_tcn(model, modelParams):
+    configure_unified_lstm_tcn(model, modelParams)
+    model.setGruUnits(modelParams["gruUnits"])
+
+
+# Maps model_type -> (module-level instance, its own configure(model,
+# modelParams) function). Replaces the old `modelToUse = tcn if "lstm_model"
+# not in model_type else lstm` + a single hardcoded LSTM-shaped setter block
+# that would crash immediately on any non-LSTM model_type (TCNModel has no
+# setNumberOfLSTMLayers etc.) - every dataset entry happened to be
+# "lstm_model" so this never actually fired, but adding new model types
+# safely needs each one calling only the setters it actually has.
+MODEL_REGISTRY = {
+    "lstm_model": {"instance": lstm, "configure": configure_lstm},
+    "tcn_model": {"instance": tcn, "configure": configure_tcn},
+    "unified_lstm_tcn_model": {"instance": unifiedLstmTcn, "configure": configure_unified_lstm_tcn},
+    "unified_lstm_gru_tcn_model": {"instance": unifiedLstmGruTcn, "configure": configure_unified_lstm_gru_tcn},
+}
+
+
+def suggest_fused_params(trial, prefix, include_gru):
+    """
+    Shared Optuna param space for UnifiedLstmTcn/UnifiedLstmGruTcn - every
+    suggest name is prefixed (see MODEL_PARAM_PREFIX) so each model type's
+    tuned values land under their own bestParams_<game>.json keys instead of
+    clobbering LSTM's (or each other's).
+    """
+    params = {
+        "batchSize": trial.suggest_categorical(f"{prefix}_batchSize", [4, 8, 16]),
+        "epochs": trial.suggest_categorical(f"{prefix}_epochs", [1000]),
+        "lstmUnits": trial.suggest_categorical(f"{prefix}_lstmUnits", [16, 32, 64, 128]),
+        "tcnUnits": trial.suggest_categorical(f"{prefix}_tcnUnits", [16, 32, 64, 128]),
+        "numTcnLayers": trial.suggest_int(f"{prefix}_numTcnLayers", 1, 3),
+        "dropout": trial.suggest_float(f"{prefix}_dropout", 0.1, 0.5, step=0.1),
+        "l2Regularization": trial.suggest_float(f"{prefix}_l2Regularization", 0.0001, 0.01, step=0.0001),
+        "learningRate": trial.suggest_float(f"{prefix}_learningRate", 0.00001, 0.001, step=0.00001),
+        "earlyStopPatience": trial.suggest_int(f"{prefix}_earlyStopPatience", 10, 100, step=10),
+        "reduceLearningRatePatience": trial.suggest_int(f"{prefix}_reduceLearningRatePatience", 10, 100, step=10),
+        "reduceLearningRateFactor": trial.suggest_float(f"{prefix}_reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+        "windowSize": trial.suggest_int(f"{prefix}_windowSize", 2, 20, step=2),
+        "labelSmoothing": trial.suggest_float(f"{prefix}_labelSmoothing", 0.01, 0.1, step=0.01),
+        "numHeads": trial.suggest_categorical(f"{prefix}_numHeads", [2, 4, 8]),
+        "keyDim": trial.suggest_categorical(f"{prefix}_keyDim", [16, 32, 64]),
+        "yearsOfHistory": trial.suggest_categorical(f"{prefix}_yearsOfHistory", [10]),
+    }
+    if include_gru:
+        params["gruUnits"] = trial.suggest_categorical(f"{prefix}_gruUnits", [16, 32, 64, 128])
+    return params
+
 
 def is_running():
     """Checks if another instance is running based on the lock file."""
@@ -112,9 +245,9 @@ def update_matching_numbers(name, path):
 
 def process_single_history_entry(args):
     (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-        skipLastColumns, years_back, previousJsonFilePath, path, modelParams) = args
+        skipLastColumns, years_back, previousJsonFilePath, path, modelParams, specialColumnCount) = args
 
-    modelToUse = tcn if "lstm_model" not in model_type else lstm
+    modelToUse = MODEL_REGISTRY[model_type]["instance"]
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
     jsonFilePath = os.path.join(path, "data", "hyperOptCache", name, jsonFileName)
@@ -146,35 +279,25 @@ def process_single_history_entry(args):
 
     modelToUse.setDataPath(dataPath)
     modelToUse.setModelPath(modelPath)
-    modelToUse.setLoadModelWeights(True) 
-    modelToUse.setBatchSize(modelParams["batchSize"])
-    modelToUse.setEpochs(modelParams["epochs"])
-    modelToUse.setNumberOfLSTMLayers(modelParams["num_lstm_layers"])
-    modelToUse.setNumberOfBidrectionalLayers(modelParams["num_bidirectional_layers"])
-    modelToUse.setNumberOfLstmUnits(modelParams["lstm_units"])
-    modelToUse.setNumberOfBidirectionalLstmUnits(modelParams["bidirectional_lstm_units"])
-    modelToUse.setDropout(modelParams["dropout"])
-    modelToUse.setL2Regularization(modelParams["l2Regularization"])
-    modelToUse.setEarlyStopPatience(modelParams["earlyStopPatience"])
-    modelToUse.setReduceLearningRatePAience(modelParams["reduceLearningRatePatience"])
-    modelToUse.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
-    modelToUse.setUseFinalLSTMLayer(modelParams["useFinalLSTMLayer"])
-    modelToUse.setOutpuActivation(modelParams["outputActivation"])
-    modelToUse.setOptimizer(modelParams["optimizer_type"])
-    modelToUse.setLearningRate(modelParams["learningRate"])
-    modelToUse.setWindowSize(modelParams["windowSize"])
-    modelToUse.setPredictionWindowSize(modelParams["windowSize"])
-    modelToUse.setMarkovAlpha(modelParams["lstmMarkovAlpha"])
-    modelToUse.setLabelSmoothing(modelParams["labelSmoothing"])
+    modelToUse.setLoadModelWeights(True)
+    MODEL_REGISTRY[model_type]["configure"](modelToUse, modelParams)
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
-        name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back, strict_val=False)
-    
+        name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back, strict_val=False,
+        specialColumnCount=specialColumnCount)
+
+    # Set by run() on every model in MODEL_REGISTRY (best val_loss across
+    # epochs) - used by predict()/objective() below as the primary hyperopt
+    # signal instead of relying solely on the tiny real-draw profit sample.
+    val_loss = getattr(modelToUse, "last_val_loss", float("inf"))
+
     predictedSequence = latest_raw_predictions.tolist()
     unique_labels = unique_labels
     current_json_object["newPredictionRaw"] = predictedSequence
-    listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, 1, name, historyResult, jsonFilePath, modelParams)
+    listOfDecodedPredictions = deepLearningMethod(
+        listOfDecodedPredictions, predictedSequence, unique_labels, 1, name, historyResult, jsonFilePath, modelParams,
+        modelDisplayName=MODEL_DISPLAY_NAMES.get(model_type, "LSTM Base Model"))
 
 
     with open(jsonFilePath, "w+") as outfile:
@@ -187,7 +310,7 @@ def process_single_history_entry(args):
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
 
-    return jsonFilePath
+    return jsonFilePath, val_loss
 
 
 
@@ -203,7 +326,7 @@ def clearFolder(folderPath):
     except Exception as e:
         pass
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, modelParams={}):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, modelParams={}, specialColumnCount=0):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -219,9 +342,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param ai: To use ai tech to do predictions
     """
 
-    modelToUse = tcn
-    if "lstm_model" in model_type:
-        modelToUse = lstm
+    modelToUse = MODEL_REGISTRY[model_type]["instance"]
     modelToUse.setDataPath(dataPath)
 
     # Get the latest result out of the latest data so we can use it to check the previous prediction
@@ -278,13 +399,16 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
             argsList = [
                 (historyIndex, historyEntry, historyData, name, model_type, dataPath,
-                modelPath, skipLastColumns, years_back, previousJsonFilePath, path, modelParams)
+                modelPath, skipLastColumns, years_back, previousJsonFilePath, path, modelParams, specialColumnCount)
                 for historyIndex, historyEntry in enumerate(historyData)
             ]
 
 
+            val_losses = []
             for args in argsList:
-                results = process_single_history_entry(args)
+                _, val_loss = process_single_history_entry(args)
+                if np.isfinite(val_loss):
+                    val_losses.append(val_loss)
 
             print("Finished rebuild of history entries.")
 
@@ -294,46 +418,70 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             # Calculate Profit
             profit =  helpers.calculate_profit(name=name, path=path)
 
-            return profit
+            # avg_val_loss is backed by every retrain's held-out validation
+            # windows (hundreds of samples) - far more reliable than profit,
+            # which is backed by only `daysToRebuild` real draws. See
+            # objective() for how the two are combined.
+            avg_val_loss = sum(val_losses) / len(val_losses) if val_losses else float("inf")
+
+            return profit, avg_val_loss
         else:
             print("Prediction already made")
     else:
         print("Did not found entries")
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, name, historyResult, jsonFilePath, modelParams):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPredictions, name, historyResult, jsonFilePath, modelParams, modelDisplayName="LSTM Base Model"):
 
     jsonDirPath = os.path.join(path, "data", "hyperOptCache", name)
     num_classes = len(labels)
     numbersLength = len(historyResult)
 
     nthPredictions = {
-        "name": "LSTM Base Model",
+        "name": modelDisplayName,
         "predictions": []
     }
     # Decode prediction with nth highest probability
     predicted_indices = np.argmax(newPredictionRaw, axis=-1)
     predicted_digits = [int(labels[i]) for i in predicted_indices]
-    
+
     print("Prediction: ", predicted_digits)
     nthPredictions["predictions"].append(predicted_digits)
 
-    
-    if modelParams["useTopPrediction"]:
+    # Keno is the only game with playable sub-selections (5-10 numbers out of
+    # the full 20-number ticket) - without this, calculate_profit's keno
+    # branch (which only scores predictions of length 5-10, see
+    # Helpers.keno_ticket_profit) never had anything to score for the DL
+    # models, so their Keno hyperopt profit signal was always zero. Mirrors
+    # the statistical models' score_numbers() + generate_best_subset, using
+    # the DL prediction's per-number softmax probability as the score.
+    if "keno" in name:
         try:
-            predicted_digits = np.argmax(newPredictionRaw, axis=-1) 
+            number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, labels)
+            for subset_size in range(5, 11):
+                subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size)
+                nthPredictions["predictions"].append(subset)
+        except Exception as e:
+            print("Failed to generate keno subsets: ", e)
+
+    # useTopPrediction/useLstmMarkovPrediction are LSTM-only knobs (see
+    # suggest_fused_params, which doesn't set them) - .get() with a default
+    # so the two new model types don't crash here.
+    if modelParams.get("useTopPrediction", False):
+        try:
+            predicted_digits = np.argmax(newPredictionRaw, axis=-1)
             top3_indices = np.argsort(newPredictionRaw, axis=-1)[:, -3:][:, ::-1]
             nthPredictions["predictions"].append(top3_indices[0].tolist())
         except Exception as e:
             print("Failed to parse the top prediction: ", e)
 
-    if modelParams["useLstmMarkovPrediction"]:
+    if modelParams.get("useLstmMarkovPrediction", False):
         try:
             top3_indices_lstm_markov = np.argsort(lstm.getLstmMArkov(), axis=-1)[:, -3:][:, ::-1]
             nthPredictions["predictions"].append(top3_indices_lstm_markov[0].tolist())
         except Exception as e:
             print("Failed to parse lstm+markov: ", e)
-    
+
     listOfDecodedPredictions.append(nthPredictions)
 
     return listOfDecodedPredictions
@@ -391,18 +539,35 @@ if __name__ == "__main__":
 
     path = os.getcwd()
 
+    # Every game gets its own independent study per model type, so
+    # UnifiedLstmTcn Model / UnifiedLstmGruTcn Model get tuned (and tracked)
+    # separately from LSTM Base Model rather than sharing one set of params -
+    # same reasoning as MODEL_PARAM_PREFIX above.
+    dl_model_types = ["lstm_model", "unified_lstm_tcn_model", "unified_lstm_gru_tcn_model"]
+    # Trailing special/bonus column(s): Euromillions (2 star columns),
+    # EuroDreams (1 dream number), VikingLotto (1 super viking) get modeled
+    # via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
+    # UnifiedLstmGruTcn.py create_model) instead of being lumped into the
+    # main numbers' output. Lotto's bonus number isn't modeled at all - it's
+    # simply dropped via skip_last_columns (was incorrectly 0 here, unlike
+    # Predictor.py's own dataset list, which already drops it).
+    SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
     datasets = [
-        # (dataset_name, model_type, skip_last_columns)
-        ("euromillions", "lstm_model", 0),
-        ("lotto", "lstm_model", 0),
-        ("eurodreams", "lstm_model", 0),
-        #("jokerplus", "lstm_model", 1),
-        ("keno", "lstm_model", 0),
-        ("pick3", "lstm_model", 0),
-        ("vikinglotto", "lstm_model", 0),
+        # (dataset_name, model_type, skip_last_columns, special_column_count)
+        (dataset_name, model_type, skip_last_columns, SPECIAL_COLUMN_COUNTS.get(dataset_name, 0))
+        for dataset_name, skip_last_columns in [
+            ("euromillions", 0),
+            ("lotto", 1),
+            ("eurodreams", 0),
+            #("jokerplus", 1),
+            ("keno", 0),
+            ("pick3", 0),
+            ("vikinglotto", 0),
+        ]
+        for model_type in dl_model_types
     ]
 
-    for dataset_name, model_type, skip_last_columns in datasets:
+    for dataset_name, model_type, skip_last_columns, special_column_count in datasets:
         if dataset_name in games:
             try:
                 print(f"\n{dataset_name.capitalize()}")
@@ -447,60 +612,62 @@ if __name__ == "__main__":
                     totalProfit = 0
                     results = [] # Intermediate results
 
-                    if "keno" in dataset_name:
-                        all_values = [5, 6, 7, 8, 9, 10]
-                        MIN_LEN = 1
-                        MAX_LEN = 6
-
-                        
-                        # Binary inclusion mask for each value
-                        inclusion_mask = [trial.suggest_categorical(f"use_{v}", [True, False]) for v in all_values]
-                        
-                        # Build the subset from the mask
-                        subset = [v for v, include in zip(all_values, inclusion_mask) if include]
-
-                        # Enforce length constraints
-                        if not (MIN_LEN <= len(subset) <= MAX_LEN):
-                            return float("-inf")  # Or float("inf") if minimizing
-                        
-                        modelParams["kenoSubset"] = subset
-
-
-                    modelParams =  {
-                        "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [10]),
-                        "epochs": trial.suggest_categorical("epochs", [1000]),
-                        "batchSize": trial.suggest_categorical("batchSize", [4]),
-                        "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1]),
-                        "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1]),
-                        "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128, 256]),
-                        "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64, 128, 256]),
-                        "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
-                        "l2Regularization": trial.suggest_float("l2Regularization", 0.0001, 0.01, step=0.0001),
-                        "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 100, step=10),
-                        "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 10, 100, step=10),
-                        "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
-                        "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [False]),
-                        "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
-                        "optimizer_type": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
-                        "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
-                        "windowSize": trial.suggest_int("windowSize", 2, 20, step=2),
-                        "lstmMarkovAlpha": trial.suggest_float("lstmMarkovAlpha", 0.01, 0.1, step=0.01),
-                        "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [False]),
-                        "useTopPrediction": trial.suggest_categorical("useTopPrediction", [False]),
-                        "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
-                    }
+                    if model_type == "lstm_model":
+                        # Unprefixed - matches Predictor.py's existing LSTM
+                        # setter block, which reads these same bare keys.
+                        # Don't add a prefix here, it would break that.
+                        modelParams = {
+                            "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [10]),
+                            "epochs": trial.suggest_categorical("epochs", [1000]),
+                            "batchSize": trial.suggest_categorical("batchSize", [4]),
+                            "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1]),
+                            "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1]),
+                            "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128, 256]),
+                            "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64, 128, 256]),
+                            "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
+                            "l2Regularization": trial.suggest_float("l2Regularization", 0.0001, 0.01, step=0.0001),
+                            "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 100, step=10),
+                            "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 10, 100, step=10),
+                            "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+                            "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [False]),
+                            "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
+                            "optimizer_type": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
+                            "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
+                            "windowSize": trial.suggest_int("windowSize", 2, 20, step=2),
+                            "lstmMarkovAlpha": trial.suggest_float("lstmMarkovAlpha", 0.01, 0.1, step=0.01),
+                            "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [False]),
+                            "useTopPrediction": trial.suggest_categorical("useTopPrediction", [False]),
+                            "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
+                        }
+                    else:
+                        modelParams = suggest_fused_params(
+                            trial, MODEL_PARAM_PREFIX[model_type],
+                            include_gru=(model_type == "unified_lstm_gru_tcn_model"))
 
                     for _ in range(numOfRepeats):
-                        profit = predict(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams)
-                        #print("Profit: ", profit)
-                        results.append(profit)
-
-                    totalProfit = sum(results) / len(results)
-
+                        result = predict(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count)
+                        if result is not None:
+                            results.append(result)
 
                     clearFolder(os.path.join(path, "data", "hyperOptCache", "models", model_type))
 
-                    return totalProfit
+                    if not results:
+                        # No prediction could be made this trial (e.g. no new
+                        # history to rebuild) - fail the trial rather than
+                        # silently scoring it as a tie with real trials.
+                        return -float("inf")
+
+                    avgProfit = sum(profit for profit, _ in results) / len(results)
+                    avgValLoss = sum(val_loss for _, val_loss in results) / len(results)
+
+                    # val_loss is the primary signal - it's backed by ~hundreds
+                    # of held-out validation windows per trial, versus profit's
+                    # `daysToRebuild` real draws (often just 1-2), which is far
+                    # too small a sample to reliably separate a genuinely better
+                    # model from a lucky one. Profit is kept only as a small
+                    # tie-breaker between models with similar val_loss.
+                    PROFIT_WEIGHT = 0.05
+                    return -avgValLoss + PROFIT_WEIGHT * avgProfit
                 
                 # Write best params to json
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
@@ -513,7 +680,7 @@ if __name__ == "__main__":
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                    study_name=f"{dataset_name}-LSTM",
+                    study_name=f"{dataset_name}-{model_type}",
                     load_if_exists=True
                 )
 
