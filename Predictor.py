@@ -218,7 +218,8 @@ def process_single_history_entry_second_step(args):
     """
     
     (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-     skipLastColumns, years_back, ai, previousJsonFilePath, path, boost, bestParams_json_object) = args
+     skipLastColumns, years_back, ai, previousJsonFilePath, path, boost, bestParams_json_object,
+     specialColumnCount) = args
 
     modelToUse = tcn if "lstm_model" not in model_type else lstm
     historyDate, historyResult = historyEntry
@@ -261,15 +262,16 @@ def process_single_history_entry_second_step(args):
         modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
         
         latest_raw_predictions, unique_labels = modelToUse.run(
-            name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back)
-        
+            name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back,
+            specialColumnCount=specialColumnCount)
+
         predictedSequence = latest_raw_predictions.tolist()
         #unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels)
+        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, gameName=name)
         listOfDecodedPredictions = runUnifiedDeepLearningModels(
             listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
-            skipRows=len(historyData) - historyIndex, years_back=years_back)
+            skipRows=len(historyData) - historyIndex, years_back=years_back, specialColumnCount=specialColumnCount)
     else:
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
@@ -428,20 +430,22 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                             modelToUse.setPredictionWindowSize(modelToUse.window_size)
                             modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
                             yearsOfHistory = bestParams_json_object['yearsOfHistory']
-                            latest_raw_predictions, unique_labels = modelToUse.run(name, skipLastColumns, years_back=yearsOfHistory)
-                            
+                            specialColumnCount = SPECIAL_COLUMN_COUNTS.get(name, 0)
+                            latest_raw_predictions, unique_labels = modelToUse.run(
+                                name, skipLastColumns, years_back=yearsOfHistory, specialColumnCount=specialColumnCount)
+
                             predictedSequence = latest_raw_predictions.tolist()
 
-                    
+
                             # Save the current prediction as newPrediction
                             current_json_object["newPredictionRaw"] = predictedSequence
                             current_json_object["labels"] = unique_labels
 
-                
-                            listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels)
+
+                            listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels, gameName=name)
                             listOfDecodedPredictions = runUnifiedDeepLearningModels(
                                 listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
-                                years_back=yearsOfHistory)
+                                years_back=yearsOfHistory, specialColumnCount=specialColumnCount)
                         except Exception as e:
                             print("Failed to perform deep learning method: ", e)
                     else:
@@ -530,9 +534,12 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     yearsOfHistory = bestParams_json_object['yearsOfHistory']
 
+                    specialColumnCount = SPECIAL_COLUMN_COUNTS.get(name, 0)
+
                     argsList = [
                         (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-                            skipLastColumns, yearsOfHistory, ai, previousJsonFilePath, path, boost, bestParams_json_object)
+                            skipLastColumns, yearsOfHistory, ai, previousJsonFilePath, path, boost, bestParams_json_object,
+                            specialColumnCount)
                         for historyIndex, historyEntry in enumerate(historyData)
                     ]
 
@@ -623,11 +630,11 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     predictions.append({"name": "WeightedEnsemble Model", "predictions": ensemblePredictions})
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, name="LSTM Base Model"):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, modelDisplayName="LSTM Base Model", gameName=""):
 
     try:
         nthPredictions = {
-            "name": name,
+            "name": modelDisplayName,
             "predictions": []
         }
 
@@ -636,7 +643,19 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
 
         nthPredictions["predictions"].append(predicted_digits)
 
-        
+        # Keno is the only game with playable sub-selections (5-10 numbers
+        # out of the full 20-number ticket) - mirrors
+        # HyperoptDeepLearning.py's deepLearningMethod, reusing the DL
+        # prediction's per-number softmax probability as the subset score.
+        if "keno" in gameName:
+            try:
+                number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels)
+                for subset_size in range(5, 11):
+                    subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size)
+                    nthPredictions["predictions"].append(subset)
+            except Exception as e:
+                print("Failed to generate keno subsets: ", e)
+
         listOfDecodedPredictions.append(nthPredictions)
 
     except Exception as e:
@@ -658,7 +677,7 @@ UNIFIED_DL_MODELS = [
 
 
 def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath, skipLastColumns,
-                                  bestParams_json_object, skipRows=0, years_back=None):
+                                  bestParams_json_object, skipRows=0, years_back=None, specialColumnCount=0):
     """
     Runs UnifiedLstmTcn Model and UnifiedLstmGruTcn Model (see
     src/UnifiedLstmTcn.py / src/UnifiedLstmGruTcn.py) alongside the existing
@@ -694,10 +713,10 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
             model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
 
             latest_raw_predictions, unique_labels = model.run(
-                name, skipLastColumns, skipRows=skipRows, years_back=years_back)
+                name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
 
             listOfDecodedPredictions = deepLearningMethod(
-                listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, name=displayName)
+                listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, modelDisplayName=displayName, gameName=name)
         except Exception as e:
             print(f"Failed to perform {displayName} prediction: ", e)
 
@@ -1318,7 +1337,7 @@ if __name__ == "__main__":
             ("lotto", "lstm_model", 1, True, False),
             ("eurodreams", "lstm_model", 0, True, False),
             #("jokerplus", "lstm_model", 1, False, True),
-            ("keno", "lstm_model", 0, False, False),    # For Keno subsets are need to ceated for ai
+            ("keno", "lstm_model", 0, True, False),    # DL models now generate Keno subsets too (see deepLearningMethod)
             ("pick3", "lstm_model", 0, True, False),
             ("vikinglotto", "lstm_model", 0, True, False),
         ]
