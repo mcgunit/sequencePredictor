@@ -221,7 +221,10 @@ def process_single_history_entry_second_step(args):
      skipLastColumns, years_back, ai, previousJsonFilePath, path, boost, bestParams_json_object,
      specialColumnCount) = args
 
-    modelToUse = tcn if "lstm_model" not in model_type else lstm
+    # model_type is always "lstm_model" here (see the __main__ datasets list) -
+    # TCN now runs as its own additional row via UNIFIED_DL_MODELS instead of
+    # this either/or.
+    modelToUse = lstm
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
     jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
@@ -257,10 +260,9 @@ def process_single_history_entry_second_step(args):
         modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
         modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
         modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
-        modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
         modelToUse.setPredictionWindowSize(modelToUse.window_size)
         modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
-        
+
         latest_raw_predictions, unique_labels = modelToUse.run(
             name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back,
             specialColumnCount=specialColumnCount)
@@ -334,9 +336,10 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
-    modelToUse = tcn
-    if "lstm_model" in model_type:
-        modelToUse = lstm
+    # model_type is always "lstm_model" here (see the __main__ datasets list) -
+    # TCN now runs as its own additional row via UNIFIED_DL_MODELS instead of
+    # this either/or.
+    modelToUse = lstm
     modelToUse.setDataPath(dataPath)
 
     # Get the latest result out of the latest data so we can use it to check the previous prediction
@@ -426,7 +429,6 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                             modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
                             modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
                             modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
-                            modelToUse.setMarkovAlpha(bestParams_json_object["lstmMarkovAlpha"])
                             modelToUse.setPredictionWindowSize(modelToUse.window_size)
                             modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
                             yearsOfHistory = bestParams_json_object['yearsOfHistory']
@@ -666,11 +668,12 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
 
 # (model instance, bestParams key prefix, display name, model_type folder) -
 # shared by both places the LSTM deep learning model runs, so
-# UnifiedLstmTcn Model / UnifiedLstmGruTcn Model show up as their own
-# additional rows next to LSTM Base Model, tracked independently in
+# TCN Base Model / UnifiedLstmTcn Model / UnifiedLstmGruTcn Model show up as
+# their own additional rows next to LSTM Base Model, tracked independently in
 # real-life results. Each model gets its own isolated try/except (like every
 # other model in this file) so one failing doesn't take down the others.
 UNIFIED_DL_MODELS = [
+    (tcn, "tcn", "TCN Base Model", "tcn_model"),
     (unifiedLstmTcn, "unifiedLstmTcn", "UnifiedLstmTcn Model", "unified_lstm_tcn_model"),
     (unifiedLstmGruTcn, "unifiedLstmGruTcn", "UnifiedLstmGruTcn Model", "unified_lstm_gru_tcn_model"),
 ]
@@ -695,7 +698,8 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
             model.setLoadModelWeights(True)
             model.setBatchSize(bestParams_json_object.get(f"{prefix}_batchSize", 16))
             model.setEpochs(bestParams_json_object.get(f"{prefix}_epochs", 1000))
-            model.setLstmUnits(bestParams_json_object.get(f"{prefix}_lstmUnits", 64))
+            if hasattr(model, "setLstmUnits"):
+                model.setLstmUnits(bestParams_json_object.get(f"{prefix}_lstmUnits", 64))
             model.setTcnUnits(bestParams_json_object.get(f"{prefix}_tcnUnits", 64))
             model.setNumTcnLayers(bestParams_json_object.get(f"{prefix}_numTcnLayers", 2))
             if hasattr(model, "setGruUnits"):
@@ -793,7 +797,6 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "reduceLearningRatePatience": 50,
         "reduceLearningRateFactor": 0.9,
         "windowSize": 14,
-        "lstmMarkovAlpha": 0.2,
         "labelSmoothing": 0.05
     }
 

@@ -47,6 +47,7 @@ LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 # (and LSTM's own already-tuned bare "batchSize") in bestParams_<game>.json -
 # same reasoning as HyperoptStatistics.py's suggest_keno_subset docstring.
 MODEL_PARAM_PREFIX = {
+    "tcn_model": "tcn",
     "unified_lstm_tcn_model": "unifiedLstmTcn",
     "unified_lstm_gru_tcn_model": "unifiedLstmGruTcn",
 }
@@ -77,7 +78,6 @@ def configure_lstm(model, modelParams):
     model.setLearningRate(modelParams["learningRate"])
     model.setWindowSize(modelParams["windowSize"])
     model.setPredictionWindowSize(modelParams["windowSize"])
-    model.setMarkovAlpha(modelParams["lstmMarkovAlpha"])
     model.setLabelSmoothing(modelParams["labelSmoothing"])
 
 
@@ -97,7 +97,6 @@ def configure_tcn(model, modelParams):
     model.setLabelSmoothing(modelParams["labelSmoothing"])
     model.setNumHeads(modelParams["numHeads"])
     model.setKeyDim(modelParams["keyDim"])
-    model.setMarkovAlpha(modelParams["lstmMarkovAlpha"])
 
 
 def configure_unified_lstm_tcn(model, modelParams):
@@ -137,6 +136,33 @@ MODEL_REGISTRY = {
     "unified_lstm_tcn_model": {"instance": unifiedLstmTcn, "configure": configure_unified_lstm_tcn},
     "unified_lstm_gru_tcn_model": {"instance": unifiedLstmGruTcn, "configure": configure_unified_lstm_gru_tcn},
 }
+
+
+def suggest_tcn_params(trial, prefix):
+    """
+    Dedicated (not suggest_fused_params) Optuna param space for the
+    standalone TCN model - suggest_fused_params always includes an
+    "lstmUnits" knob for the Unified models' LSTM branch, which TCN doesn't
+    have (configure_tcn never reads it), so reusing it here would tune a
+    meaningless hyperparameter and log a dead key into bestParams_<game>.json.
+    """
+    return {
+        "batchSize": trial.suggest_categorical(f"{prefix}_batchSize", [4, 8, 16]),
+        "epochs": trial.suggest_categorical(f"{prefix}_epochs", [1000]),
+        "tcnUnits": trial.suggest_categorical(f"{prefix}_tcnUnits", [16, 32, 64, 128]),
+        "numTcnLayers": trial.suggest_int(f"{prefix}_numTcnLayers", 1, 3),
+        "dropout": trial.suggest_float(f"{prefix}_dropout", 0.1, 0.5, step=0.1),
+        "l2Regularization": trial.suggest_float(f"{prefix}_l2Regularization", 0.0001, 0.01, step=0.0001),
+        "learningRate": trial.suggest_float(f"{prefix}_learningRate", 0.00001, 0.001, step=0.00001),
+        "earlyStopPatience": trial.suggest_int(f"{prefix}_earlyStopPatience", 10, 100, step=10),
+        "reduceLearningRatePatience": trial.suggest_int(f"{prefix}_reduceLearningRatePatience", 10, 100, step=10),
+        "reduceLearningRateFactor": trial.suggest_float(f"{prefix}_reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+        "windowSize": trial.suggest_int(f"{prefix}_windowSize", 2, 20, step=2),
+        "labelSmoothing": trial.suggest_float(f"{prefix}_labelSmoothing", 0.01, 0.1, step=0.01),
+        "numHeads": trial.suggest_categorical(f"{prefix}_numHeads", [2, 4, 8]),
+        "keyDim": trial.suggest_categorical(f"{prefix}_keyDim", [16, 32, 64]),
+        "yearsOfHistory": trial.suggest_categorical(f"{prefix}_yearsOfHistory", [10]),
+    }
 
 
 def suggest_fused_params(trial, prefix, include_gru):
@@ -464,9 +490,9 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
         except Exception as e:
             print("Failed to generate keno subsets: ", e)
 
-    # useTopPrediction/useLstmMarkovPrediction are LSTM-only knobs (see
-    # suggest_fused_params, which doesn't set them) - .get() with a default
-    # so the two new model types don't crash here.
+    # useTopPrediction is an LSTM-only knob (see suggest_fused_params, which
+    # doesn't set it) - .get() with a default so the other model types don't
+    # crash here.
     if modelParams.get("useTopPrediction", False):
         try:
             predicted_digits = np.argmax(newPredictionRaw, axis=-1)
@@ -474,13 +500,6 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
             nthPredictions["predictions"].append(top3_indices[0].tolist())
         except Exception as e:
             print("Failed to parse the top prediction: ", e)
-
-    if modelParams.get("useLstmMarkovPrediction", False):
-        try:
-            top3_indices_lstm_markov = np.argsort(lstm.getLstmMArkov(), axis=-1)[:, -3:][:, ::-1]
-            nthPredictions["predictions"].append(top3_indices_lstm_markov[0].tolist())
-        except Exception as e:
-            print("Failed to parse lstm+markov: ", e)
 
     listOfDecodedPredictions.append(nthPredictions)
 
@@ -543,7 +562,7 @@ if __name__ == "__main__":
     # UnifiedLstmTcn Model / UnifiedLstmGruTcn Model get tuned (and tracked)
     # separately from LSTM Base Model rather than sharing one set of params -
     # same reasoning as MODEL_PARAM_PREFIX above.
-    dl_model_types = ["lstm_model", "unified_lstm_tcn_model", "unified_lstm_gru_tcn_model"]
+    dl_model_types = ["lstm_model", "tcn_model", "unified_lstm_tcn_model", "unified_lstm_gru_tcn_model"]
     # Trailing special/bonus column(s): Euromillions (2 star columns),
     # EuroDreams (1 dream number), VikingLotto (1 super viking) get modeled
     # via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
@@ -634,11 +653,11 @@ if __name__ == "__main__":
                             "optimizer_type": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
                             "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
                             "windowSize": trial.suggest_int("windowSize", 2, 20, step=2),
-                            "lstmMarkovAlpha": trial.suggest_float("lstmMarkovAlpha", 0.01, 0.1, step=0.01),
-                            "useLstmMarkovPrediction": trial.suggest_categorical("useLstmMarkovPrediction", [False]),
                             "useTopPrediction": trial.suggest_categorical("useTopPrediction", [False]),
                             "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
                         }
+                    elif model_type == "tcn_model":
+                        modelParams = suggest_tcn_params(trial, MODEL_PARAM_PREFIX[model_type])
                     else:
                         modelParams = suggest_fused_params(
                             trial, MODEL_PARAM_PREFIX[model_type],

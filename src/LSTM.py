@@ -24,10 +24,8 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
-from Markov import Markov 
 
 helpers = Helpers()
-markov = Markov()
 
 class SelfAttentionBlock(layers.Layer):
     def __init__(self, num_heads=4, key_dim=32, ffn_factor=4, dropout=0.0):
@@ -78,10 +76,6 @@ class LSTMModel:
         self.labelSmoothing = 0.1
         self.num_heads = 2
         self.key_dim = 16
-
-        # LSTM + Markov
-        self.markovAlpha = 0.5
-        self.lstmMarkov = None
 
     """
         Setters
@@ -148,9 +142,6 @@ class LSTMModel:
     def setPredictionWindowSize(self, value):
         self.predictionWindowSize = value
 
-    def setMarkovAlpha(self, value):
-        self.markovAlpha = value
-
     def setLabelSmoothing(self, value):
         self.labelSmoothing = value
 
@@ -160,14 +151,6 @@ class LSTMModel:
     def setKeyDim(self, value):
         self.key_dim = value
 
-
-    """
-        Getters
-    """
-
-    def getLstmMArkov(self):
-        return self.lstmMarkov
-    
 
     """
         Custom Metric functions
@@ -384,41 +367,14 @@ class LSTMModel:
             latest_raw_predictions, combined_labels = helpers.combine_special_prediction(
                 main_prediction, special_prediction, unique_labels, special_unique_labels)
 
-        # Optional Markov blend
-        # try:
-        #     markov.build_markov_chain(numbers)
-        #     markovChain = markov.getTransformationMatrix()
-        #     lastDraw = numbers[-1]
-        #     markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
-        #     self.lstmMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
-        # except Exception as e:
-        #     print("Failed to build Markov Chain: ", e)
-
-        # -------------------------------------------------------
-        # DENORMALIZE predictions back to original labels
-        # -------------------------------------------------------
-        # latest_raw_predictions shape: (digits, num_classes)
-        # Convert output probabilities for each digit
-
-        # convert indices (0..classes-1 → real labels)
-        denorm_predictions = np.zeros_like(latest_raw_predictions)
-        for digit in range(latest_raw_predictions.shape[0]):
-            for cls in range(latest_raw_predictions.shape[1]):
-                # same probability, but class shifted back
-                denorm_predictions[digit, cls] = latest_raw_predictions[digit, cls]
-
-        # BUT: your main script uses argmax → so we only need to shift indices
-        # easiest:
+        # latest_raw_predictions shape: (digits, num_classes) - argmax'd by
+        # the caller (deepLearningMethod) against unique_labels_sorted to
+        # decode indices back to real numbers.
         if specialColumnCount > 0:
             unique_labels_sorted = combined_labels
         else:
             unique_labels_sorted = sorted(unique_labels)
             unique_labels_sorted = [int(v) for v in unique_labels_sorted]
-        # unique_labels_sorted[i] gives original label for class i
-
-        # Example usage later:
-        # predicted_digits = unique_labels_sorted[np.argmax(latest_raw_predictions[digit])]
-        # -------------------------------------------------------
 
         # Plot, save, cleanup
         pd.DataFrame(history.history).plot(figsize=(8, 5))
@@ -445,17 +401,6 @@ class LSTMModel:
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
         return latest_raw_predictions
-    
-    def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
-        markov_probs = np.zeros((len(last_draw), num_classes))
-
-        for i, from_number in enumerate(last_draw):
-            transitions = transition_matrix.get(from_number, {})
-            for to_number, prob in transitions.items():
-                markov_probs[i, to_number] = prob
-
-        return markov_probs
-    
 
 
 # Run main function if this script is run directly (not imported as a module)
@@ -495,7 +440,6 @@ if __name__ == "__main__":
     lstm_model.setReduceLearningRatePAience(30)
     lstm_model.setReducedLearningRateFactor(0.9)
     lstm_model.setWindowSize(7)
-    lstm_model.setMarkovAlpha(0.01)
     lstm_model.setPredictionWindowSize(lstm_model.window_size)
     lstm_model.setLabelSmoothing(0.01)
     lstm_model.setNumHeads(2)
@@ -513,11 +457,6 @@ if __name__ == "__main__":
     # top7_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -numbersLength:][:, ::-1]
     # top7_labels = [[int(unique_labels[i]) for i in row] for row in top7_indices]
     # #print(f"Position top prediction: {top7_labels[0]}")
-
-    # lstm_markov = lstm_model.getLstmMArkov()
-    # top_indices_markov = np.argsort(lstm_markov, axis=-1)[:, -numbersLength:][:, ::-1]
-    # top_labels_markov = [[int(unique_labels[i]) for i in row] for row in top_indices_markov]
-    # #print(f"lstm+markov prediction: {top_labels_markov[0]}")
 
     matches = set(predicted_digits) & set(sequenceToPredict["realResult"])
 

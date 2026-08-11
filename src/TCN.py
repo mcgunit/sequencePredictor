@@ -23,10 +23,8 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
-from Markov import Markov 
 
 helpers = Helpers()
-markov = Markov()
 
 # ---------------------------
 # Self-Attention block
@@ -75,10 +73,8 @@ class TCNModel:
         self.labelSmoothing = 0.05
         self.num_heads = 4
         self.key_dim = 32
-        self.markovAlpha = 0.5
         self.tcn_units = 64
         self.num_tcn_layers = 2
-        self.tcnMarkov = None
         self.loadModelWeights = True
 
     # ---------------------------
@@ -96,11 +92,12 @@ class TCNModel:
     def setLearningRate(self, value): self.learning_rate = value
     def setWindowSize(self, value): self.window_size = value
     def setPredictionWindowSize(self, value): self.predictionWindowSize = value
-    def setMarkovAlpha(self, value): self.markovAlpha = value
     def setLabelSmoothing(self, value): self.labelSmoothing = value
     def setNumHeads(self, value): self.num_heads = value
     def setKeyDim(self, value): self.key_dim = value
     def setLoadModelWeights(self, value): self.loadModelWeights = value
+    def setTcnUnits(self, value): self.tcn_units = value
+    def setNumTcnLayers(self, value): self.num_tcn_layers = value
 
     # ---------------------------
     # Custom metrics
@@ -237,6 +234,13 @@ class TCNModel:
             special_unique_labels = helpers.get_unique_labels(self.dataPath, special=True)
             special_num_classes = len(special_unique_labels)
 
+        # Normalize labels to 0-based - without this, a raw value equal to
+        # num_classes (e.g. Euromillions' 50 against a 50-class one-hot,
+        # valid indices 0-49) crashes to_categorical with an out-of-bounds
+        # index. Matches LSTM.py/UnifiedLstmTcn.py's normalization.
+        min_label = np.min(unique_labels)
+        numbers = numbers - min_label
+
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
@@ -288,15 +292,6 @@ class TCNModel:
             latest_raw_predictions, combined_labels = helpers.combine_special_prediction(
                 main_prediction, special_prediction, unique_labels, special_unique_labels)
             unique_labels = combined_labels
-        else:
-            try:
-                markov.build_markov_chain(numbers)
-                markovChain = markov.getTransformationMatrix()
-                lastDraw = numbers[-1]
-                markov_probs = self.get_markov_probs_for_last_draw(markovChain, lastDraw, num_classes)
-                self.tcnMarkov = self.markovAlpha * latest_raw_predictions + (1 - self.markovAlpha) * markov_probs
-            except Exception as e:
-                print("Failed to build Markov Chain: ", e)
 
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f"model_{name}_performance.png"))
@@ -315,14 +310,6 @@ class TCNModel:
         numbers = helpers.load_prediction_data(self.dataPath, skipLastColumns, maxRows=maxRows)
         model = load_model(modelPath, compile=True)
         return helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
-
-    def get_markov_probs_for_last_draw(self, transition_matrix, last_draw, num_classes):
-        markov_probs = np.zeros((len(last_draw), num_classes))
-        for i, from_number in enumerate(last_draw):
-            transitions = transition_matrix.get(from_number, {})
-            for to_number, prob in transitions.items():
-                markov_probs[i, to_number] = prob
-        return markov_probs
 
 
 # ---------------------------
@@ -358,7 +345,6 @@ if __name__ == "__main__":
     tcn_model.setLabelSmoothing(0.05)
     tcn_model.setNumHeads(4)
     tcn_model.setKeyDim(32)
-    tcn_model.setMarkovAlpha(0.6)
 
     latest_raw_predictions, unique_labels = tcn_model.run(name, years_back=20, strict_val=True)
     num_classes = len(unique_labels)
@@ -368,8 +354,6 @@ if __name__ == "__main__":
     top3_indices = np.argsort(latest_raw_predictions, axis=-1)[:, -3:][:, ::-1]
 
     print(f"Top prediction per digit: {top3_indices[0].tolist()}")
-    top3_indices_tcn_markov = np.argsort(tcn_model.tcnMarkov, axis=-1)[:, -3:][:, ::-1]
-    print(f"TCN+Markov prediction: {top3_indices_tcn_markov[0].tolist()}")
 
     print("Prediction: ", predicted_digits.tolist())
     print("Real result: ", sequenceToPredict["realResult"])
