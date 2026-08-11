@@ -79,6 +79,437 @@ Unimplemented directions worth exploring further:
 - **Clean up dead LSTM configuration** — `LSTM.py`'s `num_lstm_layers`/`num_bidirectional_layers` setters don't affect the built architecture (always one layer) despite being tunable in `HyperoptDeepLearning.py`; either wire them up for real multi-layer stacking or drop them so the tunable surface matches what's actually built.
 
 
+
+## Quantum-assisted research
+
+Quantum computing is being investigated as an additional research layer alongside the existing statistical, deep-learning, boosting, and stacking models. The purpose is not to assume that a quantum model can predict an inherently random draw. The purpose is to test whether quantum feature maps or hybrid quantum-classical models can detect reproducible structure that the existing classical models do not detect.
+
+The main research hypothesis is:
+
+> A correctly operated lottery-style game should not contain stable, exploitable temporal information. If a model appears to outperform suitable random and classical baselines, the result must remain reproducible under walk-forward validation, synthetic-random controls, shuffled-history controls, and an untouched holdout period.
+
+A quantum model is therefore treated as another adversarial test of the sequence-generating process, comparable to evaluating the resilience of a system against another class of analysis. Failure to find predictive structure is evidence consistent with the modeled randomness assumptions, but it is not proof of perfect randomness. Apparent predictive structure is a signal for further investigation, not immediate proof that a game is predictable or biased.
+
+### Recommended first integration: `QuantumMetaLearner Model`
+
+The first quantum experiment should reuse the same per-number training data already collected for `MetaLearner Model` and `MetaLearnerV2 Model`.
+
+For every backtested day and candidate number, the existing pipeline already produces a feature vector containing the scores from the seven supported base models:
+
+- `Markov`
+- `MarkovMonteCarlo`
+- `MarkovBayesian`
+- `MarkovBayesianEnhanced`
+- `PoissonMonteCarlo`
+- `PoissonMarkov`
+- `LaplaceMonteCarlo`
+
+The label remains unchanged:
+
+```text
+1 = the candidate number occurred in the next real draw
+0 = the candidate number did not occur in the next real draw
+```
+
+The three meta-models can therefore be compared using the same input matrix, labels, chronological split, and ticket-construction logic:
+
+```text
+Base-model score vectors
+          |
+          +--> LogisticRegression
+          |       `MetaLearner Model`
+          |
+          +--> GradientBoostingClassifier
+          |       `MetaLearnerV2 Model`
+          |
+          +--> Quantum feature map / quantum classifier
+                  `QuantumMetaLearner Model`
+```
+
+This answers a focused research question:
+
+> Can a quantum feature map discover useful nonlinear relationships among the existing model scores that the logistic-regression and gradient-boosting meta-learners miss?
+
+The quantum model should be added as its own independently tracked prediction row. It must not replace either existing meta-learner until repeated backtesting and real-life tracking demonstrate a reliable improvement.
+
+For games with special columns, the current separation must remain intact:
+
+```text
+Main-number quantum model
+Special-column quantum model
+```
+
+Euromillions stars, the EuroDreams dream number, and the VikingLotto super viking number must not be mixed with the main-number range. `Pick3` should initially remain excluded because the current meta-learning representation ranks numbers but does not represent positional digit order.
+
+A possible artifact layout is:
+
+```text
+data/models/<game>/quantum_meta_learner.joblib
+```
+
+The persisted artifact should include everything required to reproduce inference:
+
+- Feature-name order
+- Feature scaler
+- Optional dimensionality-reduction transform
+- Quantum model parameters
+- Classification threshold, if one is used
+- Main-number model
+- Optional special-column model
+- Training metadata and package versions
+
+### Quantum feature encoding
+
+The seven base-model scores are classical values. Before they can be processed by a quantum circuit, they must be normalized and encoded into gate parameters.
+
+A practical first implementation should reduce the seven scores to four features:
+
+```text
+Seven base-model scores
+          |
+          v
+StandardScaler fitted on training data only
+          |
+          v
+PCA or training-only feature selection
+          |
+          v
+Four normalized features
+          |
+          v
+Four-qubit parameterized circuit
+```
+
+Possible encodings include angle rotations such as `RY` or `RZ`, followed by entangling gates and trainable rotations. Circuit measurements produce expectation values or class probabilities that the normal Python pipeline can convert into per-number scores.
+
+The scaler, PCA transform, and feature selector must be fitted only on the training partition. Fitting preprocessing on the full dataset would leak information from the holdout period.
+
+Starting with four qubits keeps simulation and hyperparameter optimization manageable. A seven-qubit version can be researched later, but it will be substantially more expensive to train and simulate.
+
+### Initial quantum model candidates
+
+The first comparison should include two different quantum approaches where practical:
+
+1. **Quantum-kernel classifier**
+   - Encodes each feature vector into a quantum state.
+   - Estimates similarity through a quantum kernel.
+   - Uses the resulting kernel with a classical support-vector classifier.
+
+2. **Variational quantum classifier**
+   - Encodes the input scores as circuit rotations.
+   - Applies a parameterized ansatz with entangling gates.
+   - Uses a classical optimizer to train the circuit parameters.
+
+The quantum-kernel model is the preferred first prototype because it provides a relatively clean comparison with a classical RBF support-vector machine. The variational classifier can be added after the data flow, persistence, and evaluation logic are stable.
+
+### Training integration
+
+`TrainMetaLearner.py` should collect the seven base-model scores only once and reuse the resulting dataset for all meta-learners:
+
+```python
+training_data = collect_meta_training_data(...)
+
+train_logistic_meta_learner(training_data)
+train_gradient_boosting_meta_learner(training_data)
+train_quantum_meta_learner(training_data)
+```
+
+The expensive backtest must not be repeated separately for each meta-model. All variants must receive exactly the same:
+
+- Historical days
+- Candidate-number rows
+- Base-model feature values
+- Labels
+- Main/special-column separation
+- Walk-forward holdout boundary
+
+This is necessary for a fair benchmark.
+
+Quantum training should initially be opt-in because circuit simulation and quantum-kernel computation can be much slower than the existing classical meta-learners. A per-game configuration flag can control the feature:
+
+```json
+{
+  "useQuantumMetaLearner": false
+}
+```
+
+### Evaluation metrics
+
+Ticket-level hit counts remain important, but the quantum model must also be evaluated at the per-number probability and ranking levels.
+
+#### Per-number probability metrics
+
+- ROC AUC
+- Precision-recall AUC
+- Brier score
+- Log loss
+- Expected calibration error
+- Calibration curve
+
+Accuracy alone is not sufficient. In a game that draws only a small subset of the available number range, a model can achieve high accuracy by predicting that every number will not be drawn.
+
+#### Ranking metrics
+
+- Precision at ticket size
+- Recall at ticket size
+- Mean rank of the numbers that were actually drawn
+- Normalized discounted cumulative gain
+
+#### Ticket-level metrics
+
+- Average number of hits
+- 2+ hit rate
+- 3+ hit rate
+- 4+ hit rate
+- Maximum hit count
+- Full hit-count distribution
+- Relative improvement over uniform and frequency baselines
+
+All metrics must be calculated over chronological out-of-sample predictions.
+
+### Randomness-discrimination experiment
+
+A second quantum research track should test whether real draw windows can be distinguished from synthetic fair-draw windows.
+
+The classification problem is:
+
+```text
+Class 0 = synthetic draws generated according to the game rules
+Class 1 = real historical draws
+```
+
+The main question is:
+
+> Can a classical or quantum model identify a reproducible difference between the real history and a correctly simulated fair process?
+
+The comparison should include:
+
+- Logistic regression
+- RBF support-vector machine
+- Random forest
+- Gradient boosting
+- Small neural network
+- Quantum-kernel classifier
+- Variational quantum classifier
+
+Balanced accuracy and ROC AUC near 50% on a genuinely untouched holdout period indicate that a model cannot reliably distinguish the two sources.
+
+Performance above chance does not immediately imply manipulation or next-draw predictability. A classifier may instead detect:
+
+- Historical game-rule changes
+- Changes in number or special-number ranges
+- Sorted versus drawn-order differences
+- Missing or duplicated records
+- API or preprocessing artifacts
+- Equipment or draw-schedule changes
+- Incorrect synthetic-data generation
+
+Synthetic data must therefore reproduce the exact rules that applied during each historical period.
+
+### Required negative controls
+
+The complete research pipeline tests many models, games, features, windows, and hyperparameters. Apparent improvements can occur by chance, especially when only the best result is reported. The quantum experiments must therefore include the same optimization effort on negative controls.
+
+#### Shuffled-history control
+
+Randomly reorder the historical draws and run the same feature engineering, optimization, and evaluation process.
+
+If performance remains similar after shuffling, the model is probably using marginal frequencies, range characteristics, sorted-position distributions, or another non-temporal property rather than learning next-draw dependence.
+
+#### Synthetic-fair-history control
+
+Generate many synthetic histories with the same length and rules as the real history. Run the complete hyperparameter optimization and backtest process on each synthetic history.
+
+The relevant null comparison is not one random model. It is:
+
+> The best score found after applying the same complete model-selection and optimization process to data known to be random.
+
+This estimates how often the research process itself discovers apparently strong models in random data.
+
+#### Irrelevant-feature control
+
+Add at least one independently generated random feature. The model should not assign stable predictive importance to that feature across repeated training runs.
+
+#### Lockbox period
+
+Reserve the newest historical period as a final untouched test set. Model design, hyperparameters, preprocessing, feature selection, and metric selection must be frozen before this period is evaluated.
+
+Repeatedly inspecting the same holdout period and modifying the model afterward converts the holdout into development data.
+
+### Search versus prediction
+
+The Grover experiments in the separate quantum-learning repository demonstrate how a known condition can be used to amplify matching candidates. Grover search is not itself a prediction model and does not create information about the next draw.
+
+A later Sequence Predictor experiment could define an oracle such as:
+
+```python
+def is_promising(candidate_ticket, scoring_model, threshold):
+    return scoring_model.score(candidate_ticket) >= threshold
+```
+
+Grover search could then amplify candidate tickets whose model score exceeds the threshold.
+
+The workflow would be:
+
+```text
+Historical data
+      |
+      v
+Classical or quantum predictive model
+      |
+      v
+Score candidate tickets
+      |
+      v
+Oracle marks tickets above a threshold
+      |
+      v
+Grover amplification
+      |
+      v
+Measured candidate tickets
+```
+
+This can research quantum candidate search, but the predictive information still comes from the scoring model. If the previous draws contain no useful signal about the next independent draw, Grover search cannot create such a signal.
+
+Grover-based ticket search is therefore a later experimental phase, after the quantum meta-learner and randomness discriminator have been benchmarked.
+
+### Within-draw structure versus temporal predictability
+
+Sorted lottery numbers contain predictable positional structure even when the underlying draw is fair. The first sorted number tends to be lower than the final sorted number. A position-based model can learn this order-statistic structure without learning any dependence between successive draws.
+
+The project should therefore report these concepts separately:
+
+```text
+Within-draw distributional structure
+    versus
+Between-draw temporal predictive value
+```
+
+A model that generates plausible sorted tickets or achieves low positional error is not necessarily producing more next-draw hits than a fair baseline.
+
+For non-positional games, a multi-hot representation is useful for randomness and sequence experiments:
+
+```text
+One element per possible number
+1 = number was drawn
+0 = number was not drawn
+```
+
+`Pick3` should retain its positional representation because digit order is part of the result.
+
+### Proposed implementation phases
+
+#### Phase Q0: classical controls first
+
+Before interpreting any quantum comparison:
+
+- Actually tune and run `TCN.py` as a classical baseline.
+- Remove or correctly wire the dead LSTM layer-count configuration.
+- Add synthetic-fair-history benchmarks.
+- Add shuffled-history benchmarks.
+- Add per-number probability and ranking metrics.
+- Establish an untouched chronological lockbox period.
+
+#### Phase Q1: quantum meta-learning
+
+- Reuse `TrainMetaLearner.py` score matrices.
+- Add `QuantumMetaLearner Model` as a separate tracked row.
+- Start with four training-only reduced features and four qubits.
+- Compare with logistic regression, gradient boosting, and classical-kernel SVM.
+- Persist preprocessing and model metadata with the quantum artifact.
+- Keep the model opt-in during development.
+
+#### Phase Q2: randomness discrimination
+
+- Generate synthetic histories using exact period-specific game rules.
+- Build real-versus-synthetic window features.
+- Compare classical and quantum classifiers.
+- Repeat the experiment across multiple synthetic seeds and chronological splits.
+- Investigate any stable distinguishability before treating it as predictive evidence.
+
+#### Phase Q3: direct quantum scoring
+
+- Produce a quantum-assisted score for every candidate number.
+- Reuse the existing ticket construction, special-column handling, Keno subset generation, Backtester, and UI tracking.
+- Compare calibration and ranking before comparing final ticket hits.
+
+#### Phase Q4: candidate search
+
+- Define a ticket-level score and threshold.
+- Build a toy Grover oracle for a deliberately small candidate space.
+- Compare quantum search cost with direct classical ranking.
+- Include circuit depth, native two-qubit gate count, noise sensitivity, and data-loading cost.
+
+### Suggested project structure
+
+```text
+src/
+├── QuantumMetaLearner.py
+├── QuantumKernelModel.py
+├── QuantumRandomnessDiscriminator.py
+└── quantum/
+    ├── __init__.py
+    ├── feature_encoding.py
+    ├── circuits.py
+    ├── simulator.py
+    ├── evaluation.py
+    └── persistence.py
+
+experiments/
+└── quantum/
+    ├── compare_meta_learners.py
+    ├── real_vs_synthetic.py
+    ├── synthetic_null_benchmark.py
+    ├── shuffled_history_control.py
+    ├── noise_sensitivity.py
+    └── transpilation_cost.py
+```
+
+### Reporting requirements
+
+Every quantum result should include:
+
+- Game and historical date range
+- Game rules and any rule-change boundaries
+- Training, validation, and lockbox periods
+- Feature list and preprocessing steps
+- Number of qubits
+- Feature map and circuit ansatz
+- Circuit depth and operation counts
+- Simulator or backend
+- Shot count
+- Noise model, if used
+- Optimizer and optimization budget
+- Hyperparameter search budget
+- Classical models given an equivalent tuning budget
+- Random seeds
+- Per-number metrics
+- Ranking metrics
+- Ticket-level hit distribution
+- Synthetic and shuffled-control results
+- Runtime and computational cost
+
+A quantum model should not be described as better based on one favorable backtest, one game, or one metric. Improvements should be stable across repeated seeds, chronological periods, and appropriate null controls.
+
+### Research interpretation
+
+The quantum extension is intended as an adversarial randomness and model-capability benchmark.
+
+A defensible conclusion can state:
+
+```text
+Under the tested data representation, model family, optimization budget,
+and chronological evaluation period, the quantum-assisted model did or
+ did not detect reproducible structure beyond the selected classical baselines.
+```
+
+It should not state that failure to detect structure proves perfect randomness, or that a small retrospective uplift proves future lottery predictability.
+
+All quantum experiments remain subject to the repository's education and research disclaimer. Simulated quantum circuits run on classical hardware and do not demonstrate quantum computational advantage.
+
+
+
 ## Installation
 
 ### For Predictor (Python)
