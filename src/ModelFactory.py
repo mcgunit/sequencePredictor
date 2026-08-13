@@ -5,12 +5,21 @@ from src.MarkovBayesianEnhanched import MarkovBayesianEnhanced
 from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
+from src.XGBoost import XGBoostPredictor
 
 # Ordered list of base-model display names fed into the meta-learner -
 # HybridStatisticalModel is deliberately excluded: it's itself a vote-based
 # ensemble of several of these models, so feeding it in too would be circular.
 # The order here fixes the feature-vector column order persisted alongside
 # the meta-learner, so Predictor.py must build vectors in this same order.
+#
+# XGBoost Model is appended last, deliberately: every meta-learner artifact
+# stores its own feature_names and Predictor.py builds vectors from THAT list
+# (skipping names it can't score), so an artifact trained before this change
+# keeps working untouched - it simply never asks for the boosting feature.
+# Appending rather than inserting also keeps the column order of every
+# existing feature stable, so an old and a new artifact stay directly
+# comparable. Re-run TrainMetaLearner.py to actually pick the new feature up.
 BASE_MODEL_NAMES = [
     "Markov Model",
     "MarkovMonteCarlo Model",
@@ -19,6 +28,7 @@ BASE_MODEL_NAMES = [
     "PoissonMonteCarlo Model",
     "PoissonMarkov Model",
     "LaplaceMonteCarlo Model",
+    "XGBoost Model",
 ]
 
 # Models with no per-position modeling of their own - excluded for Pick3,
@@ -110,5 +120,36 @@ def build_models(dataPath, bestParams, is_pick3):
     laplaceMonteCarlo.setNumOfSimulations(bestParams.get("laplaceMonteCarloNumberOfSimulations", 900))
     laplaceMonteCarlo.setSortedPrediction(not is_pick3)
     models["LaplaceMonteCarlo Model"] = laplaceMonteCarlo
+
+    # Gradient boosting as a meta-learner feature: a boosted-tree score is a
+    # genuinely different signal from the Markov/Poisson family, which is the
+    # whole point of stacking. Same tuned xgBoost* params Predictor.py's
+    # boostingMethod reads, so the feature the meta-learner is trained on is
+    # the same one it gets served at prediction time.
+    #
+    # Note the cost: unlike the models above (whose "fit" is a frequency or
+    # transition count), every XGBoost score is a real training run, so a
+    # backtest collecting scores over N days trains N times. src/XGBoost.py
+    # caches its fit per (data slice, hyperparameters) so run() and
+    # score_numbers() on the same day don't train twice, and threads stay at 1
+    # because Backtester already parallelises across days.
+    xgboost = XGBoostPredictor()
+    xgboost.setDataPath(dataPath)
+    xgboost.setEstimators(bestParams.get("xgBoostEstimators", 200))
+    xgboost.setLearningRate(bestParams.get("xgBoostLearningRate", 0.1))
+    xgboost.setMaxDepth(bestParams.get("xgBoostMaxdepth", 3))
+    xgboost.setPreviousDraws(bestParams.get("xgBoostPreviousDraws", 11))
+    xgboost.setTopK(bestParams.get("xgBoostTopK", 16))
+    xgboost.setForceNested(bestParams.get("xgBoostForceNested", True))
+    xgboost.setSubsample(bestParams.get("xgBoostSubsample", 1.0))
+    xgboost.setColsampleByTree(bestParams.get("xgBoostColsampleByTree", 1.0))
+    xgboost.setMinChildWeight(bestParams.get("xgBoostMinChildWeight", 1.0))
+    xgboost.setRegLambda(bestParams.get("xgBoostRegLambda", 1.0))
+    xgboost.setSubsetSelectionMode(bestParams.get("xgBoostSubsetMode", "softmax"))
+    xgboost.setSubsetTemperature(bestParams.get("xgBoostSubsetTemperature", 0.5))
+    xgboost.setSortedPrediction(not is_pick3)
+    xgboost.setNumThreads(1)
+    xgboost.setSaveModels(False)
+    models["XGBoost Model"] = xgboost
 
     return models

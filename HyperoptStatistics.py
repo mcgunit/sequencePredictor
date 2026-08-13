@@ -519,6 +519,13 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
 
 # Maps a -s/--strategies CLI name to its objective + the "use<X>" flag Predictor.py
 # reads from bestParams_<game>.json to decide whether to run that model live.
+#
+# "games" restricts a strategy to the games it actually applies to; omitted (or
+# None) means every game. Without this, a game-specific strategy still got a
+# study created and every one of --trials trials run against it, each returning
+# a constant no-op score - wasted runtime plus a meaningless "Best Score: 0.0"
+# in the log and an empty study row in db.sqlite3 for every game it never
+# applied to.
 STRATEGIES = {
     "Markov": {"objective": objective_markov, "use_key": "useMarkov"},
     "MarkovMonteCarlo": {"objective": objective_markov_mc, "use_key": "useMarkovMonteCarlo"},
@@ -531,9 +538,9 @@ STRATEGIES = {
     # Not a base model - tunes WeightedEnsemble/MetaLearner's Keno subset
     # mode/temperature (see objective_keno_subset_tuning). No use_key: it
     # doesn't gate a run/skip flag, Predictor.py reads its tuned params
-    # unconditionally whenever it builds a Keno subset. No-ops (returns 0.0
-    # immediately) for every other game.
-    "KenoSubsetTuning": {"objective": objective_keno_subset_tuning, "use_key": None},
+    # unconditionally whenever it builds a Keno subset. Keno-only: it's the
+    # only game with sub-selections, so there is nothing to tune anywhere else.
+    "KenoSubsetTuning": {"objective": objective_keno_subset_tuning, "use_key": None, "games": ("keno",)},
 }
 
 # Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
@@ -655,6 +662,12 @@ if __name__ == "__main__":
                         continue
 
                     strategy = STRATEGIES[strategy_name]
+
+                    applicable_games = strategy.get("games")
+                    if applicable_games and dataset_name not in applicable_games:
+                        print(f"Skipping {strategy_name} for {dataset_name} - only applies to: {', '.join(applicable_games)}")
+                        continue
+
                     studyName = f"{dataset_name}_{strategy_name}"
 
                     study = optuna.create_study(
