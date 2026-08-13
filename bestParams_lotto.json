@@ -40,12 +40,12 @@
     "hybridStatisticalModelMinOcurrences": 18,
     "hybridStatisticalModelNumberOfSimulations": 400,
     "useBoost": true,
-    "xgBoostEstimators": 200,
-    "xgBoostLearningRate": 1.7388451531917795,
-    "xgBoostMaxdepth": 15,
-    "xgBoostPreviousDraws": 11,
-    "xgBoostTopK": 16,
-    "xgBoostForceNested": true,
+    "xgBoostEstimators": 110,
+    "xgBoostLearningRate": 0.03329155871890657,
+    "xgBoostMaxdepth": 10,
+    "xgBoostPreviousDraws": 14,
+    "xgBoostTopK": 25,
+    "xgBoostForceNested": false,
     "batchSize": 4,
     "epochs": 1000,
     "num_lstm_layers": 1,
@@ -83,7 +83,8 @@
         "PoissonMonteCarlo Model": 1.1290322580645162,
         "PoissonMarkov Model": 1.0,
         "LaplaceMonteCarlo Model": 1.096774193548387,
-        "HybridStatisticalModel": 1.1290322580645162
+        "HybridStatisticalModel": 1.1290322580645162,
+        "XGBoost Model": 0.9
     },
     "unifiedLstmTcn_batchSize": 8,
     "unifiedLstmTcn_epochs": 1000,
@@ -117,5 +118,11 @@
     "unifiedLstmGruTcn_numHeads": 4,
     "unifiedLstmGruTcn_keyDim": 16,
     "unifiedLstmGruTcn_yearsOfHistory": 10,
-    "unifiedLstmGruTcn_gruUnits": 16
+    "unifiedLstmGruTcn_gruUnits": 16,
+    "xgBoostSubsample": 0.7279252291309819,
+    "xgBoostColsampleByTree": 0.5864740715974597,
+    "xgBoostMinChildWeight": 9.009456364759796,
+    "xgBoostRegLambda": 0.342034697242662,
+    "xgBoostSubsetMode": "softmax",
+    "xgBoostSubsetTemperature": 0.32606534062644266
 }
