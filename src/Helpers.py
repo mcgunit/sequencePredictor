@@ -327,6 +327,24 @@ class Helpers():
 
         return labels[selected_indices].tolist()
     
+    def model_weights_are_finite(self, model):
+        """
+        True if every weight tensor in the model is free of NaN/Inf.
+
+        Exploding gradients (mid-training loss->nan, most common with
+        certain hyperopt-sampled learning rate/dropout/l2 combos, especially
+        on Keno's large 20-position/80-class output) leave the model's live
+        weights corrupted even when EarlyStopping's restore_best_weights
+        can't help - if the very first epoch of a run is already NaN, there
+        is no earlier "best" epoch to restore to. Call this right before
+        model.save_weights()/model.save() so a corrupted run doesn't get
+        persisted to disk and then reloaded (and re-corrupt) every
+        subsequent retrain step - see HyperoptDeepLearning.py's
+        process_single_history_entry, which reloads this same weights file
+        on every history day.
+        """
+        return all(np.all(np.isfinite(w)) for w in model.get_weights())
+
     def predict_numbers(self, model, numbers, window_size=10):
         # Take the last `window_size` draws
         input_seq = numbers[-window_size:]  # shape (10, 3)

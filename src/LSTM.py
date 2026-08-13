@@ -257,7 +257,12 @@ class LSTMModel:
             ]
 
         # --- Compilation ---
-        optimizer = optimizers.Adam(learning_rate=learning_rate)
+        # clipnorm bounds the gradient's global L2 norm per update - the
+        # standard defense against exploding gradients pushing loss to
+        # inf/nan (seen in practice with some hyperopt-sampled learning
+        # rate/dropout/l2 combos, especially on Keno's large 20-position,
+        # 80-class output space).
+        optimizer = optimizers.Adam(learning_rate=learning_rate, clipnorm=1.0)
 
         model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
         
@@ -359,6 +364,18 @@ class LSTMModel:
         # came from. Read by HyperoptDeepLearning.py as a hyperopt signal.
         self.last_val_loss = float(min(history.history.get("val_loss", [float("inf")])))
 
+        # Exploding gradients (some hyperopt-sampled hyperparameter combos)
+        # can leave the model's live weights NaN/Inf even after training -
+        # if the very first epoch is already non-finite, EarlyStopping's
+        # restore_best_weights has no earlier "best" epoch to fall back to.
+        # Force the worst possible score and skip saving below so a
+        # corrupted run doesn't get persisted and then reloaded (and
+        # re-corrupted) by every subsequent retrain step.
+        weights_are_finite = helpers.model_weights_are_finite(model)
+        if not weights_are_finite:
+            print(f"Warning: {name} model weights are non-finite (NaN/Inf) after training - not saving, keeping previous checkpoint.")
+            self.last_val_loss = float("inf")
+
         # Predict next draw using all history available
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 
@@ -380,8 +397,9 @@ class LSTMModel:
         pd.DataFrame(history.history).plot(figsize=(8, 5))
         plt.savefig(os.path.join(self.modelPath, f'model_{name}_performance.png'))
 
-        model.save_weights(f"{model_path}.weights.h5")
-        model.save(model_path)
+        if weights_are_finite:
+            model.save_weights(f"{model_path}.weights.h5")
+            model.save(model_path)
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)
 
