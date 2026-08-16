@@ -216,6 +216,33 @@ def remove_lock():
         pass  # It's okay if the lock file doesn't exist
 
 
+def tuned_keno_subset_sizes(name):
+    """
+    The hyperopt-tuned use_5..use_10 subset choice for this game, matching
+    Predictor.getKenoSubsetSizes - so the profit signal this script optimises
+    against is measured on the subset sizes that will actually be played,
+    instead of the hardcoded all-six range it used before.
+
+    Falls back to all six sizes when the game has no tuned flags yet (a game
+    whose statistical hyperopt hasn't run): returning nothing there would leave
+    the DL profit signal permanently zero, which is worse than measuring on
+    sizes that may later be disabled.
+    """
+    bestParams = {}
+    bestParamsPath = os.path.join(os.getcwd(), f"bestParams_{name}.json")
+    if os.path.exists(bestParamsPath):
+        try:
+            with open(bestParamsPath, "r") as infile:
+                bestParams = json.load(infile)
+        except Exception as e:
+            print(f"Failed to read {bestParamsPath}, using all Keno subset sizes: ", e)
+
+    if not any(f"use_{size}" in bestParams for size in (5, 6, 7, 8, 9, 10)):
+        return list(range(5, 11))
+
+    return [size for size in (5, 6, 7, 8, 9, 10) if bestParams.get(f"use_{size}")]
+
+
 def print_intro():
     # Generate ASCII art with the text "LSTM"
     ascii_art = text2art("Predictor Hyperopt")
@@ -484,7 +511,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
     if "keno" in name:
         try:
             number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, labels)
-            for subset_size in range(5, 11):
+            for subset_size in tuned_keno_subset_sizes(name):
                 subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size)
                 nthPredictions["predictions"].append(subset)
         except Exception as e:

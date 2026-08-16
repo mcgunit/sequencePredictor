@@ -19,7 +19,10 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
-from src.XGBoost import XGBoostKenoPredictor
+from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
+from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
+from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
+from src.BoostingBase import apply_boosting_params
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -37,7 +40,7 @@ poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
 hybridStatisticalModel = HybridStatisticalModel()
 poissonMarkov = PoissonMarkov()
-xgboostPredictor = XGBoostKenoPredictor()
+xgboostPredictor = XGBoostPredictor()
 command = Command()
 helpers = Helpers()
 dataFetcher = DataFetcher()
@@ -270,7 +273,9 @@ def process_single_history_entry_second_step(args):
         predictedSequence = latest_raw_predictions.tolist()
         #unique_labels = unique_labels.tolist()
         current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, predictedSequence, unique_labels, gameName=name)
+        listOfDecodedPredictions = deepLearningMethod(
+            listOfDecodedPredictions, predictedSequence, unique_labels, gameName=name,
+            kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
         listOfDecodedPredictions = runUnifiedDeepLearningModels(
             listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
             skipRows=len(historyData) - historyIndex, years_back=years_back, specialColumnCount=specialColumnCount)
@@ -446,7 +451,9 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                             current_json_object["labels"] = unique_labels
 
 
-                            listOfDecodedPredictions = deepLearningMethod(listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels, gameName=name)
+                            listOfDecodedPredictions = deepLearningMethod(
+                                listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels,
+                                gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
                             listOfDecodedPredictions = runUnifiedDeepLearningModels(
                                 listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
                                 years_back=yearsOfHistory, specialColumnCount=specialColumnCount)
@@ -635,7 +642,8 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     predictions.append({"name": "WeightedEnsemble Model", "predictions": ensemblePredictions})
 
 
-def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, modelDisplayName="LSTM Base Model", gameName=""):
+def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, modelDisplayName="LSTM Base Model",
+                       gameName="", kenoSubsetSizes=None):
 
     try:
         nthPredictions = {
@@ -652,10 +660,18 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
         # out of the full 20-number ticket) - mirrors
         # HyperoptDeepLearning.py's deepLearningMethod, reusing the DL
         # prediction's per-number softmax probability as the subset score.
+        #
+        # kenoSubsetSizes comes from getKenoSubsetSizes (the hyperopt-tuned
+        # use_5..use_10 flags), the same choice every statistical model and
+        # XGBoost respects. This used to be a hardcoded range(5, 11), so the
+        # DL rows placed a bet at every subset size regardless of which ones
+        # tuning had actually selected - e.g. all six for Keno while
+        # bestParams_keno.json enables only use_10, making those rows'
+        # tracked results non-comparable with every other model's.
         if "keno" in gameName:
             try:
                 number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels)
-                for subset_size in range(5, 11):
+                for subset_size in (kenoSubsetSizes if kenoSubsetSizes is not None else range(5, 11)):
                     subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size)
                     nthPredictions["predictions"].append(subset)
             except Exception as e:
@@ -723,7 +739,8 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
                 name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
 
             listOfDecodedPredictions = deepLearningMethod(
-                listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, modelDisplayName=displayName, gameName=name)
+                listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, modelDisplayName=displayName,
+                gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
         except Exception as e:
             print(f"Failed to perform {displayName} prediction: ", e)
 
@@ -1131,16 +1148,8 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 # Note the meta-learner scores main and special columns in two
                 # separate passes, so this fits more than once per prediction -
                 # src/XGBoost.py's fit cache keeps that to one fit per range.
+                apply_boosting_params(xgboostPredictor, bestParams_json_object, "xgBoost")
                 xgboostPredictor.setDataPath(dataPath)
-                xgboostPredictor.setEstimators(bestParams_json_object.get("xgBoostEstimators", 200))
-                xgboostPredictor.setLearningRate(bestParams_json_object.get("xgBoostLearningRate", 0.1))
-                xgboostPredictor.setMaxDepth(bestParams_json_object.get("xgBoostMaxdepth", 3))
-                xgboostPredictor.setPreviousDraws(bestParams_json_object.get("xgBoostPreviousDraws", 11))
-                xgboostPredictor.setTopK(bestParams_json_object.get("xgBoostTopK", 16))
-                xgboostPredictor.setSubsample(bestParams_json_object.get("xgBoostSubsample", 1.0))
-                xgboostPredictor.setColsampleByTree(bestParams_json_object.get("xgBoostColsampleByTree", 1.0))
-                xgboostPredictor.setMinChildWeight(bestParams_json_object.get("xgBoostMinChildWeight", 1.0))
-                xgboostPredictor.setRegLambda(bestParams_json_object.get("xgBoostRegLambda", 1.0))
                 xgboostPredictor.setSortedPrediction(sortedPrediction)
                 xgboostPredictor.setNumThreads(max(1, cpu_count() - 1))
                 xgboostPredictor.setSaveModels(False)
@@ -1234,106 +1243,113 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
     return listOfDecodedPredictions
 
+# (instance, bestParams key prefix, display name, use-flag key, is_multi_label).
+#
+# Three gradient-boosting libraries x two formulations, each its own tracked
+# row so the comparison is like-for-like: all six share the identical feature
+# window, ticket construction and subset generator (see src/BoostingBase.py),
+# so a difference between rows is attributable to the library or the
+# formulation, not to incidental plumbing differences.
+#
+# XGBoost Model keeps the unprefixed-by-history "xgBoost" prefix and the
+# "useBoost" flag it already has in every bestParams_<game>.json, so its
+# tracked history stays continuous. Each model gets its own isolated
+# try/except (like every other model in this file) so one failing - including
+# one whose library isn't installed - doesn't take down the others.
+BOOSTING_MODELS = [
+    # Deliberately the module-level xgboostPredictor singleton, not a fresh
+    # instance: statisticalMethod's meta-learner block scores the very same
+    # object for this game/day, so sharing it lets BoostingBase's fit cache
+    # serve both from one training run.
+    (xgboostPredictor, "xgBoost", "XGBoost Model", "useBoost", False),
+    (XGBoostMultiLabelPredictor(), "xgBoostMl", "XGBoostMultiLabel Model", "useXgBoostMultiLabel", True),
+    (LightGBMPredictor(), "lightGbm", "LightGBM Model", "useLightGbm", False),
+    (LightGBMMultiLabelPredictor(), "lightGbmMl", "LightGBMMultiLabel Model", "useLightGbmMultiLabel", True),
+    (CatBoostPredictor(), "catBoost", "CatBoost Model", "useCatBoost", False),
+    (CatBoostMultiLabelPredictor(), "catBoostMl", "CatBoostMultiLabel Model", "useCatBoostMultiLabel", True),
+]
+
+
 def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, skipLastColumns=0):
     """
-    XGBoost Model as its own tracked prediction row, driven exactly like every
-    statistical model above: the same Helpers.run_model_with_special_column
-    call (so Euromillions' star columns / EuroDreams' dream number /
-    VikingLotto's super viking are modeled independently, and Lotto's unplayed
-    bonus column is dropped), the same getKenoSubsetSizes subset choice, and
-    the same {size: subset} dict handling - previously it ignored
-    skipLastColumns/special columns entirely and returned subsets as a bare
-    list.
+    Every gradient-boosting model as its own tracked prediction row, driven
+    exactly like the statistical models above: the same
+    Helpers.run_model_with_special_column call (so Euromillions' star columns /
+    EuroDreams' dream number / VikingLotto's super viking are modeled
+    independently, and Lotto's unplayed bonus column is dropped), the same
+    getKenoSubsetSizes subset choice, and the same {size: subset} dict.
+
+    The multi-label models are skipped for Pick3: they model set membership
+    ("is this number in the next draw"), which cannot represent digit order or
+    the repeated digits Pick3 routinely produces - the same reason
+    WeightedEnsemble/MetaLearner are skipped there.
     """
+    bestParams_json_object = {
+        "use_5": True, "use_6": True, "use_7": True,
+        "use_8": True, "use_9": True, "use_10": True,
+    }
+    # Every model runs unless its flag is explicitly disabled - hyperopt tunes
+    # each model but never turns one off, so their real-life results stay
+    # comparable over time.
+    bestParams_json_object.update({useKey: True for _, _, _, useKey, _ in BOOSTING_MODELS})
+
     try:
-        bestParams_json_object = {
-            "use_5":True,
-            "use_6":True,
-            "use_7":True,
-            "use_8":True,
-            "use_9":True,
-            "use_10":True,
-            "useBoost": True,
-            "xgBoostEstimators": 500,
-            "xgBoostLearningRate": 0.7014495252508934,
-            "xgBoostMaxdepth": 3,
-            "xgBoostPreviousDraws": 81,
-            "xgBoostTopK": 31,
-            "xgBoostForceNested": True,
-            "xgBoostSubsample": 1.0,
-            "xgBoostColsampleByTree": 1.0,
-            "xgBoostMinChildWeight": 1.0,
-            "xgBoostRegLambda": 1.0,
-            "xgBoostSubsetMode": "softmax",
-            "xgBoostSubsetTemperature": 0.5
-        }
+        # Load hyperopt parameters if exists
+        hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
+        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+            with open(hyperoptParamsJsonFile, 'r') as openfile:
+                # Merged over the in-code defaults (not replacing them) for the
+                # same reason statisticalMethod does it: a
+                # bestParams_<game>.json written before a newer key exists
+                # would otherwise KeyError on every lookup of that key.
+                bestParams_json_object.update(json.load(openfile))
+    except Exception as e:
+        print("Failed to parse parameter file in boost method: ", e)
+
+    subsets = getKenoSubsetSizes(name, bestParams_json_object)
+    specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
+    isPick3 = "pick3" in name
+
+    for model, prefix, displayName, useKey, isMultiLabel in BOOSTING_MODELS:
+        if not bestParams_json_object.get(useKey, True):
+            continue
+
+        if isPick3 and isMultiLabel:
+            continue
 
         try:
-            # Load hyperopt parameters if exists
-            hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
-            if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-                with open(hyperoptParamsJsonFile, 'r') as openfile:
-                    # Merged over the in-code defaults (not replacing them) for
-                    # the same reason statisticalMethod does it: a
-                    # bestParams_<game>.json written before a newer key exists
-                    # would otherwise KeyError on every lookup of that key.
-                    bestParams_json_object.update(json.load(openfile))
-        except Exception as e:
-            print("Failed to parse parameter file in boost method: ", e)
-
-        subsets = getKenoSubsetSizes(name, bestParams_json_object)
-        specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
-
-        if bestParams_json_object["useBoost"]:
-            #print("Performing XGBoost Prediction")
-            xgboostPredictor.setDataPath(dataPath)
-            xgboostPredictor.setModelPath(modelPath=os.path.join(path, "data", "models", f"xgboost_{name}_models"))
-            xgboostPredictor.setEstimators(bestParams_json_object["xgBoostEstimators"])
-            xgboostPredictor.setLearningRate(bestParams_json_object["xgBoostLearningRate"])
-            xgboostPredictor.setMaxDepth(bestParams_json_object["xgBoostMaxdepth"])
-            xgboostPredictor.setPreviousDraws(bestParams_json_object["xgBoostPreviousDraws"])
-            xgboostPredictor.setTopK(bestParams_json_object["xgBoostTopK"])
-            xgboostPredictor.setForceNested(bestParams_json_object["xgBoostForceNested"])
-            xgboostPredictor.setSubsample(bestParams_json_object["xgBoostSubsample"])
-            xgboostPredictor.setColsampleByTree(bestParams_json_object["xgBoostColsampleByTree"])
-            xgboostPredictor.setMinChildWeight(bestParams_json_object["xgBoostMinChildWeight"])
-            xgboostPredictor.setRegLambda(bestParams_json_object["xgBoostRegLambda"])
-            xgboostPredictor.setSubsetSelectionMode(bestParams_json_object["xgBoostSubsetMode"])
-            xgboostPredictor.setSubsetTemperature(bestParams_json_object["xgBoostSubsetTemperature"])
+            apply_boosting_params(model, bestParams_json_object, prefix)
+            model.setDataPath(dataPath)
+            model.setModelPath(os.path.join(path, "data", "models", f"{prefix.lower()}_{name}_models"))
             # Pick3 is positional - digits stay in drawn order, duplicates
             # included. Every other game gets a sorted ticket of distinct
-            # numbers. Set explicitly each run: this is a module-level
-            # singleton reused across games/history days.
-            xgboostPredictor.setSortedPrediction(not ("pick3" in name))
-            # This step runs single-process (see process_single_history_entry_second_step),
-            # unlike the Backtester's day-parallel Pool, so XGBoost can use the
+            # numbers. Set explicitly each run: these are module-level
+            # singletons reused across games/history days.
+            model.setSortedPrediction(not isPick3)
+            # This step runs single-process (see
+            # process_single_history_entry_second_step), unlike the
+            # Backtester's day-parallel Pool, so the library can use the
             # machine's cores itself here.
-            xgboostPredictor.setNumThreads(max(1, cpu_count() - 1))
-            xgboostPredictor.setSaveModels(True)
+            model.setNumThreads(max(1, cpu_count() - 1))
+            model.setSaveModels(True)
             # No clear() here (unlike the statistical models, whose clear()
-            # drops accumulated counts): src/XGBoost.py keys its fit cache on
-            # the data slice *and* every training hyperparameter, so a stale
-            # fit can never be reused. Keeping it means the main-numbers fit
-            # the meta-learner block just did for this same game/day is reused
-            # instead of retrained - one full XGBoost training saved per
-            # prediction.
+            # drops accumulated counts): BoostingBase keys its fit cache on the
+            # data slice *and* every training hyperparameter, so a stale fit
+            # can never be reused. Keeping it means the main-numbers fit the
+            # meta-learner block already did for this game/day is reused rather
+            # than retrained.
 
-            xgboostPrediction = {
-                "name": "XGBoost Model",
-                "predictions": []
-            }
-
-            xgboostSequence, xgboostSubsets = helpers.run_model_with_special_column(
-                xgboostPredictor, generateSubsets=subsets, skipRows=skipRows,
+            sequence, modelSubsets = helpers.run_model_with_special_column(
+                model, generateSubsets=subsets, skipRows=skipRows,
                 skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
 
-            xgboostPrediction["predictions"].append(xgboostSequence)
-            for key in xgboostSubsets:
-                xgboostPrediction["predictions"].append(xgboostSubsets[key])
+            prediction = {"name": displayName, "predictions": [sequence]}
+            for key in modelSubsets:
+                prediction["predictions"].append(modelSubsets[key])
 
-            listOfDecodedPredictions.append(xgboostPrediction)
-    except Exception as e:
-        print("Failed to perform XGBoost: ", e)
+            listOfDecodedPredictions.append(prediction)
+        except Exception as e:
+            print(f"Failed to perform {displayName}: ", e)
 
     return listOfDecodedPredictions
 

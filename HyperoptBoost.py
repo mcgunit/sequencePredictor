@@ -6,7 +6,10 @@ from datetime import datetime
 
 from src.Backtester import Backtester
 from src.DataLoader import DataLoader
-from src.XGBoost import XGBoostPredictor
+from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
+from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
+from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
+from src.BoostingBase import apply_boosting_params
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -149,61 +152,110 @@ def score_from_summary(model_summary):
     return hits if hits is not None else float("-inf")
 
 
-def objective_xgboost(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
+def suggest_boosting_params(trial, prefix):
     """
-    Tunes src/XGBoost.py. Param names keep the existing xgBoost* spelling that
-    Predictor.py's boostingMethod already reads from bestParams_<game>.json,
-    plus the regularisation knobs (subsample/colsample/min_child_weight/
-    reg_lambda) and the shared subset generator's mode/temperature - a boosted
-    tree ensemble on a few hundred rows of lottery history overfits trivially,
-    so leaving those at library defaults left the most useful part of the
-    search space untouched.
+    One shared search space for every boosting model, with each key prefixed
+    (see BOOSTING_PARAM_SUFFIXES in src/BoostingBase.py) so the six models'
+    tuned values land under their own bestParams_<game>.json keys instead of
+    clobbering each other - the same reasoning as
+    HyperoptDeepLearning.MODEL_PARAM_PREFIX and suggest_keno_subset below.
+
+    Shared deliberately: the point of running three libraries over two
+    formulations is to compare them, which only means anything if each was
+    given the same search space rather than one being handed a luckier range.
+
+    Includes the regularisation knobs (subsample / colsample /
+    min_child_weight / reg_lambda) that were previously left at library
+    defaults - a boosted ensemble on a few hundred draws overfits trivially,
+    so those are the most consequential part of the space.
     """
-    model = XGBoostPredictor()
-    model.setDataPath(dataPath)
-    model.setEstimators(trial.suggest_int('xgBoostEstimators', 10, 300, step=10))
-    model.setLearningRate(trial.suggest_float('xgBoostLearningRate', 0.01, 1.0, log=True))
-    model.setMaxDepth(trial.suggest_int('xgBoostMaxdepth', 1, 10))
-    model.setPreviousDraws(trial.suggest_int('xgBoostPreviousDraws', 1, 50, step=1))
-    model.setTopK(trial.suggest_int('xgBoostTopK', 1, 30))
-    model.setForceNested(trial.suggest_categorical('xgBoostForceNested', [True, False]))
-    model.setSubsample(trial.suggest_float('xgBoostSubsample', 0.5, 1.0))
-    model.setColsampleByTree(trial.suggest_float('xgBoostColsampleByTree', 0.5, 1.0))
-    model.setMinChildWeight(trial.suggest_float('xgBoostMinChildWeight', 1.0, 10.0))
-    model.setRegLambda(trial.suggest_float('xgBoostRegLambda', 0.1, 10.0, log=True))
-    model.setSubsetSelectionMode(trial.suggest_categorical('xgBoostSubsetMode', ["top", "softmax"]))
-    model.setSubsetTemperature(trial.suggest_float('xgBoostSubsetTemperature', 0.05, 2.0))
+    return {
+        f"{prefix}Estimators": trial.suggest_int(f'{prefix}Estimators', 10, 300, step=10),
+        f"{prefix}LearningRate": trial.suggest_float(f'{prefix}LearningRate', 0.01, 1.0, log=True),
+        f"{prefix}Maxdepth": trial.suggest_int(f'{prefix}Maxdepth', 1, 10),
+        f"{prefix}PreviousDraws": trial.suggest_int(f'{prefix}PreviousDraws', 1, 50, step=1),
+        f"{prefix}TopK": trial.suggest_int(f'{prefix}TopK', 1, 30),
+        f"{prefix}ForceNested": trial.suggest_categorical(f'{prefix}ForceNested', [True, False]),
+        f"{prefix}Subsample": trial.suggest_float(f'{prefix}Subsample', 0.5, 1.0),
+        f"{prefix}ColsampleByTree": trial.suggest_float(f'{prefix}ColsampleByTree', 0.5, 1.0),
+        f"{prefix}MinChildWeight": trial.suggest_float(f'{prefix}MinChildWeight', 1.0, 10.0),
+        f"{prefix}RegLambda": trial.suggest_float(f'{prefix}RegLambda', 0.1, 10.0, log=True),
+        f"{prefix}SubsetMode": trial.suggest_categorical(f'{prefix}SubsetMode', ["top", "softmax"]),
+        f"{prefix}SubsetTemperature": trial.suggest_float(f'{prefix}SubsetTemperature', 0.05, 2.0),
+    }
 
-    # Pick3 is positional (digit order decides straight/box/pair payouts), so
-    # its digits must stay in drawn order instead of being sorted/deduplicated.
-    model.setSortedPrediction(not ("pick3" in dataset_name))
 
-    # Backtester runs days across a process Pool; letting each worker's
-    # XGBoost spawn its own thread pool on top of that oversubscribes badly.
-    model.setNumThreads(1)
-    # Never persist during tuning: many workers would race on the same path,
-    # and a tuning-trial fit isn't worth keeping anyway.
-    model.setSaveModels(False)
+def make_boosting_objective(model_class, prefix, backtest_name):
+    """
+    Builds the Optuna objective for one boosting model. All six differ only in
+    which class gets instantiated and which key prefix its params are stored
+    under, so they share one objective body - no per-model copies to keep in
+    sync.
+    """
+    def objective(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
+        model = model_class()
+        apply_boosting_params(model, suggest_boosting_params(trial, prefix), prefix)
+        model.setDataPath(dataPath)
 
-    subsets = []
-    if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "xgboost")
-        if subsets is None:
-            return float("-inf")
+        # Pick3 is positional (digit order decides straight/box/pair payouts),
+        # so its digits must stay in drawn order instead of being
+        # sorted/deduplicated.
+        model.setSortedPrediction(not ("pick3" in dataset_name))
 
-    return score_from_summary(run_backtest("xgboost", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+        # Backtester runs days across a process Pool; letting each worker's
+        # boosting library spawn its own thread pool on top of that
+        # oversubscribes badly.
+        model.setNumThreads(1)
+        # Never persist during tuning: many workers would race on the same
+        # path, and a tuning-trial fit isn't worth keeping anyway.
+        model.setSaveModels(False)
+
+        subsets = []
+        if "keno" in dataset_name:
+            subsets = suggest_keno_subset(trial, backtest_name)
+            if subsets is None:
+                return float("-inf")
+
+        return score_from_summary(run_backtest(
+            backtest_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+
+    return objective
 
 
 # Maps a -s/--strategies CLI name to its objective + the "use<X>" flag
 # Predictor.py reads from bestParams_<game>.json to decide whether to run that
-# model live - same structure as HyperoptStatistics.STRATEGIES, so adding a
-# second boosting method later (LightGBM, CatBoost, ...) is a one-entry change.
+# model live - same structure as HyperoptStatistics.STRATEGIES.
+#
+# Three libraries x two formulations (per-position multiclass vs multi-label
+# set membership), each tracked as its own row in Predictor.py. Prefixes match
+# Predictor.BOOSTING_MODELS exactly; "xgBoost"/"useBoost" are kept as-is
+# because they already exist in every bestParams_<game>.json.
 #
 # An optional "games" tuple restricts a strategy to the games it applies to
-# (same convention as HyperoptStatistics.STRATEGIES); omitted means every game,
-# which is the case for XGBoost.
+# (same convention as HyperoptStatistics.STRATEGIES); omitted means every game.
+# The multi-label models exclude Pick3 - they model set membership, which
+# can't represent digit order or repeated digits.
+NON_PICK3_GAMES = tuple(g for g in GAME_CONFIG if g != "pick3")
+
 STRATEGIES = {
-    "XGBoost": {"objective": objective_xgboost, "use_key": "useBoost"},
+    "XGBoost": {
+        "objective": make_boosting_objective(XGBoostPredictor, "xgBoost", "xgboost"),
+        "use_key": "useBoost"},
+    "XGBoostMultiLabel": {
+        "objective": make_boosting_objective(XGBoostMultiLabelPredictor, "xgBoostMl", "xgboost_ml"),
+        "use_key": "useXgBoostMultiLabel", "games": NON_PICK3_GAMES},
+    "LightGBM": {
+        "objective": make_boosting_objective(LightGBMPredictor, "lightGbm", "lightgbm"),
+        "use_key": "useLightGbm"},
+    "LightGBMMultiLabel": {
+        "objective": make_boosting_objective(LightGBMMultiLabelPredictor, "lightGbmMl", "lightgbm_ml"),
+        "use_key": "useLightGbmMultiLabel", "games": NON_PICK3_GAMES},
+    "CatBoost": {
+        "objective": make_boosting_objective(CatBoostPredictor, "catBoost", "catboost"),
+        "use_key": "useCatBoost"},
+    "CatBoostMultiLabel": {
+        "objective": make_boosting_objective(CatBoostMultiLabelPredictor, "catBoostMl", "catboost_ml"),
+        "use_key": "useCatBoostMultiLabel", "games": NON_PICK3_GAMES},
 }
 
 # Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
@@ -212,6 +264,11 @@ STRATEGIES = {
 # WeightedEnsemble Model's vote.
 STRATEGY_DISPLAY_NAMES = {
     "XGBoost": "XGBoost Model",
+    "XGBoostMultiLabel": "XGBoostMultiLabel Model",
+    "LightGBM": "LightGBM Model",
+    "LightGBMMultiLabel": "LightGBMMultiLabel Model",
+    "CatBoost": "CatBoost Model",
+    "CatBoostMultiLabel": "CatBoostMultiLabel Model",
 }
 
 
