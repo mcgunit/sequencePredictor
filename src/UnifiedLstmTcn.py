@@ -219,9 +219,31 @@ class UnifiedLstmTcnModel:
         optimizer = optimizers.Adam(learning_rate=self.learning_rate, clipnorm=1.0)
         model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
-        if self.loadModelWeights and model_path and os.path.exists(f"{model_path}.weights.h5"):
-            print(f"Loading weights from {model_path}.weights.h5")
-            model.load_weights(f"{model_path}.weights.h5")
+        # Architecture fingerprint: only the parameters that shape the
+        # weights or the input/output dimensions. Saved next to the weights;
+        # on load, a mismatch (e.g. hyperopt just tuned different
+        # units/window) triggers a fresh retrain instead of crashing on a
+        # shape mismatch or silently keeping the old architecture's weights -
+        # previously new hyperopt parameters only took effect after manually
+        # deleting the model files. Non-shape parameters (dropout rate,
+        # learning rate, l2, ...) are deliberately excluded so warm-starting
+        # keeps saving training time when only those change.
+        self._weights_fingerprint = {
+            "max_value": int(max_value),
+            "num_classes": int(num_classes),
+            "digitsPerDraw": int(digitsPerDraw),
+            "specialColumnCount": int(specialColumnCount),
+            "specialNumClasses": int(specialNumClasses),
+            "lstm_units": int(self.lstm_units),
+            "tcn_units": int(self.tcn_units),
+            "num_tcn_layers": int(self.num_tcn_layers),
+            "window_size": int(self.window_size),
+            "num_heads": int(self.num_heads),
+            "key_dim": int(self.key_dim),
+        }
+
+        if self.loadModelWeights:
+            helpers.load_weights_if_fingerprint_matches(model, model_path, self._weights_fingerprint)
 
         return model
 
@@ -335,7 +357,8 @@ class UnifiedLstmTcnModel:
         plt.close()
 
         if weights_are_finite:
-            model.save_weights(f"{model_path}.weights.h5")
+            helpers.save_weights_with_fingerprint(
+                model, model_path, getattr(self, "_weights_fingerprint", None))
             model.save(model_path)
         if os.path.exists(checkpoint_path):
             os.remove(checkpoint_path)

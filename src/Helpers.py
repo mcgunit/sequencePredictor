@@ -177,6 +177,65 @@ class Helpers():
 
         return table["lost"]
 
+    def load_weights_if_fingerprint_matches(self, model, model_path, fingerprint):
+        """
+        Loads saved .weights.h5 into `model` only if the fingerprint stored
+        next to it matches `fingerprint` (the architecture-shaping parameters
+        the weights were trained under). Returns True if weights were loaded.
+
+        Why: warm-starting from saved weights saves real training time, but
+        after a hyperopt run changes an architecture parameter (units, layers,
+        window size, ...) the saved weights either fail to load (shape
+        mismatch, killing that model's prediction row until someone manually
+        deletes the file) or - worse - load silently when shapes happen to
+        match, so the newly tuned parameters never actually take effect.
+        Weights without a fingerprint file (saved before this existed) are
+        treated as mismatched: one fresh retrain, after which the fingerprint
+        is written by save_weights_with_fingerprint.
+
+        Only include parameters that change weight SHAPES or input semantics
+        in the fingerprint (units, layers, window size, heads, class counts) -
+        not dropout rate/learning rate/l2 etc., for which warm-starting stays
+        valid and desirable.
+        """
+        weights_path = f"{model_path}.weights.h5"
+        fingerprint_path = f"{model_path}.fingerprint.json"
+
+        if not os.path.exists(weights_path):
+            return False
+
+        stored = None
+        if os.path.exists(fingerprint_path):
+            try:
+                with open(fingerprint_path, "r") as infile:
+                    stored = json.load(infile)
+            except Exception:
+                stored = None
+
+        if stored != fingerprint:
+            print(f"Saved weights at {weights_path} were trained with different "
+                  f"architecture parameters (or predate fingerprinting) - training fresh")
+            return False
+
+        try:
+            model.load_weights(weights_path)
+            print(f"Loading weights from {weights_path}")
+            return True
+        except Exception as e:
+            print(f"Failed to load weights from {weights_path}, training fresh: {e}")
+            return False
+
+    def save_weights_with_fingerprint(self, model, model_path, fingerprint):
+        """Counterpart of load_weights_if_fingerprint_matches: persists the
+        weights together with the architecture fingerprint they were trained
+        under."""
+        model.save_weights(f"{model_path}.weights.h5")
+        try:
+            with open(f"{model_path}.fingerprint.json", "w") as outfile:
+                json.dump(fingerprint, outfile, indent=2)
+        except Exception as e:
+            print(f"Failed to write weights fingerprint for {model_path}: {e}")
+
     def getLatestPrediction(self, csvPath, dateRange=None):
         """
             Get latest result from csv file.

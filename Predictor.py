@@ -337,7 +337,7 @@ def process_single_history_entry_second_step(args):
     return jsonFilePath
 
 
-def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebuild=31, ai=False, boost=False):
+def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebuild=31, ai=False, boost=False, forceRebuild=False):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -351,6 +351,10 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         @param years_back: The number of years to go back
         @param daysToRebuild: The number of days to rebuild
         @param ai: To use ai tech to do predictions
+        @param forceRebuild: Re-generate (overwrite) the last daysToRebuild
+               draws even when their files already exist - the -r flag. Use
+               after history corruption. Without it, existing files are never
+               overwritten; only missing draws are built.
     """
 
     # Get the hyperopted parameters 
@@ -392,9 +396,13 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
             os.makedirs(os.path.join(path, "data", "database", name), exist_ok=True)
 
 
-        # Compare the latest result with the previous new prediction
-        if not os.path.exists(jsonFilePath):
-            print("New result detected. Lets compare with a prediction from previous entry")
+        # Compare the latest result with the previous new prediction.
+        # forceRebuild (-r) skips both the compare path and the
+        # already-made short-circuit - it exists to re-generate history
+        # whose files are present but corrupt.
+        if forceRebuild or not os.path.exists(jsonFilePath):
+            if not forceRebuild:
+                print("New result detected. Lets compare with a prediction from previous entry")
 
             current_json_object = {
                 "currentPredictionRaw": [],
@@ -411,7 +419,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
             doNewPrediction = True
 
             # First find the json file containing the prediction for this result
-            if previousEntry is not None:
+            if not forceRebuild and previousEntry is not None:
                 previousDate, previousResult = previousEntry
                 jsonPreviousFileName = f"{previousDate.year}-{previousDate.month}-{previousDate.day}.json"
                 print(jsonPreviousFileName, ":", latestResult)
@@ -518,49 +526,78 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     #return predictedSequence
                 
             if doNewPrediction:
-                print(f"No previous prediction file found, Cannot compare. Recreating {daysToRebuild} days of history")
+                # Which draws need (re)building is decided from the actual
+                # draw history (getLatestPrediction counts draw rows, so games
+                # that only play twice a week are handled correctly), not a
+                # fixed calendar window:
+                #
+                # - Normal gap recovery: anchor on the NEWEST draw that
+                #   already has a database json and rebuild everything after
+                #   it - however large that gap is (a multi-day outage used to
+                #   be silently truncated to daysToRebuild draws). Existing
+                #   files are never overwritten; the old logic anchored on the
+                #   OLDEST existing file inside the window and re-generated
+                #   every valid day after it.
+                # - Interior holes (e.g. corrupted files that were deleted)
+                #   within the last daysToRebuild draws are rebuilt too. Each
+                #   day only needs the draw data before it (skipRows), and
+                #   update_matching_numbers() re-links every file pair at the
+                #   end, so filling holes out of sequence is safe.
+                # - forceRebuild (-r): explicitly re-generate (overwrite) the
+                #   last daysToRebuild draws - the only path that overwrites.
+                #
+                # A huge dateRange returns the entire draw history; skipRows
+                # semantics stay exact because the list still ends at the
+                # newest draw: len(fullHistory) - absoluteIndex is the same
+                # value the old truncated-list arithmetic produced.
+                fullHistory = helpers.getLatestPrediction(dataPath, dateRange=10**9)
 
-                # Check if there is not a gap or so
-                historyData = helpers.getLatestPrediction(dataPath, dateRange=daysToRebuild)
-                #print("History data: ", historyData)
+                def entryJsonPath(entry):
+                    entryDate = entry[0]
+                    return os.path.join(path, "data", "database", name,
+                                        f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json")
 
-                dateOffset = 0 # index of last entry
+                existingIndices = [i for i, entry in enumerate(fullHistory) if os.path.exists(entryJsonPath(entry))]
+                windowStart = max(0, len(fullHistory) - daysToRebuild)
 
-                print("Date to start from: ", historyData[dateOffset])
-                
+                if forceRebuild or not existingIndices:
+                    # -r, or a brand-new game with no database at all: build
+                    # the last daysToRebuild draws.
+                    rebuildIndices = list(range(windowStart, len(fullHistory)))
+                    print(f"Rebuilding the last {len(rebuildIndices)} draws"
+                          + (" (forced by -r, existing files are overwritten)" if forceRebuild else " (no existing history found)"))
+                else:
+                    anchorIdx = existingIndices[-1]
+                    existingSet = set(existingIndices)
+                    holeIndices = [i for i in range(windowStart, anchorIdx) if i not in existingSet]
+                    rebuildIndices = holeIndices + list(range(anchorIdx + 1, len(fullHistory)))
+                    print(f"Newest existing prediction: {os.path.basename(entryJsonPath(fullHistory[anchorIdx]))} - "
+                          f"building {len(rebuildIndices)} missing draw(s) "
+                          f"({len(holeIndices)} interior hole(s), {len(fullHistory) - anchorIdx - 1} after the newest file)")
 
+                if rebuildIndices:
+                    print("Date to start from: ", fullHistory[rebuildIndices[0]])
+
+                # Only the first rebuilt entry gets a pre-existing "previous"
+                # file (the nearest existing json older than it, to seed the
+                # prediction-vs-result chain). Every other entry's true
+                # previous file is produced by a sibling worker in this same
+                # parallel batch - reading it here would race against that
+                # worker's own concurrent write to the exact same path (and
+                # update_matching_numbers() re-links every consecutive file
+                # pair afterwards anyway).
                 previousJsonFilePath = ""
+                if rebuildIndices:
+                    for i in reversed(range(rebuildIndices[0])):
+                        candidate = entryJsonPath(fullHistory[i])
+                        if os.path.exists(candidate):
+                            previousJsonFilePath = candidate
+                            break
 
-                # Search for existing history
-                for index, historyEntry in enumerate(historyData):
-                    entryDate = historyEntry[0]
-                    entryResult = historyEntry[1]
-                    jsonFileName = f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json"
-                    #print(jsonFileName, ":", entryResult)
-                    jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
-                    #print("Does file exist: ", os.path.exists(jsonFilePath))
-                    if os.path.exists(jsonFilePath):
-                        dateOffset = index
-                        previousJsonFilePath = jsonFilePath
-                        break
-                
-                # Remove all elements starting from dateOffset index
-                #print("Date offset: ", dateOffset)
-                historyData = historyData[dateOffset:]  # Keep elements after dateOffset because newer elements comes after the dateOffset index                
-                #print("History to rebuild: ", historyData)
-
-                # Only historyIndex 0 has a legitimate pre-existing "previous"
-                # file (the one found above, right before the rebuild range).
-                # Every other entry's true previous file is produced by a
-                # sibling worker in this same parallel batch - reading it here
-                # would race against that worker's own concurrent write to
-                # the exact same path (and is logically wrong regardless,
-                # since it'd compare every day against one fixed file instead
-                # of the correct rolling previous day).
                 argsList = [
-                    (historyIndex, historyEntry, historyData, name, dataPath,
-                    previousJsonFilePath if historyIndex == 0 else "", path, skipLastColumns)
-                    for historyIndex, historyEntry in enumerate(historyData)
+                    (absoluteIndex, fullHistory[absoluteIndex], fullHistory, name, dataPath,
+                    previousJsonFilePath if position == 0 else "", path, skipLastColumns)
+                    for position, absoluteIndex in enumerate(rebuildIndices)
                 ]
 
                 #print("Argslist: ", len(argsList))
@@ -600,10 +637,10 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     specialColumnCount = SPECIAL_COLUMN_COUNTS.get(name, 0)
 
                     argsList = [
-                        (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
+                        (absoluteIndex, fullHistory[absoluteIndex], fullHistory, name, model_type, dataPath, modelPath,
                             skipLastColumns, yearsOfHistory, ai, previousJsonFilePath, path, boost, bestParams_json_object,
                             specialColumnCount)
-                        for historyIndex, historyEntry in enumerate(historyData)
+                        for absoluteIndex in rebuildIndices
                     ]
 
                     # Deliberately not a Pool: this step trains/uses the GPU
@@ -1512,7 +1549,7 @@ if __name__ == "__main__":
                         command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
                     # Predict with hyperopt params
-                    predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost)
+                    predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost, forceRebuild=rebuildHistory)
                 else:
                     pass
 
