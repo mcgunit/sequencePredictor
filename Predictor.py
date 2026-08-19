@@ -1,11 +1,19 @@
 import os, argparse, json, sys, time
+
+# Must be set before TensorFlow is imported (the src imports below pull it in):
+# without it TF's first process grabs virtually the whole GPU at startup, so
+# any second TF process - or a big trial on the 6GB card - dies with cuDNN
+# RESOURCE_EXHAUSTED even when the card is otherwise idle. Allow-growth makes
+# TF allocate only what it actually uses.
+os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
 import numpy as np
 import subprocess
 import joblib
 
 from art import text2art
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, get_context
+from concurrent.futures import ProcessPoolExecutor
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
@@ -86,8 +94,28 @@ def print_intro():
     print("Prediction artificial intelligence")
 
 def is_running():
-    """Checks if another instance is running based on the lock file."""
-    return os.path.exists(LOCK_FILE)
+    """
+    Checks if another instance is running based on the lock file.
+
+    The PID written into the lock is verified to still be alive: a lock whose
+    owner is gone is stale - left behind by a crashed or killed run (a hung
+    2026-08-17 run held the lock for two days and silently blocked every cron
+    start after it). A stale lock is removed and treated as not running.
+    """
+    if not os.path.exists(LOCK_FILE):
+        return False
+    try:
+        with open(LOCK_FILE, "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)  # signal 0 = existence check only, nothing is sent
+        return True
+    except (ValueError, ProcessLookupError):
+        print("Removing stale lock file (owner process no longer exists)")
+        remove_lock()
+        return False
+    except PermissionError:
+        # Process exists but belongs to another user - definitely running.
+        return True
 
 def create_lock():
     """Creates the lock file."""
@@ -538,9 +566,32 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                 #print("Argslist: ", len(argsList))
 
                 if len(argsList) > 0:
-                    #print("Numbers of cpu needed: ", min(cpu_count() - 1, len(argsList)))
-                    with Pool(processes=min((cpu_count()-1), len(argsList))) as pool:
-                        results = pool.map(process_single_history_entry_first_step, argsList)
+                    # spawn (not the default fork) + ProcessPoolExecutor, for
+                    # two hard-learned reasons. (1) By the time a second/third
+                    # game reaches this rebuild, the parent has already run
+                    # LSTM training (CUDA) and XGBoost (OpenMP) for the
+                    # previous game's second step - forking such a parent hands
+                    # every worker corrupted thread/lock state, and they
+                    # segfault in libc on first use (observed 2026-08-17:
+                    # identical-address libc segfaults in all workers minutes
+                    # after start). spawn starts clean interpreters instead.
+                    # (2) multiprocessing.Pool.map hangs FOREVER if a worker
+                    # dies - that same 08-17 run sat futex-waiting for two days
+                    # holding process.lock, silently blocking every cron run
+                    # after it. ProcessPoolExecutor raises BrokenProcessPool
+                    # instead, so a dead worker becomes a loud failed game, not
+                    # a dead pipeline.
+                    # Capped at 8: spawn workers each import TensorFlow
+                    # (~600MB RSS) since they re-import this module from
+                    # scratch, and this box has 16GB - cpu_count()-1 workers
+                    # (15) would spend ~9GB on imports alone before doing any
+                    # work. The per-day statistical work is seconds each, so
+                    # the pool was never the bottleneck anyway.
+                    with ProcessPoolExecutor(
+                        max_workers=min(8, (cpu_count()-1), len(argsList)),
+                        mp_context=get_context("spawn")
+                    ) as executor:
+                        results = list(executor.map(process_single_history_entry_first_step, argsList))
 
                     print("Finished first step: multiprocessing rebuild of history entries and statistical method.")
 

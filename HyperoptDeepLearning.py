@@ -1,4 +1,11 @@
 import os, argparse, json, sys
+
+# Must be set before TensorFlow is imported (the src imports below pull it in):
+# without it TF's first process grabs virtually the whole GPU at startup, so
+# any second TF process - or a big trial on the 6GB card - dies with cuDNN
+# RESOURCE_EXHAUSTED even when the card is otherwise idle. Allow-growth makes
+# TF allocate only what it actually uses.
+os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
 import optuna
 import numpy as np
 
@@ -196,8 +203,28 @@ def suggest_fused_params(trial, prefix, include_gru):
 
 
 def is_running():
-    """Checks if another instance is running based on the lock file."""
-    return os.path.exists(LOCK_FILE)
+    """
+    Checks if another instance is running based on the lock file.
+
+    The PID written into the lock is verified to still be alive: a lock whose
+    owner is gone is stale - left behind by a crashed or killed run (a hung
+    2026-08-17 run held the lock for two days and silently blocked every cron
+    start after it). A stale lock is removed and treated as not running.
+    """
+    if not os.path.exists(LOCK_FILE):
+        return False
+    try:
+        with open(LOCK_FILE, "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)  # signal 0 = existence check only, nothing is sent
+        return True
+    except (ValueError, ProcessLookupError):
+        print("Removing stale lock file (owner process no longer exists)")
+        remove_lock()
+        return False
+    except PermissionError:
+        # Process exists but belongs to another user - definitely running.
+        return True
 
 def create_lock():
     """Creates the lock file."""
@@ -730,8 +757,13 @@ if __name__ == "__main__":
                     load_if_exists=True
                 )
 
-                # Run the automatic tuning process
-                study.optimize(objective, n_trials=n_trials)
+                # Run the automatic tuning process. catch: a single failed
+                # trial (e.g. a GPU-OOM on an oversized lstmUnits/tcnUnits
+                # combination - observed 2026-08-19 on pick3, where trial 0
+                # OOMing killed the entire study) is recorded as a FAILED
+                # trial and the study moves on to the next suggestion instead
+                # of aborting the whole game.
+                study.optimize(objective, n_trials=n_trials, catch=(Exception,))
 
                 # Output the best hyperparameters and score
                 print("Best Parameters: ", study.best_params)

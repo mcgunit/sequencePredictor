@@ -49,8 +49,28 @@ DISABLED_FOR_PICK3 = {"MarkovBayesian", "MarkovBayesianEnhanced", "PoissonMarkov
 
 
 def is_running():
-    """Checks if another instance is running based on the lock file."""
-    return os.path.exists(LOCK_FILE)
+    """
+    Checks if another instance is running based on the lock file.
+
+    The PID written into the lock is verified to still be alive: a lock whose
+    owner is gone is stale - left behind by a crashed or killed run (a hung
+    2026-08-17 run held the lock for two days and silently blocked every cron
+    start after it). A stale lock is removed and treated as not running.
+    """
+    if not os.path.exists(LOCK_FILE):
+        return False
+    try:
+        with open(LOCK_FILE, "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)  # signal 0 = existence check only, nothing is sent
+        return True
+    except (ValueError, ProcessLookupError):
+        print("Removing stale lock file (owner process no longer exists)")
+        remove_lock()
+        return False
+    except PermissionError:
+        # Process exists but belongs to another user - definitely running.
+        return True
 
 def create_lock():
     """Creates the lock file."""
