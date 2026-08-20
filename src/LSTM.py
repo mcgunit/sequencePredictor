@@ -7,7 +7,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from matplotlib import pyplot as plt
 from keras import layers, regularizers, models, optimizers, losses
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TerminateOnNaN
 from keras.utils import to_categorical
 
 
@@ -302,7 +302,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
     def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=False, specialColumnCount=0):
@@ -392,8 +392,32 @@ class LSTMModel:
         # re-corrupted) by every subsequent retrain step.
         weights_are_finite = helpers.model_weights_are_finite(model)
         if not weights_are_finite:
-            print(f"Warning: {name} model weights are non-finite (NaN/Inf) after training - not saving, keeping previous checkpoint.")
+            # ModelCheckpoint monitors val_loss with save_best_only, and NaN
+            # epochs never rank as "best" - so if any epoch before the
+            # blow-up was healthy, the checkpoint still holds finite weights.
+            # (TerminateOnNaN stops training at the first NaN batch, but
+            # EarlyStopping only restores best weights when IT is the one
+            # that stops training, so the live weights are corrupt here.)
+            if os.path.exists(checkpoint_path):
+                try:
+                    model.load_weights(checkpoint_path)
+                    weights_are_finite = helpers.model_weights_are_finite(model)
+                except Exception as e:
+                    print(f"Could not restore best checkpoint after non-finite training: {e}")
+            if weights_are_finite:
+                print(f"Warning: {name} training went non-finite (NaN/Inf) - recovered the best earlier epoch from the checkpoint.")
+        if not weights_are_finite:
             self.last_val_loss = float("inf")
+            if os.path.exists(checkpoint_path):
+                os.remove(checkpoint_path)
+            # NaN from the very first batch: no healthy weights exist for this
+            # run at all. A prediction from NaN weights is pure garbage
+            # (np.argmax over an all-NaN row returns index 0 for every
+            # position), so refuse to emit one - callers catch per-model and
+            # skip this row for the day instead of recording noise.
+            raise RuntimeError(
+                f"{name}: training produced non-finite weights and no healthy "
+                f"checkpoint exists - skipping this model's prediction")
 
         # Predict next draw using all history available
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)

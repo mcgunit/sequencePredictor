@@ -294,16 +294,30 @@ def process_single_history_entry_second_step(args):
         modelToUse.setPredictionWindowSize(modelToUse.window_size)
         modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
 
-        latest_raw_predictions, unique_labels = modelToUse.run(
-            name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back,
-            specialColumnCount=specialColumnCount)
+        # Own try/except (like every other model in this file): the LSTM
+        # raising - e.g. training went NaN with no healthy checkpoint to
+        # recover (see LSTM.run) - must cost only its own row, not the
+        # unified DL models and boosting rows that follow for this day.
+        try:
+            latest_raw_predictions, unique_labels = modelToUse.run(
+                name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back,
+                specialColumnCount=specialColumnCount)
 
-        predictedSequence = latest_raw_predictions.tolist()
-        #unique_labels = unique_labels.tolist()
-        current_json_object["newPredictionRaw"] = predictedSequence
-        listOfDecodedPredictions = deepLearningMethod(
-            listOfDecodedPredictions, predictedSequence, unique_labels, gameName=name,
-            kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
+            predictedSequence = latest_raw_predictions.tolist()
+            #unique_labels = unique_labels.tolist()
+            current_json_object["newPredictionRaw"] = predictedSequence
+            listOfDecodedPredictions = deepLearningMethod(
+                listOfDecodedPredictions, predictedSequence, unique_labels, gameName=name,
+                kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
+        except Exception as e:
+            print("Failed to perform LSTM Base Model prediction: ", e)
+            # labels are still needed further down for the json's "labels"
+            # field - fall back to loading them straight from the data, the
+            # same way the ai=False branch does.
+            _, _, _, _, _, _, _, unique_labels = helpers.load_data(
+                dataPath, skipLastColumns, years_back=years_back)
+            unique_labels = unique_labels.tolist()
+
         listOfDecodedPredictions = runUnifiedDeepLearningModels(
             listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
             skipRows=len(historyData) - historyIndex, years_back=years_back, specialColumnCount=specialColumnCount)
