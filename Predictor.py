@@ -571,7 +571,26 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     return os.path.join(path, "data", "database", name,
                                         f"{entryDate.year}-{entryDate.month}-{entryDate.day}.json")
 
-                existingIndices = [i for i, entry in enumerate(fullHistory) if os.path.exists(entryJsonPath(entry))]
+                def entryIsComplete(jsonPath):
+                    """
+                    Step 2 (process_single_history_entry_second_step) always
+                    writes a non-empty "labels" list - in both its ai and
+                    non-ai branches - so an existing file without one is a
+                    half-built leftover of a run that died between step 1 and
+                    step 2 (only the statistical rows present; no DL/boosting
+                    rows, no numberFrequency, no matching-number links).
+                    Those used to count as valid history forever; treat them
+                    like holes so they get rebuilt.
+                    """
+                    if not os.path.exists(jsonPath):
+                        return False
+                    try:
+                        with open(jsonPath, "r") as openfile:
+                            return bool(json.load(openfile).get("labels"))
+                    except Exception:
+                        return False
+
+                existingIndices = [i for i, entry in enumerate(fullHistory) if entryIsComplete(entryJsonPath(entry))]
                 windowStart = max(0, len(fullHistory) - daysToRebuild)
 
                 if forceRebuild or not existingIndices:
@@ -585,9 +604,9 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     existingSet = set(existingIndices)
                     holeIndices = [i for i in range(windowStart, anchorIdx) if i not in existingSet]
                     rebuildIndices = holeIndices + list(range(anchorIdx + 1, len(fullHistory)))
-                    print(f"Newest existing prediction: {os.path.basename(entryJsonPath(fullHistory[anchorIdx]))} - "
-                          f"building {len(rebuildIndices)} missing draw(s) "
-                          f"({len(holeIndices)} interior hole(s), {len(fullHistory) - anchorIdx - 1} after the newest file)")
+                    print(f"Newest complete prediction: {os.path.basename(entryJsonPath(fullHistory[anchorIdx]))} - "
+                          f"building {len(rebuildIndices)} missing/incomplete draw(s) "
+                          f"({len(holeIndices)} interior, {len(fullHistory) - anchorIdx - 1} after the newest complete file)")
 
                 if rebuildIndices:
                     print("Date to start from: ", fullHistory[rebuildIndices[0]])
@@ -604,7 +623,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                 if rebuildIndices:
                     for i in reversed(range(rebuildIndices[0])):
                         candidate = entryJsonPath(fullHistory[i])
-                        if os.path.exists(candidate):
+                        if entryIsComplete(candidate):
                             previousJsonFilePath = candidate
                             break
 
