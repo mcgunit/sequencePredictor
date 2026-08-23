@@ -243,6 +243,89 @@ def process_single_history_entry_first_step(args):
     return jsonFilePath
 
 
+def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
+                     years_back, specialColumnCount, skipRows, repoPath):
+    """
+    Trains and predicts every deep learning model for one day: LSTM Base
+    Model plus the UNIFIED_DL_MODELS rows. Module-level and fully
+    argument-driven so it can run in a spawned child process (see
+    runDeepLearningStepInChild). Returns (newPredictionRaw, unique_labels,
+    dlRows) - newPredictionRaw/unique_labels are None if the LSTM failed.
+    """
+    dlRows = []
+    predictedSequence = None
+    unique_labels = None
+
+    modelToUse = lstm
+    modelToUse.setDataPath(dataPath)
+    modelToUse.setModelPath(modelPath)
+    modelToUse.setBatchSize(bestParams_json_object["batchSize"])
+    modelToUse.setEpochs(bestParams_json_object["epochs"])
+    modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
+    modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
+    modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
+    modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
+    modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
+    modelToUse.setLearningRate(bestParams_json_object["learningRate"])
+    modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
+    modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
+    modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
+    modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
+    modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
+    modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
+    modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
+    modelToUse.setPredictionWindowSize(modelToUse.window_size)
+    modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
+
+    # Own try/except (like every other model): the LSTM raising - e.g.
+    # training went NaN with no healthy checkpoint (see LSTM.run) - must cost
+    # only its own row, not the unified DL rows that follow.
+    try:
+        latest_raw_predictions, unique_labels = modelToUse.run(
+            name, skipLastColumns, skipRows=skipRows, years_back=years_back,
+            specialColumnCount=specialColumnCount)
+        predictedSequence = latest_raw_predictions.tolist()
+        dlRows = deepLearningMethod(
+            dlRows, predictedSequence, unique_labels, gameName=name,
+            kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
+    except Exception as e:
+        print("Failed to perform LSTM Base Model prediction: ", e)
+
+    dlRows = runUnifiedDeepLearningModels(
+        dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
+        skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
+
+    return predictedSequence, unique_labels, dlRows
+
+
+def runDeepLearningStepInChild(*args):
+    """
+    Runs deepLearningStep in a one-shot spawned child process, for two
+    reasons learned the hard way:
+
+    - Containment: the memory-cgroup OOM killer SIGKILLs the process when it
+      outgrows the container's 16GB (observed 2026-08-20 at 16.7GB RSS and
+      2026-08-22 at 10.3GB) - no Python traceback, and previously the entire
+      Predictor died mid-pipeline. In a child, the kill surfaces here as
+      BrokenProcessPool: the day loses only its DL rows (the half-built file
+      is auto-repaired by the completeness-aware rebuild) and every other
+      method still runs.
+    - Memory hygiene: those 10-16GB were TF/Keras allocations accumulating
+      across the ~4 model trainings per day x games in one long-lived
+      process. A fresh child per day releases everything back to the OS on
+      exit, so RSS can't ratchet up in the first place.
+
+    Costs one TF import + CUDA init per day (~15-30s) - small next to the
+    minutes of training it wraps.
+    """
+    try:
+        with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+            return executor.submit(deepLearningStep, *args).result()
+    except Exception as e:
+        print("Deep learning step died (likely OOM-killed) - skipping DL rows for this day: ", e)
+        return None, None, []
+
+
 def process_single_history_entry_second_step(args):
     """
     Second step to perform methods where we can not process multible files at the same time
@@ -252,10 +335,6 @@ def process_single_history_entry_second_step(args):
      skipLastColumns, years_back, ai, previousJsonFilePath, path, boost, bestParams_json_object,
      specialColumnCount) = args
 
-    # model_type is always "lstm_model" here (see the __main__ datasets list) -
-    # TCN now runs as its own additional row via UNIFIED_DL_MODELS instead of
-    # this either/or.
-    modelToUse = lstm
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
     jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
@@ -274,54 +353,22 @@ def process_single_history_entry_second_step(args):
     unique_labels = []
 
     if ai:
-        # Set the fundation for deepLearningMethod
-        modelToUse.setModelPath(modelPath)
-        modelToUse.setBatchSize(bestParams_json_object["batchSize"])
-        modelToUse.setEpochs(bestParams_json_object["epochs"])
-        modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
-        modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
-        modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
-        modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
-        modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
-        modelToUse.setLearningRate(bestParams_json_object["learningRate"])
-        modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
-        modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
-        modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
-        modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
-        modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
-        modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
-        modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
-        modelToUse.setPredictionWindowSize(modelToUse.window_size)
-        modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
+        # All DL training runs in a one-shot spawned child - see
+        # runDeepLearningStepInChild for why (OOM containment + per-day
+        # memory release).
+        predictedSequence, dl_labels, dlRows = runDeepLearningStepInChild(
+            name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
+            years_back, specialColumnCount, len(historyData)-historyIndex, path)
 
-        # Own try/except (like every other model in this file): the LSTM
-        # raising - e.g. training went NaN with no healthy checkpoint to
-        # recover (see LSTM.run) - must cost only its own row, not the
-        # unified DL models and boosting rows that follow for this day.
-        try:
-            latest_raw_predictions, unique_labels = modelToUse.run(
-                name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back,
-                specialColumnCount=specialColumnCount)
-
-            predictedSequence = latest_raw_predictions.tolist()
-            #unique_labels = unique_labels.tolist()
+        if predictedSequence is not None:
             current_json_object["newPredictionRaw"] = predictedSequence
-            listOfDecodedPredictions = deepLearningMethod(
-                listOfDecodedPredictions, predictedSequence, unique_labels, gameName=name,
-                kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
-        except Exception as e:
-            print("Failed to perform LSTM Base Model prediction: ", e)
-            # labels are still needed further down for the json's "labels"
-            # field - fall back to loading them straight from the data, the
-            # same way the ai=False branch does.
-            _, _, _, _, _, _, _, unique_labels = helpers.load_data(
-                dataPath, skipLastColumns, years_back=years_back)
-            unique_labels = unique_labels.tolist()
+        listOfDecodedPredictions.extend(dlRows)
+        unique_labels = dl_labels
 
-        listOfDecodedPredictions = runUnifiedDeepLearningModels(
-            listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
-            skipRows=len(historyData) - historyIndex, years_back=years_back, specialColumnCount=specialColumnCount)
-    else:
+    if unique_labels is None or len(unique_labels) == 0:
+        # ai disabled, or the DL child died: labels are still needed for the
+        # json's "labels" field (and to mark the file complete - see
+        # entryIsComplete), so load them straight from the data.
         _, _, _, _, _, _, _, unique_labels = helpers.load_data(
             dataPath, skipLastColumns, years_back=years_back)
         unique_labels = unique_labels.tolist()
@@ -469,44 +516,25 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     if ai:
                         try:
-                            # Train and do a new prediction
-                            modelToUse.setModelPath(modelPath)
-                            modelToUse.setBatchSize(bestParams_json_object["batchSize"])
-                            modelToUse.setEpochs(bestParams_json_object["epochs"])
-                            modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
-                            modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
-                            modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
-                            modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
-                            modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
-                            modelToUse.setLearningRate(bestParams_json_object["learningRate"])
-                            modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
-                            modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
-                            modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
-                            modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
-                            modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
-                            modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
-                            modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
-                            modelToUse.setPredictionWindowSize(modelToUse.window_size)
-                            modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
+                            # Train and do a new prediction - in a one-shot
+                            # spawned child (see runDeepLearningStepInChild:
+                            # OOM containment + per-day memory release). This
+                            # is the daily cron path, where a single process
+                            # doing 4 DL trainings x 6 games used to grow past
+                            # the container's 16GB cgroup limit and get
+                            # SIGKILLed with no trace.
                             yearsOfHistory = bestParams_json_object['yearsOfHistory']
                             specialColumnCount = SPECIAL_COLUMN_COUNTS.get(name, 0)
-                            latest_raw_predictions, unique_labels = modelToUse.run(
-                                name, skipLastColumns, years_back=yearsOfHistory, specialColumnCount=specialColumnCount)
 
-                            predictedSequence = latest_raw_predictions.tolist()
+                            predictedSequence, dl_labels, dlRows = runDeepLearningStepInChild(
+                                name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
+                                yearsOfHistory, specialColumnCount, 0, path)
 
-
-                            # Save the current prediction as newPrediction
-                            current_json_object["newPredictionRaw"] = predictedSequence
-                            current_json_object["labels"] = unique_labels
-
-
-                            listOfDecodedPredictions = deepLearningMethod(
-                                listOfDecodedPredictions, current_json_object["newPredictionRaw"], unique_labels,
-                                gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
-                            listOfDecodedPredictions = runUnifiedDeepLearningModels(
-                                listOfDecodedPredictions, path, name, dataPath, skipLastColumns, bestParams_json_object,
-                                years_back=yearsOfHistory, specialColumnCount=specialColumnCount)
+                            if predictedSequence is not None:
+                                current_json_object["newPredictionRaw"] = predictedSequence
+                                current_json_object["labels"] = dl_labels
+                                unique_labels = dl_labels
+                            listOfDecodedPredictions.extend(dlRows)
                         except Exception as e:
                             print("Failed to perform deep learning method: ", e)
                     else:
@@ -514,6 +542,11 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=yearsOfHistory)
                         unique_labels = unique_labels.tolist()
 
+                    # Always record labels - with ai disabled (or the DL child
+                    # dead) this used to stay [], which the completeness check
+                    # (entryIsComplete) would read as a half-built file and
+                    # pointlessly rebuild the day on every following run.
+                    current_json_object["labels"] = unique_labels
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile, indent=2)
@@ -664,6 +697,12 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         results = list(executor.map(process_single_history_entry_first_step, argsList))
 
                     print("Finished first step: multiprocessing rebuild of history entries and statistical method.")
+
+                    # Checkpoint: link matching numbers now, so the statistical
+                    # rows' matches/profit are recorded on disk even if a later
+                    # step (DL training, boosting) crashes or gets OOM-killed.
+                    # Runs again after the second step to link the full rows.
+                    update_matching_numbers(name=name, path=path)
 
                     yearsOfHistory = bestParams_json_object['yearsOfHistory']
 
@@ -1499,6 +1538,16 @@ if __name__ == "__main__":
         )
 
         parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
+        parser.add_argument(
+            '-a', '--ai', type=helpers.str2bool, default=False,
+            help='Enable the deep learning models (LSTM/TCN/Unified). Off by '
+                 'default for now: DL training is what grows past the '
+                 'container memory limit and gets OOM-killed. ANDed with each '
+                 'game\'s own ai flag in the datasets list.')
+        parser.add_argument(
+            '-b', '--boost', type=helpers.str2bool, default=True,
+            help='Enable the gradient boosting models. ANDed with each '
+                 'game\'s own boost flag in the datasets list.')
         parser.add_argument('-d', '--days', type=int, default=31)
         parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
         parser.add_argument(
@@ -1517,6 +1566,11 @@ if __name__ == "__main__":
         daysToRebuild = int(args.days)
         rebuildHistory = bool(args.rebuild_history)
         pushToGit = bool(args.save)
+        aiEnabled = bool(args.ai)
+        boostEnabled = bool(args.boost)
+
+        print("Deep learning enabled: ", aiEnabled)
+        print("Boosting enabled: ", boostEnabled)
 
         print("Push to git: ", pushToGit)
 
@@ -1582,7 +1636,7 @@ if __name__ == "__main__":
                         command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
                     # Predict with hyperopt params
-                    predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=ai, boost=boost, forceRebuild=rebuildHistory)
+                    predict(dataset_name, model_type, dataPath, modelPath, skipLastColumns=skip_last_columns, daysToRebuild=daysToRebuild, ai=(ai and aiEnabled), boost=(boost and boostEnabled), forceRebuild=rebuildHistory)
                 else:
                     pass
 
