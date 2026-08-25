@@ -294,6 +294,77 @@ class Helpers():
                 "models": models,
             }
 
+        # ------------------------------------------------------------------
+        # Phase-shift (lag) analysis: score each file's newPrediction not only
+        # against the draw it was made for (lag 1) but against the K draws
+        # after that. A model whose signal is real but time-shifted would
+        # peak at some lag > 1; an aligned model peaks at lag 1; a model with
+        # no temporal information shows a flat line across all lags (its hits
+        # are draw-independent frequency structure). Uses the main ticket
+        # only. Pick3 is scored positionally (digit-in-right-place count) -
+        # set intersection is the wrong question for a positional game with
+        # repeated digits.
+        # ------------------------------------------------------------------
+        MAX_LAG = 30
+
+        for game in list(report["games"].keys()):
+            gameDir = os.path.join(databaseDir, game)
+            isPick3 = "pick3" in game
+
+            def dayHits(prediction, realResult):
+                if isPick3:
+                    return sum(1 for p, r in zip(prediction, realResult) if int(p) == int(r))
+                return len(set(map(int, prediction)) & set(map(int, realResult)))
+
+            # Chronologically ordered (date, realResult, {model: mainTicket})
+            days = []
+            for fileName in os.listdir(gameDir):
+                if not fileName.endswith(".json"):
+                    continue
+                try:
+                    fileDate = datetime.strptime(fileName.replace(".json", ""), "%Y-%m-%d")
+                except ValueError:
+                    continue
+                try:
+                    with open(os.path.join(gameDir, fileName), "r") as infile:
+                        dayData = json.load(infile)
+                except Exception:
+                    continue
+                tickets = {
+                    model.get("name"): model["predictions"][0]
+                    for model in (dayData.get("newPrediction") or [])
+                    if model.get("name") and model.get("predictions") and model["predictions"][0]
+                }
+                days.append((fileDate, dayData.get("realResult") or [], tickets))
+            days.sort(key=lambda d: d[0])
+
+            lagStats = {}  # model -> lag -> [hits_total, count]
+            for i, (_, _, tickets) in enumerate(days):
+                for lag in range(1, MAX_LAG + 1):
+                    j = i + lag - 1  # file i's newPrediction targets file i+1's draw = lag 1
+                    if j + 1 > len(days) - 1:
+                        break
+                    realResult = days[j + 1][1]
+                    if not realResult:
+                        continue
+                    for name, ticket in tickets.items():
+                        perLag = lagStats.setdefault(name, {})
+                        bucket = perLag.setdefault(lag, [0, 0])
+                        bucket[0] += dayHits(ticket, realResult)
+                        bucket[1] += 1
+
+            lagAnalysis = {}
+            for name, perLag in lagStats.items():
+                lags = []
+                for lag in range(1, MAX_LAG + 1):
+                    total, count = perLag.get(lag, (0, 0))
+                    lags.append({"lag": lag, "avg_hits": round(total / count, 3) if count else None, "n": count})
+                scored = [l for l in lags if l["avg_hits"] is not None and l["n"] >= 10]
+                bestLag = max(scored, key=lambda l: l["avg_hits"])["lag"] if scored else None
+                lagAnalysis[name] = {"lags": lags, "best_lag": bestLag}
+
+            report["games"][game]["lagAnalysis"] = lagAnalysis
+
         outputPath = os.path.join(databaseDir, outputFileName)
         with open(outputPath, "w") as outfile:
             json.dump(report, outfile, indent=2)

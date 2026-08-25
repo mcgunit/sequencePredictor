@@ -432,6 +432,81 @@ function generatePerformanceSummary() {
     </div>`;
 }
 
+// --- LOGIC: Phase-shift (lag) analysis card - newPrediction of day t scored
+// against draws t+1 (lag 1, the intended target) through t+10. A real but
+// time-shifted signal would peak at a lag > 1; a flat line means the model's
+// hits come from draw-independent frequency structure, not timing. ---
+function generateLagAnalysis() {
+  const reportPath = path.join(dataPath, 'modelPerformance.json');
+  if (!fs.existsSync(reportPath)) return '';
+
+  let report;
+  try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); }
+  catch (e) { return ''; }
+
+  let gameCards = '';
+  Object.keys(report.games).sort().forEach((game) => {
+    const la = report.games[game].lagAnalysis;
+    if (!la) return;
+
+    const lagCount = Math.max(...Object.values(la).map(r => r.lags.length), 0);
+
+    const modelRows = Object.keys(la).sort().map((name) => {
+      const row = la[name];
+      const values = row.lags.map(l => l.avg_hits).filter(v => v !== null);
+      if (values.length === 0) return '';
+      const max = Math.max(...values);
+      const cells = row.lags.map(l => {
+        if (l.avg_hits === null) return '<td style="color:#ccc;">-</td>';
+        const isPeak = l.avg_hits === max;
+        return `<td style="${isPeak ? 'background:#2ecc71; color:white; font-weight:bold;' : ''}" title="n=${l.n}">${l.avg_hits}</td>`;
+      }).join('');
+      const bestLag = row.best_lag === null ? '-' : row.best_lag;
+      return `<tr><td style="text-align:left; font-weight:bold;">${name}</td>${cells}<td style="font-weight:bold;">${bestLag}</td></tr>`;
+    }).join('');
+    if (!modelRows) return;
+
+    const lagHeaders = Array.from({length: lagCount}, (_, i) => `<th>+${i + 1}</th>`).join('');
+    gameCards += `
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)">
+          <span class="card-title" style="font-size: 1em;">${game}</span>
+          <div class="card-icon">▼</div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table>
+              <tr><th style="text-align:left;">Model</th>${lagHeaders}<th>Peak</th></tr>
+              ${modelRows}
+            </table>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  if (!gameCards) return '';
+
+  return `
+    <div class="card" style="margin-top: 25px;">
+      <div class="card-header" onclick="toggleCard(this)">
+        <div>
+          <span class="card-title">📈 Phase-shift check (prediction vs later draws)</span>
+          <span class="card-meta" style="margin-left: 10px;">avg hits when each prediction is scored against draw +1 .. +10</span>
+        </div>
+        <div class="card-icon">▼</div>
+      </div>
+      <div class="card-body">
+        <p style="color: #7f8c8d; font-size: 0.85em; margin-top: 0;">
+          +1 is the draw the prediction was made for. A consistent peak at a later lag would suggest the model's
+          signal is real but time-shifted; a <b>flat line means the hits come from overall number-frequency structure,
+          not timing</b>. Pick3 is scored positionally (digit in the right place). Peaks are highlighted per row -
+          judge them against the row's spread and the sample size (hover a cell for n), not in isolation.
+        </p>
+        ${gameCards}
+      </div>
+    </div>`;
+}
+
 // 1. Database Index
 app.get('/database', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
@@ -444,6 +519,7 @@ app.get('/database', (req, res) => {
   });
   html += '</div>';
   html += generatePerformanceSummary();
+  html += generateLagAnalysis();
   html += generateFooter();
   res.send(html);
 });
