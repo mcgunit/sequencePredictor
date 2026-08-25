@@ -1646,6 +1646,14 @@ if __name__ == "__main__":
         
         print("Finished with predictions")
 
+        # Per-game/per-model performance summary over all scored history -
+        # rendered by the web UI's History page (see server.js /database) and
+        # committed alongside the prediction jsons below.
+        try:
+            helpers.generate_model_performance_report(os.path.join(path, "data", "database"))
+        except Exception as e:
+            print("Failed to generate model performance report: ", e)
+
         # try:
         #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))
         # except Exception as e:

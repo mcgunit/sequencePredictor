@@ -177,6 +177,129 @@ class Helpers():
 
         return table["lost"]
 
+    def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json"):
+        """
+        Scans every game folder under databaseDir and writes a per-game,
+        per-model performance summary over ALL scored history (each file's
+        currentPrediction vs its realResult), for the web UI's History page.
+
+        Ranking metric per game:
+        - keno/pick3 (real payout tables exist): average profit per bet -
+          per-bet rather than total, because models joined at different times
+          (the boosting rows are weeks old, the statistical rows months) and
+          bet different numbers of Keno subsets, so totals aren't comparable.
+        - every other game: average hits of the model's main ticket.
+
+        The full ranking is stored per game (not just the winner) so the UI
+        can grow without regenerating anything; "draws" is included so small
+        sample sizes are visible instead of masquerading as strong averages.
+        """
+        report = {
+            "generatedAt": datetime.now().isoformat(timespec="seconds"),
+            "games": {},
+        }
+
+        for game in sorted(os.listdir(databaseDir)):
+            gameDir = os.path.join(databaseDir, game)
+            if not os.path.isdir(gameDir):
+                continue
+
+            hasPayout = "keno" in game or "pick3" in game
+            stats = {}
+
+            for fileName in os.listdir(gameDir):
+                if not fileName.endswith(".json"):
+                    continue
+                try:
+                    with open(os.path.join(gameDir, fileName), "r") as infile:
+                        dayData = json.load(infile)
+                except Exception:
+                    continue
+
+                realResult = dayData.get("realResult")
+                scoredModels = dayData.get("currentPrediction") or []
+                if not realResult or not scoredModels:
+                    continue
+
+                for model in scoredModels:
+                    name = model.get("name")
+                    predictions = model.get("predictions") or []
+                    if not name or not predictions or not predictions[0]:
+                        continue
+
+                    entry = stats.setdefault(name, {
+                        "draws": 0, "hits_total": 0, "best_hits": 0,
+                        "profit_total": 0.0, "bets": 0,
+                    })
+
+                    mainTicket = predictions[0]
+                    hits = len(set(map(int, mainTicket)) & set(map(int, realResult)))
+                    entry["draws"] += 1
+                    entry["hits_total"] += hits
+                    entry["best_hits"] = max(entry["best_hits"], hits)
+
+                    if "keno" in game:
+                        # Profit exists only for playable 5-10-number subsets,
+                        # not the full 20-number ticket.
+                        for ticket in predictions:
+                            profit = self.keno_ticket_profit(ticket, realResult)
+                            if profit is not None:
+                                entry["profit_total"] += profit
+                                entry["bets"] += 1
+                    elif "pick3" in game:
+                        profit = self.pick3_ticket_profit(mainTicket, realResult)
+                        if profit is not None:
+                            entry["profit_total"] += profit
+                            entry["bets"] += 1
+
+            models = []
+            for name, entry in stats.items():
+                avgHits = entry["hits_total"] / entry["draws"] if entry["draws"] else 0.0
+                profitPerBet = entry["profit_total"] / entry["bets"] if entry["bets"] else None
+                models.append({
+                    "name": name,
+                    "draws": entry["draws"],
+                    "avg_hits": round(avgHits, 3),
+                    "best_hits": entry["best_hits"],
+                    "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
+                    "profit_per_bet": round(profitPerBet, 3) if profitPerBet is not None else None,
+                    "bets": entry["bets"],
+                })
+
+            if not models:
+                continue
+
+            if hasPayout:
+                sortKey = lambda m: (m["profit_per_bet"] if m["profit_per_bet"] is not None else float("-inf"))
+                metric = "profit_per_bet"
+            else:
+                sortKey = lambda m: m["avg_hits"]
+                metric = "avg_hits"
+
+            # A model scored on 1-2 draws can top an average-based ranking on
+            # a single lucky day (models join at different times - boosting
+            # rows are much younger than the statistical ones). Rank models
+            # with a reasonable sample first; the rest keep their stats but
+            # sort below, and the UI shows the draw count either way.
+            maxDraws = max(m["draws"] for m in models)
+            minDraws = min(10, maxDraws)
+            established = sorted([m for m in models if m["draws"] >= minDraws], key=sortKey, reverse=True)
+            young = sorted([m for m in models if m["draws"] < minDraws], key=sortKey, reverse=True)
+            models = established + young
+
+            report["games"][game] = {
+                "metric": metric,
+                "minDrawsForRanking": minDraws,
+                "bestModel": models[0]["name"],
+                "models": models,
+            }
+
+        outputPath = os.path.join(databaseDir, outputFileName)
+        with open(outputPath, "w") as outfile:
+            json.dump(report, outfile, indent=2)
+        print(f"Model performance report written to {outputPath}")
+        return report
+
     def load_weights_if_fingerprint_matches(self, model, model_path, fingerprint):
         """
         Loads saved .weights.h5 into `model` only if the fingerprint stored

@@ -1,0 +1,992 @@
+{
+  "generatedAt": "2026-08-24T22:13:01",
+  "games": {
+    "eurodreams": {
+      "metric": "avg_hits",
+      "minDrawsForRanking": 10,
+      "bestModel": "MarkovBayesian Model",
+      "models": [
+        {
+          "name": "MarkovBayesian Model",
+          "draws": 81,
+          "avg_hits": 1.778,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "HybridStatisticalModel",
+          "draws": 81,
+          "avg_hits": 1.741,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 81,
+          "avg_hits": 1.543,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMarkov Model",
+          "draws": 81,
+          "avg_hits": 1.395,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "Markov Model",
+          "draws": 39,
+          "avg_hits": 1.385,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MarkovBayesianEnhanched Model",
+          "draws": 81,
+          "avg_hits": 1.383,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 80,
+          "avg_hits": 1.375,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMonteCarlo Model",
+          "draws": 81,
+          "avg_hits": 1.333,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 13,
+          "avg_hits": 1.308,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearner Model",
+          "draws": 12,
+          "avg_hits": 1.083,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 1,
+          "avg_hits": 3.0,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoostMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 3.0,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 1,
+          "avg_hits": 2.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 1,
+          "avg_hits": 2.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBM Model",
+          "draws": 1,
+          "avg_hits": 2.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "TCN Base Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoostMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBMMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearnerV2 Model",
+          "draws": 2,
+          "avg_hits": 0.5,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        }
+      ]
+    },
+    "euromillions": {
+      "metric": "avg_hits",
+      "minDrawsForRanking": 10,
+      "bestModel": "HybridStatisticalModel",
+      "models": [
+        {
+          "name": "HybridStatisticalModel",
+          "draws": 82,
+          "avg_hits": 1.537,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMarkov Model",
+          "draws": 82,
+          "avg_hits": 1.39,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MarkovBayesianEnhanched Model",
+          "draws": 82,
+          "avg_hits": 1.366,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MarkovBayesian Model",
+          "draws": 82,
+          "avg_hits": 1.244,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMonteCarlo Model",
+          "draws": 82,
+          "avg_hits": 1.22,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 82,
+          "avg_hits": 1.146,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 82,
+          "avg_hits": 1.061,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "Markov Model",
+          "draws": 82,
+          "avg_hits": 0.768,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoostMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 2.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearnerV2 Model",
+          "draws": 3,
+          "avg_hits": 1.667,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 6,
+          "avg_hits": 1.167,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearner Model",
+          "draws": 5,
+          "avg_hits": 1.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 2,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBM Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "TCN Base Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 2,
+          "avg_hits": 0.5,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 2,
+          "avg_hits": 0.5,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoostMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBMMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        }
+      ]
+    },
+    "keno": {
+      "metric": "profit_per_bet",
+      "minDrawsForRanking": 10,
+      "bestModel": "CatBoostMultiLabel Model",
+      "models": [
+        {
+          "name": "CatBoostMultiLabel Model",
+          "draws": 15,
+          "avg_hits": 6.0,
+          "best_hits": 8,
+          "profit_total": -13.0,
+          "profit_per_bet": -0.867,
+          "bets": 15
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 52,
+          "avg_hits": 5.962,
+          "best_hits": 10,
+          "profit_total": -53.0,
+          "profit_per_bet": -1.06,
+          "bets": 50
+        },
+        {
+          "name": "XGBoostMultiLabel Model",
+          "draws": 15,
+          "avg_hits": 5.467,
+          "best_hits": 9,
+          "profit_total": -18.0,
+          "profit_per_bet": -1.2,
+          "bets": 15
+        },
+        {
+          "name": "HybridStatisticalModel",
+          "draws": 288,
+          "avg_hits": 5.882,
+          "best_hits": 12,
+          "profit_total": -551.0,
+          "profit_per_bet": -1.258,
+          "bets": 438
+        },
+        {
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 288,
+          "avg_hits": 5.757,
+          "best_hits": 12,
+          "profit_total": -571.0,
+          "profit_per_bet": -1.304,
+          "bets": 438
+        },
+        {
+          "name": "PoissonMarkov Model",
+          "draws": 288,
+          "avg_hits": 5.774,
+          "best_hits": 11,
+          "profit_total": -605.0,
+          "profit_per_bet": -1.381,
+          "bets": 438
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 15,
+          "avg_hits": 5.267,
+          "best_hits": 7,
+          "profit_total": -21.0,
+          "profit_per_bet": -1.4,
+          "bets": 15
+        },
+        {
+          "name": "MarkovBayesian Model",
+          "draws": 288,
+          "avg_hits": 5.812,
+          "best_hits": 12,
+          "profit_total": -642.0,
+          "profit_per_bet": -1.466,
+          "bets": 438
+        },
+        {
+          "name": "Markov Model",
+          "draws": 288,
+          "avg_hits": 5.719,
+          "best_hits": 10,
+          "profit_total": -661.0,
+          "profit_per_bet": -1.509,
+          "bets": 438
+        },
+        {
+          "name": "MetaLearner Model",
+          "draws": 37,
+          "avg_hits": 5.649,
+          "best_hits": 9,
+          "profit_total": -53.0,
+          "profit_per_bet": -1.514,
+          "bets": 35
+        },
+        {
+          "name": "PoissonMonteCarlo Model",
+          "draws": 288,
+          "avg_hits": 5.771,
+          "best_hits": 10,
+          "profit_total": -667.0,
+          "profit_per_bet": -1.523,
+          "bets": 438
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 16,
+          "avg_hits": 5.438,
+          "best_hits": 7,
+          "profit_total": -26.0,
+          "profit_per_bet": -1.625,
+          "bets": 16
+        },
+        {
+          "name": "MarkovBayesianEnhanched Model",
+          "draws": 288,
+          "avg_hits": 5.552,
+          "best_hits": 10,
+          "profit_total": -716.0,
+          "profit_per_bet": -1.635,
+          "bets": 438
+        },
+        {
+          "name": "LightGBM Model",
+          "draws": 15,
+          "avg_hits": 5.467,
+          "best_hits": 7,
+          "profit_total": -25.0,
+          "profit_per_bet": -1.667,
+          "bets": 15
+        },
+        {
+          "name": "LightGBMMultiLabel Model",
+          "draws": 15,
+          "avg_hits": 6.067,
+          "best_hits": 10,
+          "profit_total": -30.0,
+          "profit_per_bet": -2.0,
+          "bets": 15
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 4,
+          "avg_hits": 6.0,
+          "best_hits": 9,
+          "profit_total": -29.0,
+          "profit_per_bet": -1.208,
+          "bets": 24
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 4,
+          "avg_hits": 6.0,
+          "best_hits": 8,
+          "profit_total": -34.0,
+          "profit_per_bet": -1.417,
+          "bets": 24
+        },
+        {
+          "name": "TCN Base Model",
+          "draws": 2,
+          "avg_hits": 7.0,
+          "best_hits": 8,
+          "profit_total": -21.0,
+          "profit_per_bet": -1.75,
+          "bets": 12
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 4,
+          "avg_hits": 6.0,
+          "best_hits": 7,
+          "profit_total": -48.0,
+          "profit_per_bet": -2.0,
+          "bets": 24
+        },
+        {
+          "name": "MetaLearnerV2 Model",
+          "draws": 4,
+          "avg_hits": 5.0,
+          "best_hits": 6,
+          "profit_total": -8.0,
+          "profit_per_bet": -2.0,
+          "bets": 4
+        }
+      ]
+    },
+    "lotto": {
+      "metric": "avg_hits",
+      "minDrawsForRanking": 10,
+      "bestModel": "MetaLearner Model",
+      "models": [
+        {
+          "name": "MetaLearner Model",
+          "draws": 12,
+          "avg_hits": 1.167,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 14,
+          "avg_hits": 1.143,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 79,
+          "avg_hits": 1.089,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 81,
+          "avg_hits": 1.086,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMarkov Model",
+          "draws": 81,
+          "avg_hits": 1.037,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMonteCarlo Model",
+          "draws": 81,
+          "avg_hits": 1.025,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MarkovBayesian Model",
+          "draws": 81,
+          "avg_hits": 0.975,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "HybridStatisticalModel",
+          "draws": 81,
+          "avg_hits": 0.975,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "Markov Model",
+          "draws": 81,
+          "avg_hits": 0.914,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MarkovBayesianEnhanched Model",
+          "draws": 81,
+          "avg_hits": 0.852,
+          "best_hits": 5,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 2,
+          "avg_hits": 1.5,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBM Model",
+          "draws": 2,
+          "avg_hits": 1.5,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 2,
+          "avg_hits": 1.5,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoostMultiLabel Model",
+          "draws": 2,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearnerV2 Model",
+          "draws": 2,
+          "avg_hits": 0.5,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoostMultiLabel Model",
+          "draws": 2,
+          "avg_hits": 0.5,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBMMultiLabel Model",
+          "draws": 2,
+          "avg_hits": 0.5,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        }
+      ]
+    },
+    "pick3": {
+      "metric": "profit_per_bet",
+      "minDrawsForRanking": 10,
+      "bestModel": "MarkovBayesian Model",
+      "models": [
+        {
+          "name": "MarkovBayesian Model",
+          "draws": 236,
+          "avg_hits": 0.78,
+          "best_hits": 3,
+          "profit_total": -193.0,
+          "profit_per_bet": -0.818,
+          "bets": 236
+        },
+        {
+          "name": "PoissonMarkov Model",
+          "draws": 236,
+          "avg_hits": 0.805,
+          "best_hits": 3,
+          "profit_total": -278.0,
+          "profit_per_bet": -1.178,
+          "bets": 236
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 239,
+          "avg_hits": 0.711,
+          "best_hits": 2,
+          "profit_total": -586.0,
+          "profit_per_bet": -2.452,
+          "bets": 239
+        },
+        {
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 288,
+          "avg_hits": 0.597,
+          "best_hits": 2,
+          "profit_total": -709.0,
+          "profit_per_bet": -2.462,
+          "bets": 288
+        },
+        {
+          "name": "Markov Model",
+          "draws": 288,
+          "avg_hits": 0.781,
+          "best_hits": 3,
+          "profit_total": -715.0,
+          "profit_per_bet": -2.483,
+          "bets": 288
+        },
+        {
+          "name": "PoissonMonteCarlo Model",
+          "draws": 288,
+          "avg_hits": 0.785,
+          "best_hits": 3,
+          "profit_total": -768.0,
+          "profit_per_bet": -2.667,
+          "bets": 288
+        },
+        {
+          "name": "HybridStatisticalModel",
+          "draws": 236,
+          "avg_hits": 0.792,
+          "best_hits": 3,
+          "profit_total": -644.0,
+          "profit_per_bet": -2.729,
+          "bets": 236
+        },
+        {
+          "name": "LightGBM Model",
+          "draws": 8,
+          "avg_hits": 1.0,
+          "best_hits": 2,
+          "profit_total": 19.0,
+          "profit_per_bet": 2.375,
+          "bets": 8
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 8,
+          "avg_hits": 0.625,
+          "best_hits": 2,
+          "profit_total": 18.0,
+          "profit_per_bet": 2.25,
+          "bets": 8
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 4,
+          "avg_hits": 0.75,
+          "best_hits": 2,
+          "profit_total": -14.0,
+          "profit_per_bet": -3.5,
+          "bets": 4
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 4,
+          "avg_hits": 0.75,
+          "best_hits": 2,
+          "profit_total": -14.0,
+          "profit_per_bet": -3.5,
+          "bets": 4
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 9,
+          "avg_hits": 0.667,
+          "best_hits": 2,
+          "profit_total": -35.0,
+          "profit_per_bet": -3.889,
+          "bets": 9
+        },
+        {
+          "name": "TCN Base Model",
+          "draws": 2,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": -8.0,
+          "profit_per_bet": -4.0,
+          "bets": 2
+        }
+      ]
+    },
+    "vikinglotto": {
+      "metric": "avg_hits",
+      "minDrawsForRanking": 10,
+      "bestModel": "MarkovBayesian Model",
+      "models": [
+        {
+          "name": "MarkovBayesian Model",
+          "draws": 39,
+          "avg_hits": 1.744,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "HybridStatisticalModel",
+          "draws": 39,
+          "avg_hits": 1.692,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMarkov Model",
+          "draws": 39,
+          "avg_hits": 1.436,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "Markov Model",
+          "draws": 39,
+          "avg_hits": 1.308,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MarkovBayesianEnhanched Model",
+          "draws": 39,
+          "avg_hits": 1.282,
+          "best_hits": 4,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 39,
+          "avg_hits": 1.179,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "PoissonMonteCarlo Model",
+          "draws": 39,
+          "avg_hits": 1.154,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 39,
+          "avg_hits": 1.154,
+          "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearner Model",
+          "draws": 3,
+          "avg_hits": 1.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "MetaLearnerV2 Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 3,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        }
+      ]
+    }
+  }
+}
