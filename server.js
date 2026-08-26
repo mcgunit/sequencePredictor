@@ -459,11 +459,23 @@ function generateLagAnalysis() {
       // Only call a lag "tracked" once several runs agree on it - with one or
       // two runs the winning lag is whatever noise picked.
       const tracked = runs >= 3 && share >= 0.5;
-      const trend = Object.keys(row.lag_counts || {})
-        .sort((a, b) => (row.lag_counts[b] - row.lag_counts[a]) || (a - b))
-        .slice(0, 4)
-        .map((lag) => `+${lag}×${row.lag_counts[lag]}`)
-        .join(', ');
+      // Chronological peak trail (oldest → newest), run-length encoded so a
+      // stable peak reads as +30×5 while a drift reads as +26 → +28 → +30.
+      // The raw tally (lag_counts) can't tell those two apart.
+      const segments = [];
+      (row.history || []).forEach((r) => {
+        const last = segments[segments.length - 1];
+        if (last && last.lag === r.lag) { last.count += 1; last.to = r; }
+        else segments.push({ lag: r.lag, count: 1, from: r, to: r });
+      });
+      const shown = segments.slice(-8);
+      const trail = (segments.length > shown.length ? '… → ' : '') + shown.map((seg, i) => {
+        const isNewest = i === shown.length - 1;
+        const when = seg.count === 1 ? seg.from.run : `${seg.from.run} … ${seg.to.run}`;
+        const tip = `${when} · avg hits ${seg.to.avg_hits} · z ${seg.to.z}`;
+        const label = seg.count === 1 ? `+${seg.lag}` : `+${seg.lag}×${seg.count}`;
+        return `<span title="${tip}" style="${isNewest ? 'font-weight:bold; color:#2c3e50;' : ''}">${label}</span>`;
+      }).join(' → ');
       const z = peak.z === null || peak.z === undefined ? '-' : peak.z;
       return `<tr>
         <td style="text-align:left; font-weight:bold;">${name}</td>
@@ -472,7 +484,7 @@ function generateLagAnalysis() {
         <td>${z}</td>
         <td>${peak.n}</td>
         <td style="${tracked ? 'background:#2ecc71; color:white; font-weight:bold;' : ''}">+${row.consensus_lag} (${row.consensus_runs}/${runs})</td>
-        <td style="text-align:left; color:#7f8c8d;">${trend}</td>
+        <td style="text-align:left; color:#7f8c8d; white-space:nowrap;">${trail}</td>
       </tr>`;
     }).join('');
     if (!modelRows) return;
@@ -493,7 +505,7 @@ function generateLagAnalysis() {
                 <th>z</th>
                 <th>n</th>
                 <th>Most frequent peak</th>
-                <th style="text-align:left;">Peak history</th>
+                <th style="text-align:left;">Peak trail (oldest → newest)</th>
               </tr>
               ${modelRows}
             </table>
@@ -519,8 +531,10 @@ function generateLagAnalysis() {
           prediction was made for). <b>z</b> is how far that peak sticks out of the model's own lag profile - near 1
           means a flat profile, so the hits come from number-frequency structure rather than timing. The highlighted
           column is the lag that peaked in most runs: several runs agreeing on the same lag is the evidence a real
-          phase shift exists; a peak that moves every run is noise. Pick3 is scored positionally (digit in the right
-          place). One peak is recorded per run date, keeping the last 60 runs.
+          phase shift exists; a peak that moves every run is noise. The trail shows the peaks in run order (hover a
+          step for date and stats): a repeated <b>+30×5</b> means the peak is holding still, <b>+26 → +28 → +30</b>
+          means it is drifting. Pick3 is scored positionally (digit in the right place). One peak is recorded per run
+          date, keeping the last 60 runs.
         </p>
         ${gameCards}
       </div>
