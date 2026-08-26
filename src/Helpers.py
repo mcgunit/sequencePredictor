@@ -304,8 +304,25 @@ class Helpers():
         # only. Pick3 is scored positionally (digit-in-right-place count) -
         # set intersection is the wrong question for a positional game with
         # repeated digits.
+        #
+        # Only the single best peak of this run is kept per model - the full
+        # 30-column table was mostly noise, and one run's table says nothing
+        # about whether a lag is real. Instead each run's peak is appended to
+        # a persisted history (lagPeakHistory.json) keyed by game/model, so a
+        # lag that keeps winning across runs (e.g. pick3 peaking near 30 on
+        # run after run) becomes visible as a recurring peak, while a peak
+        # that wanders every run is exposed as noise.
         # ------------------------------------------------------------------
         MAX_LAG = 30
+        HISTORY_RUNS = 60  # keep roughly two months of daily runs per model
+
+        historyPath = os.path.join(databaseDir, "lagPeakHistory.json")
+        try:
+            with open(historyPath, "r") as infile:
+                peakHistory = json.load(infile)
+        except Exception:
+            peakHistory = {}
+        runDate = report["generatedAt"][:10]
 
         for game in list(report["games"].keys()):
             gameDir = os.path.join(databaseDir, game)
@@ -354,16 +371,73 @@ class Helpers():
                         bucket[1] += 1
 
             lagAnalysis = {}
+            gameHistory = peakHistory.setdefault(game, {})
+
             for name, perLag in lagStats.items():
                 lags = []
                 for lag in range(1, MAX_LAG + 1):
                     total, count = perLag.get(lag, (0, 0))
                     lags.append({"lag": lag, "avg_hits": round(total / count, 3) if count else None, "n": count})
+
                 scored = [l for l in lags if l["avg_hits"] is not None and l["n"] >= 10]
-                bestLag = max(scored, key=lambda l: l["avg_hits"])["lag"] if scored else None
-                lagAnalysis[name] = {"lags": lags, "best_lag": bestLag}
+                if not scored:
+                    continue
+
+                peak = max(scored, key=lambda l: l["avg_hits"])
+                values = [l["avg_hits"] for l in scored]
+                mean = sum(values) / len(values)
+                variance = sum((v - mean) ** 2 for v in values) / len(values)
+                std = variance ** 0.5
+                # How far the peak sticks out of its own lag profile. A flat
+                # profile (no timing information) gives z ~ 1 whatever lag
+                # happens to win; a genuinely shifted signal gives a large z.
+                zScore = round((peak["avg_hits"] - mean) / std, 2) if std > 0 else None
+
+                thisRun = {
+                    "run": runDate,
+                    "lag": peak["lag"],
+                    "avg_hits": peak["avg_hits"],
+                    "n": peak["n"],
+                    "z": zScore,
+                    "profile_mean": round(mean, 3),
+                }
+
+                # One entry per run date: a second run on the same day replaces
+                # the first (it scored strictly more history) instead of
+                # double-counting that day's vote.
+                runs = [r for r in gameHistory.get(name, []) if r.get("run") != runDate]
+                runs.append(thisRun)
+                runs.sort(key=lambda r: r.get("run") or "")
+                gameHistory[name] = runs[-HISTORY_RUNS:]
+
+                lagCounts = {}
+                for r in gameHistory[name]:
+                    key = str(r.get("lag"))
+                    lagCounts[key] = lagCounts.get(key, 0) + 1
+                consensusLag, consensusRuns = max(
+                    lagCounts.items(), key=lambda kv: (kv[1], -abs(int(kv[0]) - peak["lag"]))
+                )
+
+                lagAnalysis[name] = {
+                    "peak": thisRun,
+                    "history": gameHistory[name],
+                    "runs": len(gameHistory[name]),
+                    "lag_counts": lagCounts,
+                    # The lag that has peaked most often across runs, and how
+                    # many of the kept runs voted for it - that ratio, not any
+                    # single run, is the evidence a shift is real.
+                    "consensus_lag": int(consensusLag),
+                    "consensus_runs": consensusRuns,
+                    "best_lag": peak["lag"],
+                }
 
             report["games"][game]["lagAnalysis"] = lagAnalysis
+
+        try:
+            with open(historyPath, "w") as outfile:
+                json.dump(peakHistory, outfile, indent=2)
+        except Exception as e:
+            print(f"Failed to write lag peak history to {historyPath}: {e}")
 
         outputPath = os.path.join(databaseDir, outputFileName)
         with open(outputPath, "w") as outfile:

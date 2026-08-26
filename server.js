@@ -432,10 +432,12 @@ function generatePerformanceSummary() {
     </div>`;
 }
 
-// --- LOGIC: Phase-shift (lag) analysis card - newPrediction of day t scored
-// against draws t+1 (lag 1, the intended target) through t+10. A real but
-// time-shifted signal would peak at a lag > 1; a flat line means the model's
-// hits come from draw-independent frequency structure, not timing. ---
+// --- LOGIC: Phase-shift (lag) analysis card - each predictor run scores its
+// newPrediction against draws +1..+30 and keeps only the best peak of that
+// run. The table shows this run's peak plus how often each lag has peaked
+// across the persisted run history: a lag that keeps winning (e.g. pick3
+// around +30 run after run) is evidence of a real shift, a peak that wanders
+// every run is noise. ---
 function generateLagAnalysis() {
   const reportPath = path.join(dataPath, 'modelPerformance.json');
   if (!fs.existsSync(reportPath)) return '';
@@ -447,26 +449,34 @@ function generateLagAnalysis() {
   let gameCards = '';
   Object.keys(report.games).sort().forEach((game) => {
     const la = report.games[game].lagAnalysis;
-    if (!la) return;
-
-    const lagCount = Math.max(...Object.values(la).map(r => r.lags.length), 0);
+    if (!la || Object.keys(la).length === 0) return;
 
     const modelRows = Object.keys(la).sort().map((name) => {
       const row = la[name];
-      const values = row.lags.map(l => l.avg_hits).filter(v => v !== null);
-      if (values.length === 0) return '';
-      const max = Math.max(...values);
-      const cells = row.lags.map(l => {
-        if (l.avg_hits === null) return '<td style="color:#ccc;">-</td>';
-        const isPeak = l.avg_hits === max;
-        return `<td style="${isPeak ? 'background:#2ecc71; color:white; font-weight:bold;' : ''}" title="n=${l.n}">${l.avg_hits}</td>`;
-      }).join('');
-      const bestLag = row.best_lag === null ? '-' : row.best_lag;
-      return `<tr><td style="text-align:left; font-weight:bold;">${name}</td>${cells}<td style="font-weight:bold;">${bestLag}</td></tr>`;
+      const peak = row.peak || {};
+      const runs = row.runs || 0;
+      const share = runs ? row.consensus_runs / runs : 0;
+      // Only call a lag "tracked" once several runs agree on it - with one or
+      // two runs the winning lag is whatever noise picked.
+      const tracked = runs >= 3 && share >= 0.5;
+      const trend = Object.keys(row.lag_counts || {})
+        .sort((a, b) => (row.lag_counts[b] - row.lag_counts[a]) || (a - b))
+        .slice(0, 4)
+        .map((lag) => `+${lag}×${row.lag_counts[lag]}`)
+        .join(', ');
+      const z = peak.z === null || peak.z === undefined ? '-' : peak.z;
+      return `<tr>
+        <td style="text-align:left; font-weight:bold;">${name}</td>
+        <td style="font-weight:bold;">+${peak.lag}</td>
+        <td title="profile mean ${peak.profile_mean}">${peak.avg_hits}</td>
+        <td>${z}</td>
+        <td>${peak.n}</td>
+        <td style="${tracked ? 'background:#2ecc71; color:white; font-weight:bold;' : ''}">+${row.consensus_lag} (${row.consensus_runs}/${runs})</td>
+        <td style="text-align:left; color:#7f8c8d;">${trend}</td>
+      </tr>`;
     }).join('');
     if (!modelRows) return;
 
-    const lagHeaders = Array.from({length: lagCount}, (_, i) => `<th>+${i + 1}</th>`).join('');
     gameCards += `
       <div class="card">
         <div class="card-header" onclick="toggleCard(this)">
@@ -476,7 +486,15 @@ function generateLagAnalysis() {
         <div class="card-body">
           <div class="table-wrapper">
             <table>
-              <tr><th style="text-align:left;">Model</th>${lagHeaders}<th>Peak</th></tr>
+              <tr>
+                <th style="text-align:left;">Model</th>
+                <th>Peak lag (this run)</th>
+                <th>Avg hits</th>
+                <th>z</th>
+                <th>n</th>
+                <th>Most frequent peak</th>
+                <th style="text-align:left;">Peak history</th>
+              </tr>
               ${modelRows}
             </table>
           </div>
@@ -490,17 +508,19 @@ function generateLagAnalysis() {
     <div class="card" style="margin-top: 25px;">
       <div class="card-header" onclick="toggleCard(this)">
         <div>
-          <span class="card-title">📈 Phase-shift check (prediction vs later draws)</span>
-          <span class="card-meta" style="margin-left: 10px;">avg hits when each prediction is scored against draw +1 .. +10</span>
+          <span class="card-title">📈 Phase-shift check (tracked peaks)</span>
+          <span class="card-meta" style="margin-left: 10px;">best lag per predictor run, tracked across runs</span>
         </div>
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
         <p style="color: #7f8c8d; font-size: 0.85em; margin-top: 0;">
-          +1 is the draw the prediction was made for. A consistent peak at a later lag would suggest the model's
-          signal is real but time-shifted; a <b>flat line means the hits come from overall number-frequency structure,
-          not timing</b>. Pick3 is scored positionally (digit in the right place). Peaks are highlighted per row -
-          judge them against the row's spread and the sample size (hover a cell for n), not in isolation.
+          Each run scores every prediction against draws +1 .. +30 and keeps only its best lag (+1 is the draw the
+          prediction was made for). <b>z</b> is how far that peak sticks out of the model's own lag profile - near 1
+          means a flat profile, so the hits come from number-frequency structure rather than timing. The highlighted
+          column is the lag that peaked in most runs: several runs agreeing on the same lag is the evidence a real
+          phase shift exists; a peak that moves every run is noise. Pick3 is scored positionally (digit in the right
+          place). One peak is recorded per run date, keeping the last 60 runs.
         </p>
         ${gameCards}
       </div>
