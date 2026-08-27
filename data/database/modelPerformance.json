@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-26T09:13:24",
+  "generatedAt": "2026-08-27T09:14:05",
   "games": {
     "eurodreams": {
       "metric": "avg_hits",
@@ -190,7 +190,7 @@
       "lagAnalysis": {
         "Markov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 15,
             "avg_hits": 1.731,
             "n": 26,
@@ -205,19 +205,27 @@
               "n": 26,
               "z": 2.31,
               "profile_mean": 1.411
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 15,
+              "avg_hits": 1.731,
+              "n": 26,
+              "z": 2.31,
+              "profile_mean": 1.411
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "15": 1
+            "15": 2
           },
           "consensus_lag": 15,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 15
         },
         "MarkovBayesian Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 17,
             "avg_hits": 1.985,
             "n": 66,
@@ -232,19 +240,27 @@
               "n": 66,
               "z": 2.29,
               "profile_mean": 1.792
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 17,
+              "avg_hits": 1.985,
+              "n": 66,
+              "z": 2.29,
+              "profile_mean": 1.792
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "17": 1
+            "17": 2
           },
           "consensus_lag": 17,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 17
         },
         "MarkovBayesianEnhanched Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 19,
             "avg_hits": 1.594,
             "n": 64,
@@ -259,19 +275,27 @@
               "n": 64,
               "z": 2.24,
               "profile_mean": 1.343
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 19,
+              "avg_hits": 1.594,
+              "n": 64,
+              "z": 2.24,
+              "profile_mean": 1.343
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "19": 1
+            "19": 2
           },
           "consensus_lag": 19,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 19
         },
         "PoissonMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 2,
             "avg_hits": 1.568,
             "n": 81,
@@ -286,19 +310,27 @@
               "n": 81,
               "z": 2.13,
               "profile_mean": 1.383
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 2,
+              "avg_hits": 1.568,
+              "n": 81,
+              "z": 2.13,
+              "profile_mean": 1.383
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "2": 1
+            "2": 2
           },
           "consensus_lag": 2,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 2
         },
         "PoissonMarkov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 4,
             "avg_hits": 1.544,
             "n": 79,
@@ -313,19 +345,27 @@
               "n": 79,
               "z": 1.79,
               "profile_mean": 1.404
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 4,
+              "avg_hits": 1.544,
+              "n": 79,
+              "z": 1.79,
+              "profile_mean": 1.404
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "4": 1
+            "4": 2
           },
           "consensus_lag": 4,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 4
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 14,
             "avg_hits": 1.667,
             "n": 69,
@@ -340,19 +380,27 @@
               "n": 69,
               "z": 2.35,
               "profile_mean": 1.379
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 14,
+              "avg_hits": 1.667,
+              "n": 69,
+              "z": 2.35,
+              "profile_mean": 1.379
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "14": 1
+            "14": 2
           },
           "consensus_lag": 14,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 14
         },
         "HybridStatisticalModel": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 16,
             "avg_hits": 2.06,
             "n": 67,
@@ -367,19 +415,27 @@
               "n": 67,
               "z": 3.13,
               "profile_mean": 1.82
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 16,
+              "avg_hits": 2.06,
+              "n": 67,
+              "z": 3.13,
+              "profile_mean": 1.82
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "16": 1
+            "16": 2
           },
           "consensus_lag": 16,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 16
         },
         "LSTM Base Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 7,
             "avg_hits": 1.645,
             "n": 76,
@@ -394,19 +450,27 @@
               "n": 76,
               "z": 2.36,
               "profile_mean": 1.404
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 7,
+              "avg_hits": 1.645,
+              "n": 76,
+              "z": 2.36,
+              "profile_mean": 1.404
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "7": 1
+            "7": 2
           },
           "consensus_lag": 7,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 7
         },
         "MetaLearner Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 3,
             "avg_hits": 1.5,
             "n": 12,
@@ -421,19 +485,27 @@
               "n": 12,
               "z": 1.49,
               "profile_mean": 1.157
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 3,
+              "avg_hits": 1.5,
+              "n": 12,
+              "z": 1.49,
+              "profile_mean": 1.157
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "3": 1
+            "3": 2
           },
           "consensus_lag": 3,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 3
         },
         "WeightedEnsemble Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 1,
             "avg_hits": 1.429,
             "n": 14,
@@ -448,14 +520,22 @@
               "n": 14,
               "z": 1.13,
               "profile_mean": 1.201
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 1,
+              "avg_hits": 1.429,
+              "n": 14,
+              "z": 1.13,
+              "profile_mean": 1.201
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "1": 1
+            "1": 2
           },
           "consensus_lag": 1,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 1
         }
       }
@@ -649,7 +729,7 @@
       "lagAnalysis": {
         "Markov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 4,
             "avg_hits": 1.2,
             "n": 80,
@@ -664,19 +744,27 @@
               "n": 80,
               "z": 1.79,
               "profile_mean": 1.011
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 4,
+              "avg_hits": 1.2,
+              "n": 80,
+              "z": 1.79,
+              "profile_mean": 1.011
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "4": 1
+            "4": 2
           },
           "consensus_lag": 4,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 4
         },
         "MarkovBayesian Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 27,
             "avg_hits": 1.649,
             "n": 57,
@@ -691,19 +779,27 @@
               "n": 57,
               "z": 3.01,
               "profile_mean": 1.327
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 27,
+              "avg_hits": 1.649,
+              "n": 57,
+              "z": 3.01,
+              "profile_mean": 1.327
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "27": 1
+            "27": 2
           },
           "consensus_lag": 27,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 27
         },
         "MarkovBayesianEnhanched Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 30,
             "avg_hits": 1.481,
             "n": 54,
@@ -718,19 +814,27 @@
               "n": 54,
               "z": 2.13,
               "profile_mean": 1.238
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 30,
+              "avg_hits": 1.481,
+              "n": 54,
+              "z": 2.13,
+              "profile_mean": 1.238
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "30": 1
+            "30": 2
           },
           "consensus_lag": 30,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 30
         },
         "PoissonMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 30,
             "avg_hits": 1.611,
             "n": 54,
@@ -745,19 +849,27 @@
               "n": 54,
               "z": 2.66,
               "profile_mean": 1.357
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 30,
+              "avg_hits": 1.611,
+              "n": 54,
+              "z": 2.66,
+              "profile_mean": 1.357
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "30": 1
+            "30": 2
           },
           "consensus_lag": 30,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 30
         },
         "PoissonMarkov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 21,
             "avg_hits": 1.524,
             "n": 63,
@@ -772,19 +884,27 @@
               "n": 63,
               "z": 2.11,
               "profile_mean": 1.31
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 21,
+              "avg_hits": 1.524,
+              "n": 63,
+              "z": 2.11,
+              "profile_mean": 1.31
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "21": 1
+            "21": 2
           },
           "consensus_lag": 21,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 21
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 12,
             "avg_hits": 1.236,
             "n": 72,
@@ -799,19 +919,27 @@
               "n": 72,
               "z": 1.73,
               "profile_mean": 1.052
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 12,
+              "avg_hits": 1.236,
+              "n": 72,
+              "z": 1.73,
+              "profile_mean": 1.052
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "12": 1
+            "12": 2
           },
           "consensus_lag": 12,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 12
         },
         "HybridStatisticalModel": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 10,
             "avg_hits": 1.797,
             "n": 74,
@@ -826,19 +954,27 @@
               "n": 74,
               "z": 2.28,
               "profile_mean": 1.58
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 10,
+              "avg_hits": 1.797,
+              "n": 74,
+              "z": 2.28,
+              "profile_mean": 1.58
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "10": 1
+            "10": 2
           },
           "consensus_lag": 10,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 10
         },
         "LSTM Base Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 17,
             "avg_hits": 1.239,
             "n": 67,
@@ -853,14 +989,22 @@
               "n": 67,
               "z": 1.82,
               "profile_mean": 1.088
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 17,
+              "avg_hits": 1.239,
+              "n": 67,
+              "z": 1.82,
+              "profile_mean": 1.088
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "17": 1
+            "17": 2
           },
           "consensus_lag": 17,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 17
         }
       }
@@ -872,84 +1016,84 @@
       "models": [
         {
           "name": "CatBoostMultiLabel Model",
-          "draws": 17,
-          "avg_hits": 5.882,
+          "draws": 18,
+          "avg_hits": 5.778,
           "best_hits": 8,
-          "profit_total": -17.0,
-          "profit_per_bet": -1.0,
-          "bets": 17
+          "profit_total": -19.0,
+          "profit_per_bet": -1.056,
+          "bets": 18
         },
         {
           "name": "WeightedEnsemble Model",
-          "draws": 54,
-          "avg_hits": 5.963,
+          "draws": 55,
+          "avg_hits": 5.964,
           "best_hits": 10,
-          "profit_total": -57.0,
-          "profit_per_bet": -1.096,
-          "bets": 52
+          "profit_total": -59.0,
+          "profit_per_bet": -1.113,
+          "bets": 53
         },
         {
           "name": "HybridStatisticalModel",
-          "draws": 290,
-          "avg_hits": 5.869,
+          "draws": 291,
+          "avg_hits": 5.876,
           "best_hits": 12,
-          "profit_total": -555.0,
-          "profit_per_bet": -1.261,
-          "bets": 440
-        },
-        {
-          "name": "XGBoostMultiLabel Model",
-          "draws": 17,
-          "avg_hits": 5.235,
-          "best_hits": 9,
-          "profit_total": -22.0,
-          "profit_per_bet": -1.294,
-          "bets": 17
+          "profit_total": -557.0,
+          "profit_per_bet": -1.263,
+          "bets": 441
         },
         {
           "name": "LaplaceMonteCarlo Model",
-          "draws": 290,
-          "avg_hits": 5.772,
+          "draws": 291,
+          "avg_hits": 5.77,
           "best_hits": 12,
-          "profit_total": -575.0,
-          "profit_per_bet": -1.307,
-          "bets": 440
+          "profit_total": -577.0,
+          "profit_per_bet": -1.308,
+          "bets": 441
+        },
+        {
+          "name": "XGBoostMultiLabel Model",
+          "draws": 18,
+          "avg_hits": 5.444,
+          "best_hits": 9,
+          "profit_total": -24.0,
+          "profit_per_bet": -1.333,
+          "bets": 18
         },
         {
           "name": "PoissonMarkov Model",
-          "draws": 290,
-          "avg_hits": 5.776,
+          "draws": 291,
+          "avg_hits": 5.777,
           "best_hits": 11,
-          "profit_total": -609.0,
-          "profit_per_bet": -1.384,
-          "bets": 440
+          "profit_total": -611.0,
+          "profit_per_bet": -1.385,
+          "bets": 441
         },
         {
           "name": "MarkovBayesian Model",
-          "draws": 290,
-          "avg_hits": 5.817,
+          "draws": 291,
+          "avg_hits": 5.825,
           "best_hits": 12,
-          "profit_total": -646.0,
-          "profit_per_bet": -1.468,
-          "bets": 440
+          "profit_total": -648.0,
+          "profit_per_bet": -1.469,
+          "bets": 441
         },
         {
           "name": "CatBoost Model",
-          "draws": 17,
-          "avg_hits": 5.412,
+          "draws": 18,
+          "avg_hits": 5.389,
           "best_hits": 7,
-          "profit_total": -25.0,
-          "profit_per_bet": -1.471,
-          "bets": 17
+          "profit_total": -27.0,
+          "profit_per_bet": -1.5,
+          "bets": 18
         },
         {
           "name": "Markov Model",
-          "draws": 290,
-          "avg_hits": 5.717,
+          "draws": 291,
+          "avg_hits": 5.711,
           "best_hits": 10,
-          "profit_total": -665.0,
-          "profit_per_bet": -1.511,
-          "bets": 440
+          "profit_total": -667.0,
+          "profit_per_bet": -1.512,
+          "bets": 441
         },
         {
           "name": "MetaLearner Model",
@@ -962,48 +1106,48 @@
         },
         {
           "name": "PoissonMonteCarlo Model",
-          "draws": 290,
-          "avg_hits": 5.772,
+          "draws": 291,
+          "avg_hits": 5.773,
           "best_hits": 10,
-          "profit_total": -668.0,
-          "profit_per_bet": -1.518,
-          "bets": 440
+          "profit_total": -670.0,
+          "profit_per_bet": -1.519,
+          "bets": 441
         },
         {
           "name": "MarkovBayesianEnhanched Model",
-          "draws": 290,
-          "avg_hits": 5.555,
+          "draws": 291,
+          "avg_hits": 5.564,
           "best_hits": 10,
-          "profit_total": -717.0,
+          "profit_total": -719.0,
           "profit_per_bet": -1.63,
-          "bets": 440
+          "bets": 441
         },
         {
           "name": "XGBoost Model",
-          "draws": 18,
-          "avg_hits": 5.667,
+          "draws": 19,
+          "avg_hits": 5.526,
           "best_hits": 8,
-          "profit_total": -30.0,
-          "profit_per_bet": -1.667,
-          "bets": 18
+          "profit_total": -32.0,
+          "profit_per_bet": -1.684,
+          "bets": 19
         },
         {
           "name": "LightGBM Model",
-          "draws": 17,
-          "avg_hits": 5.529,
-          "best_hits": 7,
-          "profit_total": -29.0,
-          "profit_per_bet": -1.706,
-          "bets": 17
+          "draws": 18,
+          "avg_hits": 5.667,
+          "best_hits": 8,
+          "profit_total": -31.0,
+          "profit_per_bet": -1.722,
+          "bets": 18
         },
         {
           "name": "LightGBMMultiLabel Model",
-          "draws": 17,
-          "avg_hits": 5.941,
+          "draws": 18,
+          "avg_hits": 6.0,
           "best_hits": 10,
-          "profit_total": -34.0,
+          "profit_total": -36.0,
           "profit_per_bet": -2.0,
-          "bets": 17
+          "bets": 18
         },
         {
           "name": "LSTM Base Model",
@@ -1054,12 +1198,12 @@
       "lagAnalysis": {
         "Markov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 18,
-            "avg_hits": 5.802,
-            "n": 273,
-            "z": 1.62,
-            "profile_mean": 5.641
+            "avg_hits": 5.792,
+            "n": 274,
+            "z": 1.57,
+            "profile_mean": 5.638
           },
           "history": [
             {
@@ -1069,24 +1213,32 @@
               "n": 273,
               "z": 1.62,
               "profile_mean": 5.641
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 18,
+              "avg_hits": 5.792,
+              "n": 274,
+              "z": 1.57,
+              "profile_mean": 5.638
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "18": 1
+            "18": 2
           },
           "consensus_lag": 18,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 18
         },
         "MarkovBayesian Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 29,
-            "avg_hits": 6.034,
-            "n": 262,
-            "z": 2.35,
-            "profile_mean": 5.865
+            "avg_hits": 6.042,
+            "n": 263,
+            "z": 2.34,
+            "profile_mean": 5.871
           },
           "history": [
             {
@@ -1096,24 +1248,32 @@
               "n": 262,
               "z": 2.35,
               "profile_mean": 5.865
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 29,
+              "avg_hits": 6.042,
+              "n": 263,
+              "z": 2.34,
+              "profile_mean": 5.871
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "29": 1
+            "29": 2
           },
           "consensus_lag": 29,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 29
         },
         "MarkovBayesianEnhanched Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 21,
-            "avg_hits": 5.748,
-            "n": 270,
-            "z": 2.71,
-            "profile_mean": 5.519
+            "avg_hits": 5.76,
+            "n": 271,
+            "z": 2.77,
+            "profile_mean": 5.529
           },
           "history": [
             {
@@ -1123,24 +1283,32 @@
               "n": 270,
               "z": 2.71,
               "profile_mean": 5.519
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 21,
+              "avg_hits": 5.76,
+              "n": 271,
+              "z": 2.77,
+              "profile_mean": 5.529
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "21": 1
+            "21": 2
           },
           "consensus_lag": 21,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 21
         },
         "PoissonMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 20,
-            "avg_hits": 5.889,
-            "n": 271,
+            "avg_hits": 5.893,
+            "n": 272,
             "z": 1.68,
-            "profile_mean": 5.729
+            "profile_mean": 5.736
           },
           "history": [
             {
@@ -1150,24 +1318,32 @@
               "n": 271,
               "z": 1.68,
               "profile_mean": 5.729
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 20,
+              "avg_hits": 5.893,
+              "n": 272,
+              "z": 1.68,
+              "profile_mean": 5.736
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "20": 1
+            "20": 2
           },
           "consensus_lag": 20,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 20
         },
         "PoissonMarkov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 26,
-            "avg_hits": 5.826,
-            "n": 265,
-            "z": 2.1,
-            "profile_mean": 5.697
+            "avg_hits": 5.835,
+            "n": 266,
+            "z": 2.16,
+            "profile_mean": 5.705
           },
           "history": [
             {
@@ -1177,23 +1353,31 @@
               "n": 265,
               "z": 2.1,
               "profile_mean": 5.697
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 26,
+              "avg_hits": 5.835,
+              "n": 266,
+              "z": 2.16,
+              "profile_mean": 5.705
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "26": 1
+            "26": 2
           },
           "consensus_lag": 26,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 26
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 20,
-            "avg_hits": 5.863,
-            "n": 271,
-            "z": 1.7,
+            "avg_hits": 5.868,
+            "n": 272,
+            "z": 1.75,
             "profile_mean": 5.699
           },
           "history": [
@@ -1204,24 +1388,32 @@
               "n": 271,
               "z": 1.7,
               "profile_mean": 5.699
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 20,
+              "avg_hits": 5.868,
+              "n": 272,
+              "z": 1.75,
+              "profile_mean": 5.699
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "20": 1
+            "20": 2
           },
           "consensus_lag": 20,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 20
         },
         "HybridStatisticalModel": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 12,
-            "avg_hits": 5.982,
-            "n": 279,
-            "z": 1.94,
-            "profile_mean": 5.799
+            "avg_hits": 5.996,
+            "n": 280,
+            "z": 2.01,
+            "profile_mean": 5.808
           },
           "history": [
             {
@@ -1231,24 +1423,32 @@
               "n": 279,
               "z": 1.94,
               "profile_mean": 5.799
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 12,
+              "avg_hits": 5.996,
+              "n": 280,
+              "z": 2.01,
+              "profile_mean": 5.808
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "12": 1
+            "12": 2
           },
           "consensus_lag": 12,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 12
         },
         "MetaLearner Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 5,
             "avg_hits": 6.324,
             "n": 37,
-            "z": 2.57,
-            "profile_mean": 5.778
+            "z": 2.47,
+            "profile_mean": 5.792
           },
           "history": [
             {
@@ -1258,24 +1458,32 @@
               "n": 37,
               "z": 2.57,
               "profile_mean": 5.778
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 5,
+              "avg_hits": 6.324,
+              "n": 37,
+              "z": 2.47,
+              "profile_mean": 5.792
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "5": 1
+            "5": 2
           },
           "consensus_lag": 5,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 5
         },
         "WeightedEnsemble Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 9,
-            "avg_hits": 6.261,
-            "n": 46,
-            "z": 2.01,
-            "profile_mean": 5.894
+            "run": "2026-08-27",
+            "lag": 24,
+            "avg_hits": 6.281,
+            "n": 32,
+            "z": 1.96,
+            "profile_mean": 5.946
           },
           "history": [
             {
@@ -1285,24 +1493,33 @@
               "n": 46,
               "z": 2.01,
               "profile_mean": 5.894
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 24,
+              "avg_hits": 6.281,
+              "n": 32,
+              "z": 1.96,
+              "profile_mean": 5.946
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "9": 1
+            "9": 1,
+            "24": 1
           },
-          "consensus_lag": 9,
+          "consensus_lag": 24,
           "consensus_runs": 1,
-          "best_lag": 9
+          "best_lag": 24
         },
         "XGBoost Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 9,
-            "avg_hits": 6.4,
-            "n": 10,
-            "z": 1.6,
-            "profile_mean": 5.759
+            "avg_hits": 6.182,
+            "n": 11,
+            "z": 1.16,
+            "profile_mean": 5.715
           },
           "history": [
             {
@@ -1312,24 +1529,32 @@
               "n": 10,
               "z": 1.6,
               "profile_mean": 5.759
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 9,
+              "avg_hits": 6.182,
+              "n": 11,
+              "z": 1.16,
+              "profile_mean": 5.715
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "9": 1
+            "9": 2
           },
           "consensus_lag": 9,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 9
         },
         "XGBoostMultiLabel Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 2,
-            "avg_hits": 6.0,
-            "n": 16,
-            "z": 1.67,
-            "profile_mean": 5.441
+            "run": "2026-08-27",
+            "lag": 6,
+            "avg_hits": 6.154,
+            "n": 13,
+            "z": 1.84,
+            "profile_mean": 5.561
           },
           "history": [
             {
@@ -1339,24 +1564,33 @@
               "n": 16,
               "z": 1.67,
               "profile_mean": 5.441
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 6,
+              "avg_hits": 6.154,
+              "n": 13,
+              "z": 1.84,
+              "profile_mean": 5.561
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "2": 1
+            "2": 1,
+            "6": 1
           },
-          "consensus_lag": 2,
+          "consensus_lag": 6,
           "consensus_runs": 1,
-          "best_lag": 2
+          "best_lag": 6
         },
         "LightGBM Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 6,
-            "avg_hits": 6.667,
-            "n": 12,
-            "z": 1.87,
-            "profile_mean": 5.55
+            "avg_hits": 6.308,
+            "n": 13,
+            "z": 1.88,
+            "profile_mean": 5.469
           },
           "history": [
             {
@@ -1366,24 +1600,32 @@
               "n": 12,
               "z": 1.87,
               "profile_mean": 5.55
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 6,
+              "avg_hits": 6.308,
+              "n": 13,
+              "z": 1.88,
+              "profile_mean": 5.469
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "6": 1
+            "6": 2
           },
           "consensus_lag": 6,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 6
         },
         "LightGBMMultiLabel Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 1,
-            "avg_hits": 5.941,
-            "n": 17,
-            "z": 0.97,
-            "profile_mean": 5.563
+            "avg_hits": 6.0,
+            "n": 18,
+            "z": 1.13,
+            "profile_mean": 5.619
           },
           "history": [
             {
@@ -1393,24 +1635,32 @@
               "n": 17,
               "z": 0.97,
               "profile_mean": 5.563
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 1,
+              "avg_hits": 6.0,
+              "n": 18,
+              "z": 1.13,
+              "profile_mean": 5.619
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "1": 1
+            "1": 2
           },
           "consensus_lag": 1,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 1
         },
         "CatBoost Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 6,
-            "avg_hits": 6.417,
-            "n": 12,
-            "z": 1.92,
-            "profile_mean": 5.647
+            "avg_hits": 6.308,
+            "n": 13,
+            "z": 2.17,
+            "profile_mean": 5.592
           },
           "history": [
             {
@@ -1420,24 +1670,32 @@
               "n": 12,
               "z": 1.92,
               "profile_mean": 5.647
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 6,
+              "avg_hits": 6.308,
+              "n": 13,
+              "z": 2.17,
+              "profile_mean": 5.592
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "6": 1
+            "6": 2
           },
           "consensus_lag": 6,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 6
         },
         "CatBoostMultiLabel Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 5,
-            "avg_hits": 6.231,
-            "n": 13,
-            "z": 1.75,
-            "profile_mean": 5.484
+            "avg_hits": 6.357,
+            "n": 14,
+            "z": 2.32,
+            "profile_mean": 5.547
           },
           "history": [
             {
@@ -1447,14 +1705,22 @@
               "n": 13,
               "z": 1.75,
               "profile_mean": 5.484
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 5,
+              "avg_hits": 6.357,
+              "n": 14,
+              "z": 2.32,
+              "profile_mean": 5.547
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "5": 1
+            "5": 2
           },
           "consensus_lag": 5,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 5
         }
       }
@@ -1475,8 +1741,8 @@
         },
         {
           "name": "WeightedEnsemble Model",
-          "draws": 14,
-          "avg_hits": 1.143,
+          "draws": 15,
+          "avg_hits": 1.133,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1493,8 +1759,8 @@
         },
         {
           "name": "LaplaceMonteCarlo Model",
-          "draws": 81,
-          "avg_hits": 1.086,
+          "draws": 82,
+          "avg_hits": 1.073,
           "best_hits": 4,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1502,8 +1768,8 @@
         },
         {
           "name": "PoissonMarkov Model",
-          "draws": 81,
-          "avg_hits": 1.037,
+          "draws": 82,
+          "avg_hits": 1.049,
           "best_hits": 4,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1511,8 +1777,8 @@
         },
         {
           "name": "PoissonMonteCarlo Model",
-          "draws": 81,
-          "avg_hits": 1.025,
+          "draws": 82,
+          "avg_hits": 1.024,
           "best_hits": 4,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1520,8 +1786,8 @@
         },
         {
           "name": "MarkovBayesian Model",
-          "draws": 81,
-          "avg_hits": 0.975,
+          "draws": 82,
+          "avg_hits": 0.976,
           "best_hits": 4,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1529,8 +1795,8 @@
         },
         {
           "name": "HybridStatisticalModel",
-          "draws": 81,
-          "avg_hits": 0.975,
+          "draws": 82,
+          "avg_hits": 0.976,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1538,8 +1804,8 @@
         },
         {
           "name": "Markov Model",
-          "draws": 81,
-          "avg_hits": 0.914,
+          "draws": 82,
+          "avg_hits": 0.915,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1547,8 +1813,8 @@
         },
         {
           "name": "MarkovBayesianEnhanched Model",
-          "draws": 81,
-          "avg_hits": 0.852,
+          "draws": 82,
+          "avg_hits": 0.878,
           "best_hits": 5,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1556,26 +1822,8 @@
         },
         {
           "name": "XGBoost Model",
-          "draws": 2,
-          "avg_hits": 1.5,
-          "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0
-        },
-        {
-          "name": "LightGBM Model",
-          "draws": 2,
-          "avg_hits": 1.5,
-          "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0
-        },
-        {
-          "name": "CatBoost Model",
-          "draws": 2,
-          "avg_hits": 1.5,
+          "draws": 3,
+          "avg_hits": 1.333,
           "best_hits": 2,
           "profit_total": null,
           "profit_per_bet": null,
@@ -1591,8 +1839,35 @@
           "bets": 0
         },
         {
+          "name": "LightGBM Model",
+          "draws": 3,
+          "avg_hits": 1.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBMMultiLabel Model",
+          "draws": 3,
+          "avg_hits": 1.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 3,
+          "avg_hits": 1.0,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
           "name": "CatBoostMultiLabel Model",
-          "draws": 2,
+          "draws": 3,
           "avg_hits": 1.0,
           "best_hits": 1,
           "profit_total": null,
@@ -1600,25 +1875,16 @@
           "bets": 0
         },
         {
-          "name": "MetaLearnerV2 Model",
-          "draws": 2,
-          "avg_hits": 0.5,
-          "best_hits": 1,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0
-        },
-        {
           "name": "XGBoostMultiLabel Model",
-          "draws": 2,
-          "avg_hits": 0.5,
+          "draws": 3,
+          "avg_hits": 0.667,
           "best_hits": 1,
           "profit_total": null,
           "profit_per_bet": null,
           "bets": 0
         },
         {
-          "name": "LightGBMMultiLabel Model",
+          "name": "MetaLearnerV2 Model",
           "draws": 2,
           "avg_hits": 0.5,
           "best_hits": 1,
@@ -1639,12 +1905,12 @@
       "lagAnalysis": {
         "Markov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 5,
-            "avg_hits": 1.299,
-            "n": 77,
-            "z": 3.29,
-            "profile_mean": 0.98
+            "avg_hits": 1.295,
+            "n": 78,
+            "z": 3.22,
+            "profile_mean": 0.981
           },
           "history": [
             {
@@ -1654,24 +1920,32 @@
               "n": 77,
               "z": 3.29,
               "profile_mean": 0.98
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 5,
+              "avg_hits": 1.295,
+              "n": 78,
+              "z": 3.22,
+              "profile_mean": 0.981
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "5": 1
+            "5": 2
           },
           "consensus_lag": 5,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 5
         },
         "MarkovBayesian Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 6,
-            "avg_hits": 1.171,
-            "n": 76,
-            "z": 1.86,
-            "profile_mean": 0.989
+            "avg_hits": 1.169,
+            "n": 77,
+            "z": 1.85,
+            "profile_mean": 0.99
           },
           "history": [
             {
@@ -1681,24 +1955,32 @@
               "n": 76,
               "z": 1.86,
               "profile_mean": 0.989
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 6,
+              "avg_hits": 1.169,
+              "n": 77,
+              "z": 1.85,
+              "profile_mean": 0.99
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "6": 1
+            "6": 2
           },
           "consensus_lag": 6,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 6
         },
         "MarkovBayesianEnhanched Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 22,
-            "avg_hits": 1.233,
-            "n": 60,
-            "z": 2.81,
-            "profile_mean": 0.945
+            "avg_hits": 1.213,
+            "n": 61,
+            "z": 2.68,
+            "profile_mean": 0.948
           },
           "history": [
             {
@@ -1708,24 +1990,32 @@
               "n": 60,
               "z": 2.81,
               "profile_mean": 0.945
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 22,
+              "avg_hits": 1.213,
+              "n": 61,
+              "z": 2.68,
+              "profile_mean": 0.948
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "22": 1
+            "22": 2
           },
           "consensus_lag": 22,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 22
         },
         "PoissonMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 29,
-            "avg_hits": 1.302,
-            "n": 53,
-            "z": 2.49,
-            "profile_mean": 1.065
+            "avg_hits": 1.315,
+            "n": 54,
+            "z": 2.57,
+            "profile_mean": 1.066
           },
           "history": [
             {
@@ -1735,24 +2025,32 @@
               "n": 53,
               "z": 2.49,
               "profile_mean": 1.065
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 29,
+              "avg_hits": 1.315,
+              "n": 54,
+              "z": 2.57,
+              "profile_mean": 1.066
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "29": 1
+            "29": 2
           },
           "consensus_lag": 29,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 29
         },
         "PoissonMarkov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 20,
-            "avg_hits": 1.258,
-            "n": 62,
-            "z": 1.95,
-            "profile_mean": 1.056
+            "avg_hits": 1.27,
+            "n": 63,
+            "z": 2.06,
+            "profile_mean": 1.059
           },
           "history": [
             {
@@ -1762,24 +2060,32 @@
               "n": 62,
               "z": 1.95,
               "profile_mean": 1.056
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 20,
+              "avg_hits": 1.27,
+              "n": 63,
+              "z": 2.06,
+              "profile_mean": 1.059
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "20": 1
+            "20": 2
           },
           "consensus_lag": 20,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 20
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 30,
-            "avg_hits": 1.25,
-            "n": 52,
-            "z": 2.17,
-            "profile_mean": 1.072
+            "avg_hits": 1.226,
+            "n": 53,
+            "z": 1.98,
+            "profile_mean": 1.064
           },
           "history": [
             {
@@ -1789,24 +2095,32 @@
               "n": 52,
               "z": 2.17,
               "profile_mean": 1.072
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 30,
+              "avg_hits": 1.226,
+              "n": 53,
+              "z": 1.98,
+              "profile_mean": 1.064
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "30": 1
+            "30": 2
           },
           "consensus_lag": 30,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 30
         },
         "HybridStatisticalModel": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 11,
-            "avg_hits": 1.296,
-            "n": 71,
-            "z": 2.18,
-            "profile_mean": 1.073
+            "avg_hits": 1.278,
+            "n": 72,
+            "z": 2.0,
+            "profile_mean": 1.072
           },
           "history": [
             {
@@ -1816,23 +2130,31 @@
               "n": 71,
               "z": 2.18,
               "profile_mean": 1.073
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 11,
+              "avg_hits": 1.278,
+              "n": 72,
+              "z": 2.0,
+              "profile_mean": 1.072
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "11": 1
+            "11": 2
           },
           "consensus_lag": 11,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 11
         },
         "LSTM Base Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 27,
-            "avg_hits": 1.236,
-            "n": 55,
-            "z": 2.75,
+            "avg_hits": 1.25,
+            "n": 56,
+            "z": 2.82,
             "profile_mean": 0.979
           },
           "history": [
@@ -1843,24 +2165,32 @@
               "n": 55,
               "z": 2.75,
               "profile_mean": 0.979
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 27,
+              "avg_hits": 1.25,
+              "n": 56,
+              "z": 2.82,
+              "profile_mean": 0.979
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "27": 1
+            "27": 2
           },
           "consensus_lag": 27,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 27
         },
         "MetaLearner Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 4,
-            "avg_hits": 1.273,
-            "n": 11,
-            "z": 1.29,
-            "profile_mean": 1.101
+            "run": "2026-08-27",
+            "lag": 1,
+            "avg_hits": 1.167,
+            "n": 12,
+            "z": 0.92,
+            "profile_mean": 1.02
           },
           "history": [
             {
@@ -1870,24 +2200,33 @@
               "n": 11,
               "z": 1.29,
               "profile_mean": 1.101
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 1,
+              "avg_hits": 1.167,
+              "n": 12,
+              "z": 0.92,
+              "profile_mean": 1.02
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "4": 1
+            "4": 1,
+            "1": 1
           },
-          "consensus_lag": 4,
+          "consensus_lag": 1,
           "consensus_runs": 1,
-          "best_lag": 4
+          "best_lag": 1
         },
         "WeightedEnsemble Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 5,
-            "avg_hits": 1.5,
-            "n": 10,
-            "z": 1.78,
-            "profile_mean": 1.165
+            "avg_hits": 1.455,
+            "n": 11,
+            "z": 1.68,
+            "profile_mean": 1.176
           },
           "history": [
             {
@@ -1897,14 +2236,22 @@
               "n": 10,
               "z": 1.78,
               "profile_mean": 1.165
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 5,
+              "avg_hits": 1.455,
+              "n": 11,
+              "z": 1.68,
+              "profile_mean": 1.176
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "5": 1
+            "5": 2
           },
           "consensus_lag": 5,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 5
         }
       }
@@ -1916,21 +2263,21 @@
       "models": [
         {
           "name": "LightGBM Model",
-          "draws": 10,
-          "avg_hits": 0.9,
+          "draws": 11,
+          "avg_hits": 0.909,
           "best_hits": 2,
-          "profit_total": 11.0,
-          "profit_per_bet": 1.1,
-          "bets": 10
+          "profit_total": 8.0,
+          "profit_per_bet": 0.727,
+          "bets": 11
         },
         {
           "name": "CatBoost Model",
-          "draws": 10,
-          "avg_hits": 0.7,
+          "draws": 11,
+          "avg_hits": 0.636,
           "best_hits": 2,
-          "profit_total": 10.0,
-          "profit_per_bet": 1.0,
-          "bets": 10
+          "profit_total": 6.0,
+          "profit_per_bet": 0.545,
+          "bets": 11
         },
         {
           "name": "MarkovBayesian Model",
@@ -1961,30 +2308,30 @@
         },
         {
           "name": "LaplaceMonteCarlo Model",
-          "draws": 290,
-          "avg_hits": 0.597,
+          "draws": 291,
+          "avg_hits": 0.598,
           "best_hits": 2,
-          "profit_total": -716.0,
-          "profit_per_bet": -2.469,
-          "bets": 290
+          "profit_total": -720.0,
+          "profit_per_bet": -2.474,
+          "bets": 291
         },
         {
           "name": "Markov Model",
-          "draws": 290,
-          "avg_hits": 0.779,
+          "draws": 291,
+          "avg_hits": 0.78,
           "best_hits": 3,
-          "profit_total": -723.0,
-          "profit_per_bet": -2.493,
-          "bets": 290
+          "profit_total": -727.0,
+          "profit_per_bet": -2.498,
+          "bets": 291
         },
         {
           "name": "PoissonMonteCarlo Model",
-          "draws": 290,
-          "avg_hits": 0.783,
+          "draws": 291,
+          "avg_hits": 0.787,
           "best_hits": 3,
-          "profit_total": -775.0,
-          "profit_per_bet": -2.672,
-          "bets": 290
+          "profit_total": -779.0,
+          "profit_per_bet": -2.677,
+          "bets": 291
         },
         {
           "name": "HybridStatisticalModel",
@@ -1997,12 +2344,12 @@
         },
         {
           "name": "XGBoost Model",
-          "draws": 11,
-          "avg_hits": 0.818,
+          "draws": 12,
+          "avg_hits": 0.833,
           "best_hits": 2,
-          "profit_total": -43.0,
-          "profit_per_bet": -3.909,
-          "bets": 11
+          "profit_total": -47.0,
+          "profit_per_bet": -3.917,
+          "bets": 12
         },
         {
           "name": "UnifiedLstmTcn Model",
@@ -2035,11 +2382,11 @@
       "lagAnalysis": {
         "Markov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 25,
-            "avg_hits": 0.395,
-            "n": 266,
-            "z": 2.58,
+            "avg_hits": 0.393,
+            "n": 267,
+            "z": 2.53,
             "profile_mean": 0.311
           },
           "history": [
@@ -2050,19 +2397,27 @@
               "n": 266,
               "z": 2.58,
               "profile_mean": 0.311
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 25,
+              "avg_hits": 0.393,
+              "n": 267,
+              "z": 2.53,
+              "profile_mean": 0.311
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "25": 1
+            "25": 2
           },
           "consensus_lag": 25,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 25
         },
         "MarkovBayesian Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 13,
             "avg_hits": 0.386,
             "n": 236,
@@ -2077,24 +2432,32 @@
               "n": 236,
               "z": 2.74,
               "profile_mean": 0.303
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 13,
+              "avg_hits": 0.386,
+              "n": 236,
+              "z": 2.74,
+              "profile_mean": 0.303
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "13": 1
+            "13": 2
           },
           "consensus_lag": 13,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 13
         },
         "PoissonMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 8,
-            "avg_hits": 0.336,
-            "n": 283,
-            "z": 1.68,
-            "profile_mean": 0.294
+            "avg_hits": 0.335,
+            "n": 284,
+            "z": 1.54,
+            "profile_mean": 0.295
           },
           "history": [
             {
@@ -2104,19 +2467,27 @@
               "n": 283,
               "z": 1.68,
               "profile_mean": 0.294
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 8,
+              "avg_hits": 0.335,
+              "n": 284,
+              "z": 1.54,
+              "profile_mean": 0.295
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "8": 1
+            "8": 2
           },
           "consensus_lag": 8,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 8
         },
         "PoissonMarkov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 21,
             "avg_hits": 0.369,
             "n": 236,
@@ -2131,23 +2502,31 @@
               "n": 236,
               "z": 2.77,
               "profile_mean": 0.299
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 21,
+              "avg_hits": 0.369,
+              "n": 236,
+              "z": 2.77,
+              "profile_mean": 0.299
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "21": 1
+            "21": 2
           },
           "consensus_lag": 21,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 21
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 20,
-            "avg_hits": 0.373,
-            "n": 271,
-            "z": 2.09,
+            "run": "2026-08-27",
+            "lag": 1,
+            "avg_hits": 0.375,
+            "n": 291,
+            "z": 2.12,
             "profile_mean": 0.299
           },
           "history": [
@@ -2158,19 +2537,28 @@
               "n": 271,
               "z": 2.09,
               "profile_mean": 0.299
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 1,
+              "avg_hits": 0.375,
+              "n": 291,
+              "z": 2.12,
+              "profile_mean": 0.299
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "20": 1
+            "20": 1,
+            "1": 1
           },
-          "consensus_lag": 20,
+          "consensus_lag": 1,
           "consensus_runs": 1,
-          "best_lag": 20
+          "best_lag": 1
         },
         "HybridStatisticalModel": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 26,
             "avg_hits": 0.356,
             "n": 236,
@@ -2185,23 +2573,31 @@
               "n": 236,
               "z": 2.2,
               "profile_mean": 0.296
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 26,
+              "avg_hits": 0.356,
+              "n": 236,
+              "z": 2.2,
+              "profile_mean": 0.296
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "26": 1
+            "26": 2
           },
           "consensus_lag": 26,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 26
         },
         "LSTM Base Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 5,
             "avg_hits": 0.397,
             "n": 239,
-            "z": 2.52,
+            "z": 2.51,
             "profile_mean": 0.311
           },
           "history": [
@@ -2212,24 +2608,32 @@
               "n": 239,
               "z": 2.52,
               "profile_mean": 0.311
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 5,
+              "avg_hits": 0.397,
+              "n": 239,
+              "z": 2.51,
+              "profile_mean": 0.311
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "5": 1
+            "5": 2
           },
           "consensus_lag": 5,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 5
         },
         "XGBoost Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 1,
-            "avg_hits": 0.273,
-            "n": 11,
-            "z": 1.0,
-            "profile_mean": 0.237
+            "run": "2026-08-27",
+            "lag": 3,
+            "avg_hits": 0.4,
+            "n": 10,
+            "z": 1.25,
+            "profile_mean": 0.335
           },
           "history": [
             {
@@ -2239,24 +2643,33 @@
               "n": 11,
               "z": 1.0,
               "profile_mean": 0.237
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 3,
+              "avg_hits": 0.4,
+              "n": 10,
+              "z": 1.25,
+              "profile_mean": 0.335
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "1": 1
+            "1": 1,
+            "3": 1
           },
-          "consensus_lag": 1,
+          "consensus_lag": 3,
           "consensus_runs": 1,
-          "best_lag": 1
+          "best_lag": 3
         },
         "LightGBM Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 1,
-            "avg_hits": 0.4,
-            "n": 10,
-            "z": null,
-            "profile_mean": 0.4
+            "avg_hits": 0.455,
+            "n": 11,
+            "z": 1.0,
+            "profile_mean": 0.328
           },
           "history": [
             {
@@ -2266,24 +2679,32 @@
               "n": 10,
               "z": null,
               "profile_mean": 0.4
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 1,
+              "avg_hits": 0.455,
+              "n": 11,
+              "z": 1.0,
+              "profile_mean": 0.328
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "1": 1
+            "1": 2
           },
           "consensus_lag": 1,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 1
         },
         "CatBoost Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 1,
-            "avg_hits": 0.5,
-            "n": 10,
-            "z": null,
-            "profile_mean": 0.5
+            "avg_hits": 0.455,
+            "n": 11,
+            "z": 1.0,
+            "profile_mean": 0.378
           },
           "history": [
             {
@@ -2293,14 +2714,22 @@
               "n": 10,
               "z": null,
               "profile_mean": 0.5
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 1,
+              "avg_hits": 0.455,
+              "n": 11,
+              "z": 1.0,
+              "profile_mean": 0.378
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "1": 1
+            "1": 2
           },
           "consensus_lag": 1,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 1
         }
       }
@@ -2312,8 +2741,8 @@
       "models": [
         {
           "name": "MarkovBayesian Model",
-          "draws": 39,
-          "avg_hits": 1.744,
+          "draws": 40,
+          "avg_hits": 1.725,
           "best_hits": 4,
           "profit_total": null,
           "profit_per_bet": null,
@@ -2321,8 +2750,8 @@
         },
         {
           "name": "HybridStatisticalModel",
-          "draws": 39,
-          "avg_hits": 1.692,
+          "draws": 40,
+          "avg_hits": 1.675,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
@@ -2330,8 +2759,8 @@
         },
         {
           "name": "PoissonMarkov Model",
-          "draws": 39,
-          "avg_hits": 1.436,
+          "draws": 40,
+          "avg_hits": 1.4,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
@@ -2339,8 +2768,8 @@
         },
         {
           "name": "Markov Model",
-          "draws": 39,
-          "avg_hits": 1.308,
+          "draws": 40,
+          "avg_hits": 1.275,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
@@ -2348,8 +2777,8 @@
         },
         {
           "name": "MarkovBayesianEnhanched Model",
-          "draws": 39,
-          "avg_hits": 1.282,
+          "draws": 40,
+          "avg_hits": 1.275,
           "best_hits": 4,
           "profit_total": null,
           "profit_per_bet": null,
@@ -2365,19 +2794,46 @@
           "bets": 0
         },
         {
-          "name": "PoissonMonteCarlo Model",
-          "draws": 39,
-          "avg_hits": 1.154,
+          "name": "LaplaceMonteCarlo Model",
+          "draws": 40,
+          "avg_hits": 1.15,
           "best_hits": 3,
           "profit_total": null,
           "profit_per_bet": null,
           "bets": 0
         },
         {
-          "name": "LaplaceMonteCarlo Model",
-          "draws": 39,
-          "avg_hits": 1.154,
+          "name": "PoissonMonteCarlo Model",
+          "draws": 40,
+          "avg_hits": 1.125,
           "best_hits": 3,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoostMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 4,
+          "avg_hits": 1.0,
+          "best_hits": 1,
           "profit_total": null,
           "profit_per_bet": null,
           "bets": 0
@@ -2387,15 +2843,6 @@
           "draws": 3,
           "avg_hits": 1.0,
           "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0
-        },
-        {
-          "name": "WeightedEnsemble Model",
-          "draws": 3,
-          "avg_hits": 1.0,
-          "best_hits": 1,
           "profit_total": null,
           "profit_per_bet": null,
           "bets": 0
@@ -2419,6 +2866,42 @@
           "bets": 0
         },
         {
+          "name": "XGBoostMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBM Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "LightGBMMultiLabel Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
+          "name": "CatBoost Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0
+        },
+        {
           "name": "UnifiedLstmTcn Model",
           "draws": 1,
           "avg_hits": 0.0,
@@ -2431,12 +2914,12 @@
       "lagAnalysis": {
         "Markov Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 28,
-            "avg_hits": 2.167,
+            "run": "2026-08-27",
+            "lag": 29,
+            "avg_hits": 2.083,
             "n": 12,
-            "z": 2.73,
-            "profile_mean": 1.398
+            "z": 2.77,
+            "profile_mean": 1.357
           },
           "history": [
             {
@@ -2446,24 +2929,33 @@
               "n": 12,
               "z": 2.73,
               "profile_mean": 1.398
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 29,
+              "avg_hits": 2.083,
+              "n": 12,
+              "z": 2.77,
+              "profile_mean": 1.357
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "28": 1
+            "28": 1,
+            "29": 1
           },
-          "consensus_lag": 28,
+          "consensus_lag": 29,
           "consensus_runs": 1,
-          "best_lag": 28
+          "best_lag": 29
         },
         "MarkovBayesian Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 28,
-            "avg_hits": 1.917,
-            "n": 12,
-            "z": 2.08,
-            "profile_mean": 1.59
+            "avg_hits": 1.846,
+            "n": 13,
+            "z": 1.81,
+            "profile_mean": 1.55
           },
           "history": [
             {
@@ -2473,24 +2965,32 @@
               "n": 12,
               "z": 2.08,
               "profile_mean": 1.59
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 28,
+              "avg_hits": 1.846,
+              "n": 13,
+              "z": 1.81,
+              "profile_mean": 1.55
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "28": 1
+            "28": 2
           },
           "consensus_lag": 28,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 28
         },
         "MarkovBayesianEnhanched Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 30,
-            "avg_hits": 2.0,
-            "n": 10,
-            "z": 3.37,
-            "profile_mean": 1.343
+            "avg_hits": 1.909,
+            "n": 11,
+            "z": 3.14,
+            "profile_mean": 1.307
           },
           "history": [
             {
@@ -2500,24 +3000,32 @@
               "n": 10,
               "z": 3.37,
               "profile_mean": 1.343
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 30,
+              "avg_hits": 1.909,
+              "n": 11,
+              "z": 3.14,
+              "profile_mean": 1.307
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "30": 1
+            "30": 2
           },
           "consensus_lag": 30,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 30
         },
         "PoissonMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 28,
-            "avg_hits": 1.583,
-            "n": 12,
-            "z": 2.17,
-            "profile_mean": 1.21
+            "avg_hits": 1.462,
+            "n": 13,
+            "z": 1.81,
+            "profile_mean": 1.16
           },
           "history": [
             {
@@ -2527,24 +3035,32 @@
               "n": 12,
               "z": 2.17,
               "profile_mean": 1.21
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 28,
+              "avg_hits": 1.462,
+              "n": 13,
+              "z": 1.81,
+              "profile_mean": 1.16
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "28": 1
+            "28": 2
           },
           "consensus_lag": 28,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 28
         },
         "PoissonMarkov Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 30,
-            "avg_hits": 1.8,
-            "n": 10,
-            "z": 3.37,
-            "profile_mean": 1.199
+            "avg_hits": 1.727,
+            "n": 11,
+            "z": 3.26,
+            "profile_mean": 1.154
           },
           "history": [
             {
@@ -2554,24 +3070,32 @@
               "n": 10,
               "z": 3.37,
               "profile_mean": 1.199
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 30,
+              "avg_hits": 1.727,
+              "n": 11,
+              "z": 3.26,
+              "profile_mean": 1.154
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "30": 1
+            "30": 2
           },
           "consensus_lag": 30,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 30
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
-            "run": "2026-08-26",
+            "run": "2026-08-27",
             "lag": 3,
-            "avg_hits": 1.324,
-            "n": 37,
-            "z": 1.83,
-            "profile_mean": 1.012
+            "avg_hits": 1.342,
+            "n": 38,
+            "z": 1.84,
+            "profile_mean": 1.035
           },
           "history": [
             {
@@ -2581,24 +3105,32 @@
               "n": 37,
               "z": 1.83,
               "profile_mean": 1.012
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 3,
+              "avg_hits": 1.342,
+              "n": 38,
+              "z": 1.84,
+              "profile_mean": 1.035
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "3": 1
+            "3": 2
           },
           "consensus_lag": 3,
-          "consensus_runs": 1,
+          "consensus_runs": 2,
           "best_lag": 3
         },
         "HybridStatisticalModel": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 25,
-            "avg_hits": 2.067,
-            "n": 15,
-            "z": 2.29,
-            "profile_mean": 1.714
+            "run": "2026-08-27",
+            "lag": 22,
+            "avg_hits": 2.0,
+            "n": 19,
+            "z": 2.02,
+            "profile_mean": 1.69
           },
           "history": [
             {
@@ -2608,24 +3140,33 @@
               "n": 15,
               "z": 2.29,
               "profile_mean": 1.714
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 22,
+              "avg_hits": 2.0,
+              "n": 19,
+              "z": 2.02,
+              "profile_mean": 1.69
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "25": 1
+            "25": 1,
+            "22": 1
           },
-          "consensus_lag": 25,
+          "consensus_lag": 22,
           "consensus_runs": 1,
-          "best_lag": 25
+          "best_lag": 22
         },
         "LSTM Base Model": {
           "peak": {
-            "run": "2026-08-26",
-            "lag": 22,
-            "avg_hits": 1.389,
-            "n": 18,
-            "z": 1.86,
-            "profile_mean": 1.051
+            "run": "2026-08-27",
+            "lag": 24,
+            "avg_hits": 1.353,
+            "n": 17,
+            "z": 1.92,
+            "profile_mean": 1.019
           },
           "history": [
             {
@@ -2635,15 +3176,24 @@
               "n": 18,
               "z": 1.86,
               "profile_mean": 1.051
+            },
+            {
+              "run": "2026-08-27",
+              "lag": 24,
+              "avg_hits": 1.353,
+              "n": 17,
+              "z": 1.92,
+              "profile_mean": 1.019
             }
           ],
-          "runs": 1,
+          "runs": 2,
           "lag_counts": {
-            "22": 1
+            "22": 1,
+            "24": 1
           },
-          "consensus_lag": 22,
+          "consensus_lag": 24,
           "consensus_runs": 1,
-          "best_lag": 22
+          "best_lag": 24
         }
       }
     }
