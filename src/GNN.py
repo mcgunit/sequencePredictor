@@ -409,6 +409,11 @@ class GNNModel:
     # Run Training + Prediction
     # ---------------------------
     def run(self, name="pick3", skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=True, specialColumnCount=0):
+        # Like TransformerModel/AutoencoderAnomaly: the weights folder (e.g.
+        # data/models/gnn_model) doesn't exist on a fresh checkout, and the
+        # ModelCheckpoint/savefig calls below would fail without it.
+        os.makedirs(self.modelPath, exist_ok=True)
+
         train_data, val_data, max_value, train_labels, val_labels, numbers, num_classes, unique_labels = helpers.load_data(
             self.dataPath, skipLastColumns, maxRows=maxRows, skipRows=skipRows, years_back=years_back
         )

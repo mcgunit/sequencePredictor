@@ -17,6 +17,9 @@ from src.TCN import TCNModel
 from src.LSTM import LSTMModel
 from src.UnifiedLstmTcn import UnifiedLstmTcnModel
 from src.UnifiedLstmGruTcn import UnifiedLstmGruTcnModel
+from src.TransformerModel import TransformerModel
+from src.GNN import GNNModel
+from src.AutoencoderAnomaly import AutoencoderAnomaly
 from src.Markov import Markov
 from src.MarkovBayesian import MarkovBayesian
 from src.MarkovBayesianEnhanched import MarkovBayesianEnhanced
@@ -33,6 +36,9 @@ tcn = TCNModel()
 lstm = LSTMModel()
 unifiedLstmTcn = UnifiedLstmTcnModel()
 unifiedLstmGruTcn = UnifiedLstmGruTcnModel()
+transformer = TransformerModel()
+gnn = GNNModel()
+autoencoderAnomaly = AutoencoderAnomaly()
 markov = Markov()
 markovBayesian = MarkovBayesian()
 markovBayesianEnhanced = MarkovBayesianEnhanced()
@@ -57,6 +63,9 @@ MODEL_PARAM_PREFIX = {
     "tcn_model": "tcn",
     "unified_lstm_tcn_model": "unifiedLstmTcn",
     "unified_lstm_gru_tcn_model": "unifiedLstmGruTcn",
+    "transformer_model": "transformer",
+    "gnn_model": "gnn",
+    "autoencoder_model": "autoencoder",
 }
 
 MODEL_DISPLAY_NAMES = {
@@ -64,6 +73,9 @@ MODEL_DISPLAY_NAMES = {
     "tcn_model": "TCN Base Model",
     "unified_lstm_tcn_model": "UnifiedLstmTcn Model",
     "unified_lstm_gru_tcn_model": "UnifiedLstmGruTcn Model",
+    "transformer_model": "Transformer Model",
+    "gnn_model": "GNN Model",
+    "autoencoder_model": "Autoencoder Model",
 }
 
 
@@ -130,6 +142,64 @@ def configure_unified_lstm_gru_tcn(model, modelParams):
     model.setGruUnits(modelParams["gruUnits"])
 
 
+def configure_transformer(model, modelParams):
+    model.setBatchSize(modelParams["batchSize"])
+    model.setEpochs(modelParams["epochs"])
+    model.setDModel(modelParams["dModel"])
+    model.setNumLayers(modelParams["numLayers"])
+    model.setNumHeads(modelParams["numHeads"])
+    model.setKeyDim(modelParams["keyDim"])
+    model.setFfnFactor(modelParams["ffnFactor"])
+    model.setDropout(modelParams["dropout"])
+    model.setL2Regularization(modelParams["l2Regularization"])
+    model.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    model.setReduceLearningRatePatience(modelParams["reduceLearningRatePatience"])
+    model.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    model.setLearningRate(modelParams["learningRate"])
+    model.setWindowSize(modelParams["windowSize"])
+    model.setPredictionWindowSize(modelParams["windowSize"])
+    model.setLabelSmoothing(modelParams["labelSmoothing"])
+
+
+def configure_gnn(model, modelParams):
+    # No setNumHeads/setKeyDim here - GNNModel has no attention block, its
+    # architecture knobs are the GCN stack + co-occurrence graph decay.
+    model.setBatchSize(modelParams["batchSize"])
+    model.setEpochs(modelParams["epochs"])
+    model.setGcnUnits(modelParams["gcnUnits"])
+    model.setNumGcnLayers(modelParams["numGcnLayers"])
+    model.setEmbeddingDim(modelParams["embeddingDim"])
+    model.setDecay(modelParams["decay"])
+    model.setDropout(modelParams["dropout"])
+    model.setL2Regularization(modelParams["l2Regularization"])
+    model.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    model.setReduceLearningRatePatience(modelParams["reduceLearningRatePatience"])
+    model.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    model.setLearningRate(modelParams["learningRate"])
+    model.setWindowSize(modelParams["windowSize"])
+    model.setPredictionWindowSize(modelParams["windowSize"])
+    model.setLabelSmoothing(modelParams["labelSmoothing"])
+
+
+def configure_autoencoder(model, modelParams):
+    # No setNumHeads/setKeyDim here either - the autoencoder is a pure
+    # Conv1D encoder / Dense decoder around the latent bottleneck.
+    model.setBatchSize(modelParams["batchSize"])
+    model.setEpochs(modelParams["epochs"])
+    model.setLatentDim(modelParams["latentDim"])
+    model.setEncoderUnits(modelParams["encoderUnits"])
+    model.setNumEncoderLayers(modelParams["numEncoderLayers"])
+    model.setDropout(modelParams["dropout"])
+    model.setL2Regularization(modelParams["l2Regularization"])
+    model.setEarlyStopPatience(modelParams["earlyStopPatience"])
+    model.setReduceLearningRatePatience(modelParams["reduceLearningRatePatience"])
+    model.setReducedLearningRateFactor(modelParams["reduceLearningRateFactor"])
+    model.setLearningRate(modelParams["learningRate"])
+    model.setWindowSize(modelParams["windowSize"])
+    model.setPredictionWindowSize(modelParams["windowSize"])
+    model.setLabelSmoothing(modelParams["labelSmoothing"])
+
+
 # Maps model_type -> (module-level instance, its own configure(model,
 # modelParams) function). Replaces the old `modelToUse = tcn if "lstm_model"
 # not in model_type else lstm` + a single hardcoded LSTM-shaped setter block
@@ -142,6 +212,9 @@ MODEL_REGISTRY = {
     "tcn_model": {"instance": tcn, "configure": configure_tcn},
     "unified_lstm_tcn_model": {"instance": unifiedLstmTcn, "configure": configure_unified_lstm_tcn},
     "unified_lstm_gru_tcn_model": {"instance": unifiedLstmGruTcn, "configure": configure_unified_lstm_gru_tcn},
+    "transformer_model": {"instance": transformer, "configure": configure_transformer},
+    "gnn_model": {"instance": gnn, "configure": configure_gnn},
+    "autoencoder_model": {"instance": autoencoderAnomaly, "configure": configure_autoencoder},
 }
 
 
@@ -200,6 +273,96 @@ def suggest_fused_params(trial, prefix, include_gru):
     if include_gru:
         params["gruUnits"] = trial.suggest_categorical(f"{prefix}_gruUnits", [16, 32, 64, 128])
     return params
+
+
+def suggest_transformer_params(trial, prefix):
+    """
+    Optuna param space for the Transformer model - every suggest name is
+    prefixed (see MODEL_PARAM_PREFIX) so the tuned values land under the
+    transformer_* keys Predictor.py's runUnifiedDeepLearningModels reads.
+    """
+    return {
+        "batchSize": trial.suggest_categorical(f"{prefix}_batchSize", [4, 8, 16]),
+        "epochs": trial.suggest_categorical(f"{prefix}_epochs", [1000]),
+        "dModel": trial.suggest_categorical(f"{prefix}_dModel", [32, 64, 128]),
+        "numLayers": trial.suggest_int(f"{prefix}_numLayers", 1, 3),
+        "numHeads": trial.suggest_categorical(f"{prefix}_numHeads", [2, 4, 8]),
+        "keyDim": trial.suggest_categorical(f"{prefix}_keyDim", [16, 32, 64]),
+        "ffnFactor": trial.suggest_categorical(f"{prefix}_ffnFactor", [2, 4]),
+        "dropout": trial.suggest_float(f"{prefix}_dropout", 0.1, 0.5, step=0.1),
+        "l2Regularization": trial.suggest_float(f"{prefix}_l2Regularization", 0.0001, 0.01, step=0.0001),
+        "learningRate": trial.suggest_float(f"{prefix}_learningRate", 0.00001, 0.001, step=0.00001),
+        "earlyStopPatience": trial.suggest_int(f"{prefix}_earlyStopPatience", 10, 100, step=10),
+        "reduceLearningRatePatience": trial.suggest_int(f"{prefix}_reduceLearningRatePatience", 10, 100, step=10),
+        "reduceLearningRateFactor": trial.suggest_float(f"{prefix}_reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+        # Deliberately longer windows than the other DL models' 2-20 range:
+        # self-attention can weight ANY draw in the window equally easily, so
+        # long-range context is this model's whole point (see
+        # TransformerModel.py's class comment) - a short window would reduce
+        # it to an expensive TCN.
+        "windowSize": trial.suggest_int(f"{prefix}_windowSize", 10, 40, step=5),
+        "labelSmoothing": trial.suggest_float(f"{prefix}_labelSmoothing", 0.01, 0.1, step=0.01),
+        "yearsOfHistory": trial.suggest_categorical(f"{prefix}_yearsOfHistory", [10]),
+    }
+
+
+def suggest_gnn_params(trial, prefix):
+    """
+    Optuna param space for the GNN model - prefixed gnn_* names to match
+    Predictor.py's reads. No numHeads/keyDim: the model has no attention
+    block (see configure_gnn).
+    """
+    return {
+        "batchSize": trial.suggest_categorical(f"{prefix}_batchSize", [4, 8, 16]),
+        "epochs": trial.suggest_categorical(f"{prefix}_epochs", [1000]),
+        "gcnUnits": trial.suggest_categorical(f"{prefix}_gcnUnits", [16, 32, 64]),
+        "numGcnLayers": trial.suggest_int(f"{prefix}_numGcnLayers", 1, 3),
+        "embeddingDim": trial.suggest_categorical(f"{prefix}_embeddingDim", [8, 16, 32]),
+        # Recency weight of the co-occurrence adjacency (a pair seen `age`
+        # draws ago contributes decay^age): 0.99 keeps roughly the last ~70
+        # draws relevant (half-life), 0.9999 makes the graph near-static over
+        # years of history - the interesting regimes live between those.
+        "decay": trial.suggest_float(f"{prefix}_decay", 0.99, 0.9999),
+        "dropout": trial.suggest_float(f"{prefix}_dropout", 0.1, 0.5, step=0.1),
+        "l2Regularization": trial.suggest_float(f"{prefix}_l2Regularization", 0.0001, 0.01, step=0.0001),
+        "learningRate": trial.suggest_float(f"{prefix}_learningRate", 0.00001, 0.001, step=0.00001),
+        "earlyStopPatience": trial.suggest_int(f"{prefix}_earlyStopPatience", 10, 100, step=10),
+        "reduceLearningRatePatience": trial.suggest_int(f"{prefix}_reduceLearningRatePatience", 10, 100, step=10),
+        "reduceLearningRateFactor": trial.suggest_float(f"{prefix}_reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+        "windowSize": trial.suggest_int(f"{prefix}_windowSize", 2, 20, step=2),
+        "labelSmoothing": trial.suggest_float(f"{prefix}_labelSmoothing", 0.01, 0.1, step=0.01),
+        "yearsOfHistory": trial.suggest_categorical(f"{prefix}_yearsOfHistory", [10]),
+    }
+
+
+def suggest_autoencoder_params(trial, prefix):
+    """
+    Optuna param space for the Autoencoder model - prefixed autoencoder_*
+    names to match Predictor.py's reads. No numHeads/keyDim: pure Conv1D
+    encoder / Dense decoder around the latent bottleneck.
+    """
+    return {
+        "batchSize": trial.suggest_categorical(f"{prefix}_batchSize", [4, 8, 16]),
+        "epochs": trial.suggest_categorical(f"{prefix}_epochs", [1000]),
+        "latentDim": trial.suggest_categorical(f"{prefix}_latentDim", [4, 8, 16, 32]),
+        "encoderUnits": trial.suggest_categorical(f"{prefix}_encoderUnits", [16, 32, 64, 128]),
+        "numEncoderLayers": trial.suggest_int(f"{prefix}_numEncoderLayers", 1, 3),
+        "dropout": trial.suggest_float(f"{prefix}_dropout", 0.1, 0.5, step=0.1),
+        "l2Regularization": trial.suggest_float(f"{prefix}_l2Regularization", 0.0001, 0.01, step=0.0001),
+        "learningRate": trial.suggest_float(f"{prefix}_learningRate", 0.00001, 0.001, step=0.00001),
+        "earlyStopPatience": trial.suggest_int(f"{prefix}_earlyStopPatience", 10, 100, step=10),
+        "reduceLearningRatePatience": trial.suggest_int(f"{prefix}_reduceLearningRatePatience", 10, 100, step=10),
+        "reduceLearningRateFactor": trial.suggest_float(f"{prefix}_reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+        "windowSize": trial.suggest_int(f"{prefix}_windowSize", 2, 20, step=2),
+        # Pinned to 0.0, NOT searched: the autoencoder's reconstruction NLL
+        # doubles as the anomaly signal (see AutoencoderAnomaly.py's
+        # computeAnomalyScores) and label smoothing puts a floor under every
+        # class probability, which would bias that NLL floor and mask
+        # predictability spikes. Kept as a suggest so the key still lands in
+        # bestParams_<game>.json for Predictor.py to read.
+        "labelSmoothing": trial.suggest_categorical(f"{prefix}_labelSmoothing", [0.0]),
+        "yearsOfHistory": trial.suggest_categorical(f"{prefix}_yearsOfHistory", [10]),
+    }
 
 
 def is_running():
@@ -373,7 +536,14 @@ def process_single_history_entry(args):
     val_loss = getattr(modelToUse, "last_val_loss", float("inf"))
 
     predictedSequence = latest_raw_predictions.tolist()
-    unique_labels = unique_labels
+    # TCN/Transformer/GNN/Autoencoder return unique_labels as the raw numpy
+    # array from load_data (only LSTM/Unified* convert to a plain list
+    # themselves) and json.dump below can't serialize ndarray - every such
+    # trial would fail before scoring. Convert WITHOUT sorting: load_data's
+    # ordering is the one-hot encoder's category order, i.e. the class-index
+    # -> label decode mapping deepLearningMethod indexes into.
+    if isinstance(unique_labels, np.ndarray):
+        unique_labels = unique_labels.tolist()
     current_json_object["newPredictionRaw"] = predictedSequence
     listOfDecodedPredictions = deepLearningMethod(
         listOfDecodedPredictions, predictedSequence, unique_labels, 1, name, historyResult, jsonFilePath, modelParams,
@@ -590,6 +760,17 @@ if __name__ == "__main__":
         default="euromillions,lotto,eurodreams,keno,pick3,vikinglotto",
         help='Comma-separated list of games, e.g. "euromillions,lotto,..."'
     )
+    parser.add_argument(
+        '-m', '--models',
+        type=str,
+        default=",".join(MODEL_REGISTRY),
+        help='Comma-separated list of model types to tune, e.g. '
+             '"transformer_model,gnn_model". Valid: ' + ", ".join(MODEL_REGISTRY) + '. '
+             'The legacy lstm/tcn/unified_* types are the expensive ones (heavy '
+             'trainings, hours per study) - the transformer/gnn/autoencoder types '
+             'are an order of magnitude cheaper and can be tuned on their own '
+             'without paying for the heavy studies.'
+    )
     args = parser.parse_args()
 
     print_intro()
@@ -613,10 +794,21 @@ if __name__ == "__main__":
     path = os.getcwd()
 
     # Every game gets its own independent study per model type, so
-    # UnifiedLstmTcn Model / UnifiedLstmGruTcn Model get tuned (and tracked)
-    # separately from LSTM Base Model rather than sharing one set of params -
-    # same reasoning as MODEL_PARAM_PREFIX above.
-    dl_model_types = ["lstm_model", "tcn_model", "unified_lstm_tcn_model", "unified_lstm_gru_tcn_model"]
+    # UnifiedLstmTcn Model / UnifiedLstmGruTcn Model / Transformer Model /
+    # GNN Model / Autoencoder Model get tuned (and tracked) separately from
+    # LSTM Base Model rather than sharing one set of params - same reasoning
+    # as MODEL_PARAM_PREFIX above. Which types actually run comes from
+    # --models (default: all of them).
+    dl_model_types = [m.strip() for m in args.models.split(',') if m.strip()]
+    unknown_model_types = [m for m in dl_model_types if m not in MODEL_REGISTRY]
+    if unknown_model_types:
+        print(f"Unknown model type(s) in --models: {', '.join(unknown_model_types)}")
+        print(f"Valid model types: {', '.join(MODEL_REGISTRY)}")
+        # The lock was already taken above - leaving it behind on this early
+        # exit would block every later (cron) run until the stale-lock check
+        # kicks in.
+        remove_lock()
+        sys.exit(1)
     # Trailing special/bonus column(s): Euromillions (2 star columns),
     # EuroDreams (1 dream number), VikingLotto (1 super viking) get modeled
     # via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
@@ -647,6 +839,13 @@ if __name__ == "__main__":
                 modelPath = os.path.join(path, "data", "hyperOptCache", "models", model_type)
                 dataPath = os.path.join(path, "data", "trainingData", dataset_name)
                 file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
+
+                # The new model types' hyperOptCache/models folders don't
+                # exist on a fresh checkout, and GNNModel.run (unlike the
+                # Transformer/Autoencoder run()s) doesn't create its own -
+                # ModelCheckpoint's first save mid-training would crash the
+                # trial otherwise.
+                os.makedirs(modelPath, exist_ok=True)
 
                 # To prevent the hyperopt failing for loading an old model
                 clearFolder(os.path.join(path, "data", "hyperOptCache", "models", model_type))
@@ -712,6 +911,12 @@ if __name__ == "__main__":
                         }
                     elif model_type == "tcn_model":
                         modelParams = suggest_tcn_params(trial, MODEL_PARAM_PREFIX[model_type])
+                    elif model_type == "transformer_model":
+                        modelParams = suggest_transformer_params(trial, MODEL_PARAM_PREFIX[model_type])
+                    elif model_type == "gnn_model":
+                        modelParams = suggest_gnn_params(trial, MODEL_PARAM_PREFIX[model_type])
+                    elif model_type == "autoencoder_model":
+                        modelParams = suggest_autoencoder_params(trial, MODEL_PARAM_PREFIX[model_type])
                     else:
                         modelParams = suggest_fused_params(
                             trial, MODEL_PARAM_PREFIX[model_type],
