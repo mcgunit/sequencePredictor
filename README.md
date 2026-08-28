@@ -29,6 +29,8 @@ Both `LSTM.py` and `TCN.py` frame prediction the same way: a sliding window of `
 - **TCN** (`src/TCN.py`, via the `keras-tcn` package) — stacked dilated-convolution `TCN` layers → **two actually-wired `SelfAttentionBlock`s** (custom `MultiHeadAttention` + FFN + LayerNorm, hand-rolled rather than a library dependency) → `GlobalAveragePooling1D` → dense softmax. More complete than `LSTM.py` today: it also blends its raw prediction with a live Markov chain over the same history (`lstmMarkovAlpha`-equivalent), and adds a `TopKCategoricalAccuracy(k=3)` metric. It's fully wired (same `run()` interface, same setters) but **not currently exercised** — every dataset in `HyperoptDeepLearning.py`'s sweep is hardcoded to `"lstm_model"`, so TCN's architecture is live code that never actually gets tuned or run in practice.
 - **`UnifiedLstmTcn` / `UnifiedLstmGruTCT`** (`src/UnifiedLstmTcn.py`, `src/UnifiedLstmGruTcn.py`) — real architectural fusion, replacing the old `src/Unified.py` prototype (which trained LSTM/GRU/TCN separately and only averaged their output probabilities afterward — an ensemble, not a fusion, and never wired into anything). Both share one `Embedding` step (keeping `window_size` as the time dimension, unlike `LSTM.py`'s flattening, so branches stay shape-compatible), then run a `Bidirectional(LSTM)` branch and a stacked-`TCN` branch (plus a third `GRU` branch for the 3-branch variant) **concatenated together** before the shared attention/pooling/output head — the branches' learned representations mix before the network makes its prediction, not after. Live in `Predictor.py` as two additional rows (`UnifiedLstmTcn Model`, `UnifiedLstmGruTcn Model`) alongside `LSTM Base Model`, tuned by their own `HyperoptDeepLearning.py` studies (see `MODEL_REGISTRY`/`suggest_fused_params`, with `unifiedLstmTcn_*`/`unifiedLstmGruTcn_*`-prefixed `bestParams_<game>.json` keys so they don't clobber `LSTM Base Model`'s own tuned values). No Markov blending in either (unlike `TCN.py`) — out of scope for now.
 
+Three further lightweight DL rows — `Transformer Model`, `GNN Model` and `Autoencoder Model` — share this exact `run()` interface and per-position softmax head but are documented under **Advanced Architectural & Security Research** below, since they exist as research probes (long-range attention, co-occurrence structure, anomaly detection) rather than as variations of the LSTM/TCN family. Unlike the models above they are *not* gated behind `--ai`.
+
 ### Gradient boosting (`src/BoostingBase.py`)
 
 Three libraries × two formulations, **six independently tracked rows**, all sharing one implementation in `src/BoostingBase.py` so a difference between rows is attributable to the library or the formulation and not to incidental plumbing. Each subclass supplies only `_make_classifier()`; the window features, label encoding, ticket construction, subset generation, fit cache and persistence are common code.
@@ -76,11 +78,11 @@ Two behaviors worth knowing when running `Predictor.py` by hand:
 
 ### Model performance report (History page)
 
-After each prediction run, `Predictor.py` writes `data/database/modelPerformance.json` (`Helpers.generate_model_performance_report`): per game, every model's record over **all scored history** — average hits of the main ticket, best day, scored-draw count, and (for Keno/Pick3, which have real payout tables) total profit and average profit per bet. The web UI's History page (`/database`) renders it as a "Best model per game" card next to the game buttons; clicking a game row expands the full model ranking. Keno/Pick3 rank by profit per bet, other games by average hits — per-bet/per-draw averages rather than totals, since models joined the tracking at different times. Models with fewer scored draws than `minDrawsForRanking` (10, or the max available if lower) are listed but greyed out and sorted below the ranked ones, so a two-day-old model can't claim "best" off one lucky draw.
+After each prediction run, `Predictor.py` writes `data/database/modelPerformance.json` (`Helpers.generate_model_performance_report`): per game, every model's record over **all scored history** — average hits of the main ticket, best day, scored-draw count, and (for Keno/Pick3, which have real payout tables) total profit and average profit per bet. The web UI's History page (`/database`) renders it as a "Best model per game" card next to the game buttons; clicking a game row expands the full model ranking. Keno/Pick3 rank by profit per bet, other games by average hits — per-bet/per-draw averages rather than totals, since models joined the tracking at different times. Models with fewer scored draws than `minDrawsForRanking` (10, or the max available if lower) are listed but greyed out and sorted below the ranked ones, so a two-day-old model can't claim "best" off one lucky draw. The same report also feeds the History page's "Phase-shift check" card (tracked lag peaks, next section) and the "🔬 Randomness watch" card (entropy/KL/autoencoder-anomaly monitoring, see the security research section).
 
 ### Phase-shift (lag) analysis
 
-Also part of the report and the History page: every day's `newPrediction` is scored not only against the draw it was enough strength to be high-confidence prediction as lag +1 but against the thirty draws that follow. If a model's signal were real but time-shifted, its average hits would peak consistently at some lag > 1; a flat curve across all lags means the hits come from draw-independent number-frequency structure, not timing. Pick3 is scored positionally (digit in the right place, chance level 0.3 per draw). Interpret peaks against the row's overall spread and sample size — with under ~100 scored draws per lag, the "best lag" bounces around by chance; a real phase shift would show the *same* peak lag persistently across time (and plausibly across related models), not a one-off maximum.
+Also part of the report and the History page: every day's `newPrediction` is scored not only against the draw it was enough strength to be high-confidence prediction as lag +1 but against the thirty draws that follow. If a model's signal were real but time-shifted, its average hits would peak consistently at some lag > 1; a flat curve across all lags means the hits come from draw-independent number-frequency structure, not timing. Pick3 is scored positionally (digit in the right place, chance level 0.3 per draw). Interpret peaks against the row's overall spread and sample size — with under ~100 scored draws per lag, the "best lag" bounces around by chance; a real phase shift would show the *same* peak lag persistently across time (and plausibly across related models), not a one-off maximum. That persistence check is automated: each run keeps only its single best peak per model and appends it to `data/database/lagPeakHistory.json` (one entry per run date, last 60 runs); the UI shows this run's peak with a z-score against the model's own lag profile, the most frequent peak across runs (highlighted once ≥3 runs and ≥50% agree), and a run-length-encoded chronological peak trail (`+30×5` = holding still, `+26 → +28 → +30` = drifting).
 
 ### Hyperopt & backtesting
 
@@ -114,20 +116,171 @@ The main research hypothesis is:
 
 A quantum model is therefore treated as another adversarial test of the sequence-generating process, comparable to evaluating the resilience of a system against another class of analysis. Failure to find predictive structure is evidence consistent with the modeled randomness assumptions, but it is not proof of perfect randomness. Apparent predictive structure is a signal for further investigation, not immediate proof that a game is predictable or biased.
 
-### Advanced Architectural & Security Research
+#### Recommended first integration: `QuantumMetaLearner Model`
 
-**Structural & Graph-based Analysis:**
-- **Graph Neural Networks (GNNs):** Treat each draw as a node in a graph where edges represent number co-occurrences. This can detect complex "community" structures and clusters of numbers that are drawn together more frequently than random chance would allow, moving beyond simple pairwise decay.
+The first quantum experiment should reuse the same per-number training data already collected for `MetaLearner Model` and `MetaLearnerV2 Model`.
 
-**Long-Range Temporal Context:**
-- **Transformer/Attention Architectures:** Implement self-attention mechanisms (similar to BERT or GPT) to identify "contextual" patterns. Unlike LSTMs, Transformers can learn to attend to specific highly relevant historical draws regardless of their distance in the sequence, effectively detecting long-range temporal dependencies.
+For every backtested day and candidate number, the existing pipeline already produces a feature vector containing the scores from the seven supported base models:
 
-**Strategic Optimization (Agentic Prediction):**
-- **Reinforcement Learning (RL):** Transition from predicting numbers to optimizing ticket construction. An RL agent could learn to select optimal subsets of numbers to maximize Expected Value ($EV$) by learning the interaction between model predictions and complex payout structures (ee.g., Keno).
+- `Markov`
+- `MarkovMonteCarlo`
+- `MarkovBayesian`
+- `MarkovBayesianEnhanced`
+- `PoissonMonteCarlo`
+- `PoissonMarkov`
+- `LaplaceMonteCarlo`
+
+The label remains unchanged:
+
+```text
+1 = the candidate number occurred in the next real draw
+0 = the candidate number did not occur in the next real draw
+```
+
+The three meta-models can therefore be compared using the same input matrix, labels, chronological split, and ticket-construction logic:
+
+```text
+Base-model score vectors
+          |
+          +--> LogisticRegression
+          |       `MetaLearner Model`
+          |
+          +--> GradientBoostingClassifier
+          |       `MetaLearnerV2 Model`
+          |
+          +--> Quantum feature map / quantum classifier
+                  `QuantumMetaLearner Model`
+```
+
+This answers a focused research question:
+
+> Can a quantum feature map discover useful nonlinear relationships among the existing model scores that the logistic-regression and gradient-boosting meta-learners miss?
+
+The quantum model should be added as its own independently tracked prediction row. It must not replace either existing meta-learner until repeated backtesting and real-life tracking demonstrate a reliable improvement.
+
+For games with special columns, the current separation must remain intact:
+
+```text
+Main-number quantum model
+Special-column quantum model
+```
+
+Euromillions stars, the EuroDreams dream number, and the VikingLotto super viking number must not be mixed with the main-number range. `Pick3` should initially remain excluded because the current meta-learning representation ranks numbers but does not represent positional digit order.
+
+A possible artifact layout is:
+
+```text
+data/models/<game>/quantum_meta_learner.joblib
+```
+
+The persisted artifact should include everything required to reproduce inference:
+
+- Feature-name order
+- Feature scaler
+- Optional dimensionality-reduction transform
+- Quantum model parameters
+- Classification threshold, if one is used
+- Main-number model
+- Optional special-column model
+- Training metadata and package versions
+
+#### Quantum feature encoding
+
+The seven base-model scores are classical values. Before they can be processed by a quantum circuit, they must be normalized and encoded into gate parameters.
+
+A practical first implementation should reduce the seven scores to four features:
+
+```text
+Seven base-model scores
+          |
+          v
+StandardScaler fitted on training data only
+          |
+          v
+PCA or training-only feature selection
+          |
+          v
+Four normalized features
+          |
+          v
+Four-qubit parameterized circuit
+```
+
+Possible encodings include angle rotations such as `RY` or `RZ`, followed by entangling gates and trainable rotations. Circuit measurements produce expectation values or class probabilities that the normal Python pipeline can convert into per-number scores.
+
+The scaler, PCA transform, and feature selector must be fitted only on the training partition. Fitting preprocessing on the full dataset would leak information from the holdout period.
+
+Starting with four qubits keeps simulation and hyperparameter optimization manageable. A seven-qubit version can be researched later, but it will be substantially more expensive to train and simulate.
+
+#### Initial quantum model candidates
+
+The first comparison should include two different quantum approaches where practical:
+
+1. **Quantum-kernel classifier**
+   - Encodes each feature vector into a quantum state.
+   - Estimates similarity through a quantum kernel.
+   - Uses the resulting kernel with a classical support-vector classifier.
+
+2. **Variational quantum classifier**
+   - Encodes the input scores as circuit rotations.
+   - Applies a parameterized ansatz with entangling gates.
+   - Uses a classical optimizer to train the circuit parameters.
+
+The quantum-kernel model is the preferred first prototype because it provides a relatively clean comparison with a classical RBF support-vector machine. The variational classifier can be added after the data flow, persistence, and evaluation logic are stable.
+
+#### Training integration
+
+`TrainMetaLearner.py` should collect the seven base-model scores only once and reuse the resulting dataset for all meta-learners:
+
+```python
+training_data = collect_meta_training_data(...)
+
+train_logistic_meta_learner(training_data)
+train_gradient_boosting_meta_learner(training_data)
+train_quantum_meta_learner(training_data)
+```
+
+The expensive backtest must not be repeated separately for each meta-model. All variants must receive exactly the same:
+
+- Historical days
+- Candidate-number rows
+- Base-model feature values
+- Labels
+- Main/special-column separation
+- Walk-forward holdout boundary
+
+This is necessary for a fair benchmark.
+
+Quantum training should initially be opt-in because circuit simulation and quantum-kernel computation can be much slower than the existing classical meta-learners. A per-game configuration flag can control the feature:
+
+```json
+{
+  "useQuantumMetaLearner": false
+}
+```
+
+#### Evaluation metrics
+
+Ticket-level hit counts remain important, but the quantum model must also be evaluated at the per-number probability and ranking levels.
+
+### Advanced Architectural & Security Research (implemented)
+
+All four research directions below are implemented and run as their own tracked prediction rows / monitoring layers in the daily `Predictor.py` pipeline. Each row is scored, ranked, lag-analyzed and peak-tracked exactly like every other model.
+
+**Structural & Graph-based Analysis — `GNN Model` (`src/GNN.py`):**
+Numbers are nodes in a co-occurrence graph built from the training history with exponential recency weighting (`gnn_decay`); stacked graph-convolution layers (hand-rolled GCN in Keras, no extra dependencies) learn per-number "community" embeddings, and a window-conditioned readout turns them into the standard per-position softmax prediction. Detects clusters of numbers drawn together more often than chance would allow, beyond simple pairwise decay. Tuned via `gnn_*` keys in `bestParams_<game>.json`.
+
+**Long-Range Temporal Context — `Transformer Model` (`src/TransformerModel.py`):**
+Sinusoidal positional encoding + pre-LN self-attention encoder blocks over a longer window (default 30 draws vs. TCN's 20). Unlike the LSTM/TCN recency bias, attention can weight any historical draw in the window regardless of distance. Same per-position softmax head, NaN/checkpoint discipline and fingerprinted weight caching as the other DL models. Tuned via `transformer_*` keys.
+
+**Strategic Optimization (Agentic Prediction) — `RL Ticket Model` (`src/RLTicketModel.py`):**
+Does not predict numbers - it learns ticket CONSTRUCTION. A pure-numpy REINFORCE policy (no TF, ~1-2s per game, wall-clock capped) trains on the stored day JSONs: features per number come from that day's other model rows (vote share, mean in-ticket rank) plus draw statistics, and the reward is the *real payout* (`Helpers.pick3_ticket_profit` / `keno_ticket_profit`) where a payout table exists, main-ticket hit count elsewhere. It runs in the second step after the `WeightedEnsemble Model` row so the full vote is part of its features, warm-starts from `data/models/rl_model/<game>_policy.json`, and during history rebuilds only trains on days strictly before the day being rebuilt (no look-ahead). Emits main numbers only (specials/bonus have their own ranges and payout logic). Keys: `rlTicketLearningRate`, `rlTicketEpochs`, `rlTicketSamplesPerDay`, `rlTicketTrainDays`, `rlTicketMaxTrainSeconds`; disable with `"useRlTicket": false`.
 
 **Security & Randomness Detection (The Adversarial Layer):**
-- **Unsupervised Anomaly Detection:** Use Autoencoders to monitor for "predictability spikes." If a model's reconstruction error on a real draw drops significantly, it indicates the presence of non-random structure, acting as an automated security alert for game integrity.
-- **Entropy & Divergence Analysis:** Monitor the Kullback–Leibler (KL) divergence between predicted and historical distributions to detect shifts in the entropy of the drawing process.
+- **Unsupervised Anomaly Detection — `Autoencoder Model` (`src/AutoencoderAnomaly.py`):** a narrow-bottleneck conditional autoencoder that doubles as a tracked prediction row and as the integrity monitor. After each training run it computes the reconstruction NLL of every recent REAL draw plus a rolling z-score; a strongly negative z (the real draw suddenly became easy to reconstruct - a "predictability spike") is the alert condition. Stored per day as `anomalyWatch` in the day JSON, summarized per game in `modelPerformance.json`, and shown as the "AE anomaly" column (⚠ below z = -3) in the web UI's Randomness watch card. Its label smoothing deliberately defaults to 0 so the NLL stays an honest likelihood. Tuned via `autoencoder_*` keys.
+- **Entropy & Divergence Analysis (`Helpers.generate_model_performance_report`):** per game, over the last 60 scored draws (Pick3 per digit position, averaged): KL(recent ‖ full history) for drift, KL(recent ‖ uniform) and normalized entropy for distance from a fair draw, a checkpoint trend series, and per model KL(predicted numbers ‖ real numbers) to expose models whose output distribution has departed from the actual process. Rendered as the "🔬 Randomness watch" card on the History page with a loose normal/watch tripwire. Entropy near 1 and KL near 0 mean the process looks fair and stationary; sustained movement is a signal for investigation, **not** proof of manipulation (rule changes, data artifacts and small windows all move these numbers).
+
+**Enabling/disabling the research rows:** the heavy legacy DL models (LSTM/TCN/Unified*) stay behind the `--ai` flag (off in the daily cron - their training time/memory is the bottleneck). The three lightweight DL research rows (Transformer/GNN/Autoencoder) run **regardless of `--ai`**, inside the same one-shot spawned child process, and can be turned off individually with `"useTransformer": false`, `"useGnn": false`, `"useAutoencoder": false` in `bestParams_<game>.json` (same style as the statistical `useMarkov` toggles; `useLstm`/`useTcn`/`useUnifiedLstmTcn`/`useUnifiedLstmGruTcn` exist too for when `--ai` is on). At two smoke-test epochs on CPU the three new rows together cost less than a single `UnifiedLstmGruTcn` training. None of the research models are hyperopt-tuned yet - they run on the defaults listed in `runUnifiedDeepLearningModels`.
 
 ### Randomness-discrimination experiment
 
@@ -358,3 +511,147 @@ Under the tested data representation, model family, optimization budget,
 and chronological evaluation period, the quantum-assisted model did or
 did not detect reproducible structure beyond the selected classical baselines.
 ```
+
+It should not state that failure to detect structure proves perfect randomness, or that a small retrospective uplift proves future lottery predictability.
+
+All quantum experiments remain subject to the repository's education and research disclaimer. Simulated quantum circuits run on classical hardware and do not demonstrate quantum computational advantage.
+
+
+
+## Installation
+
+### For Predictor (Python)
+
+#### Virtual env
+
+Create a virtual env:
+```
+python3 -m venv ~/sequencePredictor
+```
+
+Activate env:
+
+```
+source ~/sequencePredictor/bin/activate
+```
+
+To install, you will need to have Python 3.x and the following libraries installed:
+- numpy
+- tensorflow
+- keras
+- art
+- keras-tcn
+
+You can install these libraries using pip by running the following command:
+
+Using the requirements file:
+
+```
+    python3 -m pip install -r requirements.txt
+```
+
+For CPU only: 
+```
+    python3 -m pip install numpy tensorflow==2.18 keras art pandas scikit-learn matplotlib keras-tcn==3.1.2
+```
+
+For GPU enabled:
+
+```
+    python3 -m pip install numpy tensorflow[and-cuda]==2.18 keras art pandas scikit-learn matplotlib keras-tcn==3.1.2
+```
+
+#### Docker
+
+Check the dockerfile.
+
+To build:
+
+```
+    docker build -t sequence_predictor .
+```
+
+Run:
+
+```
+    docker run --rm -it -u $(id -u) -v {absolute path to sequencePredictor repo}:/opt/sequencePredictor sequence_predictor /bin/bash
+```
+
+From this point you are inside the docker container with bash active. Now you can run or test code.
+
+### For server (NodeJs)
+
+Run in root of folder (where the package.json is located):
+
+```
+    npm i
+```
+
+If pm2 is needed also run:
+
+```
+    npm i pm2 -g
+```
+## How to run prediction
+
+To run the complete flow run:
+
+```
+    python3 Predictor.py
+```
+
+To test model specific for example LSTM run:
+
+```
+    python3 LSTM.py
+```
+
+Check the __main__ section of the LSTM.py or GRU.py for pointing to data and set parameters for testing.
+
+## Run server
+
+The server is a NodeJS server with a plain simple html server side rendered front-end. No dependencies or heavy webpacks needed.
+The server will listen on 0.0.0.0 and port 30001. This can be changed in the config.js file.
+
+To run the server use the command:
+
+```
+    npm start
+```
+
+Pm2 can also be used. For this run:
+
+```
+    pm2 start server.js --name predictor --time --watch 
+```
+
+Then for saving this in the pm2 run list (needed for auto start):
+
+```
+    pm2 save
+```
+
+For having it with auto start at boot:
+
+```
+    pm2 startup
+```
+
+## Testing
+
+To test a model when modifying or tuning you can run the LSTM.py or GRU.py directly and check the __main__ section. Use the test folder for trainingData and models if you don't want to touch the actual data (highly recommended). 
+For testing You, in the `test` folder, can manually remove the last result from the .csv files and put it in the `sequenceToPredict_xxx.json` file. Then when tuning or changing the model, the results are compared. **It is of importance to take the latest result out of the test data**.
+
+## Fetching data
+
+It is possible to download the csv data containing the real draws on the website or via the url. But it is also possible to use the "API" with the following link: https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&previous-draws=5 or for specific: https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=1746057600000&size=62&date-to=1751414400000&game-names=Keno
+
+
+## Disclaimer
+
+The code within this repository comes with no guarantee, the use of this code is your responsibility. I take NO responsibility and/or liability for how you choose to use any of the source code available here. By using any of the files available in this repository, you understand that you are AGREEING TO USE AT YOUR OWN RISK. Once again, ALL files available here are for EDUCATION and/or RESEARCH purposes ONLY.
+Please keep in mind that while LSTM.py uses advanced machine learning techniques to predict lottery numbers, there is no guarantee that its predictions will be accurate. Lottery results are inherently random and unpredictable, so it is important to use LSTM responsibly and not rely solely on its predictions.
+
+## License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT). You are free to use, modify, and distribute this project as long as you give attribution to the original author.

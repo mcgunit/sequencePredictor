@@ -541,6 +541,110 @@ function generateLagAnalysis() {
     </div>`;
 }
 
+// --- LOGIC: Randomness watch card (README "Entropy & Divergence Analysis") -
+// per game: KL(recent 60 draws || full history) for drift, KL(recent ||
+// uniform) + normalized entropy for distance from a fair draw, a trend over
+// checkpoint windows, and per-model KL(predicted || real) to expose models
+// whose output distribution has departed from the actual process. ---
+function generateRandomnessWatch() {
+  const reportPath = path.join(dataPath, 'modelPerformance.json');
+  if (!fs.existsSync(reportPath)) return '';
+
+  let report;
+  try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); }
+  catch (e) { return ''; }
+
+  let gameRows = '';
+  let modelCards = '';
+  Object.keys(report.games).sort().forEach((game) => {
+    const rw = report.games[game].randomnessWatch;
+    const aw = report.games[game].anomalyWatch;
+    if (!rw && !aw) return;
+
+    // Entropy meaningfully below 1 or KL drifting up is what the README's
+    // security layer watches for. Thresholds are deliberately loose - this
+    // is a tripwire, not a verdict.
+    const entAlert = rw && rw.entropy_norm !== null && rw.entropy_norm < 0.95;
+    const klAlert = rw && rw.kl_vs_history !== null && rw.kl_vs_history > 0.1;
+    const aeAlert = aw && aw.alert;
+    const status = (entAlert || klAlert || aeAlert)
+      ? '<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:3px; font-weight:bold;">watch</span>'
+      : '<span style="background:#2ecc71; color:white; padding:2px 8px; border-radius:3px;">normal</span>';
+
+    // Autoencoder predictability watch: strongly NEGATIVE z = the real
+    // draw suddenly became easy to reconstruct = non-random structure.
+    const anomaly = !aw ? '-' :
+      `<span title="latest run ${aw.date} · latest z ${aw.latest_z}" style="${aw.alert ? 'color:#e74c3c; font-weight:bold;' : ''}">${aw.min_z_recent === null || aw.min_z_recent === undefined ? '-' : 'min z ' + aw.min_z_recent}${aw.alert ? ' ⚠' : ''}</span>`;
+    const trend = ((rw && rw.trend) || []).map((t) =>
+      `<span title="window ending ${t.end_date}: KL vs history ${t.kl_vs_history}, entropy ${t.entropy_norm}">${t.entropy_norm}</span>`
+    ).join(' → ');
+
+    gameRows += `<tr>
+      <td style="text-align:left; font-weight:bold;">${game}</td>
+      <td>${status}</td>
+      <td>${!rw || rw.entropy_norm === null ? '-' : rw.entropy_norm}</td>
+      <td>${!rw || rw.kl_vs_history === null ? '-' : rw.kl_vs_history}</td>
+      <td>${!rw || rw.kl_vs_uniform === null ? '-' : rw.kl_vs_uniform}</td>
+      <td>${anomaly}</td>
+      <td>${rw ? rw.draws_total : '-'}</td>
+      <td style="text-align:left; color:#7f8c8d; font-size:0.85em;">${trend}</td>
+    </tr>`;
+
+    const models = (rw && rw.model_kl_vs_real) || {};
+    const modelRows = Object.keys(models).sort((a, b) => models[a] - models[b]).map((m) =>
+      `<tr><td style="text-align:left;">${m}</td><td>${models[m]}</td></tr>`
+    ).join('');
+    if (modelRows) {
+      modelCards += `
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="card-title" style="font-size: 1em;">${game} - model KL(predicted || real)</span>
+            <div class="card-icon">▼</div>
+          </div>
+          <div class="card-body">
+            <div class="table-wrapper">
+              <table style="min-width: 0;">
+                <tr><th style="text-align:left;">Model</th><th>KL over last ${rw ? rw.window : '?'} draws</th></tr>
+                ${modelRows}
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }
+  });
+
+  if (!gameRows) return '';
+
+  return `
+    <div class="card" style="margin-top: 25px;">
+      <div class="card-header" onclick="toggleCard(this)">
+        <div>
+          <span class="card-title">🔬 Randomness watch (entropy & divergence)</span>
+          <span class="card-meta" style="margin-left: 10px;">is the drawing process still indistinguishable from fair?</span>
+        </div>
+        <div class="card-icon">▼</div>
+      </div>
+      <div class="card-body">
+        <div class="table-wrapper">
+          <table>
+            <tr><th style="text-align:left;">Game</th><th>Status</th><th>Entropy (norm.)</th><th>KL vs history</th><th>KL vs uniform</th><th>AE anomaly</th><th>Draws</th><th style="text-align:left;">Entropy trend (oldest → newest)</th></tr>
+            ${gameRows}
+          </table>
+        </div>
+        <p style="color: #7f8c8d; font-size: 0.85em;">
+          Computed over the last 60 scored draws (pick3 per digit position, averaged). Normalized entropy near 1 and
+          KL near 0 mean the process looks fair and stationary; a sustained entropy drop or KL rise is a
+          predictability signal worth investigating - <b>not</b> proof of manipulation (rule changes, data artifacts
+          and small windows all move these numbers). Per-model KL shows how far each model's recent predictions sit
+          from the real draw distribution. <b>AE anomaly</b> is the autoencoder security layer: the most negative
+          rolling z of its reconstruction NLL over the last 30 real draws - a strongly negative value (⚠ below -3)
+          means real draws suddenly became easy to reconstruct, i.e. a predictability spike.
+        </p>
+        ${modelCards}
+      </div>
+    </div>`;
+}
+
 // 1. Database Index
 app.get('/database', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
@@ -554,6 +658,7 @@ app.get('/database', (req, res) => {
   html += '</div>';
   html += generatePerformanceSummary();
   html += generateLagAnalysis();
+  html += generateRandomnessWatch();
   html += generateFooter();
   res.send(html);
 });

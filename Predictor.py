@@ -27,6 +27,10 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
+from src.TransformerModel import TransformerModel
+from src.GNN import GNNModel
+from src.AutoencoderAnomaly import AutoencoderAnomaly
+from src.RLTicketModel import RLTicketModel
 from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
 from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
 from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
@@ -39,6 +43,10 @@ tcn = TCNModel()
 lstm = LSTMModel()
 unifiedLstmTcn = UnifiedLstmTcnModel()
 unifiedLstmGruTcn = UnifiedLstmGruTcnModel()
+transformer = TransformerModel()
+gnn = GNNModel()
+autoencoderAnomaly = AutoencoderAnomaly()
+rlTicket = RLTicketModel()
 markov = Markov()
 markovMcBase = Markov()
 markovMonteCarlo = MarkovMonteCarlo(markovMcBase)
@@ -244,17 +252,29 @@ def process_single_history_entry_first_step(args):
 
 
 def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
-                     years_back, specialColumnCount, skipRows, repoPath):
+                     years_back, specialColumnCount, skipRows, repoPath, fullAi=True):
     """
     Trains and predicts every deep learning model for one day: LSTM Base
     Model plus the UNIFIED_DL_MODELS rows. Module-level and fully
     argument-driven so it can run in a spawned child process (see
     runDeepLearningStepInChild). Returns (newPredictionRaw, unique_labels,
-    dlRows) - newPredictionRaw/unique_labels are None if the LSTM failed.
+    dlRows, anomalyWatch) - newPredictionRaw/unique_labels are None if the
+    LSTM failed, anomalyWatch is None unless the Autoencoder Model ran (it
+    must be computed in this same child - the trained model dies with it).
     """
     dlRows = []
     predictedSequence = None
     unique_labels = None
+
+    # fullAi=False (the cron default, --ai off) skips the heavy legacy DL
+    # models (LSTM base + the requiresFullAi registry rows) but still runs
+    # the lightweight research models per their use<Prefix> toggles.
+    if not fullAi or not bestParams_json_object.get("useLstm", True):
+        dlRows, anomalyWatch = runUnifiedDeepLearningModels(
+            dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
+            skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount,
+            fullAi=fullAi)
+        return predictedSequence, unique_labels, dlRows, anomalyWatch
 
     modelToUse = lstm
     modelToUse.setDataPath(dataPath)
@@ -291,11 +311,12 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
     except Exception as e:
         print("Failed to perform LSTM Base Model prediction: ", e)
 
-    dlRows = runUnifiedDeepLearningModels(
+    dlRows, anomalyWatch = runUnifiedDeepLearningModels(
         dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
-        skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
+        skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount,
+        fullAi=fullAi)
 
-    return predictedSequence, unique_labels, dlRows
+    return predictedSequence, unique_labels, dlRows, anomalyWatch
 
 
 def runDeepLearningStepInChild(*args):
@@ -323,7 +344,7 @@ def runDeepLearningStepInChild(*args):
             return executor.submit(deepLearningStep, *args).result()
     except Exception as e:
         print("Deep learning step died (likely OOM-killed) - skipping DL rows for this day: ", e)
-        return None, None, []
+        return None, None, [], None
 
 
 def process_single_history_entry_second_step(args):
@@ -352,16 +373,20 @@ def process_single_history_entry_second_step(args):
     listOfDecodedPredictions = current_json_object["newPrediction"]
     unique_labels = []
 
-    if ai:
+    if ai or lightDlModelsEnabled(bestParams_json_object):
         # All DL training runs in a one-shot spawned child - see
         # runDeepLearningStepInChild for why (OOM containment + per-day
-        # memory release).
-        predictedSequence, dl_labels, dlRows = runDeepLearningStepInChild(
+        # memory release). With ai (--ai) off, the child still runs the
+        # lightweight research models (Transformer/GNN/Autoencoder) - only
+        # the heavy LSTM/TCN/unified trainings stay behind the flag.
+        predictedSequence, dl_labels, dlRows, anomalyWatch = runDeepLearningStepInChild(
             name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
-            years_back, specialColumnCount, len(historyData)-historyIndex, path)
+            years_back, specialColumnCount, len(historyData)-historyIndex, path, ai)
 
         if predictedSequence is not None:
             current_json_object["newPredictionRaw"] = predictedSequence
+        if anomalyWatch is not None:
+            current_json_object["anomalyWatch"] = anomalyWatch
         listOfDecodedPredictions.extend(dlRows)
         unique_labels = dl_labels
 
@@ -389,6 +414,14 @@ def process_single_history_entry_second_step(args):
         addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
+
+    addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
+                          specialColumnCount, bestParams_json_object,
+                          # historyResult still carries non-modeled trailing
+                          # columns (lotto's bonus via skipLastColumns) on top
+                          # of the special columns - drop both.
+                          fallbackDrawSize=len(historyResult) - specialColumnCount - skipLastColumns,
+                          cutoffDate=historyDate)
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile, indent=2)
@@ -514,7 +547,8 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     listOfDecodedPredictions = []
                     unique_labels = []
 
-                    if ai:
+                    yearsOfHistory = bestParams_json_object['yearsOfHistory']
+                    if ai or lightDlModelsEnabled(bestParams_json_object):
                         try:
                             # Train and do a new prediction - in a one-shot
                             # spawned child (see runDeepLearningStepInChild:
@@ -522,23 +556,29 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                             # is the daily cron path, where a single process
                             # doing 4 DL trainings x 6 games used to grow past
                             # the container's 16GB cgroup limit and get
-                            # SIGKILLed with no trace.
-                            yearsOfHistory = bestParams_json_object['yearsOfHistory']
+                            # SIGKILLed with no trace. With ai (--ai) off the
+                            # child still runs the lightweight research models
+                            # (Transformer/GNN/Autoencoder); only the heavy
+                            # LSTM/TCN/unified trainings stay behind the flag.
                             specialColumnCount = SPECIAL_COLUMN_COUNTS.get(name, 0)
 
-                            predictedSequence, dl_labels, dlRows = runDeepLearningStepInChild(
+                            predictedSequence, dl_labels, dlRows, anomalyWatch = runDeepLearningStepInChild(
                                 name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
-                                yearsOfHistory, specialColumnCount, 0, path)
+                                yearsOfHistory, specialColumnCount, 0, path, ai)
 
                             if predictedSequence is not None:
                                 current_json_object["newPredictionRaw"] = predictedSequence
                                 current_json_object["labels"] = dl_labels
                                 unique_labels = dl_labels
+                            if anomalyWatch is not None:
+                                current_json_object["anomalyWatch"] = anomalyWatch
                             listOfDecodedPredictions.extend(dlRows)
                         except Exception as e:
                             print("Failed to perform deep learning method: ", e)
-                    else:
-                        yearsOfHistory = bestParams_json_object['yearsOfHistory']
+                    if unique_labels is None or len(unique_labels) == 0:
+                        # ai off with the LSTM skipped (or the DL child died):
+                        # labels are still needed for the json's "labels"
+                        # field and the entryIsComplete check.
                         _, _, _, _, _, _, _, unique_labels = helpers.load_data(dataPath, skipLastColumns, years_back=yearsOfHistory)
                         unique_labels = unique_labels.tolist()
 
@@ -566,6 +606,9 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
+
+                    addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
+                                          SPECIAL_COLUMN_COUNTS.get(name, 0), bestParams_json_object)
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile, indent=2)
@@ -738,6 +781,74 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
+def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
+                          specialColumnCount, bestParams_json_object, fallbackDrawSize=None,
+                          cutoffDate=None):
+    """
+    Appends the RL Ticket Model row (README "Strategic Optimization"): learns
+    ticket CONSTRUCTION from the interaction between the other models' rows
+    and the payout structure (REINFORCE over the stored day JSONs, real
+    keno/pick3 payouts as reward, hit count elsewhere). Called last, after
+    the ensemble row, so today's full vote is part of its features - and
+    deliberately after numberFrequency so its own row doesn't feed back into
+    the votes it consumes. Pure numpy, ~1-2s, wall-clock capped, and its
+    run() never raises (it degrades to vote-share ranking) - the try/except
+    is for the surrounding plumbing. Shared by both places a day's rows are
+    finalized (fresh daily prediction and history rebuild's second step).
+    """
+    if not bestParams_json_object.get("useRlTicket", True):
+        print("RL Ticket Model disabled via useRlTicket - skipping")
+        return listOfDecodedPredictions
+    try:
+        rlTicket.setModelPath(os.path.join(path, "data", "models", "rl_model"))
+        rlTicket.setLearningRate(bestParams_json_object.get("rlTicketLearningRate", 0.05))
+        rlTicket.setEpochs(bestParams_json_object.get("rlTicketEpochs", 30))
+        rlTicket.setSamplesPerDay(bestParams_json_object.get("rlTicketSamplesPerDay", 32))
+        rlTicket.setTrainDays(bestParams_json_object.get("rlTicketTrainDays", 120))
+        rlTicket.setMaxTrainSeconds(bestParams_json_object.get("rlTicketMaxTrainSeconds", 60))
+
+        mainLabels = helpers.get_unique_labels(dataPath)
+        # get_unique_labels has no eurodreams branch and falls through to
+        # 1-50, but the game draws mains from 1-40 - candidates 41-50 would
+        # be forever-unseen numbers with a maximal staleness feature, which
+        # noisy REINFORCE can happily rank into the published ticket. Fixed
+        # here rather than in get_unique_labels: changing num_classes there
+        # would invalidate every saved DL weight fingerprint for the game.
+        if "eurodreams" in name:
+            mainLabels = np.arange(1, 41)
+        # Main-ticket size from an existing row (rows append special columns
+        # after the mains); fall back to the caller's draw-derived size. The
+        # RL row predicts main numbers only - specials have their own range
+        # and payout logic that ticket construction can't arbitrage.
+        rowWithTicket = next((row for row in listOfDecodedPredictions if row.get("predictions") and row["predictions"][0]), None)
+        if rowWithTicket is not None:
+            drawSize = len(rowWithTicket["predictions"][0]) - specialColumnCount
+        elif fallbackDrawSize:
+            drawSize = fallbackDrawSize
+        else:
+            print("RL Ticket Model skipped: no rows to derive the ticket size from")
+            return listOfDecodedPredictions
+        gameConfig = {
+            "numberRange": (int(min(mainLabels)), int(max(mainLabels))) if "jokerplus" not in name else (0, 9),
+            "drawSize": drawSize,
+            "kenoSubsetSizes": getKenoSubsetSizes(name, bestParams_json_object),
+            "isPick3": "pick3" in name,
+            "perPositionClasses": 10,
+            # During a history rebuild, day files AFTER the day being rebuilt
+            # already exist on disk with realResults (step 1 writes them all
+            # first) - the cutoff keeps the RL training window strictly
+            # before the day, like skipRows does for every other model.
+            "cutoffDate": cutoffDate,
+        }
+        rlRow = rlTicket.run(name, listOfDecodedPredictions,
+                             os.path.join(path, "data", "database", name), gameConfig)
+        if rlRow and rlRow.get("predictions"):
+            listOfDecodedPredictions.append(rlRow)
+    except Exception as e:
+        print("Failed to perform RL Ticket Model prediction: ", e)
+    return listOfDecodedPredictions
+
+
 def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, bestParams_json_object=None):
     """
     Appends the score-weighted vote as its own ticket/row in newPrediction (so
@@ -851,15 +962,41 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
 # their own additional rows next to LSTM Base Model, tracked independently in
 # real-life results. Each model gets its own isolated try/except (like every
 # other model in this file) so one failing doesn't take down the others.
+# The fifth element holds per-model default overrides for the shared keys the
+# loop reads with .get(): the Transformer defaults to a longer window (long-
+# range attention is its whole point) and the Autoencoder defaults to zero
+# label smoothing (its reconstruction NLL doubles as the anomaly signal -
+# smoothing would bias the NLL floor and mask predictability spikes).
 UNIFIED_DL_MODELS = [
-    (tcn, "tcn", "TCN Base Model", "tcn_model"),
-    (unifiedLstmTcn, "unifiedLstmTcn", "UnifiedLstmTcn Model", "unified_lstm_tcn_model"),
-    (unifiedLstmGruTcn, "unifiedLstmGruTcn", "UnifiedLstmGruTcn Model", "unified_lstm_gru_tcn_model"),
+    (tcn, "tcn", "TCN Base Model", "tcn_model", {}),
+    (unifiedLstmTcn, "unifiedLstmTcn", "UnifiedLstmTcn Model", "unified_lstm_tcn_model", {}),
+    (unifiedLstmGruTcn, "unifiedLstmGruTcn", "UnifiedLstmGruTcn Model", "unified_lstm_gru_tcn_model", {}),
+    (transformer, "transformer", "Transformer Model", "transformer_model", {"windowSize": 30, "requiresFullAi": False}),
+    (gnn, "gnn", "GNN Model", "gnn_model", {"requiresFullAi": False}),
+    (autoencoderAnomaly, "autoencoder", "Autoencoder Model", "autoencoder_model", {"labelSmoothing": 0.0, "dropout": 0.2, "requiresFullAi": False}),
 ]
 
 
+def lightDlModelsEnabled(bestParams_json_object):
+    """
+    True if at least one of the lightweight research models (the registry
+    entries with requiresFullAi=False) is enabled by its use<Prefix> key.
+    The cron runs with --ai off because the LSTM/TCN/unified trainings are
+    what blow the memory/time budget - the Transformer/GNN/Autoencoder rows
+    are an order of magnitude cheaper, so they get their own gate and run
+    (in the same one-shot spawned child) even without --ai. Callers use this
+    to skip spawning the child (one TF import, ~15-30s) when nothing in it
+    would run anyway.
+    """
+    return any(
+        bestParams_json_object.get("use" + prefix[0].upper() + prefix[1:], True)
+        for _, prefix, _, _, modelDefaults in UNIFIED_DL_MODELS
+        if not modelDefaults.get("requiresFullAi", True))
+
+
 def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath, skipLastColumns,
-                                  bestParams_json_object, skipRows=0, years_back=None, specialColumnCount=0):
+                                  bestParams_json_object, skipRows=0, years_back=None, specialColumnCount=0,
+                                  fullAi=True):
     """
     Runs UnifiedLstmTcn Model and UnifiedLstmGruTcn Model (see
     src/UnifiedLstmTcn.py / src/UnifiedLstmGruTcn.py) alongside the existing
@@ -869,7 +1006,15 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
     already hit a real KeyError crash once from assuming a new key always
     exists).
     """
-    for model, prefix, displayName, modelTypeFolder in UNIFIED_DL_MODELS:
+    autoencoderRan = False
+    for model, prefix, displayName, modelTypeFolder, modelDefaults in UNIFIED_DL_MODELS:
+        # Heavy rows (TCN/unified*) stay behind the --ai flag; the lightweight
+        # research rows only need their own use<Prefix> toggle (default on).
+        if modelDefaults.get("requiresFullAi", True) and not fullAi:
+            continue
+        if not bestParams_json_object.get("use" + prefix[0].upper() + prefix[1:], True):
+            print(f"{displayName} disabled via use{prefix[0].upper() + prefix[1:]} - skipping")
+            continue
         try:
             modelPath = os.path.join(path, "data", "models", modelTypeFolder)
             model.setDataPath(dataPath)
@@ -877,23 +1022,52 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
             model.setLoadModelWeights(True)
             model.setBatchSize(bestParams_json_object.get(f"{prefix}_batchSize", 16))
             model.setEpochs(bestParams_json_object.get(f"{prefix}_epochs", 1000))
+            # Architecture-specific setters are all hasattr-guarded: the
+            # registry mixes TCN-, LSTM-, attention-, graph- and
+            # autoencoder-shaped models, and an unconditional call to a
+            # setter a model doesn't have would land in this try/except and
+            # silently cost that model's row for the day.
             if hasattr(model, "setLstmUnits"):
                 model.setLstmUnits(bestParams_json_object.get(f"{prefix}_lstmUnits", 64))
-            model.setTcnUnits(bestParams_json_object.get(f"{prefix}_tcnUnits", 64))
-            model.setNumTcnLayers(bestParams_json_object.get(f"{prefix}_numTcnLayers", 2))
+            if hasattr(model, "setTcnUnits"):
+                model.setTcnUnits(bestParams_json_object.get(f"{prefix}_tcnUnits", 64))
+            if hasattr(model, "setNumTcnLayers"):
+                model.setNumTcnLayers(bestParams_json_object.get(f"{prefix}_numTcnLayers", 2))
             if hasattr(model, "setGruUnits"):
                 model.setGruUnits(bestParams_json_object.get(f"{prefix}_gruUnits", 64))
-            model.setDropout(bestParams_json_object.get(f"{prefix}_dropout", 0.3))
+            if hasattr(model, "setDModel"):
+                model.setDModel(bestParams_json_object.get(f"{prefix}_dModel", 64))
+            if hasattr(model, "setNumLayers"):
+                model.setNumLayers(bestParams_json_object.get(f"{prefix}_numLayers", 2))
+            if hasattr(model, "setFfnFactor"):
+                model.setFfnFactor(bestParams_json_object.get(f"{prefix}_ffnFactor", 4))
+            if hasattr(model, "setGcnUnits"):
+                model.setGcnUnits(bestParams_json_object.get(f"{prefix}_gcnUnits", 32))
+            if hasattr(model, "setNumGcnLayers"):
+                model.setNumGcnLayers(bestParams_json_object.get(f"{prefix}_numGcnLayers", 2))
+            if hasattr(model, "setEmbeddingDim"):
+                model.setEmbeddingDim(bestParams_json_object.get(f"{prefix}_embeddingDim", 16))
+            if hasattr(model, "setDecay"):
+                model.setDecay(bestParams_json_object.get(f"{prefix}_decay", 0.999))
+            if hasattr(model, "setLatentDim"):
+                model.setLatentDim(bestParams_json_object.get(f"{prefix}_latentDim", 16))
+            if hasattr(model, "setEncoderUnits"):
+                model.setEncoderUnits(bestParams_json_object.get(f"{prefix}_encoderUnits", 64))
+            if hasattr(model, "setNumEncoderLayers"):
+                model.setNumEncoderLayers(bestParams_json_object.get(f"{prefix}_numEncoderLayers", 2))
+            model.setDropout(bestParams_json_object.get(f"{prefix}_dropout", modelDefaults.get("dropout", 0.3)))
             model.setL2Regularization(bestParams_json_object.get(f"{prefix}_l2Regularization", 0.0005))
             model.setLearningRate(bestParams_json_object.get(f"{prefix}_learningRate", 0.001))
             model.setEarlyStopPatience(bestParams_json_object.get(f"{prefix}_earlyStopPatience", 20))
             model.setReduceLearningRatePatience(bestParams_json_object.get(f"{prefix}_reduceLearningRatePatience", 5))
             model.setReducedLearningRateFactor(bestParams_json_object.get(f"{prefix}_reduceLearningRateFactor", 0.5))
-            model.setWindowSize(bestParams_json_object.get(f"{prefix}_windowSize", 20))
+            model.setWindowSize(bestParams_json_object.get(f"{prefix}_windowSize", modelDefaults.get("windowSize", 20)))
             model.setPredictionWindowSize(model.window_size)
-            model.setLabelSmoothing(bestParams_json_object.get(f"{prefix}_labelSmoothing", 0.05))
-            model.setNumHeads(bestParams_json_object.get(f"{prefix}_numHeads", 4))
-            model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
+            model.setLabelSmoothing(bestParams_json_object.get(f"{prefix}_labelSmoothing", modelDefaults.get("labelSmoothing", 0.05)))
+            if hasattr(model, "setNumHeads"):
+                model.setNumHeads(bestParams_json_object.get(f"{prefix}_numHeads", 4))
+            if hasattr(model, "setKeyDim"):
+                model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
 
             latest_raw_predictions, unique_labels = model.run(
                 name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
@@ -901,10 +1075,38 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
             listOfDecodedPredictions = deepLearningMethod(
                 listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, modelDisplayName=displayName,
                 gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
+
+            if model is autoencoderAnomaly:
+                autoencoderRan = True
         except Exception as e:
             print(f"Failed to perform {displayName} prediction: ", e)
 
-    return listOfDecodedPredictions
+    # Security layer (README "Unsupervised Anomaly Detection"): the
+    # autoencoder's reconstruction NLL on each REAL draw, computed on the
+    # model just trained above (same args -> cached, no second training).
+    # A strongly negative rolling z (the real draw suddenly became easy to
+    # reconstruct) is a predictability spike - the alert condition. Must run
+    # here, inside the spawned DL child, because the trained model dies with
+    # the child process.
+    anomalyWatch = None
+    if autoencoderRan:
+        try:
+            scores = autoencoderAnomaly.computeAnomalyScores(
+                name, skipLastColumns, skipRows=skipRows, years_back=years_back,
+                specialColumnCount=specialColumnCount)
+            if scores:
+                recent = [entry["z"] for entry in scores[-30:] if entry.get("z") is not None]
+                anomalyWatch = {
+                    "model": "Autoencoder Model",
+                    "latest_z": scores[-1].get("z"),
+                    "min_z_recent": round(min(recent), 3) if recent else None,
+                    "alert": bool(recent and min(recent) < -3.0),
+                    "scores": scores[-120:],
+                }
+        except Exception as e:
+            print("Failed to compute autoencoder anomaly scores: ", e)
+
+    return listOfDecodedPredictions, anomalyWatch
 
 
 def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, skipLastColumns=0):
@@ -1540,10 +1742,13 @@ if __name__ == "__main__":
         parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
         parser.add_argument(
             '-a', '--ai', type=helpers.str2bool, default=False,
-            help='Enable the deep learning models (LSTM/TCN/Unified). Off by '
-                 'default for now: DL training is what grows past the '
-                 'container memory limit and gets OOM-killed. ANDed with each '
-                 'game\'s own ai flag in the datasets list.')
+            help='Enable the HEAVY deep learning models (LSTM/TCN/Unified). '
+                 'Off by default for now: their training is what grows past '
+                 'the container memory limit and gets OOM-killed. The '
+                 'lightweight research models (Transformer/GNN/Autoencoder) '
+                 'run regardless, gated by their own useTransformer/useGnn/'
+                 'useAutoencoder keys in bestParams_<game>.json. ANDed with '
+                 'each game\'s own ai flag in the datasets list.')
         parser.add_argument(
             '-b', '--boost', type=helpers.str2bool, default=True,
             help='Enable the gradient boosting models. ANDed with each '

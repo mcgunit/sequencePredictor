@@ -1,4 +1,4 @@
-import os, json, subprocess, optuna, argparse
+import os, json, math, subprocess, optuna, argparse
 import numpy as np
 import scipy.special
 import asciichartpy
@@ -335,6 +335,7 @@ class Helpers():
 
             # Chronologically ordered (date, realResult, {model: mainTicket})
             days = []
+            latestAnomaly = None  # newest day's autoencoder anomalyWatch
             for fileName in os.listdir(gameDir):
                 if not fileName.endswith(".json"):
                     continue
@@ -353,6 +354,8 @@ class Helpers():
                     if model.get("name") and model.get("predictions") and model["predictions"][0]
                 }
                 days.append((fileDate, dayData.get("realResult") or [], tickets))
+                if dayData.get("anomalyWatch") and (latestAnomaly is None or fileDate > latestAnomaly[0]):
+                    latestAnomaly = (fileDate, dayData["anomalyWatch"])
             days.sort(key=lambda d: d[0])
 
             lagStats = {}  # model -> lag -> [hits_total, count]
@@ -432,6 +435,136 @@ class Helpers():
                 }
 
             report["games"][game]["lagAnalysis"] = lagAnalysis
+
+            # Autoencoder security layer (README "Unsupervised Anomaly
+            # Detection"): surface the newest day's reconstruction-NLL watch.
+            # Summary only - the full score series stays in that day's json.
+            if latestAnomaly is not None:
+                anomalyDate, watch = latestAnomaly
+                report["games"][game]["anomalyWatch"] = {
+                    "date": anomalyDate.strftime("%Y-%m-%d"),
+                    "latest_z": watch.get("latest_z"),
+                    "min_z_recent": watch.get("min_z_recent"),
+                    "alert": bool(watch.get("alert")),
+                }
+
+            # --------------------------------------------------------------
+            # Randomness watch (README "Entropy & Divergence Analysis"): the
+            # drawing process itself should be stationary and near-uniform.
+            # Monitored per game over the scored history collected above:
+            # - KL(recent window || full history): a drift in which numbers
+            #   come up. Near 0 = stationary.
+            # - KL(recent window || uniform) and normalized entropy: how far
+            #   the recent process is from a fair draw. Entropy near 1 =
+            #   healthy randomness; a sustained drop = structure appearing.
+            # - a trend series (checkpoints every 10 draws) so the UI can
+            #   show movement instead of a single point.
+            # - per model: KL(predicted numbers || real numbers) over the
+            #   same recent days - a model whose output distribution drifts
+            #   far from the real process is betting on structure that is
+            #   not there (or has found some).
+            # Pick3 is positional: distributions are computed per digit
+            # position (10 classes each) and averaged - pooling positions
+            # would mask a single-position anomaly.
+            # All distributions use add-0.5 smoothing so unseen numbers do
+            # not blow KL up to infinity on small windows.
+            # --------------------------------------------------------------
+            WINDOW = 60
+            MIN_WINDOW = 30
+
+            def drawDistributions(results):
+                """List of per-position (pick3) or single pooled count dicts."""
+                if isPick3:
+                    dists = [{} for _ in range(3)]
+                    for res in results:
+                        for pos, v in enumerate(res[:3]):
+                            dists[pos][int(v)] = dists[pos].get(int(v), 0) + 1
+                    return dists
+                dist = {}
+                for res in results:
+                    for v in res:
+                        dist[int(v)] = dist.get(int(v), 0) + 1
+                return [dist]
+
+            def klAndEntropy(recentDists, baseDists, labelSets):
+                """Mean over positions of (KL(recent||base), KL(recent||uniform),
+                normalized entropy of recent). Add-0.5 smoothed."""
+                kls, klUs, ents = [], [], []
+                for recent, base, labels in zip(recentDists, baseDists, labelSets):
+                    k = len(labels)
+                    if k < 2:
+                        continue
+                    rTot = sum(recent.values()) + 0.5 * k
+                    bTot = sum(base.values()) + 0.5 * k
+                    kl = klU = ent = 0.0
+                    for lbl in labels:
+                        pr = (recent.get(lbl, 0) + 0.5) / rTot
+                        pb = (base.get(lbl, 0) + 0.5) / bTot
+                        kl += pr * math.log(pr / pb)
+                        klU += pr * math.log(pr * k)
+                        ent -= pr * math.log(pr)
+                    kls.append(kl)
+                    klUs.append(klU)
+                    ents.append(ent / math.log(k))
+                if not kls:
+                    return None, None, None
+                mean = lambda xs: sum(xs) / len(xs)
+                return mean(kls), mean(klUs), mean(ents)
+
+            realDays = [(d, res) for d, res, _ in days if res]
+            if len(realDays) >= MIN_WINDOW * 2:
+                allResults = [res for _, res in realDays]
+                labelSets = [sorted({int(v) for res in allResults for v in (res[:3] if isPick3 else res)[pos:pos+1]})
+                             for pos in range(3)] if isPick3 else                             [sorted({int(v) for res in allResults for v in res})]
+                baseDists = drawDistributions(allResults)
+
+                recentResults = allResults[-WINDOW:]
+                kl, klU, ent = klAndEntropy(drawDistributions(recentResults), baseDists, labelSets)
+
+                # Trend: same stats for windows ending 10, 20, ... draws ago,
+                # up to 12 checkpoints, oldest first.
+                trend = []
+                for back in range(110, -1, -10):
+                    end = len(allResults) - back
+                    if end < WINDOW:
+                        continue
+                    windowResults = allResults[end - WINDOW:end]
+                    tKl, tKlU, tEnt = klAndEntropy(drawDistributions(windowResults), baseDists, labelSets)
+                    trend.append({
+                        "end_date": realDays[end - 1][0].strftime("%Y-%m-%d"),
+                        "kl_vs_history": round(tKl, 4),
+                        "kl_vs_uniform": round(tKlU, 4),
+                        "entropy_norm": round(tEnt, 4),
+                    })
+
+                # Per model: predicted-number distribution over the recent
+                # days it actually predicted, against the real draws of those
+                # same days.
+                modelKl = {}
+                recentDays = [d for d in days if d[1]][-WINDOW:]
+                for _, res, tickets in recentDays:
+                    for modelName, ticket in tickets.items():
+                        entry = modelKl.setdefault(modelName, {"pred": [], "real": []})
+                        entry["pred"].append([int(v) for v in ticket])
+                        entry["real"].append(res)
+                perModel = {}
+                for modelName, entry in modelKl.items():
+                    if len(entry["pred"]) < MIN_WINDOW:
+                        continue
+                    mKl, _, _ = klAndEntropy(drawDistributions(entry["pred"]),
+                                             drawDistributions(entry["real"]), labelSets)
+                    if mKl is not None:
+                        perModel[modelName] = round(mKl, 4)
+
+                report["games"][game]["randomnessWatch"] = {
+                    "window": WINDOW,
+                    "draws_total": len(allResults),
+                    "kl_vs_history": round(kl, 4) if kl is not None else None,
+                    "kl_vs_uniform": round(klU, 4) if klU is not None else None,
+                    "entropy_norm": round(ent, 4) if ent is not None else None,
+                    "trend": trend,
+                    "model_kl_vs_real": perModel,
+                }
 
         try:
             with open(historyPath, "w") as outfile:
