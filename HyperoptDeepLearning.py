@@ -6,11 +6,14 @@ import os, argparse, json, sys
 # RESOURCE_EXHAUSTED even when the card is otherwise idle. Allow-growth makes
 # TF allocate only what it actually uses.
 os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
+import gc
 import optuna
 import numpy as np
 
 from art import text2art
 from datetime import datetime
+from multiprocessing import get_context
+from concurrent.futures import ProcessPoolExecutor
 
 
 from src.TCN import TCNModel
@@ -52,6 +55,12 @@ helpers = Helpers()
 dataFetcher = DataFetcher()
 
 LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
+# Module level (not just in the __main__ block): runPredictInChild's spawned
+# children re-import this file as __mp_main__, which skips __main__ - but
+# predict()/deepLearningMethod() read this global, so without it every trial
+# dies in the child with NameError before any training happens.
+path = os.getcwd()
 
 # Prefix used for each new model's Optuna param names / bestParams_<game>.json
 # keys - Predictor.py's runUnifiedDeepLearningModels() reads these same
@@ -520,6 +529,17 @@ def process_single_history_entry(args):
     unique_labels = []
 
 
+    # Every rebuilt day builds a fresh Keras model; without clearing the
+    # session first, the abandoned graphs of all previous days (and trials)
+    # stay resident and RSS ratchets up until the 16GB memory cgroup
+    # OOM-kills the whole study (observed 2026-08-28 at 16.0GB anon-rss,
+    # trial 10 of a transformer study - the same disease Predictor.py's
+    # runDeepLearningStepInChild exists for). Safe here: models warm-start
+    # from the fingerprinted weights on disk, not from live objects.
+    import tensorflow as tf
+    tf.keras.backend.clear_session()
+    gc.collect()
+
     modelToUse.setDataPath(dataPath)
     modelToUse.setModelPath(modelPath)
     modelToUse.setLoadModelWeights(True)
@@ -562,6 +582,28 @@ def process_single_history_entry(args):
 
     return jsonFilePath, val_loss
 
+
+
+def runPredictInChild(*args, **kwargs):
+    """
+    Runs one trial's predict() (the daysToRebuild training loop) in a
+    one-shot spawned child process, for the same two hard-learned reasons as
+    Predictor.py's runDeepLearningStepInChild:
+
+    - Containment: the memory-cgroup OOM killer SIGKILLs the process when it
+      outgrows the container's 16GB. In-process, that kills the WHOLE study
+      mid-run (observed 2026-08-28: a pick3 transformer study died at 16GB
+      anon-rss in trial 10, ~80 accumulated day-models in). In a child, the
+      kill surfaces as BrokenProcessPool, which study.optimize's
+      catch=(Exception,) records as one FAILED trial before moving on.
+    - Memory hygiene: a fresh child per trial releases every TF allocation
+      back to the OS at trial end, so RSS can't ratchet across trials.
+
+    Costs one TF import + CUDA init per trial (~15-30s) - noise next to the
+    minutes of training a trial performs.
+    """
+    with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+        return executor.submit(predict, *args, **kwargs).result()
 
 
 def clearFolder(folderPath):
@@ -752,7 +794,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
     parser.add_argument('-d', '--days', type=int, default=8)
-    parser.add_argument('-t', '--trials', type=int, default=150)
+    parser.add_argument('-t', '--trials', type=int, default=15)
     parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
     parser.add_argument(
         '-g', '--games',
@@ -791,7 +833,6 @@ if __name__ == "__main__":
 
     print("Selected games:", games)
 
-    path = os.getcwd()
 
     # Every game gets its own independent study per model type, so
     # UnifiedLstmTcn Model / UnifiedLstmGruTcn Model / Transformer Model /
@@ -922,8 +963,19 @@ if __name__ == "__main__":
                             trial, MODEL_PARAM_PREFIX[model_type],
                             include_gru=(model_type == "unified_lstm_gru_tcn_model"))
 
+                    # Optuna only logs when a trial FINISHES, and a healthy
+                    # trial can be silent for minutes at a stretch (XLA
+                    # recompiles each rebuilt day's first epoch in the fresh
+                    # child, and SelectiveProgbarLogger prints only every 50
+                    # epochs) - without a start line, a slow trial is
+                    # indistinguishable from a hang (a healthy 2026-08-30
+                    # study was manually killed for exactly that reason).
+                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Trial {trial.number} started "
+                          f"({dataset_name}-{model_type}) - long quiet stretches are normal, "
+                          f"progress prints every 50 epochs per rebuilt day")
+
                     for _ in range(numOfRepeats):
-                        result = predict(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count)
+                        result = runPredictInChild(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count)
                         if result is not None:
                             results.append(result)
 
@@ -944,8 +996,20 @@ if __name__ == "__main__":
                     # too small a sample to reliably separate a genuinely better
                     # model from a lucky one. Profit is kept only as a small
                     # tie-breaker between models with similar val_loss.
+                    #
+                    # The tie-breaker is CLIPPED: at pick3/keno payout scale a
+                    # single lucky mid-tier hit in the scored week adds +2.75
+                    # or more to the score, an order of magnitude above the
+                    # val_loss spread between trials (~0.1-0.3) - a 2026-08-30
+                    # pick3 transformer study had its "best" trial selected by
+                    # exactly one such hit (+0.34 vs ~-3.7 for every other
+                    # trial). The cap keeps profit a tie-breaker instead of a
+                    # lottery on which trial got lucky.
                     PROFIT_WEIGHT = 0.05
-                    return -avgValLoss + PROFIT_WEIGHT * avgProfit
+                    PROFIT_CONTRIBUTION_CAP = 0.5
+                    profitTerm = max(-PROFIT_CONTRIBUTION_CAP,
+                                     min(PROFIT_CONTRIBUTION_CAP, PROFIT_WEIGHT * avgProfit))
+                    return -avgValLoss + profitTerm
                 
                 # Write best params to json
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
