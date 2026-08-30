@@ -1,0 +1,180 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          8,
+          7,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          8,
+          9,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          8,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          7,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          4,
+          7,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          0,
+          6,
+          0
+        ]
+      ]
+    }
+  ],
+  "currentNumberFrequency": {
+    "8": 0.202989898989899,
+    "7": 0.21567676767676766,
+    "1": 0.08533333333333333,
+    "9": 0.07498989898989898,
+    "4": 0.11765656565656565,
+    "5": 0.08767676767676767,
+    "0": 0.173010101010101,
+    "6": 0.042666666666666665
+  },
+  "realResult": [
+    4,
+    0,
+    3
+  ],
+  "newPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          4,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          0,
+          9,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          5,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          6,
+          4,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          2,
+          6,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          2,
+          7,
+          8
+        ]
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "LightGBM Model",
+    "prediction": [
+      4,
+      7,
+      0
+    ],
+    "matching_numbers": [
+      0,
+      4
+    ],
+    "match_count": 2
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "4": 0.218020202020202,
+    "0": 0.202989898989899,
+    "3": 0.08533333333333333,
+    "9": 0.07498989898989898,
+    "8": 0.11765656565656565,
+    "5": 0.042666666666666665,
+    "6": 0.08767676767676767,
+    "2": 0.08533333333333333,
+    "1": 0.042666666666666665,
+    "7": 0.042666666666666665
+  }
+}
