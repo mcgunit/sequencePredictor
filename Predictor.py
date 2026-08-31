@@ -1519,7 +1519,14 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 apply_boosting_params(xgboostPredictor, bestParams_json_object, "xgBoost")
                 xgboostPredictor.setDataPath(dataPath)
                 xgboostPredictor.setSortedPrediction(sortedPrediction)
-                xgboostPredictor.setNumThreads(max(1, cpu_count() - 1))
+                # Measured on this 16-core box (eurodreams, 50 nested binary
+                # fits, estimators=50): 1 thread 2.8s, 4 threads 6.7s, 15
+                # threads did not finish in 9+ minutes - the per-number
+                # binary fits are far too small for OpenMP, whose spin-wait
+                # overhead dominates and oversubscribes against everything
+                # else. Same reasoning as ModelFactory.build_models'
+                # setNumThreads(1).
+                xgboostPredictor.setNumThreads(1)
                 xgboostPredictor.setSaveModels(False)
 
                 modelInstances = {
@@ -1703,11 +1710,13 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
             # numbers. Set explicitly each run: these are module-level
             # singletons reused across games/history days.
             model.setSortedPrediction(not isPick3)
-            # This step runs single-process (see
-            # process_single_history_entry_second_step), unlike the
-            # Backtester's day-parallel Pool, so the library can use the
-            # machine's cores itself here.
-            model.setNumThreads(max(1, cpu_count() - 1))
+            # This step runs single-process, but giving the library the
+            # machine's cores was measured to be actively harmful on this
+            # box: the per-number binary fits are so small that OpenMP
+            # spin-wait overhead dominates (eurodreams, estimators=50:
+            # 1 thread 2.8s, 4 threads 6.7s, 15 threads >9 minutes). One
+            # thread, matching ModelFactory.build_models.
+            model.setNumThreads(1)
             model.setSaveModels(True)
             # No clear() here (unlike the statistical models, whose clear()
             # drops accumulated counts): BoostingBase keys its fit cache on the
