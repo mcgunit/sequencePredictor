@@ -151,5 +151,19 @@
     "gnn_reduceLearningRateFactor": 0.5,
     "gnn_windowSize": 6,
     "gnn_labelSmoothing": 0.060000000000000005,
-    "gnn_yearsOfHistory": 10
+    "gnn_yearsOfHistory": 10,
+    "autoencoder_batchSize": 8,
+    "autoencoder_epochs": 1000,
+    "autoencoder_latentDim": 4,
+    "autoencoder_encoderUnits": 64,
+    "autoencoder_numEncoderLayers": 1,
+    "autoencoder_dropout": 0.4,
+    "autoencoder_l2Regularization": 0.004200000000000001,
+    "autoencoder_learningRate": 0.00027000000000000006,
+    "autoencoder_earlyStopPatience": 90,
+    "autoencoder_reduceLearningRatePatience": 40,
+    "autoencoder_reduceLearningRateFactor": 0.7000000000000001,
+    "autoencoder_windowSize": 10,
+    "autoencoder_labelSmoothing": 0.0,
+    "autoencoder_yearsOfHistory": 10
 }
