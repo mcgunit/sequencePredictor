@@ -1,6 +1,8 @@
-import os, argparse, json
+import os, argparse, json, functools
 import numpy as np
 import joblib
+
+from datetime import datetime, timezone
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
@@ -11,6 +13,7 @@ from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
 from src.ModelFactory import BASE_MODEL_NAMES, build_models
+from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
 
 from HyperoptStatistics import GAME_CONFIG
 
@@ -112,6 +115,71 @@ def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, 
     return meta_model
 
 
+# The backtest with collect_scores=True is the most expensive stage of the
+# weekly pipeline (XGBoost genuinely retrains per day), and HyperoptQuantum.py
+# runs the identical collection minutes before this script does in
+# runHyperopt.sh. These helpers let whichever script collects first persist
+# the table so the other reuses it instead of recomputing bit-identical rows
+# (Backtester reseeds per (day index, model), so same data + same base params
+# = same table).
+#
+# Validity is deliberately strict - all three must match, else recollect:
+# - total_rows: any new draw shifts every per-day seed, so a single fresh
+#   draw invalidates the cache (bounds staleness to same-data runs);
+# - days: the cache must cover at least the requested window (the newest
+#   days are a suffix slice);
+# - base params: the subset of bestParams the base models are built from
+#   (ModelFactory.build_models reads only markov*/poisson*/laplace*/xgBoost*
+#   keys; quantum/meta/subset keys merged later in the pipeline don't touch
+#   the base-model scores, so they must NOT invalidate the cache).
+BASE_PARAM_PREFIXES = ("markov", "poisson", "laplace", "xgBoost")
+
+
+def base_param_subset(bestParams):
+    return {k: v for k, v in (bestParams or {}).items() if k.startswith(BASE_PARAM_PREFIXES)}
+
+
+def meta_table_cache_path(path, dataset_name):
+    cacheDir = os.path.join(path, "data", "hyperOptCache")
+    os.makedirs(cacheDir, exist_ok=True)
+    return os.path.join(cacheDir, f"meta_score_table_{dataset_name}.joblib")
+
+
+def save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams):
+    try:
+        joblib.dump({
+            "results": results,
+            "model_names": model_names,
+            "days": days_back,
+            "total_rows": total_rows,
+            "base_params": base_param_subset(bestParams),
+        }, meta_table_cache_path(path, dataset_name))
+    except Exception as e:
+        print(f"Could not persist the {dataset_name} score-table cache (continuing): {e}")
+
+
+def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams):
+    """Returns (results, model_names) sliced to the newest days_back days, or None."""
+    cachePath = meta_table_cache_path(path, dataset_name)
+    if not os.path.exists(cachePath):
+        return None
+    try:
+        cache = joblib.load(cachePath)
+    except Exception:
+        return None
+    if cache.get("total_rows") != total_rows:
+        return None
+    if cache.get("days", 0) < days_back or len(cache.get("results") or []) == 0:
+        return None
+    if cache.get("base_params") != base_param_subset(bestParams):
+        return None
+    results = cache["results"]
+    sliced = results[-min(len(results), days_back):] if days_back else results
+    print(f"{dataset_name}: reusing the cached base-model score table "
+          f"({len(sliced)} of {len(results)} cached days) - skipping the backtest")
+    return sliced, cache["model_names"]
+
+
 def train_meta_learner(dataset_name, game_cfg, path, days_back):
     if dataset_name == "pick3":
         print("Skipping Pick3 - positional game, a per-number score ranking has no notion of digit order.")
@@ -139,23 +207,29 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
 
     start_index = max(0, total_rows - days_back)
 
-    models = build_models(dataPath, bestParams, is_pick3=False)
-    model_names = [name for name in BASE_MODEL_NAMES if name in models]
+    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams)
+    if cached is not None:
+        results, model_names = cached
+    else:
+        models = build_models(dataPath, bestParams, is_pick3=False)
+        model_names = [name for name in BASE_MODEL_NAMES if name in models]
 
-    backtester = Backtester(loader)
-    for name, model in models.items():
-        backtester.add_model(name, model)
+        backtester = Backtester(loader)
+        for name, model in models.items():
+            backtester.add_model(name, model)
 
-    print(f"\n{dataset_name}: backtesting {total_rows - start_index} days with {len(models)} base models to collect training data...")
-    results = backtester.backtest(
-        start_index=start_index,
-        end_index=total_rows,
-        skipLastColumns=game_cfg["skip_last_columns"],
-        special_column_count=specialColumnCount,
-        include_baselines=False,
-        collect_scores=True,
-        verbose=True
-    )
+        print(f"\n{dataset_name}: backtesting {total_rows - start_index} days with {len(models)} base models to collect training data...")
+        results = backtester.backtest(
+            start_index=start_index,
+            end_index=total_rows,
+            skipLastColumns=game_cfg["skip_last_columns"],
+            special_column_count=specialColumnCount,
+            include_baselines=False,
+            collect_scores=True,
+            verbose=True
+        )
+        if results:
+            save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams)
 
     if not results:
         print(f"No backtest rows produced for {dataset_name}, skipping.")
@@ -183,11 +257,55 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
     # in Predictor.py rather than replacing MetaLearner Model - both get
     # tracked side by side.
     variants = [
-        (fit_logistic_regression, "meta_learner.joblib", dataset_name),
-        (fit_gradient_boosting, "meta_learner_v2.joblib", f"{dataset_name} (v2)"),
+        (fit_logistic_regression, "meta_learner.joblib", dataset_name, {}),
+        (fit_gradient_boosting, "meta_learner_v2.joblib", f"{dataset_name} (v2)", {}),
     ]
 
-    for fit_func, artifact_filename, label in variants:
+    # Quantum meta-learners (README's quantum research track): two more
+    # lenses over the exact same training table - a quantum-kernel SVC and a
+    # variational quantum circuit (see src/QuantumModels.py) - each its own
+    # independently tracked Predictor row, never a replacement for the
+    # classical rows. Appended to the SAME variants list so the expensive
+    # backtest above still runs exactly once and every variant (special-column
+    # models included, via the shared fit_meta_model path) fits from the one
+    # shared `results`. The README suggested opt-in (default false) back when
+    # it assumed a heavy quantum-framework simulation; the numpy 4-qubit
+    # statevector implementation trains in minutes, so the flags default ON
+    # and exist as an off-switch instead. Hyperparameters are resolved from
+    # bestParams_<game>.json here (falling back to src/QuantumModels.py's
+    # documented defaults) and bound with functools.partial because
+    # fit_meta_model only ever calls fit_func(X, y); the resolved dict also
+    # goes into the artifact so a saved model documents what trained it.
+    if bestParams.get("useQuantumMetaLearner", True):
+        quantum_kernel_params = {
+            "quantumKernel_nQubits": bestParams.get("quantumKernel_nQubits", 4),
+            "quantumKernel_encodingLayers": bestParams.get("quantumKernel_encodingLayers", 2),
+            "quantumKernel_encodingScale": bestParams.get("quantumKernel_encodingScale", 1.0),
+            "quantumKernel_C": bestParams.get("quantumKernel_C", 1.0),
+            "quantumKernel_maxTrainSamples": bestParams.get("quantumKernel_maxTrainSamples", 2000),
+        }
+        variants.append((
+            functools.partial(fit_quantum_kernel, params=quantum_kernel_params),
+            "quantum_meta_learner.joblib", f"{dataset_name} (quantum kernel)",
+            quantum_kernel_params,
+        ))
+
+    if bestParams.get("useQuantumVqcMetaLearner", True):
+        quantum_vqc_params = {
+            "quantumVqc_nQubits": bestParams.get("quantumVqc_nQubits", 4),
+            "quantumVqc_numLayers": bestParams.get("quantumVqc_numLayers", 2),
+            "quantumVqc_encodingScale": bestParams.get("quantumVqc_encodingScale", 1.0),
+            "quantumVqc_learningRate": bestParams.get("quantumVqc_learningRate", 0.05),
+            "quantumVqc_epochs": bestParams.get("quantumVqc_epochs", 80),
+            "quantumVqc_batchSize": bestParams.get("quantumVqc_batchSize", 128),
+        }
+        variants.append((
+            functools.partial(fit_quantum_vqc, params=quantum_vqc_params),
+            "quantum_vqc_meta_learner.joblib", f"{dataset_name} (quantum vqc)",
+            quantum_vqc_params,
+        ))
+
+    for fit_func, artifact_filename, label, variant_params in variants:
         meta_model = fit_meta_model(
             results, model_names, game_cfg["min"], game_cfg["max"],
             scores_suffix="_scores", actual_key=main_actual_key, label=label, fit_func=fit_func)
@@ -198,6 +316,13 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             "min_number": game_cfg["min"],
             "max_number": game_cfg["max"],
             "draw_size": game_cfg["draw_size"],
+            # Training metadata (README's persistence requirement): when the
+            # artifact was produced and the exact hyperparameters it was
+            # fitted with ({} for the classical variants - theirs are fixed
+            # in code above). Additive keys only, so Predictor.py's
+            # runMetaLearnerVariant serves old and new artifacts unchanged.
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "params": variant_params,
         }
 
         if specialColumnCount > 0:

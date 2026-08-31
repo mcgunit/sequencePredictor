@@ -915,7 +915,18 @@ if __name__ == "__main__":
                         gameName = "Pick3"
                     if "vikinglotto" in dataset_name:
                         gameName = "Viking+Lotto"
-                    dataFetcher.getLatestData(gameName, filePath)
+                    # A transient API failure here must not cost the whole
+                    # model-type study (observed 2026-08-30: the autoencoder
+                    # study for pick3 never ran because this fetch - the
+                    # THIRD one of the same run, the CSV already fresh from
+                    # the transformer/gnn entries seconds earlier - threw
+                    # into the per-dataset except). The CSV on disk is a
+                    # perfectly good fallback: at worst it misses the very
+                    # newest draw.
+                    try:
+                        dataFetcher.getLatestData(gameName, filePath)
+                    except Exception as e:
+                        print(f"Data fetch failed for {dataset_name} - continuing with the existing CSV: {e}")
                     #os.remove(os.path.join(dataPath, file))
                 #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 

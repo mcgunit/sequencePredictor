@@ -90,6 +90,8 @@ Also part of the report and the History page: every day's `newPrediction` is sco
 
 `HyperoptDeepLearning.py` tunes the deep learning models per game and per model type (`lstm_model`, `tcn_model`, `unified_lstm_tcn_model`, `unified_lstm_gru_tcn_model`, plus the research types `transformer_model`, `gnn_model`, `autoencoder_model`), each in its own Optuna study writing prefixed keys, scored primarily on held-out `val_loss` with real-draw profit as a small tie-breaker. It is **not** in the weekly `runHyperopt.sh` (DL training is the time/memory bottleneck); run it manually, and use `--models` to tune only what you need - e.g. `python3 HyperoptDeepLearning.py -g pick3 --models transformer_model,gnn_model,autoencoder_model` tunes just the cheap research rows without paying for LSTM/unified studies. `autoencoder_labelSmoothing` is pinned to 0 by its search space on purpose (the reconstruction NLL doubles as the anomaly signal).
 
+`HyperoptQuantum.py` tunes the two quantum meta-learners (`quantumKernel_*` / `quantumVqc_*` keys): per game it collects the backtest score table once (`-d`, default 150 days), then runs two Optuna studies against a chronological 75/25 **day** split - the variant is fitted (scaler/PCA included) on the early portion only and scored on the held-out days by mean per-day hits of the top-`draw_size` ranked numbers (the ticket-level metric that is actually played), with AUC as a +0.01 tie-breaker. Kernel trials run in under a second; VQC trials in seconds to half a minute. The collected table is persisted to `data/hyperOptCache/meta_score_table_<game>.joblib` and reused by `TrainMetaLearner.py` minutes later in the same weekly run (strictly validated: any new draw or changed base-model param recollects), so the pipeline's most expensive stage runs once, not twice. Each run selects `best_params` from its own trials only - cross-week trial scores were measured on different holdout windows and are not comparable. Note: the quantum rows' Keno subset mode/temperature keys (`quantumMetaLearnerSubset*`, `quantumVqcSubset*`) currently keep the softmax/0.5 defaults - unlike the classical meta rows they are not yet covered by HyperoptStatistics' subset tuning. Runs in the weekly `runHyperopt.sh` after `HyperoptRLTicket.py` and **before** `TrainMetaLearner.py`, so the weekly retrain always trains the quantum artifacts on freshly tuned params. Pick3 is skipped for the same positional reason as the classical meta-learners.
+
 `HyperoptRLTicket.py` tunes the RL Ticket Model (`rlTicketLearningRate/Epochs/SamplesPerDay/TrainDays`) with an honest walk-forward over the game's own stored day JSONs: each evaluated day is re-predicted with `cutoffDate` set to that day (training sees only strictly earlier days) and scored against its real draw - real payout per day for Keno (enabled subset sizes only) and Pick3, main-ticket hits elsewhere. Pure numpy, minutes per game, so unlike the DL tuner it *is* part of the weekly `runHyperopt.sh` (after `HyperoptBoost.py`, sharing the same `process.lock`). Per-trial policies live in `data/hyperOptCache/rl_model`; the live `data/models/rl_model` policy is never touched by tuning.
 
 `HyperoptBoost.py` does the same job for the boosting model, and is now a direct mirror of `HyperoptStatistics.py` rather than the separate legacy pipeline it used to be. Concretely: it evaluates through `src/Backtester.py` (one Optuna study per game+strategy, `load_if_exists=True`, walk-forward over the last `--days` draws) instead of the old rebuild-a-JSON-cache-and-total-the-profit loop; scores trials with the shared `score_from_summary` (profit per bet where a payout table exists, avg hits otherwise) rather than raw total profit; searches per-model-prefixed Keno subset sizes via the same `suggest_keno_subset`; and merges its results into `bestParams_<game>.json` including a `modelScores["XGBoost Model"]` entry, so the boosting model's vote is weighted in `WeightedEnsemble Model` like every other model's. Its `STRATEGIES` / `STRATEGY_DISPLAY_NAMES` tables have the same shape as the statistical ones, so adding a second boosting method (LightGBM, CatBoost) is a one-entry change. The old version could not run at enough strength to be high-confidence prediction.
@@ -110,6 +112,8 @@ Skips Pick3 (positional, a per-number score ranking has no notion of digit order
 
 ### Quantum-assisted research
 
+> **Status: Phase Q1 is implemented.** `QuantumMetaLearner Model` (quantum-kernel SVC) and `QuantumVQC Model` (variational quantum classifier) run as tracked prediction rows, trained by `TrainMetaLearner.py` from the same one-pass backtest table as the classical meta-learners and tuned by `HyperoptQuantum.py` (in the weekly `runHyperopt.sh`). Everything is simulated with a pure-numpy batched statevector engine in `src/QuantumModels.py` - four qubits is a 16-amplitude state, so no quantum SDK dependency is needed. Phases Q2-Q4 and the negative-control suite remain future work. Details below in each subsection.
+
 Quantum computing is being investigated as an additional research layer alongside the existing statistical, deep-learning, boosting, and stacking models. The purpose is not to assume that a quantum model can predict an inherently random draw. The purpose is to test whether quantum feature maps or hybrid quantum-for classical models can detect reproducible structure that the existing classical models do not detect.
 
 The main research hypothesis is:
@@ -118,7 +122,9 @@ The main research hypothesis is:
 
 A quantum model is therefore treated as another adversarial test of the sequence-generating process, comparable to evaluating the resilience of a system against another class of analysis. Failure to find predictive structure is evidence consistent with the modeled randomness assumptions, but it is not proof of perfect randomness. Apparent predictive structure is a signal for further investigation, not immediate proof that a game is predictable or biased.
 
-#### Recommended first integration: `QuantumMetaLearner Model`
+#### Recommended first integration: `QuantumMetaLearner Model` (implemented)
+
+Implemented as specified below, with these concrete choices: artifacts are `data/models/<game>/quantum_meta_learner.joblib` (quantum kernel) and `quantum_vqc_meta_learner.joblib` (variational), both carrying the classical artifacts' exact key layout plus `trained_at` and the resolved `params` (the README's metadata requirement), so `Predictor.py`'s `runMetaLearnerVariant` serves them unchanged - special-column separation, pick3 exclusion and Keno subsets included. Training is gated per game by `"useQuantumMetaLearner"` / `"useQuantumVqcMetaLearner"` in `bestParams_<game>.json`; they default **on** (the README suggested opt-in when heavy simulation was assumed - the numpy 4-qubit implementation trains in seconds to ~1 minute per game, so the flag is an off-switch instead).
 
 The first quantum experiment should reuse the same per-number training data already collected for `MetaLearner Model` and `MetaLearnerV2 Model`.
 
@@ -186,7 +192,9 @@ The persisted artifact should include everything required to reproduce inference
 - Optional special-column model
 - Training metadata and package versions
 
-#### Quantum feature encoding
+#### Quantum feature encoding (implemented)
+
+Implemented exactly as diagrammed: `StandardScaler` -> `PCA(n_qubits)` fitted **only** on the training rows (inside each classifier's `fit()`), then RY angle encoding scaled by `encodingScale` with a CZ entangling ring, re-uploaded `encodingLayers` times (`QuantumFeatureMap` in `src/QuantumModels.py`). One practical finding from testing: `encodingScale` behaves as the kernel bandwidth / rotation wrap-around control and matters more than any other knob (~0.3-0.5 beat 1.0 everywhere tested) - it is the first thing `HyperoptQuantum.py` tunes.
 
 The seven base-model scores are classical values. Before they can be processed by a quantum circuit, they must be normalized and encoded into gate parameters.
 
@@ -214,7 +222,9 @@ The scaler, PCA transform, and feature selector must be fitted only on the train
 
 Starting with four qubits keeps simulation and hyperparameter optimization manageable. A seven-qubit version can be researched later, but it will be substantially more expensive to train and simulate.
 
-#### Initial quantum model candidates
+#### Initial quantum model candidates (both implemented)
+
+Both approaches below exist in `src/QuantumModels.py` as picklable sklearn-style classifiers (`fit`/`predict_proba`): `QuantumKernelClassifier` (fidelity kernel |<phi(x)|phi(y)>|^2 into an `SVC(kernel='precomputed', class_weight='balanced')`, class-balanced subsampling capped at `maxTrainSamples`) and `VariationalQuantumClassifier` (trainable RZ+RY layers with a CNOT entangling ring, Z-readout through a trainable affine+sigmoid, class-weighted cross-entropy, numpy Adam with exact parameter-shift gradients). The gradient implementation is verified against finite differences to ~1e-10.
 
 The first comparison should include two different quantum approaches where practical:
 
@@ -230,7 +240,9 @@ The first comparison should include two different quantum approaches where pract
 
 The quantum-kernel model is the preferred first prototype because it provides a relatively clean comparison with a classical RBF support-vector machine. The variational classifier can be added after the data flow, persistence, and evaluation logic are stable.
 
-#### Training integration
+#### Training integration (implemented)
+
+Implemented as two extra entries in `TrainMetaLearner.py`'s variants loop, so the expensive backtest is collected once and all four meta-learners (logistic, gradient boosting, quantum kernel, VQC) train on the identical table, labels, chronological window and main/special separation. Hyperparameters come from the `quantumKernel_*` / `quantumVqc_*` keys in `bestParams_<game>.json` (tuned by `HyperoptQuantum.py`, defaults otherwise).
 
 `TrainMetaLearner.py` should collect the seven base-model scores only once and reuse the resulting dataset for all meta-learners:
 
@@ -421,7 +433,7 @@ Before interpreting any quantum comparison:
 - Add per-number probability and ranking metrics.
 - Establish an untouched chronological lockbox period.
 
-#### Phase Q1: quantum meta-learning
+#### Phase Q1: quantum meta-learning (implemented)
 
 - Reuse `TrainMetaLearner.py` score matrices.
 - Add `QuantumMetaLearner Model` as a separate tracked row.
@@ -452,6 +464,8 @@ Before interpreting any quantum comparison:
 - Include circuit depth, native two-qubit gate count, noise sensitivity, and data-loading cost.
 
 ### Suggested project structure
+
+What Q1 actually shipped is deliberately smaller than the layout below: one module, `src/QuantumModels.py`, holds the batched statevector simulator, the feature map, both classifiers and the fit factories (a 4-qubit numpy simulator does not need a package), with tuning in `HyperoptQuantum.py` and training/persistence riding the existing `TrainMetaLearner.py`. The fuller layout remains the target if Q2-Q4 grow the code base:
 
 ```text
 src/

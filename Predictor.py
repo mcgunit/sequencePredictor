@@ -1439,8 +1439,14 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     if not "pick3" in name:
         metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
         metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
+        # Quantum meta-learners (README's quantum research track, trained by
+        # the same TrainMetaLearner.py run): identical artifact shape, so they
+        # are served by the exact same runMetaLearnerVariant below - only the
+        # trained model class inside differs (see src/QuantumModels.py).
+        quantumMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_meta_learner.joblib")
+        quantumVqcMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_vqc_meta_learner.joblib")
 
-        if os.path.exists(metaLearnerPath) or os.path.exists(metaLearnerV2Path):
+        if any(os.path.exists(p) for p in (metaLearnerPath, metaLearnerV2Path, quantumMetaLearnerPath, quantumVqcMetaLearnerPath)):
             try:
                 # Re-apply this game's tuned params to every base model
                 # feeding the meta-learner(s), independent of whether that
@@ -1600,6 +1606,15 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
                 runMetaLearnerVariant(metaLearnerPath, "MetaLearner Model", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature")
                 runMetaLearnerVariant(metaLearnerV2Path, "MetaLearnerV2 Model", "metaLearnerV2SubsetMode", "metaLearnerV2SubsetTemperature")
+                # Quantum rows share the classical rows' feature names, so the
+                # score caches above mean all four variants cost one scoring
+                # pass; runMetaLearnerVariant's artifact-missing early-return
+                # and per-variant try/except give each row a graceful skip and
+                # failure isolation (an artifact that fails to unpickle - e.g.
+                # src/QuantumModels.py missing on an older checkout - only
+                # loses its own row).
+                runMetaLearnerVariant(quantumMetaLearnerPath, "QuantumMetaLearner Model", "quantumMetaLearnerSubsetMode", "quantumMetaLearnerSubsetTemperature")
+                runMetaLearnerVariant(quantumVqcMetaLearnerPath, "QuantumVQC Model", "quantumVqcSubsetMode", "quantumVqcSubsetTemperature")
             except Exception as e:
                 print("Failed to perform Meta-Learner prediction: ", e)
 
