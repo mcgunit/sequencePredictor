@@ -124,5 +124,16 @@
     "xgBoostMinChildWeight": 4.484377066564711,
     "xgBoostRegLambda": 0.2778928501507515,
     "xgBoostSubsetMode": "softmax",
-    "xgBoostSubsetTemperature": 1.6943456768691674
+    "xgBoostSubsetTemperature": 1.6943456768691674,
+    "quantumKernel_nQubits": 4,
+    "quantumKernel_encodingLayers": 3,
+    "quantumKernel_encodingScale": 0.75,
+    "quantumKernel_C": 0.8386456555516255,
+    "quantumKernel_maxTrainSamples": 1000,
+    "quantumVqc_nQubits": 4,
+    "quantumVqc_numLayers": 1,
+    "quantumVqc_encodingScale": 0.5,
+    "quantumVqc_learningRate": 0.016352869201554848,
+    "quantumVqc_epochs": 30,
+    "quantumVqc_batchSize": 256
 }

@@ -190,5 +190,16 @@
     "xgboost_use_7": false,
     "xgboost_use_8": false,
     "xgboost_use_9": false,
-    "xgboost_use_10": true
+    "xgboost_use_10": true,
+    "quantumKernel_nQubits": 4,
+    "quantumKernel_encodingLayers": 1,
+    "quantumKernel_encodingScale": 2.0,
+    "quantumKernel_C": 20.608391050568457,
+    "quantumKernel_maxTrainSamples": 4000,
+    "quantumVqc_nQubits": 4,
+    "quantumVqc_numLayers": 1,
+    "quantumVqc_encodingScale": 0.75,
+    "quantumVqc_learningRate": 0.005631424750447204,
+    "quantumVqc_epochs": 120,
+    "quantumVqc_batchSize": 64
 }
