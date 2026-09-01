@@ -194,5 +194,16 @@
     "catBoostMlRegLambda": 6.124684634453312,
     "catBoostMlSubsetMode": "softmax",
     "catBoostMlSubsetTemperature": 0.5891380665584595,
-    "useCatBoostMultiLabel": true
+    "useCatBoostMultiLabel": true,
+    "quantumKernel_nQubits": 4,
+    "quantumKernel_encodingLayers": 2,
+    "quantumKernel_encodingScale": 1.75,
+    "quantumKernel_C": 44.956266136466446,
+    "quantumKernel_maxTrainSamples": 2000,
+    "quantumVqc_nQubits": 4,
+    "quantumVqc_numLayers": 2,
+    "quantumVqc_encodingScale": 0.75,
+    "quantumVqc_learningRate": 0.09839928616213788,
+    "quantumVqc_epochs": 120,
+    "quantumVqc_batchSize": 64
 }
