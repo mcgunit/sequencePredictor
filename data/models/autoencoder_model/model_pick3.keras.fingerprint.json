@@ -1,0 +1,10 @@
+{
+  "num_classes": 10,
+  "digitsPerDraw": 3,
+  "specialColumnCount": 0,
+  "specialNumClasses": 0,
+  "latent_dim": 4,
+  "encoder_units": 64,
+  "num_encoder_layers": 1,
+  "window_size": 10
+}

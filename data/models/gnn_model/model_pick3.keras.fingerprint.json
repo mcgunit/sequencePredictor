@@ -1,0 +1,11 @@
+{
+  "num_classes": 10,
+  "digitsPerDraw": 3,
+  "specialColumnCount": 0,
+  "specialNumClasses": 0,
+  "gcn_units": 64,
+  "num_gcn_layers": 3,
+  "embedding_dim": 32,
+  "window_size": 6,
+  "node_feature_count": 4
+}
