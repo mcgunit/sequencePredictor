@@ -1,4 +1,4 @@
 module.exports = {
-    INTERFACE: "0.0.0.0",
+    INTERFACE: "localhost",
     PORT: 3001
 }
