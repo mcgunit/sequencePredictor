@@ -1010,5 +1010,5 @@ app.post('/playedModel', (req, res) => {
   res.json({ success: true });
 });
 
-app.listen(config.PORT, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
+app.listen(config.PORT, config.INTERFACE, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
 exec('optuna-dashboard sqlite:///db.sqlite3 --host 0.0.0.0 --port 8080', (error) => { if(error) console.log("Optuna dashboard not started."); });
