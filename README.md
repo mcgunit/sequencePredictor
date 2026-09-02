@@ -5,6 +5,8 @@
 
 This project compares several probabilistic/statistical models, plus deep and boosting (LSTM/TCN) and gradient boosting (XGBoost), for lottery-style number prediction across multiple games (Euromillions, Lotto, EuroDreams, Keno, Pick3, VikingLotto).
 
+The research goal is **not** to predict jackpots (a 6-out-of-6 is not the target). It is to test whether any of the games can be made **profitable for the players** over time - and if a model ever shows a reproducible edge, to understand *why* the process is predictable so countermeasures can be designed. Profit per bet against the real payout tables is therefore the primary research metric where one exists (Keno, Pick3); hit averages are diagnostics.
+
 ### Statistical models (`src/`)
 
 Each model generates predictions based on a different statistical interpretation of historical draw data:
@@ -75,6 +77,18 @@ Two behaviors worth knowing when running `Predictor.py` by hand:
 - **`-r/--rebuild_history` force-regenerates (overwrites) the last `-d` draws**, existing files included — use it after history corruption. This flag previously existed but did nothing.
 - **Deep learning is opt-in per run and crash-isolated.** `Predictor.py -a true` enables the DL models (default **off** for now); `-b false` disables boosting. All DL training runs in a one-shot spawned child process per day: the container's 16GB memory cgroup OOM-killed the Predictor twice (2026-08-20 at 16.7GB RSS,  2026-08-22 at 10.3GB — a single long-lived process accumulating TF/Keras allocations across ~24 model trainings, killed with no trace since SIGKILL allows none). In a child, an OOM surfaces as a caught `BrokenProcessPool`: that day loses only its DL rows (the half-built file is auto-repaired next run), everything else still runs — and the per-day process recycling releases the memory that caused the kills in the first place.
 - **NaN training runs are contained.** Exploding gradients on some hyperparameter combos (most often Keno's 20×80 output space) can drive the loss to `nan`. Training now stops at the first NaN batch (`TerminateOnNaN`) instead of burning the whole early-stop patience on dead epochs; if any earlier epoch was enough strength to be high-confidence prediction.
+
+### Hit counting & profit semantics
+
+Hits are counted **per pool**, never as one flat set intersection over the whole result row (a predicted main equal to a star's numeric value is not a hit - the pools are separate drawings):
+
+- **Euromillions / EuroDreams / VikingLotto**: main numbers score only against the drawn mains, the special column(s) (stars / dream number / super viking) only against the drawn specials. Displayed as **`N (M)`** = N main hits, M special hits, with green cell highlighting per pool.
+- **Lotto** follows the real game's tiers: a play is 6 numbers scored against the 6 drawn mains, and the 7th drawn value (the bonus) only ever *supplements* a partial match - `5 (1)` (5 mains + bonus, amber cell) is a high tier but not the jackpot; `6 (0)` is the jackpot, and a full main match makes a bonus match mathematically impossible since the bonus differs from every drawn main. The bonus is matched against the played numbers themselves (a play has no bonus slot).
+- **Keno / Pick3**: unchanged (single pool; Pick3 positional).
+
+This split runs through everything: the day-view highlights and `N (M)` hit column, `matchingNumbers` in the day JSONs (`matching_numbers` = mains, `special_matching_numbers` = specials/bonus), the History page match counts, `modelPerformance.json`'s `avg_hits` (mains only) and `avg_special_hits`, the lag analysis, the randomness watch, and `src/Backtester.py`'s per-day hit metrics and baselines (which now bet main-sized tickets) feeding every hyperopt objective.
+
+Profit is **net profit per 1 EUR-stake convention** in both payout games. `pick3_ticket_profit` implements the official Belgian Pick-3 rules (Reglement Pick-3 juli 2024): the tracked ticket plays all four bet types (straight, box, front pair, back pair - 4 EUR stake; triples cannot play box, 3 EUR) and prizes cumulate, so an exact hit nets +676 (distinct digits) or +756 (with a double), including the 1 EUR units-digit consolation where applicable. `keno_ticket_profit` returns payout minus the 1 EUR stake (it previously returned gross wins and double-counted the stake on losses), so `profit_per_bet` is comparable across games.
 
 ### Model performance report (History page)
 

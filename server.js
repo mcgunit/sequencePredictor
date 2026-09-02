@@ -36,16 +36,18 @@ function gameFromFolder(folder) {
   return folder;
 }
 
-// Split a real-result row (a full CSV row) into main and special numbers.
-// Lotto's 7th value (the bonus) deliberately STAYS in the main pool: it is
-// drawn from the same 1-45 drum and a predicted main matching it is a real
-// hit (5+bonus is a prize tier) - only the separately-drawn special columns
-// (stars/dream/viking) are split off, mirroring Helpers.main_special_split.
+// Split a real-result row (a full CSV row) into main, special and bonus
+// numbers. Lotto follows the real game's tiers: 6 played numbers score
+// against the 6 drawn mains, and the 7th (bonus) value only supplements a
+// partial match - "5 (1)" is a high tier, "6 (0)" the jackpot - so the bonus
+// is a separate pool matched against the ticket ITSELF (a play has no bonus
+// slot), mirroring Helpers.find_best_matching_prediction.
 function splitRealResult(realResult, game) {
-  if (!Array.isArray(realResult) || realResult.length === 0) return { mains: [], specials: [] };
+  if (!Array.isArray(realResult) || realResult.length === 0) return { mains: [], specials: [], bonus: [] };
   const s = SPECIAL_COLUMN_COUNTS[game] || 0;
-  if (s > 0 && realResult.length > s) return { mains: realResult.slice(0, -s), specials: realResult.slice(-s) };
-  return { mains: realResult.slice(), specials: [] };
+  if (s > 0 && realResult.length > s) return { mains: realResult.slice(0, -s), specials: realResult.slice(-s), bonus: [] };
+  if (game === "lotto") return { mains: realResult.slice(0, 6), specials: [], bonus: realResult.slice(6) };
+  return { mains: realResult.slice(), specials: [], bonus: [] };
 }
 
 // Split one prediction row. For special-column games a row longer than the
@@ -305,7 +307,7 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   if (filteredData.length === 0) return `<p style="padding: 10px; color: #888;">No predictions for selected model(s).</p>`;
 
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
-  const { mains: realMains, specials: realSpecials } = splitRealResult(realResult, game);
+  const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(realResult, game);
   // No real result (next-draw / home tables) -> no highlighting and no Hits column.
   const hasReal = realMains.length > 0;
 
@@ -335,14 +337,20 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
         // keno subset rows and RL mains-only rows have no special cells).
         const isSpecialCell = ticketSpecials.length > 0 && cellIndex >= ticketMains.length;
         const isMatching = hasReal && (isSpecialCell ? realSpecials.includes(cell) : realMains.includes(cell));
-        html += `<td style="text-align: center; ${isMatching ? 'background: #2ecc71; color: white;' : ''}">${cell}</td>`;
+        // Lotto bonus supplement: a played number equal to the bonus ball is
+        // a tier-relevant hit ("5 (1)") but not a main hit - amber, not green.
+        const isBonusMatch = hasReal && !isMatching && !isSpecialCell && realBonus.includes(cell);
+        const cellStyle = isMatching ? 'background: #2ecc71; color: white;'
+          : (isBonusMatch ? 'background: #f39c12; color: white;' : '');
+        html += `<td style="text-align: center; ${cellStyle}">${cell}</td>`;
       });
       if(hasReal) {
         const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
-        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length;
-        // "3 (1)" = 3 main hits, 1 special hit; games without a special
-        // column just show the main count.
-        const hitDisplay = specialCount > 0 ? `${mainHits} (${specialHits})` : `${mainHits}`;
+        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
+          + ticketMains.filter(n => realBonus.includes(n)).length;
+        // "3 (1)" = 3 main hits, 1 special/bonus hit; games without a
+        // special column or bonus just show the main count.
+        const hitDisplay = (specialCount > 0 || realBonus.length > 0) ? `${mainHits} (${specialHits})` : `${mainHits}`;
         html += `<td style="font-weight: bold; background: #f9f9f9;">${hitDisplay}</td>`;
       }
       if(calcProfit) {
@@ -781,12 +789,15 @@ app.get('/database/:folder', (req, res) => {
                 // the pooled main+special shape in that field, newer ones the
                 // split one, and recomputing renders both vintages the same
                 // way - and respects the active model filter.
-                const { mains: realMains, specials: realSpecials } = splitRealResult(jsonData.realResult, game);
+                const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(jsonData.realResult, game);
                 validPredictions.forEach(predObj => {
                     predObj.predictions.forEach(p => {
                         const { mains: ticketMains, specials: ticketSpecials } = splitTicket(p, realMains, specialCount);
                         const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
-                        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length;
+                        // Lotto: the bonus supplements the tier ("5 (1)"),
+                        // matched against the played numbers themselves.
+                        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
+                          + ticketMains.filter(n => realBonus.includes(n)).length;
                         if (mainHits > fileBest.mains || (mainHits === fileBest.mains && specialHits > fileBest.specials)) {
                             fileBest = { mains: mainHits, specials: specialHits };
                         }
@@ -801,7 +812,8 @@ app.get('/database/:folder', (req, res) => {
         const color = fileProfit > 0 ? 'green' : (fileProfit < 0 ? 'red' : 'orange');
         // "Match: 3 (1)" = 3 main hits (1 special hit) for games that draw
         // special numbers; other games just show the main count.
-        const displayStat = calcProfit ? `${fileProfit} €` : `Match: ${fileBest.mains}${specialCount > 0 ? ` (${fileBest.specials})` : ''}`;
+        const showSupplement = specialCount > 0 || game === 'lotto';
+        const displayStat = calcProfit ? `${fileProfit} €` : `Match: ${fileBest.mains}${showSupplement ? ` (${fileBest.specials})` : ''}`;
 
         return `<li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
             <a href="/database/${folder}/${file}" style="text-decoration: none; color: #333;">📄 ${file}</a>
@@ -810,7 +822,7 @@ app.get('/database/:folder', (req, res) => {
     }).join('');
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
-    const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthBest.mains}${specialCount > 0 ? ` (${monthBest.specials})` : ''}`;
+    const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthBest.mains}${(specialCount > 0 || game === 'lotto') ? ` (${monthBest.specials})` : ''}`;
     // Only expand if it is the first month (index === 0)
     const isExpanded = index === 0 ? 'expanded' : '';
 
@@ -872,7 +884,7 @@ app.get('/database/:folder/:file', (req, res) => {
             ${specialCount > 0
               ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N hits among the main numbers, M among the special numbers (euromillions stars / eurodreams dream / vikinglotto viking). Cells highlight green only within their own group.</p>`
               : (game === 'lotto'
-                ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">The bonus ball is not predicted, but a predicted number matching it counts as a hit (same 1-45 drum, 5+bonus is a prize tier).</p>`
+                ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
                 : '')}
 
             ${jsonData.currentNumberFrequency && Object.keys(jsonData.currentNumberFrequency).length > 0 ? `

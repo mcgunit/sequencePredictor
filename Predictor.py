@@ -76,15 +76,21 @@ def matchingSplitArgs(name, realResult):
     """
     (specialColumnCount, realMainCount) for find_best_matching_prediction, so
     matches are scored per pool (mains against mains, specials against
-    specials) instead of one pooled set intersection. Lotto's bonus stays in
-    the main pool on purpose: it is drawn from the same 1-45 drum and a
-    predicted main matching it is a real hit (5+bonus is a prize tier) - only
-    the separately-drawn special columns (stars/dream/viking) are split off.
-    Keno/pick3/lotto fall through with (0, None) - no split needed.
+    specials) instead of one pooled set intersection. Lotto follows the real
+    game's tiers: 6 played numbers score against the 6 drawn mains, and the
+    7th (bonus) value only supplements a partial match - "5 (1)" is a high
+    tier, "6 (0)" the jackpot - so lotto passes realMainCount=6 and
+    find_best_matching_prediction matches the trailing bonus against the
+    ticket itself into the special count ("vikinglotto" contains "lotto" but
+    its viking is a dedicated special column, hence the exclusion).
+    Keno/pick3 fall through with (0, None) - no split needed.
     """
     specialColumnCount = next(
         (count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
-    return specialColumnCount, None
+    realMainCount = None
+    if "lotto" in name and "vikinglotto" not in name:
+        realMainCount = len(realResult) - 1
+    return specialColumnCount, realMainCount
 
 
 def getKenoSubsetSizes(name, bestParams_json_object):

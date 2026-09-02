@@ -62,14 +62,19 @@ class Helpers():
         """
         (realMainCount, specialColumnCount) for a game name/folder: how many
         leading values of real_result count as the main-pool hit targets, and
-        how many trailing special columns the game models. Lotto's 7th value
-        (the bonus) is NOT a modeled column, but it is drawn from the same
-        1-45 drum as the mains and a predicted main matching it is a real hit
-        (5+bonus is a prize tier) - so it stays in the main pool and only the
-        separately-drawn special columns (stars/dream/viking) are split off.
+        how many trailing special columns the game models. Lotto follows the
+        real game's tier rules: a play is 6 numbers compared against the 6
+        drawn mains, and the 7th (bonus) value only ever supplements a
+        partial match ("5 (1)" is a high tier, "6 (0)" the jackpot) - so
+        lotto's realMainCount is 6 and the bonus is handled as a separate
+        supplement pool by the consumers, never as a 7th main
+        ("vikinglotto" contains "lotto" but its viking is a dedicated
+        special column, hence the exclusion).
         """
         specialColumnCount = next(
             (count for g, count in self.SPECIAL_COLUMN_COUNTS.items() if g in game), 0)
+        if "lotto" in game and "vikinglotto" not in game:
+            return len(real_result) - 1, 0
         return len(real_result) - specialColumnCount, specialColumnCount
 
     def split_ticket(self, ticket, realMainCount, specialColumnCount):
@@ -301,18 +306,25 @@ class Helpers():
 
                     mainTicket = predictions[0]
                     # Main hits only: slicing both ticket and realResult keeps
-                    # star/dream/viking hits (and lotto's unplayed bonus) from
-                    # inflating the average - those hits come from a much
-                    # smaller special range and aren't comparable.
+                    # star/dream/viking hits from inflating the average -
+                    # those come from a much smaller special range and aren't
+                    # comparable. Lotto's bonus follows the real tier rules:
+                    # it supplements a partial match ("5 (1)"), so it counts
+                    # into special_hits by matching the ticket itself, never
+                    # into the main average.
                     realMainCount, specialCount = self.main_special_split(game, realResult)
                     ticketMains, ticketSpecials = self.split_ticket(mainTicket, realMainCount, specialCount)
-                    hits = len(set(map(int, ticketMains)) & set(map(int, realResult[:realMainCount])))
+                    ticketMainSet = set(map(int, ticketMains))
+                    hits = len(ticketMainSet & set(map(int, realResult[:realMainCount])))
                     entry["draws"] += 1
                     entry["hits_total"] += hits
                     entry["best_hits"] = max(entry["best_hits"], hits)
                     if specialCount > 0:
                         realSpecials = set(map(int, realResult[realMainCount:realMainCount + specialCount]))
                         entry["special_hits_total"] += len(set(map(int, ticketSpecials)) & realSpecials)
+                    realBonus = set(map(int, realResult[realMainCount + specialCount:]))
+                    if realBonus:
+                        entry["special_hits_total"] += len(ticketMainSet & realBonus)
 
                     if "keno" in game:
                         # Profit exists only for playable 5-10-number subsets,
@@ -333,7 +345,10 @@ class Helpers():
                 avgHits = entry["hits_total"] / entry["draws"] if entry["draws"] else 0.0
                 profitPerBet = entry["profit_total"] / entry["bets"] if entry["bets"] else None
                 avgSpecialHits = None
-                if gameSpecialCount > 0 and entry["draws"]:
+                # Lotto counts here too: its bonus supplements land in
+                # special_hits_total, so the "(M)" average exists for it.
+                hasSupplement = gameSpecialCount > 0 or ("lotto" in game and "vikinglotto" not in game)
+                if hasSupplement and entry["draws"]:
                     avgSpecialHits = round(entry["special_hits_total"] / entry["draws"], 3)
                 models.append({
                     "name": name,
@@ -855,20 +870,29 @@ class Helpers():
         numeric values but not a drawing), inflating match counts. Rows are
         ranked by (main hits, special hits), so mains outrank specials.
 
-        realMainCount defaults to len(real_result) - specialColumnCount;
-        lotto passes it explicitly (specialColumnCount=0, realMainCount=6)
-        because its trailing CSV value is an unplayed bonus that must count
-        for nothing. Games without special columns (keno/pick3) pass through
+        realMainCount defaults to len(real_result) - specialColumnCount.
+        Lotto passes (specialColumnCount=0, realMainCount=6): its 7th value
+        is the BONUS ball, which follows the real game's tier rules - a
+        played ticket has no bonus slot, so the bonus is matched against the
+        ticket's own 6 numbers and lands in the special count ("5 (1)" = 5
+        mains + bonus, a high tier but not the jackpot; at "6 (0)" all six
+        played numbers are used as mains, and indeed a full main match makes
+        a bonus match impossible since the bonus differs from every drawn
+        main). Games without special columns (keno/pick3) pass through
         unchanged.
 
         Returned keys keep their historical names with mains-only semantics
         ("matching_numbers"/"match_count" = matched MAIN numbers), plus the
-        mirrored "special_matching_numbers"/"special_match_count".
+        mirrored "special_matching_numbers"/"special_match_count" (dedicated
+        special columns and the lotto bonus both land there).
         """
         if realMainCount is None:
             realMainCount = len(real_result) - specialColumnCount
         real_mains = set(map(int, real_result[:realMainCount]))
         real_specials = set(map(int, real_result[realMainCount:realMainCount + specialColumnCount]))
+        # Trailing values beyond mains + dedicated specials (lotto's bonus):
+        # matched against the ticket's MAIN numbers, counted as special hits.
+        real_bonus = set(map(int, real_result[realMainCount + specialColumnCount:]))
 
         best_match = {
             "model": None,
@@ -885,8 +909,11 @@ class Helpers():
             for predicted_list in model["predictions"]:
                 ticket_mains, ticket_specials = self.split_ticket(
                     predicted_list, realMainCount, specialColumnCount)
-                matching_numbers = sorted(real_mains.intersection(map(int, ticket_mains)))
-                special_matching_numbers = sorted(real_specials.intersection(map(int, ticket_specials)))
+                ticket_main_set = set(map(int, ticket_mains))
+                matching_numbers = sorted(real_mains.intersection(ticket_main_set))
+                special_matching_numbers = sorted(
+                    real_specials.intersection(map(int, ticket_specials))
+                    | real_bonus.intersection(ticket_main_set))
 
                 # Strictly-greater keeps the historical behavior of leaving
                 # model/prediction at None on an all-miss day.
