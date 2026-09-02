@@ -19,6 +19,46 @@ const dataPath = path.join(__dirname, 'data', 'database');
 var selectedPlayedNumbers = [4, 5, 6, 7, 8, 9, 10]; // Default for Keno
 var selectedModel = ["all"]; // Global filter for which models to show/calculate
 
+// --- GAME SHAPES ---
+// Mirrors Predictor.py's SPECIAL_COLUMN_COUNTS: how many trailing values of a
+// full result/ticket row are special numbers (euromillions stars, eurodreams
+// dream number, vikinglotto viking). A main-ball hit and a special-ball hit
+// are different prize dimensions, so the UI must never pool them.
+const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1 };
+
+// Database folder names equal game names today, but the routes historically
+// matched with includes() (e.g. a "keno_backup" folder still behaves as keno),
+// so keep that tolerance. vikinglotto must be tested before lotto because
+// "vikinglotto".includes("lotto") is true.
+function gameFromFolder(folder) {
+  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3"];
+  for (const g of games) if (folder.includes(g)) return g;
+  return folder;
+}
+
+// Split a real-result row (a full CSV row) into main and special numbers.
+// Lotto's 7th value (the bonus) deliberately STAYS in the main pool: it is
+// drawn from the same 1-45 drum and a predicted main matching it is a real
+// hit (5+bonus is a prize tier) - only the separately-drawn special columns
+// (stars/dream/viking) are split off, mirroring Helpers.main_special_split.
+function splitRealResult(realResult, game) {
+  if (!Array.isArray(realResult) || realResult.length === 0) return { mains: [], specials: [] };
+  const s = SPECIAL_COLUMN_COUNTS[game] || 0;
+  if (s > 0 && realResult.length > s) return { mains: realResult.slice(0, -s), specials: realResult.slice(-s) };
+  return { mains: realResult.slice(), specials: [] };
+}
+
+// Split one prediction row. For special-column games a row longer than the
+// real main count carries its specials appended at the end; a row that is not
+// longer is a mains-only ticket (RL Ticket Model rows, keno subset tickets),
+// so it gets no special cells.
+function splitTicket(row, realMains, specialCount) {
+  if (specialCount > 0 && row.length > realMains.length) {
+    return { mains: row.slice(0, -specialCount), specials: row.slice(-specialCount) };
+  }
+  return { mains: row, specials: [] };
+}
+
 // --- HELPER: Generate HTML Header ---
 function generateHeader(title = "Sequence Predictor") {
   return `
@@ -257,33 +297,56 @@ function filterDataByModel(data) {
 }
 
 // --- LOGIC: Table Generation ---
-function generateTable(data, title = '', matchingNumbers = [], calcProfit = false, game = "") {
+// realResult is the full drawn row (mains + specials, or mains + lotto bonus);
+// cells are highlighted index-aware so a predicted star only lights up against
+// the drawn stars and a predicted main only against the drawn mains.
+function generateTable(data, title = '', realResult = [], calcProfit = false, game = "") {
   const filteredData = filterDataByModel(data);
   if (filteredData.length === 0) return `<p style="padding: 10px; color: #888;">No predictions for selected model(s).</p>`;
+
+  const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
+  const { mains: realMains, specials: realSpecials } = splitRealResult(realResult, game);
+  // No real result (next-draw / home tables) -> no highlighting and no Hits column.
+  const hasReal = realMains.length > 0;
 
   let html = `<div class="table-wrapper">`;
   if (title) html += `<div style="padding: 10px; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ddd;">${title}</div>`;
   html += '<table border="1">';
-  
+
   html += '<tr><th style="min-width: 150px;">Model</th><th style="width: 50px;">#</th>';
   if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
     Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => html += `<th>Num ${i + 1}</th>`);
   }
+  if(hasReal) html += '<th>Hits</th>';
   if(calcProfit) html += '<th>Profit</th>';
   html += '</tr>';
 
   filteredData.forEach((model) => {
     model.predictions.forEach((row, rowIndex) => {
       const modelType = model.name || "not known";
+      const { mains: ticketMains, specials: ticketSpecials } = splitTicket(row, realMains, specialCount);
       html += `<tr>
         <td style="font-weight: bold; background: #f9f9f9;">${modelType}</td>
         <td style="font-weight: bold; background: #f9f9f9;">${rowIndex + 1}</td>`;
-      row.forEach((cell) => {
-        const isMatching = matchingNumbers.includes(cell);
+      row.forEach((cell, cellIndex) => {
+        // Trailing cells past the ticket's main block are special columns and
+        // only match against the drawn specials; everything else only against
+        // the drawn mains (pick3 keeps its historical by-inclusion behavior,
+        // keno subset rows and RL mains-only rows have no special cells).
+        const isSpecialCell = ticketSpecials.length > 0 && cellIndex >= ticketMains.length;
+        const isMatching = hasReal && (isSpecialCell ? realSpecials.includes(cell) : realMains.includes(cell));
         html += `<td style="text-align: center; ${isMatching ? 'background: #2ecc71; color: white;' : ''}">${cell}</td>`;
       });
+      if(hasReal) {
+        const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
+        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length;
+        // "3 (1)" = 3 main hits, 1 special hit; games without a special
+        // column just show the main count.
+        const hitDisplay = specialCount > 0 ? `${mainHits} (${specialHits})` : `${mainHits}`;
+        html += `<td style="font-weight: bold; background: #f9f9f9;">${hitDisplay}</td>`;
+      }
       if(calcProfit) {
-        const profit = calculateProfit(row, matchingNumbers, game, modelType);
+        const profit = calculateProfit(row, realResult, game, modelType);
         html += `<td style="background: #f9f9f9;">${profit} €</td>`;
       }
       html += '</tr>';
@@ -338,9 +401,15 @@ function calculateProfit(prediction, realResult, game, name) {
       else if (pred[2] === actual[2]) return payoutTablePick3.last_number;
       else return payoutTablePick3.lost;
     }
-    default:
-      const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
-      return `${correctNumbers}/${played}`;
+    default: {
+      // Unreachable today (calcProfit is only enabled for keno/pick3), but
+      // kept split-aware per the main/special audit so a future caller cannot
+      // reintroduce the pooled main+special count: hits are main-vs-main only.
+      const { mains: realMains } = splitRealResult(realResult, game);
+      const { mains: ticketMains } = splitTicket(prediction, realMains, SPECIAL_COLUMN_COUNTS[game] || 0);
+      const correctNumbers = ticketMains.filter(n => realMains.includes(n)).length;
+      return `${correctNumbers}/${ticketMains.length}`;
+    }
   }
 }
 
@@ -667,10 +736,10 @@ app.get('/database', (req, res) => {
 app.get('/database/:folder', (req, res) => {
   const folder = req.params.folder;
   const folderPath = path.join(dataPath, folder);
-  let calcProfit = false; let game = "";
   if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
-  if (folder.includes("keno")) { calcProfit = true; game = "keno"; } 
-  if (folder.includes("pick3")) { calcProfit = true; game = "pick3"; }
+  const game = gameFromFolder(folder);
+  const calcProfit = game === "keno" || game === "pick3";
+  const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
 
   const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.json'));
   const filesByMonth = files.reduce((acc, file) => {
@@ -690,12 +759,12 @@ app.get('/database/:folder', (req, res) => {
 
   sortedMonths.forEach((month, index) => {
     filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
-    let monthProfit = 0; let monthMaxCorrect = 0;
-    
+    let monthProfit = 0; let monthBest = { mains: 0, specials: 0 };
+
     const fileListHtml = filesByMonth[month].map(file => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        let fileProfit = 0; let fileMaxCorrect = 0;
+        let fileProfit = 0; let fileBest = { mains: 0, specials: 0 };
         const validPredictions = filterDataByModel(jsonData.currentPrediction);
 
         if (validPredictions && validPredictions.length > 0) {
@@ -706,18 +775,33 @@ app.get('/database/:folder', (req, res) => {
                     return acc + pProfit;
                 }, 0);
             } else {
+                // Best row is recomputed from the predictions (main hits vs
+                // real mains only, then special hits as tie-break) instead of
+                // trusting jsonData.matchingNumbers: old day JSONs still carry
+                // the pooled main+special shape in that field, newer ones the
+                // split one, and recomputing renders both vintages the same
+                // way - and respects the active model filter.
+                const { mains: realMains, specials: realSpecials } = splitRealResult(jsonData.realResult, game);
                 validPredictions.forEach(predObj => {
                     predObj.predictions.forEach(p => {
-                        const match = p.filter(n => jsonData.realResult.includes(n)).length;
-                        if(match > fileMaxCorrect) fileMaxCorrect = match;
+                        const { mains: ticketMains, specials: ticketSpecials } = splitTicket(p, realMains, specialCount);
+                        const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
+                        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length;
+                        if (mainHits > fileBest.mains || (mainHits === fileBest.mains && specialHits > fileBest.specials)) {
+                            fileBest = { mains: mainHits, specials: specialHits };
+                        }
                     });
                 });
             }
         }
         monthProfit += fileProfit;
-        if(fileMaxCorrect > monthMaxCorrect) monthMaxCorrect = fileMaxCorrect;
+        if (fileBest.mains > monthBest.mains || (fileBest.mains === monthBest.mains && fileBest.specials > monthBest.specials)) {
+            monthBest = fileBest;
+        }
         const color = fileProfit > 0 ? 'green' : (fileProfit < 0 ? 'red' : 'orange');
-        const displayStat = calcProfit ? `${fileProfit} €` : `Match: ${fileMaxCorrect}`;
+        // "Match: 3 (1)" = 3 main hits (1 special hit) for games that draw
+        // special numbers; other games just show the main count.
+        const displayStat = calcProfit ? `${fileProfit} €` : `Match: ${fileBest.mains}${specialCount > 0 ? ` (${fileBest.specials})` : ''}`;
 
         return `<li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
             <a href="/database/${folder}/${file}" style="text-decoration: none; color: #333;">📄 ${file}</a>
@@ -726,7 +810,7 @@ app.get('/database/:folder', (req, res) => {
     }).join('');
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
-    const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthMaxCorrect}`;
+    const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthBest.mains}${specialCount > 0 ? ` (${monthBest.specials})` : ''}`;
     // Only expand if it is the first month (index === 0)
     const isExpanded = index === 0 ? 'expanded' : '';
 
@@ -752,11 +836,18 @@ app.get('/database/:folder/:file', (req, res) => {
   const folder = req.params.folder;
   const file = req.params.file;
   const filePath = path.join(dataPath, folder, file);
-  let calculateProfitFlag = false; let game = "";
   if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
   const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  if(folder.includes("keno")) { calculateProfitFlag = true; game = "keno"; } 
-  if(folder.includes("pick3")) { calculateProfitFlag = true; game = "pick3"; }
+  const game = gameFromFolder(folder);
+  const calculateProfitFlag = game === "keno" || game === "pick3";
+  const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
+  // Mains of the drawn row, used for the frequency-chart bar coloring: the
+  // charted frequencies are main-number frequencies, so a bar must not turn
+  // green just because its number came out as a star/dream/viking/bonus. The
+  // array is interpolated into the chart script server-side - the browser has
+  // no jsonData object (the previous client-side jsonData.realResult lookup
+  // threw a ReferenceError and the analysis chart never rendered).
+  const { mains: realMains } = splitRealResult(jsonData.realResult, game);
 
   let html = generateHeader(`${file} Details`);
   html += `
@@ -778,6 +869,11 @@ app.get('/database/:folder/:file', (req, res) => {
         </div>
         <div class="card-body">
             ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
+            ${specialCount > 0
+              ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N hits among the main numbers, M among the special numbers (euromillions stars / eurodreams dream / vikinglotto viking). Cells highlight green only within their own group.</p>`
+              : (game === 'lotto'
+                ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">The bonus ball is not predicted, but a predicted number matching it counts as a hit (same 1-45 drum, 5+bonus is a prize tier).</p>`
+                : '')}
 
             ${jsonData.currentNumberFrequency && Object.keys(jsonData.currentNumberFrequency).length > 0 ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -791,7 +887,7 @@ app.get('/database/:folder/:file', (req, res) => {
                         datasets: [{
                             label: 'Freq',
                             data: ${JSON.stringify(Object.values(jsonData.currentNumberFrequency))},
-                            backgroundColor: ${JSON.stringify(Object.keys(jsonData.currentNumberFrequency))}.map(n => (jsonData.realResult || []).includes(Number(n)) ? 'rgba(46, 204, 113, 0.8)' : 'rgba(52, 152, 219, 0.6)')
+                            backgroundColor: ${JSON.stringify(Object.keys(jsonData.currentNumberFrequency))}.map(n => ${JSON.stringify(realMains)}.includes(Number(n)) ? 'rgba(46, 204, 113, 0.8)' : 'rgba(52, 152, 219, 0.6)')
                         }]
                     },
                     options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }

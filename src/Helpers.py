@@ -24,14 +24,19 @@ class Helpers():
         "lost": -1  # Because it cost 1 euro
     }
 
+    # Official Belgian Pick-3 payouts per 1 EUR bet (Reglement Pick-3, juli
+    # 2024, Art. 6/7/14). The tracked ticket plays every bet type at once
+    # (straight + box + front pair + back pair, 1 EUR each) and the bets are
+    # evaluated independently, so prizes cumulate - e.g. an exact match also
+    # collects the box and both pair prizes on top of the straight prize.
     PAYOUT_TABLE_PICK3 = {
-        "straight": 500,
-        "box_with_doubles": 160,
-        "box_no_doubles": 80,
-        "front_pair": 50,
-        "back_pair": 50,
-        "last_number": 1,
-        "lost": -4  # Because it cost 1 euro but for each prediction and we need to choose all win orders like: straight, etc...
+        "straight": 500,             # all 3 digits in exact order
+        "straight_consolation": 1,   # straight bet's consolation: units digit (position 3) matches
+        "box_with_doubles": 160,     # any order, prediction contains a doubled digit (3 ways to win)
+        "box_no_doubles": 80,        # any order, 3 distinct digits (6 ways to win)
+        "front_pair": 50,            # positions 1-2 in exact order
+        "back_pair": 50,             # positions 2-3 in exact order
+        "bet_cost": 1,               # stake per bet type
     }
 
     # The trailing special/bonus column(s)' own number range - distinct from
@@ -44,6 +49,40 @@ class Helpers():
         "eurodreams": np.arange(1, 6),
         "vikinglotto": np.arange(1, 9),
     }
+
+    # Mirror of Predictor.py's / HyperoptDeepLearning.py's SPECIAL_COLUMN_COUNTS:
+    # how many trailing values of a row belong to the special pool. Needed here
+    # because scoring functions below (performance report, lag analysis,
+    # randomness watch, hyperopt profit) must never pool special hits with main
+    # hits - the specials are drawn from their own, much smaller range, so a
+    # pooled set intersection systematically inflates hit counts.
+    SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
+
+    def main_special_split(self, game, real_result):
+        """
+        (realMainCount, specialColumnCount) for a game name/folder: how many
+        leading values of real_result count as the main-pool hit targets, and
+        how many trailing special columns the game models. Lotto's 7th value
+        (the bonus) is NOT a modeled column, but it is drawn from the same
+        1-45 drum as the mains and a predicted main matching it is a real hit
+        (5+bonus is a prize tier) - so it stays in the main pool and only the
+        separately-drawn special columns (stars/dream/viking) are split off.
+        """
+        specialColumnCount = next(
+            (count for g, count in self.SPECIAL_COLUMN_COUNTS.items() if g in game), 0)
+        return len(real_result) - specialColumnCount, specialColumnCount
+
+    def split_ticket(self, ticket, realMainCount, specialColumnCount):
+        """
+        (mains, specials) of one prediction row. A row longer than the real
+        main count carries its specials appended at the end (the normal
+        statistical/DL/boosting rows); a row of main-count length or shorter
+        is mains-only (RL Ticket Model rows, Keno subset tickets) and has no
+        specials to slice off.
+        """
+        if specialColumnCount > 0 and len(ticket) > realMainCount:
+            return ticket[:-specialColumnCount], ticket[-specialColumnCount:]
+        return list(ticket), []
 
     def get_unique_labels(self, dataPath, special=False):
         """
@@ -130,7 +169,11 @@ class Helpers():
 
     def keno_ticket_profit(self, prediction, real_result):
         """
-        Net profit (in euro) for a single Keno subset ticket.
+        Net profit (in euro) for a single Keno subset ticket: official payout
+        minus the 1 EUR stake on a win, -1 on a loss. Net convention matches
+        pick3_ticket_profit so profit_per_bet is comparable across games (the
+        old version returned the gross payout on wins and double-counted the
+        stake on losses).
         Only subsets of 5-10 numbers have real payouts; below that, profit is not tracked.
         """
         played = len(prediction)
@@ -138,17 +181,24 @@ class Helpers():
             return None
 
         table = self.PAYOUT_TABLE_KENO
+        # The table's payout entries are gross winnings for a 1 EUR ticket;
+        # "lost" is already the NET result of that losing ticket (-stake).
+        stake = -table["lost"]
         matches = len(set(map(int, prediction)) & set(map(int, real_result)))
-        profit = table.get(played, {}).get(matches, table["lost"])
+        payout = table.get(played, {}).get(matches)
 
-        if profit != table["lost"]:
-            return profit
-        else:
-            return profit + table["lost"]
+        if payout is None:
+            return table["lost"]
+        return payout - stake
 
     def pick3_ticket_profit(self, prediction, real_result):
         """
-        Net profit (in euro) for a single Pick3 ticket. Order matters (straight/pair payouts).
+        Net profit (in euro) for a single Pick3 ticket under the official
+        cumulative model (Reglement Pick-3, juli 2024, Art. 6/7/14): the
+        tracked ticket plays all bet types at 1 EUR each and each bet is
+        evaluated independently, so prizes cumulate. Order matters
+        (straight/pair payouts). A triple prediction [x,x,x] cannot play box
+        (it has no distinct orderings), so its stake is 3 instead of 4.
         """
         if len(prediction) != 3 or len(real_result) != 3:
             return None
@@ -156,26 +206,33 @@ class Helpers():
         table = self.PAYOUT_TABLE_PICK3
         pred = [int(p) for p in prediction]
         actual = [int(a) for a in real_result]
+        is_triple = len(set(pred)) == 1
 
+        stake = (3 if is_triple else 4) * table["bet_cost"]
+        payout = 0
+
+        # Straight bet: exact order wins the full prize; otherwise a matching
+        # units digit (position 3) alone pays the 1 EUR consolation.
         if pred == actual:
-            return table["straight"] + table["lost"]
+            payout += table["straight"]
+        elif pred[2] == actual[2]:
+            payout += table["straight_consolation"]
 
-        if sorted(pred) == sorted(actual):
-            pred_counts = {x: pred.count(x) for x in pred}
-            if 2 in pred_counts.values():
-                return table["box_with_doubles"] + table["lost"]
-            return table["box_no_doubles"] + table["lost"]
+        # Box bet (non-triples only): sorted equality. It is an independent
+        # bet, so it also pays on an exact-order match - no elif with straight.
+        if not is_triple and sorted(pred) == sorted(actual):
+            if len(set(pred)) == 2:
+                payout += table["box_with_doubles"]
+            else:
+                payout += table["box_no_doubles"]
 
+        # Pair bets: two positions in exact order, each its own 1 EUR bet.
         if pred[0:2] == actual[0:2]:
-            return table["front_pair"] + table["lost"]
-
+            payout += table["front_pair"]
         if pred[1:3] == actual[1:3]:
-            return table["back_pair"] + table["lost"]
+            payout += table["back_pair"]
 
-        if pred[2] == actual[2]:
-            return table["last_number"] + table["lost"]
-
-        return table["lost"]
+        return payout - stake
 
     def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json"):
         """
@@ -188,7 +245,12 @@ class Helpers():
           per-bet rather than total, because models joined at different times
           (the boosting rows are weeks old, the statistical rows months) and
           bet different numbers of Keno subsets, so totals aren't comparable.
-        - every other game: average hits of the model's main ticket.
+        - every other game: average MAIN-number hits of the model's main
+          ticket. avg_hits/best_hits/hits_total count main hits only - the
+          special columns (stars/dream/viking) live in their own smaller range
+          and lotto's bonus isn't played at all, so pooling them inflated the
+          averages. Games with special columns additionally get a per-model
+          "avg_special_hits" (None for the other games).
 
         The full ranking is stored per game (not just the winner) so the UI
         can grow without regenerating anything; "draws" is included so small
@@ -205,6 +267,10 @@ class Helpers():
                 continue
 
             hasPayout = "keno" in game or "pick3" in game
+            # Games with a modeled special pool get their own special-hit
+            # average; for every other game the field stays None.
+            gameSpecialCount = next(
+                (count for g, count in self.SPECIAL_COLUMN_COUNTS.items() if g in game), 0)
             stats = {}
 
             for fileName in os.listdir(gameDir):
@@ -229,14 +295,24 @@ class Helpers():
 
                     entry = stats.setdefault(name, {
                         "draws": 0, "hits_total": 0, "best_hits": 0,
+                        "special_hits_total": 0,
                         "profit_total": 0.0, "bets": 0,
                     })
 
                     mainTicket = predictions[0]
-                    hits = len(set(map(int, mainTicket)) & set(map(int, realResult)))
+                    # Main hits only: slicing both ticket and realResult keeps
+                    # star/dream/viking hits (and lotto's unplayed bonus) from
+                    # inflating the average - those hits come from a much
+                    # smaller special range and aren't comparable.
+                    realMainCount, specialCount = self.main_special_split(game, realResult)
+                    ticketMains, ticketSpecials = self.split_ticket(mainTicket, realMainCount, specialCount)
+                    hits = len(set(map(int, ticketMains)) & set(map(int, realResult[:realMainCount])))
                     entry["draws"] += 1
                     entry["hits_total"] += hits
                     entry["best_hits"] = max(entry["best_hits"], hits)
+                    if specialCount > 0:
+                        realSpecials = set(map(int, realResult[realMainCount:realMainCount + specialCount]))
+                        entry["special_hits_total"] += len(set(map(int, ticketSpecials)) & realSpecials)
 
                     if "keno" in game:
                         # Profit exists only for playable 5-10-number subsets,
@@ -256,10 +332,14 @@ class Helpers():
             for name, entry in stats.items():
                 avgHits = entry["hits_total"] / entry["draws"] if entry["draws"] else 0.0
                 profitPerBet = entry["profit_total"] / entry["bets"] if entry["bets"] else None
+                avgSpecialHits = None
+                if gameSpecialCount > 0 and entry["draws"]:
+                    avgSpecialHits = round(entry["special_hits_total"] / entry["draws"], 3)
                 models.append({
                     "name": name,
                     "draws": entry["draws"],
                     "avg_hits": round(avgHits, 3),
+                    "avg_special_hits": avgSpecialHits,
                     "best_hits": entry["best_hits"],
                     "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
                     "profit_per_bet": round(profitPerBet, 3) if profitPerBet is not None else None,
@@ -322,6 +402,20 @@ class Helpers():
                 peakHistory = json.load(infile)
         except Exception:
             peakHistory = {}
+
+        # One-time self-migration: run entries persisted before the
+        # mains/specials split measured POOLED hits (special columns and
+        # lotto's bonus included), an incompatible metric - mixing them into
+        # the consensus trails would poison every lag vote with numbers
+        # counted under different rules. Entries carrying the "main_hits"
+        # marker written below are the only comparable ones; everything else
+        # is dropped.
+        for gameHistory in peakHistory.values():
+            for modelName in list(gameHistory.keys()):
+                gameHistory[modelName] = [
+                    r for r in gameHistory[modelName] if r.get("metric") == "main_hits"]
+                if not gameHistory[modelName]:
+                    del gameHistory[modelName]
         runDate = report["generatedAt"][:10]
 
         for game in list(report["games"].keys()):
@@ -331,7 +425,12 @@ class Helpers():
             def dayHits(prediction, realResult):
                 if isPick3:
                     return sum(1 for p, r in zip(prediction, realResult) if int(p) == int(r))
-                return len(set(map(int, prediction)) & set(map(int, realResult)))
+                # Main columns only, both sides: a star/dream/viking (or lotto
+                # bonus) "hit" comes from a different number range and would
+                # blur the lag signal the analysis is hunting for.
+                realMainCount, specialCount = self.main_special_split(game, realResult)
+                mains, _ = self.split_ticket(prediction, realMainCount, specialCount)
+                return len(set(map(int, mains)) & set(map(int, realResult[:realMainCount])))
 
             # Chronologically ordered (date, realResult, {model: mainTicket})
             days = []
@@ -403,13 +502,22 @@ class Helpers():
                     "n": peak["n"],
                     "z": zScore,
                     "profile_mean": round(mean, 3),
+                    # Marks which counting rule produced this entry - the
+                    # migration on load drops anything without it.
+                    "metric": "main_hits",
                 }
 
                 # One entry per run date: a second run on the same day replaces
                 # the first (it scored strictly more history) instead of
                 # double-counting that day's vote.
                 runs = [r for r in gameHistory.get(name, []) if r.get("run") != runDate]
-                runs.append(thisRun)
+                # Only record a run whose peak sample size differs from the
+                # last recorded entry: consecutive daily runs re-scan 97-100%
+                # identical history (measured over 5 runs), so an unchanged n
+                # means the run added zero new draws for this model - counting
+                # it as a fresh "vote" would certify stable noise as consensus.
+                if not runs or runs[-1].get("n") != thisRun["n"]:
+                    runs.append(thisRun)
                 runs.sort(key=lambda r: r.get("run") or "")
                 gameHistory[name] = runs[-HISTORY_RUNS:]
 
@@ -511,9 +619,23 @@ class Helpers():
                 mean = lambda xs: sum(xs) / len(xs)
                 return mean(kls), mean(klUs), mean(ents)
 
+            # Main columns only for every distribution: the special columns
+            # (and lotto's bonus) come from their own, smaller ranges, so
+            # pooling them skews every KL/entropy figure and - for lotto -
+            # leaked bonus values into a label set that should be the played
+            # 1-45 mains. Pick3 passes through untouched (no special columns).
+            def resultMains(res):
+                realMainCount, _ = self.main_special_split(game, res)
+                return [int(v) for v in res[:realMainCount]]
+
+            def ticketMains(ticket, res):
+                realMainCount, specialCount = self.main_special_split(game, res)
+                mains, _ = self.split_ticket(ticket, realMainCount, specialCount)
+                return [int(v) for v in mains]
+
             realDays = [(d, res) for d, res, _ in days if res]
             if len(realDays) >= MIN_WINDOW * 2:
-                allResults = [res for _, res in realDays]
+                allResults = [resultMains(res) for _, res in realDays]
                 labelSets = [sorted({int(v) for res in allResults for v in (res[:3] if isPick3 else res)[pos:pos+1]})
                              for pos in range(3)] if isPick3 else                             [sorted({int(v) for res in allResults for v in res})]
                 baseDists = drawDistributions(allResults)
@@ -543,10 +665,11 @@ class Helpers():
                 modelKl = {}
                 recentDays = [d for d in days if d[1]][-WINDOW:]
                 for _, res, tickets in recentDays:
+                    resMains = resultMains(res)
                     for modelName, ticket in tickets.items():
                         entry = modelKl.setdefault(modelName, {"pred": [], "real": []})
-                        entry["pred"].append([int(v) for v in ticket])
-                        entry["real"].append(res)
+                        entry["pred"].append(ticketMains(ticket, res))
+                        entry["real"].append(resMains)
                 perModel = {}
                 for modelName, entry in modelKl.items():
                     if len(entry["pred"]) < MIN_WINDOW:
@@ -723,28 +846,59 @@ class Helpers():
             return None  # Return None if no data was found
         
 
-    def find_best_matching_prediction(self, sequence, predictions_dict):
-        sequence_set = set(sequence)  # Convert the sequence to a set for fast lookup
+    def find_best_matching_prediction(self, real_result, predictions_dict, specialColumnCount=0, realMainCount=None):
+        """
+        Best-scoring prediction row against a real result, scored per pool:
+        main numbers only count against the real mains and special numbers
+        (stars/dream/viking) only against the real specials - a pooled set
+        intersection let a predicted star "hit" a main number (they share
+        numeric values but not a drawing), inflating match counts. Rows are
+        ranked by (main hits, special hits), so mains outrank specials.
+
+        realMainCount defaults to len(real_result) - specialColumnCount;
+        lotto passes it explicitly (specialColumnCount=0, realMainCount=6)
+        because its trailing CSV value is an unplayed bonus that must count
+        for nothing. Games without special columns (keno/pick3) pass through
+        unchanged.
+
+        Returned keys keep their historical names with mains-only semantics
+        ("matching_numbers"/"match_count" = matched MAIN numbers), plus the
+        mirrored "special_matching_numbers"/"special_match_count".
+        """
+        if realMainCount is None:
+            realMainCount = len(real_result) - specialColumnCount
+        real_mains = set(map(int, real_result[:realMainCount]))
+        real_specials = set(map(int, real_result[realMainCount:realMainCount + specialColumnCount]))
 
         best_match = {
             "model": None,
             "prediction": None,
             "matching_numbers": [],
-            "match_count": 0
+            "match_count": 0,
+            "special_matching_numbers": [],
+            "special_match_count": 0,
         }
 
+        best_score = (0, 0)
         for model in predictions_dict:
             model_name = model["name"]
             for predicted_list in model["predictions"]:
-                matching_numbers = list(sequence_set.intersection(predicted_list))
-                match_count = len(matching_numbers)
+                ticket_mains, ticket_specials = self.split_ticket(
+                    predicted_list, realMainCount, specialColumnCount)
+                matching_numbers = sorted(real_mains.intersection(map(int, ticket_mains)))
+                special_matching_numbers = sorted(real_specials.intersection(map(int, ticket_specials)))
 
-                # If this prediction has more matches, update the best match
-                if match_count > best_match["match_count"]:
+                # Strictly-greater keeps the historical behavior of leaving
+                # model/prediction at None on an all-miss day.
+                score = (len(matching_numbers), len(special_matching_numbers))
+                if score > best_score:
+                    best_score = score
                     best_match["model"] = model_name
                     best_match["prediction"] = predicted_list
                     best_match["matching_numbers"] = matching_numbers
-                    best_match["match_count"] = match_count
+                    best_match["match_count"] = len(matching_numbers)
+                    best_match["special_matching_numbers"] = special_matching_numbers
+                    best_match["special_match_count"] = len(special_matching_numbers)
 
         return best_match  # Return full details of the best matching prediction
     
@@ -1678,7 +1832,13 @@ class Helpers():
                                 if profit is not None:
                                     total_profit += profit
                             else:
-                                matches = len(set(prediction) & real_result_set)
+                                # Main-pool hits only: a pooled intersection let
+                                # special-column values (and lotto's unplayed
+                                # bonus) count as hits, rewarding hyperopt for
+                                # the wrong thing.
+                                realMainCount, specialCount = self.main_special_split(name, real_result)
+                                mains, _ = self.split_ticket(prediction, realMainCount, specialCount)
+                                matches = len(set(map(int, mains)) & set(map(int, real_result[:realMainCount])))
                                 total_profit += matches
         #print("Total profit: ", total_profit)
         return total_profit

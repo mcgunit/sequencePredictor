@@ -87,6 +87,33 @@ MODEL_DISPLAY_NAMES = {
     "autoencoder_model": "Autoencoder Model",
 }
 
+# Trailing special/bonus column(s): Euromillions (2 star columns),
+# EuroDreams (1 dream number), VikingLotto (1 super viking) get modeled
+# via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
+# UnifiedLstmGruTcn.py create_model) instead of being lumped into the
+# main numbers' output. Lotto's bonus number isn't modeled at all - it's
+# simply dropped via skip_last_columns. Module level (was in __main__)
+# because update_matching_numbers/process_single_history_entry need it to
+# score matches per pool, and spawned children re-import this file as
+# __mp_main__, which skips __main__.
+SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
+
+
+def matchingSplitArgs(name, realResult):
+    """
+    (specialColumnCount, realMainCount) for find_best_matching_prediction, so
+    matches are scored per pool (mains against mains, specials against
+    specials) instead of one pooled set intersection - mirrors Predictor.py's
+    helper of the same name. Lotto's bonus stays in the main pool on purpose:
+    it is drawn from the same 1-45 drum and a predicted main matching it is a
+    real hit (5+bonus is a prize tier) - only the separately-drawn special
+    columns (stars/dream/viking) are split off. Keno/pick3/lotto fall through
+    with (0, None) - no split needed.
+    """
+    specialColumnCount = next(
+        (count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
+    return specialColumnCount, None
+
 
 def configure_lstm(model, modelParams):
     model.setBatchSize(modelParams["batchSize"])
@@ -483,8 +510,10 @@ def update_matching_numbers(name, path):
         curr_json["currentPredictionRaw"] = prev_json.get("newPredictionRaw", [])
         curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
 
+        specialColumnCount, realMainCount = matchingSplitArgs(name, curr_json["realResult"])
         best_match = helpers.find_best_matching_prediction(
-            curr_json["realResult"], curr_json["currentPrediction"]
+            curr_json["realResult"], curr_json["currentPrediction"],
+            specialColumnCount=specialColumnCount, realMainCount=realMainCount
         )
         curr_json["matchingNumbers"] = best_match
 
@@ -521,8 +550,10 @@ def process_single_history_entry(args):
         current_json_object["currentPredictionRaw"] = previous_json_object["newPredictionRaw"]
         current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
 
+    matchSpecialCount, matchRealMainCount = matchingSplitArgs(name, current_json_object["realResult"])
     best_matching_prediction = helpers.find_best_matching_prediction(
-        current_json_object["realResult"], current_json_object["currentPrediction"])
+        current_json_object["realResult"], current_json_object["currentPrediction"],
+        specialColumnCount=matchSpecialCount, realMainCount=matchRealMainCount)
     current_json_object["matchingNumbers"] = best_matching_prediction
 
     listOfDecodedPredictions = []
@@ -850,14 +881,11 @@ if __name__ == "__main__":
         # kicks in.
         remove_lock()
         sys.exit(1)
-    # Trailing special/bonus column(s): Euromillions (2 star columns),
-    # EuroDreams (1 dream number), VikingLotto (1 super viking) get modeled
-    # via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
-    # UnifiedLstmGruTcn.py create_model) instead of being lumped into the
-    # main numbers' output. Lotto's bonus number isn't modeled at all - it's
-    # simply dropped via skip_last_columns (was incorrectly 0 here, unlike
+    # SPECIAL_COLUMN_COUNTS moved to module level (see the definition near
+    # MODEL_DISPLAY_NAMES) so the match-scoring helpers can use it too. Lotto's
+    # bonus number isn't modeled at all - it's simply dropped via
+    # skip_last_columns (was incorrectly 0 here at one point, unlike
     # Predictor.py's own dataset list, which already drops it).
-    SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
     datasets = [
         # (dataset_name, model_type, skip_last_columns, special_column_count)
         (dataset_name, model_type, skip_last_columns, SPECIAL_COLUMN_COUNTS.get(dataset_name, 0))

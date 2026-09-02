@@ -72,6 +72,21 @@ LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
 
 
+def matchingSplitArgs(name, realResult):
+    """
+    (specialColumnCount, realMainCount) for find_best_matching_prediction, so
+    matches are scored per pool (mains against mains, specials against
+    specials) instead of one pooled set intersection. Lotto's bonus stays in
+    the main pool on purpose: it is drawn from the same 1-45 drum and a
+    predicted main matching it is a real hit (5+bonus is a prize tier) - only
+    the separately-drawn special columns (stars/dream/viking) are split off.
+    Keno/pick3/lotto fall through with (0, None) - no split needed.
+    """
+    specialColumnCount = next(
+        (count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
+    return specialColumnCount, None
+
+
 def getKenoSubsetSizes(name, bestParams_json_object):
     """
     Keno is the only game with sub-selections (playable 5-10-number tickets
@@ -176,8 +191,10 @@ def update_matching_numbers(name, path):
         curr_json["currentPrediction"] = prev_json.get("newPrediction", [])
         curr_json["currentNumberFrequency"] = prev_json.get("numberFrequency", {})
 
+        specialColumnCount, realMainCount = matchingSplitArgs(name, curr_json["realResult"])
         best_match = helpers.find_best_matching_prediction(
-            curr_json["realResult"], curr_json["currentPrediction"]
+            curr_json["realResult"], curr_json["currentPrediction"],
+            specialColumnCount=specialColumnCount, realMainCount=realMainCount
         )
         curr_json["matchingNumbers"] = best_match
 
@@ -222,8 +239,10 @@ def process_single_history_entry_first_step(args):
             current_json_object["currentPrediction"] = previous_json_object["newPrediction"]
             current_json_object["currentNumberFrequency"] = previous_json_object.get("numberFrequency", {})
 
+        specialColumnCount, realMainCount = matchingSplitArgs(name, current_json_object["realResult"])
         best_matching_prediction = helpers.find_best_matching_prediction(
-            current_json_object["realResult"], current_json_object["currentPrediction"])
+            current_json_object["realResult"], current_json_object["currentPrediction"],
+            specialColumnCount=specialColumnCount, realMainCount=realMainCount)
         current_json_object["matchingNumbers"] = best_matching_prediction
 
         
@@ -538,7 +557,10 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     # Check on prediction with nth highest probability
                     print("find matching numbers")
-                    best_matching_prediction = helpers.find_best_matching_prediction(current_json_object["realResult"], current_json_object["currentPrediction"])
+                    matchSpecialCount, matchRealMainCount = matchingSplitArgs(name, current_json_object["realResult"])
+                    best_matching_prediction = helpers.find_best_matching_prediction(
+                        current_json_object["realResult"], current_json_object["currentPrediction"],
+                        specialColumnCount=matchSpecialCount, realMainCount=matchRealMainCount)
 
                     current_json_object["matchingNumbers"] = best_matching_prediction
 

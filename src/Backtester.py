@@ -94,14 +94,30 @@ def _backtest_single_day(i):
             predicted_numbers = list(map(int, predicted_numbers))
 
             row[f"{model_name}_prediction"] = sorted(predicted_numbers)
-            row[f"{model_name}_hits"] = Metrics.count_hits(
-                predicted_numbers,
-                actual
-            )
-            row[f"{model_name}_matching_numbers"] = Metrics.matching_numbers(
-                predicted_numbers,
-                actual
-            )
+            # Hits are scored per pool: a predicted main matching a star/
+            # dream/viking value (whose smaller range sits inside the main
+            # range) is not a hit - pooled counting inflated every hyperopt
+            # hits_avg objective for the special-column games. Lotto passes
+            # through whole (scc=0): its bonus comes from the same 1-45 drum
+            # and a predicted main matching it IS a hit (5+bonus prize tier).
+            if special_column_count > 0 and len(predicted_numbers) > len(actual) - special_column_count:
+                pred_mains = predicted_numbers[:-special_column_count]
+                pred_specials = predicted_numbers[-special_column_count:]
+                actual_mains = actual[:-special_column_count]
+                actual_specials = actual[-special_column_count:]
+                row[f"{model_name}_hits"] = Metrics.count_hits(pred_mains, actual_mains)
+                row[f"{model_name}_special_hits"] = Metrics.count_hits(pred_specials, actual_specials)
+                row[f"{model_name}_matching_numbers"] = Metrics.matching_numbers(pred_mains, actual_mains)
+                row[f"{model_name}_special_matching_numbers"] = Metrics.matching_numbers(pred_specials, actual_specials)
+            else:
+                row[f"{model_name}_hits"] = Metrics.count_hits(
+                    predicted_numbers,
+                    actual
+                )
+                row[f"{model_name}_matching_numbers"] = Metrics.matching_numbers(
+                    predicted_numbers,
+                    actual
+                )
 
             if game == "pick3":
                 profit = helpers.pick3_ticket_profit(predicted_numbers, actual)
@@ -169,7 +185,13 @@ def _backtest_single_day(i):
         random.seed(baseline_seed)
 
         train_numbers = numbers[:i]
-        draw_size = len(actual)
+        # Baselines bet MAIN tickets: len(actual) includes the special
+        # column(s) on those games, and a 7-number baseline drawn from the
+        # main range both overbets and gets scored against a pooled result -
+        # inflating the baseline every model is compared to. Lotto keeps the
+        # full 7 (bonus is main-pool, see above).
+        draw_size = len(actual) - special_column_count
+        actual_for_baselines = actual[:-special_column_count] if special_column_count > 0 else actual
 
         random_prediction = Baselines.random_ticket(
             data_loader_model.min_number,
@@ -182,9 +204,12 @@ def _backtest_single_day(i):
             draw_size
         )
 
+        # column_frequency builds one value per CSV column, so on special
+        # games its trailing entries are special-column picks - keep the main
+        # columns only, consistent with the main-pool scoring below.
         column_frequency_prediction = Baselines.column_frequency_ticket(
             train_numbers
-        )
+        )[:draw_size]
 
         baseline_predictions = {
             "random": random_prediction,
@@ -194,8 +219,8 @@ def _backtest_single_day(i):
 
         for baseline_name, prediction in baseline_predictions.items():
             row[f"{baseline_name}_prediction"] = sorted(prediction)
-            row[f"{baseline_name}_hits"] = Metrics.count_hits(prediction, actual)
-            row[f"{baseline_name}_matching_numbers"] = Metrics.matching_numbers(prediction, actual)
+            row[f"{baseline_name}_hits"] = Metrics.count_hits(prediction, actual_for_baselines)
+            row[f"{baseline_name}_matching_numbers"] = Metrics.matching_numbers(prediction, actual_for_baselines)
 
             if game == "pick3":
                 profit = helpers.pick3_ticket_profit(prediction, actual)
