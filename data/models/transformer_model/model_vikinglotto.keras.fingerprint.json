@@ -1,0 +1,13 @@
+{
+  "max_value": 48,
+  "num_classes": 48,
+  "digitsPerDraw": 7,
+  "specialColumnCount": 1,
+  "specialNumClasses": 8,
+  "d_model": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "key_dim": 32,
+  "ffn_factor": 4,
+  "window_size": 30
+}
