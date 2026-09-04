@@ -101,6 +101,54 @@ class MarkovMonteCarlo:
 
         return votes
 
+    def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-position digit scores for the positional (Pick3) meta-learner: one
+        {digit: votes} dict per drawn position, in drawn order. Same chain
+        build and the same num_simulations sampled tickets run()'s voting
+        draws, tallied per slot ("how often was digit d sampled in position
+        p") instead of pooled over the whole ticket - the pooled tally is
+        exactly what discards the slot identity a positional game pays out
+        on. Only meaningful with sorted_prediction=False (how Pick3 is
+        configured): the sorted path dedupes and re-orders each sampled
+        ticket, so a shortened ticket is tallied only for the slots it still
+        has. Every digit of the game's label range is present (never sampled
+        -> 0.0) so the consumer can build fixed-width feature vectors without
+        guarding keys; a sampled value outside that range (Markov's random
+        fallbacks use its own min/max_number, which ModelFactory never sets
+        for Pick3) is dropped rather than invent an extra key. Empty history
+        returns [] - same convention as score_numbers' {}.
+        """
+        numbers, _, unique_labels = self.model.load_numbers(
+            skipRows=skipRows,
+            skipLastColumns=skipLastColumns,
+            specialColumnCount=specialColumnCount
+        )
+
+        if len(numbers) == 0:
+            return []
+
+        self.model.build_markov_chain(numbers)
+        history = numbers[-self.model.markov_order:]
+
+        tickets = self.generate_candidate_tickets(
+            history,
+            n_tickets=self.num_simulations,
+            temperature=self.model.softMaxTemperature
+        )
+
+        digits = [int(label) for label in unique_labels]
+        num_positions = len(numbers[-1])
+        position_scores = [{digit: 0.0 for digit in digits} for _ in range(num_positions)]
+
+        for ticket in tickets:
+            for pos, digit in enumerate(ticket[:num_positions]):
+                digit = int(digit)
+                if digit in position_scores[pos]:
+                    position_scores[pos][digit] += 1.0
+
+        return position_scores
+
 if __name__ == "__main__":
     from Markov import Markov
 

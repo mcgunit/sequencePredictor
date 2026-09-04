@@ -439,6 +439,29 @@ class PerPositionBoostingPredictor(BoostingPredictorBase):
     def _score(self, draws, window):
         return self._average_confidence(self._position_probabilities(draws, window))
 
+    def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0, years_back=None):
+        """
+        Per-position class probabilities for the positional (Pick3)
+        meta-learner: one {number: probability} dict per draw position, in
+        drawn order - the very matrix _predict's argmax ticket is read from,
+        before _average_confidence pools it and throws the slot identity away.
+        Lives on this formulation only, not the shared base: a multi-label
+        model answers "is this number drawn at all", so it has no per-slot
+        distribution to hand out. Goes through the shared fit cache, so
+        calling it right after run()/score_numbers() on the same day costs
+        one predict_proba per position, not a refit. Empty history returns []
+        - same convention as score_numbers' {}.
+        """
+        fitted = self._ensure_fitted(skipRows, skipLastColumns, specialColumnCount, years_back)
+        if fitted is None:
+            return []
+
+        draws, window = fitted
+        return [
+            {self._decode(index): float(probability) for index, probability in enumerate(row)}
+            for row in self._position_probabilities(draws, window)
+        ]
+
     def predict(self, draws: List[List[int]]) -> List[int]:
         """Ticket only, from an already-fitted model."""
         return self._predict(draws, self._effective_window(draws))[0]

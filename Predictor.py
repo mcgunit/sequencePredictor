@@ -1454,204 +1454,290 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # Phase 1 stacking meta-learner(s) (see TrainMetaLearner.py): blends each
     # base model's own per-number score into one learned P(drawn), instead of
     # the flat/weighted vote WeightedEnsemble Model uses. Skipped gracefully
-    # if this game hasn't been trained yet (no meta_learner*.joblib), and
-    # always skipped for Pick3 for the same reason WeightedEnsemble Model is
-    # (positional game, a per-number score ranking has no notion of digit
-    # order).
+    # if this game hasn't been trained yet (no meta_learner*.joblib).
+    #
+    # Pick3 is served too, but only from a *positional* artifact
+    # ("positional": True, one classifier per drawn slot - see
+    # TrainMetaLearner.py): a flat per-number ranking has no notion of digit
+    # order (the reason WeightedEnsemble Model still skips Pick3), so its base
+    # models are asked for score_positions (per-slot digit scores) instead of
+    # score_numbers, and the ticket is each slot's argmax digit in drawn
+    # order, duplicates kept - see runMetaLearnerVariant below.
     #
     # MetaLearnerV2 Model (lens diversity, see README) reuses the exact same
     # base-model scores as MetaLearner Model - only the trained model class
     # differs (GradientBoostingClassifier vs LogisticRegression, see
     # TrainMetaLearner.py) - so both are computed from one shared score pass
     # instead of scoring every base model twice.
-    if not "pick3" in name:
-        metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
-        metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
-        # Quantum meta-learners (README's quantum research track, trained by
-        # the same TrainMetaLearner.py run): identical artifact shape, so they
-        # are served by the exact same runMetaLearnerVariant below - only the
-        # trained model class inside differs (see src/QuantumModels.py).
-        quantumMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_meta_learner.joblib")
-        quantumVqcMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_vqc_meta_learner.joblib")
+    isPick3 = "pick3" in name
+    metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
+    metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
+    # Quantum meta-learners (README's quantum research track, trained by
+    # the same TrainMetaLearner.py run): identical artifact shape, so they
+    # are served by the exact same runMetaLearnerVariant below - only the
+    # trained model class inside differs (see src/QuantumModels.py).
+    quantumMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_meta_learner.joblib")
+    quantumVqcMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_vqc_meta_learner.joblib")
 
-        if any(os.path.exists(p) for p in (metaLearnerPath, metaLearnerV2Path, quantumMetaLearnerPath, quantumVqcMetaLearnerPath)):
-            try:
-                # Re-apply this game's tuned params to every base model
-                # feeding the meta-learner(s), independent of whether that
-                # model's own useX flag happens to be enabled above - these
-                # are module-level singletons reused across games/history
-                # days, so without this they could still hold a previous
-                # game's config.
-                markov.setDataPath(dataPath)
-                markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"])
-                markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"])
-                markov.setAlpha(bestParams_json_object["markovAlpha"])
-                markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
-                markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
-                markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
-                markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
-                markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
-                markov.setBlendMode(bestParams_json_object["markovBlendMode"])
-                markov.setMarkovOrder(bestParams_json_object["markovOrder"])
-                markov.setSortedPrediction(bestParams_json_object["markovSortedPrediction"])
-                markov.setUsePairScoring(bestParams_json_object["markovUsePairScoring"])
-                markov.setPairScoringWeight(bestParams_json_object["markovPairScoringWeight"])
+    if any(os.path.exists(p) for p in (metaLearnerPath, metaLearnerV2Path, quantumMetaLearnerPath, quantumVqcMetaLearnerPath)):
+        try:
+            # Re-apply this game's tuned params to every base model
+            # feeding the meta-learner(s), independent of whether that
+            # model's own useX flag happens to be enabled above - these
+            # are module-level singletons reused across games/history
+            # days, so without this they could still hold a previous
+            # game's config.
+            markov.setDataPath(dataPath)
+            markov.setSoftMAxTemperature(bestParams_json_object["markovSoftMaxTemperature"])
+            markov.setMinOccurrences(bestParams_json_object["markovMinOccurences"])
+            markov.setAlpha(bestParams_json_object["markovAlpha"])
+            markov.setRecencyWeight(bestParams_json_object["markovRecencyWeight"])
+            markov.setRecencyMode(bestParams_json_object["markovRecencyMode"])
+            markov.setPairDecayFactor(bestParams_json_object["markovPairDecayFactor"])
+            markov.setSmoothingFactor(bestParams_json_object["markovSmoothingFactor"])
+            markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
+            markov.setBlendMode(bestParams_json_object["markovBlendMode"])
+            markov.setMarkovOrder(bestParams_json_object["markovOrder"])
+            # Pick3 pins these two exactly like ModelFactory.build_models
+            # (is_pick3=True) does for TrainMetaLearner.py - unsorted and
+            # pair-scored - so the score_positions the positional artifact is
+            # served come from the same Markov configuration it was trained
+            # on, even if a bestParams_pick3.json ever says otherwise. Every
+            # other game keeps reading its tuned flags, unchanged.
+            markov.setSortedPrediction(False if isPick3 else bestParams_json_object["markovSortedPrediction"])
+            markov.setUsePairScoring(True if isPick3 else bestParams_json_object["markovUsePairScoring"])
+            markov.setPairScoringWeight(bestParams_json_object["markovPairScoringWeight"])
 
-                markovMcBase.setDataPath(dataPath)
-                markovMcBase.setSoftMAxTemperature(bestParams_json_object["markovMcSoftMaxTemperature"])
-                markovMcBase.setMinOccurrences(bestParams_json_object["markovMcMinOccurences"])
-                markovMcBase.setAlpha(bestParams_json_object["markovMcAlpha"])
-                markovMcBase.setRecencyWeight(bestParams_json_object["markovMcRecencyWeight"])
-                markovMcBase.setRecencyMode(bestParams_json_object["markovMcRecencyMode"])
-                markovMcBase.setPairDecayFactor(bestParams_json_object["markovMcPairDecayFactor"])
-                markovMcBase.setSmoothingFactor(bestParams_json_object["markovMcSmoothingFactor"])
-                markovMcBase.setMarkovOrder(bestParams_json_object["markovMcOrder"])
-                markovMcBase.setSortedPrediction(sortedPrediction)
-                markovMonteCarlo.setNumOfSimulations(bestParams_json_object["markovMcNumSimulations"])
+            markovMcBase.setDataPath(dataPath)
+            markovMcBase.setSoftMAxTemperature(bestParams_json_object["markovMcSoftMaxTemperature"])
+            markovMcBase.setMinOccurrences(bestParams_json_object["markovMcMinOccurences"])
+            markovMcBase.setAlpha(bestParams_json_object["markovMcAlpha"])
+            markovMcBase.setRecencyWeight(bestParams_json_object["markovMcRecencyWeight"])
+            markovMcBase.setRecencyMode(bestParams_json_object["markovMcRecencyMode"])
+            markovMcBase.setPairDecayFactor(bestParams_json_object["markovMcPairDecayFactor"])
+            markovMcBase.setSmoothingFactor(bestParams_json_object["markovMcSmoothingFactor"])
+            markovMcBase.setMarkovOrder(bestParams_json_object["markovMcOrder"])
+            markovMcBase.setSortedPrediction(sortedPrediction)
+            markovMonteCarlo.setNumOfSimulations(bestParams_json_object["markovMcNumSimulations"])
 
-                markovBayesian.setDataPath(dataPath)
-                markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
-                markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"])
-                markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
-                markovBayesian.setSortedPrediction(sortedPrediction)
+            markovBayesian.setDataPath(dataPath)
+            markovBayesian.setSoftMAxTemperature(bestParams_json_object["markovBayesianSoftMaxTemperature"])
+            markovBayesian.setAlpha(bestParams_json_object["markovBayesianAlpha"])
+            markovBayesian.setMinOccurrences(bestParams_json_object["markovBayesianMinOccurences"])
+            markovBayesian.setSortedPrediction(sortedPrediction)
 
-                markovBayesianEnhanced.setDataPath(dataPath)
-                markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
-                markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
-                markovBayesianEnhanced.setMinOccurrences(bestParams_json_object["markovBayesianEnhancedMinOccurences"])
-                markovBayesianEnhanced.setSortedPrediction(sortedPrediction)
+            markovBayesianEnhanced.setDataPath(dataPath)
+            markovBayesianEnhanced.setSoftMAxTemperature(bestParams_json_object["markovBayesianEnhancedSoftMaxTemperature"])
+            markovBayesianEnhanced.setAlpha(bestParams_json_object["markovBayesianEnhancedAlpha"])
+            markovBayesianEnhanced.setMinOccurrences(bestParams_json_object["markovBayesianEnhancedMinOccurences"])
+            markovBayesianEnhanced.setSortedPrediction(sortedPrediction)
 
-                poissonMonteCarlo.setDataPath(dataPath)
-                poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
-                poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
-                poissonMonteCarlo.setSortedPrediction(sortedPrediction)
+            poissonMonteCarlo.setDataPath(dataPath)
+            poissonMonteCarlo.setNumOfSimulations(bestParams_json_object["poissonMonteCarloNumberOfSimulations"])
+            poissonMonteCarlo.setWeightFactor(bestParams_json_object["poissonMonteCarloWeightFactor"])
+            poissonMonteCarlo.setSortedPrediction(sortedPrediction)
 
-                poissonMarkov.setDataPath(dataPath)
-                poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1 - bestParams_json_object["poissonMarkovWeight"]))
-                poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
-                poissonMarkov.setSortedPrediction(sortedPrediction)
+            poissonMarkov.setDataPath(dataPath)
+            poissonMarkov.setWeights(poisson_weight=bestParams_json_object["poissonMarkovWeight"], markov_weight=(1 - bestParams_json_object["poissonMarkovWeight"]))
+            poissonMarkov.setNumberOfSimulations(bestParams_json_object["poissonMarkovNumberOfSimulations"])
+            poissonMarkov.setSortedPrediction(sortedPrediction)
 
-                laplaceMonteCarlo.setDataPath(dataPath)
-                laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
-                laplaceMonteCarlo.setSortedPrediction(sortedPrediction)
+            laplaceMonteCarlo.setDataPath(dataPath)
+            laplaceMonteCarlo.setNumOfSimulations(bestParams_json_object["laplaceMonteCarloNumberOfSimulations"])
+            laplaceMonteCarlo.setSortedPrediction(sortedPrediction)
 
-                # Same configuration boostingMethod applies (and the same
-                # ModelFactory.build_models applies when TrainMetaLearner.py
-                # builds the training data), so the boosting feature the
-                # meta-learner is served here is the one it was trained on.
-                # .get() with defaults: these keys won't exist in a
-                # bestParams_<game>.json written before HyperoptBoost.py ran.
-                # Note the meta-learner scores main and special columns in two
-                # separate passes, so this fits more than once per prediction -
-                # src/XGBoost.py's fit cache keeps that to one fit per range.
-                apply_boosting_params(xgboostPredictor, bestParams_json_object, "xgBoost")
-                xgboostPredictor.setDataPath(dataPath)
-                xgboostPredictor.setSortedPrediction(sortedPrediction)
-                # Measured on this 16-core box (eurodreams, 50 nested binary
-                # fits, estimators=50): 1 thread 2.8s, 4 threads 6.7s, 15
-                # threads did not finish in 9+ minutes - the per-number
-                # binary fits are far too small for OpenMP, whose spin-wait
-                # overhead dominates and oversubscribes against everything
-                # else. Same reasoning as ModelFactory.build_models'
-                # setNumThreads(1).
-                xgboostPredictor.setNumThreads(1)
-                xgboostPredictor.setSaveModels(False)
+            # Same configuration boostingMethod applies (and the same
+            # ModelFactory.build_models applies when TrainMetaLearner.py
+            # builds the training data), so the boosting feature the
+            # meta-learner is served here is the one it was trained on.
+            # .get() with defaults: these keys won't exist in a
+            # bestParams_<game>.json written before HyperoptBoost.py ran.
+            # Note the meta-learner scores main and special columns in two
+            # separate passes, so this fits more than once per prediction -
+            # src/XGBoost.py's fit cache keeps that to one fit per range.
+            apply_boosting_params(xgboostPredictor, bestParams_json_object, "xgBoost")
+            xgboostPredictor.setDataPath(dataPath)
+            xgboostPredictor.setSortedPrediction(sortedPrediction)
+            # Measured on this 16-core box (eurodreams, 50 nested binary
+            # fits, estimators=50): 1 thread 2.8s, 4 threads 6.7s, 15
+            # threads did not finish in 9+ minutes - the per-number
+            # binary fits are far too small for OpenMP, whose spin-wait
+            # overhead dominates and oversubscribes against everything
+            # else. Same reasoning as ModelFactory.build_models'
+            # setNumThreads(1).
+            xgboostPredictor.setNumThreads(1)
+            xgboostPredictor.setSaveModels(False)
 
-                modelInstances = {
-                    "Markov Model": markov,
-                    "MarkovMonteCarlo Model": markovMonteCarlo,
-                    "MarkovBayesian Model": markovBayesian,
-                    "MarkovBayesianEnhanched Model": markovBayesianEnhanced,
-                    "PoissonMonteCarlo Model": poissonMonteCarlo,
-                    "PoissonMarkov Model": poissonMarkov,
-                    "LaplaceMonteCarlo Model": laplaceMonteCarlo,
-                    "XGBoost Model": xgboostPredictor,
+            modelInstances = {
+                "Markov Model": markov,
+                "MarkovMonteCarlo Model": markovMonteCarlo,
+                "MarkovBayesian Model": markovBayesian,
+                "MarkovBayesianEnhanched Model": markovBayesianEnhanced,
+                "PoissonMonteCarlo Model": poissonMonteCarlo,
+                "PoissonMarkov Model": poissonMarkov,
+                "LaplaceMonteCarlo Model": laplaceMonteCarlo,
+                "XGBoost Model": xgboostPredictor,
+            }
+
+            def scoreNumbersFor(featureNames, skipLast, special):
+                return {
+                    featureName: modelInstances[featureName].score_numbers(
+                        skipRows=skipRows, skipLastColumns=skipLast, specialColumnCount=special)
+                    for featureName in featureNames if featureName in modelInstances
                 }
 
-                def scoreNumbersFor(featureNames, skipLast, special):
-                    return {
-                        featureName: modelInstances[featureName].score_numbers(
-                            skipRows=skipRows, skipLastColumns=skipLast, specialColumnCount=special)
-                        for featureName in featureNames if featureName in modelInstances
-                    }
+            def rankByModel(model, featureNames, perModelScores, numberRange):
+                featureMatrix = [
+                    [perModelScores.get(featureName, {}).get(number, 0.0) for featureName in featureNames]
+                    for number in numberRange
+                ]
+                probabilities = model.predict_proba(featureMatrix)[:, 1]
+                return probabilities, [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
 
-                def rankByModel(model, featureNames, perModelScores, numberRange):
-                    featureMatrix = [
-                        [perModelScores.get(featureName, {}).get(number, 0.0) for featureName in featureNames]
-                        for number in numberRange
-                    ]
-                    probabilities = model.predict_proba(featureMatrix)[:, 1]
-                    return probabilities, [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
+            def scorePositionsFor(featureNames):
+                # Pick3 counterpart of scoreNumbersFor: one {digit: score} dict
+                # per drawn slot from every base model that models slots
+                # (score_positions - see src/Markov.py and friends). A feature
+                # the artifact names but no model here can score positionally
+                # simply stays absent, which positionProbabilities reads as
+                # 0.0 - the same value TrainMetaLearner.py's training table
+                # put there. Pick3 has no special column, hence the fixed 0.
+                return {
+                    featureName: modelInstances[featureName].score_positions(
+                        skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=0)
+                    for featureName in featureNames
+                    if featureName in modelInstances and hasattr(modelInstances[featureName], "score_positions")
+                }
 
-                # Cached by feature-name tuple so MetaLearner Model and
-                # MetaLearnerV2 Model (same 7 base models, different trained
-                # classifier - see TrainMetaLearner.py) don't score everything
-                # twice when both artifacts exist and share the same features.
-                mainScoresByFeatures = {}
-                specialScoresByFeatures = {}
+            def positionProbabilities(model, featureNames, perModelPositionScores, position, digits):
+                # Positional analogue of rankByModel for one slot: a row per
+                # digit, a column per feature, read from that slot's
+                # score_positions dict. A model that returned fewer slots
+                # (e.g. Markov's [] on empty history) contributes 0.0.
+                # Same per-slot normalization TrainMetaLearner applied when
+                # building the training table (Helpers.normalize_position_scores)
+                # - the artifact was fitted on probabilities, so it must be
+                # served probabilities, not MarkovMonteCarlo's raw vote counts.
+                normalizedByFeature = {
+                    featureName: helpers.normalize_position_scores(perModelPositionScores.get(featureName, []))
+                    for featureName in featureNames
+                }
+                featureMatrix = []
+                for digit in digits:
+                    featureRow = []
+                    for featureName in featureNames:
+                        slots = normalizedByFeature[featureName]
+                        featureRow.append(slots[position].get(digit, 0.0) if position < len(slots) else 0.0)
+                    featureMatrix.append(featureRow)
+                return model.predict_proba(featureMatrix)[:, 1]
 
-                def runMetaLearnerVariant(artifactPath, displayName, subsetModeKey, subsetTemperatureKey):
-                    if not os.path.exists(artifactPath):
+            # Cached by feature-name tuple so MetaLearner Model and
+            # MetaLearnerV2 Model (same 7 base models, different trained
+            # classifier - see TrainMetaLearner.py) don't score everything
+            # twice when both artifacts exist and share the same features.
+            # positionScoresByFeatures is the Pick3 (positional) equivalent.
+            mainScoresByFeatures = {}
+            specialScoresByFeatures = {}
+            positionScoresByFeatures = {}
+
+            def runMetaLearnerVariant(artifactPath, displayName, subsetModeKey, subsetTemperatureKey):
+                if not os.path.exists(artifactPath):
+                    return
+                try:
+                    artifact = metaLearnerCache.get(artifactPath)
+                    if artifact is None:
+                        artifact = joblib.load(artifactPath)
+                        metaLearnerCache[artifactPath] = artifact
+
+                    featureNames = tuple(artifact["feature_names"])
+
+                    if artifact.get("positional"):
+                        # Positional (Pick3) artifact: one classifier per
+                        # drawn slot, each fed the digit-by-feature matrix of
+                        # that slot's score_positions - same feature order and
+                        # 0.0-for-missing convention as the training table it
+                        # learned from (TrainMetaLearner.py). The ticket is
+                        # each slot's argmax digit in drawn order: NOT sorted
+                        # (a straight pays on exact order) and duplicates kept
+                        # (Pick3 routinely draws them). np.argmax's first-max
+                        # rule over ascending digits resolves a tie to the
+                        # lowest digit, deterministically. No subsets: Pick3
+                        # has none (getKenoSubsetSizes).
+                        if featureNames not in positionScoresByFeatures:
+                            positionScoresByFeatures[featureNames] = scorePositionsFor(featureNames)
+                        perModelPositionScores = positionScoresByFeatures[featureNames]
+
+                        digits = [int(digit) for digit in artifact.get(
+                            "classes", range(artifact["min_number"], artifact["max_number"] + 1))]
+                        ticket = []
+                        for position, positionModel in enumerate(artifact["position_models"]):
+                            probabilities = positionProbabilities(
+                                positionModel, featureNames, perModelPositionScores, position, digits)
+                            ticket.append(digits[int(np.argmax(probabilities))])
+
+                        listOfDecodedPredictions.append({"name": displayName, "predictions": [ticket]})
                         return
-                    try:
-                        artifact = metaLearnerCache.get(artifactPath)
-                        if artifact is None:
-                            artifact = joblib.load(artifactPath)
-                            metaLearnerCache[artifactPath] = artifact
 
-                        featureNames = tuple(artifact["feature_names"])
+                    if isPick3:
+                        # A flat (per-number) artifact would rank digits as a
+                        # set and hand Pick3 a sorted, deduplicated ticket -
+                        # silently wrong for a positional game, so it is
+                        # refused rather than served. TrainMetaLearner.py only
+                        # ever writes positional artifacts for Pick3.
+                        print(f"Skipping {displayName} for {name}: artifact is not positional")
+                        return
 
-                        # Main numbers: same main-only call (drops the special
-                        # column(s) via skipLastColumns) every individual
-                        # model's own run() makes via
-                        # Helpers.run_model_with_special_column - see
-                        # Backtester.py's collect_scores split for why this
-                        # must not also pass specialColumnCount in the same
-                        # call.
-                        if featureNames not in mainScoresByFeatures:
-                            mainScoresByFeatures[featureNames] = scoreNumbersFor(
-                                featureNames, specialColumnCount if specialColumnCount > 0 else skipLastColumns, 0)
-                        perModelScores = mainScoresByFeatures[featureNames]
+                    # Main numbers: same main-only call (drops the special
+                    # column(s) via skipLastColumns) every individual
+                    # model's own run() makes via
+                    # Helpers.run_model_with_special_column - see
+                    # Backtester.py's collect_scores split for why this
+                    # must not also pass specialColumnCount in the same
+                    # call.
+                    if featureNames not in mainScoresByFeatures:
+                        mainScoresByFeatures[featureNames] = scoreNumbersFor(
+                            featureNames, specialColumnCount if specialColumnCount > 0 else skipLastColumns, 0)
+                    perModelScores = mainScoresByFeatures[featureNames]
 
-                        minNumber = artifact["min_number"]
-                        maxNumber = artifact["max_number"]
-                        numberRange = list(range(minNumber, maxNumber + 1))
-                        probabilities, rankedNumbers = rankByModel(artifact["model"], featureNames, perModelScores, numberRange)
-                        ticket = sorted(rankedNumbers[:artifact["draw_size"]])
+                    minNumber = artifact["min_number"]
+                    maxNumber = artifact["max_number"]
+                    numberRange = list(range(minNumber, maxNumber + 1))
+                    probabilities, rankedNumbers = rankByModel(artifact["model"], featureNames, perModelScores, numberRange)
+                    ticket = sorted(rankedNumbers[:artifact["draw_size"]])
 
-                        if specialColumnCount > 0 and "special_model" in artifact:
-                            if featureNames not in specialScoresByFeatures:
-                                specialScoresByFeatures[featureNames] = scoreNumbersFor(featureNames, 0, specialColumnCount)
-                            perModelSpecialScores = specialScoresByFeatures[featureNames]
-                            specialNumberRange = list(range(artifact["special_min_number"], artifact["special_max_number"] + 1))
-                            _, rankedSpecialNumbers = rankByModel(artifact["special_model"], featureNames, perModelSpecialScores, specialNumberRange)
-                            ticket = ticket + sorted(rankedSpecialNumbers[:artifact["special_draw_size"]])
+                    if specialColumnCount > 0 and "special_model" in artifact:
+                        if featureNames not in specialScoresByFeatures:
+                            specialScoresByFeatures[featureNames] = scoreNumbersFor(featureNames, 0, specialColumnCount)
+                        perModelSpecialScores = specialScoresByFeatures[featureNames]
+                        specialNumberRange = list(range(artifact["special_min_number"], artifact["special_max_number"] + 1))
+                        _, rankedSpecialNumbers = rankByModel(artifact["special_model"], featureNames, perModelSpecialScores, specialNumberRange)
+                        ticket = ticket + sorted(rankedSpecialNumbers[:artifact["special_draw_size"]])
 
-                        predictions = [ticket]
-                        mainScoreByNumber = dict(zip(numberRange, probabilities))
-                        for subsetSize in subsets:
-                            predictions.append(helpers.generate_subset_from_scores(
-                                mainScoreByNumber, ticket, subsetSize,
-                                mode=bestParams_json_object.get(subsetModeKey, "softmax"),
-                                temperature=bestParams_json_object.get(subsetTemperatureKey, 0.5)))
+                    predictions = [ticket]
+                    mainScoreByNumber = dict(zip(numberRange, probabilities))
+                    for subsetSize in subsets:
+                        predictions.append(helpers.generate_subset_from_scores(
+                            mainScoreByNumber, ticket, subsetSize,
+                            mode=bestParams_json_object.get(subsetModeKey, "softmax"),
+                            temperature=bestParams_json_object.get(subsetTemperatureKey, 0.5)))
 
-                        listOfDecodedPredictions.append({"name": displayName, "predictions": predictions})
-                    except Exception as e:
-                        print(f"Failed to perform {displayName} prediction: ", e)
+                    listOfDecodedPredictions.append({"name": displayName, "predictions": predictions})
+                except Exception as e:
+                    print(f"Failed to perform {displayName} prediction: ", e)
 
-                runMetaLearnerVariant(metaLearnerPath, "MetaLearner Model", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature")
-                runMetaLearnerVariant(metaLearnerV2Path, "MetaLearnerV2 Model", "metaLearnerV2SubsetMode", "metaLearnerV2SubsetTemperature")
-                # Quantum rows share the classical rows' feature names, so the
-                # score caches above mean all four variants cost one scoring
-                # pass; runMetaLearnerVariant's artifact-missing early-return
-                # and per-variant try/except give each row a graceful skip and
-                # failure isolation (an artifact that fails to unpickle - e.g.
-                # src/QuantumModels.py missing on an older checkout - only
-                # loses its own row).
-                runMetaLearnerVariant(quantumMetaLearnerPath, "QuantumMetaLearner Model", "quantumMetaLearnerSubsetMode", "quantumMetaLearnerSubsetTemperature")
-                runMetaLearnerVariant(quantumVqcMetaLearnerPath, "QuantumVQC Model", "quantumVqcSubsetMode", "quantumVqcSubsetTemperature")
-            except Exception as e:
-                print("Failed to perform Meta-Learner prediction: ", e)
+            runMetaLearnerVariant(metaLearnerPath, "MetaLearner Model", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature")
+            runMetaLearnerVariant(metaLearnerV2Path, "MetaLearnerV2 Model", "metaLearnerV2SubsetMode", "metaLearnerV2SubsetTemperature")
+            # Quantum rows share the classical rows' feature names, so the
+            # score caches above mean all four variants cost one scoring
+            # pass; runMetaLearnerVariant's artifact-missing early-return
+            # and per-variant try/except give each row a graceful skip and
+            # failure isolation (an artifact that fails to unpickle - e.g.
+            # src/QuantumModels.py missing on an older checkout - only
+            # loses its own row).
+            runMetaLearnerVariant(quantumMetaLearnerPath, "QuantumMetaLearner Model", "quantumMetaLearnerSubsetMode", "quantumMetaLearnerSubsetTemperature")
+            runMetaLearnerVariant(quantumVqcMetaLearnerPath, "QuantumVQC Model", "quantumVqcSubsetMode", "quantumVqcSubsetTemperature")
+        except Exception as e:
+            print("Failed to perform Meta-Learner prediction: ", e)
 
     return listOfDecodedPredictions
 
@@ -1694,7 +1780,8 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
     The multi-label models are skipped for Pick3: they model set membership
     ("is this number in the next draw"), which cannot represent digit order or
     the repeated digits Pick3 routinely produces - the same reason
-    WeightedEnsemble/MetaLearner are skipped there.
+    WeightedEnsemble Model is skipped there (the meta-learner instead serves
+    Pick3 from a positional artifact, see statisticalMethod).
     """
     bestParams_json_object = {
         "use_5": True, "use_6": True, "use_7": True,

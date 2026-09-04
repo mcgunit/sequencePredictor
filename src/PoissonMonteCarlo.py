@@ -190,6 +190,44 @@ class PoissonMonteCarlo():
 
         return dict(merged_counts)
 
+    def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-position digit scores for the positional (Pick3) meta-learner: one
+        {digit: score} dict per drawn position, in drawn order, from the same
+        recent-draws window run() fits build_poisson_model on. Where the Monte
+        Carlo loop samples every position's lambdas num_simulations times and
+        counts how often a digit "occurs", this is that loop's closed form:
+        P(Poisson(lambda) > 0) = 1 - exp(-lambda). Deterministic and free,
+        so the meta-learner's feature carries the model's signal without
+        sampling noise on top. Every digit of the game's label range is
+        present (never drawn in this position -> lambda 0 -> 0.0) so the
+        consumer can build fixed-width feature vectors without guarding keys.
+        Empty history returns [] - same convention as score_numbers' {}.
+        """
+        self.clear()
+
+        _, _, _, _, _, numbers, _, unique_labels = helpers.load_data(
+            self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+        numbers = [[int(num) for num in draw] for draw in numbers]
+
+        if len(numbers) == 0:
+            return []
+
+        numbers_to_use = numbers[-self.recent_draws:]
+        self.build_poisson_model(numbers_to_use)
+
+        digits = [int(label) for label in unique_labels]
+
+        position_scores = []
+        for pos in range(len(numbers[-1])):
+            lambdas = self.poisson_lambda.get(pos, {})
+            position_scores.append({
+                digit: float(1.0 - np.exp(-lambdas.get(digit, 0.0)))
+                for digit in digits
+            })
+
+        return position_scores
+
 if __name__ == "__main__":
     print("Running Poisson Monte Carlo Simulation")
     

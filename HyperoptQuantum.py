@@ -1,4 +1,4 @@
-import os, argparse, json, sys, time
+import os, argparse, json, sys, time, functools
 from datetime import datetime
 import optuna
 import numpy as np
@@ -15,9 +15,15 @@ from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
 # Reuse the per-game min/max/draw_size/skip_last_columns/special_column_count
 # table and the (day, number) -> [scores, label] table builder instead of
 # redefining them - TrainMetaLearner.py trains the quantum artifacts on
-# exactly these, so tuning against a private copy could silently drift.
+# exactly these, so tuning against a private copy could silently drift. The
+# same goes for Pick3's positional table, per-position fit and argmax-ticket
+# scoring: the trial classifier must be fitted and played exactly the way the
+# persisted artifact will be.
 from HyperoptStatistics import GAME_CONFIG
-from TrainMetaLearner import build_training_table, load_meta_score_table, save_meta_score_table
+from TrainMetaLearner import (
+    build_training_table, load_meta_score_table, save_meta_score_table, meta_table_kind,
+    build_positional_training_table, fit_position_models, evaluate_positional_holdout,
+)
 
 helpers = Helpers()
 
@@ -138,7 +144,16 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
     trial or per study would multiply minutes of work for identical tables.
     Returns (results, model_names, main_actual_key) or None when the game has
     no usable data.
+
+    Pick3 collects the POSITIONAL table instead (is_pick3=True base models,
+    game="pick3" so the Backtester stores each model's per-slot
+    "_position_scores" next to "actual_ordered"), cached under its own
+    meta_position_table_pick3.joblib so it can never be confused with a flat
+    per-number table; its label key is "actual_ordered".
     """
+    is_pick3 = dataset_name == "pick3"
+    table_kind = meta_table_kind(dataset_name)
+
     dataPath = os.path.join(path, "data", "trainingData", dataset_name)
     bestParamsPath = os.path.join(path, f"bestParams_{dataset_name}.json")
     bestParams = {}
@@ -162,11 +177,11 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
     # Shared with TrainMetaLearner.py (same cache helpers): whichever script
     # collects first persists the table, the other reuses it - see the cache
     # validity rules next to load_meta_score_table.
-    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams)
+    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind)
     if cached is not None:
         results, model_names = cached
     else:
-        models = build_models(dataPath, bestParams, is_pick3=False)
+        models = build_models(dataPath, bestParams, is_pick3=is_pick3)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
 
         backtester = Backtester(loader)
@@ -181,14 +196,18 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
             special_column_count=game_cfg["special_column_count"],
             include_baselines=False,
             collect_scores=True,
-            verbose=True
+            verbose=True,
+            game="pick3" if is_pick3 else None
         )
         if results:
-            save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams)
+            save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams, table_kind)
 
     if not results:
         print(f"No backtest rows produced for {dataset_name}, skipping.")
         return None
+
+    if is_pick3:
+        return results, model_names, "actual_ordered"
 
     # Tune on the MAIN-number table only, labeled with the same actual_main
     # key subtlety TrainMetaLearner relies on: for special-column games the
@@ -230,6 +249,28 @@ def build_day_split(results, model_names, game_cfg, main_actual_key):
         scores_suffix="_scores", actual_key=main_actual_key)
 
     return X_train, y_train, X_test, y_test, len(test_days)
+
+
+def build_positional_day_split(results, model_names):
+    """
+    Pick3's version of build_day_split: the same chronological
+    TRAIN_DAY_FRACTION split over whole DAYS, on the positional table. Each
+    day is a fixed block of 30 rows there (3 positions x 10 digits, see
+    build_positional_training_table), so splitting the Backtester rows first
+    and building the two tables from them keeps every holdout day's three
+    slots together - a flat-row split could put one slot of a draw in training
+    and its other two in the holdout. The holdout days' drawn-order results
+    come back alongside, because the objective scores the argmax ticket with
+    the real payout table against the actual draw, not against 0/1 labels.
+    """
+    split_index = int(len(results) * TRAIN_DAY_FRACTION)
+    train_days, test_days = results[:split_index], results[split_index:]
+
+    X_train, y_train = build_positional_training_table(train_days, model_names)
+    X_test, y_test = build_positional_training_table(test_days, model_names)
+    test_actual_ordered = [row["actual_ordered"] for row in test_days]
+
+    return X_train, y_train, X_test, y_test, test_actual_ordered
 
 
 def score_holdout(model, X_test, y_test, n_test_days, draw_size):
@@ -288,6 +329,36 @@ def objective_quantum(trial, suggest_func, fit_func, study_label,
 
     print(f"{study_label} trial {trial.number}: hits/day={mean_hits:.3f} "
           f"auc={auc:.4f} value={value:.4f} ({time.time() - trialStart:.1f}s)")
+    return value
+
+
+def objective_quantum_positional(trial, suggest_func, fit_func, study_label,
+                                 X_train, y_train, X_test, test_actual_ordered):
+    """
+    Pick3 trial: fit one classifier per position on the early days (the
+    suggested params bound with functools.partial, the same way
+    TrainMetaLearner binds them for the persisted artifact), play the argmax
+    ticket on every holdout day and score it with the real Pick3 payout table
+    (Helpers.pick3_ticket_profit) against the drawn-order result - profit is
+    the research metric for the payout games, and unlike hits it rewards the
+    slot-exact straight/pair structure the positional model exists for. Mean
+    per-position top-1 accuracy enters as a +0.01 tie-breaker: the daily
+    profit is -4 on almost every day with rare spikes (+46 for a pair, several
+    hundred for a straight), so the profit mean alone ties most trials, while
+    0.01 * accuracy <= 0.01 can never outweigh a single real payout.
+    """
+    trialStart = time.time()
+
+    params = suggest_func(trial)
+    position_models = fit_position_models(X_train, y_train, functools.partial(fit_func, params=params))
+    mean_profit, accuracies, _ = evaluate_positional_holdout(position_models, X_test, test_actual_ordered)
+    mean_accuracy = float(np.mean(accuracies))
+    value = mean_profit + 0.01 * mean_accuracy
+
+    accuracy_text = "/".join(f"{accuracy:.3f}" for accuracy in accuracies)
+    print(f"{study_label} trial {trial.number}: profit/day={mean_profit:.3f} "
+          f"top1 acc per pos={accuracy_text} (mean {mean_accuracy:.4f}) value={value:.4f} "
+          f"({time.time() - trialStart:.1f}s)")
     return value
 
 
@@ -356,11 +427,10 @@ if __name__ == "__main__":
                 continue
             try:
                 print(f"\n{dataset_name.capitalize()}")
-                if dataset_name == "pick3":
-                    # Same reason TrainMetaLearner prints: the quantum models
-                    # rank per-number scores, which is meaningless for Pick3.
-                    print("Skipping Pick3 - positional game, a per-number score ranking has no notion of digit order.")
-                    continue
+                # Pick3 is positional, so it is tuned on the positional table
+                # (one classifier per slot, argmax-ticket profit objective)
+                # instead of the per-number ranking every other game uses.
+                is_pick3 = dataset_name == "pick3"
 
                 collected = collect_score_table(dataset_name, game_cfg, path, days_back)
                 if collected is None:
@@ -372,8 +442,14 @@ if __name__ == "__main__":
                           f"(need at least {MIN_EVALUATION_DAYS} for a meaningful 75/25 day split)")
                     continue
 
-                X_train, y_train, X_test, y_test, n_test_days = build_day_split(
-                    results, model_names, game_cfg, main_actual_key)
+                test_actual_ordered = None
+                if is_pick3:
+                    X_train, y_train, X_test, y_test, test_actual_ordered = build_positional_day_split(
+                        results, model_names)
+                    n_test_days = len(test_actual_ordered)
+                else:
+                    X_train, y_train, X_test, y_test, n_test_days = build_day_split(
+                        results, model_names, game_cfg, main_actual_key)
 
                 if len(set(y_train.tolist())) < 2 or len(set(y_test.tolist())) < 2:
                     # can't fit (or rank) a binary classifier on one class -
@@ -399,11 +475,18 @@ if __name__ == "__main__":
                         load_if_exists=True
                     )
 
-                    objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
-                        objective_quantum(
-                            trial, suggest_func, fit_func, studyName,
-                            X_train, y_train, X_test, y_test, n_test_days, game_cfg["draw_size"]
-                        )
+                    if is_pick3:
+                        objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
+                            objective_quantum_positional(
+                                trial, suggest_func, fit_func, studyName,
+                                X_train, y_train, X_test, test_actual_ordered
+                            )
+                    else:
+                        objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
+                            objective_quantum(
+                                trial, suggest_func, fit_func, studyName,
+                                X_train, y_train, X_test, y_test, n_test_days, game_cfg["draw_size"]
+                            )
 
                     runStart = datetime.now()
                     studyStart = time.time()

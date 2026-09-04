@@ -170,6 +170,63 @@ class LaplaceMonteCarlo():
 
         return dict(merged_counts)
 
+    def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-position digit scores for the positional (Pick3) meta-learner: one
+        {digit: probability} dict per drawn position, in drawn order, from the
+        same build_laplace_model fit run() uses. Instead of drawing
+        num_simulations Laplace samples per position and counting, this is
+        the exact discretised pmf of that sampling step - int() truncation of
+        the continuous sample followed by clipping to [min_number,
+        max_number]: every sample below min_number+1 lands on min_number
+        (truncation toward zero and the clip both push it there), every
+        sample at or above max_number lands on max_number, and each digit in
+        between owns the unit interval [digit, digit+1). Deterministic, so the
+        feature carries the model's signal without sampling noise on top.
+        Every digit of the game's label range is present (outside the fitted
+        [min_number, max_number] -> 0.0) so the consumer can build fixed-width
+        feature vectors without guarding keys. Empty history returns [] -
+        same convention as score_numbers' {}.
+        """
+        self.clear()
+
+        _, _, _, _, _, numbers, _, unique_labels = helpers.load_data(
+            self.dataPath, skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+
+        if len(numbers) == 0:
+            return []
+
+        self.setRecentDraws(min(self.recent_draws, len(numbers)))
+        self.build_laplace_model(numbers)
+
+        digits = [int(label) for label in unique_labels]
+        low, high = int(self.min_number), int(self.max_number)
+
+        position_scores = []
+        for pos in range(len(numbers[-1])):
+            if pos not in self.laplace_params:
+                position_scores.append({digit: 0.0 for digit in digits})
+                continue
+
+            loc, scale = self.laplace_params[pos]
+            scores = {}
+            for digit in digits:
+                if digit < low or digit > high:
+                    mass = 0.0
+                elif low == high:
+                    mass = 1.0
+                elif digit == low:
+                    mass = laplace.cdf(low + 1, loc=loc, scale=scale)
+                elif digit == high:
+                    mass = 1.0 - laplace.cdf(high, loc=loc, scale=scale)
+                else:
+                    mass = laplace.cdf(digit + 1, loc=loc, scale=scale) - laplace.cdf(digit, loc=loc, scale=scale)
+                # Floating-point cdf differences can dip a hair below zero.
+                scores[digit] = float(max(0.0, mass))
+            position_scores.append(scores)
+
+        return position_scores
+
 if __name__ == "__main__":
     print("Running Laplace Monte Carlo Simulation")
     

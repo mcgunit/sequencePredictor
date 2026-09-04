@@ -50,6 +50,14 @@ def _backtest_single_day(i):
         "actual": sorted(actual)
     }
 
+    # The same drawn numbers in their original per-column order, for every
+    # game. "actual" is sorted for set-style hit counting, which destroys the
+    # slot identity a positional game (Pick3) is actually paid out on - the
+    # positional meta-learner (TrainMetaLearner's pick3 table) labels "did
+    # digit d land in position p" from this. Purely additive: everything that
+    # reads "actual" is untouched.
+    row["actual_ordered"] = list(actual)
+
     # Phase 1 stacking meta-learner training data only. "actual" above is
     # sorted, which loses which drawn numbers were main vs special columns
     # (their ranges often overlap, e.g. Euromillions main 1-50 and star 1-12
@@ -169,6 +177,26 @@ def _backtest_single_day(i):
                         specialColumnCount=special_column_count
                     )
                     row[f"{model_name}_special_scores"] = {int(n): float(s) for n, s in special_scores.items()}
+
+                # Positional (Pick3) stacking: one {digit: score} dict per
+                # drawn position - the signal the flat {number: score} dict
+                # above pools away. Pick3 only: every other game is scored as
+                # a set, where slot identity is either meaningless (Keno) or
+                # an artefact of sorting (Lotto). Same skipRows/skipLastColumns
+                # as the main-scores call so it is scored on exactly the
+                # history this day's run() saw. The "_position_scores" suffix
+                # is deliberate: summarize()'s regexes only pick up
+                # _hits/_profit/_error, so this can never be mistaken for a
+                # metric of some pseudo-model.
+                if game == "pick3" and hasattr(model, "score_positions"):
+                    position_scores = model.score_positions(
+                        skipRows=rows_to_skip,
+                        skipLastColumns=special_column_count if special_column_count > 0 else skipLastColumns,
+                        specialColumnCount=0
+                    )
+                    row[f"{model_name}_position_scores"] = [
+                        {int(n): float(s) for n, s in scores.items()} for scores in position_scores
+                    ]
 
         except Exception as e:
             row[f"{model_name}_error"] = str(e)
@@ -349,9 +377,13 @@ class Backtester:
         score} dict as row[f"{model_name}_scores"] (main numbers) and, for
         special-column games, row[f"{model_name}_special_scores"] (the
         special column(s), scored independently - see the split logic
-        below). Used only by TrainMetaLearner.py to build its training table.
-        Off by default so normal hyperopt/backtest runs (which never read
-        this) pay no extra cost.
+        below). For game="pick3" it additionally calls score_positions(...)
+        on every model that has one and stores the resulting list of
+        per-position {digit: score} dicts (drawn order) as
+        row[f"{model_name}_position_scores"], paired with the always-present
+        row["actual_ordered"] label. Used only by TrainMetaLearner.py to
+        build its training tables. Off by default so normal hyperopt/backtest
+        runs (which never read this) pay no extra cost.
         """
         if generate_subsets is None:
             generate_subsets = []

@@ -205,6 +205,112 @@ class Markov():
             for n2, w in d.items():
                 self.normalized_pairs[n1][n2] = w / total_pair_weight
 
+    def _column_distribution(self, relevant_history, col_idx, temperature, min_val_constraint=None):
+        """
+        One column's next-value distribution: the Markov transition row for
+        this column's context blended with the column's own frequencies (the
+        frequencies alone when the context was never seen), optionally
+        filtered to values above min_val_constraint (sorted games chain each
+        slot on the previous one), then softmax-tempered. Returns
+        (candidates, probabilities), or ([], []) when nothing is left to
+        choose from so the caller can apply its own fallback. One
+        implementation shared by predict_next_numbers (samples from it), the
+        pair-scored joint (takes its top candidates) and score_positions
+        (reads it out whole), so all three see the exact same distribution.
+        """
+        context = tuple(int(draw[col_idx]) for draw in relevant_history)
+        matrix = self.transition_matrices[col_idx] if col_idx < len(self.transition_matrices) else {}
+
+        # Use Column-Specific Frequencies for blending
+        col_freqs = self.col_frequencies[col_idx] if col_idx < len(self.col_frequencies) else defaultdict(int)
+
+        if context in matrix:
+            markov_dist = matrix[context]
+            blended = self.blended_probability(markov_dist, col_freqs)
+        else:
+            # Fallback to column frequencies
+            total = sum(col_freqs.values()) or 1
+            blended = {k: v/total for k, v in col_freqs.items()}
+
+        candidates = list(blended.keys())
+        probs = list(blended.values())
+
+        # --- FILTERING FOR SORTED PREDICTION ---
+        if min_val_constraint is not None:
+            # We need number > min_val_constraint
+            filtered_cands = []
+            filtered_probs = []
+            for c, p in zip(candidates, probs):
+                if c > min_val_constraint:
+                    filtered_cands.append(c)
+                    filtered_probs.append(p)
+
+            if not filtered_cands:
+                # Soft fallback: if no valid candidates, return empty to trigger hard fallback
+                return [], []
+
+            candidates = filtered_cands
+            probs = filtered_probs
+
+            # Re-normalize sums to 1
+            total_p = sum(probs)
+            if total_p > 0:
+                probs = [p / total_p for p in probs]
+
+        if not candidates:
+             return [], []
+
+        adj_probs = self.softmax_with_temperature(probs, temperature)
+        return candidates, adj_probs
+
+    def _pair_scored_joint(self, relevant_history, temperature, top_k=4):
+        """
+        The pair-scored joint distribution over whole tickets (the Pick3
+        path): each column's top_k candidates from _column_distribution,
+        every cross-column combination scored by its summed log column
+        probability plus pair_scoring_weight times the summed log pair
+        affinity of its digits, softmaxed into probabilities. Returns
+        (combinations, probabilities) in matching order. predict_next_numbers
+        samples one ticket from it and score_positions marginalises it per
+        slot - a single implementation so the distribution being scored is
+        exactly the one the ticket is drawn from.
+        """
+        num_columns = len(relevant_history[0])
+
+        col_candidates = []
+        for col in range(num_columns):
+            cands, p = self._column_distribution(relevant_history, col, temperature) # No constraint here, we score later?
+            # Actually for Pick3 we don't constrain.
+            zipped = sorted(zip(cands, p), key=lambda x: x[1], reverse=True)
+            col_candidates.append(zipped[:top_k])
+
+        candidate_nums = [[num for num, prob in col] for col in col_candidates]
+        candidate_probs = [[prob for num, prob in col] for col in col_candidates]
+
+        all_combinations = list(itertools.product(*candidate_nums))
+        all_probs = list(itertools.product(*candidate_probs))
+
+        final_scores = []
+
+        for i, combo in enumerate(all_combinations):
+            base_prob_score = np.sum(np.log(np.array(all_probs[i]) + 1e-9))
+            pair_score = 0
+            sorted_combo = sorted(combo)
+            pairs = itertools.combinations(sorted_combo, 2)
+            for p1, p2 in pairs:
+                w = self.normalized_pairs[p1].get(p2, 0)
+                pair_score += np.log(w + 1e-9)
+
+            total = base_prob_score + (self.pair_scoring_weight * pair_score)
+            final_scores.append(total)
+
+        final_scores = np.array(final_scores)
+        final_scores = final_scores - final_scores.max()
+        final_probs = np.exp(final_scores)
+        final_probs = final_probs / final_probs.sum()
+
+        return all_combinations, final_probs
+
     def predict_next_numbers(self, history_draws, temperature=0.7):
         if len(history_draws) < self.markov_order:
             # Fallback
@@ -213,52 +319,6 @@ class Markov():
 
         relevant_history = history_draws[-self.markov_order:]
         num_columns = len(relevant_history[0])
-
-        def get_col_probs(col_idx, min_val_constraint=None):
-            context = tuple(int(draw[col_idx]) for draw in relevant_history)
-            matrix = self.transition_matrices[col_idx] if col_idx < len(self.transition_matrices) else {}
-            
-            # Use Column-Specific Frequencies for blending
-            col_freqs = self.col_frequencies[col_idx] if col_idx < len(self.col_frequencies) else defaultdict(int)
-            
-            if context in matrix:
-                markov_dist = matrix[context]
-                blended = self.blended_probability(markov_dist, col_freqs)
-            else:
-                # Fallback to column frequencies
-                total = sum(col_freqs.values()) or 1
-                blended = {k: v/total for k, v in col_freqs.items()}
-            
-            candidates = list(blended.keys())
-            probs = list(blended.values())
-            
-            # --- FILTERING FOR SORTED PREDICTION ---
-            if min_val_constraint is not None:
-                # We need number > min_val_constraint
-                filtered_cands = []
-                filtered_probs = []
-                for c, p in zip(candidates, probs):
-                    if c > min_val_constraint:
-                        filtered_cands.append(c)
-                        filtered_probs.append(p)
-                
-                if not filtered_cands:
-                    # Soft fallback: if no valid candidates, return empty to trigger hard fallback
-                    return [], []
-                
-                candidates = filtered_cands
-                probs = filtered_probs
-                
-                # Re-normalize sums to 1
-                total_p = sum(probs)
-                if total_p > 0:
-                    probs = [p / total_p for p in probs]
-
-            if not candidates: 
-                 return [], []
-            
-            adj_probs = self.softmax_with_temperature(probs, temperature)
-            return candidates, adj_probs
 
         # --- SAFETY SWITCH FOR PAIR SCORING ---
         local_use_pair_scoring = self.use_pair_scoring
@@ -274,7 +334,7 @@ class Markov():
             for col in range(num_columns):
                 constraint = last_pred_val if self.sorted_prediction else None
                 
-                cands, p = get_col_probs(col, min_val_constraint=constraint)
+                cands, p = self._column_distribution(relevant_history, col, temperature, min_val_constraint=constraint)
                 
                 if not cands:
                     # Hard Fallback: Last val + 1 (or 1 if first)
@@ -301,39 +361,8 @@ class Markov():
             # Pair Scoring (Pick3 only)
             # Note: Pair scoring with 'sorted_prediction' is complex. 
             # We assume Pair Scoring is only used for Pick3 where sorted_prediction=False.
-            top_k = 4
-            col_candidates = []
-            for col in range(num_columns):
-                cands, p = get_col_probs(col) # No constraint here, we score later? 
-                # Actually for Pick3 we don't constrain.
-                zipped = sorted(zip(cands, p), key=lambda x: x[1], reverse=True)
-                col_candidates.append(zipped[:top_k])
-            
-            candidate_nums = [[num for num, prob in col] for col in col_candidates]
-            candidate_probs = [[prob for num, prob in col] for col in col_candidates]
+            all_combinations, final_probs = self._pair_scored_joint(relevant_history, temperature)
 
-            all_combinations = list(itertools.product(*candidate_nums))
-            all_probs = list(itertools.product(*candidate_probs))
-            
-            final_scores = []
-            
-            for i, combo in enumerate(all_combinations):
-                base_prob_score = np.sum(np.log(np.array(all_probs[i]) + 1e-9))
-                pair_score = 0
-                sorted_combo = sorted(combo)
-                pairs = itertools.combinations(sorted_combo, 2)
-                for p1, p2 in pairs:
-                    w = self.normalized_pairs[p1].get(p2, 0)
-                    pair_score += np.log(w + 1e-9)
-                
-                total = base_prob_score + (self.pair_scoring_weight * pair_score)
-                final_scores.append(total)
-            
-            final_scores = np.array(final_scores)
-            final_scores = final_scores - final_scores.max()
-            final_probs = np.exp(final_scores)
-            final_probs = final_probs / final_probs.sum()
-            
             idx = np.random.choice(len(all_combinations), p=final_probs)
             prediction = list(all_combinations[idx])
 
@@ -485,6 +514,86 @@ class Markov():
         )
 
         return votes
+
+    def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
+        """
+        Per-position digit scores for the positional (Pick3) meta-learner: one
+        {digit: probability} dict per drawn position, in drawn order, summing
+        to 1 per slot. Same load and chain build as run(), then the very
+        distribution run()'s single ticket is sampled from, read out whole
+        instead of collapsed to one draw:
+          - pair-scoring path (how Pick3 is configured): the pair-scored joint
+            over each slot's top candidates (_pair_scored_joint), marginalised
+            per slot - digit d in slot p scores the summed probability of every
+            combination carrying d in slot p. Digits outside a slot's top
+            candidates get 0.0.
+          - otherwise (pair scoring off, or too many columns for the joint -
+            the same >6 cut-off predict_next_numbers applies, just without
+            repeating its warning): each slot's blended, tempered distribution
+            (_column_distribution) as-is. No sorted-prediction constraint:
+            that chains on the previous slot's *sampled* value, which has no
+            meaning when every slot is scored at once.
+        Every digit of the game's label range is present so the consumer can
+        build fixed-width feature vectors without guarding keys; a slot with
+        nothing to choose from (chain too short) scores uniform rather than an
+        all-zero row the consumer could not normalise - it is also what
+        predict_next_numbers' own random fallback amounts to there. Empty
+        history returns [] - same convention as score_numbers' {}.
+        """
+        numbers, _, unique_labels = self.load_numbers(
+            skipRows=skipRows,
+            skipLastColumns=skipLastColumns,
+            specialColumnCount=specialColumnCount
+        )
+
+        if len(numbers) == 0:
+            return []
+
+        self.build_markov_chain(numbers)
+        history_context = numbers[-self.markov_order:]
+        temperature = self.softMaxTemperature
+
+        digits = [int(label) for label in unique_labels]
+        num_columns = len(numbers[-1])
+        uniform = {digit: 1.0 / len(digits) for digit in digits}
+
+        if len(history_context) < self.markov_order:
+            return [dict(uniform) for _ in range(num_columns)]
+
+        column_dists = [
+            self._column_distribution(history_context, col, temperature)
+            for col in range(num_columns)
+        ]
+
+        # The joint needs every slot to have candidates (itertools.product
+        # over an empty slot is empty); a slot can come up empty when the
+        # chain is too short to have been built at all.
+        use_joint = (
+            self.use_pair_scoring
+            and num_columns <= 6
+            and all(len(cands) > 0 for cands, _ in column_dists)
+        )
+
+        position_scores = [{digit: 0.0 for digit in digits} for _ in range(num_columns)]
+
+        if use_joint:
+            combinations, probabilities = self._pair_scored_joint(history_context, temperature)
+            for combo, prob in zip(combinations, probabilities):
+                for pos, digit in enumerate(combo):
+                    digit = int(digit)
+                    if digit in position_scores[pos]:
+                        position_scores[pos][digit] += float(prob)
+        else:
+            for pos, (cands, probs) in enumerate(column_dists):
+                if not cands:
+                    position_scores[pos] = dict(uniform)
+                    continue
+                for digit, prob in zip(cands, probs):
+                    digit = int(digit)
+                    if digit in position_scores[pos]:
+                        position_scores[pos][digit] += float(prob)
+
+        return position_scores
 
 if __name__ == "__main__":
     print("Trying Markov")

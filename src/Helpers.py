@@ -77,6 +77,27 @@ class Helpers():
             return len(real_result) - 1, 0
         return len(real_result) - specialColumnCount, specialColumnCount
 
+    def normalize_position_scores(self, slots):
+        """
+        Per-slot normalization of a score_positions() result (list of
+        {digit: score} dicts) so every slot sums to 1. The positional
+        meta-learners consume these as features, and the base models emit
+        them on wildly different scales - MarkovMonteCarlo returns raw vote
+        COUNTS summing to markovMcNumSimulations, the others probabilities -
+        so without this a retune of that simulation count (a weekly hyperopt
+        event) would silently shift a trained artifact's feature scale under
+        it. An all-zero slot (no information) is left as is. Applied
+        identically at training (TrainMetaLearner) and serving (Predictor).
+        """
+        normalized = []
+        for slot in slots or []:
+            total = float(sum(slot.values())) if slot else 0.0
+            if total > 0:
+                normalized.append({int(k): float(v) / total for k, v in slot.items()})
+            else:
+                normalized.append({int(k): float(v) for k, v in (slot or {}).items()})
+        return normalized
+
     def split_ticket(self, ticket, realMainCount, specialColumnCount):
         """
         (mains, specials) of one prediction row. A row longer than the real

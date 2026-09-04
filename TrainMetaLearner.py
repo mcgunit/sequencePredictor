@@ -51,6 +51,121 @@ def build_training_table(rows, model_names, min_number, max_number, scores_suffi
     return np.array(features, dtype=float), np.array(labels, dtype=int)
 
 
+# Pick3 table geometry: 3 drawn positions x 10 digit classes, so every
+# backtest day expands to exactly 30 rows of the positional table. One
+# definition shared by the table builder, the per-position split, the
+# argmax ticket and HyperoptQuantum's day split, because all of them reshape
+# on this exact block size and a drift between them would silently pair the
+# wrong rows with the wrong slot.
+PICK3_POSITIONS = 3
+PICK3_CLASSES = 10
+
+
+def build_positional_training_table(rows, model_names, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+    """
+    Pick3 counterpart of build_training_table. The flat table asks "was this
+    number drawn at all", which for Pick3 throws away exactly what the payout
+    depends on (straight/pair prizes are paid per slot, and a digit can occupy
+    several slots at once). This table therefore has one row per (backtest
+    day, position, digit) with the label "did THIS digit land in THIS slot",
+    built from row[f"{name}_position_scores"][pos] (Backtester's per-slot
+    {digit: score} dicts) and row["actual_ordered"] (the draw in drawn order -
+    the sorted "actual" would misplace the slots).
+
+    Row order is fixed and load-bearing: day-major, then position 0..2, then
+    digit 0..9, so a day is a contiguous block of positions*classes rows.
+    split_positional_table and positional_argmax_tickets reshape on that
+    block, and HyperoptQuantum splits the flat table by whole days on it. A
+    model missing its position scores for a day (or a digit missing from a
+    slot's dict) contributes 0.0, mirroring build_training_table's unscored
+    default.
+    """
+    features = []
+    labels = []
+
+    for row in rows:
+        actual = [int(digit) for digit in (row.get("actual_ordered") or [])]
+        # Normalized per slot (see Helpers.normalize_position_scores): keeps
+        # the learned weights independent of MarkovMonteCarlo's raw vote-count
+        # scale, which changes whenever markovMcNumSimulations is retuned.
+        position_scores = {name: helpers.normalize_position_scores(row.get(f"{name}_position_scores") or [])
+                           for name in model_names}
+        for pos in range(positions):
+            actual_digit = actual[pos] if pos < len(actual) else None
+            for digit in range(classes):
+                feature = []
+                for name in model_names:
+                    scores = position_scores[name]
+                    feature.append(float(scores[pos].get(digit, 0.0)) if pos < len(scores) else 0.0)
+                features.append(feature)
+                labels.append(1 if actual_digit == digit else 0)
+
+    # an empty row list must still yield a 2-D matrix so callers can read
+    # X.shape[1] and reshape without special-casing
+    X = np.array(features, dtype=float) if features else np.zeros((0, len(model_names)), dtype=float)
+    return X, np.array(labels, dtype=int)
+
+
+def split_positional_table(X, y, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+    """
+    Cuts the day-major positional table into one (X_pos, y_pos) pair per
+    position. The positional meta-learner is one binary classifier per slot
+    (the same separation the special-column games get with their own
+    special_model): "is the first digit a 7" and "is the last digit a 7" are
+    different questions with different base-model evidence, and a single
+    pooled classifier could not tell the slots apart from the features alone.
+    """
+    n_features = X.shape[1]
+    n_days = len(y) // (positions * classes)
+    X_days = X.reshape(n_days, positions, classes, n_features)
+    y_days = y.reshape(n_days, positions, classes)
+    return [(X_days[:, pos].reshape(-1, n_features), y_days[:, pos].reshape(-1)) for pos in range(positions)]
+
+
+def fit_position_models(X, y, fit_func, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+    """One fitted fit_func(X_pos, y_pos) per position, in position order."""
+    return [fit_func(X_pos, y_pos) for X_pos, y_pos in split_positional_table(X, y, positions, classes)]
+
+
+def positional_argmax_tickets(position_models, X, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+    """
+    The ticket a positional artifact actually plays, per day of the given
+    table: each position's classifier scores its 10 digits and the slot takes
+    the argmax. np.argmax returns the FIRST maximum, so ties resolve to the
+    lowest digit deterministically - the same rule the serving side follows,
+    so a profit measured here is the profit of the ticket that gets played.
+    Digits stay in position order, unsorted, and may repeat (a [4, 4, 7]
+    ticket is a legitimate Pick3 play). Returns an (n_days, positions) array.
+    """
+    n_features = X.shape[1]
+    n_days = len(X) // (positions * classes)
+    X_days = X.reshape(n_days, positions, classes, n_features)
+    tickets = np.zeros((n_days, positions), dtype=int)
+    for pos, model in enumerate(position_models):
+        proba = model.predict_proba(X_days[:, pos].reshape(-1, n_features))[:, 1].reshape(n_days, classes)
+        tickets[:, pos] = np.argmax(proba, axis=1)
+    return tickets
+
+
+def evaluate_positional_holdout(position_models, X_test, actual_ordered, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+    """
+    Scores fitted position models on a held-out positional table against the
+    drawn-order results of the same days. Returns (mean profit per day of the
+    argmax ticket under the real Pick3 payout table, per-position top-1
+    accuracy list, the tickets). Profit is the research metric that matters
+    (README: profit per bet where a payout table exists); accuracy is the
+    diagnostic - chance is 0.1 per slot - and doubles as HyperoptQuantum's
+    smooth tie-breaker, since the ticket profit is -4 on most days with rare
+    large spikes and would otherwise tie almost every trial.
+    """
+    tickets = positional_argmax_tickets(position_models, X_test, positions, classes)
+    actual = np.array([[int(digit) for digit in day] for day in actual_ordered], dtype=int).reshape(-1, positions)
+
+    accuracies = [float(np.mean(tickets[:, pos] == actual[:, pos])) for pos in range(positions)]
+    profits = [helpers.pick3_ticket_profit(ticket.tolist(), day.tolist()) for ticket, day in zip(tickets, actual)]
+    return float(np.mean(profits)), accuracies, tickets
+
+
 def determine_special_range(dataPath, special_column_count):
     """
     Euromillions/EuroDreams/VikingLotto special columns (star numbers, dream
@@ -115,6 +230,39 @@ def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, 
     return meta_model
 
 
+def fit_positional_meta_model(results, model_names, label, fit_func, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+    """
+    Pick3 counterpart of fit_meta_model, same protocol: chronological 80/20
+    day split for an honest walk-forward sanity check (per-position top-1
+    accuracy against the 0.1 chance level, and the real-payout profit per day
+    of the argmax ticket - the number the README actually cares about), then a
+    refit of every position on the full window before returning, because the
+    persisted artifact should have seen every day. Returns [m0, m1, m2], one
+    classifier per position, in position order.
+    """
+    split_index = int(len(results) * 0.8)
+    train_rows, test_rows = results[:split_index], results[split_index:]
+
+    if len(train_rows) > 0 and len(test_rows) > 0:
+        X_train, y_train = build_positional_training_table(train_rows, model_names, positions, classes)
+        X_test, _ = build_positional_training_table(test_rows, model_names, positions, classes)
+
+        position_models = fit_position_models(X_train, y_train, fit_func, positions, classes)
+        mean_profit, accuracies, _ = evaluate_positional_holdout(
+            position_models, X_test, [row["actual_ordered"] for row in test_rows], positions, classes)
+
+        accuracy_text = " ".join(f"pos{pos}={accuracy:.3f}" for pos, accuracy in enumerate(accuracies))
+        print(f"{label}: held-out per-position top-1 accuracy {accuracy_text} (chance 0.1) "
+              f"argmax-ticket profit/day={mean_profit:.2f} EUR "
+              f"(train_days={len(train_rows)}, test_days={len(test_rows)})")
+    else:
+        print(f"{label}: not enough held-out days to report positional accuracy/profit "
+              f"(train_days={len(train_rows)}, test_days={len(test_rows)})")
+
+    X_full, y_full = build_positional_training_table(results, model_names, positions, classes)
+    return fit_position_models(X_full, y_full, fit_func, positions, classes)
+
+
 # The backtest with collect_scores=True is the most expensive stage of the
 # weekly pipeline (XGBoost genuinely retrains per day), and HyperoptQuantum.py
 # runs the identical collection minutes before this script does in
@@ -139,13 +287,23 @@ def base_param_subset(bestParams):
     return {k: v for k, v in (bestParams or {}).items() if k.startswith(BASE_PARAM_PREFIXES)}
 
 
-def meta_table_cache_path(path, dataset_name):
+def meta_table_kind(dataset_name):
+    """
+    Which table a game's cache holds. Pick3 rows carry the per-slot
+    "_position_scores" lists and are built with is_pick3=True base models, so
+    they live under their own filename (meta_position_table_pick3.joblib) and
+    can never be mistaken for - or overwrite - a flat per-number score table.
+    """
+    return "position" if dataset_name == "pick3" else "score"
+
+
+def meta_table_cache_path(path, dataset_name, table_kind="score"):
     cacheDir = os.path.join(path, "data", "hyperOptCache")
     os.makedirs(cacheDir, exist_ok=True)
-    return os.path.join(cacheDir, f"meta_score_table_{dataset_name}.joblib")
+    return os.path.join(cacheDir, f"meta_{table_kind}_table_{dataset_name}.joblib")
 
 
-def save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams):
+def save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams, table_kind="score"):
     try:
         joblib.dump({
             "results": results,
@@ -153,14 +311,14 @@ def save_meta_score_table(path, dataset_name, results, model_names, days_back, t
             "days": days_back,
             "total_rows": total_rows,
             "base_params": base_param_subset(bestParams),
-        }, meta_table_cache_path(path, dataset_name))
+        }, meta_table_cache_path(path, dataset_name, table_kind))
     except Exception as e:
-        print(f"Could not persist the {dataset_name} score-table cache (continuing): {e}")
+        print(f"Could not persist the {dataset_name} {table_kind}-table cache (continuing): {e}")
 
 
-def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams):
+def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind="score"):
     """Returns (results, model_names) sliced to the newest days_back days, or None."""
-    cachePath = meta_table_cache_path(path, dataset_name)
+    cachePath = meta_table_cache_path(path, dataset_name, table_kind)
     if not os.path.exists(cachePath):
         return None
     try:
@@ -181,9 +339,12 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams)
 
 
 def train_meta_learner(dataset_name, game_cfg, path, days_back):
-    if dataset_name == "pick3":
-        print("Skipping Pick3 - positional game, a per-number score ranking has no notion of digit order.")
-        return
+    # Pick3 is positional (straight/pair payouts are per slot, digits repeat),
+    # so it gets the positional table/artifact path below instead of the flat
+    # per-number one - the flat ranking has no notion of digit order, which is
+    # why this game used to be skipped here outright.
+    is_pick3 = dataset_name == "pick3"
+    table_kind = meta_table_kind(dataset_name)
 
     dataPath = os.path.join(path, "data", "trainingData", dataset_name)
     bestParamsPath = os.path.join(path, f"bestParams_{dataset_name}.json")
@@ -207,11 +368,11 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
 
     start_index = max(0, total_rows - days_back)
 
-    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams)
+    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind)
     if cached is not None:
         results, model_names = cached
     else:
-        models = build_models(dataPath, bestParams, is_pick3=False)
+        models = build_models(dataPath, bestParams, is_pick3=is_pick3)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
 
         backtester = Backtester(loader)
@@ -219,6 +380,9 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             backtester.add_model(name, model)
 
         print(f"\n{dataset_name}: backtesting {total_rows - start_index} days with {len(models)} base models to collect training data...")
+        # game="pick3" is what makes the Backtester call each model's
+        # score_positions() and store the per-slot "_position_scores" rows the
+        # positional table is built from; every other game keeps game=None
         results = backtester.backtest(
             start_index=start_index,
             end_index=total_rows,
@@ -226,10 +390,11 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             special_column_count=specialColumnCount,
             include_baselines=False,
             collect_scores=True,
-            verbose=True
+            verbose=True,
+            game="pick3" if is_pick3 else None
         )
         if results:
-            save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams)
+            save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams, table_kind)
 
     if not results:
         print(f"No backtest rows produced for {dataset_name}, skipping.")
@@ -306,6 +471,40 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
         ))
 
     for fit_func, artifact_filename, label, variant_params in variants:
+        # Training metadata (README's persistence requirement): when the
+        # artifact was produced and the exact hyperparameters it was fitted
+        # with ({} for the classical variants - theirs are fixed in code
+        # above). Additive keys only, so Predictor.py's runMetaLearnerVariant
+        # serves old and new artifacts unchanged.
+        trained_at = datetime.now(timezone.utc).isoformat()
+
+        if is_pick3:
+            # Same four variants, same filenames, but a different artifact
+            # shape: one classifier per position (the main/special separation
+            # pattern, applied per slot) instead of one flat "model". The
+            # "positional" flag is what tells the serving side to build a
+            # per-slot digit ticket in drawn order rather than a sorted
+            # top-draw_size ranking, so it must never be dropped.
+            position_models = fit_positional_meta_model(results, model_names, label, fit_func)
+
+            artifact = {
+                "positional": True,
+                "positions": PICK3_POSITIONS,
+                "classes": list(range(PICK3_CLASSES)),
+                "position_models": position_models,
+                "feature_names": model_names,
+                "draw_size": game_cfg["draw_size"],
+                "min_number": game_cfg["min"],
+                "max_number": game_cfg["max"],
+                "trained_at": trained_at,
+                "params": variant_params,
+            }
+
+            artifact_path = os.path.join(modelDir, artifact_filename)
+            joblib.dump(artifact, artifact_path)
+            print(f"{label}: saved positional meta-learner to {artifact_path}")
+            continue
+
         meta_model = fit_meta_model(
             results, model_names, game_cfg["min"], game_cfg["max"],
             scores_suffix="_scores", actual_key=main_actual_key, label=label, fit_func=fit_func)
@@ -316,12 +515,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             "min_number": game_cfg["min"],
             "max_number": game_cfg["max"],
             "draw_size": game_cfg["draw_size"],
-            # Training metadata (README's persistence requirement): when the
-            # artifact was produced and the exact hyperparameters it was
-            # fitted with ({} for the classical variants - theirs are fixed
-            # in code above). Additive keys only, so Predictor.py's
-            # runMetaLearnerVariant serves old and new artifacts unchanged.
-            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "trained_at": trained_at,
             "params": variant_params,
         }
 
@@ -351,8 +545,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-g", "--games",
         type=str,
-        default=",".join(g for g in GAME_CONFIG.keys() if g != "pick3"),
-        help='Comma-separated list of games, e.g. "lotto,keno"'
+        default=",".join(GAME_CONFIG.keys()),
+        help='Comma-separated list of games, e.g. "lotto,keno,pick3"'
     )
     parser.add_argument(
         "-d", "--days",
