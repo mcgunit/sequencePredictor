@@ -45,7 +45,7 @@ class MarkovMonteCarlo:
         if generateSubsets is None:
             generateSubsets = []
 
-        numbers, _, _ = self.model.load_numbers(
+        numbers, _, unique_labels = self.model.load_numbers(
             skipRows=skipRows,
             skipLastColumns=skipLastColumns,
             specialColumnCount=specialColumnCount
@@ -58,12 +58,26 @@ class MarkovMonteCarlo:
 
         history = numbers[-self.model.markov_order:]
 
-        predicted_numbers, votes = self.generate_voted_ticket(
-            history,
-            n_tickets=self.num_simulations,
-            ticket_size=len(numbers[-1]),
-            temperature=self.model.softMaxTemperature
-        )
+        if not self.model.sorted_prediction:
+            # Positional game (Pick3): the voted ticket below is a SORTED set
+            # of the top-voted unique digits, i.e. not a valid drawn-order
+            # ticket - it could never express [4,4,7] and its order carried
+            # no meaning, so every straight/pair payout it was scored on was
+            # against a scrambled ticket. Take the per-slot mode of the same
+            # simulated tickets instead (ties -> lowest digit), in drawn
+            # order, duplicates allowed - the same tallies score_positions
+            # feeds the positional meta-learner.
+            tallies = self._position_tallies(numbers, unique_labels)
+            predicted_numbers = [
+                max(slot.items(), key=lambda kv: (kv[1], -kv[0]))[0] for slot in tallies
+            ]
+        else:
+            predicted_numbers, votes = self.generate_voted_ticket(
+                history,
+                n_tickets=self.num_simulations,
+                ticket_size=len(numbers[-1]),
+                temperature=self.model.softMaxTemperature
+            )
 
         subsets = {}
 
@@ -114,10 +128,10 @@ class MarkovMonteCarlo:
         ticket, so a shortened ticket is tallied only for the slots it still
         has. Every digit of the game's label range is present (never sampled
         -> 0.0) so the consumer can build fixed-width feature vectors without
-        guarding keys; a sampled value outside that range (Markov's random
-        fallbacks use its own min/max_number, which ModelFactory never sets
-        for Pick3) is dropped rather than invent an extra key. Empty history
-        returns [] - same convention as score_numbers' {}.
+        guarding keys; a sampled value outside that range is dropped rather
+        than invent an extra key (Markov now derives its fallback range from
+        the loaded data, so this is purely defensive). Empty history returns
+        [] - same convention as score_numbers' {}.
         """
         numbers, _, unique_labels = self.model.load_numbers(
             skipRows=skipRows,
@@ -129,6 +143,16 @@ class MarkovMonteCarlo:
             return []
 
         self.model.build_markov_chain(numbers)
+        return self._position_tallies(numbers, unique_labels)
+
+    def _position_tallies(self, numbers, unique_labels):
+        """
+        Per-slot {digit: count} over num_simulations sampled tickets, chain
+        already built. Shared by score_positions (meta-learner features) and
+        run()'s positional ticket so both read the same distribution. Values
+        outside the label range are dropped (defensive - Markov now derives
+        its fallback range from the data, so this should not trigger).
+        """
         history = numbers[-self.model.markov_order:]
 
         tickets = self.generate_candidate_tickets(

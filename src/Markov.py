@@ -27,6 +27,12 @@ class Markov():
         self.min_occurrences = 5
         self.min_number = 1
         self.max_number = 80
+        # Nothing in the pipeline ever calls setGameRange, so these defaults
+        # used to drive every random-fallback digit (e.g. an unseen Markov
+        # context) for EVERY game - a lotto or pick3 fallback could emit 57.
+        # build_markov_chain now derives the range from the data it is built
+        # on unless a caller set it explicitly.
+        self._game_range_explicit = False
         self.draw_size = None
         self.random_seed = None
         # --- CONFIGURATION FLAGS ---
@@ -80,6 +86,7 @@ class Markov():
     def setGameRange(self, min_number, max_number):
         self.min_number = int(min_number)
         self.max_number = int(max_number)
+        self._game_range_explicit = True
 
     def setDrawSize(self, draw_size):
         self.draw_size = int(draw_size)
@@ -141,7 +148,17 @@ class Markov():
 
     def build_markov_chain(self, numbers):
         self.clear()
-        
+
+        # Range of the columns actually loaded for this call: pick3 digits
+        # 0-9, lotto mains 1-45, euromillions stars 1-12 on the special-only
+        # call, ... - so the random fallbacks in predict_next_numbers /
+        # generate_candidate_tickets stay inside the game's real range.
+        if not self._game_range_explicit and len(numbers) > 0:
+            arr = np.asarray(numbers)
+            if arr.size > 0:
+                self.min_number = int(arr.min())
+                self.max_number = int(arr.max())
+
         if len(numbers) <= self.markov_order: 
             return
 
