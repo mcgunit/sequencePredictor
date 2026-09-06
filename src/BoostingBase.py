@@ -78,8 +78,9 @@ class BoostingPredictorBase:
 
     - PerPositionBoostingPredictor: one multiclass classifier per draw
       position. Models "which number lands in slot i", which genuinely fits a
-      positional game (Pick3) but imposes slot identity on games that have
-      none (Keno's 20 numbers are unordered).
+      positional game (Pick3's 3 digits, Joker+'s 6 - the slot count is read
+      from the data, never hardcoded) but imposes slot identity on games that
+      have none (Keno's 20 numbers are unordered).
     - MultiLabelBoostingPredictor: one binary classifier per number in the
       game's range, answering "is this number in the next draw". Matches the
       structure of a non-positional game directly, and is far cheaper: Keno
@@ -108,7 +109,7 @@ class BoostingPredictorBase:
         self.force_nested = False
         self.subset_selection_mode = "softmax"
         self.subset_temperature = 0.5
-        self.sorted_prediction = True  # Set False for positional games like Pick3
+        self.sorted_prediction = True  # Set False for positional games (Pick3, Joker+)
         self.save_models = False       # Opt-in: Backtester runs many days in parallel
         self.num_threads = 1           # 1 by default, see setNumThreads
 
@@ -330,8 +331,11 @@ class PerPositionBoostingPredictor(BoostingPredictorBase):
     """
     One multiclass classifier per draw position, over a flattened window of the
     n_previous_draws preceding draws (raw values). The original formulation -
-    the only one that can represent a positional game like Pick3, where slot
-    identity is real and digits may repeat.
+    the only one that can represent a positional game (Pick3, Joker+), where
+    slot identity is real and digits may repeat. The number of positions is
+    len(draws[0]) of the loaded slice (setLengtOfDraw in fit), so a 6-digit
+    game and a 1-column special-only fit (Joker+'s zodiac codes) work without
+    special-casing.
     """
 
     def _prepare_data(self, draws: List[List[int]], window: int):
@@ -441,7 +445,7 @@ class PerPositionBoostingPredictor(BoostingPredictorBase):
 
     def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0, years_back=None):
         """
-        Per-position class probabilities for the positional (Pick3)
+        Per-position class probabilities for the positional (Pick3/Joker+)
         meta-learner: one {number: probability} dict per draw position, in
         drawn order - the very matrix _predict's argmax ticket is read from,
         before _average_confidence pools it and throws the slot identity away.
@@ -480,9 +484,11 @@ class MultiLabelBoostingPredictor(BoostingPredictorBase):
     17", which is order-statistic structure, not membership; multi-hot encodes
     "17 was drawn 2 draws ago", which is what a membership question needs.
 
-    Not meaningful for Pick3: digit order is part of the result and digits
-    repeat, neither of which a set-membership model can represent. Callers
-    should skip it there, the same way they skip WeightedEnsemble/MetaLearner.
+    Not meaningful for the positional games (Pick3, Joker+): digit order is
+    part of the result and digits repeat, neither of which a set-membership
+    model can represent. Callers should skip it there (Predictor.py's
+    boostingMethod does, via Helpers.is_positional_game), the same way they
+    skip WeightedEnsemble/MetaLearner.
 
     Cost note: this is much cheaper than the per-position formulation. Keno
     goes from 20 multiclass fits over 80 classes (which boost one tree group

@@ -22,16 +22,146 @@ var selectedModel = ["all"]; // Global filter for which models to show/calculate
 // --- GAME SHAPES ---
 // Mirrors Predictor.py's SPECIAL_COLUMN_COUNTS: how many trailing values of a
 // full result/ticket row are special numbers (euromillions stars, eurodreams
-// dream number, vikinglotto viking). A main-ball hit and a special-ball hit
-// are different prize dimensions, so the UI must never pool them.
-const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1 };
+// dream number, vikinglotto viking, jokerplus zodiac sign code). A main-ball
+// hit and a special-ball hit are different prize dimensions, so the UI must
+// never pool them.
+const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1, jokerplus: 1 };
+
+// --- JOKER+ ---
+// The Python side stores the Joker+ zodiac sign as its 0..11 code (regulation
+// order, see Helpers.ZODIAC_CANONICAL) so every model works on ints; the UI
+// decodes it back to the spelling the National Lottery's CSV exports use
+// (code 2 is 'Tweeling' there, not the regulation's 'Tweelingen') so the
+// page reads like the official result listing.
+const ZODIAC = ["Ram", "Stier", "Tweeling", "Kreeft", "Leeuw", "Maagd",
+                "Weegschaal", "Schorpioen", "Boogschutter", "Steenbok", "Waterman", "Vissen"];
+// Alternate spellings tolerated when a row carries a name instead of a code
+// (hand-edited files, the draw API's English names) - a value that only
+// differs in spelling must still count as the same sign.
+const ZODIAC_ALIASES = {
+  tweelingen: 2, aries: 0, taurus: 1, gemini: 2, cancer: 3, leo: 4, virgo: 5,
+  libra: 6, scorpio: 7, sagittarius: 8, capricorn: 9, aquarius: 10, pisces: 11
+};
+
+// Sign code (0..11) of a ticket/result value, or null when it is absent or
+// unrecognizable: an unknown sign simply cannot match, it must not break the
+// page. Mirrors Helpers._zodiac_code_or_none.
+function zodiacCode(value) {
+  if (value === null || value === undefined || typeof value === 'boolean') return null;
+  if (typeof value === 'number' || /^\s*\d+\s*$/.test(String(value))) {
+    const code = Number(value);
+    return Number.isInteger(code) && code >= 0 && code < ZODIAC.length ? code : null;
+  }
+  const key = String(value).trim().toLowerCase();
+  const idx = ZODIAC.findIndex(name => name.toLowerCase() === key);
+  if (idx >= 0) return idx;
+  return Object.prototype.hasOwnProperty.call(ZODIAC_ALIASES, key) ? ZODIAC_ALIASES[key] : null;
+}
+
+// Display name of a sign value. Unknown values are shown verbatim rather than
+// hidden so a bad code is visible in the UI instead of silently vanishing.
+function zodiacName(value) {
+  const code = zodiacCode(value);
+  return code === null ? String(value) : ZODIAC[code];
+}
+
+// Joker+ rows are [d1..d6, zodiacCode]; for display the trailing code becomes
+// its name. Other games and mains-only 6-digit rows are returned untouched.
+function displayRow(row, game) {
+  if (game !== 'jokerplus' || !Array.isArray(row) || row.length !== 7) return row;
+  return row.slice(0, 6).concat([zodiacName(row[6])]);
+}
+
+// Leading/trailing runs of a Joker+ ticket against the drawn digits - the two
+// quantities the game pays on (mirrors Helpers.jokerplus_runs). L = number of
+// LEADING positions matching consecutively from the left end, R = number of
+// TRAILING positions matching consecutively from the right end. Compared
+// positionally in drawn order, never as sets: digits repeat within a draw,
+// so membership tests are meaningless here. When every position matches the
+// match is full and R is reported as 0 so the two runs never double-count
+// the same positions; otherwise the mismatching position separates them and
+// L + R <= 5. Only the leading min(len) positions are compared so a 6-digit
+// mains-only ticket and a 7-value [digits + sign] row both work.
+function jokerplusRuns(ticketDigits, realDigits) {
+  const n = Math.min(ticketDigits.length, realDigits.length);
+  let left = 0;
+  while (left < n && Number(ticketDigits[left]) === Number(realDigits[left])) left += 1;
+  if (left === n) return { left: n, right: 0 };
+  let right = 0;
+  while (right < n - left && Number(ticketDigits[n - 1 - right]) === Number(realDigits[n - 1 - right])) right += 1;
+  return { left, right };
+}
+
+// Whether a Joker+ ticket's sign matches the drawn sign (0/1 for the "(Z)"
+// part of the notation). A ticket without a sign cell cannot match.
+function jokerplusSignHit(ticketSpecials, realSpecials) {
+  if (ticketSpecials.length === 0 || realSpecials.length === 0) return 0;
+  const ticketSign = zodiacCode(ticketSpecials[0]);
+  return ticketSign !== null && ticketSign === zodiacCode(realSpecials[0]) ? 1 : 0;
+}
+
+// Official Joker+ prize structure (Reglement Joker+, Sept 2023), mirroring
+// Helpers.PAYOUT_TABLE_JOKERPLUS. Left and right runs each pay per run length
+// and cumulate; all six digits matching is its own tier (the fixed minimum
+// jackpot when the sign matches too, which then replaces the sign refund
+// rather than adding to it). A matching sign alone refunds the stake. The
+// digits are system-generated; only the sign is chosen by the player.
+const PAYOUT_TABLE_JOKERPLUS = {
+  runs: { 0: 0, 1: 2, 2: 5, 3: 20, 4: 200, 5: 2000 },
+  full: 20000,
+  fullWithSign: 200000,
+  sign: 1.5,
+  betCost: 1.5
+};
+
+// Net profit of one Joker+ ticket (mirrors Helpers.jokerplus_ticket_profit).
+// ticket/realResult are [d1..d6, zodiacCode]; a 6-value ticket or result is
+// scored with the sign unknown (no sign match possible). Invalid shapes score
+// 0 like the other games' invalid-shape branches in calculateProfit.
+function jokerplusTicketProfit(ticket, realResult) {
+  if (!Array.isArray(ticket) || !Array.isArray(realResult)) return 0;
+  if (![6, 7].includes(ticket.length) || ![6, 7].includes(realResult.length)) return 0;
+  const ticketDigits = ticket.slice(0, 6).map(Number);
+  const realDigits = realResult.slice(0, 6).map(Number);
+  if (ticketDigits.some(Number.isNaN) || realDigits.some(Number.isNaN)) return 0;
+  const signMatch = jokerplusSignHit(ticket.slice(6), realResult.slice(6)) === 1;
+  const { left, right } = jokerplusRuns(ticketDigits, realDigits);
+  const table = PAYOUT_TABLE_JOKERPLUS;
+  let payout;
+  if (left === 6) {
+    payout = signMatch ? table.fullWithSign : table.full;
+  } else {
+    payout = table.runs[left] + table.runs[right];
+    if (signMatch) payout += table.sign;
+  }
+  return payout - table.betCost;
+}
+
+// Joker+ profits carry half-euro cents (1.50 stake/refund), so they are shown
+// with two decimals; the other payout games keep their integer rendering.
+function formatProfit(value, game) {
+  return game === 'jokerplus' && typeof value === 'number' ? value.toFixed(2) : value;
+}
+
+// Frequency dict fed to the bar charts. The day JSON's numberFrequency pools
+// every value of every predicted row; for Joker+ that would mix the zodiac
+// code in with the digits. A code 3 is indistinguishable from a digit 3
+// here, but codes 10 and 11 can only be signs, so the chart is restricted to
+// the digit range 0..9 and its x-axis stays "digits". Other games are
+// returned as-is (same object, so their charts render byte-identically).
+function chartFrequency(freq, game) {
+  if (game !== 'jokerplus' || !freq) return freq;
+  const digitsOnly = {};
+  Object.keys(freq).forEach((key) => { if (/^\d$/.test(String(key).trim())) digitsOnly[key] = freq[key]; });
+  return digitsOnly;
+}
 
 // Database folder names equal game names today, but the routes historically
 // matched with includes() (e.g. a "keno_backup" folder still behaves as keno),
 // so keep that tolerance. vikinglotto must be tested before lotto because
 // "vikinglotto".includes("lotto") is true.
 function gameFromFolder(folder) {
-  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3"];
+  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus"];
   for (const g of games) if (folder.includes(g)) return g;
   return folder;
 }
@@ -307,6 +437,9 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   if (filteredData.length === 0) return `<p style="padding: 10px; color: #888;">No predictions for selected model(s).</p>`;
 
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
+  // Joker+ is positional: hits are leading/trailing runs, not membership, and
+  // its 7th value is a zodiac sign code that must be shown as a name.
+  const isJoker = game === 'jokerplus';
   const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(realResult, game);
   // No real result (next-draw / home tables) -> no highlighting and no Hits column.
   const hasReal = realMains.length > 0;
@@ -317,7 +450,8 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
 
   html += '<tr><th style="min-width: 150px;">Model</th><th style="width: 50px;">#</th>';
   if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
-    Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => html += `<th>Num ${i + 1}</th>`);
+    // Joker+'s 7th column is the sign, not a seventh number.
+    Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => html += (isJoker && i === 6) ? '<th>Sign</th>' : `<th>Num ${i + 1}</th>`);
   }
   if(hasReal) html += '<th>Hits</th>';
   if(calcProfit) html += '<th>Profit</th>';
@@ -327,6 +461,11 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
     model.predictions.forEach((row, rowIndex) => {
       const modelType = model.name || "not known";
       const { mains: ticketMains, specials: ticketSpecials } = splitTicket(row, realMains, specialCount);
+      // Joker+ pays on positional runs (see jokerplusRuns) plus the sign, so
+      // its cells are lit by run membership: the leading run green, the
+      // trailing run blue, the sign amber - never by digit membership.
+      const runs = (isJoker && hasReal) ? jokerplusRuns(ticketMains, realMains) : null;
+      const signHit = runs ? jokerplusSignHit(ticketSpecials, realSpecials) : 0;
       html += `<tr>
         <td style="font-weight: bold; background: #f9f9f9;">${modelType}</td>
         <td style="font-weight: bold; background: #f9f9f9;">${rowIndex + 1}</td>`;
@@ -336,26 +475,44 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
         // the drawn mains (pick3 keeps its historical by-inclusion behavior,
         // keno subset rows and RL mains-only rows have no special cells).
         const isSpecialCell = ticketSpecials.length > 0 && cellIndex >= ticketMains.length;
-        const isMatching = hasReal && (isSpecialCell ? realSpecials.includes(cell) : realMains.includes(cell));
-        // Lotto bonus supplement: a played number equal to the bonus ball is
-        // a tier-relevant hit ("5 (1)") but not a main hit - amber, not green.
-        const isBonusMatch = hasReal && !isMatching && !isSpecialCell && realBonus.includes(cell);
-        const cellStyle = isMatching ? 'background: #2ecc71; color: white;'
-          : (isBonusMatch ? 'background: #f39c12; color: white;' : '');
-        html += `<td style="text-align: center; ${cellStyle}">${cell}</td>`;
+        let cellStyle = '';
+        let cellText = cell;
+        if (isJoker) {
+          if (isSpecialCell) cellText = zodiacName(cell);
+          if (runs) {
+            if (isSpecialCell) cellStyle = signHit ? 'background: #f39c12; color: white;' : '';
+            else if (cellIndex < runs.left) cellStyle = 'background: #2ecc71; color: white;';
+            else if (cellIndex >= ticketMains.length - runs.right) cellStyle = 'background: #3498db; color: white;';
+          }
+        } else {
+          const isMatching = hasReal && (isSpecialCell ? realSpecials.includes(cell) : realMains.includes(cell));
+          // Lotto bonus supplement: a played number equal to the bonus ball is
+          // a tier-relevant hit ("5 (1)") but not a main hit - amber, not green.
+          const isBonusMatch = hasReal && !isMatching && !isSpecialCell && realBonus.includes(cell);
+          cellStyle = isMatching ? 'background: #2ecc71; color: white;'
+            : (isBonusMatch ? 'background: #f39c12; color: white;' : '');
+        }
+        html += `<td style="text-align: center; ${cellStyle}">${cellText}</td>`;
       });
       if(hasReal) {
-        const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
-        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
-          + ticketMains.filter(n => realBonus.includes(n)).length;
-        // "3 (1)" = 3 main hits, 1 special/bonus hit; games without a
-        // special column or bonus just show the main count.
-        const hitDisplay = (specialCount > 0 || realBonus.length > 0) ? `${mainHits} (${specialHits})` : `${mainHits}`;
+        let hitDisplay;
+        if (isJoker) {
+          // "3/1 (1)" = leading run 3, trailing run 1, sign matched; a full
+          // match reads "6/0 (Z)".
+          hitDisplay = `${runs.left}/${runs.right} (${signHit})`;
+        } else {
+          const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
+          const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
+            + ticketMains.filter(n => realBonus.includes(n)).length;
+          // "3 (1)" = 3 main hits, 1 special/bonus hit; games without a
+          // special column or bonus just show the main count.
+          hitDisplay = (specialCount > 0 || realBonus.length > 0) ? `${mainHits} (${specialHits})` : `${mainHits}`;
+        }
         html += `<td style="font-weight: bold; background: #f9f9f9;">${hitDisplay}</td>`;
       }
       if(calcProfit) {
         const profit = calculateProfit(row, realResult, game, modelType);
-        html += `<td style="background: #f9f9f9;">${profit} €</td>`;
+        html += `<td style="background: #f9f9f9;">${formatProfit(profit, game)} €</td>`;
       }
       html += '</tr>';
     });
@@ -409,8 +566,12 @@ function calculateProfit(prediction, realResult, game, name) {
       else if (pred[2] === actual[2]) return payoutTablePick3.last_number;
       else return payoutTablePick3.lost;
     }
+    case "jokerplus": {
+      // Positional run tiers + sign, one 1.50 EUR stake per row (Z6).
+      return jokerplusTicketProfit(prediction, realResult);
+    }
     default: {
-      // Unreachable today (calcProfit is only enabled for keno/pick3), but
+      // Unreachable today (calcProfit is only enabled for keno/pick3/jokerplus), but
       // kept split-aware per the main/special audit so a future caller cannot
       // reintroduce the pooled main+special count: hits are main-vs-main only.
       const { mains: realMains } = splitRealResult(realResult, game);
@@ -502,7 +663,7 @@ function generatePerformanceSummary() {
           </table>
         </div>
         <p style="color: #7f8c8d; font-size: 0.85em; margin-bottom: 0;">
-          Keno/Pick3 rank by average profit per bet (real payout tables); other games by average hits of the main ticket.
+          Keno/Pick3/Joker+ rank by average profit per bet (real payout tables); other games by average hits of the main ticket.
           Click a game row for the full model ranking. Greyed models have fewer scored draws than the ranking minimum.
         </p>
       </div>
@@ -610,7 +771,8 @@ function generateLagAnalysis() {
           column is the lag that peaked in most runs: several runs agreeing on the same lag is the evidence a real
           phase shift exists; a peak that moves every run is noise. The trail shows the peaks in run order (hover a
           step for date and stats): a repeated <b>+30×5</b> means the peak is holding still, <b>+26 → +28 → +30</b>
-          means it is drifting. Pick3 is scored positionally (digit in the right place). One peak is recorded per run
+          means it is drifting. Pick3 is scored positionally (digit in the right place), Joker+ as its left + right
+          positional runs. One peak is recorded per run
           date, keeping the last 60 runs.
         </p>
         ${gameCards}
@@ -709,7 +871,7 @@ function generateRandomnessWatch() {
           </table>
         </div>
         <p style="color: #7f8c8d; font-size: 0.85em;">
-          Computed over the last 60 scored draws (pick3 per digit position, averaged). Normalized entropy near 1 and
+          Computed over the last 60 scored draws (pick3 and Joker+ per digit position, averaged). Normalized entropy near 1 and
           KL near 0 mean the process looks fair and stationary; a sustained entropy drop or KL rise is a
           predictability signal worth investigating - <b>not</b> proof of manipulation (rule changes, data artifacts
           and small windows all move these numbers). Per-model KL shows how far each model's recent predictions sit
@@ -746,7 +908,10 @@ app.get('/database/:folder', (req, res) => {
   const folderPath = path.join(dataPath, folder);
   if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
   const game = gameFromFolder(folder);
-  const calcProfit = game === "keno" || game === "pick3";
+  const calcProfit = game === "keno" || game === "pick3" || game === "jokerplus";
+  // Joker+ has a payout table AND a positional notation worth seeing at a
+  // glance, so its history shows both the profit and the best 'L/R (Z)'.
+  const isJoker = game === 'jokerplus';
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
 
   const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.json'));
@@ -767,12 +932,15 @@ app.get('/database/:folder', (req, res) => {
 
   sortedMonths.forEach((month, index) => {
     filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
-    let monthProfit = 0; let monthBest = { mains: 0, specials: 0 };
+    // For Joker+ 'mains' holds L+R and 'specials' the sign hit, so the same
+    // (mains, then specials) comparison ranks by (L+R, Z); left/right keep
+    // the two runs apart for the 'L/R (Z)' display.
+    let monthProfit = 0; let monthBest = { mains: 0, specials: 0, left: 0, right: 0 };
 
     const fileListHtml = filesByMonth[month].map(file => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        let fileProfit = 0; let fileBest = { mains: 0, specials: 0 };
+        let fileProfit = 0; let fileBest = { mains: 0, specials: 0, left: 0, right: 0 };
         const validPredictions = filterDataByModel(jsonData.currentPrediction);
 
         if (validPredictions && validPredictions.length > 0) {
@@ -782,7 +950,8 @@ app.get('/database/:folder', (req, res) => {
                     predObj.predictions.forEach(p => pProfit += calculateProfit(p, jsonData.realResult, game, predObj.name));
                     return acc + pProfit;
                 }, 0);
-            } else {
+            }
+            if (!calcProfit || isJoker) {
                 // Best row is recomputed from the predictions (main hits vs
                 // real mains only, then special hits as tie-break) instead of
                 // trusting jsonData.matchingNumbers: old day JSONs still carry
@@ -793,13 +962,22 @@ app.get('/database/:folder', (req, res) => {
                 validPredictions.forEach(predObj => {
                     predObj.predictions.forEach(p => {
                         const { mains: ticketMains, specials: ticketSpecials } = splitTicket(p, realMains, specialCount);
-                        const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
-                        // Lotto: the bonus supplements the tier ("5 (1)"),
-                        // matched against the played numbers themselves.
-                        const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
-                          + ticketMains.filter(n => realBonus.includes(n)).length;
-                        if (mainHits > fileBest.mains || (mainHits === fileBest.mains && specialHits > fileBest.specials)) {
-                            fileBest = { mains: mainHits, specials: specialHits };
+                        let candidate;
+                        if (isJoker) {
+                            // Positional runs, sign as tie-break - the same
+                            // ranking Helpers.find_best_matching_prediction uses.
+                            const runs = jokerplusRuns(ticketMains, realMains);
+                            candidate = { mains: runs.left + runs.right, specials: jokerplusSignHit(ticketSpecials, realSpecials), left: runs.left, right: runs.right };
+                        } else {
+                            const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
+                            // Lotto: the bonus supplements the tier ("5 (1)"),
+                            // matched against the played numbers themselves.
+                            const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
+                              + ticketMains.filter(n => realBonus.includes(n)).length;
+                            candidate = { mains: mainHits, specials: specialHits, left: 0, right: 0 };
+                        }
+                        if (candidate.mains > fileBest.mains || (candidate.mains === fileBest.mains && candidate.specials > fileBest.specials)) {
+                            fileBest = candidate;
                         }
                     });
                 });
@@ -811,9 +989,15 @@ app.get('/database/:folder', (req, res) => {
         }
         const color = fileProfit > 0 ? 'green' : (fileProfit < 0 ? 'red' : 'orange');
         // "Match: 3 (1)" = 3 main hits (1 special hit) for games that draw
-        // special numbers; other games just show the main count.
+        // special numbers; other games just show the main count. Joker+
+        // reads "Match: L/R (Z)" next to its profit.
         const showSupplement = specialCount > 0 || game === 'lotto';
-        const displayStat = calcProfit ? `${fileProfit} €` : `Match: ${fileBest.mains}${showSupplement ? ` (${fileBest.specials})` : ''}`;
+        const matchStat = isJoker
+          ? `Match: ${fileBest.left}/${fileBest.right} (${fileBest.specials})`
+          : `Match: ${fileBest.mains}${showSupplement ? ` (${fileBest.specials})` : ''}`;
+        const displayStat = calcProfit
+          ? (isJoker ? `${matchStat} · ${formatProfit(fileProfit, game)} €` : `${fileProfit} €`)
+          : matchStat;
 
         return `<li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
             <a href="/database/${folder}/${file}" style="text-decoration: none; color: #333;">📄 ${file}</a>
@@ -822,7 +1006,10 @@ app.get('/database/:folder', (req, res) => {
     }).join('');
 
     const monthColor = monthProfit > 0 ? '#27ae60' : (monthProfit < 0 ? '#c0392b' : '#7f8c8d');
-    const headerStat = calcProfit ? `Total: ${monthProfit} €` : `Best Match: ${monthBest.mains}${(specialCount > 0 || game === 'lotto') ? ` (${monthBest.specials})` : ''}`;
+    const bestStat = isJoker
+      ? `Best Match: ${monthBest.left}/${monthBest.right} (${monthBest.specials})`
+      : `Best Match: ${monthBest.mains}${(specialCount > 0 || game === 'lotto') ? ` (${monthBest.specials})` : ''}`;
+    const headerStat = calcProfit ? (isJoker ? `Total: ${formatProfit(monthProfit, game)} € · ${bestStat}` : `Total: ${monthProfit} €`) : bestStat;
     // Only expand if it is the first month (index === 0)
     const isExpanded = index === 0 ? 'expanded' : '';
 
@@ -851,7 +1038,7 @@ app.get('/database/:folder/:file', (req, res) => {
   if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
   const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   const game = gameFromFolder(folder);
-  const calculateProfitFlag = game === "keno" || game === "pick3";
+  const calculateProfitFlag = game === "keno" || game === "pick3" || game === "jokerplus";
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
   // Mains of the drawn row, used for the frequency-chart bar coloring: the
   // charted frequencies are main-number frequencies, so a bar must not turn
@@ -860,6 +1047,10 @@ app.get('/database/:folder/:file', (req, res) => {
   // no jsonData object (the previous client-side jsonData.realResult lookup
   // threw a ReferenceError and the analysis chart never rendered).
   const { mains: realMains } = splitRealResult(jsonData.realResult, game);
+  // Joker+ charts are restricted to the digit range (see chartFrequency);
+  // other games get the same object back.
+  const currentFrequency = chartFrequency(jsonData.currentNumberFrequency, game);
+  const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
 
   let html = generateHeader(`${file} Details`);
   html += `
@@ -872,7 +1063,7 @@ app.get('/database/:folder/:file', (req, res) => {
         <div class="card-header" onclick="toggleCard(this)">
             <span class="card-title">Real Result</span><div class="card-icon">▼</div>
         </div>
-        <div class="card-body">${generateList(jsonData.realResult)}</div>
+        <div class="card-body">${generateList(displayRow(jsonData.realResult, game))}</div>
     </div>
 
     <div class="card expanded">
@@ -881,13 +1072,15 @@ app.get('/database/:folder/:file', (req, res) => {
         </div>
         <div class="card-body">
             ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
-            ${specialCount > 0
+            ${game === 'jokerplus'
+              ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>L/R (Z)</b>: L = leading digits matching consecutively from the left (green cells), R = trailing digits matching consecutively from the right (blue cells); a full match reads 6/0. Z = 1 (amber cell) when the zodiac sign matches. Joker+ pays per run length from either end, so a right digit in the wrong position is worth nothing. Only the sign is player-selectable - the six digits are system-generated.</p>`
+              : (specialCount > 0
               ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N hits among the main numbers, M among the special numbers (euromillions stars / eurodreams dream / vikinglotto viking). Cells highlight green only within their own group.</p>`
               : (game === 'lotto'
                 ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
-                : '')}
+                : ''))}
 
-            ${jsonData.currentNumberFrequency && Object.keys(jsonData.currentNumberFrequency).length > 0 ? `
+            ${currentFrequency && Object.keys(currentFrequency).length > 0 ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
                     <canvas id="chart-analysis"></canvas>
                 </div>
@@ -895,11 +1088,11 @@ app.get('/database/:folder/:file', (req, res) => {
                     new Chart(document.getElementById('chart-analysis').getContext('2d'), {
                     type: 'bar',
                     data: {
-                        labels: ${JSON.stringify(Object.keys(jsonData.currentNumberFrequency))},
+                        labels: ${JSON.stringify(Object.keys(currentFrequency))},
                         datasets: [{
                             label: 'Freq',
-                            data: ${JSON.stringify(Object.values(jsonData.currentNumberFrequency))},
-                            backgroundColor: ${JSON.stringify(Object.keys(jsonData.currentNumberFrequency))}.map(n => ${JSON.stringify(realMains)}.includes(Number(n)) ? 'rgba(46, 204, 113, 0.8)' : 'rgba(52, 152, 219, 0.6)')
+                            data: ${JSON.stringify(Object.values(currentFrequency))},
+                            backgroundColor: ${JSON.stringify(Object.keys(currentFrequency))}.map(n => ${JSON.stringify(realMains)}.includes(Number(n)) ? 'rgba(46, 204, 113, 0.8)' : 'rgba(52, 152, 219, 0.6)')
                         }]
                     },
                     options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
@@ -916,7 +1109,7 @@ app.get('/database/:folder/:file', (req, res) => {
         <div class="card-body">
             ${generateTable(jsonData.newPrediction, '', [], false, game)}
 
-            ${jsonData.numberFrequency ? `
+            ${nextFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
                     <canvas id="chart-detail"></canvas>
                 </div>
@@ -924,8 +1117,8 @@ app.get('/database/:folder/:file', (req, res) => {
                     new Chart(document.getElementById('chart-detail').getContext('2d'), {
                     type: 'bar',
                     data: {
-                        labels: ${JSON.stringify(Object.keys(jsonData.numberFrequency))},
-                        datasets: [{ label: 'Freq', data: ${JSON.stringify(Object.values(jsonData.numberFrequency))}, backgroundColor: 'rgba(52, 152, 219, 0.6)' }]
+                        labels: ${JSON.stringify(Object.keys(nextFrequency))},
+                        datasets: [{ label: 'Freq', data: ${JSON.stringify(Object.values(nextFrequency))}, backgroundColor: 'rgba(52, 152, 219, 0.6)' }]
                     },
                     options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
                     });
@@ -951,6 +1144,10 @@ app.get('/', (req, res) => {
     if (files.length > 0) {
       const latestFile = files[0];
       const jsonData = JSON.parse(fs.readFileSync(path.join(folderPath, latestFile), 'utf-8'));
+      // Without a real result the game only steers display (Joker+ sign
+      // name, digit-only chart); every other game renders exactly as before.
+      const game = gameFromFolder(folder);
+      const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
 
       // Collapsed by default (No 'expanded' class)
       html += `
@@ -964,9 +1161,9 @@ app.get('/', (req, res) => {
           </div>
           
           <div class="card-body">
-            ${generateTable(jsonData.newPrediction, '', [], false, '')}
+            ${generateTable(jsonData.newPrediction, '', [], false, game)}
 
-            ${jsonData.numberFrequency ? `
+            ${nextFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
                     <canvas id="chart-${folder}"></canvas>
                 </div>
@@ -974,8 +1171,8 @@ app.get('/', (req, res) => {
                     new Chart(document.getElementById('chart-${folder}').getContext('2d'), {
                     type: 'bar',
                     data: {
-                        labels: ${JSON.stringify(Object.keys(jsonData.numberFrequency))},
-                        datasets: [{ label: 'Freq', data: ${JSON.stringify(Object.values(jsonData.numberFrequency))}, backgroundColor: 'rgba(52, 152, 219, 0.6)' }]
+                        labels: ${JSON.stringify(Object.keys(nextFrequency))},
+                        datasets: [{ label: 'Freq', data: ${JSON.stringify(Object.values(nextFrequency))}, backgroundColor: 'rgba(52, 152, 219, 0.6)' }]
                     },
                     options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
                     });

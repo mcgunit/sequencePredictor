@@ -31,13 +31,16 @@ BASE_MODEL_NAMES = [
     "XGBoost Model",
 ]
 
-# Models with no per-position modeling of their own - excluded for Pick3,
-# matching HyperoptStatistics.py's DISABLED_FOR_PICK3 / Predictor.py's
-# "not pick3 in name" guards.
-DISABLED_FOR_PICK3 = {"MarkovBayesian Model", "MarkovBayesianEnhanched Model", "PoissonMarkov Model"}
+# Models with no per-position modeling of their own - excluded for the
+# positional games (Pick3, Joker+: the draw is an ordered digit sequence, see
+# Helpers.is_positional_game), matching HyperoptStatistics.py's
+# DISABLED_FOR_PICK3 / Predictor.py's is_positional_game guards. The old
+# name is kept as an alias so existing imports keep working.
+DISABLED_FOR_POSITIONAL = {"MarkovBayesian Model", "MarkovBayesianEnhanched Model", "PoissonMarkov Model"}
+DISABLED_FOR_PICK3 = DISABLED_FOR_POSITIONAL
 
 
-def build_models(dataPath, bestParams, is_pick3):
+def build_models(dataPath, bestParams, is_positional=False, is_pick3=None):
     """
     Instantiates the 7 base models configured with this game's already-tuned
     hyperopt params (bestParams_<game>.json), mirroring how Predictor.py's
@@ -47,7 +50,19 @@ def build_models(dataPath, bestParams, is_pick3):
     TrainMetaLearner.py and HyperoptStatistics.py's Keno subset-tuning
     objective, so both build these models identically instead of drifting
     apart over time.
+
+    is_positional: True for a positional game (Pick3, Joker+ - see
+    Helpers.is_positional_game): every model keeps the digits in drawn order
+    (sorted False, duplicates allowed), Markov uses pair scoring, and the
+    DISABLED_FOR_POSITIONAL models (no per-position modeling) are left out.
+    is_pick3 is the historical name of the same flag, still accepted so
+    callers written before Joker+ existed (TrainMetaLearner.py,
+    HyperoptQuantum.py, HyperoptStatistics.py) keep working unchanged.
     """
+    if is_pick3 is not None:
+        is_positional = bool(is_pick3)
+    is_positional = bool(is_positional)
+
     models = {}
 
     markov = Markov()
@@ -62,8 +77,8 @@ def build_models(dataPath, bestParams, is_pick3):
     markov.setSubsetSelectionMode(bestParams.get("markovSubsetSelectionMode", "softmax"))
     markov.setBlendMode(bestParams.get("markovBlendMode", "log"))
     markov.setMarkovOrder(bestParams.get("markovOrder", 1))
-    markov.setSortedPrediction(not is_pick3)
-    markov.setUsePairScoring(is_pick3)
+    markov.setSortedPrediction(not is_positional)
+    markov.setUsePairScoring(is_positional)
     markov.setPairScoringWeight(bestParams.get("markovPairScoringWeight", 0.0))
     models["Markov Model"] = markov
 
@@ -77,12 +92,12 @@ def build_models(dataPath, bestParams, is_pick3):
     markovMcBase.setPairDecayFactor(bestParams.get("markovMcPairDecayFactor", 0.3))
     markovMcBase.setSmoothingFactor(bestParams.get("markovMcSmoothingFactor", 0.6))
     markovMcBase.setMarkovOrder(bestParams.get("markovMcOrder", 1))
-    markovMcBase.setSortedPrediction(not is_pick3)
+    markovMcBase.setSortedPrediction(not is_positional)
     markovMonteCarlo = MarkovMonteCarlo(markovMcBase)
     markovMonteCarlo.setNumOfSimulations(bestParams.get("markovMcNumSimulations", 1000))
     models["MarkovMonteCarlo Model"] = markovMonteCarlo
 
-    if not is_pick3:
+    if not is_positional:
         markovBayesian = MarkovBayesian()
         markovBayesian.setDataPath(dataPath)
         markovBayesian.setSoftMAxTemperature(bestParams.get("markovBayesianSoftMaxTemperature", 0.24))
@@ -103,10 +118,10 @@ def build_models(dataPath, bestParams, is_pick3):
     poissonMonteCarlo.setDataPath(dataPath)
     poissonMonteCarlo.setNumOfSimulations(bestParams.get("poissonMonteCarloNumberOfSimulations", 600))
     poissonMonteCarlo.setWeightFactor(bestParams.get("poissonMonteCarloWeightFactor", 0.8))
-    poissonMonteCarlo.setSortedPrediction(not is_pick3)
+    poissonMonteCarlo.setSortedPrediction(not is_positional)
     models["PoissonMonteCarlo Model"] = poissonMonteCarlo
 
-    if not is_pick3:
+    if not is_positional:
         poissonMarkovWeight = bestParams.get("poissonMarkovWeight", 0.5)
         poissonMarkov = PoissonMarkov()
         poissonMarkov.setDataPath(dataPath)
@@ -118,7 +133,7 @@ def build_models(dataPath, bestParams, is_pick3):
     laplaceMonteCarlo = LaplaceMonteCarlo()
     laplaceMonteCarlo.setDataPath(dataPath)
     laplaceMonteCarlo.setNumOfSimulations(bestParams.get("laplaceMonteCarloNumberOfSimulations", 900))
-    laplaceMonteCarlo.setSortedPrediction(not is_pick3)
+    laplaceMonteCarlo.setSortedPrediction(not is_positional)
     models["LaplaceMonteCarlo Model"] = laplaceMonteCarlo
 
     # Gradient boosting as a meta-learner feature: a boosted-tree score is a
@@ -147,7 +162,7 @@ def build_models(dataPath, bestParams, is_pick3):
     xgboost.setRegLambda(bestParams.get("xgBoostRegLambda", 1.0))
     xgboost.setSubsetSelectionMode(bestParams.get("xgBoostSubsetMode", "softmax"))
     xgboost.setSubsetTemperature(bestParams.get("xgBoostSubsetTemperature", 0.5))
-    xgboost.setSortedPrediction(not is_pick3)
+    xgboost.setSortedPrediction(not is_positional)
     xgboost.setNumThreads(1)
     xgboost.setSaveModels(False)
     models["XGBoost Model"] = xgboost

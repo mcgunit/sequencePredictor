@@ -51,34 +51,72 @@ def build_training_table(rows, model_names, min_number, max_number, scores_suffi
     return np.array(features, dtype=float), np.array(labels, dtype=int)
 
 
-# Pick3 table geometry: 3 drawn positions x 10 digit classes, so every
-# backtest day expands to exactly 30 rows of the positional table. One
-# definition shared by the table builder, the per-position split, the
-# argmax ticket and HyperoptQuantum's day split, because all of them reshape
-# on this exact block size and a drift between them would silently pair the
-# wrong rows with the wrong slot.
+# Positional table geometry: `positions` drawn slots x 10 digit classes, so
+# every backtest day expands to exactly positions*10 rows of the positional
+# table (Pick3: 3 x 10 = 30, Joker+: 6 x 10 = 60). The digit alphabet is the
+# same 0-9 for every positional game (Helpers.POSITIONAL_GAMES), so only the
+# slot count varies and it comes from the game's GAME_CONFIG draw_size (see
+# positional_positions). One definition shared by the table builder, the
+# per-position split, the argmax ticket and HyperoptQuantum's day split,
+# because all of them reshape on this exact block size and a drift between
+# them would silently pair the wrong rows with the wrong slot. PICK3_POSITIONS
+# stays as the historical default so a caller that never passes `positions`
+# keeps the Pick3 geometry it always had.
+POSITIONAL_CLASSES = 10
 PICK3_POSITIONS = 3
-PICK3_CLASSES = 10
+PICK3_CLASSES = POSITIONAL_CLASSES
 
 
-def build_positional_training_table(rows, model_names, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+def positional_positions(game_cfg):
     """
-    Pick3 counterpart of build_training_table. The flat table asks "was this
-    number drawn at all", which for Pick3 throws away exactly what the payout
-    depends on (straight/pair prizes are paid per slot, and a digit can occupy
-    several slots at once). This table therefore has one row per (backtest
-    day, position, digit) with the label "did THIS digit land in THIS slot",
-    built from row[f"{name}_position_scores"][pos] (Backtester's per-slot
-    {digit: score} dicts) and row["actual_ordered"] (the draw in drawn order -
-    the sorted "actual" would misplace the slots).
+    Slot count of a positional game's table: its draw_size. Joker+'s
+    GAME_CONFIG draw_size is the 6 digits only - the zodiac sign is its
+    special column and is modeled by a separate special_model (like the
+    Euromillions stars), never as a 7th digit slot.
+    """
+    return int(game_cfg["draw_size"])
 
-    Row order is fixed and load-bearing: day-major, then position 0..2, then
-    digit 0..9, so a day is a contiguous block of positions*classes rows.
-    split_positional_table and positional_argmax_tickets reshape on that
-    block, and HyperoptQuantum splits the flat table by whole days on it. A
-    model missing its position scores for a day (or a digit missing from a
-    slot's dict) contributes 0.0, mirroring build_training_table's unscored
-    default.
+
+def positional_profit(game, ticket, actual):
+    """
+    Net profit of one positional argmax ticket under the game's real payout
+    table - the number the positional artifacts are judged on. Pick3 plays
+    the ticket as-is (Helpers.pick3_ticket_profit). Joker+ is scored
+    DIGITS-ONLY: the table only carries the 6 digit slots, so the ticket has
+    no sign and Helpers.jokerplus_ticket_profit treats it as unknown (no
+    sign refund, no 200,000 EUR jackpot tier - the 20,000 EUR all-digits tier
+    is the ceiling). That is a deliberate lower bound: the sign is served by
+    the separate special_model and is the only part a Joker+ player can even
+    choose, so mixing it into a digit-slot objective would let the sign's
+    1.50 EUR refund blur the per-slot signal being tuned.
+    """
+    if helpers.is_jokerplus(game):
+        return helpers.jokerplus_ticket_profit(list(ticket), list(actual))
+    return helpers.pick3_ticket_profit(list(ticket), list(actual))
+
+
+def build_positional_training_table(rows, model_names, positions=PICK3_POSITIONS, classes=POSITIONAL_CLASSES):
+    """
+    Positional-game counterpart of build_training_table (Pick3, Joker+ - see
+    Helpers.is_positional_game). The flat table asks "was this number drawn
+    at all", which for a positional game throws away exactly what the payout
+    depends on (Pick3's straight/pair prizes and Joker+'s left/right runs are
+    paid per slot, and a digit can occupy several slots at once). This table
+    therefore has one row per (backtest day, position, digit) with the label
+    "did THIS digit land in THIS slot", built from
+    row[f"{name}_position_scores"][pos] (Backtester's per-slot {digit: score}
+    dicts) and row["actual_ordered"] (the draw in drawn order - the sorted
+    "actual" would misplace the slots). Only the leading `positions` values
+    of actual_ordered are digit slots: Joker+'s row carries the zodiac code
+    as a 7th value, which belongs to the special table, not to a slot.
+
+    Row order is fixed and load-bearing: day-major, then position
+    0..positions-1, then digit 0..9, so a day is a contiguous block of
+    positions*classes rows. split_positional_table and
+    positional_argmax_tickets reshape on that block, and HyperoptQuantum
+    splits the flat table by whole days on it. A model missing its position
+    scores for a day (or a digit missing from a slot's dict) contributes 0.0,
+    mirroring build_training_table's unscored default.
     """
     features = []
     labels = []
@@ -106,7 +144,7 @@ def build_positional_training_table(rows, model_names, positions=PICK3_POSITIONS
     return X, np.array(labels, dtype=int)
 
 
-def split_positional_table(X, y, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+def split_positional_table(X, y, positions=PICK3_POSITIONS, classes=POSITIONAL_CLASSES):
     """
     Cuts the day-major positional table into one (X_pos, y_pos) pair per
     position. The positional meta-learner is one binary classifier per slot
@@ -122,12 +160,12 @@ def split_positional_table(X, y, positions=PICK3_POSITIONS, classes=PICK3_CLASSE
     return [(X_days[:, pos].reshape(-1, n_features), y_days[:, pos].reshape(-1)) for pos in range(positions)]
 
 
-def fit_position_models(X, y, fit_func, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+def fit_position_models(X, y, fit_func, positions=PICK3_POSITIONS, classes=POSITIONAL_CLASSES):
     """One fitted fit_func(X_pos, y_pos) per position, in position order."""
     return [fit_func(X_pos, y_pos) for X_pos, y_pos in split_positional_table(X, y, positions, classes)]
 
 
-def positional_argmax_tickets(position_models, X, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+def positional_argmax_tickets(position_models, X, positions=PICK3_POSITIONS, classes=POSITIONAL_CLASSES):
     """
     The ticket a positional artifact actually plays, per day of the given
     table: each position's classifier scores its 10 digits and the slot takes
@@ -135,7 +173,8 @@ def positional_argmax_tickets(position_models, X, positions=PICK3_POSITIONS, cla
     lowest digit deterministically - the same rule the serving side follows,
     so a profit measured here is the profit of the ticket that gets played.
     Digits stay in position order, unsorted, and may repeat (a [4, 4, 7]
-    ticket is a legitimate Pick3 play). Returns an (n_days, positions) array.
+    Pick3 ticket or a [1, 1, 8, 1, 1, 3] Joker+ ticket is a legitimate
+    play). Returns an (n_days, positions) array.
     """
     n_features = X.shape[1]
     n_days = len(X) // (positions * classes)
@@ -147,22 +186,26 @@ def positional_argmax_tickets(position_models, X, positions=PICK3_POSITIONS, cla
     return tickets
 
 
-def evaluate_positional_holdout(position_models, X_test, actual_ordered, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+def evaluate_positional_holdout(position_models, X_test, actual_ordered, positions=PICK3_POSITIONS,
+                                classes=POSITIONAL_CLASSES, game="pick3"):
     """
     Scores fitted position models on a held-out positional table against the
     drawn-order results of the same days. Returns (mean profit per day of the
-    argmax ticket under the real Pick3 payout table, per-position top-1
-    accuracy list, the tickets). Profit is the research metric that matters
-    (README: profit per bet where a payout table exists); accuracy is the
-    diagnostic - chance is 0.1 per slot - and doubles as HyperoptQuantum's
-    smooth tie-breaker, since the ticket profit is -4 on most days with rare
-    large spikes and would otherwise tie almost every trial.
+    argmax ticket under the game's real payout table - see positional_profit,
+    Joker+ digits-only - per-position top-1 accuracy list, the tickets).
+    Profit is the research metric that matters (README: profit per bet where
+    a payout table exists); accuracy is the diagnostic - chance is 0.1 per
+    slot - and doubles as HyperoptQuantum's smooth tie-breaker, since the
+    ticket profit sits at -stake on most days (-4 for Pick3, -1.50 for Joker+)
+    with rare large spikes and would otherwise tie almost every trial. Only
+    the leading `positions` values of each actual_ordered row are digit
+    slots (Joker+ appends the zodiac code as a 7th value).
     """
     tickets = positional_argmax_tickets(position_models, X_test, positions, classes)
-    actual = np.array([[int(digit) for digit in day] for day in actual_ordered], dtype=int).reshape(-1, positions)
+    actual = np.array([[int(digit) for digit in day[:positions]] for day in actual_ordered], dtype=int).reshape(-1, positions)
 
     accuracies = [float(np.mean(tickets[:, pos] == actual[:, pos])) for pos in range(positions)]
-    profits = [helpers.pick3_ticket_profit(ticket.tolist(), day.tolist()) for ticket, day in zip(tickets, actual)]
+    profits = [positional_profit(game, ticket.tolist(), day.tolist()) for ticket, day in zip(tickets, actual)]
     return float(np.mean(profits)), accuracies, tickets
 
 
@@ -174,7 +217,18 @@ def determine_special_range(dataPath, special_column_count):
     empirically here so the meta-learner's special-column feature grid
     (range(special_min, special_max + 1)) covers the real range instead of
     guessing.
+
+    Joker+'s special column is the zodiac sign as its 0..11 code (see
+    Helpers.encode_zodiac) - a fixed 12-entry codebook, not an observed
+    numeric range - so it is read from Helpers.SPECIAL_UNIQUE_LABELS, the
+    same label set every base model's special-only score pass is scored
+    over. An empirical min/max would give the identical 0..11 on the full
+    history (verified), but a truncated data window missing a sign would
+    silently shrink the grid the served special scores are matched against.
     """
+    if helpers.is_jokerplus(dataPath):
+        labels = helpers.get_unique_labels(dataPath, special=True)
+        return int(np.min(labels)), int(np.max(labels))
     _, _, _, _, _, numbers, _, _ = helpers.load_data(dataPath, specialColumnCount=special_column_count)
     return int(numbers.min()), int(numbers.max())
 
@@ -230,15 +284,17 @@ def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, 
     return meta_model
 
 
-def fit_positional_meta_model(results, model_names, label, fit_func, positions=PICK3_POSITIONS, classes=PICK3_CLASSES):
+def fit_positional_meta_model(results, model_names, label, fit_func, positions=PICK3_POSITIONS,
+                              classes=POSITIONAL_CLASSES, game="pick3"):
     """
-    Pick3 counterpart of fit_meta_model, same protocol: chronological 80/20
-    day split for an honest walk-forward sanity check (per-position top-1
-    accuracy against the 0.1 chance level, and the real-payout profit per day
-    of the argmax ticket - the number the README actually cares about), then a
+    Positional-game counterpart of fit_meta_model, same protocol:
+    chronological 80/20 day split for an honest walk-forward sanity check
+    (per-position top-1 accuracy against the 0.1 chance level, and the
+    real-payout profit per day of the argmax ticket - the number the README
+    actually cares about; Joker+ digits-only, see positional_profit), then a
     refit of every position on the full window before returning, because the
-    persisted artifact should have seen every day. Returns [m0, m1, m2], one
-    classifier per position, in position order.
+    persisted artifact should have seen every day. Returns [m0, ..., m(p-1)],
+    one classifier per position, in position order.
     """
     split_index = int(len(results) * 0.8)
     train_rows, test_rows = results[:split_index], results[split_index:]
@@ -249,7 +305,7 @@ def fit_positional_meta_model(results, model_names, label, fit_func, positions=P
 
         position_models = fit_position_models(X_train, y_train, fit_func, positions, classes)
         mean_profit, accuracies, _ = evaluate_positional_holdout(
-            position_models, X_test, [row["actual_ordered"] for row in test_rows], positions, classes)
+            position_models, X_test, [row["actual_ordered"] for row in test_rows], positions, classes, game)
 
         accuracy_text = " ".join(f"pos{pos}={accuracy:.3f}" for pos, accuracy in enumerate(accuracies))
         print(f"{label}: held-out per-position top-1 accuracy {accuracy_text} (chance 0.1) "
@@ -289,12 +345,13 @@ def base_param_subset(bestParams):
 
 def meta_table_kind(dataset_name):
     """
-    Which table a game's cache holds. Pick3 rows carry the per-slot
-    "_position_scores" lists and are built with is_pick3=True base models, so
-    they live under their own filename (meta_position_table_pick3.joblib) and
+    Which table a game's cache holds. Positional games' rows (Pick3, Joker+ -
+    Helpers.is_positional_game) carry the per-slot "_position_scores" lists
+    and are built with positional (is_positional=True) base models, so they live
+    under their own per-game filename (meta_position_table_<game>.joblib) and
     can never be mistaken for - or overwrite - a flat per-number score table.
     """
-    return "position" if dataset_name == "pick3" else "score"
+    return "position" if helpers.is_positional_game(dataset_name) else "score"
 
 
 def meta_table_cache_path(path, dataset_name, table_kind="score"):
@@ -339,11 +396,13 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams,
 
 
 def train_meta_learner(dataset_name, game_cfg, path, days_back):
-    # Pick3 is positional (straight/pair payouts are per slot, digits repeat),
-    # so it gets the positional table/artifact path below instead of the flat
-    # per-number one - the flat ranking has no notion of digit order, which is
-    # why this game used to be skipped here outright.
-    is_pick3 = dataset_name == "pick3"
+    # Positional games (Pick3: straight/pair payouts per slot; Joker+: prizes
+    # on the leading/trailing runs of 6 digits - digits repeat in both) get
+    # the positional table/artifact path below instead of the flat per-number
+    # one - the flat ranking has no notion of digit order, which is why Pick3
+    # used to be skipped here outright. positions = the game's draw_size.
+    is_positional = helpers.is_positional_game(dataset_name)
+    positions = positional_positions(game_cfg) if is_positional else None
     table_kind = meta_table_kind(dataset_name)
 
     dataPath = os.path.join(path, "data", "trainingData", dataset_name)
@@ -372,7 +431,10 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
     if cached is not None:
         results, model_names = cached
     else:
-        models = build_models(dataPath, bestParams, is_pick3=is_pick3)
+        # Positional base models (ModelFactory.build_models is_positional):
+        # unsorted drawn-order tickets, pair-scored Markov, the three set-only
+        # models left out - the same configuration Pick3 and Joker+ need.
+        models = build_models(dataPath, bestParams, is_positional=is_positional)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
 
         backtester = Backtester(loader)
@@ -380,9 +442,12 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             backtester.add_model(name, model)
 
         print(f"\n{dataset_name}: backtesting {total_rows - start_index} days with {len(models)} base models to collect training data...")
-        # game="pick3" is what makes the Backtester call each model's
-        # score_positions() and store the per-slot "_position_scores" rows the
-        # positional table is built from; every other game keeps game=None
+        # Passing the positional game's name is what makes the Backtester
+        # call each model's score_positions() and store the per-slot
+        # "_position_scores" rows the positional table is built from (and,
+        # for a special-column game like Joker+, the "_special_scores" the
+        # special_model trains on come from the regular collect_scores path);
+        # every other game keeps game=None
         results = backtester.backtest(
             start_index=start_index,
             end_index=total_rows,
@@ -391,7 +456,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             include_baselines=False,
             collect_scores=True,
             verbose=True,
-            game="pick3" if is_pick3 else None
+            game=dataset_name if is_positional else None
         )
         if results:
             save_meta_score_table(path, dataset_name, results, model_names, days_back, total_rows, bestParams, table_kind)
@@ -478,19 +543,20 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
         # serves old and new artifacts unchanged.
         trained_at = datetime.now(timezone.utc).isoformat()
 
-        if is_pick3:
+        if is_positional:
             # Same four variants, same filenames, but a different artifact
             # shape: one classifier per position (the main/special separation
             # pattern, applied per slot) instead of one flat "model". The
             # "positional" flag is what tells the serving side to build a
             # per-slot digit ticket in drawn order rather than a sorted
             # top-draw_size ranking, so it must never be dropped.
-            position_models = fit_positional_meta_model(results, model_names, label, fit_func)
+            position_models = fit_positional_meta_model(
+                results, model_names, label, fit_func, positions, POSITIONAL_CLASSES, dataset_name)
 
             artifact = {
                 "positional": True,
-                "positions": PICK3_POSITIONS,
-                "classes": list(range(PICK3_CLASSES)),
+                "positions": positions,
+                "classes": list(range(POSITIONAL_CLASSES)),
                 "position_models": position_models,
                 "feature_names": model_names,
                 "draw_size": game_cfg["draw_size"],
@@ -499,6 +565,32 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
                 "trained_at": trained_at,
                 "params": variant_params,
             }
+
+            if specialColumnCount > 0:
+                # Joker+: the zodiac sign is the game's special column and
+                # gets its own flat special_model exactly like the
+                # Euromillions stars - fitted on the base models'
+                # special-only score pass ("_special_scores" over the codes
+                # 0..11, labeled by "actual_special"), the same keys and the
+                # same fit_meta_model path the flat artifacts use. Serving
+                # shape for Predictor.py: the 6 digit slots come from
+                # position_models (argmax digit per slot, drawn order,
+                # duplicates kept) and the 7th value is the special_model's
+                # argmax over range(special_min_number, special_max_number+1)
+                # - i.e. a zodiac CODE, decoded to its name only for display
+                # (Helpers.decode_zodiac). The sign is the only part of a
+                # Joker+ ticket a player can actually choose.
+                special_meta_model = fit_meta_model(
+                    results, model_names, special_min, special_max,
+                    scores_suffix="_special_scores", actual_key="actual_special",
+                    label=f"{label} (special column)", fit_func=fit_func)
+
+                artifact.update({
+                    "special_model": special_meta_model,
+                    "special_min_number": special_min,
+                    "special_max_number": special_max,
+                    "special_draw_size": specialColumnCount,
+                })
 
             artifact_path = os.path.join(modelDir, artifact_filename)
             joblib.dump(artifact, artifact_path)
@@ -546,7 +638,7 @@ if __name__ == "__main__":
         "-g", "--games",
         type=str,
         default=",".join(GAME_CONFIG.keys()),
-        help='Comma-separated list of games, e.g. "lotto,keno,pick3"'
+        help='Comma-separated list of games, e.g. "lotto,keno,pick3,jokerplus"'
     )
     parser.add_argument(
         "-d", "--days",

@@ -119,6 +119,11 @@ class LaplaceMonteCarlo():
                 sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
                 predicted_numbers.append(int(np.random.choice(sorted_predictions[:3])))  # Pick from the top 3
 
+        if not self.sorted_prediction:
+            # Positional games draw each slot with replacement: keep the
+            # sampled digits in drawn order, duplicates included - the
+            # dedupe-and-refill below is a set-game rule.
+            return [int(n) for n in predicted_numbers[:n_predictions]]
         return self.ensure_unique_prediction(predicted_numbers, n_predictions)
     
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):

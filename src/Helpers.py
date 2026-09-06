@@ -9,7 +9,111 @@ from datetime import datetime
 from sklearn.preprocessing import OneHotEncoder
 
 
+# ---------------------------------------------------------------------------
+# Joker+ zodiac codec
+# ---------------------------------------------------------------------------
+# Joker+ draws six single digits (0-9, WITH replacement, drawn order matters)
+# plus one of 12 zodiac signs. Everything downstream of a CSV parse works on
+# ints (numpy arrays, one-hot label ranges, set intersections, JSON rows), so
+# the Sterrenbeeld column is encoded to a 0..11 code the moment a CSV row is
+# read and only decoded back to a name when writing files or rendering the
+# UI. Codes follow the regulation's own listing order (Reglement Joker+,
+# Sept 2023) so the code is meaningful outside this codebase too.
+ZODIAC_CANONICAL = ["Ram", "Stier", "Tweelingen", "Kreeft", "Leeuw", "Maagd",
+                    "Weegschaal", "Schorpioen", "Boogschutter", "Steenbok", "Waterman", "Vissen"]
+# The live draw API (game-names=Joker%2B) appends the ENGLISH sign name to the
+# six digits ('430109Scorpio'); same regulation order as the Dutch list.
+ZODIAC_ENGLISH = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+                  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+# The National Lottery's CSV exports spell code 2 'Tweeling' where the
+# regulation says 'Tweelingen' - files and UI keep the CSV spelling so the
+# fetcher's appended rows stay byte-comparable with the historical exports.
+ZODIAC_CSV = ["Tweeling" if name == "Tweelingen" else name for name in ZODIAC_CANONICAL]
+
+# name (any spelling variant, lowercased) -> code
+_ZODIAC_LOOKUP = {}
+for _code, _names in enumerate(zip(ZODIAC_CANONICAL, ZODIAC_CSV, ZODIAC_ENGLISH)):
+    for _name in _names:
+        _ZODIAC_LOOKUP[_name.lower()] = _code
+
+
+def encode_zodiac(value):
+    """
+    Zodiac sign -> code 0..11. Accepts the regulation's Dutch names, the CSV
+    variant 'Tweeling', the API's English names (any casing/whitespace), an
+    int code (returned as is) or a numeric string holding a code - the last
+    two so a row that already went through the codec (JSON round trip,
+    numpy str_ from genfromtxt) can be passed through again harmlessly.
+    Raises ValueError for anything unrecognized: a silently invented code
+    would poison the one-hot ranges downstream, better to fail at the parse
+    site where the offending row is skipped with a message.
+    """
+    if isinstance(value, (bool, np.bool_)):
+        raise ValueError(f"Unknown zodiac sign: {value!r}")
+    if isinstance(value, (int, np.integer)):
+        code = int(value)
+    elif isinstance(value, (float, np.floating)) and float(value).is_integer():
+        code = int(value)
+    else:
+        text = str(value).strip()
+        if text.lstrip("-").isdigit():
+            code = int(text)
+        else:
+            code = _ZODIAC_LOOKUP.get(text.lower())
+            if code is None:
+                raise ValueError(f"Unknown zodiac sign: {value!r}")
+            return code
+    if not 0 <= code < len(ZODIAC_CANONICAL):
+        raise ValueError(f"Zodiac code out of range 0..{len(ZODIAC_CANONICAL) - 1}: {value!r}")
+    return code
+
+
+def decode_zodiac(code):
+    """
+    Code 0..11 -> the CSV spelling of the sign (Dutch, 'Tweeling' for code
+    2), for writing CSV rows and UI display. A name is accepted too (it is
+    normalized to the CSV spelling), so callers rendering legacy rows that
+    still carry a name need no special case.
+    """
+    return ZODIAC_CSV[encode_zodiac(code)]
+
+
+# ---------------------------------------------------------------------------
+# Positional games
+# ---------------------------------------------------------------------------
+# Games whose draw is an ORDERED sequence of digits (duplicates allowed,
+# drawn order kept, never sorted) rather than a set of distinct numbers:
+# Pick3 (3 digits) and Joker+ (6 digits + zodiac). Every "is this a
+# positional game" branch in the code base should ask is_positional_game()
+# instead of testing the literal 'pick3', with positions = the game's draw
+# size. Checks that are genuinely pick3-only (its payout table) stay pick3.
+POSITIONAL_GAMES = {"pick3", "jokerplus"}
+
+
+def is_positional_game(name):
+    """True for a game name / data path / folder of a positional game."""
+    text = str(name or "").lower()
+    return any(game in text for game in POSITIONAL_GAMES)
+
+
+def is_jokerplus(name):
+    """True when a game name / data path / folder denotes Joker+."""
+    return "jokerplus" in str(name or "").lower()
+
+
 class Helpers():
+
+    # Module-level codec/predicates exposed on the class as well, so both
+    # `Helpers.encode_zodiac(...)` and `helpers.encode_zodiac(...)` work
+    # (callers hold either the class or an instance).
+    ZODIAC_CANONICAL = ZODIAC_CANONICAL
+    ZODIAC_ENGLISH = ZODIAC_ENGLISH
+    ZODIAC_CSV = ZODIAC_CSV
+    POSITIONAL_GAMES = POSITIONAL_GAMES
+    encode_zodiac = staticmethod(encode_zodiac)
+    decode_zodiac = staticmethod(decode_zodiac)
+    is_positional_game = staticmethod(is_positional_game)
+    is_jokerplus = staticmethod(is_jokerplus)
 
     PAYOUT_TABLE_KENO = {
         10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
@@ -39,15 +143,37 @@ class Helpers():
         "bet_cost": 1,               # stake per bet type
     }
 
+    # Official Joker+ payouts per 1.50 EUR ticket (Reglement Joker+, Sept
+    # 2023). Winning is positional by CONSECUTIVE runs counted from the LEFT
+    # end and from the RIGHT end of the six digits: L leading positions
+    # match and R trailing positions match (see jokerplus_runs). Both runs
+    # pay, and cumulate ("runs"[L] + "runs"[R]); all six digits matching is
+    # its own tier ("full", or "full_with_sign" - the fixed minimum jackpot -
+    # when the zodiac sign matches too, which then replaces the sign prize
+    # rather than adding to it). A matching sign alone refunds the stake
+    # ("sign"). The digits are system-generated; only the sign is chosen by
+    # the player.
+    PAYOUT_TABLE_JOKERPLUS = {
+        "runs": {0: 0, 1: 2, 2: 5, 3: 20, 4: 200, 5: 2000},  # per run length, left and right each
+        "full": 20000,             # all 6 digits in exact order
+        "full_with_sign": 200000,  # all 6 digits + zodiac sign (minimum jackpot)
+        "sign": 1.50,              # zodiac sign matches (without a full match)
+        "bet_cost": 1.50,          # stake per ticket
+    }
+
     # The trailing special/bonus column(s)' own number range - distinct from
     # the main numbers' range (Euromillions stars 1-12, EuroDreams dream
     # number 1-5, VikingLotto viking number 1-8; observed directly from the
     # training CSVs). Lotto's bonus column isn't included here because it's
-    # dropped entirely via skipLastColumns rather than modeled.
+    # dropped entirely via skipLastColumns rather than modeled. Joker+'s
+    # special is the zodiac sign, stored as its 0..11 code (see
+    # encode_zodiac) - note this range is NOT a subset of the game's 0-9
+    # digit range, unlike the other games' specials.
     SPECIAL_UNIQUE_LABELS = {
         "euromillions": np.arange(1, 13),
         "eurodreams": np.arange(1, 6),
         "vikinglotto": np.arange(1, 9),
+        "jokerplus": np.arange(0, 12),
     }
 
     # Mirror of Predictor.py's / HyperoptDeepLearning.py's SPECIAL_COLUMN_COUNTS:
@@ -56,7 +182,7 @@ class Helpers():
     # randomness watch, hyperopt profit) must never pool special hits with main
     # hits - the specials are drawn from their own, much smaller range, so a
     # pooled set intersection systematically inflates hit counts.
-    SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
+    SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1, "jokerplus": 1}
 
     def main_special_split(self, game, real_result):
         """
@@ -141,19 +267,9 @@ class Helpers():
         if "pick3" in dataPath:
             unique_labels = np.arange(0, 10)  # This should create an array [0, 2, ..., 9]
         if "jokerplus" in dataPath:
-            unique_labels = np.arange(0, 10).tolist()
-            unique_labels.append("Boogschutter")
-            unique_labels.append("Kreeft")
-            unique_labels.append("Weegschaal")
-            unique_labels.append("Schorpioen")
-            unique_labels.append("Stier")
-            unique_labels.append("Leeuw")
-            unique_labels.append("Maagd")
-            unique_labels.append("Ram")
-            unique_labels.append("Waterman")
-            unique_labels.append("Vissen")
-            unique_labels.append("Steenbok")
-            unique_labels.append("Tweeling")
+            # Six digits 0-9; the zodiac sign is the game's special column
+            # (SPECIAL_UNIQUE_LABELS, codes 0-11), not a main label.
+            unique_labels = np.arange(0, 10)
         return unique_labels
 
     def run_model_with_special_column(self, model, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnCount=0):
@@ -260,6 +376,105 @@ class Helpers():
 
         return payout - stake
 
+    def jokerplus_runs(self, ticket_digits, real_digits):
+        """
+        (L, R) for a Joker+ ticket against the drawn digits: L = number of
+        LEADING positions that match consecutively from the left end, R =
+        number of TRAILING positions that match consecutively from the right
+        end - the two quantities the game actually pays on (see
+        PAYOUT_TABLE_JOKERPLUS). Compared positionally in drawn order, never
+        as sets: digits repeat within a draw, so set logic is meaningless
+        here. When every position matches (L == 6) the match is full and R is
+        reported as 0 so the two runs never double-count the same positions;
+        otherwise the mismatching position separates the runs and L + R <= 5.
+        Only the leading min(len) positions are compared, so a mains-only
+        6-digit ticket and a 7-value [digits + sign] row both work.
+        """
+        n = min(len(ticket_digits), len(real_digits))
+        left = 0
+        while left < n and int(ticket_digits[left]) == int(real_digits[left]):
+            left += 1
+        if left == n:
+            return n, 0
+        right = 0
+        while right < n - left and int(ticket_digits[n - 1 - right]) == int(real_digits[n - 1 - right]):
+            right += 1
+        return left, right
+
+    def _zodiac_code_or_none(self, value):
+        """
+        Best-effort sign code of a ticket/result value (int code, numeric
+        string or a sign name), None when absent or unrecognizable - a
+        missing/unknown sign simply cannot match, it must not abort scoring.
+        """
+        if value is None:
+            return None
+        try:
+            return encode_zodiac(value)
+        except (ValueError, TypeError):
+            return None
+
+    def jokerplus_ticket_profit(self, ticket, real_result):
+        """
+        Net profit (in euro) of a single Joker+ ticket under the official
+        rules (Reglement Joker+, Sept 2023 - see PAYOUT_TABLE_JOKERPLUS):
+        left run prize + right run prize, or the full-match tier when all six
+        digits match (the jackpot tier when the sign matches as well), plus
+        the sign refund when the sign matches without a full match; minus
+        the 1.50 EUR stake. Net convention matches keno_/pick3_ticket_profit
+        so profit_per_bet is comparable across games.
+
+        ticket and real_result use the 7-int shape [d1..d6, zodiacCode]. A
+        ticket (or result) carrying only the 6 digits is scored with the
+        sign unknown (no sign match possible) - mains-only rows and the
+        digits-only hyperopt objective use this. None for invalid shapes.
+        """
+        if ticket is None or real_result is None:
+            return None
+        if len(ticket) not in (6, 7) or len(real_result) not in (6, 7):
+            return None
+
+        table = self.PAYOUT_TABLE_JOKERPLUS
+        try:
+            ticket_digits = [int(d) for d in ticket[:6]]
+            real_digits = [int(d) for d in real_result[:6]]
+        except (ValueError, TypeError):
+            return None
+
+        ticket_sign = self._zodiac_code_or_none(ticket[6]) if len(ticket) > 6 else None
+        real_sign = self._zodiac_code_or_none(real_result[6]) if len(real_result) > 6 else None
+        sign_match = ticket_sign is not None and ticket_sign == real_sign
+
+        left, right = self.jokerplus_runs(ticket_digits, real_digits)
+        if left == 6:
+            # The jackpot tier already prices the sign in - it replaces the
+            # sign refund instead of adding to it.
+            payout = table["full_with_sign"] if sign_match else table["full"]
+        else:
+            payout = table["runs"][left] + table["runs"][right]
+            if sign_match:
+                payout += table["sign"]
+
+        return payout - table["bet_cost"]
+
+    def csv_values_to_ints(self, values, dataPath=""):
+        """
+        The value columns of one CSV row (everything after the date) as
+        ints. For Joker+ the trailing Sterrenbeeld column holds a zodiac
+        name, which is encoded to its 0..11 code first (see encode_zodiac)
+        so every parse site hands ints downstream. Only a non-numeric last
+        value is encoded: when a caller already sliced the zodiac column off
+        (skipLastColumns), the last value is a plain digit and stays one.
+        Raises ValueError like int() does, so the parse sites' existing
+        "skip the row with a message" handling covers an unknown sign too.
+        """
+        values = list(values)
+        if values and is_jokerplus(dataPath):
+            last = str(values[-1]).strip()
+            if not last.lstrip("-").isdigit():
+                values[-1] = encode_zodiac(last)
+        return list(map(int, values))
+
     def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json"):
         """
         Scans every game folder under databaseDir and writes a per-game,
@@ -267,16 +482,20 @@ class Helpers():
         currentPrediction vs its realResult), for the web UI's History page.
 
         Ranking metric per game:
-        - keno/pick3 (real payout tables exist): average profit per bet -
-          per-bet rather than total, because models joined at different times
-          (the boosting rows are weeks old, the statistical rows months) and
-          bet different numbers of Keno subsets, so totals aren't comparable.
+        - keno/pick3/jokerplus (real payout tables exist): average profit per
+          bet - per-bet rather than total, because models joined at different
+          times (the boosting rows are weeks old, the statistical rows months)
+          and bet different numbers of Keno subsets, so totals aren't
+          comparable. Joker+ bets its 7-value main ticket once per draw.
         - every other game: average MAIN-number hits of the model's main
           ticket. avg_hits/best_hits/hits_total count main hits only - the
           special columns (stars/dream/viking) live in their own smaller range
           and lotto's bonus isn't played at all, so pooling them inflated the
           averages. Games with special columns additionally get a per-model
-          "avg_special_hits" (None for the other games).
+          "avg_special_hits" (None for the other games). Joker+ "hits" are
+          L + R (leading + trailing consecutive positional matches, the
+          quantities the game pays on - see jokerplus_runs), and its special
+          hit is the zodiac sign (0/1).
 
         The full ranking is stored per game (not just the winner) so the UI
         can grow without regenerating anything; "draws" is included so small
@@ -292,7 +511,7 @@ class Helpers():
             if not os.path.isdir(gameDir):
                 continue
 
-            hasPayout = "keno" in game or "pick3" in game
+            hasPayout = "keno" in game or "pick3" in game or is_jokerplus(game)
             # Games with a modeled special pool get their own special-hit
             # average; for every other game the field stays None.
             gameSpecialCount = next(
@@ -336,7 +555,14 @@ class Helpers():
                     realMainCount, specialCount = self.main_special_split(game, realResult)
                     ticketMains, ticketSpecials = self.split_ticket(mainTicket, realMainCount, specialCount)
                     ticketMainSet = set(map(int, ticketMains))
-                    hits = len(ticketMainSet & set(map(int, realResult[:realMainCount])))
+                    if is_jokerplus(game):
+                        # Positional runs, not a set intersection: digits
+                        # repeat within a Joker+ draw and only the leading/
+                        # trailing consecutive matches pay.
+                        leftRun, rightRun = self.jokerplus_runs(ticketMains, realResult[:realMainCount])
+                        hits = leftRun + rightRun
+                    else:
+                        hits = len(ticketMainSet & set(map(int, realResult[:realMainCount])))
                     entry["draws"] += 1
                     entry["hits_total"] += hits
                     entry["best_hits"] = max(entry["best_hits"], hits)
@@ -357,6 +583,13 @@ class Helpers():
                                 entry["bets"] += 1
                     elif "pick3" in game:
                         profit = self.pick3_ticket_profit(mainTicket, realResult)
+                        if profit is not None:
+                            entry["profit_total"] += profit
+                            entry["bets"] += 1
+                    elif is_jokerplus(game):
+                        # One 1.50 EUR ticket per draw on the 7-value row
+                        # (digits + sign); a 6-digit row scores sign-unknown.
+                        profit = self.jokerplus_ticket_profit(mainTicket, realResult)
                         if profit is not None:
                             entry["profit_total"] += profit
                             entry["bets"] += 1
@@ -417,9 +650,10 @@ class Helpers():
         # peak at some lag > 1; an aligned model peaks at lag 1; a model with
         # no temporal information shows a flat line across all lags (its hits
         # are draw-independent frequency structure). Uses the main ticket
-        # only. Pick3 is scored positionally (digit-in-right-place count) -
-        # set intersection is the wrong question for a positional game with
-        # repeated digits.
+        # only. Positional games are scored positionally - set intersection
+        # is the wrong question for a game with repeated digits: Pick3 by
+        # digit-in-right-place count, Joker+ by L + R (the leading/trailing
+        # consecutive runs it pays on, see jokerplus_runs).
         #
         # Only the single best peak of this run is kept per model - the full
         # 30-column table was mostly noise, and one run's table says nothing
@@ -456,17 +690,23 @@ class Helpers():
 
         for game in list(report["games"].keys()):
             gameDir = os.path.join(databaseDir, game)
-            isPick3 = "pick3" in game
+            isPositional = is_positional_game(game)
+            isJokerplus = is_jokerplus(game)
 
             def dayHits(prediction, realResult):
-                if isPick3:
-                    return sum(1 for p, r in zip(prediction, realResult) if int(p) == int(r))
                 # Main columns only, both sides: a star/dream/viking (or lotto
-                # bonus) "hit" comes from a different number range and would
-                # blur the lag signal the analysis is hunting for.
+                # bonus - or Joker+'s zodiac code) "hit" comes from a
+                # different number range and would blur the lag signal the
+                # analysis is hunting for.
                 realMainCount, specialCount = self.main_special_split(game, realResult)
                 mains, _ = self.split_ticket(prediction, realMainCount, specialCount)
-                return len(set(map(int, mains)) & set(map(int, realResult[:realMainCount])))
+                realMains = realResult[:realMainCount]
+                if isJokerplus:
+                    leftRun, rightRun = self.jokerplus_runs(mains, realMains)
+                    return leftRun + rightRun
+                if isPositional:
+                    return sum(1 for p, r in zip(mains, realMains) if int(p) == int(r))
+                return len(set(map(int, mains)) & set(map(int, realMains)))
 
             # Chronologically ordered (date, realResult, {model: mainTicket})
             days = []
@@ -607,21 +847,28 @@ class Helpers():
             #   same recent days - a model whose output distribution drifts
             #   far from the real process is betting on structure that is
             #   not there (or has found some).
-            # Pick3 is positional: distributions are computed per digit
-            # position (10 classes each) and averaged - pooling positions
-            # would mask a single-position anomaly.
+            # Positional games (Pick3, Joker+) are scored per digit position
+            # (10 classes each, positions = the game's main draw size) and
+            # averaged - pooling positions would mask a single-position
+            # anomaly.
             # All distributions use add-0.5 smoothing so unseen numbers do
             # not blow KL up to infinity on small windows.
             # --------------------------------------------------------------
             WINDOW = 60
             MIN_WINDOW = 30
 
+            # Number of digit positions for a positional game (3 for Pick3,
+            # 6 for Joker+ - its main count, the zodiac column excluded); 0
+            # means pooled counting. Resolved from the first scored result
+            # below once the days are known.
+            positionCount = 0
+
             def drawDistributions(results):
-                """List of per-position (pick3) or single pooled count dicts."""
-                if isPick3:
-                    dists = [{} for _ in range(3)]
+                """List of per-position (positional games) or single pooled count dicts."""
+                if positionCount:
+                    dists = [{} for _ in range(positionCount)]
                     for res in results:
-                        for pos, v in enumerate(res[:3]):
+                        for pos, v in enumerate(res[:positionCount]):
                             dists[pos][int(v)] = dists[pos].get(int(v), 0) + 1
                     return dists
                 dist = {}
@@ -659,7 +906,8 @@ class Helpers():
             # (and lotto's bonus) come from their own, smaller ranges, so
             # pooling them skews every KL/entropy figure and - for lotto -
             # leaked bonus values into a label set that should be the played
-            # 1-45 mains. Pick3 passes through untouched (no special columns).
+            # 1-45 mains. Pick3 passes through untouched (no special
+            # columns); Joker+ keeps its six digits and drops the zodiac.
             def resultMains(res):
                 realMainCount, _ = self.main_special_split(game, res)
                 return [int(v) for v in res[:realMainCount]]
@@ -672,8 +920,12 @@ class Helpers():
             realDays = [(d, res) for d, res, _ in days if res]
             if len(realDays) >= MIN_WINDOW * 2:
                 allResults = [resultMains(res) for _, res in realDays]
-                labelSets = [sorted({int(v) for res in allResults for v in (res[:3] if isPick3 else res)[pos:pos+1]})
-                             for pos in range(3)] if isPick3 else                             [sorted({int(v) for res in allResults for v in res})]
+                if isPositional:
+                    positionCount, _ = self.main_special_split(game, realDays[0][1])
+                    labelSets = [sorted({int(res[pos]) for res in allResults if len(res) > pos})
+                                 for pos in range(positionCount)]
+                else:
+                    labelSets = [sorted({int(v) for res in allResults for v in res})]
                 baseDists = drawDistributions(allResults)
 
                 recentResults = allResults[-WINDOW:]
@@ -836,9 +1088,9 @@ class Helpers():
                             print(f"Date parsing error for entry '{date_str}': {e}")
                             continue  # Skip this entry if date parsing fails
                         
-                        # Convert the rest to integers
+                        # Convert the rest to integers (Joker+'s zodiac name -> code)
                         try:
-                            numbers = list(map(int, entry[1:]))  # Convert the rest to integers
+                            numbers = self.csv_values_to_ints(entry[1:], csvPath)
                         except ValueError as ve:
                             print(f"Number conversion error for entry '{entry[1:]}': {ve}")
                             continue  # Skip this entry if number conversion fails
@@ -882,7 +1134,7 @@ class Helpers():
             return None  # Return None if no data was found
         
 
-    def find_best_matching_prediction(self, real_result, predictions_dict, specialColumnCount=0, realMainCount=None):
+    def find_best_matching_prediction(self, real_result, predictions_dict, specialColumnCount=0, realMainCount=None, game=""):
         """
         Best-scoring prediction row against a real result, scored per pool:
         main numbers only count against the real mains and special numbers
@@ -906,9 +1158,25 @@ class Helpers():
         ("matching_numbers"/"match_count" = matched MAIN numbers), plus the
         mirrored "special_matching_numbers"/"special_match_count" (dedicated
         special columns and the lotto bonus both land there).
+
+        game: the game name/folder, needed for Joker+ (positional, digits
+        repeat): rows are then scored by the runs the game pays on -
+        match_count = L + R (leading + trailing consecutive matches, 6 for a
+        full match), matching_numbers = the matched digit values of those
+        runs in drawn order (informational), special_match_count = 1 when
+        the zodiac sign (7th value) matches, plus the extra keys "left_run"
+        and "right_run" (UI notation 'L/R (Z)'). Rows rank by (L + R, sign).
+        Every other game (and the default game="") keeps the set semantics.
         """
         if realMainCount is None:
             realMainCount = len(real_result) - specialColumnCount
+
+        if is_jokerplus(game):
+            if specialColumnCount <= 0:
+                # The 7th value is the sign, never a digit: a caller that did
+                # not pass the special count still gets the 6 + 1 split.
+                realMainCount, specialColumnCount = self.main_special_split(game, real_result)
+            return self._find_best_matching_jokerplus(real_result, predictions_dict, realMainCount, specialColumnCount)
         real_mains = set(map(int, real_result[:realMainCount]))
         real_specials = set(map(int, real_result[realMainCount:realMainCount + specialColumnCount]))
         # Trailing values beyond mains + dedicated specials (lotto's bonus):
@@ -949,6 +1217,55 @@ class Helpers():
                     best_match["special_match_count"] = len(special_matching_numbers)
 
         return best_match  # Return full details of the best matching prediction
+
+    def _find_best_matching_jokerplus(self, real_result, predictions_dict, realMainCount, specialColumnCount):
+        """
+        find_best_matching_prediction's Joker+ branch - see there for the
+        returned keys. Strictly-greater comparison keeps model/prediction at
+        None on an all-miss day, like the set-based branch.
+        """
+        real_digits = [int(v) for v in real_result[:realMainCount]]
+        real_sign = self._zodiac_code_or_none(real_result[realMainCount]) if len(real_result) > realMainCount else None
+
+        best_match = {
+            "model": None,
+            "prediction": None,
+            "matching_numbers": [],
+            "match_count": 0,
+            "special_matching_numbers": [],
+            "special_match_count": 0,
+            "left_run": 0,
+            "right_run": 0,
+        }
+
+        best_score = (0, 0)
+        for model in predictions_dict:
+            model_name = model["name"]
+            for predicted_list in model["predictions"]:
+                ticket_digits, ticket_specials = self.split_ticket(predicted_list, realMainCount, specialColumnCount)
+                left_run, right_run = self.jokerplus_runs(ticket_digits, real_digits)
+                n = min(len(ticket_digits), len(real_digits))
+                # Matched digit values in drawn order: the leading run, then
+                # the trailing run (a full match is all of them via L alone).
+                matching_numbers = real_digits[:left_run] + (real_digits[n - right_run:] if right_run else [])
+
+                ticket_sign = self._zodiac_code_or_none(ticket_specials[0]) if ticket_specials else None
+                sign_hit = ticket_sign is not None and ticket_sign == real_sign
+                special_matching_numbers = [real_sign] if sign_hit else []
+
+                score = (left_run + right_run, len(special_matching_numbers))
+                if score > best_score:
+                    best_score = score
+                    best_match["model"] = model_name
+                    best_match["prediction"] = predicted_list
+                    best_match["matching_numbers"] = matching_numbers
+                    best_match["match_count"] = left_run + right_run
+                    best_match["special_matching_numbers"] = special_matching_numbers
+                    best_match["special_match_count"] = len(special_matching_numbers)
+                    best_match["left_run"] = left_run
+                    best_match["right_run"] = right_run
+
+        return best_match
     
     def decode_predictions(self, raw_predictions, labels, nHighestProb=0, remove_duplicates=True):
         """
@@ -1130,7 +1447,8 @@ class Helpers():
                             continue
 
                         try:
-                            numbers = list(map(int, entry[1:]))
+                            # Joker+'s zodiac name is encoded to its code here
+                            numbers = self.csv_values_to_ints(entry[1:], dataPath)
                         except ValueError as ve:
                             print(f"Number conversion error for entry '{entry[1:]}': {ve}")
                             continue
@@ -1183,7 +1501,27 @@ class Helpers():
 
         #print("unique_labels: ", unique_labels)
 
-        encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False)
+        # The pooled one-hot below encodes EVERY loaded column against the
+        # main label range. For the other special-column games that works
+        # by accident (stars 1-12 sit inside mains 1-50); Joker+'s zodiac
+        # codes 10 and 11 do not fit the 0-9 digit range, so with the zodiac
+        # column still present (nothing sliced off, no special-only call)
+        # those values encode as all-zero rows instead of raising. The DL
+        # models build their special head's targets separately from
+        # `numbers` with the special label range (e.g. LSTM.py's y_special),
+        # so the pooled labels only ever feed the main head. Every other
+        # game keeps the strict encoder: an out-of-range value there means
+        # corrupt data and should still fail loudly.
+        handle_unknown = "error"
+        if specialColumnCount == 0 and skipLastColumns == 0:
+            gameSpecialCount = next(
+                (count for g, count in self.SPECIAL_COLUMN_COUNTS.items() if g in dataPath), 0)
+            if gameSpecialCount > 0:
+                specialLabels = set(int(v) for v in self.get_unique_labels(dataPath, special=True))
+                if not specialLabels <= set(int(v) for v in unique_labels):
+                    handle_unknown = "ignore"
+
+        encoder = OneHotEncoder(categories=[unique_labels], sparse_output=False, handle_unknown=handle_unknown)
 
         # Reshape numbers array to a single column for encoding, then reshape back
         one_hot_labels = encoder.fit_transform(numbers.flatten().reshape(-1, 1))
@@ -1264,9 +1602,9 @@ class Helpers():
                             print(f"Date parsing error for entry '{date_str}': {e}")
                             continue  # Skip this entry if date parsing fails
 
-                        # Convert the rest to integers
+                        # Convert the rest to integers (Joker+'s zodiac name -> code)
                         try:
-                            numbers = list(map(int, entry[1:]))  # Convert the rest to integers
+                            numbers = self.csv_values_to_ints(entry[1:], dataPath)
                         except ValueError as ve:
                             print(f"Number conversion error for entry '{entry[1:]}': {ve}")
                             continue  # Skip this entry if number conversion fails
@@ -1612,10 +1950,16 @@ class Helpers():
                     for entry in csvData:
                         # Skip the date and convert the rest to integers
                         try:
-                            numbers = list(map(int, entry[1:]))
+                            numbers = self.csv_values_to_ints(entry[1:], dataPath)
                         except ValueError as ve:
                             print(f"Number conversion error for entry '{entry[1:]}': {ve}")
                             continue
+
+                        # Joker+: the zodiac code shares values with the
+                        # digits (a code 3 is not a digit 3), so it is kept
+                        # out of this pooled digit frequency.
+                        if is_jokerplus(dataPath) and len(numbers) > 6:
+                            numbers = numbers[:6]
 
                         # Update the frequency count for each number
                         for number in numbers:
@@ -1634,7 +1978,7 @@ class Helpers():
         return normalized_frequencies
 
 
-    def count_number_frequencies_from_new_prediction(self, json_data, model_scores=None):
+    def count_number_frequencies_from_new_prediction(self, json_data, model_scores=None, game=""):
         """
         Count normalized frequencies of numbers in 'newPrediction' field from the given JSON structure.
 
@@ -1662,12 +2006,30 @@ class Helpers():
 
         number_frequencies = {}
 
+        # Special-column games: only the MAIN numbers are counted. The
+        # appended star/dream/viking - and for jokerplus the zodiac code -
+        # would otherwise be pooled with the mains (a Kreeft code 3 is not a
+        # digit 3), skewing the frequency chart and the weighted vote. A row
+        # longer than the game's main count carries its specials at the end
+        # (RL rows / keno subsets are shorter and pass through whole).
+        specialCount = next(
+            (count for g, count in self.SPECIAL_COLUMN_COUNTS.items() if game and g in game), 0)
+        mainCount = None
+        if specialCount > 0:
+            lengths = [len(m["predictions"][0]) for m in json_data.get("newPrediction", [])
+                       if m.get("predictions") and m["predictions"][0]]
+            if lengths:
+                mainCount = max(lengths) - specialCount
+
         # Iterate through each model's predictions in 'newPrediction'
         for model in json_data.get("newPrediction", []):
             weight = weight_for(model.get("name"))
             predictions = model.get("predictions", [])
             for pred_set in predictions:
-                for number in pred_set:
+                numbers = pred_set
+                if mainCount is not None and len(pred_set) > mainCount:
+                    numbers = pred_set[:-specialCount]
+                for number in numbers:
                     number_frequencies[number] = number_frequencies.get(number, 0) + weight
 
         # Normalize frequencies
@@ -1870,13 +2232,19 @@ class Helpers():
 
                     for model in model_predictions:
                         for prediction in model["predictions"]:
-                            # For keno and pick3 the profits can be calculated. For others we check the matches
+                            # For keno, pick3 and jokerplus the profits can be calculated. For others we check the matches
                             if "keno" in name:
                                 profit = self.keno_ticket_profit(prediction, real_result_set)
                                 if profit is not None:
                                     total_profit += profit
                             elif "pick3" in name:
                                 profit = self.pick3_ticket_profit(prediction, real_result)
+                                if profit is not None:
+                                    total_profit += profit
+                            elif is_jokerplus(name):
+                                # 7-value row [digits + sign] against the
+                                # 7-value result; positional runs + sign.
+                                profit = self.jokerplus_ticket_profit(prediction, real_result)
                                 if profit is not None:
                                     total_profit += profit
                             else:

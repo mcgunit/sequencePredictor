@@ -184,10 +184,15 @@ class LSTMModel:
     
 
 
-    def create_model(self, max_value, num_classes=10, model_path="", digitsPerDraw=3, specialColumnCount=0, specialNumClasses=0):
+    def create_model(self, max_value, num_classes=10, model_path="", digitsPerDraw=3, specialColumnCount=0, specialNumClasses=0,
+                     embeddingInputDim=None):
         # --- Parameters ---
         # A smaller embedding dim is usually fine for 10 digits
         embedding_dim = 8
+        # Rows of the input embedding table: num_classes unless the special
+        # column's codes exceed the main range (Joker+ zodiac 0..11 vs digits
+        # 0..9) - see run(), which computes the value that covers both.
+        embedding_input_dim = int(embeddingInputDim) if embeddingInputDim else int(num_classes)
         lstm_units = self.lstm_units     # Enough capacity without massive overfitting
         dropout = self.dropout       # Higher dropout due to noisy data
         learning_rate = self.learning_rate
@@ -212,7 +217,7 @@ class LSTMModel:
         # 2. Embedding Layer
         #    Converts integer 0-9 into a vector of size 16.
         #    This removes the "magnitude" bias.
-        x = layers.Embedding(input_dim=num_classes, output_dim=embedding_dim)(x)
+        x = layers.Embedding(input_dim=embedding_input_dim, output_dim=embedding_dim)(x)
 
         # 3. Bidirectional LSTM
         #    We use one strong layer. 'return_sequences=False' because we only
@@ -281,6 +286,11 @@ class LSTMModel:
             "digitsPerDraw": int(digitsPerDraw),
             "specialColumnCount": int(specialColumnCount),
             "specialNumClasses": int(specialNumClasses),
+            # Only recorded when it differs from num_classes (Joker+): the
+            # embedding table's row count is a weight shape, but adding the
+            # key unconditionally would invalidate every other game's saved
+            # weights for no change in their architecture.
+            **({"embedding_input_dim": int(embedding_input_dim)} if embedding_input_dim != num_classes else {}),
             "num_lstm_layers": int(self.num_lstm_layers),
             "num_bidirectional_layers": int(self.num_bidirectional_layers),
             "lstm_units": int(self.lstm_units),
@@ -322,6 +332,19 @@ class LSTMModel:
         if specialColumnCount > 0:
             special_unique_labels = helpers.get_unique_labels(self.dataPath, special=True)
             special_num_classes = len(special_unique_labels)
+
+        # Width of the shared input Embedding table. The window feeds main
+        # AND special values through one table, indexed by the value minus
+        # the main range's minimum (the normalization below), so it must
+        # cover the special codes too. For Euromillions/EuroDreams/
+        # VikingLotto the specials sit inside the main range and num_classes
+        # is already enough; Joker+'s zodiac codes run 0..11 against 10
+        # digit classes, so without this every window holding code 10 or 11
+        # raised an out-of-range embedding lookup.
+        embedding_input_dim = num_classes
+        if specialColumnCount > 0:
+            embedding_input_dim = max(
+                num_classes, int(np.max(special_unique_labels)) - int(np.min(unique_labels)) + 1)
 
         # -------------------------------------------------------
         # Normalize labels to 0-based (works for lotto + pick3)
@@ -375,7 +398,8 @@ class LSTMModel:
 
         # Build & train
         model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2],
-                                   specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes)
+                                   specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes,
+                                   embeddingInputDim=embedding_input_dim)
         history = self.train_model(model, X, train_targets, X_val, val_targets, model_name=name)
 
         # Best (not last) val_loss - EarlyStopping uses restore_best_weights=True,

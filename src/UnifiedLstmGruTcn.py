@@ -133,8 +133,13 @@ class UnifiedLstmGruTcnModel:
     # ---------------------------
     # Model creation
     # ---------------------------
-    def create_model(self, max_value, num_classes=50, model_path="", digitsPerDraw=3, specialColumnCount=0, specialNumClasses=0):
+    def create_model(self, max_value, num_classes=50, model_path="", digitsPerDraw=3, specialColumnCount=0, specialNumClasses=0,
+                     embeddingInputDim=None):
         embedding_dim = 8
+        # Rows of the shared input embedding table: num_classes unless the
+        # special column's codes exceed the main range (Joker+ zodiac 0..11
+        # vs digits 0..9) - see run(), which computes the value covering both.
+        embedding_input_dim = int(embeddingInputDim) if embeddingInputDim else int(num_classes)
 
         # Trailing specialColumnCount positions (stars/dream number/viking
         # number) have their own, smaller number range than the main
@@ -146,7 +151,7 @@ class UnifiedLstmGruTcnModel:
         # Shared embedding: keeps window_size as the time dimension so the
         # LSTM/GRU/TCN branches below produce sequences of the same length
         # and can be concatenated along the feature axis.
-        embedded = layers.Embedding(input_dim=num_classes, output_dim=embedding_dim)(input_layer)
+        embedded = layers.Embedding(input_dim=embedding_input_dim, output_dim=embedding_dim)(input_layer)
         embedded = layers.Reshape((self.window_size, digitsPerDraw * embedding_dim))(embedded)
 
         lstm_branch = layers.Bidirectional(
@@ -241,6 +246,11 @@ class UnifiedLstmGruTcnModel:
             "digitsPerDraw": int(digitsPerDraw),
             "specialColumnCount": int(specialColumnCount),
             "specialNumClasses": int(specialNumClasses),
+            # Only recorded when it differs from num_classes (Joker+): the
+            # embedding table's row count is a weight shape, but adding the
+            # key unconditionally would invalidate every other game's saved
+            # weights for no change in their architecture.
+            **({"embedding_input_dim": int(embedding_input_dim)} if embedding_input_dim != num_classes else {}),
             "lstm_units": int(self.lstm_units),
             "gru_units": int(self.gru_units),
             "tcn_units": int(self.tcn_units),
@@ -289,6 +299,19 @@ class UnifiedLstmGruTcnModel:
             special_unique_labels = helpers.get_unique_labels(self.dataPath, special=True)
             special_num_classes = len(special_unique_labels)
 
+        # Width of the shared input Embedding table. The window feeds main
+        # AND special values through one table, indexed by the value minus
+        # the main range's minimum (the normalization below), so it must
+        # cover the special codes too. For Euromillions/EuroDreams/
+        # VikingLotto the specials sit inside the main range and num_classes
+        # is already enough; Joker+'s zodiac codes run 0..11 against 10
+        # digit classes, so without this every window holding code 10 or 11
+        # raised an out-of-range embedding lookup.
+        embedding_input_dim = num_classes
+        if specialColumnCount > 0:
+            embedding_input_dim = max(
+                num_classes, int(np.max(special_unique_labels)) - int(np.min(unique_labels)) + 1)
+
         # Normalize labels to 0-based (Embedding requires indices in
         # [0, num_classes) - matches LSTM.py's normalization, needed here
         # because unlike TCN.py this model embeds its input).
@@ -332,7 +355,8 @@ class UnifiedLstmGruTcnModel:
         print("y_val shape: ", y_val_main.shape)
 
         model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2],
-                                   specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes)
+                                   specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes,
+                                   embeddingInputDim=embedding_input_dim)
         history = self.train_model(model, X, train_targets, X_val, val_targets, model_name=name)
 
         # Best (not last) val_loss - EarlyStopping uses restore_best_weights=True,

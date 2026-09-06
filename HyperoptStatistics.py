@@ -37,15 +37,31 @@ GAME_CONFIG = {
     "keno":         {"min": 1, "max": 80, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
     "pick3":        {"min": 0, "max": 9, "draw_size": 3, "skip_last_columns": 0, "special_column_count": 0},
     "vikinglotto":  {"min": 1, "max": 48, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
+    # Joker+: six digits 0-9 drawn WITH replacement in a fixed order (a
+    # positional game like pick3, see Helpers.is_positional_game) plus one
+    # trailing zodiac column - a 12-sign special column stored as its 0..11
+    # code (Helpers.encode_zodiac), modeled independently like the
+    # Euromillions stars. skip_last_columns stays 0 so the sign is present
+    # for the special-column split; draw_size counts the digits only.
+    "jokerplus":    {"min": 0, "max": 9, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
 }
 
 KENO_SUBSET_VALUES = [5, 6, 7, 8, 9, 10]
 
+# Games with a real payout table (Helpers.keno_ticket_profit /
+# pick3_ticket_profit / jokerplus_ticket_profit): the Backtester computes
+# profit rows for them, so their tuning objective is profit_per_bet instead
+# of avg hits (see score_from_summary).
+PAYOUT_GAMES = ("keno", "pick3", "jokerplus")
+
 # Models with no per-position modeling of their own (they pool number
 # frequencies globally across all digit positions) - excluded entirely for
-# Pick3, matching the same disable list Predictor.py uses, since no amount of
-# hyperparameter tuning fixes a structurally non-positional model there.
-DISABLED_FOR_PICK3 = {"MarkovBayesian", "MarkovBayesianEnhanced", "PoissonMarkov", "HybridStatistical"}
+# the positional games (Pick3, Joker+ - Helpers.is_positional_game), matching
+# the same disable list Predictor.py uses, since no amount of hyperparameter
+# tuning fixes a structurally non-positional model there. The old name stays
+# as an alias for anything still importing it.
+DISABLED_FOR_POSITIONAL = {"MarkovBayesian", "MarkovBayesianEnhanced", "PoissonMarkov", "HybridStatistical"}
+DISABLED_FOR_PICK3 = DISABLED_FOR_POSITIONAL
 
 
 def is_running():
@@ -150,10 +166,11 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     backtester = Backtester(loader)
     backtester.add_model(model_name, model)
 
-    # Only Keno/Pick3 have a real payout model to score profit with (see
-    # Helpers.keno_ticket_profit/pick3_ticket_profit) - other games fall back
-    # to avg hits as the tuning objective.
-    game_param = dataset_name if dataset_name in ("keno", "pick3") else None
+    # Only Keno/Pick3/Joker+ have a real payout model to score profit with
+    # (see Helpers.keno_ticket_profit/pick3_ticket_profit/
+    # jokerplus_ticket_profit) - other games fall back to avg hits as the
+    # tuning objective.
+    game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
 
     results = backtester.backtest(
         start_index=start_index,
@@ -195,7 +212,9 @@ def score_from_summary(model_summary):
 
 
 def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
-    is_pick3 = "pick3" in dataset_name
+    # Positional games (Pick3, Joker+): digits stay in drawn order and Markov
+    # scores whole tickets by pair affinity - see Helpers.is_positional_game.
+    is_positional = helpers.is_positional_game(dataset_name)
 
     model = Markov()
     model.setDataPath(dataPath)
@@ -210,9 +229,9 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
     model.setBlendMode(trial.suggest_categorical('markovBlendMode', ["linear", "harmonic", "log"]))
     model.setMarkovOrder(trial.suggest_int('markovOrder', 1, 3))
 
-    model.setSortedPrediction(not is_pick3)
-    model.setUsePairScoring(is_pick3)
-    model.setPairScoringWeight(trial.suggest_float('markovPairScoringWeight', 0.1, 2.0) if is_pick3 else 0.0)
+    model.setSortedPrediction(not is_positional)
+    model.setUsePairScoring(is_positional)
+    model.setPairScoringWeight(trial.suggest_float('markovPairScoringWeight', 0.1, 2.0) if is_positional else 0.0)
 
     subsets = []
     if "keno" in dataset_name:
@@ -224,7 +243,7 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
 
 def objective_markov_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
-    is_pick3 = "pick3" in dataset_name
+    is_positional = helpers.is_positional_game(dataset_name)
 
     base = Markov()
     base.setDataPath(dataPath)
@@ -236,7 +255,7 @@ def objective_markov_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild
     base.setPairDecayFactor(trial.suggest_float('markovMcPairDecayFactor', 0.1, 1.0))
     base.setSmoothingFactor(trial.suggest_float('markovMcSmoothingFactor', 0.01, 1.0))
     base.setMarkovOrder(trial.suggest_int('markovMcOrder', 1, 3))
-    base.setSortedPrediction(not is_pick3)
+    base.setSortedPrediction(not is_positional)
 
     model = MarkovMonteCarlo(base)
     model.setNumOfSimulations(trial.suggest_int('markovMcNumSimulations', 100, 2000, step=100))
@@ -256,7 +275,7 @@ def objective_markov_bayesian(trial, dataset_name, dataPath, game_cfg, days_to_r
     model.setSoftMAxTemperature(trial.suggest_float('markovBayesianSoftMaxTemperature', 0.05, 1.0))
     model.setMinOccurrences(trial.suggest_int('markovBayesianMinOccurences', 3, 15))
     model.setAlpha(trial.suggest_float('markovBayesianAlpha', 0.2, 0.9))
-    model.setSortedPrediction(not ("pick3" in dataset_name))
+    model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
     subsets = []
     if "keno" in dataset_name:
@@ -273,7 +292,7 @@ def objective_markov_bayesian_enhanced(trial, dataset_name, dataPath, game_cfg, 
     model.setSoftMAxTemperature(trial.suggest_float('markovBayesianEnhancedSoftMaxTemperature', 0.1, 1.0))
     model.setAlpha(trial.suggest_float('markovBayesianEnhancedAlpha', 0.1, 1.0))
     model.setMinOccurrences(trial.suggest_int('markovBayesianEnhancedMinOccurences', 1, 20))
-    model.setSortedPrediction(not ("pick3" in dataset_name))
+    model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
     subsets = []
     if "keno" in dataset_name:
@@ -289,7 +308,7 @@ def objective_poisson_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
     model.setDataPath(dataPath)
     model.setNumOfSimulations(trial.suggest_int('poissonMonteCarloNumberOfSimulations', 100, 1000, step=100))
     model.setWeightFactor(trial.suggest_float('poissonMonteCarloWeightFactor', 0.1, 1.0))
-    model.setSortedPrediction(not ("pick3" in dataset_name))
+    model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
     subsets = []
     if "keno" in dataset_name:
@@ -306,7 +325,7 @@ def objective_poisson_markov(trial, dataset_name, dataPath, game_cfg, days_to_re
     weight = trial.suggest_float('poissonMarkovWeight', 0.1, 1.0)
     model.setWeights(poisson_weight=weight, markov_weight=1 - weight)
     model.setNumberOfSimulations(trial.suggest_int('poissonMarkovNumberOfSimulations', 100, 1000, step=100))
-    model.setSortedPrediction(not ("pick3" in dataset_name))
+    model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
     subsets = []
     if "keno" in dataset_name:
@@ -321,7 +340,7 @@ def objective_laplace_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
     model = LaplaceMonteCarlo()
     model.setDataPath(dataPath)
     model.setNumOfSimulations(trial.suggest_int('laplaceMonteCarloNumberOfSimulations', 100, 1000, step=100))
-    model.setSortedPrediction(not ("pick3" in dataset_name))
+    model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
     subsets = []
     if "keno" in dataset_name:
@@ -339,7 +358,7 @@ def objective_hybrid(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
     model.setAlpha(trial.suggest_float('hybridStatisticalModelAlpha', 0.1, 1.0))
     model.setMinOccurrences(trial.suggest_int('hybridStatisticalModelMinOcurrences', 1, 20))
     model.setNumberOfSimulations(trial.suggest_int('hybridStatisticalModelNumberOfSimulations', 100, 1000, step=100))
-    model.setSortedPrediction(not ("pick3" in dataset_name))
+    model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
     subsets = []
     if "keno" in dataset_name:
@@ -612,7 +631,7 @@ if __name__ == "__main__":
             '-g', '--games',
             type=str,
             default=",".join(GAME_CONFIG.keys()),
-            help='Comma-separated list of games, e.g. "keno,pick3"'
+            help='Comma-separated list of games, e.g. "keno,pick3,jokerplus"'
         )
 
         args = parser.parse_args()
@@ -658,6 +677,7 @@ if __name__ == "__main__":
                             "keno": "Keno",
                             "pick3": "Pick3",
                             "vikinglotto": "Viking+Lotto",
+                            "jokerplus": "Joker%2B",
                         }.get(dataset_name, "")
                         dataFetcher.getLatestData(gameName, filePath)
                 except Exception as e:
@@ -669,7 +689,7 @@ if __name__ == "__main__":
                     with open(jsonBestParamsFilePath, "r") as infile:
                         existingData = json.load(infile)
 
-                is_pick3 = "pick3" in dataset_name
+                is_positional = helpers.is_positional_game(dataset_name)
                 profits = {}
 
                 for strategy_name in strategies:
@@ -677,8 +697,8 @@ if __name__ == "__main__":
                         print(f"Unknown strategy '{strategy_name}', skipping")
                         continue
 
-                    if is_pick3 and strategy_name in DISABLED_FOR_PICK3:
-                        print(f"Skipping {strategy_name} for Pick3 - not a positional/per-column model")
+                    if is_positional and strategy_name in DISABLED_FOR_POSITIONAL:
+                        print(f"Skipping {strategy_name} for {dataset_name} - not a positional/per-column model")
                         continue
 
                     strategy = STRATEGIES[strategy_name]
@@ -710,13 +730,14 @@ if __name__ == "__main__":
                     existingData.update(study.best_params)
 
                     # Predictor.py reads these directly for Markov (they're not
-                    # tuned separately per non-pick3 game the way the other
-                    # models' sortedPrediction is, since Predictor.py derives
-                    # that one from the game name at runtime for everyone else).
+                    # tuned separately per non-positional game the way the
+                    # other models' sortedPrediction is, since Predictor.py
+                    # derives that one from the game name at runtime for
+                    # everyone else).
                     if strategy_name == "Markov":
-                        existingData['markovSortedPrediction'] = not is_pick3
-                        existingData['markovUsePairScoring'] = is_pick3
-                        if not is_pick3:
+                        existingData['markovSortedPrediction'] = not is_positional
+                        existingData['markovUsePairScoring'] = is_positional
+                        if not is_positional:
                             existingData['markovPairScoringWeight'] = 0.0
 
                 # Do not make a choice for best strategy - Predictor.py still

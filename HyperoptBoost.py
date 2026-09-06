@@ -33,9 +33,19 @@ GAME_CONFIG = {
     "keno":         {"min": 1, "max": 80, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
     "pick3":        {"min": 0, "max": 9, "draw_size": 3, "skip_last_columns": 0, "special_column_count": 0},
     "vikinglotto":  {"min": 1, "max": 48, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
+    # Joker+: six digits 0-9 in drawn order (positional like pick3, see
+    # Helpers.is_positional_game) plus the zodiac sign as a 12-class special
+    # column (codes 0..11, Helpers.encode_zodiac) - same entry as
+    # HyperoptStatistics.GAME_CONFIG.
+    "jokerplus":    {"min": 0, "max": 9, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
 }
 
 KENO_SUBSET_VALUES = [5, 6, 7, 8, 9, 10]
+
+# Games with a real payout table - the Backtester computes profit rows for
+# them and score_from_summary tunes on profit_per_bet (mirrors
+# HyperoptStatistics.PAYOUT_GAMES).
+PAYOUT_GAMES = ("keno", "pick3", "jokerplus")
 
 
 def is_running():
@@ -132,10 +142,11 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     backtester = Backtester(loader)
     backtester.add_model(model_name, model)
 
-    # Only Keno/Pick3 have a real payout model to score profit with (see
-    # Helpers.keno_ticket_profit/pick3_ticket_profit) - other games fall back
-    # to avg hits as the tuning objective.
-    game_param = dataset_name if dataset_name in ("keno", "pick3") else None
+    # Only Keno/Pick3/Joker+ have a real payout model to score profit with
+    # (see Helpers.keno_ticket_profit/pick3_ticket_profit/
+    # jokerplus_ticket_profit) - other games fall back to avg hits as the
+    # tuning objective.
+    game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
 
     results = backtester.backtest(
         start_index=start_index,
@@ -217,10 +228,11 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         apply_boosting_params(model, suggest_boosting_params(trial, prefix), prefix)
         model.setDataPath(dataPath)
 
-        # Pick3 is positional (digit order decides straight/box/pair payouts),
-        # so its digits must stay in drawn order instead of being
-        # sorted/deduplicated.
-        model.setSortedPrediction(not ("pick3" in dataset_name))
+        # Positional games (Pick3: digit order decides straight/box/pair
+        # payouts; Joker+: leading/trailing runs of six digits) keep their
+        # digits in drawn order instead of being sorted/deduplicated - see
+        # Helpers.is_positional_game.
+        model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
         # Backtester runs days across a process Pool; letting each worker's
         # boosting library spawn its own thread pool on top of that
@@ -253,9 +265,11 @@ def make_boosting_objective(model_class, prefix, backtest_name):
 #
 # An optional "games" tuple restricts a strategy to the games it applies to
 # (same convention as HyperoptStatistics.STRATEGIES); omitted means every game.
-# The multi-label models exclude Pick3 - they model set membership, which
-# can't represent digit order or repeated digits.
-NON_PICK3_GAMES = tuple(g for g in GAME_CONFIG if g != "pick3")
+# The multi-label models exclude the positional games (Pick3, Joker+ -
+# Helpers.is_positional_game) - they model set membership, which can't
+# represent digit order or repeated digits. The old name stays as an alias.
+NON_POSITIONAL_GAMES = tuple(g for g in GAME_CONFIG if not helpers.is_positional_game(g))
+NON_PICK3_GAMES = NON_POSITIONAL_GAMES
 
 STRATEGIES = {
     "XGBoost": {
@@ -263,19 +277,19 @@ STRATEGIES = {
         "use_key": "useBoost"},
     "XGBoostMultiLabel": {
         "objective": make_boosting_objective(XGBoostMultiLabelPredictor, "xgBoostMl", "xgboost_ml"),
-        "use_key": "useXgBoostMultiLabel", "games": NON_PICK3_GAMES},
+        "use_key": "useXgBoostMultiLabel", "games": NON_POSITIONAL_GAMES},
     "LightGBM": {
         "objective": make_boosting_objective(LightGBMPredictor, "lightGbm", "lightgbm"),
         "use_key": "useLightGbm"},
     "LightGBMMultiLabel": {
         "objective": make_boosting_objective(LightGBMMultiLabelPredictor, "lightGbmMl", "lightgbm_ml"),
-        "use_key": "useLightGbmMultiLabel", "games": NON_PICK3_GAMES},
+        "use_key": "useLightGbmMultiLabel", "games": NON_POSITIONAL_GAMES},
     "CatBoost": {
         "objective": make_boosting_objective(CatBoostPredictor, "catBoost", "catboost"),
         "use_key": "useCatBoost"},
     "CatBoostMultiLabel": {
         "objective": make_boosting_objective(CatBoostMultiLabelPredictor, "catBoostMl", "catboost_ml"),
-        "use_key": "useCatBoostMultiLabel", "games": NON_PICK3_GAMES},
+        "use_key": "useCatBoostMultiLabel", "games": NON_POSITIONAL_GAMES},
 }
 
 # Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
@@ -325,7 +339,7 @@ if __name__ == "__main__":
             '-g', '--games',
             type=str,
             default=",".join(GAME_CONFIG.keys()),
-            help='Comma-separated list of games, e.g. "keno,pick3"'
+            help='Comma-separated list of games, e.g. "keno,pick3,jokerplus"'
         )
 
         args = parser.parse_args()
@@ -371,6 +385,7 @@ if __name__ == "__main__":
                             "keno": "Keno",
                             "pick3": "Pick3",
                             "vikinglotto": "Viking+Lotto",
+                            "jokerplus": "Joker%2B",
                         }.get(dataset_name, "")
                         dataFetcher.getLatestData(gameName, filePath)
                 except Exception as e:

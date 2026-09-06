@@ -118,6 +118,13 @@ class PoissonMonteCarlo():
             probabilities = softmax(raw_values)
             sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
 
+            # Positional games (pick3/jokerplus) draw each slot with
+            # replacement - 86% of Joker+ draws repeat a digit - so the top
+            # digit is taken as-is; the distinct-digit constraint is a set-game
+            # rule (kept for sorted tickets).
+            if not self.sorted_prediction:
+                predicted_numbers.append(sorted_predictions[0])
+                continue
             for num in sorted_predictions:
                 if num not in predicted_numbers:
                     predicted_numbers.append(num)

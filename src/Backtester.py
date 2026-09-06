@@ -1,5 +1,6 @@
 import os, sys, json, time, re, random, zlib
 import numpy as np
+from collections import defaultdict
 from multiprocessing import Pool, cpu_count
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +20,80 @@ helpers = Helpers()
 _worker_ctx = {}
 
 
+def _positional_hits(prediction, actual, game):
+    """
+    Hit count of one positional-game ticket in the game's own currency.
+    Joker+ pays on the LEADING and TRAILING runs of consecutive matching
+    digits (Helpers.jokerplus_runs), so its hits are L + R (6 for a full
+    match) - a set intersection would count a digit drawn in another slot
+    as a hit, which the game never pays. Pick3 keeps the historical set
+    count every existing hits_avg/modelScores entry was measured with.
+    Returns (hits, matching_numbers): for Joker+ the matched digit VALUES of
+    the two runs in drawn order (informational, like
+    Helpers.find_best_matching_prediction), duplicates kept.
+    """
+    if helpers.is_jokerplus(game):
+        digits = [int(d) for d in prediction]
+        real = [int(d) for d in actual]
+        left, right = helpers.jokerplus_runs(digits, real)
+        n = min(len(digits), len(real))
+        matched = real[:left] + (real[n - right:] if right else [])
+        return left + right, matched
+    return Metrics.count_hits(prediction, actual), Metrics.matching_numbers(prediction, actual)
+
+
+def _positional_baseline_tickets(train_mains, min_number, max_number, draw_size):
+    """
+    Baseline tickets for a positional game (Pick3, Joker+ -
+    Helpers.is_positional_game), in DRAWN ORDER with duplicates allowed. The
+    shared Baselines class builds set-style tickets - random_ticket samples
+    without replacement and sorts, column_frequency_ticket dedupes across
+    columns and back-fills from the pooled ranking - which for a positional
+    game both shifts digits out of their slot and can never express a
+    repeated digit (Joker+ repeats a digit in 86% of its draws, Pick3 in
+    28%), so every straight/run payout they were scored on was against a
+    scrambled ticket. Same three baseline names, positional semantics:
+      random:           one uniform digit per slot, sampled WITH replacement
+                        (the game's own drawing mechanism);
+      global_frequency: the draw_size most frequent digits over every main
+                        column, most frequent first - the pooled ranking in
+                        rank order rather than sorted, so slot 1 carries the
+                        strongest pooled digit;
+      column_frequency: each slot's own most frequent digit (ties -> lowest),
+                        kept even when another slot picked the same digit.
+    train_mains holds the MAIN columns only (the caller slices the special
+    column off) so Joker+'s zodiac codes 10/11 can never surface as digits.
+    An empty history (backtest day 0) falls back to min_number per slot.
+    """
+    random_prediction = np.random.randint(min_number, max_number + 1, size=draw_size).astype(int).tolist()
+
+    train_mains = np.asarray(train_mains)
+    if train_mains.size == 0:
+        fallback = [int(min_number)] * draw_size
+        return random_prediction, fallback, fallback
+
+    pooled = defaultdict(float)
+    for draw in train_mains:
+        for n in draw:
+            pooled[int(n)] += 1
+    # rank by count desc, then lowest digit, so ties are deterministic
+    ranked = sorted(pooled, key=lambda n: (-pooled[n], n))
+    global_frequency_prediction = ranked[:draw_size]
+    # fewer distinct digits than slots (tiny history): pad with the top digit
+    # rather than shorten the ticket, a positional ticket has a fixed width
+    while len(global_frequency_prediction) < draw_size:
+        global_frequency_prediction.append(ranked[0])
+
+    column_frequency_prediction = []
+    for col in range(min(draw_size, train_mains.shape[1])):
+        counts = defaultdict(float)
+        for draw in train_mains:
+            counts[int(draw[col])] += 1
+        column_frequency_prediction.append(max(counts, key=lambda n: (counts[n], -n)))
+
+    return random_prediction, global_frequency_prediction, column_frequency_prediction
+
+
 def _backtest_single_day(i):
     """
     Runs every model + baseline for a single backtest day. Each day is fully
@@ -36,6 +111,16 @@ def _backtest_single_day(i):
     special_column_count = ctx["special_column_count"]
     collect_scores = ctx.get("collect_scores", False)
 
+    # Positional games (Pick3, Joker+ - Helpers.is_positional_game): the draw
+    # is an ordered digit sequence, so tickets stay in drawn order, every
+    # model with a score_positions() gets its per-slot scores collected, and
+    # the baselines are built positionally. Only recognised when the caller
+    # passes the game name (TrainMetaLearner/HyperoptQuantum for the score
+    # tables, the hyperopts' payout-game runs); game=None keeps the plain
+    # set-style backtest every other caller expects.
+    is_positional = helpers.is_positional_game(game)
+    is_jokerplus = helpers.is_jokerplus(game)
+
     total_rows = len(numbers)
 
     actual = list(map(int, numbers[i]))
@@ -52,10 +137,12 @@ def _backtest_single_day(i):
 
     # The same drawn numbers in their original per-column order, for every
     # game. "actual" is sorted for set-style hit counting, which destroys the
-    # slot identity a positional game (Pick3) is actually paid out on - the
-    # positional meta-learner (TrainMetaLearner's pick3 table) labels "did
-    # digit d land in position p" from this. Purely additive: everything that
-    # reads "actual" is untouched.
+    # slot identity a positional game (Pick3, Joker+) is actually paid out on
+    # - the positional meta-learner (TrainMetaLearner's positional table)
+    # labels "did digit d land in position p" from this. For Joker+ it is the
+    # full 7-value row [d1..d6, zodiacCode]: the leading draw_size values are
+    # the digit slots, the trailing value the special column. Purely
+    # additive: everything that reads "actual" is untouched.
     row["actual_ordered"] = list(actual)
 
     # Phase 1 stacking meta-learner training data only. "actual" above is
@@ -101,22 +188,39 @@ def _backtest_single_day(i):
 
             predicted_numbers = list(map(int, predicted_numbers))
 
-            row[f"{model_name}_prediction"] = sorted(predicted_numbers)
+            # A positional ticket is kept in drawn order - sorting it would
+            # scramble the very slots it is paid on (and the meta-learner
+            # tables never read this key, so this is display-only either way).
+            row[f"{model_name}_prediction"] = list(predicted_numbers) if is_positional else sorted(predicted_numbers)
             # Hits are scored per pool: a predicted main matching a star/
             # dream/viking value (whose smaller range sits inside the main
             # range) is not a hit - pooled counting inflated every hyperopt
             # hits_avg objective for the special-column games. Lotto passes
             # through whole (scc=0): its bonus comes from the same 1-45 drum
             # and a predicted main matching it IS a hit (5+bonus prize tier).
+            # Joker+ (scc=1): the 7-value row is [d1..d6, zodiacCode] - the
+            # digits score as leading/trailing runs (L + R, see
+            # _positional_hits) and the sign is the special hit (0/1).
             if special_column_count > 0 and len(predicted_numbers) > len(actual) - special_column_count:
                 pred_mains = predicted_numbers[:-special_column_count]
                 pred_specials = predicted_numbers[-special_column_count:]
                 actual_mains = actual[:-special_column_count]
                 actual_specials = actual[-special_column_count:]
-                row[f"{model_name}_hits"] = Metrics.count_hits(pred_mains, actual_mains)
+                if is_positional:
+                    hits, matching = _positional_hits(pred_mains, actual_mains, game)
+                else:
+                    hits, matching = Metrics.count_hits(pred_mains, actual_mains), Metrics.matching_numbers(pred_mains, actual_mains)
+                row[f"{model_name}_hits"] = hits
                 row[f"{model_name}_special_hits"] = Metrics.count_hits(pred_specials, actual_specials)
-                row[f"{model_name}_matching_numbers"] = Metrics.matching_numbers(pred_mains, actual_mains)
+                row[f"{model_name}_matching_numbers"] = matching
                 row[f"{model_name}_special_matching_numbers"] = Metrics.matching_numbers(pred_specials, actual_specials)
+            elif is_positional:
+                # mains-only ticket (a model that returned no special value):
+                # scored against the digit slots only, never the sign
+                actual_mains = actual[:-special_column_count] if special_column_count > 0 else actual
+                hits, matching = _positional_hits(predicted_numbers, actual_mains, game)
+                row[f"{model_name}_hits"] = hits
+                row[f"{model_name}_matching_numbers"] = matching
             else:
                 row[f"{model_name}_hits"] = Metrics.count_hits(
                     predicted_numbers,
@@ -129,6 +233,14 @@ def _backtest_single_day(i):
 
             if game == "pick3":
                 profit = helpers.pick3_ticket_profit(predicted_numbers, actual)
+                if profit is not None:
+                    row[f"{model_name}_profit"] = profit
+            elif is_jokerplus:
+                # One 1.50 EUR bet per row: the 7-int ticket [d1..d6, code]
+                # against the 7-int actual - runs + sign (Helpers.
+                # jokerplus_ticket_profit; a 6-digit ticket scores with the
+                # sign unknown).
+                profit = helpers.jokerplus_ticket_profit(predicted_numbers, actual)
                 if profit is not None:
                     row[f"{model_name}_profit"] = profit
 
@@ -164,11 +276,20 @@ def _backtest_single_day(i):
             # approach - collapses to special-only, silently discarding the
             # main numbers entirely.
             if collect_scores and hasattr(model, "score_numbers"):
-                main_scores = model.score_numbers(
-                    skipRows=rows_to_skip,
-                    skipLastColumns=special_column_count if special_column_count > 0 else skipLastColumns
-                )
-                row[f"{model_name}_scores"] = {int(n): float(s) for n, s in main_scores.items()}
+                # The flat main-number score is skipped for a positional game:
+                # its meta-learner trains on the per-slot "_position_scores"
+                # (and, for Joker+, the "_special_scores" below) and never
+                # reads a pooled "which digits appear at all" ranking - and
+                # for Joker+ that pooled pass is by far the most expensive
+                # call of the day (Markov's 2000 voted tickets each rebuild
+                # the pair-scored joint over 4^6 six-digit combinations,
+                # ~220s per day, versus a few seconds for everything else).
+                if not is_positional:
+                    main_scores = model.score_numbers(
+                        skipRows=rows_to_skip,
+                        skipLastColumns=special_column_count if special_column_count > 0 else skipLastColumns
+                    )
+                    row[f"{model_name}_scores"] = {int(n): float(s) for n, s in main_scores.items()}
 
                 if special_column_count > 0:
                     special_scores = model.score_numbers(
@@ -178,17 +299,19 @@ def _backtest_single_day(i):
                     )
                     row[f"{model_name}_special_scores"] = {int(n): float(s) for n, s in special_scores.items()}
 
-                # Positional (Pick3) stacking: one {digit: score} dict per
-                # drawn position - the signal the flat {number: score} dict
-                # above pools away. Pick3 only: every other game is scored as
-                # a set, where slot identity is either meaningless (Keno) or
-                # an artefact of sorting (Lotto). Same skipRows/skipLastColumns
-                # as the main-scores call so it is scored on exactly the
-                # history this day's run() saw. The "_position_scores" suffix
-                # is deliberate: summarize()'s regexes only pick up
-                # _hits/_profit/_error, so this can never be mistaken for a
-                # metric of some pseudo-model.
-                if game == "pick3" and hasattr(model, "score_positions"):
+                # Positional (Pick3, Joker+) stacking: one {digit: score}
+                # dict per drawn position - the signal the flat {number:
+                # score} dict above pools away. Positional games only: every
+                # other game is scored as a set, where slot identity is either
+                # meaningless (Keno) or an artefact of sorting (Lotto). Same
+                # skipRows/skipLastColumns as the main-scores call so it is
+                # scored on exactly the history this day's run() saw - for
+                # Joker+ that drops the zodiac column, leaving the 6 digit
+                # slots (the sign's scores come from the special-only call
+                # above). The "_position_scores" suffix is deliberate:
+                # summarize()'s regexes only pick up _hits/_profit/_error, so
+                # this can never be mistaken for a metric of some pseudo-model.
+                if is_positional and hasattr(model, "score_positions"):
                     position_scores = model.score_positions(
                         skipRows=rows_to_skip,
                         skipLastColumns=special_column_count if special_column_count > 0 else skipLastColumns,
@@ -221,23 +344,33 @@ def _backtest_single_day(i):
         draw_size = len(actual) - special_column_count
         actual_for_baselines = actual[:-special_column_count] if special_column_count > 0 else actual
 
-        random_prediction = Baselines.random_ticket(
-            data_loader_model.min_number,
-            data_loader_model.max_number,
-            draw_size
-        )
+        if is_positional:
+            # Drawn-order tickets, duplicates allowed - see
+            # _positional_baseline_tickets for why the shared set-style
+            # Baselines can't be used here. Frequencies are counted over the
+            # MAIN columns only: Joker+'s trailing zodiac codes (0..11) are
+            # not digits and must never be ranked as one.
+            train_mains = train_numbers[:, :-special_column_count] if special_column_count > 0 and len(train_numbers) else train_numbers
+            random_prediction, global_frequency_prediction, column_frequency_prediction = _positional_baseline_tickets(
+                train_mains, data_loader_model.min_number, data_loader_model.max_number, draw_size)
+        else:
+            random_prediction = Baselines.random_ticket(
+                data_loader_model.min_number,
+                data_loader_model.max_number,
+                draw_size
+            )
 
-        global_frequency_prediction = Baselines.global_frequency_ticket(
-            train_numbers,
-            draw_size
-        )
+            global_frequency_prediction = Baselines.global_frequency_ticket(
+                train_numbers,
+                draw_size
+            )
 
-        # column_frequency builds one value per CSV column, so on special
-        # games its trailing entries are special-column picks - keep the main
-        # columns only, consistent with the main-pool scoring below.
-        column_frequency_prediction = Baselines.column_frequency_ticket(
-            train_numbers
-        )[:draw_size]
+            # column_frequency builds one value per CSV column, so on special
+            # games its trailing entries are special-column picks - keep the main
+            # columns only, consistent with the main-pool scoring below.
+            column_frequency_prediction = Baselines.column_frequency_ticket(
+                train_numbers
+            )[:draw_size]
 
         baseline_predictions = {
             "random": random_prediction,
@@ -246,12 +379,25 @@ def _backtest_single_day(i):
         }
 
         for baseline_name, prediction in baseline_predictions.items():
-            row[f"{baseline_name}_prediction"] = sorted(prediction)
-            row[f"{baseline_name}_hits"] = Metrics.count_hits(prediction, actual_for_baselines)
-            row[f"{baseline_name}_matching_numbers"] = Metrics.matching_numbers(prediction, actual_for_baselines)
+            prediction = list(map(int, prediction))
+            if is_positional:
+                row[f"{baseline_name}_prediction"] = list(prediction)
+                hits, matching = _positional_hits(prediction, actual_for_baselines, game)
+                row[f"{baseline_name}_hits"] = hits
+                row[f"{baseline_name}_matching_numbers"] = matching
+            else:
+                row[f"{baseline_name}_prediction"] = sorted(prediction)
+                row[f"{baseline_name}_hits"] = Metrics.count_hits(prediction, actual_for_baselines)
+                row[f"{baseline_name}_matching_numbers"] = Metrics.matching_numbers(prediction, actual_for_baselines)
 
             if game == "pick3":
                 profit = helpers.pick3_ticket_profit(prediction, actual)
+                if profit is not None:
+                    row[f"{baseline_name}_profit"] = profit
+            elif is_jokerplus:
+                # digits-only baseline ticket vs the 7-value actual: scored
+                # with the sign unknown (no baseline picks a sign)
+                profit = helpers.jokerplus_ticket_profit(prediction, actual)
                 if profit is not None:
                     row[f"{baseline_name}_profit"] = profit
 
@@ -344,14 +490,21 @@ class Backtester:
         collect_scores=False
     ):
         """
-        game: "keno" or "pick3" enables profit calculation (in euro) alongside hit
-        counts, reusing the same payout tables as Helpers.calculate_profit. Other
-        games have no payout model yet, so only hit/matching-number stats apply.
+        game: "keno", "pick3" or "jokerplus" enables profit calculation (in
+        euro) alongside hit counts, reusing the same payout tables as
+        Helpers.calculate_profit. Other games have no payout model yet, so only
+        hit/matching-number stats apply.
 
         For "keno", profit is only computed for subsets of 5-10 numbers (in
         generate_subsets) since that's the playable range with real payouts.
         For "pick3", profit is computed on the full (positionally-ordered)
-        prediction, since Pick3 payouts depend on digit order.
+        prediction, since Pick3 payouts depend on digit order. For
+        "jokerplus" (special_column_count=1), profit is computed on the
+        7-value row [d1..d6, zodiacCode] against the 7-value actual
+        (Helpers.jokerplus_ticket_profit: leading/trailing runs + sign) and
+        the row's "_hits" is L + R rather than a set count; a positional
+        game's tickets are stored in drawn order and its baselines are built
+        positionally (see _positional_baseline_tickets).
 
         generate_subsets can be either:
           - a flat list, e.g. [5, 6, 10] - every model in self.models gets
@@ -374,13 +527,16 @@ class Backtester:
 
         collect_scores: when True, also calls each model's score_numbers(...)
         (Phase 1 stacking meta-learner) and stores the resulting {number:
-        score} dict as row[f"{model_name}_scores"] (main numbers) and, for
-        special-column games, row[f"{model_name}_special_scores"] (the
-        special column(s), scored independently - see the split logic
-        below). For game="pick3" it additionally calls score_positions(...)
+        score} dict as row[f"{model_name}_scores"] (main numbers - not for
+        a positional game, whose meta-learner reads the per-slot scores
+        instead) and, for special-column games,
+        row[f"{model_name}_special_scores"] (the special column(s), scored
+        independently - see the split logic below). For a positional game
+        (game="pick3"/"jokerplus") it additionally calls score_positions(...)
         on every model that has one and stores the resulting list of
-        per-position {digit: score} dicts (drawn order) as
-        row[f"{model_name}_position_scores"], paired with the always-present
+        per-position {digit: score} dicts (drawn order, draw_size slots -
+        Joker+'s zodiac column is not a slot, it lands in "_special_scores")
+        as row[f"{model_name}_position_scores"], paired with the always-present
         row["actual_ordered"] label. Used only by TrainMetaLearner.py to
         build its training tables. Off by default so normal hyperopt/backtest
         runs (which never read this) pay no extra cost.

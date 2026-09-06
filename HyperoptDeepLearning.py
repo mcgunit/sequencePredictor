@@ -88,15 +88,16 @@ MODEL_DISPLAY_NAMES = {
 }
 
 # Trailing special/bonus column(s): Euromillions (2 star columns),
-# EuroDreams (1 dream number), VikingLotto (1 super viking) get modeled
-# via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
+# EuroDreams (1 dream number), VikingLotto (1 super viking), Joker+ (1
+# zodiac sign, stored as its 0..11 code - see Helpers.encode_zodiac) get
+# modeled via a second output head (see LSTM.py/TCN.py/UnifiedLstmTcn.py/
 # UnifiedLstmGruTcn.py create_model) instead of being lumped into the
 # main numbers' output. Lotto's bonus number isn't modeled at all - it's
 # simply dropped via skip_last_columns. Module level (was in __main__)
 # because update_matching_numbers/process_single_history_entry need it to
 # score matches per pool, and spawned children re-import this file as
-# __mp_main__, which skips __main__.
-SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
+# __mp_main__, which skips __main__. Mirrors Predictor.py / Helpers.
+SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1, "jokerplus": 1}
 
 
 def matchingSplitArgs(name, realResult):
@@ -111,7 +112,10 @@ def matchingSplitArgs(name, realResult):
     find_best_matching_prediction matches the trailing bonus against the
     ticket itself into the special count ("vikinglotto" contains "lotto" but
     its viking is a dedicated special column, hence the exclusion).
-    Keno/pick3 fall through with (0, None) - no split needed.
+    Keno/pick3 fall through with (0, None) - no split needed. Joker+ gets
+    (1, None): its 7th value is the zodiac code; callers also pass game=name
+    to find_best_matching_prediction so its rows are scored by the
+    leading/trailing digit runs the game pays on instead of set hits.
     """
     specialColumnCount = next(
         (count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
@@ -519,7 +523,7 @@ def update_matching_numbers(name, path):
         specialColumnCount, realMainCount = matchingSplitArgs(name, curr_json["realResult"])
         best_match = helpers.find_best_matching_prediction(
             curr_json["realResult"], curr_json["currentPrediction"],
-            specialColumnCount=specialColumnCount, realMainCount=realMainCount
+            specialColumnCount=specialColumnCount, realMainCount=realMainCount, game=name
         )
         curr_json["matchingNumbers"] = best_match
 
@@ -559,7 +563,7 @@ def process_single_history_entry(args):
     matchSpecialCount, matchRealMainCount = matchingSplitArgs(name, current_json_object["realResult"])
     best_matching_prediction = helpers.find_best_matching_prediction(
         current_json_object["realResult"], current_json_object["currentPrediction"],
-        specialColumnCount=matchSpecialCount, realMainCount=matchRealMainCount)
+        specialColumnCount=matchSpecialCount, realMainCount=matchRealMainCount, game=name)
     current_json_object["matchingNumbers"] = best_matching_prediction
 
     listOfDecodedPredictions = []
@@ -744,7 +748,10 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             # Find the matching numbers
             update_matching_numbers(name=name, path=path)
 
-            # Calculate Profit
+            # Calculate Profit - dispatched on the game name inside
+            # calculate_profit (keno subsets, pick3 straight/box/pair, Joker+
+            # left/right runs + sign on the 7-value row; main-pool hits for
+            # the games without a payout table).
             profit =  helpers.calculate_profit(name=name, path=path)
 
             # avg_val_loss is backed by every retrain's held-out validation
@@ -836,7 +843,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-g', '--games',
         type=str,
-        default="euromillions,lotto,eurodreams,keno,pick3,vikinglotto",
+        default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto",
         help='Comma-separated list of games, e.g. "euromillions,lotto,..."'
     )
     parser.add_argument(
@@ -899,7 +906,11 @@ if __name__ == "__main__":
             ("euromillions", 0),
             ("lotto", 1),
             ("eurodreams", 0),
-            #("jokerplus", 1),
+            # skip 0, not 1: the trailing zodiac column is Joker+'s special
+            # column (SPECIAL_COLUMN_COUNTS) and must stay present so the DL
+            # models' special head can model it - dropping it would turn the
+            # game into six plain digits with no sign to predict.
+            ("jokerplus", 0),
             ("keno", 0),
             ("pick3", 0),
             ("vikinglotto", 0),

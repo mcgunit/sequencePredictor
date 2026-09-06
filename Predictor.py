@@ -63,13 +63,15 @@ dataFetcher = DataFetcher()
 
 LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 
-# Euromillions (2 star columns), EuroDreams (1 dream number), and
-# VikingLotto (1 super viking) are drawn from their own, smaller range -
-# model them independently from the main numbers (see
+# Euromillions (2 star columns), EuroDreams (1 dream number), VikingLotto
+# (1 super viking) and Joker+ (1 zodiac sign, stored as its 0..11 code - see
+# Helpers.encode_zodiac) are drawn from their own, smaller range - model them
+# independently from the main numbers (see
 # Helpers.run_model_with_special_column) instead of mixing them into the
 # same pool/sort. Lotto's bonus number is not modeled at all (it isn't
-# played), so it keeps being fully dropped via skipLastColumns.
-SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1}
+# played), so it keeps being fully dropped via skipLastColumns. Mirrored in
+# Helpers.SPECIAL_COLUMN_COUNTS, HyperoptDeepLearning.py and server.js.
+SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1, "jokerplus": 1}
 
 
 def matchingSplitArgs(name, realResult):
@@ -83,7 +85,11 @@ def matchingSplitArgs(name, realResult):
     find_best_matching_prediction matches the trailing bonus against the
     ticket itself into the special count ("vikinglotto" contains "lotto" but
     its viking is a dedicated special column, hence the exclusion).
-    Keno/pick3 fall through with (0, None) - no split needed.
+    Keno/pick3 fall through with (0, None) - no split needed. Joker+ gets
+    (1, None): its 7th value is the zodiac code, a dedicated special column.
+    Callers also pass game=name so find_best_matching_prediction can apply
+    Joker+'s left/right-run hit semantics (Helpers.jokerplus_runs) instead of
+    a set intersection - every other game ignores that argument.
     """
     specialColumnCount = next(
         (count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
@@ -200,7 +206,7 @@ def update_matching_numbers(name, path):
         specialColumnCount, realMainCount = matchingSplitArgs(name, curr_json["realResult"])
         best_match = helpers.find_best_matching_prediction(
             curr_json["realResult"], curr_json["currentPrediction"],
-            specialColumnCount=specialColumnCount, realMainCount=realMainCount
+            specialColumnCount=specialColumnCount, realMainCount=realMainCount, game=name
         )
         curr_json["matchingNumbers"] = best_match
 
@@ -248,7 +254,7 @@ def process_single_history_entry_first_step(args):
         specialColumnCount, realMainCount = matchingSplitArgs(name, current_json_object["realResult"])
         best_matching_prediction = helpers.find_best_matching_prediction(
             current_json_object["realResult"], current_json_object["currentPrediction"],
-            specialColumnCount=specialColumnCount, realMainCount=realMainCount)
+            specialColumnCount=specialColumnCount, realMainCount=realMainCount, game=name)
         current_json_object["matchingNumbers"] = best_matching_prediction
 
         
@@ -435,7 +441,7 @@ def process_single_history_entry_second_step(args):
     # Calculate the frequent numbers in prediction in last step
     try:
         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
-            current_json_object, model_scores=bestParams_json_object.get("modelScores"))
+            current_json_object, model_scores=bestParams_json_object.get("modelScores"), game=name)
         addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
@@ -566,7 +572,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     matchSpecialCount, matchRealMainCount = matchingSplitArgs(name, current_json_object["realResult"])
                     best_matching_prediction = helpers.find_best_matching_prediction(
                         current_json_object["realResult"], current_json_object["currentPrediction"],
-                        specialColumnCount=matchSpecialCount, realMainCount=matchRealMainCount)
+                        specialColumnCount=matchSpecialCount, realMainCount=matchRealMainCount, game=name)
 
                     current_json_object["matchingNumbers"] = best_matching_prediction
 
@@ -630,7 +636,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     # Calculate the frequent numbers in prediction
                     try:
                         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
-                            current_json_object, model_scores=bestParams_json_object.get("modelScores"))
+                            current_json_object, model_scores=bestParams_json_object.get("modelScores"), game=name)
                         addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
@@ -823,9 +829,19 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
     run() never raises (it degrades to vote-share ranking) - the try/except
     is for the surrounding plumbing. Shared by both places a day's rows are
     finalized (fresh daily prediction and history rebuild's second step).
+
+    Joker+ is skipped outright: this model learns how to ASSEMBLE a ticket,
+    but a Joker+ player cannot choose the six digits (they are system-
+    generated, only the zodiac sign is selectable - Reglement Joker+), so
+    there is no ticket construction to optimize. Pick3 keeps its dedicated
+    positional (isPick3) branch unchanged.
     """
     if not bestParams_json_object.get("useRlTicket", True):
         print("RL Ticket Model disabled via useRlTicket - skipping")
+        return listOfDecodedPredictions
+    if Helpers.is_jokerplus(name):
+        print("RL Ticket Model skipped for jokerplus: the player cannot choose the digits "
+              "(system-generated, only the zodiac sign is selectable) - nothing to construct")
         return listOfDecodedPredictions
     try:
         rlTicket.setModelPath(os.path.join(path, "data", "models", "rl_model"))
@@ -857,7 +873,7 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
             print("RL Ticket Model skipped: no rows to derive the ticket size from")
             return listOfDecodedPredictions
         gameConfig = {
-            "numberRange": (int(min(mainLabels)), int(max(mainLabels))) if "jokerplus" not in name else (0, 9),
+            "numberRange": (int(min(mainLabels)), int(max(mainLabels))),
             "drawSize": drawSize,
             "kenoSubsetSizes": getKenoSubsetSizes(name, bestParams_json_object),
             "isPick3": "pick3" in name,
@@ -882,8 +898,9 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     Appends the score-weighted vote as its own ticket/row in newPrediction (so
     it shows up in the Model table next to every individual model's own
     prediction), instead of only existing as a separate chart. Skipped for
-    Pick3, since it's positional and a frequency vote across models has no
-    notion of position.
+    the positional games (Pick3, Joker+ - Helpers.is_positional_game), since
+    a frequency vote across models has no notion of position and cannot
+    express the repeated digits those games routinely draw.
 
     For games with special columns (Euromillions star numbers, EuroDreams
     dream number, VikingLotto super viking - see SPECIAL_COLUMN_COUNTS), the
@@ -898,7 +915,7 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     using Helpers.generate_subset_from_scores over the already-computed main
     vote so a subset is just "which of these 20 numbers", not a fresh vote.
     """
-    if "pick3" in name:
+    if Helpers.is_positional_game(name):
         return
 
     bestParams_json_object = bestParams_json_object or {}
@@ -1210,6 +1227,16 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         "labelSmoothing": 0.05
     }
 
+    # Positional games (Pick3, Joker+ - see Helpers.is_positional_game): the
+    # draw is an ORDERED digit sequence with repeats, so digits stay in drawn
+    # order, and the models without per-position modeling (MarkovBayesian,
+    # MarkovBayesianEnhanced, PoissonMarkov, HybridStatisticalModel - the
+    # DISABLED_FOR_PICK3 set of HyperoptStatistics.py/ModelFactory.py) are
+    # skipped. Joker+ additionally models its zodiac sign as a special column
+    # (SPECIAL_COLUMN_COUNTS), appended as the 7th value of every row.
+    isPositional = Helpers.is_positional_game(name)
+
+    tunedParamsLoaded = False
     try:
         # Load hyperopt parameters if exists
         hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
@@ -1220,16 +1247,39 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 # newer default key (e.g. useMarkovMonteCarlo) would otherwise
                 # crash every lookup of that key with a KeyError.
                 bestParams_json_object.update(json.load(openfile))
+                tunedParamsLoaded = True
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
+    if isPositional:
+        # The in-code use* defaults above are the tuned outcome for the SET
+        # games: they enable exactly the four models a positional game must
+        # skip and disable the four it can run. Gate on KEY presence, not on
+        # the file existing: HyperoptStatistics writes markov*/poisson*/...
+        # values but never the use* flags, so the first weekly run would
+        # otherwise create bestParams_jokerplus.json, flip this override off
+        # and silently leave the game with zero statistical rows (pick3 only
+        # escapes because its file carries useMarkov etc. from an old commit).
+        # A use* flag that IS present in the tuned file stays authoritative.
+        tunedKeys = set()
+        try:
+            if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
+                with open(hyperoptParamsJsonFile, 'r') as openfile:
+                    tunedKeys = set(json.load(openfile).keys())
+        except Exception:
+            tunedKeys = set()
+        for flag in ("useMarkov", "useMarkovMonteCarlo", "usePoissonMonteCarlo", "useLaplaceMonteCarlo"):
+            if flag not in tunedKeys:
+                bestParams_json_object[flag] = True
+
     specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
 
-    # Pick3 is positional (digit order matters for straight/box/pair payouts), so
-    # every model must return digits in drawn order instead of ascending-sorted.
-    # Explicitly set every run (not just for pick3) since these model instances
-    # are module-level singletons reused sequentially across games/history days.
-    sortedPrediction = not ("pick3" in name)
+    # Positional games: digit order matters (Pick3 straight/box/pair payouts,
+    # Joker+ left/right runs), so every model must return digits in drawn
+    # order instead of ascending-sorted. Explicitly set every run (not just
+    # for positional games) since these model instances are module-level
+    # singletons reused sequentially across games/history days.
+    sortedPrediction = not isPositional
 
     subsets = getKenoSubsetSizes(name, bestParams_json_object)
 
@@ -1251,7 +1301,10 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
             markov.setBlendMode(bestParams_json_object["markovBlendMode"])
             markov.setMarkovOrder(bestParams_json_object["markovOrder"])
-            markov.setSortedPrediction(bestParams_json_object["markovSortedPrediction"])
+            # A positional game can never be served a sorted ticket (drawn
+            # order is what it pays on), whatever a tuned flag says; the
+            # other games keep reading their tuned value.
+            markov.setSortedPrediction(False if isPositional else bestParams_json_object["markovSortedPrediction"])
             markov.setUsePairScoring(bestParams_json_object["markovUsePairScoring"])
             markov.setPairScoringWeight(bestParams_json_object["markovPairScoringWeight"])
             markov.clear()
@@ -1302,7 +1355,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Markov Monte Carlo: ", e)
 
-    if not "pick3" in name and bestParams_json_object["useMarkovBayesian"]:
+    if not isPositional and bestParams_json_object["useMarkovBayesian"]:
         try:
             # Markov Bayesian
             #print("Performing Markov Bayesian Prediction")
@@ -1327,7 +1380,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Markov Bayesian: ", e)
 
-    if not "pick3" in name and bestParams_json_object["usevMarkovBayesianEnhanced"]:
+    if not isPositional and bestParams_json_object["usevMarkovBayesianEnhanced"]:
         try:
             # Markov Bayesian Enhanced
             #print("Performing Markov Bayesian Enhanced Prediction")
@@ -1377,7 +1430,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Poisson Distribution with Monte Carlo Analysis: ", e)
 
-    if not "pick3" in name and bestParams_json_object["usePoissonMarkov"]:
+    if not isPositional and bestParams_json_object["usePoissonMarkov"]:
         try:
             # Poisson-Markov Distribution
             #print("Performing Poisson-Markov Prediction")
@@ -1425,7 +1478,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Laplace Distribution with Monte Carlo Analysis: ", e)
 
-    if not "pick3" in name and bestParams_json_object["useHybridStatisticalModel"]:
+    if not isPositional and bestParams_json_object["useHybridStatisticalModel"]:
         try:
             # Hybrid Statistical Model
             #print("Performing Hybrid Statistical Model Prediction")
@@ -1456,20 +1509,22 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # the flat/weighted vote WeightedEnsemble Model uses. Skipped gracefully
     # if this game hasn't been trained yet (no meta_learner*.joblib).
     #
-    # Pick3 is served too, but only from a *positional* artifact
-    # ("positional": True, one classifier per drawn slot - see
-    # TrainMetaLearner.py): a flat per-number ranking has no notion of digit
-    # order (the reason WeightedEnsemble Model still skips Pick3), so its base
-    # models are asked for score_positions (per-slot digit scores) instead of
-    # score_numbers, and the ticket is each slot's argmax digit in drawn
-    # order, duplicates kept - see runMetaLearnerVariant below.
+    # The positional games (Pick3, Joker+) are served too, but only from a
+    # *positional* artifact ("positional": True, one classifier per drawn
+    # slot - see TrainMetaLearner.py): a flat per-number ranking has no
+    # notion of digit order (the reason WeightedEnsemble Model still skips
+    # them), so their base models are asked for score_positions (per-slot
+    # digit scores) instead of score_numbers, and the ticket is each slot's
+    # argmax digit in drawn order, duplicates kept - see runMetaLearnerVariant
+    # below. Joker+'s artifact additionally carries a special_model for the
+    # zodiac sign, served exactly like euromillions' special_model and
+    # appended as the 7th value.
     #
     # MetaLearnerV2 Model (lens diversity, see README) reuses the exact same
     # base-model scores as MetaLearner Model - only the trained model class
     # differs (GradientBoostingClassifier vs LogisticRegression, see
     # TrainMetaLearner.py) - so both are computed from one shared score pass
     # instead of scoring every base model twice.
-    isPick3 = "pick3" in name
     metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
     metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
     # Quantum meta-learners (README's quantum research track, trained by
@@ -1498,14 +1553,15 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
             markov.setBlendMode(bestParams_json_object["markovBlendMode"])
             markov.setMarkovOrder(bestParams_json_object["markovOrder"])
-            # Pick3 pins these two exactly like ModelFactory.build_models
-            # (is_pick3=True) does for TrainMetaLearner.py - unsorted and
-            # pair-scored - so the score_positions the positional artifact is
-            # served come from the same Markov configuration it was trained
-            # on, even if a bestParams_pick3.json ever says otherwise. Every
-            # other game keeps reading its tuned flags, unchanged.
-            markov.setSortedPrediction(False if isPick3 else bestParams_json_object["markovSortedPrediction"])
-            markov.setUsePairScoring(True if isPick3 else bestParams_json_object["markovUsePairScoring"])
+            # Positional games pin these two exactly like
+            # ModelFactory.build_models (is_positional=True) does for
+            # TrainMetaLearner.py - unsorted and pair-scored - so the
+            # score_positions the positional artifact is served come from the
+            # same Markov configuration it was trained on, even if a
+            # bestParams_<game>.json ever says otherwise. Every other game
+            # keeps reading its tuned flags, unchanged.
+            markov.setSortedPrediction(False if isPositional else bestParams_json_object["markovSortedPrediction"])
+            markov.setUsePairScoring(True if isPositional else bestParams_json_object["markovUsePairScoring"])
             markov.setPairScoringWeight(bestParams_json_object["markovPairScoringWeight"])
 
             markovMcBase.setDataPath(dataPath)
@@ -1595,16 +1651,22 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 return probabilities, [n for _, n in sorted(zip(probabilities, numberRange), reverse=True)]
 
             def scorePositionsFor(featureNames):
-                # Pick3 counterpart of scoreNumbersFor: one {digit: score} dict
-                # per drawn slot from every base model that models slots
+                # Positional counterpart of scoreNumbersFor: one {digit: score}
+                # dict per drawn slot from every base model that models slots
                 # (score_positions - see src/Markov.py and friends). A feature
                 # the artifact names but no model here can score positionally
                 # simply stays absent, which positionProbabilities reads as
                 # 0.0 - the same value TrainMetaLearner.py's training table
-                # put there. Pick3 has no special column, hence the fixed 0.
+                # put there. Slots are the main digits only: Joker+'s zodiac
+                # column is dropped via skipLastColumns (same main-only call
+                # scoreNumbersFor makes) and scored by the special_model
+                # instead; pick3 has no special column, so this is its plain
+                # skipLastColumns.
                 return {
                     featureName: modelInstances[featureName].score_positions(
-                        skipRows=skipRows, skipLastColumns=skipLastColumns, specialColumnCount=0)
+                        skipRows=skipRows,
+                        skipLastColumns=specialColumnCount if specialColumnCount > 0 else skipLastColumns,
+                        specialColumnCount=0)
                     for featureName in featureNames
                     if featureName in modelInstances and hasattr(modelInstances[featureName], "score_positions")
                 }
@@ -1635,7 +1697,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             # MetaLearnerV2 Model (same 7 base models, different trained
             # classifier - see TrainMetaLearner.py) don't score everything
             # twice when both artifacts exist and share the same features.
-            # positionScoresByFeatures is the Pick3 (positional) equivalent.
+            # positionScoresByFeatures is the positional-game equivalent.
             mainScoresByFeatures = {}
             specialScoresByFeatures = {}
             positionScoresByFeatures = {}
@@ -1652,17 +1714,19 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                     featureNames = tuple(artifact["feature_names"])
 
                     if artifact.get("positional"):
-                        # Positional (Pick3) artifact: one classifier per
-                        # drawn slot, each fed the digit-by-feature matrix of
-                        # that slot's score_positions - same feature order and
-                        # 0.0-for-missing convention as the training table it
-                        # learned from (TrainMetaLearner.py). The ticket is
+                        # Positional (Pick3/Joker+) artifact: one classifier
+                        # per drawn slot, each fed the digit-by-feature matrix
+                        # of that slot's score_positions - same feature order
+                        # and 0.0-for-missing convention as the training table
+                        # it learned from (TrainMetaLearner.py). The ticket is
                         # each slot's argmax digit in drawn order: NOT sorted
-                        # (a straight pays on exact order) and duplicates kept
-                        # (Pick3 routinely draws them). np.argmax's first-max
-                        # rule over ascending digits resolves a tie to the
-                        # lowest digit, deterministically. No subsets: Pick3
-                        # has none (getKenoSubsetSizes).
+                        # (exact order is what pays) and duplicates kept
+                        # (both games routinely draw them). np.argmax's
+                        # first-max rule over ascending digits resolves a tie
+                        # to the lowest digit, deterministically. The number
+                        # of positions is the artifact's (3 for pick3, 6 for
+                        # jokerplus), never hardcoded. No subsets: neither
+                        # game has any (getKenoSubsetSizes).
                         if featureNames not in positionScoresByFeatures:
                             positionScoresByFeatures[featureNames] = scorePositionsFor(featureNames)
                         perModelPositionScores = positionScoresByFeatures[featureNames]
@@ -1675,15 +1739,28 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                                 positionModel, featureNames, perModelPositionScores, position, digits)
                             ticket.append(digits[int(np.argmax(probabilities))])
 
+                        # Joker+: the zodiac sign is not a slot of the digit
+                        # sequence but its own special column, so it is
+                        # served from the artifact's special_model exactly
+                        # like euromillions' stars (special-only score pass
+                        # over the codes 0..11) and appended as the 7th value.
+                        if specialColumnCount > 0 and "special_model" in artifact:
+                            if featureNames not in specialScoresByFeatures:
+                                specialScoresByFeatures[featureNames] = scoreNumbersFor(featureNames, 0, specialColumnCount)
+                            perModelSpecialScores = specialScoresByFeatures[featureNames]
+                            specialNumberRange = list(range(artifact["special_min_number"], artifact["special_max_number"] + 1))
+                            _, rankedSpecialNumbers = rankByModel(artifact["special_model"], featureNames, perModelSpecialScores, specialNumberRange)
+                            ticket = ticket + sorted(rankedSpecialNumbers[:artifact["special_draw_size"]])
+
                         listOfDecodedPredictions.append({"name": displayName, "predictions": [ticket]})
                         return
 
-                    if isPick3:
+                    if isPositional:
                         # A flat (per-number) artifact would rank digits as a
-                        # set and hand Pick3 a sorted, deduplicated ticket -
-                        # silently wrong for a positional game, so it is
+                        # set and hand a positional game a sorted,
+                        # deduplicated ticket - silently wrong, so it is
                         # refused rather than served. TrainMetaLearner.py only
-                        # ever writes positional artifacts for Pick3.
+                        # ever writes positional artifacts for these games.
                         print(f"Skipping {displayName} for {name}: artifact is not positional")
                         return
 
@@ -1777,11 +1854,14 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
     independently, and Lotto's unplayed bonus column is dropped), the same
     getKenoSubsetSizes subset choice, and the same {size: subset} dict.
 
-    The multi-label models are skipped for Pick3: they model set membership
-    ("is this number in the next draw"), which cannot represent digit order or
-    the repeated digits Pick3 routinely produces - the same reason
+    The multi-label models are skipped for the positional games (Pick3,
+    Joker+ - Helpers.is_positional_game): they model set membership ("is this
+    number in the next draw"), which cannot represent digit order or the
+    repeated digits those games routinely produce - the same reason
     WeightedEnsemble Model is skipped there (the meta-learner instead serves
-    Pick3 from a positional artifact, see statisticalMethod).
+    them from a positional artifact, see statisticalMethod). The per-position
+    models are generic over the number of slots (3 for pick3, 6 for
+    jokerplus - see src/BoostingBase.py PerPositionBoostingPredictor).
     """
     bestParams_json_object = {
         "use_5": True, "use_6": True, "use_7": True,
@@ -1807,24 +1887,24 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
 
     subsets = getKenoSubsetSizes(name, bestParams_json_object)
     specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
-    isPick3 = "pick3" in name
+    isPositional = Helpers.is_positional_game(name)
 
     for model, prefix, displayName, useKey, isMultiLabel in BOOSTING_MODELS:
         if not bestParams_json_object.get(useKey, True):
             continue
 
-        if isPick3 and isMultiLabel:
+        if isPositional and isMultiLabel:
             continue
 
         try:
             apply_boosting_params(model, bestParams_json_object, prefix)
             model.setDataPath(dataPath)
             model.setModelPath(os.path.join(path, "data", "models", f"{prefix.lower()}_{name}_models"))
-            # Pick3 is positional - digits stay in drawn order, duplicates
-            # included. Every other game gets a sorted ticket of distinct
-            # numbers. Set explicitly each run: these are module-level
-            # singletons reused across games/history days.
-            model.setSortedPrediction(not isPick3)
+            # Positional games (Pick3, Joker+) - digits stay in drawn order,
+            # duplicates included. Every other game gets a sorted ticket of
+            # distinct numbers. Set explicitly each run: these are
+            # module-level singletons reused across games/history days.
+            model.setSortedPrediction(not isPositional)
             # This step runs single-process, but giving the library the
             # machine's cores was measured to be actively harmful on this
             # box: the per-number binary fits are so small that OpenMP
@@ -1897,7 +1977,7 @@ if __name__ == "__main__":
         parser.add_argument(
             '-g', '--games',
             type=str,
-            default="euromillions,lotto,eurodreams,keno,pick3,vikinglotto",
+            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto",
             help='Comma-separated list of games, e.g. "euromillions,lotto,..."'
         )
         args = parser.parse_args()
@@ -1935,7 +2015,10 @@ if __name__ == "__main__":
             ("euromillions", "lstm_model", 0, True, True),
             ("lotto", "lstm_model", 1, True, True),
             ("eurodreams", "lstm_model", 0, True, True),
-            #("jokerplus", "lstm_model", 1, False, True),
+            # skip_last_columns is 0: the zodiac column is a MODELED special
+            # column (SPECIAL_COLUMN_COUNTS), not an unplayed trailing value
+            # like lotto's bonus, so it must stay in the loaded data.
+            ("jokerplus", "lstm_model", 0, True, True),
             ("keno", "lstm_model", 0, True, True),    # DL models now generate Keno subsets too (see deepLearningMethod)
             ("pick3", "lstm_model", 0, True, True),
             ("vikinglotto", "lstm_model", 0, True, True),

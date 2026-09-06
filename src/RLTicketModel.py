@@ -207,6 +207,14 @@ class RLTicketModel():
         position; mean rank is computed per digit across all positions it
         appears in (within a single position the rank would be the constant
         position index, i.e. no signal at all).
+
+        Tickets are cut to the first `positions` values rather than requiring
+        an exact length: a row of a positional game with a modeled special
+        column carries that special APPENDED after the digits (Joker+'s
+        zodiac code, 7 values for 6 positions), and skipping such rows
+        outright would silently drop every model's vote. Only a ticket
+        shorter than the positions is unusable (it has no value for every
+        slot) and is skipped.
         """
         votes = np.zeros((positions, classes))
         rankSum = np.zeros(classes)
@@ -217,9 +225,9 @@ class RLTicketModel():
             if not predictions or not predictions[0]:
                 continue
             ticket = predictions[0]
-            if len(ticket) != positions:
+            if len(ticket) < positions:
                 continue
-            for position, digit in enumerate(ticket):
+            for position, digit in enumerate(ticket[:positions]):
                 try:
                     digit = int(digit)
                 except (TypeError, ValueError):
@@ -521,9 +529,11 @@ class RLTicketModel():
             votes = np.zeros((positions, classes))
             for row in rows or []:
                 predictions = row.get("predictions") or []
-                if not predictions or len(predictions[0]) != positions:
+                # Same "cut to positions" rule as _rawFeaturesPick3: rows with
+                # an appended special column still vote for the digit slots.
+                if not predictions or len(predictions[0]) < positions:
                     continue
-                for position, digit in enumerate(predictions[0]):
+                for position, digit in enumerate(predictions[0][:positions]):
                     try:
                         digit = int(digit)
                     except (TypeError, ValueError):
