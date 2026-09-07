@@ -583,15 +583,17 @@
       68
     ],
     "matching_numbers": [
-      64,
       2,
-      68,
       5,
       10,
+      20,
       47,
-      20
+      64,
+      68
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

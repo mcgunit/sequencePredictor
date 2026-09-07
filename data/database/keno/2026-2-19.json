@@ -554,16 +554,18 @@
       66
     ],
     "matching_numbers": [
-      33,
-      66,
-      38,
       12,
-      44,
       17,
+      24,
+      33,
+      38,
+      44,
       55,
-      24
+      66
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

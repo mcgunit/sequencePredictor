@@ -1087,16 +1087,18 @@
       66
     ],
     "matching_numbers": [
-      64,
       6,
       13,
-      48,
       20,
+      30,
+      48,
       53,
       60,
-      30
+      64
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

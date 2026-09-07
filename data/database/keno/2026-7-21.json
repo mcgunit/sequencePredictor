@@ -814,16 +814,18 @@
       26
     ],
     "matching_numbers": [
-      69,
-      41,
       13,
-      50,
       23,
-      55,
       26,
-      59
+      41,
+      50,
+      55,
+      59,
+      69
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

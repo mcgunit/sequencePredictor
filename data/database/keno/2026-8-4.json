@@ -1010,17 +1010,19 @@
       44
     ],
     "matching_numbers": [
-      33,
       3,
-      37,
       6,
-      42,
       15,
       16,
       26,
-      30
+      30,
+      33,
+      37,
+      42
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

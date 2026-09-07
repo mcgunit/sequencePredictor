@@ -816,16 +816,18 @@
       70
     ],
     "matching_numbers": [
-      64,
       1,
-      66,
-      42,
       17,
       20,
       26,
-      30
+      30,
+      42,
+      64,
+      66
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

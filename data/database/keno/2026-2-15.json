@@ -552,20 +552,22 @@
       47
     ],
     "matching_numbers": [
-      32,
       3,
-      41,
       10,
       11,
-      42,
-      47,
       19,
       20,
       22,
       26,
-      29
+      29,
+      32,
+      41,
+      42,
+      47
     ],
-    "match_count": 12
+    "match_count": 12,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

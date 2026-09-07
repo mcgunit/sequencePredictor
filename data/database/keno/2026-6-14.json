@@ -552,15 +552,17 @@
       69
     ],
     "matching_numbers": [
-      67,
       6,
       46,
       48,
       53,
       56,
-      62
+      62,
+      67
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

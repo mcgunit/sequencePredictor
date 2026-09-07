@@ -821,19 +821,21 @@
       17
     ],
     "matching_numbers": [
-      67,
-      35,
       8,
       11,
       13,
       17,
-      50,
       23,
       26,
       29,
-      62
+      35,
+      50,
+      62,
+      67
     ],
-    "match_count": 11
+    "match_count": 11,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

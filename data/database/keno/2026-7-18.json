@@ -813,17 +813,19 @@
     ],
     "matching_numbers": [
       1,
-      33,
-      35,
-      36,
-      38,
       7,
       10,
       11,
       17,
-      23
+      23,
+      33,
+      35,
+      36,
+      38
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

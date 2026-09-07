@@ -1212,16 +1212,18 @@
       70
     ],
     "matching_numbers": [
-      32,
-      67,
-      38,
       17,
-      49,
       23,
+      32,
+      38,
+      49,
       56,
-      59
+      59,
+      67
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

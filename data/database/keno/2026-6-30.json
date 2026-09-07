@@ -554,14 +554,16 @@
       41
     ],
     "matching_numbers": [
-      39,
       11,
       12,
       15,
       18,
-      30
+      30,
+      39
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

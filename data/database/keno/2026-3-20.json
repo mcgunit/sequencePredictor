@@ -864,17 +864,19 @@
       36
     ],
     "matching_numbers": [
-      32,
       6,
-      41,
-      46,
       21,
       22,
-      54,
       26,
+      32,
+      41,
+      46,
+      54,
       60
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

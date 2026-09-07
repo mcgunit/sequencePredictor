@@ -581,17 +581,19 @@
       49
     ],
     "matching_numbers": [
-      33,
-      38,
-      45,
       18,
       24,
       25,
       27,
       29,
-      31
+      31,
+      33,
+      38,
+      45
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

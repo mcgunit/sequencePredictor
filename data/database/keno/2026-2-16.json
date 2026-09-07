@@ -554,15 +554,17 @@
       46
     ],
     "matching_numbers": [
-      32,
       3,
       7,
       8,
       17,
       25,
-      29
+      29,
+      32
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

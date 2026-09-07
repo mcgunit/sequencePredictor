@@ -553,14 +553,16 @@
       70
     ],
     "matching_numbers": [
-      65,
-      66,
       54,
       56,
       57,
-      63
+      63,
+      65,
+      66
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

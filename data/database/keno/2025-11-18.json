@@ -582,16 +582,18 @@
       57
     ],
     "matching_numbers": [
+      27,
       32,
-      64,
-      67,
-      70,
       41,
       44,
-      27,
-      62
+      62,
+      64,
+      67,
+      70
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

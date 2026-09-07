@@ -861,15 +861,17 @@
     ],
     "matching_numbers": [
       4,
-      41,
       16,
-      48,
       24,
       26,
       27,
-      29
+      29,
+      41,
+      48
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

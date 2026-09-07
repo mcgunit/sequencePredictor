@@ -694,16 +694,18 @@
       44
     ],
     "matching_numbers": [
-      32,
-      34,
-      69,
       14,
       16,
       18,
+      32,
+      34,
       57,
-      61
+      61,
+      69
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

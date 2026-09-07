@@ -596,16 +596,18 @@
     ],
     "matching_numbers": [
       3,
-      38,
-      70,
       10,
-      44,
       19,
       26,
       27,
-      61
+      38,
+      44,
+      61,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

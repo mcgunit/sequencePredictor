@@ -863,17 +863,19 @@
       46
     ],
     "matching_numbers": [
+      17,
+      18,
+      19,
+      20,
       35,
       37,
       40,
       41,
-      43,
-      17,
-      18,
-      19,
-      20
+      43
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

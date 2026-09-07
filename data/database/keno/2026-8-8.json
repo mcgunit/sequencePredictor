@@ -1212,17 +1212,19 @@
       69
     ],
     "matching_numbers": [
-      32,
       4,
+      21,
+      27,
+      29,
+      32,
       37,
       39,
       42,
-      21,
-      54,
-      27,
-      29
+      54
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

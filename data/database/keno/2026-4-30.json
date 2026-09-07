@@ -555,14 +555,16 @@
       69
     ],
     "matching_numbers": [
-      69,
       8,
+      27,
       47,
       50,
       55,
-      27
+      69
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

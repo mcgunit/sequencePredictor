@@ -149,7 +149,9 @@
     "matching_numbers": [
       4
     ],
-    "match_count": 1
+    "match_count": 1,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     0,

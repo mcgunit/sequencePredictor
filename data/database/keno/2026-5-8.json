@@ -558,13 +558,15 @@
     "matching_numbers": [
       1,
       4,
+      15,
       37,
       41,
       42,
-      15,
       56
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

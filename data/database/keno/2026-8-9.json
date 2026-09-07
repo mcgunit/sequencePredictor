@@ -1212,7 +1212,6 @@
     ],
     "matching_numbers": [
       2,
-      39,
       8,
       11,
       16,
@@ -1220,9 +1219,12 @@
       21,
       25,
       26,
-      31
+      31,
+      39
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

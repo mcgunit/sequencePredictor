@@ -861,16 +861,18 @@
       43
     ],
     "matching_numbers": [
-      33,
       7,
-      43,
       13,
       15,
       23,
       26,
-      30
+      30,
+      33,
+      43
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

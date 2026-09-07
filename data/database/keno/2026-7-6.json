@@ -819,16 +819,18 @@
       69
     ],
     "matching_numbers": [
+      26,
+      29,
       37,
-      69,
       49,
       50,
-      61,
       56,
-      26,
-      29
+      61,
+      69
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

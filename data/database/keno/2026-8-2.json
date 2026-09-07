@@ -814,17 +814,19 @@
       37
     ],
     "matching_numbers": [
-      35,
-      67,
-      70,
       15,
-      49,
       20,
       23,
+      35,
+      49,
       56,
-      61
+      61,
+      67,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

@@ -864,13 +864,15 @@
     ],
     "matching_numbers": [
       2,
-      44,
       14,
       16,
-      49,
-      30
+      30,
+      44,
+      49
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

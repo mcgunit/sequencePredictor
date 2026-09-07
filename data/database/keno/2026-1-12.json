@@ -597,14 +597,16 @@
     ],
     "matching_numbers": [
       5,
+      27,
       38,
-      70,
       44,
       51,
       57,
-      27
+      70
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

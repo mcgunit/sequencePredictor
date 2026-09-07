@@ -182,11 +182,13 @@
       0
     ],
     "matching_numbers": [
+      0,
       8,
-      9,
-      0
+      9
     ],
-    "match_count": 3
+    "match_count": 3,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     0,

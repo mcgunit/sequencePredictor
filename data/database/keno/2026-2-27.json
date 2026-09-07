@@ -556,7 +556,6 @@
       36
     ],
     "matching_numbers": [
-      36,
       8,
       11,
       12,
@@ -564,9 +563,12 @@
       15,
       21,
       23,
-      26
+      26,
+      36
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

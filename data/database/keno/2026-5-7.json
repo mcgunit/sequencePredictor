@@ -554,15 +554,17 @@
       69
     ],
     "matching_numbers": [
-      66,
-      69,
-      43,
       12,
       19,
       22,
-      23
+      23,
+      43,
+      66,
+      69
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

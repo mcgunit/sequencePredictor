@@ -816,19 +816,21 @@
       26
     ],
     "matching_numbers": [
-      35,
       4,
-      69,
+      23,
+      24,
+      26,
+      35,
       37,
       41,
       49,
-      23,
       55,
-      24,
-      26,
-      62
+      62,
+      69
     ],
-    "match_count": 11
+    "match_count": 11,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

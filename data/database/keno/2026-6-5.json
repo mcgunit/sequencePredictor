@@ -556,15 +556,17 @@
       69
     ],
     "matching_numbers": [
-      40,
       10,
+      21,
+      40,
       43,
       46,
       47,
-      21,
       56
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

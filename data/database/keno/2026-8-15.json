@@ -3074,17 +3074,19 @@
       70
     ],
     "matching_numbers": [
-      32,
-      70,
       11,
-      45,
       18,
+      30,
+      32,
+      45,
       56,
-      62,
       60,
-      30
+      62,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

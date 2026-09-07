@@ -584,15 +584,17 @@
       69
     ],
     "matching_numbers": [
-      69,
       7,
-      41,
       13,
-      46,
       18,
-      62
+      41,
+      46,
+      62,
+      69
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

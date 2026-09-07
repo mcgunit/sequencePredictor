@@ -1086,17 +1086,19 @@
       68
     ],
     "matching_numbers": [
-      36,
       5,
-      38,
       9,
+      31,
+      36,
+      38,
       54,
       58,
-      63,
       62,
-      31
+      63
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

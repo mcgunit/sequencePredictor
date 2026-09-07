@@ -553,15 +553,17 @@
       46
     ],
     "matching_numbers": [
+      12,
+      21,
+      24,
       32,
       35,
       36,
-      41,
-      12,
-      21,
-      24
+      41
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

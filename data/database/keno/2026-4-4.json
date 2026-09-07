@@ -863,16 +863,18 @@
       67
     ],
     "matching_numbers": [
-      64,
+      12,
+      23,
       34,
       41,
-      12,
       44,
       54,
-      23,
-      62
+      62,
+      64
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

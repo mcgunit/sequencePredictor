@@ -555,16 +555,18 @@
     ],
     "matching_numbers": [
       1,
-      68,
-      39,
       13,
+      28,
+      39,
       52,
       55,
       58,
-      28,
-      63
+      63,
+      68
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

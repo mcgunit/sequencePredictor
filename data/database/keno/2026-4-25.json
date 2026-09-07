@@ -707,15 +707,17 @@
     ],
     "matching_numbers": [
       2,
-      68,
-      37,
       12,
       17,
       21,
+      37,
       55,
-      56
+      56,
+      68
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

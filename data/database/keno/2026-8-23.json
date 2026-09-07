@@ -1214,17 +1214,19 @@
       66
     ],
     "matching_numbers": [
-      32,
       8,
+      11,
+      20,
+      32,
       41,
       42,
-      11,
       52,
-      20,
       56,
       58
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

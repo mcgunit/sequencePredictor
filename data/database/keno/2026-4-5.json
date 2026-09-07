@@ -865,15 +865,17 @@
     ],
     "matching_numbers": [
       1,
-      67,
-      39,
       19,
       22,
+      27,
+      39,
       55,
       57,
-      27
+      67
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

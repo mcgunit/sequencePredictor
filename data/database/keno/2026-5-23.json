@@ -553,18 +553,20 @@
       62
     ],
     "matching_numbers": [
-      32,
       4,
       8,
       11,
-      46,
       15,
-      49,
       26,
+      32,
+      46,
+      49,
       61,
       62
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

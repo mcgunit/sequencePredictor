@@ -771,18 +771,20 @@
       66
     ],
     "matching_numbers": [
-      66,
-      39,
       10,
-      42,
       12,
       17,
+      24,
+      25,
+      39,
+      42,
       49,
       54,
-      24,
-      25
+      66
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

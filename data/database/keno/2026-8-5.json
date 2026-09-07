@@ -1215,14 +1215,16 @@
     "matching_numbers": [
       1,
       2,
-      35,
-      37,
       6,
       25,
       26,
-      29
+      29,
+      35,
+      37
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

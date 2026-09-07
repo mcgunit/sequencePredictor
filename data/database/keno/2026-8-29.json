@@ -1369,14 +1369,16 @@
       69
     ],
     "matching_numbers": [
-      65,
-      39,
-      49,
       20,
       29,
-      62
+      39,
+      49,
+      62,
+      65
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

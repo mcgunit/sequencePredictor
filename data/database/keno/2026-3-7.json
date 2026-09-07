@@ -707,17 +707,19 @@
       70
     ],
     "matching_numbers": [
-      32,
       3,
+      20,
+      21,
+      32,
       36,
       44,
       46,
-      20,
-      21,
       60,
       62
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

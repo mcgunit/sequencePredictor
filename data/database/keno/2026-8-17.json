@@ -1213,16 +1213,18 @@
       48
     ],
     "matching_numbers": [
-      32,
       3,
+      14,
+      21,
+      32,
       36,
       38,
       42,
-      14,
-      48,
-      21
+      48
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

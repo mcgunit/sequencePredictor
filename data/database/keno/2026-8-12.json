@@ -4691,15 +4691,17 @@
     ],
     "matching_numbers": [
       3,
-      36,
-      68,
       9,
       16,
+      28,
+      36,
       53,
       57,
-      28
+      68
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

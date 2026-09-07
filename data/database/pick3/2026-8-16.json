@@ -147,10 +147,12 @@
       2
     ],
     "matching_numbers": [
-      9,
-      2
+      2,
+      9
     ],
-    "match_count": 2
+    "match_count": 2,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     0,
