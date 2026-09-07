@@ -1215,17 +1215,19 @@
     ],
     "matching_numbers": [
       2,
-      34,
-      70,
       7,
       13,
-      45,
       15,
       16,
       25,
-      58
+      34,
+      45,
+      58,
+      70
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

@@ -818,17 +818,19 @@
       70
     ],
     "matching_numbers": [
-      32,
       2,
-      35,
-      67,
-      37,
-      70,
       9,
       26,
-      29
+      29,
+      32,
+      35,
+      37,
+      67,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

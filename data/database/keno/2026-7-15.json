@@ -820,12 +820,14 @@
       18,
       19,
       23,
-      56,
       26,
       27,
-      28
+      28,
+      56
     ],
-    "match_count": 11
+    "match_count": 11,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

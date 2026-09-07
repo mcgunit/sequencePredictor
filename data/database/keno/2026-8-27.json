@@ -1212,16 +1212,18 @@
       43
     ],
     "matching_numbers": [
-      33,
       7,
-      39,
       9,
       12,
       13,
       14,
-      19
+      19,
+      33,
+      39
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

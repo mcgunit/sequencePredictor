@@ -864,15 +864,17 @@
     "matching_numbers": [
       7,
       11,
-      45,
       15,
+      26,
+      45,
       48,
       50,
       55,
-      26,
       63
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

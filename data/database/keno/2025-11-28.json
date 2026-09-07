@@ -582,14 +582,16 @@
       39
     ],
     "matching_numbers": [
-      36,
-      39,
       14,
       17,
       21,
-      26
+      26,
+      36,
+      39
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

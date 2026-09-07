@@ -864,18 +864,20 @@
       70
     ],
     "matching_numbers": [
-      32,
-      66,
-      67,
       4,
-      36,
-      70,
       13,
       21,
       22,
-      29
+      29,
+      32,
+      36,
+      66,
+      67,
+      70
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

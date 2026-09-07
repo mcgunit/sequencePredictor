@@ -837,11 +837,13 @@
       10,
       13,
       22,
+      30,
       58,
-      61,
-      30
+      61
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

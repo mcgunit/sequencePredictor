@@ -597,17 +597,19 @@
     ],
     "matching_numbers": [
       1,
-      33,
       3,
+      12,
+      21,
+      33,
       37,
       42,
-      12,
       45,
       50,
-      21,
       60
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

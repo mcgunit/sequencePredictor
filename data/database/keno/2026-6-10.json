@@ -553,16 +553,18 @@
       66
     ],
     "matching_numbers": [
-      34,
-      66,
       7,
+      21,
+      30,
+      34,
       41,
       52,
-      21,
       57,
-      30
+      66
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

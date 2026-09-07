@@ -1087,15 +1087,17 @@
       70
     ],
     "matching_numbers": [
-      70,
-      48,
-      53,
       23,
       25,
+      48,
+      53,
+      57,
       60,
-      57
+      70
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

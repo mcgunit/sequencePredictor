@@ -562,7 +562,9 @@
       21,
       28
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

@@ -1213,19 +1213,21 @@
       67
     ],
     "matching_numbers": [
-      36,
       6,
-      40,
       9,
-      43,
       13,
-      51,
       20,
       23,
       25,
+      36,
+      40,
+      43,
+      51,
       57
     ],
-    "match_count": 11
+    "match_count": 11,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

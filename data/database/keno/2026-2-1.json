@@ -843,16 +843,18 @@
       65
     ],
     "matching_numbers": [
-      33,
-      35,
       15,
       16,
-      50,
       26,
-      63,
-      31
+      31,
+      33,
+      35,
+      50,
+      63
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

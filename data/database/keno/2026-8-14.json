@@ -4893,18 +4893,20 @@
       69
     ],
     "matching_numbers": [
-      32,
-      66,
-      67,
       7,
       9,
       20,
       21,
-      58,
       28,
-      29
+      29,
+      32,
+      58,
+      66,
+      67
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

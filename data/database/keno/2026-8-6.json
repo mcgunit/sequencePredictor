@@ -1214,17 +1214,19 @@
       69
     ],
     "matching_numbers": [
-      69,
       10,
-      42,
       18,
       20,
+      42,
       53,
       55,
       57,
-      61
+      61,
+      69
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

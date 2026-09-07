@@ -861,16 +861,18 @@
       68
     ],
     "matching_numbers": [
+      19,
+      30,
       33,
       40,
       43,
       48,
-      19,
       54,
-      58,
-      30
+      58
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

@@ -583,16 +583,18 @@
       70
     ],
     "matching_numbers": [
-      34,
-      38,
       8,
-      59,
-      51,
       22,
       27,
-      30
+      30,
+      34,
+      38,
+      51,
+      59
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

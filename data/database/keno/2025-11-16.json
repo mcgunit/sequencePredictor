@@ -584,16 +584,18 @@
       64
     ],
     "matching_numbers": [
-      65,
       3,
       4,
-      35,
       14,
-      51,
       22,
-      28
+      28,
+      35,
+      51,
+      65
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

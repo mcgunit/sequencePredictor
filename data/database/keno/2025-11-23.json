@@ -582,17 +582,19 @@
       67
     ],
     "matching_numbers": [
-      32,
-      59,
       13,
       15,
       17,
       19,
       26,
       27,
+      32,
+      59,
       62
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

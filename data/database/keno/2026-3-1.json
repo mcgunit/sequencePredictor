@@ -555,17 +555,19 @@
       48
     ],
     "matching_numbers": [
-      32,
-      36,
-      39,
       13,
       19,
       21,
       26,
       27,
-      30
+      30,
+      32,
+      36,
+      39
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

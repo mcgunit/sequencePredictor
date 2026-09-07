@@ -603,11 +603,13 @@
       7,
       14,
       17,
+      23,
       49,
-      55,
-      23
+      55
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

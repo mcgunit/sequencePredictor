@@ -1528,13 +1528,15 @@
       1,
       4,
       7,
-      40,
-      44,
       16,
       18,
-      29
+      29,
+      40,
+      44
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

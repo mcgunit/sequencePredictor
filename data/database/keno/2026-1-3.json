@@ -598,16 +598,18 @@
       45
     ],
     "matching_numbers": [
-      32,
       7,
-      43,
-      45,
       17,
       19,
       22,
-      26
+      26,
+      32,
+      43,
+      45
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

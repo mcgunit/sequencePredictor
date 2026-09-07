@@ -580,17 +580,19 @@
       70
     ],
     "matching_numbers": [
-      64,
-      65,
       4,
-      38,
-      70,
-      43,
       12,
       18,
-      54
+      38,
+      43,
+      54,
+      64,
+      65,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

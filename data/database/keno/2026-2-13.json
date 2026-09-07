@@ -584,15 +584,17 @@
       35
     ],
     "matching_numbers": [
-      32,
-      67,
-      35,
       6,
       17,
+      27,
+      32,
+      35,
       56,
-      27
+      67
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

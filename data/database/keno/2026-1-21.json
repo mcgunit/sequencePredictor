@@ -599,15 +599,17 @@
     "matching_numbers": [
       3,
       4,
-      35,
-      67,
-      70,
-      50,
       19,
       21,
-      27
+      27,
+      35,
+      50,
+      67,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

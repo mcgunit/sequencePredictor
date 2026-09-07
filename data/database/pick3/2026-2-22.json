@@ -225,16 +225,18 @@
     ]
   ],
   "matchingNumbers": {
-    "model": "MarkovBayesian Model",
+    "model": "Markov Model",
     "prediction": [
-      0,
-      3,
-      4
+      0.16425877909673772,
+      8,
+      9
     ],
     "matching_numbers": [
       0
     ],
-    "match_count": 1
+    "match_count": 1,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     0,

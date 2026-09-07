@@ -555,15 +555,17 @@
       66
     ],
     "matching_numbers": [
-      65,
-      66,
       6,
-      40,
       15,
+      40,
       49,
-      62
+      62,
+      65,
+      66
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

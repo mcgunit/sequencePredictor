@@ -835,14 +835,16 @@
     "matching_numbers": [
       1,
       4,
-      37,
-      43,
       12,
       19,
+      37,
+      43,
       53,
       60
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

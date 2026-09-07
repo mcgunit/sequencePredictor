@@ -557,15 +557,17 @@
     ],
     "matching_numbers": [
       1,
-      41,
-      42,
       14,
-      49,
       19,
       22,
-      25
+      25,
+      41,
+      42,
+      49
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

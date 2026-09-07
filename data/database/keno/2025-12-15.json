@@ -556,12 +556,14 @@
     "matching_numbers": [
       1,
       14,
+      25,
       48,
       49,
-      25,
       61
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

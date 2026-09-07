@@ -862,15 +862,17 @@
       70
     ],
     "matching_numbers": [
+      2,
+      9,
+      36,
+      55,
       64,
       65,
-      2,
-      36,
-      69,
-      9,
-      55
+      69
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

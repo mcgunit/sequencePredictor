@@ -556,15 +556,17 @@
       69
     ],
     "matching_numbers": [
-      36,
-      59,
       12,
+      27,
+      30,
+      36,
       49,
       52,
-      27,
-      30
+      59
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

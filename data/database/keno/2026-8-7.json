@@ -1214,14 +1214,16 @@
       70
     ],
     "matching_numbers": [
-      66,
       4,
-      68,
-      48,
       24,
-      31
+      31,
+      48,
+      66,
+      68
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

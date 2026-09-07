@@ -585,13 +585,15 @@
     "matching_numbers": [
       2,
       3,
-      40,
       9,
-      45,
       19,
+      40,
+      45,
       63
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

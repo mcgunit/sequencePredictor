@@ -795,16 +795,18 @@
       70
     ],
     "matching_numbers": [
-      65,
-      34,
-      67,
-      38,
       7,
-      46,
       24,
-      56
+      34,
+      38,
+      46,
+      56,
+      65,
+      67
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

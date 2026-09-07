@@ -717,19 +717,21 @@
     ],
     "matching_numbers": [
       3,
-      36,
-      40,
       9,
       10,
       12,
       15,
       22,
-      57,
       26,
       28,
-      29
+      29,
+      36,
+      40,
+      57
     ],
-    "match_count": 12
+    "match_count": 12,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

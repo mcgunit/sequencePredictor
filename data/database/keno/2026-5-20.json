@@ -550,15 +550,17 @@
       70
     ],
     "matching_numbers": [
-      35,
       3,
-      69,
+      35,
       55,
       57,
       60,
-      63
+      63,
+      69
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

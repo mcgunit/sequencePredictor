@@ -583,17 +583,19 @@
       70
     ],
     "matching_numbers": [
-      68,
-      69,
-      70,
+      16,
+      23,
+      24,
       39,
       40,
-      16,
       54,
-      23,
-      24
+      68,
+      69,
+      70
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

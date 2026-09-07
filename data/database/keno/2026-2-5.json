@@ -1090,16 +1090,18 @@
     "matching_numbers": [
       2,
       3,
-      38,
       13,
       18,
+      38,
       52,
       57,
       60,
       61,
       62
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

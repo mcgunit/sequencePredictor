@@ -861,14 +861,16 @@
       70
     ],
     "matching_numbers": [
-      64,
       2,
-      40,
       14,
       18,
-      30
+      30,
+      40,
+      64
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

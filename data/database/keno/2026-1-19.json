@@ -598,17 +598,19 @@
       70
     ],
     "matching_numbers": [
-      33,
-      38,
       10,
-      44,
       17,
-      51,
       24,
       27,
+      33,
+      38,
+      44,
+      51,
       60
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

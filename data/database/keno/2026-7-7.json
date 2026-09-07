@@ -815,15 +815,17 @@
       70
     ],
     "matching_numbers": [
-      38,
       11,
       17,
-      56,
       26,
-      62,
-      31
+      31,
+      38,
+      56,
+      62
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

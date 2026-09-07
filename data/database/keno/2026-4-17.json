@@ -862,17 +862,19 @@
       68
     ],
     "matching_numbers": [
-      65,
-      68,
-      42,
       12,
       15,
-      47,
       24,
+      27,
+      42,
+      47,
       56,
-      27
+      65,
+      68
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

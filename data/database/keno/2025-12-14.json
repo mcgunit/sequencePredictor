@@ -557,12 +557,14 @@
       3,
       4,
       12,
+      28,
       44,
       56,
-      59,
-      28
+      59
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

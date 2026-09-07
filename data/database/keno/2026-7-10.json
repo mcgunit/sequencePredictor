@@ -813,13 +813,15 @@
     "matching_numbers": [
       3,
       5,
-      45,
       17,
-      50,
       22,
-      30
+      30,
+      45,
+      50
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

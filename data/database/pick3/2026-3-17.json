@@ -140,7 +140,9 @@
     "matching_numbers": [
       2
     ],
-    "match_count": 1
+    "match_count": 1,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": [],

@@ -554,16 +554,18 @@
       70
     ],
     "matching_numbers": [
-      38,
       11,
       17,
-      52,
       21,
+      38,
+      52,
       57,
       59,
       62
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

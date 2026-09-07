@@ -810,15 +810,17 @@
       70
     ],
     "matching_numbers": [
-      33,
-      66,
-      67,
-      36,
       9,
+      33,
+      36,
       52,
-      58
+      58,
+      66,
+      67
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

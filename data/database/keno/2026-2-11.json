@@ -583,17 +583,19 @@
       69
     ],
     "matching_numbers": [
-      67,
       6,
-      47,
-      49,
       20,
       23,
+      30,
+      47,
+      49,
       57,
       61,
-      30
+      67
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

@@ -596,14 +596,16 @@
     ],
     "matching_numbers": [
       3,
-      69,
       16,
-      52,
       22,
+      52,
       55,
-      63
+      63,
+      69
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

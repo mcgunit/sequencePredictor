@@ -863,13 +863,15 @@
     "matching_numbers": [
       3,
       12,
-      45,
       15,
       20,
       24,
+      45,
       56
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

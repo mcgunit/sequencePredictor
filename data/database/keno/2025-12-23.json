@@ -833,16 +833,18 @@
       48
     ],
     "matching_numbers": [
-      32,
-      38,
       15,
       18,
       21,
       22,
       26,
-      30
+      30,
+      32,
+      38
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

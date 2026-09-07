@@ -835,15 +835,17 @@
     ],
     "matching_numbers": [
       1,
-      67,
-      69,
       7,
-      43,
       13,
+      43,
       54,
-      60
+      60,
+      67,
+      69
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

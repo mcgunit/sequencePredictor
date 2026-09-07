@@ -552,17 +552,19 @@
       70
     ],
     "matching_numbers": [
-      32,
       7,
-      41,
       11,
       20,
+      26,
+      32,
+      41,
       52,
       57,
-      26,
       59
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

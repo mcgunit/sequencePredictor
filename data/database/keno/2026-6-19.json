@@ -554,17 +554,19 @@
       41
     ],
     "matching_numbers": [
-      65,
-      69,
       8,
-      41,
       11,
       13,
       17,
       21,
-      29
+      29,
+      41,
+      65,
+      69
     ],
-    "match_count": 9
+    "match_count": 9,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

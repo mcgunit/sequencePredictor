@@ -555,19 +555,21 @@
       21
     ],
     "matching_numbers": [
-      32,
       4,
-      69,
-      38,
       8,
       11,
       17,
+      26,
+      29,
+      32,
+      38,
       49,
       56,
-      26,
-      29
+      69
     ],
-    "match_count": 11
+    "match_count": 11,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     1,

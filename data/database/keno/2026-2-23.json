@@ -553,15 +553,17 @@
       70
     ],
     "matching_numbers": [
-      65,
-      40,
       16,
       17,
       18,
+      40,
       53,
-      62
+      62,
+      65
     ],
-    "match_count": 7
+    "match_count": 7,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

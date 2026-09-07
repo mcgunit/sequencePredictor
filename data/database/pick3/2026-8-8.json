@@ -176,7 +176,9 @@
     "model": null,
     "prediction": null,
     "matching_numbers": [],
-    "match_count": 0
+    "match_count": 0,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [
     0,

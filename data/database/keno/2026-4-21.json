@@ -861,16 +861,18 @@
       70
     ],
     "matching_numbers": [
-      64,
       1,
-      67,
+      23,
+      30,
       50,
       53,
       55,
-      23,
-      30
+      64,
+      67
     ],
-    "match_count": 8
+    "match_count": 8,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

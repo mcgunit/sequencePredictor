@@ -1086,14 +1086,16 @@
       45
     ],
     "matching_numbers": [
-      32,
       5,
+      18,
+      32,
       39,
       40,
-      45,
-      18
+      45
     ],
-    "match_count": 6
+    "match_count": 6,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

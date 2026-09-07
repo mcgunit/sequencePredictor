@@ -557,17 +557,19 @@
     ],
     "matching_numbers": [
       2,
-      66,
-      68,
-      37,
-      70,
-      41,
       10,
       12,
+      37,
+      41,
       50,
-      55
+      55,
+      66,
+      68,
+      70
     ],
-    "match_count": 10
+    "match_count": 10,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {

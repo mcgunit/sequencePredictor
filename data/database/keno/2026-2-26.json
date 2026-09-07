@@ -556,20 +556,22 @@
       56
     ],
     "matching_numbers": [
-      34,
       3,
-      36,
-      39,
       8,
       13,
-      47,
-      51,
-      54,
       23,
       26,
-      30
+      30,
+      34,
+      36,
+      39,
+      47,
+      51,
+      54
     ],
-    "match_count": 12
+    "match_count": 12,
+    "special_matching_numbers": [],
+    "special_match_count": 0
   },
   "labels": [],
   "numberFrequency": {
