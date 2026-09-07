@@ -40,6 +40,14 @@ BOOSTING_PARAM_SUFFIXES = [
     ("RegLambda", "setRegLambda", 1.0),
     ("SubsetMode", "setSubsetSelectionMode", "softmax"),
     ("SubsetTemperature", "setSubsetTemperature", 0.5),
+    # CatBoost only (the other backends ignore it): number of feature-split
+    # candidates per numeric feature, CatBoost's own default 254. Exposed as a
+    # bestParams key (<prefix>BorderCount) for experimentation - measured on
+    # this data it is NOT a speed lever: the multi-label features are 0/1
+    # indicators (one split candidate whatever the setting: 1014 s vs 1016 s
+    # for a 50-classifier fit, identical scores), and the per-position raw
+    # values 1-50 gain only ~1.17x at 32. Tree depth is the real cost knob.
+    ("BorderCount", "setBorderCount", 254),
 ]
 
 
@@ -112,6 +120,7 @@ class BoostingPredictorBase:
         self.sorted_prediction = True  # Set False for positional games (Pick3, Joker+)
         self.save_models = False       # Opt-in: Backtester runs many days in parallel
         self.num_threads = 1           # 1 by default, see setNumThreads
+        self.border_count = 254        # CatBoost only, see BOOSTING_PARAM_SUFFIXES
 
     # --- SETTERS ---
     def setDataPath(self, dataPath): self.dataPath = dataPath
@@ -131,6 +140,7 @@ class BoostingPredictorBase:
     def setSortedPrediction(self, use): self.sorted_prediction = bool(use)
     def setSaveModels(self, save): self.save_models = bool(save)
     def setNumThreads(self, numThreads): self.num_threads = max(1, int(numThreads))
+    def setBorderCount(self, borderCount): self.border_count = max(1, min(65535, int(borderCount)))
 
     def setLengtOfDraw(self, lengthOfDraw):
         self.lengthOfDraw = int(lengthOfDraw)
@@ -202,7 +212,7 @@ class BoostingPredictorBase:
         return (
             type(self).__name__, self.dataPath, skipRows, skipLastColumns, specialColumnCount, years_back,
             self.n_previous_draws, self.n_estimators, self.max_depth, self.learning_rate,
-            self.subsample, self.colsample_bytree, self.min_child_weight, self.reg_lambda,
+            self.subsample, self.colsample_bytree, self.min_child_weight, self.reg_lambda, self.border_count,
             self.num_threads,
         )
 

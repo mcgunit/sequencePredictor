@@ -48,6 +48,9 @@ class CatBoostBackend(BoostingPredictorBase):
             min_data_in_leaf=max(1, int(self.min_child_weight)),
             rsm=self.colsample_bytree,
             thread_count=self.num_threads,
+            # Split candidates per feature - see BOOSTING_PARAM_SUFFIXES
+            # ("BorderCount"); CatBoost's own default 254 unless tuned/overridden.
+            border_count=self.border_count,
             # Every fit otherwise prints a full per-iteration training table -
             # unusable inside a Backtester pool running hundreds of fits.
             verbose=False,

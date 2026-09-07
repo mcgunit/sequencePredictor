@@ -4,7 +4,7 @@ import optuna
 from art import text2art
 from datetime import datetime
 
-from src.Backtester import Backtester
+from src.Backtester import Backtester, BacktestTimeout
 from src.DataLoader import DataLoader
 from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
 from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
@@ -118,7 +118,8 @@ def suggest_keno_subset(trial, model_name):
     return subset
 
 
-def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back):
+def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
+                 max_seconds=None):
     """
     Same Backtester-driven evaluation HyperoptStatistics.py uses (rolling
     walk-forward over the last `days_to_rebuild` draws, each day retrained on
@@ -149,6 +150,7 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
 
     results = backtester.backtest(
+        max_seconds=max_seconds,
         start_index=start_index,
         end_index=total_rows,
         generate_subsets=subsets,
@@ -203,7 +205,13 @@ def suggest_boosting_params(trial, prefix):
     return {
         f"{prefix}Estimators": trial.suggest_int(f'{prefix}Estimators', 10, 300, step=10),
         f"{prefix}LearningRate": trial.suggest_float(f'{prefix}LearningRate', 0.01, 1.0, log=True),
-        f"{prefix}Maxdepth": trial.suggest_int(f'{prefix}Maxdepth', 1, 10),
+        # CatBoost grows symmetric (oblivious) trees - every tree is full, so
+        # cost scales with 2^depth. Measured on this box across all CatBoost
+        # trials: median minutes per trial by depth 1-6: 1-4, 7: 9, 8: 24,
+        # 9: 61, 10: 64 (single trials up to 12 hours), while the other two
+        # libraries stay at minutes for the whole 1-10 range. The deep trials
+        # won studies no more often than chance on a 31-day hits objective.
+        f"{prefix}Maxdepth": trial.suggest_int(f'{prefix}Maxdepth', 1, 7 if prefix.startswith("catBoost") else 10),
         f"{prefix}PreviousDraws": trial.suggest_int(f'{prefix}PreviousDraws', 1, 50, step=1),
         f"{prefix}TopK": trial.suggest_int(f'{prefix}TopK', 1, 30),
         f"{prefix}ForceNested": trial.suggest_categorical(f'{prefix}ForceNested', [True, False]),
@@ -214,6 +222,13 @@ def suggest_boosting_params(trial, prefix):
         f"{prefix}SubsetMode": trial.suggest_categorical(f'{prefix}SubsetMode', ["top", "softmax"]),
         f"{prefix}SubsetTemperature": trial.suggest_float(f'{prefix}SubsetTemperature', 0.05, 2.0),
     }
+
+
+# Wall-clock budget per tuning trial and the CatBoost border count, set from
+# the CLI in __main__ (module globals so the shared objective can read them).
+# A trial over budget is recorded as PRUNED - see make_boosting_objective.
+TRIAL_TIMEOUT_SECONDS = 1200
+CATBOOST_BORDER_COUNT = 254
 
 
 def make_boosting_objective(model_class, prefix, backtest_name):
@@ -241,6 +256,11 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         # Never persist during tuning: many workers would race on the same
         # path, and a tuning-trial fit isn't worth keeping anyway.
         model.setSaveModels(False)
+        if prefix.startswith("catBoost"):
+            # Not a tuned knob - a run-level speed setting (see
+            # BOOSTING_PARAM_SUFFIXES "BorderCount"), also written into
+            # bestParams below so Predictor serves the same value.
+            model.setBorderCount(CATBOOST_BORDER_COUNT)
 
         subsets = []
         if "keno" in dataset_name:
@@ -248,8 +268,16 @@ def make_boosting_objective(model_class, prefix, backtest_name):
             if subsets is None:
                 return float("-inf")
 
-        return score_from_summary(run_backtest(
-            backtest_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+        try:
+            summary = run_backtest(
+                backtest_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
+                max_seconds=TRIAL_TIMEOUT_SECONDS)
+        except BacktestTimeout as e:
+            # One pathological combination must not cost the study hours -
+            # Optuna records the trial as PRUNED and moves on.
+            print(f"Trial {trial.number} pruned: {e}")
+            raise optuna.TrialPruned()
+        return score_from_summary(summary)
 
     return objective
 
@@ -330,6 +358,18 @@ if __name__ == "__main__":
         parser.add_argument('-d', '--days', type=int, default=31)
         parser.add_argument('-t', '--trials', type=int, default=15)
         parser.add_argument(
+            '--trial-timeout', type=int, default=1200,
+            help='Wall-clock budget in seconds per tuning trial; a trial over budget is '
+                 'pruned (recorded, not scored). Default 20 minutes - the study medians are '
+                 'minutes, the outliers were hours.')
+        parser.add_argument(
+            '--catboost-border-count', type=int, default=254,
+            help='CatBoost border_count (split candidates per feature), CatBoost\'s own default '
+                 '254. Experimentation knob only - measured no speed or ranking difference on '
+                 'this data (multi-hot features have a single split candidate anyway). Written '
+                 'to bestParams_<game>.json as catBoost*BorderCount so Predictor serves the '
+                 'same value.')
+        parser.add_argument(
             '-s', '--strategies',
             type=str,
             default=",".join(STRATEGIES.keys()),
@@ -351,6 +391,8 @@ if __name__ == "__main__":
 
         daysToRebuild = int(args.days)
         n_trials = int(args.trials)
+        TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
+        CATBOOST_BORDER_COUNT = int(args.catboost_border_count)
         years_back = None  # None = all available data
 
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
@@ -425,6 +467,21 @@ if __name__ == "__main__":
                     )
 
                     study.optimize(objective, n_trials=n_trials)
+
+                    # Run-level setting, not a tuned param: recorded even when
+                    # the study below yields nothing, so a non-default
+                    # --catboost-border-count is never silently dropped.
+                    if strategy_name.startswith("CatBoost"):
+                        catPrefix = "catBoostMl" if "MultiLabel" in strategy_name else "catBoost"
+                        existingData[f"{catPrefix}BorderCount"] = CATBOOST_BORDER_COUNT
+
+                    # With per-trial budgets a study can end with every trial
+                    # pruned - study.best_params would then raise and abort
+                    # the remaining strategies of this game. Keep whatever was
+                    # tuned before and move on.
+                    if not any(t.state == optuna.trial.TrialState.COMPLETE for t in study.trials):
+                        print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
+                        continue
 
                     print(f"Best Parameters for {strategy_name}: ", study.best_params)
                     print(f"Best Score for {strategy_name}: ", study.best_value)

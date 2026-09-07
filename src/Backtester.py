@@ -1,6 +1,7 @@
 import os, sys, json, time, re, random, zlib
 import numpy as np
 from collections import defaultdict
+import multiprocessing
 from multiprocessing import Pool, cpu_count
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -453,6 +454,11 @@ def _print_progress(done, total, start_time, bar_width=30):
         print()
 
 
+class BacktestTimeout(Exception):
+    """Raised by Backtester.backtest when max_seconds is exceeded - the
+    worker Pool has already been terminated when this propagates."""
+
+
 class Backtester:
     def __init__(self, data_loader_model):
         """
@@ -488,7 +494,7 @@ class Backtester:
         game=None,
         special_column_count=0,
         collect_scores=False
-    ):
+    , max_seconds=None):
         """
         game: "keno", "pick3" or "jokerplus" enables profit calculation (in
         euro) alongside hit counts, reusing the same payout tables as
@@ -587,10 +593,35 @@ class Backtester:
         results = []
 
         with Pool(processes=num_workers) as pool:
-            for iteration, row in enumerate(
-                pool.imap(_backtest_single_day, range(start_index, end_index)),
-                start=1
-            ):
+            # Wall-clock budget (hyperopt trials): a single pathological
+            # hyperparameter combination (CatBoost depth 10 x 300 trees x
+            # 50-draw windows) was measured at 12 hours for one 31-day
+            # backtest, while the study median was minutes. The deadline is
+            # enforced through the iterator's own timeout, so it fires even
+            # while the first batch of days is still fitting (a plain check
+            # between completed days would let a 15-worker batch run for
+            # hours before the first result arrives); terminate() then kills
+            # the in-flight workers.
+            dayResults = pool.imap(_backtest_single_day, range(start_index, end_index))
+            iteration = 0
+            while True:
+                remaining = None
+                if max_seconds is not None:
+                    remaining = max_seconds - (time.time() - start_time)
+                    if remaining <= 0:
+                        pool.terminate()
+                        raise BacktestTimeout(
+                            f"backtest exceeded {max_seconds:.0f}s after {iteration}/{total_iterations} days")
+                try:
+                    row = dayResults.next(timeout=remaining) if remaining is not None else next(dayResults)
+                except StopIteration:
+                    break
+                except multiprocessing.TimeoutError:
+                    pool.terminate()
+                    raise BacktestTimeout(
+                        f"backtest exceeded {max_seconds:.0f}s after {iteration}/{total_iterations} days")
+
+                iteration += 1
                 results.append(row)
 
                 if verbose:
