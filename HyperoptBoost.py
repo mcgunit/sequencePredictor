@@ -1,5 +1,15 @@
 import os, argparse, json, sys
+# Pin the BLAS/OpenMP thread pools before numpy (via optuna) is imported: every
+# Backtester worker otherwise inherits a 16-thread OpenBLAS pool whose
+# spin-waiting was measured at ~10 cores of pure overhead per single-threaded
+# CatBoost fit (load average 45 on 16 cores, 3x slower trials). The boosting
+# libraries get their thread count explicitly (setNumThreads) and CatBoost uses
+# its own pool, so this only removes waste.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
 import optuna
+from multiprocessing import cpu_count
 
 from art import text2art
 from datetime import datetime
@@ -119,7 +129,7 @@ def suggest_keno_subset(trial, model_name):
 
 
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
-                 max_seconds=None):
+                 max_seconds=None, refit_every=1, num_workers=None, trial=None):
     """
     Same Backtester-driven evaluation HyperoptStatistics.py uses (rolling
     walk-forward over the last `days_to_rebuild` draws, each day retrained on
@@ -149,8 +159,25 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     # tuning objective.
     game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
 
+    # Streaming pruning: after every completed day the partial summary is
+    # scored with the SAME function the final value uses and reported to
+    # Optuna; PercentilePruner (see __main__) then stops a trial that sits in
+    # the bottom quartile after half the window. Pruned trials are recorded
+    # as PRUNED - never as a bad score - so the ranking of finished trials is
+    # untouched.
+    progress_callback = None
+    if trial is not None:
+        def progress_callback(iteration, rows):
+            partial = backtester.summarize(rows).get("models", {}).get(model_name, {})
+            trial.report(score_from_summary(partial), step=iteration)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
     results = backtester.backtest(
         max_seconds=max_seconds,
+        chunksize=max(1, int(refit_every)),
+        num_workers=num_workers,
+        progress_callback=progress_callback,
         start_index=start_index,
         end_index=total_rows,
         generate_subsets=subsets,
@@ -229,6 +256,18 @@ def suggest_boosting_params(trial, prefix):
 # A trial over budget is recorded as PRUNED - see make_boosting_objective.
 TRIAL_TIMEOUT_SECONDS = 1200
 CATBOOST_BORDER_COUNT = 254
+# Refit cadence (days per fit) for the walk-forward evaluation and the pruning
+# percentile (0 disables pruning) - set from the CLI in __main__.
+REFIT_EVERY = 7
+PRUNE_PERCENTILE = 25.0
+# Pruning only after half the window has been scored and only once this many
+# trials have COMPLETED, so a good configuration with an unlucky first week is
+# never judged against too little evidence.
+PRUNE_MIN_COMPLETED_TRIALS = 5
+# Upper bound on threads handed to one CatBoost fit (scaling flattens beyond a
+# handful of threads on ~2000-row problems); workers x threads never exceeds
+# the machine.
+CATBOOST_MAX_THREADS = 8
 
 
 def make_boosting_objective(model_class, prefix, backtest_name):
@@ -249,10 +288,27 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         # Helpers.is_positional_game.
         model.setSortedPrediction(not helpers.is_positional_game(dataset_name))
 
-        # Backtester runs days across a process Pool; letting each worker's
-        # boosting library spawn its own thread pool on top of that
-        # oversubscribes badly.
-        model.setNumThreads(1)
+        # Refit cadence (BoostingBase.setRefitEvery): one fit per block of
+        # REFIT_EVERY consecutive days instead of one per day; a block's days
+        # share a fit so they run on one worker (the Backtester's chunksize),
+        # one worker per block. Library threads stay at ONE: giving XGBoost
+        # the spare cores instead was measured to make a 3-trial study 5x
+        # SLOWER (2.5 -> 12.5 min) - its OpenMP pool spins up to all cores
+        # per worker and thrashes the box on these tiny fits, the same
+        # pathology as the serve-path fix in Predictor.py. The cadence's
+        # saving is the fewer fits, not per-fit parallelism.
+        model.setRefitEvery(REFIT_EVERY)
+        blocks = max(1, -(-days_to_rebuild // max(1, REFIT_EVERY)))
+        cores = max(1, cpu_count() - 1)
+        num_workers = max(1, min(cores, blocks))
+        # CatBoost genuinely scales with threads on this data (one fit: 4
+        # threads = 3.1x faster) and is the slow library, so with fewer
+        # workers than cores it gets the spare ones (CATBOOST_THREADS cap);
+        # XGBoost/LightGBM get 1 - see the measured slowdown above.
+        if prefix.startswith("catBoost"):
+            model.setNumThreads(max(1, min(CATBOOST_MAX_THREADS, cores // num_workers)))
+        else:
+            model.setNumThreads(1)
         # Never persist during tuning: many workers would race on the same
         # path, and a tuning-trial fit isn't worth keeping anyway.
         model.setSaveModels(False)
@@ -271,7 +327,8 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         try:
             summary = run_backtest(
                 backtest_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
-                max_seconds=TRIAL_TIMEOUT_SECONDS)
+                max_seconds=TRIAL_TIMEOUT_SECONDS, refit_every=REFIT_EVERY, num_workers=num_workers,
+                trial=trial if PRUNE_PERCENTILE > 0 else None)
         except BacktestTimeout as e:
             # One pathological combination must not cost the study hours -
             # Optuna records the trial as PRUNED and moves on.
@@ -363,6 +420,19 @@ if __name__ == "__main__":
                  'pruned (recorded, not scored). Default 20 minutes - the study medians are '
                  'minutes, the outliers were hours.')
         parser.add_argument(
+            '--refit-every', type=int, default=7,
+            help='Refit cadence for the walk-forward evaluation: one boosted fit per block of N '
+                 'consecutive days (block-aligned, never leaky - see BoostingBase.setRefitEvery). '
+                 '1 = refit every day (production behavior, slowest); 7 (default) measured ~7x '
+                 'faster on the CatBoost strategies (eurodreams CatBoostMultiLabel, 2 trials x 21 '
+                 'days: 7.5 min -> 66 s); equal to --days = one fit per trial. Same cadence for '
+                 'every trial, so the ranking is unaffected.')
+        parser.add_argument(
+            '--prune-percentile', type=float, default=25.0,
+            help='Optuna PercentilePruner threshold: stop a trial whose partial score after half the '
+                 'window is in the bottom N%% of completed trials (needs 5 completed trials first). '
+                 '0 disables pruning.')
+        parser.add_argument(
             '--catboost-border-count', type=int, default=254,
             help='CatBoost border_count (split candidates per feature), CatBoost\'s own default '
                  '254. Experimentation knob only - measured no speed or ranking difference on '
@@ -393,6 +463,8 @@ if __name__ == "__main__":
         n_trials = int(args.trials)
         TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
         CATBOOST_BORDER_COUNT = int(args.catboost_border_count)
+        REFIT_EVERY = max(1, int(args.refit_every))
+        PRUNE_PERCENTILE = max(0.0, float(args.prune_percentile))
         years_back = None  # None = all available data
 
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
@@ -429,7 +501,12 @@ if __name__ == "__main__":
                             "vikinglotto": "Viking+Lotto",
                             "jokerplus": "Joker%2B",
                         }.get(dataset_name, "")
-                        dataFetcher.getLatestData(gameName, filePath)
+                        # A failed/stalled fetch must not abort this game's
+                        # tuning - the CSV on disk is at worst one draw behind.
+                        try:
+                            dataFetcher.getLatestData(gameName, filePath)
+                        except Exception as e:
+                            print(f"Data fetch failed for {dataset_name} - continuing with the existing CSV: {e}")
                 except Exception as e:
                     print("Failed to fetch data: ", e)
 
@@ -455,11 +532,20 @@ if __name__ == "__main__":
 
                     studyName = f"{dataset_name}_{strategy_name}"
 
+                    # Pruner is per process (not persisted in the study db):
+                    # conservative by construction - bottom quartile only,
+                    # only after half the window, only once 5 trials completed.
+                    pruner = (optuna.pruners.PercentilePruner(
+                                  PRUNE_PERCENTILE,
+                                  n_startup_trials=PRUNE_MIN_COMPLETED_TRIALS,
+                                  n_warmup_steps=max(1, daysToRebuild // 2))
+                              if PRUNE_PERCENTILE > 0 else optuna.pruners.NopPruner())
                     study = optuna.create_study(
                         direction='maximize',
                         storage=optunaDatabase,
                         study_name=studyName,
-                        load_if_exists=True
+                        load_if_exists=True,
+                        pruner=pruner
                     )
 
                     objective = lambda trial: strategy["objective"](

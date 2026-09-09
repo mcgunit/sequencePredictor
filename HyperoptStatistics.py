@@ -679,7 +679,12 @@ if __name__ == "__main__":
                             "vikinglotto": "Viking+Lotto",
                             "jokerplus": "Joker%2B",
                         }.get(dataset_name, "")
-                        dataFetcher.getLatestData(gameName, filePath)
+                        # A failed/stalled fetch must not abort this game's
+                        # tuning - the CSV on disk is at worst one draw behind.
+                        try:
+                            dataFetcher.getLatestData(gameName, filePath)
+                        except Exception as e:
+                            print(f"Data fetch failed for {dataset_name} - continuing with the existing CSV: {e}")
                 except Exception as e:
                     print("Failed to fetch data: ", e)
 

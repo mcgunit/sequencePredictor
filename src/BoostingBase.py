@@ -121,6 +121,19 @@ class BoostingPredictorBase:
         self.save_models = False       # Opt-in: Backtester runs many days in parallel
         self.num_threads = 1           # 1 by default, see setNumThreads
         self.border_count = 254        # CatBoost only, see BOOSTING_PARAM_SUFFIXES
+        # Tuning-only speed knob (see setRefitEvery): 1 = refit for every
+        # requested day (production behavior).
+        self.refit_every = 1
+        self._day_key = None
+        self._day_state = None
+        # Fit cache keyed by _fit_signature, a few entries deep: special-column
+        # games fit the main range and the special range alternately for every
+        # day (Helpers.run_model_with_special_column), and a single-slot cache
+        # would refit BOTH on every day - which turned the refit cadence into a
+        # slowdown (measured: cadence 7 took 2.7x longer than cadence 1 on
+        # eurodreams CatBoost, 14 refits per 7-day block instead of 2).
+        self._fit_cache = {}
+        self._fit_cache_limit = 4
 
     # --- SETTERS ---
     def setDataPath(self, dataPath): self.dataPath = dataPath
@@ -141,6 +154,19 @@ class BoostingPredictorBase:
     def setSaveModels(self, save): self.save_models = bool(save)
     def setNumThreads(self, numThreads): self.num_threads = max(1, int(numThreads))
     def setBorderCount(self, borderCount): self.border_count = max(1, min(65535, int(borderCount)))
+    def setRefitEvery(self, days):
+        """
+        Refit cadence for walk-forward evaluation: with k > 1 the days
+        skipRows 1..k share ONE fit trained on the data before the oldest of
+        them, k+1..2k the next, and so on (block-aligned - a fit never sees a
+        row a per-day fit for that day would not have seen, so this is
+        conservative, never leaky). Every day still builds its own prediction
+        features from its own draws. Hyperopt uses this because refitting a
+        boosted ensemble for each of the 31 evaluated days is the entire cost
+        of a trial while lottery data does not drift over a month; production
+        (Predictor.py) leaves it at 1.
+        """
+        self.refit_every = max(1, int(days))
 
     def setLengtOfDraw(self, lengthOfDraw):
         self.lengthOfDraw = int(lengthOfDraw)
@@ -216,6 +242,19 @@ class BoostingPredictorBase:
             self.num_threads,
         )
 
+    # Every attribute fit() derives from its data. Snapshot/restore as a unit:
+    # restoring only models+labels once left lengthOfDraw at the special
+    # range's 1 after a main-range re-activation, which cut the collision
+    # refill short and produced 5-number lotto/eurodreams tickets.
+    _FIT_STATE_ATTRS = ("models", "labels", "lengthOfDraw")
+
+    def _fit_snapshot(self):
+        return {name: getattr(self, name) for name in self._FIT_STATE_ATTRS if hasattr(self, name)}
+
+    def _restore_fit_snapshot(self, snapshot):
+        for name, value in snapshot.items():
+            setattr(self, name, value)
+
     def _ensure_fitted(self, skipRows, skipLastColumns, specialColumnCount, years_back):
         """
         Loads + fits, or returns the previous (draws, window) if this exact
@@ -225,24 +264,56 @@ class BoostingPredictorBase:
         Unlike the statistical models - whose fit is a cheap frequency count -
         refitting a boosted ensemble is the model's entire cost.
         """
-        key = self._fit_signature(skipRows, skipLastColumns, specialColumnCount, years_back)
-        if self._fit_key == key and self._fit_state is not None:
-            return self._fit_state
+        # Block-aligned fit slice (see setRefitEvery): skipRows 1..k -> k,
+        # k+1..2k -> 2k, ... ; skipRows 0 (today) and k == 1 are unchanged.
+        k = self.refit_every
+        fitSkip = skipRows if (k <= 1 or skipRows <= 0) else ((skipRows + k - 1) // k) * k
 
-        numbers, unique_labels = self.load_numbers(
-            skipRows=skipRows, skipLastColumns=skipLastColumns,
-            years_back=years_back, specialColumnCount=specialColumnCount)
+        key = self._fit_signature(fitSkip, skipLastColumns, specialColumnCount, years_back)
+        cached = self._fit_cache.get(key)
+        if cached is None:
+            numbers, unique_labels = self.load_numbers(
+                skipRows=fitSkip, skipLastColumns=skipLastColumns,
+                years_back=years_back, specialColumnCount=specialColumnCount)
 
-        if len(numbers) == 0:
-            self._fit_key, self._fit_state = key, None
-            return None
+            if len(numbers) == 0:
+                return None
 
-        draws = [[int(n) for n in draw] for draw in numbers]
-        window = self.fit(draws, unique_labels=unique_labels)
+            draws = [[int(n) for n in draw] for draw in numbers]
+            window = self.fit(draws, unique_labels=unique_labels)
+            # Everything a fit produces: the classifiers AND the label table
+            # _decode/_encode read (the main range's 1-40 vs the special
+            # range's 1-5 differ - restoring only the models decodes with the
+            # wrong table).
+            cached = (draws, window, self._fit_snapshot())
+            if len(self._fit_cache) >= self._fit_cache_limit:
+                self._fit_cache.pop(next(iter(self._fit_cache)))
+            self._fit_cache[key] = cached
+        else:
+            # Re-activate everything this fit produced (the other range's fit
+            # may have replaced it since).
+            self._restore_fit_snapshot(cached[2])
 
         self._fit_key = key
-        self._fit_state = (draws, window)
-        return self._fit_state
+        self._fit_state = (cached[0], cached[1])
+
+        if fitSkip == skipRows:
+            return self._fit_state
+
+        # The fit came from an older block: the prediction features must still
+        # come from THIS day's draws (the window ends the draw before the
+        # day). Cached per day because run()/score_numbers()/score_positions()
+        # are called back to back for the same day.
+        dayKey = (self.dataPath, skipRows, skipLastColumns, specialColumnCount, years_back)
+        if self._day_key != dayKey or self._day_state is None:
+            dayNumbers, _ = self.load_numbers(
+                skipRows=skipRows, skipLastColumns=skipLastColumns,
+                years_back=years_back, specialColumnCount=specialColumnCount)
+            if len(dayNumbers) == 0:
+                return None
+            self._day_key = dayKey
+            self._day_state = ([[int(n) for n in draw] for draw in dayNumbers], self._fit_state[1])
+        return self._day_state
 
     # --- SUBSETS ---
     def generate_best_subset(self, number_scores, ticket_numbers, nSubset):

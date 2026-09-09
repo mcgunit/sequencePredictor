@@ -2057,7 +2057,14 @@ if __name__ == "__main__":
                             gameName = "Pick3"
                         if "vikinglotto" in dataset_name:
                             gameName = "Viking+Lotto"
-                        dataFetcher.getLatestData(gameName, filePath)
+                        # A failed/stalled fetch must not cost the day's
+                        # prediction for this game: the CSV on disk is at
+                        # worst one draw behind (the next run catches up via
+                        # the completeness-aware rebuild).
+                        try:
+                            dataFetcher.getLatestData(gameName, filePath)
+                        except Exception as e:
+                            print(f"Data fetch failed for {dataset_name} - continuing with the existing CSV: {e}")
                         #os.remove(os.path.join(dataPath, file))
                     else:
                         command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)

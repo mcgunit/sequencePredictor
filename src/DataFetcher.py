@@ -92,7 +92,12 @@ class DataFetcher():
             "Accept-Encoding": "identity",
             "Connection": "Keep-Alive"
         }
-        response = requests.get(url=url, headers=headers)
+        # Connect/read timeouts: without them a stalled API hangs the caller
+        # forever - for the daily Predictor that means holding process.lock
+        # indefinitely (observed 2026-09-08: a tuning run sat 9+ minutes in
+        # this call). A timeout raises, and every caller falls back to the
+        # CSV already on disk.
+        response = requests.get(url=url, headers=headers, timeout=(10, 120))
         
         #print("response: ", response.json())
         data = response.json()

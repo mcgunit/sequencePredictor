@@ -454,6 +454,18 @@ def _print_progress(done, total, start_time, bar_width=30):
         print()
 
 
+def _backtest_block(indices):
+    """
+    Runs a block of consecutive days sequentially on ONE worker and returns
+    their rows. Days of a block share a boosting fit under a refit cadence
+    (BoostingBase.setRefitEvery), so they must not be spread over workers -
+    and Pool.imap with chunksize > 1 cannot be used for that: CPython then
+    hands back a bare generator without the .next(timeout=) the wall-clock
+    budget relies on. Mapping over explicit blocks keeps a real IMapIterator.
+    """
+    return [_backtest_single_day(i) for i in indices]
+
+
 class BacktestTimeout(Exception):
     """Raised by Backtester.backtest when max_seconds is exceeded - the
     worker Pool has already been terminated when this propagates."""
@@ -494,7 +506,7 @@ class Backtester:
         game=None,
         special_column_count=0,
         collect_scores=False
-    , max_seconds=None):
+    , max_seconds=None, chunksize=1, num_workers=None, progress_callback=None):
         """
         game: "keno", "pick3" or "jokerplus" enables profit calculation (in
         euro) alongside hit counts, reusing the same payout tables as
@@ -589,7 +601,14 @@ class Backtester:
             "collect_scores": collect_scores,
         }
 
-        num_workers = max(1, min(cpu_count()-1, total_iterations))
+        # num_workers/chunksize are tuning knobs: with a refit cadence of k
+        # days (BoostingBase.setRefitEvery) a chunk of k consecutive days on
+        # one worker shares a single fit, and fewer workers each get more
+        # library threads (HyperoptBoost sizes both so workers x threads stays
+        # within the machine). Defaults reproduce the historical behavior.
+        workerCap = cpu_count() - 1 if num_workers is None else int(num_workers)
+        num_workers = max(1, min(workerCap, total_iterations))
+        chunksize = max(1, int(chunksize))
         results = []
 
         with Pool(processes=num_workers) as pool:
@@ -602,7 +621,8 @@ class Backtester:
             # between completed days would let a 15-worker batch run for
             # hours before the first result arrives); terminate() then kills
             # the in-flight workers.
-            dayResults = pool.imap(_backtest_single_day, range(start_index, end_index))
+            blocks = [list(range(i, min(i + chunksize, end_index))) for i in range(start_index, end_index, chunksize)]
+            blockResults = pool.imap(_backtest_block, blocks)  # IMapIterator: .next(timeout=) works
             iteration = 0
             while True:
                 remaining = None
@@ -613,7 +633,7 @@ class Backtester:
                         raise BacktestTimeout(
                             f"backtest exceeded {max_seconds:.0f}s after {iteration}/{total_iterations} days")
                 try:
-                    row = dayResults.next(timeout=remaining) if remaining is not None else next(dayResults)
+                    blockRows = blockResults.next(timeout=remaining) if remaining is not None else next(blockResults)
                 except StopIteration:
                     break
                 except multiprocessing.TimeoutError:
@@ -621,11 +641,23 @@ class Backtester:
                     raise BacktestTimeout(
                         f"backtest exceeded {max_seconds:.0f}s after {iteration}/{total_iterations} days")
 
-                iteration += 1
-                results.append(row)
+                for row in blockRows:
+                    iteration += 1
+                    results.append(row)
 
-                if verbose:
-                    _print_progress(iteration, total_iterations, start_time)
+                    if verbose:
+                        _print_progress(iteration, total_iterations, start_time)
+
+                    # Streaming hook (hyperopt pruning): sees the days completed
+                    # so far, in order; raising aborts the run - the pool is
+                    # torn down first so no worker keeps fitting for a dead
+                    # trial.
+                    if progress_callback is not None:
+                        try:
+                            progress_callback(iteration, results)
+                        except BaseException:
+                            pool.terminate()
+                            raise
 
         if save_results_path:
             self.save_results(results, save_results_path)
