@@ -13,7 +13,7 @@ import numpy as np
 from art import text2art
 from datetime import datetime
 from multiprocessing import get_context
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
 
 
 from src.TCN import TCNModel
@@ -34,6 +34,7 @@ from src.XGBoost import XGBoostKenoPredictor
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
+from src.HyperoptRunner import fail_stale_running_trials
 
 tcn = TCNModel()
 lstm = LSTMModel()
@@ -625,6 +626,11 @@ def process_single_history_entry(args):
 
 
 
+# Wall-clock budget per trial (CLI --trial-timeout; module level so the
+# spawned children, which re-import this file, see a value too).
+TRIAL_TIMEOUT_SECONDS = 7200
+
+
 def runPredictInChild(*args, **kwargs):
     """
     Runs one trial's predict() (the daysToRebuild training loop) in a
@@ -643,8 +649,20 @@ def runPredictInChild(*args, **kwargs):
     Costs one TF import + CUDA init per trial (~15-30s) - noise next to the
     minutes of training a trial performs.
     """
-    with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
-        return executor.submit(predict, *args, **kwargs).result()
+    executor = ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn"))
+    try:
+        return executor.submit(predict, *args, **kwargs).result(timeout=TRIAL_TIMEOUT_SECONDS)
+    except FuturesTimeoutError:
+        # A hung or runaway trial (a healthy-looking study was once killed by
+        # hand after hours of silence) must not block the study: kill the
+        # child - the pool has exactly this one process - and record the
+        # trial as pruned, not as a score.
+        for child in list(executor._processes.values()):
+            child.kill()
+        print(f"Trial exceeded the {TRIAL_TIMEOUT_SECONDS}s budget - child killed, trial pruned")
+        raise optuna.TrialPruned()
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
 
 
 def clearFolder(folderPath):
@@ -839,6 +857,10 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
     parser.add_argument('-d', '--days', type=int, default=8)
     parser.add_argument('-t', '--trials', type=int, default=15)
+    parser.add_argument(
+        '--trial-timeout', type=int, default=7200,
+        help='Wall-clock budget in seconds per trial (the spawned training child is killed and the '
+             'trial recorded as pruned). Default 2 hours - the unified LSTM/TCN trials are the long ones.')
     parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
     parser.add_argument(
         '-g', '--games',
@@ -867,6 +889,7 @@ if __name__ == "__main__":
     daysToRebuild = int(args.days)
     rebuildHistory = bool(args.rebuild_history)
     n_trials = int(args.trials)
+    TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
     pushToGit = bool(args.save)
 
     print("Push to git: ", pushToGit)
@@ -1081,6 +1104,8 @@ if __name__ == "__main__":
                     study_name=f"{dataset_name}-{model_type}",
                     load_if_exists=True
                 )
+                # Trials left RUNNING by a killed run (Ctrl+C, OOM, reboot).
+                fail_stale_running_trials(study)
 
                 # Run the automatic tuning process. catch: a single failed
                 # trial (e.g. a GPU-OOM on an oversized lstmUnits/tcnUnits
@@ -1089,6 +1114,12 @@ if __name__ == "__main__":
                 # trial and the study moves on to the next suggestion instead
                 # of aborting the whole game.
                 study.optimize(objective, n_trials=n_trials, catch=(Exception,))
+
+                if not any(t.state == optuna.trial.TrialState.COMPLETE for t in study.trials):
+                    # Every trial failed or timed out - best_params would raise
+                    # and abort the remaining model types of this game.
+                    print(f"No completed trials for {dataset_name}-{model_type} - keeping existing params")
+                    continue
 
                 # Output the best hyperparameters and score
                 print("Best Parameters: ", study.best_params)

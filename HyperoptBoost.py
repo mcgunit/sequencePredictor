@@ -9,15 +9,8 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 import optuna
-import multiprocessing
 import time
-import signal
-import warnings
 from multiprocessing import cpu_count
-
-# TPESampler(constant_liar=True) (parallel trials, see open_study) is flagged
-# experimental by Optuna; the warning would otherwise print once per trial.
-warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 
 from art import text2art
 from datetime import datetime
@@ -31,6 +24,8 @@ from src.BoostingBase import apply_boosting_params
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
+from src.HyperoptRunner import (open_study, fail_stale_running_trials, has_completed_trials, optimize_study,
+                                mark_trial_skipped, install_sigterm_handler, total_memory_gb)
 
 command = Command()
 helpers = Helpers()
@@ -276,35 +271,24 @@ PRUNE_MIN_COMPLETED_TRIALS = 5
 # handful of threads on ~2000-row problems); workers x threads never exceeds
 # the machine.
 CATBOOST_MAX_THREADS = 8
-# Trial-level parallelism (optimize_study): how many trials of one study run
-# at the same time, each in its own process with its own Backtester worker
-# pool. 0 = auto: the cores the per-trial workers leave idle (cores // workers,
-# i.e. 3 on a 16-core box with the default 5 refit blocks); an explicit N is an
-# upper bound on that. CatBoost strategies always run one trial at a time -
-# they use the idle cores as fit threads instead (measured to scale, see
-# make_boosting_objective), and their fits are the memory-hungry ones.
+# Trial-level parallelism (src.HyperoptRunner.optimize_study): how many trials
+# of one study run at the same time, each in its own process with its own
+# Backtester worker pool. 0 = auto: the cores the per-trial workers leave idle
+# (cores // workers, i.e. 3 on a 16-core box with the default 5 refit blocks);
+# an explicit N is an upper bound on that. CatBoost strategies always run one
+# trial at a time - they use the idle cores as fit threads instead (measured
+# to scale, see make_boosting_objective), and their fits are the memory-hungry
+# ones.
 PARALLEL_TRIALS = 0
-# Memory gate for concurrent launches: a further trial starts only if the
-# machine keeps at least MEMORY_RESERVE_GB available after it (its expected
-# footprint is the largest RSS measured on the trials already running); below
-# MEMORY_HARD_FLOOR_GB the youngest concurrent trial is stopped and recorded
-# as pruned rather than letting the cgroup OOM killer pick a victim (this box
-# was OOM-killed at 16 GB before). Launches are spaced PARALLEL_RAMP_SECONDS
-# apart so a fresh trial has loaded its data before its footprint is read;
-# kept short because it caps the parallelism of fast studies (a eurodreams
-# trial takes ~10 s).
+# Memory gate for concurrent launches (HyperoptRunner.optimize_study): a
+# further trial starts only if the machine keeps at least this much available
+# after it. Set from the CLI in __main__.
 MEMORY_RESERVE_GB = 2.0
-MEMORY_HARD_FLOOR_GB = 1.0
-PARALLEL_RAMP_SECONDS = 3
 # Stamped on every trial (user_attrs): the cost gate in make_boosting_objective
 # only trusts timeouts recorded under the same tag - same machine, window,
 # cadence and budget - so a faster box or a larger --trial-timeout starts from
 # a clean slate. Set in __main__.
 BUDGET_TAG = ""
-# Set by the objective, inside a trial process, when the cost gate skipped the
-# trial without evaluating it; optimize_study then doesn't count it.
-_LAST_TRIAL_SKIPPED = False
-EXIT_TRIAL_SKIPPED = 3
 
 
 def fit_cost(prefix, params):
@@ -363,8 +347,6 @@ def make_boosting_objective(model_class, prefix, backtest_name):
     sync.
     """
     def objective(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
-        global _LAST_TRIAL_SKIPPED
-        _LAST_TRIAL_SKIPPED = False
         params = suggest_boosting_params(trial, prefix)
         model = model_class()
         apply_boosting_params(model, params, prefix)
@@ -382,13 +364,12 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         cost = fit_cost(prefix, params)
         trial.set_user_attr("fit_cost", cost)
         trial.set_user_attr("budget_tag", BUDGET_TAG)
-        trial.set_user_attr("worker_pid", os.getpid())
         floor = known_timeout_cost_floor(trial.study, BUDGET_TAG)
         if floor is not None and cost >= floor:
             reason = (f"fit cost {cost:.0f} >= {floor:.0f} of a trial that hit the "
                       f"{TRIAL_TIMEOUT_SECONDS}s budget")
             trial.set_user_attr("skipped", reason)
-            _LAST_TRIAL_SKIPPED = True
+            mark_trial_skipped()
             print(f"Trial {trial.number} skipped (predicted timeout): {reason}")
             raise optuna.TrialPruned()
 
@@ -506,309 +487,18 @@ STRATEGY_DISPLAY_NAMES = {
 }
 
 
-def make_storage(url):
+def boost_pruner(days_to_rebuild):
     """
-    One RDBStorage per process - a SQLAlchemy engine must not be used across a
-    fork. The sqlite busy timeout is raised from Python's 5 s default: with
-    concurrent trial processes each reporting a partial score per completed
-    day, a write can briefly find the file locked and should wait, not raise.
+    Conservative by construction - bottom quartile only, only after half the
+    window, only once PRUNE_MIN_COMPLETED_TRIALS trials completed. Built per
+    process (trial processes included), never persisted.
     """
-    return optuna.storages.RDBStorage(url, engine_kwargs={"connect_args": {"timeout": 60}})
-
-
-def open_study(study_name, storage, days_to_rebuild, parallel, quiet=False):
-    """
-    Study handle with this run's pruner and sampler. Both live in the process,
-    not the db, so every trial process builds the same ones. constant_liar
-    makes TPE treat trials other processes are still running as pessimistic
-    observations, so concurrent trials don't sample the same neighbourhood
-    (Optuna's documented setting for parallel optimization).
-    """
-    # Conservative by construction - bottom quartile only, only after half the
-    # window, only once 5 trials completed.
-    pruner = (optuna.pruners.PercentilePruner(
-                  PRUNE_PERCENTILE,
-                  n_startup_trials=PRUNE_MIN_COMPLETED_TRIALS,
-                  n_warmup_steps=max(1, days_to_rebuild // 2))
-              if PRUNE_PERCENTILE > 0 else optuna.pruners.NopPruner())
-    sampler = optuna.samplers.TPESampler(constant_liar=parallel > 1)
-    verbosity = optuna.logging.get_verbosity()
-    if quiet:
-        # Every trial process re-opens the study; one "Using an existing
-        # study" line per trial is noise.
-        optuna.logging.set_verbosity(optuna.logging.WARNING)
-    try:
-        return optuna.create_study(
-            direction='maximize',
-            storage=storage,
-            study_name=study_name,
-            load_if_exists=True,
-            pruner=pruner,
-            sampler=sampler,
-        )
-    finally:
-        optuna.logging.set_verbosity(verbosity)
-
-
-def fail_stale_running_trials(study):
-    """
-    process.lock guarantees a single HyperoptBoost at a time, so a trial still
-    RUNNING when its study is opened was left behind by a killed run (Ctrl+C,
-    reboot, OOM). Marked failed: constant_liar would otherwise treat it as live
-    forever.
-    """
-    for t in study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.RUNNING,)):
-        print(f"Marking stale trial {t.number} of {study.study_name} as failed (left by an earlier run)")
-        study.tell(t.number, state=optuna.trial.TrialState.FAIL, skip_if_finished=True)
-
-
-def _trial_process(study_name, strategy_name, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back,
-                   storage_url, parallel):
-    """
-    Body of one trial process (forked by optimize_study): open the study, run
-    exactly one trial, exit. The module globals set in __main__ are inherited
-    through the fork. Exit code EXIT_TRIAL_SKIPPED tells the parent the cost
-    gate skipped this trial without evaluating it.
-    """
-    try:
-        sys.stdout.reconfigure(line_buffering=True)
-    except (AttributeError, ValueError):
-        pass
-    try:
-        # Die with the coordinator (Linux prctl PR_SET_PDEATHSIG): a killed or
-        # crashed parent must not leave trial processes fitting for a run
-        # that is gone. SIGTERM lands in _exit_on_sigterm below, which unwinds
-        # through the Backtester's `with Pool` and so terminates the workers.
-        import ctypes
-        ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGTERM)  # 1 = PR_SET_PDEATHSIG
-    except (OSError, AttributeError):
-        pass
-    study = open_study(study_name, make_storage(storage_url), days_to_rebuild, parallel, quiet=True)
-    strategy = STRATEGIES[strategy_name]
-    study.optimize(
-        lambda trial: strategy["objective"](trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back),
-        n_trials=1)
-    if _LAST_TRIAL_SKIPPED:
-        sys.exit(EXIT_TRIAL_SKIPPED)
-
-
-def _exit_on_sigterm(signum, frame):
-    """
-    SIGTERM (kill <pid>) as an exception instead of an instant death, so the
-    coordinator's cleanup runs (trial trees killed, process.lock removed) and
-    a trial process unwinds through the Backtester's `with Pool`, terminating
-    its workers. Inherited by the forked trial processes - and by their pool
-    workers, where it must NOT fire: a worker is inside a library fit, and an
-    exception raised from a C callback there corrupted the heap on the way
-    out (glibc "corrupted size vs. prev_size"). Workers take the default
-    instant death instead.
-    """
-    if multiprocessing.current_process().name.startswith("ForkPoolWorker"):
-        signal.signal(signum, signal.SIG_DFL)
-        os.kill(os.getpid(), signum)
-        return
-    raise SystemExit(128 + signum)
-
-
-def _read_meminfo():
-    values = {}
-    with open("/proc/meminfo") as f:
-        for line in f:
-            key, _, rest = line.partition(":")
-            values[key] = int(rest.split()[0]) * 1024
-    return values
-
-
-def total_memory_gb():
-    try:
-        return _read_meminfo()["MemTotal"] / 2 ** 30
-    except (OSError, KeyError, ValueError):
-        return 0.0
-
-
-def available_memory_gb():
-    """MemAvailable, further capped by the cgroup v2 limit when one is set (this box is a container)."""
-    try:
-        available = _read_meminfo()["MemAvailable"]
-    except (OSError, KeyError, ValueError):
-        return float("inf")
-    try:
-        with open("/sys/fs/cgroup/memory.max") as f:
-            limit = f.read().strip()
-        with open("/sys/fs/cgroup/memory.current") as f:
-            current = int(f.read().strip())
-        if limit != "max":
-            available = min(available, max(0, int(limit) - current))
-    except (OSError, ValueError):
-        pass
-    return available / 2 ** 30
-
-
-def _process_table():
-    """{pid: (ppid, rss_bytes, state)} straight from /proc (ps is unreliable on this box)."""
-    table = {}
-    for name in os.listdir("/proc"):
-        if not name.isdigit():
-            continue
-        ppid, rss, state = None, 0, "?"
-        try:
-            with open(f"/proc/{name}/status") as f:
-                for line in f:
-                    if line.startswith("PPid:"):
-                        ppid = int(line.split()[1])
-                    elif line.startswith("VmRSS:"):
-                        rss = int(line.split()[1]) * 1024
-                    elif line.startswith("State:"):
-                        state = line.split()[1]
-        except (OSError, ValueError, IndexError):
-            continue
-        if ppid is not None:
-            table[int(name)] = (ppid, rss, state)
-    return table
-
-
-def _descendants(pid, table):
-    found, stack = [], [pid]
-    while stack:
-        parent = stack.pop()
-        kids = [p for p, (pp, _, _) in table.items() if pp == parent]
-        found.extend(kids)
-        stack.extend(kids)
-    return found
-
-
-def tree_rss_gb(pid):
-    """Resident memory of a trial process plus its Backtester workers."""
-    table = _process_table()
-    return sum(table[p][1] for p in [pid] + _descendants(pid, table) if p in table) / 2 ** 30
-
-
-def kill_tree(pid, grace_seconds=5):
-    """
-    SIGTERM a trial process together with its Backtester workers - killed on
-    their own, the workers would keep fitting as orphans - then SIGKILL what
-    survives the grace period.
-    """
-    table = _process_table()
-    pids = _descendants(pid, table) + [pid]
-    for p in pids:
-        try:
-            os.kill(p, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-    deadline = time.time() + grace_seconds
-    while time.time() < deadline:
-        table = _process_table()
-        if not any(p in table and not table[p][2].startswith("Z") for p in pids):
-            return
-        time.sleep(0.2)
-    for p in pids:
-        try:
-            os.kill(p, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-
-
-def optimize_study(study_name, strategy_name, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back,
-                   storage_url, n_trials, parallel):
-    """
-    Runs n_trials evaluated trials of one study, up to `parallel` at a time,
-    each in its own forked process (the Backtester hands its worker state to
-    the pool through a module global, so two trials can't share a process).
-
-    - Trials the cost gate skipped don't count toward n_trials; attempts are
-      capped at 4x n_trials so a study can't spin forever.
-    - A further trial launches only when the memory gate allows (see
-      MEMORY_RESERVE_GB), taking the largest footprint measured on the running
-      trials as the expected cost of one more; under MEMORY_HARD_FLOOR_GB the
-      youngest trial is stopped and recorded as pruned.
-    - A trial process that dies (exception, OOM kill) leaves its trial
-      RUNNING; it is marked failed here so the study never stalls on it, and
-      three failures in a row give up on this study instead of the whole run
-      (previously one exception aborted every remaining strategy of the game).
-    """
-    _, _, workers = plan_workers(days_to_rebuild)
-    footprint_seen = 0.3 + 0.5 * workers  # expected GB per trial until measured (0.5 GB/worker seen on keno)
-    print(f"{study_name}: {n_trials} trials, up to {parallel} at a time x {workers} workers, "
-          f"memory reserve {MEMORY_RESERVE_GB:g} GB, {available_memory_gb():.1f} GB available")
-
-    def mark_trial_of(pid, state, note):
-        study = open_study(study_name, make_storage(storage_url), days_to_rebuild, parallel, quiet=True)
-        for t in study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.RUNNING,)):
-            if t.user_attrs.get("worker_pid") == pid:
-                print(f"Trial {t.number} {note}")
-                study.tell(t.number, state=state, skip_if_finished=True)
-
-    ctx = multiprocessing.get_context("fork")
-    running = {}  # pid -> (Process, launched_at)
-    evaluated = attempts = failures_in_a_row = 0
-    max_attempts = n_trials * 4
-    aborted = False
-
-    def launch_allowed():
-        if not running:
-            return True
-        newest = max(launched_at for _, launched_at in running.values())
-        if time.time() - newest < PARALLEL_RAMP_SECONDS:
-            return False
-        return available_memory_gb() - footprint_seen >= MEMORY_RESERVE_GB
-
-    try:
-        while True:
-            for pid, (proc, _) in list(running.items()):
-                if proc.is_alive():
-                    continue
-                proc.join()
-                del running[pid]
-                if proc.exitcode == EXIT_TRIAL_SKIPPED:
-                    continue
-                evaluated += 1
-                if proc.exitcode == 0:
-                    failures_in_a_row = 0
-                    continue
-                failures_in_a_row += 1
-                mark_trial_of(pid, optuna.trial.TrialState.FAIL,
-                              f"marked failed - its process exited with code {proc.exitcode}")
-                if failures_in_a_row >= 3:
-                    print(f"{study_name}: three trial processes failed in a row - giving up on this study")
-                    aborted = True
-
-            want_more = not aborted and evaluated + len(running) < n_trials and attempts < max_attempts
-            if not want_more and not running:
-                break
-
-            if want_more and len(running) < parallel and launch_allowed():
-                sys.stdout.flush()
-                sys.stderr.flush()
-                proc = ctx.Process(
-                    target=_trial_process, name=f"trial:{study_name}",
-                    args=(study_name, strategy_name, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back,
-                          storage_url, parallel))
-                proc.start()
-                running[proc.pid] = (proc, time.time())
-                attempts += 1
-                continue
-
-            if running:
-                settled = [pid for pid, (_, launched_at) in running.items()
-                           if time.time() - launched_at >= PARALLEL_RAMP_SECONDS]
-                footprint_seen = max([footprint_seen] + [tree_rss_gb(pid) for pid in settled])
-                if len(running) > 1 and available_memory_gb() < MEMORY_HARD_FLOOR_GB:
-                    youngest = max(running, key=lambda p: running[p][1])
-                    footprint_seen = max(footprint_seen, tree_rss_gb(youngest))
-                    print(f"{study_name}: {available_memory_gb():.1f} GB available - stopping the youngest "
-                          f"concurrent trial (process {youngest}) before the OOM killer does")
-                    kill_tree(youngest)
-                    running.pop(youngest)[0].join()
-                    mark_trial_of(youngest, optuna.trial.TrialState.PRUNED, "pruned - stopped under memory pressure")
-            time.sleep(2)
-    except BaseException:
-        # Ctrl+C or a crash of the coordinator: never leave trial processes
-        # (and their worker pools) computing for a run that is gone.
-        for pid, (proc, _) in running.items():
-            kill_tree(pid)
-            proc.join(timeout=10)
-        raise
+    if PRUNE_PERCENTILE <= 0:
+        return optuna.pruners.NopPruner()
+    return optuna.pruners.PercentilePruner(
+        PRUNE_PERCENTILE,
+        n_startup_trials=PRUNE_MIN_COMPLETED_TRIALS,
+        n_warmup_steps=max(1, days_to_rebuild // 2))
 
 
 if __name__ == "__main__":
@@ -820,7 +510,7 @@ if __name__ == "__main__":
         print("Failed to create lock file. Exiting.")
         sys.exit(1)
 
-    signal.signal(signal.SIGTERM, _exit_on_sigterm)
+    install_sigterm_handler()
 
     try:
         try:
@@ -982,15 +672,21 @@ if __name__ == "__main__":
 
                     studyName = f"{dataset_name}_{strategy_name}"
                     parallel = parallel_trials_for(strategy["objective"].prefix, daysToRebuild)
+                    pruner_factory = lambda days=daysToRebuild: boost_pruner(days)
 
-                    study = open_study(studyName, make_storage(optunaDatabase), daysToRebuild, parallel)
+                    study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory())
                     fail_stale_running_trials(study)
 
-                    optimize_study(studyName, strategy_name, dataset_name, dataPath, game_cfg, daysToRebuild,
-                                   years_back, optunaDatabase, n_trials, parallel)
+                    objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
+                                       game_cfg=game_cfg: strategy["objective"](
+                        trial, dataset_name, dataPath, game_cfg, daysToRebuild, years_back)
+                    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel,
+                                   pruner_factory=pruner_factory,
+                                   expected_trial_gb=0.3 + 0.5 * plan_workers(daysToRebuild)[2],
+                                   memory_reserve_gb=MEMORY_RESERVE_GB)
 
                     # Fresh handle: the trials were written by the trial processes.
-                    study = open_study(studyName, make_storage(optunaDatabase), daysToRebuild, parallel, quiet=True)
+                    study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory(), quiet=True)
 
                     # Run-level setting, not a tuned param: recorded even when
                     # the study below yields nothing, so a non-default
@@ -1003,7 +699,7 @@ if __name__ == "__main__":
                     # pruned - study.best_params would then raise and abort
                     # the remaining strategies of this game. Keep whatever was
                     # tuned before and move on.
-                    if not any(t.state == optuna.trial.TrialState.COMPLETE for t in study.trials):
+                    if not has_completed_trials(study):
                         print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
                         continue
 

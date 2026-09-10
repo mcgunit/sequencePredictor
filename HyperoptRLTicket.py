@@ -1,10 +1,19 @@
-import os, argparse, json, sys, time
+import os, argparse, json, sys, time, shutil
+# Pin the BLAS pools before numpy is imported: the REINFORCE updates are small
+# matrix ops, and with trials running in parallel (HyperoptRunner) every
+# process would otherwise spin up a 16-thread OpenBLAS pool and thrash the box.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
 import optuna
+from multiprocessing import cpu_count
 from art import text2art
 from datetime import datetime
 
 from src.RLTicketModel import RLTicketModel
 from src.Helpers import Helpers
+from src.HyperoptRunner import (open_study, fail_stale_running_trials, has_completed_trials, optimize_study,
+                                install_sigterm_handler)
 
 helpers = Helpers()
 
@@ -213,6 +222,9 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     # data/models/rl_model: the live policy there is what production warm
     # starts from, and a tuning trial scribbling over it would poison every
     # real prediction until the next daily retrain.
+    # Trials run in parallel processes (HyperoptRunner.optimize_study), so each
+    # gets its own scratch policy dir - removed again at the end of the trial.
+    policyDir = os.path.join(policyDir, f"trial_{os.getpid()}")
     clear_folder(policyDir)
 
     # Fresh instance per trial (rather than Predictor.py's module-level
@@ -255,6 +267,7 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
         rlRow = rlTicket.run(dataset_name, rows, historyDir, gameConfig)
         scores.append(score_rl_row(rlRow, realResult, drawSize, is_pick3, is_keno))
 
+    shutil.rmtree(policyDir, ignore_errors=True)
     if not scores:
         return float("-inf")
     return sum(scores) / len(scores)
@@ -268,6 +281,8 @@ if __name__ == "__main__":
     if not create_lock():
         print("Failed to create lock file. Exiting.")
         sys.exit(1)
+
+    install_sigterm_handler()
 
     try:
         try:
@@ -286,6 +301,13 @@ if __name__ == "__main__":
         # minutes (run() is wall-clock capped per day).
         parser.add_argument('-d', '--days', type=int, default=40)
         parser.add_argument('-t', '--trials', type=int, default=20)
+        parser.add_argument(
+            '--parallel-trials', type=int, default=0,
+            help='Upper bound on trials evaluated at the same time, each in its own process. 0 '
+                 '(default) = auto: one per core (the REINFORCE loop is single-threaded and small), '
+                 'launched only while the memory gate allows (see HyperoptRunner.optimize_study). '
+                 '1 = off. The per-day wall-clock cap (rlTicketMaxTrainSeconds) is per process, '
+                 'so as long as trials do not exceed the cores they do not slow each other down.')
         parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
         parser.add_argument(
             '-g', '--games',
@@ -301,6 +323,8 @@ if __name__ == "__main__":
         evaluationDayCount = int(args.days)
         n_trials = int(args.trials)
         pushToGit = bool(args.save)
+        cores = max(1, cpu_count() - 1)
+        parallel = cores if int(args.parallel_trials) <= 0 else max(1, min(int(args.parallel_trials), cores))
 
         print("Push to git: ", pushToGit)
         print("Running ", n_trials, "trials")
@@ -360,22 +384,27 @@ if __name__ == "__main__":
 
                 maxTrainSeconds = existingData.get("rlTicketMaxTrainSeconds", 60)
 
-                studyName = f"{dataset_name}-rl_ticket"
-                study = optuna.create_study(
-                    direction='maximize',
-                    storage=optunaDatabase,
-                    study_name=studyName,
-                    load_if_exists=True
-                )
+                # Scratch policy dirs of trials a killed run left behind.
+                shutil.rmtree(policyDir, ignore_errors=True)
 
-                objective = lambda trial: objective_rl_ticket(
+                studyName = f"{dataset_name}-rl_ticket"
+                study = open_study(studyName, optunaDatabase, parallel=parallel)
+                fail_stale_running_trials(study)
+
+                objective = lambda trial, dataset_name=dataset_name, game_cfg=game_cfg, evaluation_days=evaluation_days, \
+                                   historyDir=historyDir, numberRange=numberRange, kenoSubsetSizes=kenoSubsetSizes, \
+                                   maxTrainSeconds=maxTrainSeconds: objective_rl_ticket(
                     trial, dataset_name, game_cfg, evaluation_days, historyDir,
-                    policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds
-                )
+                    policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds)
 
                 studyStart = time.time()
-                study.optimize(objective, n_trials=n_trials)
+                optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
                 print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
+
+                study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
+                if not has_completed_trials(study):
+                    print(f"No completed trials for {studyName} (all pruned/failed) - keeping existing params")
+                    continue
 
                 print(f"Best Parameters for {studyName}: ", study.best_params)
                 print(f"Best Score for {studyName}: ", study.best_value)
@@ -385,9 +414,10 @@ if __name__ == "__main__":
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)
 
-                # Leave no half-trained trial policy behind - the next tool in
-                # runHyperopt.sh shares the hyperOptCache tree.
-                clear_folder(policyDir)
+                # Leave no half-trained trial policy behind (per-trial subdirs
+                # included) - the next tool in runHyperopt.sh shares the
+                # hyperOptCache tree.
+                shutil.rmtree(policyDir, ignore_errors=True)
 
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")

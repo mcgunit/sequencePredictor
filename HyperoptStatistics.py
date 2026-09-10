@@ -1,11 +1,19 @@
 import os, argparse, json, sys
+# Pin the BLAS/OpenMP pools before numpy is imported: every Backtester worker
+# otherwise inherits a 16-thread OpenBLAS pool whose spin-waiting was measured
+# (HyperoptBoost) at ~10 cores of pure overhead per single-threaded fit.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
 import optuna
 import joblib
 from art import text2art
 from datetime import datetime
 
-from src.Backtester import Backtester
+from src.Backtester import Backtester, BacktestTimeout
 from src.DataLoader import DataLoader
+from src.HyperoptRunner import (open_study, fail_stale_running_trials, has_completed_trials, optimize_study,
+                                install_sigterm_handler)
 from src.Markov import Markov
 from src.MarkovMonteCarlo import MarkovMonteCarlo
 from src.MarkovBayesian import MarkovBayesian
@@ -136,6 +144,12 @@ def suggest_keno_subset(trial, model_name):
     return subset
 
 
+# Wall-clock budget per tuning trial (CLI --trial-timeout): a statistical trial
+# is seconds, so this only catches a runaway configuration - the Backtester
+# terminates its pool and the trial is recorded as PRUNED (see run_backtest).
+TRIAL_TIMEOUT_SECONDS = 1200
+
+
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back):
     """
     Builds a dedicated DataLoader configured with this game's real number
@@ -172,17 +186,22 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     # tuning objective.
     game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
 
-    results = backtester.backtest(
-        start_index=start_index,
-        end_index=total_rows,
-        generate_subsets=subsets,
-        skipLastColumns=game_cfg["skip_last_columns"],
-        years_back=years_back,
-        include_baselines=False,
-        verbose=False,
-        game=game_param,
-        special_column_count=game_cfg["special_column_count"]
-    )
+    try:
+        results = backtester.backtest(
+            max_seconds=TRIAL_TIMEOUT_SECONDS,
+            start_index=start_index,
+            end_index=total_rows,
+            generate_subsets=subsets,
+            skipLastColumns=game_cfg["skip_last_columns"],
+            years_back=years_back,
+            include_baselines=False,
+            verbose=False,
+            game=game_param,
+            special_column_count=game_cfg["special_column_count"]
+        )
+    except BacktestTimeout as e:
+        print(f"Trial pruned: {e}")
+        raise optuna.TrialPruned()
 
     summary = backtester.summarize(results)
     return summary.get("models", {}).get(model_name, {})
@@ -607,6 +626,8 @@ if __name__ == "__main__":
         print("Failed to create lock file. Exiting.")
         sys.exit(1)
 
+    install_sigterm_handler()
+
     try:
         try:
             helpers.git_pull()
@@ -621,6 +642,10 @@ if __name__ == "__main__":
 
         parser.add_argument('-d', '--days', type=int, default=31)
         parser.add_argument('-t', '--trials', type=int, default=15)
+        parser.add_argument(
+            '--trial-timeout', type=int, default=1200,
+            help='Wall-clock budget in seconds per tuning trial; a trial over budget is pruned '
+                 '(recorded, not scored). Statistical trials take seconds, this catches runaways.')
         parser.add_argument(
             '-s', '--strategies',
             type=str,
@@ -643,6 +668,7 @@ if __name__ == "__main__":
 
         daysToRebuild = int(args.days)
         n_trials = int(args.trials)
+        TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
         years_back = None  # None = all available data
 
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
@@ -715,18 +741,30 @@ if __name__ == "__main__":
 
                     studyName = f"{dataset_name}_{strategy_name}"
 
-                    study = optuna.create_study(
-                        direction='maximize',
-                        storage=optunaDatabase,
-                        study_name=studyName,
-                        load_if_exists=True
-                    )
+                    if strategy_name == "KenoSubsetTuning" and dataset_name not in _KENO_SUBSET_TUNING_CACHE:
+                        # Trials run in their own processes (HyperoptRunner):
+                        # the one-time ensemble backtest must be built here,
+                        # in the parent, so every trial inherits it through
+                        # the fork instead of rebuilding it (43 min in prod).
+                        print(f"Precomputing the Keno ensemble day table for {strategy_name}")
+                        _KENO_SUBSET_TUNING_CACHE[dataset_name] = build_keno_ensemble_day_data(
+                            dataset_name, dataPath, game_cfg, daysToRebuild, years_back)
 
-                    objective = lambda trial: strategy["objective"](
-                        trial, dataset_name, dataPath, game_cfg, daysToRebuild, years_back
-                    )
+                    study = open_study(studyName, optunaDatabase)
+                    fail_stale_running_trials(study)
 
-                    study.optimize(objective, n_trials=n_trials)
+                    objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
+                                       game_cfg=game_cfg: strategy["objective"](
+                        trial, dataset_name, dataPath, game_cfg, daysToRebuild, years_back)
+                    # One trial at a time: the Backtester already spreads each
+                    # trial's days over every core, so a second concurrent
+                    # trial would only add memory.
+                    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=1, expected_trial_gb=0.3)
+
+                    study = open_study(studyName, optunaDatabase, quiet=True)
+                    if not has_completed_trials(study):
+                        print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
+                        continue
 
                     print(f"Best Parameters for {strategy_name}: ", study.best_params)
                     print(f"Best Score for {strategy_name}: ", study.best_value)

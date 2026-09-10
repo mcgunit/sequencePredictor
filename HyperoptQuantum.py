@@ -1,5 +1,13 @@
 import os, argparse, json, sys, time, functools
+# Pin the BLAS pools before numpy is imported: with trials running in parallel
+# processes (HyperoptRunner) each would otherwise spin up a 16-thread OpenBLAS
+# pool; the statevector batches are small, one thread per trial is the fast
+# configuration, and the Backtester workers of collect_score_table need it too.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
 from datetime import datetime
+from multiprocessing import cpu_count
 import optuna
 import numpy as np
 from art import text2art
@@ -9,6 +17,7 @@ from sklearn.metrics import roc_auc_score
 from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
+from src.HyperoptRunner import open_study, fail_stale_running_trials, optimize_study, install_sigterm_handler
 from src.ModelFactory import BASE_MODEL_NAMES, build_models
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
 
@@ -388,6 +397,8 @@ if __name__ == "__main__":
         print("Failed to create lock file. Exiting.")
         sys.exit(1)
 
+    install_sigterm_handler()
+
     try:
         try:
             helpers.git_pull()
@@ -411,6 +422,15 @@ if __name__ == "__main__":
         # review). Bonus: tuning holdout grows from ~37 to ~75 days.
         parser.add_argument('-d', '--days', type=int, default=300)
         parser.add_argument('-t', '--trials', type=int, default=15)
+        parser.add_argument(
+            '--parallel-trials', type=int, default=0,
+            help='Upper bound on trials evaluated at the same time, each in its own process. 0 '
+                 '(default) = auto: one per core (a quantum fit is single-threaded numpy), launched '
+                 'only while the memory gate allows (see HyperoptRunner.optimize_study). 1 = off.')
+        parser.add_argument(
+            '--trial-timeout', type=int, default=1800,
+            help='Wall-clock budget in seconds per trial; a trial over budget is killed and recorded '
+                 'as pruned. Fits are seconds to minutes, this catches a runaway qubit/sample count.')
         parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
         parser.add_argument(
             '-g', '--games',
@@ -426,6 +446,9 @@ if __name__ == "__main__":
         days_back = int(args.days)
         n_trials = int(args.trials)
         pushToGit = bool(args.save)
+        cores = max(1, cpu_count() - 1)
+        parallel = cores if int(args.parallel_trials) <= 0 else max(1, min(int(args.parallel_trials), cores))
+        trialTimeout = int(args.trial_timeout)
 
         print("Push to git: ", pushToGit)
         print("Running ", n_trials, "trials")
@@ -487,12 +510,8 @@ if __name__ == "__main__":
 
                 for variant_name, fit_func, suggest_func in VARIANTS:
                     studyName = f"{dataset_name}-{variant_name}"
-                    study = optuna.create_study(
-                        direction='maximize',
-                        storage=optunaDatabase,
-                        study_name=studyName,
-                        load_if_exists=True
-                    )
+                    study = open_study(studyName, optunaDatabase, parallel=parallel)
+                    fail_stale_running_trials(study)
 
                     if is_positional:
                         objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
@@ -509,8 +528,13 @@ if __name__ == "__main__":
 
                     runStart = datetime.now()
                     studyStart = time.time()
-                    study.optimize(objective, n_trials=n_trials)
+                    # The score table above is inherited by every trial
+                    # process through the fork - collected once, fitted many
+                    # times in parallel.
+                    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel,
+                                   expected_trial_gb=0.5, trial_timeout_seconds=trialTimeout)
                     print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
+                    study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
 
                     # Best of THIS RUN's trials only - study.best_params would
                     # compare across weeks whose trials were scored on
