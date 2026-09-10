@@ -559,6 +559,46 @@ All quantum experiments remain subject to the repository's education and researc
 
 
 
+## Roadmap - upcoming work & research goals
+
+Planning notes for the next tracks, in the order I'd tackle them (small platform items first, then the research items that build on them). Decisions already taken are marked; open points are listed so they can be settled before the work starts.
+
+### 1. GUI: remove the Settings dropdown (small)
+
+The top-right "⚙️ Settings" dropdown holds a *global model filter* whose option list is hardcoded to seven statistical models (the pipeline now tracks ~25 rows per game, so the filter silently hides most of them when used) and a "played numbers" form. **Decision: remove it entirely** - the dropdown, the `/playedModel` and `/playedNumbers` endpoints, the `selectedModel`/`filterDataByModel` plumbing (every page shows every row), and the per-page CSS for it. The History/day pages already render all rows; nothing else depends on the filter.
+
+### 2. Best *combination* of models, next to best model (medium)
+
+Today `modelPerformance.json` ranks single rows. **Decision: track both readings of "combination":**
+
+- **Portfolio of rows** - play several rows' tickets together. For each candidate set of rows (all pairs and triples of established rows, plus a greedy build-up beyond that), the combination's profit is the sum of its rows' payouts against the summed stakes over the shared scored history; for games without a payout table, hits per stake. Reported as a "Best combination per game" card with the same `minDrawsForRanking` guard as single rows. This reuses the per-row tracking as-is and answers the question the research actually asks - *which set of rows is profitable to play*.
+- **Searched subset-ensemble** - a `WeightedEnsemble` restricted to a chosen subset of models, with the subset selected by hyperopt (per-model include flags as Optuna parameters, the same profit/hits objective), tracked as its own row (`SubsetEnsemble Model`) so its real-life results are comparable with everything else.
+
+Statistical caveat to design in from the start: evaluating hundreds of combinations over ~100 draws is a multiple-comparisons machine - a "best" combination will always exist by luck. The card must show the number of combinations evaluated and a permutation/shuffled-history control (the same negative-control discipline as the quantum section) before any combination is read as a real edge.
+
+### 3. Login screen with basic auth (small)
+
+**Assumption (say if you want otherwise):** a single credential from environment variables (`WEB_USER` / `WEB_PASSWORD`, read in `config.js`), enforced as HTTP Basic Auth on every Express route, disabled when the variables are unset (local development). Two consequences worth deciding early: HTTP Basic sends credentials on every request, so the app should sit behind HTTPS (reverse proxy or a TLS terminator); and the Optuna dashboard runs on its own port outside Express, so it must be bound to localhost and reached through an authenticated proxy route, or it stays unprotected.
+
+### 4. Same models for crypto and shares - a predictor, not a trading bot (large, own phase plan)
+
+Research question: *do the principles that fail to find structure in a fair lottery find any in market prices?* - the same statistical, deep-learning, boosting and quantum model families, the same walk-forward evaluation, the same negative controls. Not a trading bot: the output is tracked predictions and honest scoring.
+
+**Decisions taken:** storage moves from day JSONs to **SQLite inside this repo** (the repo already carries `db.sqlite3` for Optuna; one more file, no new service), and the cadence is **daily bars** - one "draw" per trading day keeps parity with the lottery framing and the daily cron rhythm.
+
+Design sketch:
+- **Data**: daily OHLCV per instrument from a free source (e.g. a public exchange API for crypto, a public quotes API for shares), a configurable, deliberately small universe to start (a few liquid crypto pairs, a few indices/shares), stored in `data/markets.sqlite3` (tables: instruments, bars, predictions, results, model_performance). Weekend/holiday gaps are a real difference from daily lotteries and need explicit handling.
+- **Target - the lottery analogy made concrete**: discretize each instrument's next-day return into K quantile bins (e.g. 10, fitted on the training window only); a day's "draw" is then the vector of bin indices across instruments, i.e. a *positional* game (instrument = position, bin = digit) - exactly the pick3/Joker+ machinery (`is_positional_game`, per-position boosting, positional meta-learner, per-position DL heads). Direction (up/down) is the 2-bin special case.
+- **Scoring**: per-position hits (bin exact / adjacent) plus a *paper P&L* of a fixed rule (long when the predicted bin is above the median, otherwise flat, minus a realistic fee) - the "profit" role the payout tables play for keno/pick3. Statistically the bar is the efficient-market prior: a synthetic geometric-random-walk control with matched volatility (the market equivalent of the synthetic fair-draw control), shuffled-history control, and an untouched holdout period, before any accuracy above 1/K is read as predictability.
+- **Reuse**: `DataLoader`/`Backtester`/hyperopt scripts gain a market-backed loader; models stay untouched (they only see integer sequences). The RL row becomes meaningful again here (position sizing is a real player lever, unlike Joker+ digits).
+- **Open points**: instrument universe and data provider (rate limits, licensing), how to treat holidays in the sequence, whether the UI gets a separate "Markets" section or reuses the History page.
+
+### 5. Chronos-2 as a per-position predictor (medium)
+
+Chronos-2 is Amazon's pretrained time-series foundation model (the `chronos-forecasting` package; zero-shot, quantile forecasts). Idea: treat **every number position as its own univariate series** (position 1 of lotto over time, position 2, ...), ask the model for the next value's quantile forecast, and turn the forecast distribution into a per-position score over the game's labels - i.e. the standard per-position softmax shape every positional consumer already understands, so it plugs in as one more tracked row (and as a base-model feature for the positional meta-learner).
+
+**Decisions taken:** yes to the dependency (PyTorch + `chronos-forecasting` next to TensorFlow, ~2 GB), **zero-shot first**; fine-tuning only if the zero-shot row shows anything. Practical notes: run it in the spawned DL child like the other heavy rows (the 6 GB GPU is shared, and torch and TensorFlow must not both grab it - CPU inference of the small Chronos-2 variant is fine for a handful of positions), and be explicit about what a result means: for *sorted* set games the per-position series carry order-statistics structure (position 1 is the minimum, so it is genuinely predictable in distribution) - the row must be compared against an order-statistics baseline, not chance; for positional games (pick3, Joker+) an honest process gives near-uniform forecasts, which makes this row a useful **negative control** for the lottery track and a natural first model for the markets track, where a time-series foundation model is actually in its element.
+
 ## Installation
 
 ### For Predictor (Python)
