@@ -1,7 +1,215 @@
 {
   "currentPredictionRaw": [],
-  "currentPrediction": [],
-  "currentNumberFrequency": {},
+  "currentPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          6,
+          0,
+          3,
+          5,
+          6,
+          2,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "MarkovMonteCarlo Model",
+      "predictions": [
+        [
+          8,
+          9,
+          3,
+          5,
+          6,
+          0,
+          9
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          2,
+          1,
+          9,
+          3,
+          3,
+          2,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          4,
+          4,
+          4,
+          4,
+          4,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "MetaLearner Model",
+      "predictions": [
+        [
+          4,
+          7,
+          6,
+          4,
+          4,
+          7,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "MetaLearnerV2 Model",
+      "predictions": [
+        [
+          1,
+          7,
+          8,
+          2,
+          4,
+          1,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "QuantumMetaLearner Model",
+      "predictions": [
+        [
+          5,
+          4,
+          8,
+          5,
+          4,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "QuantumVQC Model",
+      "predictions": [
+        [
+          9,
+          7,
+          8,
+          4,
+          4,
+          9,
+          11
+        ]
+      ]
+    },
+    {
+      "name": "Transformer Model",
+      "predictions": [
+        [
+          8,
+          4,
+          3,
+          3,
+          3,
+          8,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "GNN Model",
+      "predictions": [
+        [
+          8,
+          6,
+          1,
+          8,
+          3,
+          5,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "Autoencoder Model",
+      "predictions": [
+        [
+          8,
+          6,
+          3,
+          1,
+          9,
+          5,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          5,
+          3,
+          4,
+          9,
+          4,
+          7,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          5,
+          5,
+          7,
+          7,
+          4,
+          1,
+          10
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          8,
+          6,
+          0,
+          8,
+          4,
+          0,
+          4
+        ]
+      ]
+    }
+  ],
+  "currentNumberFrequency": {
+    "6": 0.07407407407407407,
+    "0": 0.05291005291005291,
+    "3": 0.12698412698412698,
+    "5": 0.12169312169312169,
+    "2": 0.042328042328042326,
+    "8": 0.1164021164021164,
+    "9": 0.07407407407407407,
+    "1": 0.07142857142857142,
+    "4": 0.21957671957671956,
+    "7": 0.10052910052910052
+  },
   "realResult": [
     4,
     5,
@@ -155,14 +363,28 @@
   ],
   "newPredictionRaw": [],
   "matchingNumbers": {
-    "model": null,
-    "prediction": null,
-    "matching_numbers": [],
-    "match_count": 0,
-    "special_matching_numbers": [],
-    "special_match_count": 0,
-    "left_run": 0,
-    "right_run": 0
+    "model": "MetaLearner Model",
+    "prediction": [
+      4,
+      7,
+      6,
+      4,
+      4,
+      7,
+      5
+    ],
+    "matching_numbers": [
+      4,
+      4,
+      7
+    ],
+    "match_count": 3,
+    "special_matching_numbers": [
+      5
+    ],
+    "special_match_count": 1,
+    "left_run": 1,
+    "right_run": 2
   },
   "labels": [
     0,
