@@ -42,6 +42,35 @@
     "modelScores": {
         "XGBoost Model": -0.20967741935483872,
         "LightGBM Model": -0.25806451612903225,
-        "CatBoost Model": -0.4032258064516129
-    }
+        "CatBoost Model": -0.4032258064516129,
+        "Markov Model": -0.6935483870967742,
+        "MarkovMonteCarlo Model": -0.6612903225806451,
+        "PoissonMonteCarlo Model": -0.11290322580645161,
+        "LaplaceMonteCarlo Model": -0.6612903225806451
+    },
+    "markovSoftMaxTemperature": 0.15129656995650512,
+    "markovMinOccurences": 20,
+    "markovAlpha": 0.9935872261576875,
+    "markovRecencyWeight": 0.3891153851173845,
+    "markovRecencyMode": "linear",
+    "markovPairDecayFactor": 0.8396887288923822,
+    "markovSmoothingFactor": 0.04118944891947828,
+    "markovSubsetSelectionMode": "softmax",
+    "markovBlendMode": "log",
+    "markovOrder": 3,
+    "markovPairScoringWeight": 1.8951371891774822,
+    "markovSortedPrediction": false,
+    "markovUsePairScoring": true,
+    "markovMcSoftMaxTemperature": 0.6268673437685012,
+    "markovMcMinOccurences": 18,
+    "markovMcAlpha": 0.7541221037733368,
+    "markovMcRecencyWeight": 1.5188538399737896,
+    "markovMcRecencyMode": "log",
+    "markovMcPairDecayFactor": 0.6046646782508209,
+    "markovMcSmoothingFactor": 0.8266893617489838,
+    "markovMcOrder": 2,
+    "markovMcNumSimulations": 100,
+    "poissonMonteCarloNumberOfSimulations": 400,
+    "poissonMonteCarloWeightFactor": 0.3315351837366193,
+    "laplaceMonteCarloNumberOfSimulations": 100
 }
