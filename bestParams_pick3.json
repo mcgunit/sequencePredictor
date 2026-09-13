@@ -198,5 +198,16 @@
     "rlTicketLearningRate": 0.15727953353901603,
     "rlTicketEpochs": 60,
     "rlTicketSamplesPerDay": 16,
-    "rlTicketTrainDays": 60
+    "rlTicketTrainDays": 60,
+    "quantumKernel_nQubits": 4,
+    "quantumKernel_encodingLayers": 3,
+    "quantumKernel_encodingScale": 1.75,
+    "quantumKernel_C": 14.24714458316563,
+    "quantumKernel_maxTrainSamples": 1000,
+    "quantumVqc_nQubits": 4,
+    "quantumVqc_numLayers": 3,
+    "quantumVqc_encodingScale": 0.75,
+    "quantumVqc_learningRate": 0.0996687648458058,
+    "quantumVqc_epochs": 30,
+    "quantumVqc_batchSize": 256
 }
