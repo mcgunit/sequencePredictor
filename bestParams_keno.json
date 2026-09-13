@@ -303,5 +303,9 @@
     "catboost_ml_use_8": false,
     "catboost_ml_use_9": true,
     "catboost_ml_use_10": true,
-    "useCatBoostMultiLabel": true
+    "useCatBoostMultiLabel": true,
+    "rlTicketLearningRate": 0.0685394615426594,
+    "rlTicketEpochs": 60,
+    "rlTicketSamplesPerDay": 64,
+    "rlTicketTrainDays": 120
 }

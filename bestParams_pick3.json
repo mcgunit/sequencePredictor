@@ -194,5 +194,9 @@
     "catBoostRegLambda": 2.506398281944366,
     "catBoostSubsetMode": "softmax",
     "catBoostSubsetTemperature": 0.588219170897256,
-    "useCatBoost": true
+    "useCatBoost": true,
+    "rlTicketLearningRate": 0.15727953353901603,
+    "rlTicketEpochs": 60,
+    "rlTicketSamplesPerDay": 16,
+    "rlTicketTrainDays": 60
 }

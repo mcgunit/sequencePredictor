@@ -207,5 +207,9 @@
     "quantumVqc_epochs": 90,
     "quantumVqc_batchSize": 256,
     "catBoostBorderCount": 254,
-    "catBoostMlBorderCount": 254
+    "catBoostMlBorderCount": 254,
+    "rlTicketLearningRate": 0.040174703391742485,
+    "rlTicketEpochs": 40,
+    "rlTicketSamplesPerDay": 16,
+    "rlTicketTrainDays": 240
 }
