@@ -566,9 +566,9 @@ All quantum experiments remain subject to the repository's education and researc
 
 Planning notes for the next tracks, in the order I'd tackle them (small platform items first, then the research items that build on them). Decisions already taken are marked; open points are listed so they can be settled before the work starts.
 
-### 1. GUI: remove the Settings dropdown (small)
+### 1. GUI: remove the Settings dropdown (small) - done
 
-The top-right "⚙️ Settings" dropdown holds a *global model filter* whose option list is hardcoded to seven statistical models (the pipeline now tracks ~25 rows per game, so the filter silently hides most of them when used) and a "played numbers" form. **Decision: remove it entirely** - the dropdown, the `/playedModel` and `/playedNumbers` endpoints, the `selectedModel`/`filterDataByModel` plumbing (every page shows every row), and the per-page CSS for it. The History/day pages already render all rows; nothing else depends on the filter.
+Done 2026-09-13. The top-right "⚙️ Settings" dropdown held a *global model filter* whose option list was hardcoded to seven statistical models (the pipeline tracks ~25 rows per game, so the filter silently hid most of them when used) and a "Keno played numbers" form whose value was only echoed in the navbar and never used in any calculation. Removed: the dropdown and the navbar status text, the `/playedModel` and `/playedNumbers` endpoints together with the body-parsing middleware only they used, the `selectedModel`/`filterDataByModel` plumbing (every page shows every row), and the CSS for the dropdown, the status text and the form fields. The button style survives as `.nav-btn` because the day page's "Back to History" link reuses it. Verified by rendering every page (home, History, all seven game pages, oldest and newest day page per game) with the previous and the new `server.js`: outside the removed navbar block the HTML is byte-identical, and the two removed routes answer 404.
 
 ### 2. Best *combination* of models, next to best model (medium)
 

@@ -7,17 +7,9 @@ const config = require("./config");
 
 const app = express();
 
-// Middleware to parse form data and JSON
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); 
-
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
 // modelsPath removed as it is no longer used
-
-// --- GLOBAL STATE ---
-var selectedPlayedNumbers = [4, 5, 6, 7, 8, 9, 10]; // Default for Keno
-var selectedModel = ["all"]; // Global filter for which models to show/calculate
 
 // --- GAME SHAPES ---
 // Mirrors Predictor.py's SPECIAL_COLUMN_COUNTS: how many trailing values of a
@@ -243,22 +235,13 @@ function generateHeader(title = "Sequence Predictor") {
       
       .nav-group { display: flex; align-items: center; }
       
-      /* DROPDOWN SETTINGS */
-      .settings-container { position: relative; display: inline-block; }
-      .settings-btn {
+      /* NAV BUTTON (e.g. the day page's "Back to History" link) */
+      .nav-btn {
         background-color: #34495e; color: white; padding: 10px 15px;
         border: 1px solid #455a64; cursor: pointer; border-radius: 6px;
         font-size: 1em; transition: background 0.2s;
       }
-      .settings-btn:hover { background-color: #2c3e50; }
-      
-      .settings-content {
-        display: none; position: absolute; right: 0; top: 100%;
-        background-color: white; min-width: 300px;
-        box-shadow: 0px 8px 20px rgba(0,0,0,0.2); padding: 20px;
-        z-index: 2000; border-radius: 8px; color: #333; border: 1px solid #ddd;
-      }
-      .settings-container:hover .settings-content { display: block; }
+      .nav-btn:hover { background-color: #2c3e50; }
       
       /* LAYOUT */
       .container { padding: 20px; max-width: 1000px; margin: auto; }
@@ -327,14 +310,8 @@ function generateHeader(title = "Sequence Predictor") {
       tr:nth-child(even) { background-color: #f8f9fa; }
       
       /* FORMS & BUTTONS */
-      input, select { 
-        padding: 10px; margin: 5px 0 15px 0; 
-        border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box;
-      }
       button { cursor: pointer; }
 
-      .status-bar { font-size: 0.9em; color: #bdc3c7; margin-right: 15px; text-align: right;}
-      .status-bar b { color: white; }
     </style>
   </head>
   <body>
@@ -343,40 +320,6 @@ function generateHeader(title = "Sequence Predictor") {
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">History</a>
         <a id="optuna-link" href="#" target="_blank">Optuna</a>
-      </div>
-
-      <div class="nav-group">
-        <div class="status-bar">
-          <div>Model: <b>${selectedModel.join(', ')}</b></div>
-          <div>Numbers: <b>${selectedPlayedNumbers.join(',')}</b></div>
-        </div>
-        
-        <div class="settings-container">
-          <button class="settings-btn">⚙️ Settings</button>
-          <div class="settings-content">
-            <h3 style="margin-top: 0;">Global Settings</h3>
-            <form id="globalModelForm">
-              <label><strong>Select Model(s):</strong></label><br>
-              <select id="globalSelectedModel" multiple style="width: 100%; height: 120px;">
-                <option value="all" ${selectedModel.includes('all') ? 'selected' : ''}>All Models</option>
-                <option value="HybridStatisticalModel" ${selectedModel.includes('HybridStatisticalModel') ? 'selected' : ''}>HybridStatisticalModel</option>
-                <option value="LaplaceMonteCarlo Model" ${selectedModel.includes('LaplaceMonteCarlo Model') ? 'selected' : ''}>LaplaceMonteCarlo</option>
-                <option value="PoissonMarkov Model" ${selectedModel.includes('PoissonMarkov Model') ? 'selected' : ''}>PoissonMarkov</option>
-                <option value="PoissonMonteCarlo Model" ${selectedModel.includes('PoissonMonteCarlo Model') ? 'selected' : ''}>PoissonMonteCarlo</option>
-                <option value="MarkovBayesian Model" ${selectedModel.includes('MarkovBayesian Model') ? 'selected' : ''}>MarkovBayesian</option>
-                <option value="Markov Model" ${selectedModel.includes('Markov Model') ? 'selected' : ''}>Markov</option>
-                <option value="MarkovBayesianEnhanched Model" ${selectedModel.includes('MarkovBayesianEnhanched Model') ? 'selected' : ''}>MarkovBayesianEnhanced</option>
-              </select>
-              <button type="submit" style="width: 100%; background: #27ae60; color: white; border: none; padding: 10px; margin-top: 5px; border-radius: 4px;">Apply Models</button>
-            </form>
-            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
-            <form id="globalPlayedNumbersForm">
-              <label><strong>Keno Played Numbers:</strong></label><br>
-              <input type="text" id="globalPlayedNumbers" value="${selectedPlayedNumbers.join(',')}" placeholder="4,5,6...">
-              <button type="submit" style="width: 100%; background: #2980b9; color: white; border: none; padding: 10px; border-radius: 4px;">Update Numbers</button>
-            </form>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -395,23 +338,6 @@ function generateHeader(title = "Sequence Predictor") {
             optunaLink.href = \`\${window.location.protocol}//\${window.location.hostname}:3002\`;
         }
       });
-
-      // Settings Logic
-      document.getElementById('globalModelForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const options = document.getElementById('globalSelectedModel').selectedOptions;
-        const values = Array.from(options).map(o => o.value);
-        await fetch('/playedModel', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ selectedModel: values }) });
-        window.location.reload();
-      });
-
-      document.getElementById('globalPlayedNumbersForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const val = document.getElementById('globalPlayedNumbers').value;
-        const arr = val.split(',').map(n => n.trim()).filter(n => n);
-        await fetch('/playedNumbers', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ playedNumbers: arr }) });
-        window.location.reload();
-      });
     </script>
     <div class="container">
   `;
@@ -421,20 +347,13 @@ function generateFooter() {
   return `</div></body></html>`;
 }
 
-// --- LOGIC: Filter Data ---
-function filterDataByModel(data) {
-  if (!data) return [];
-  if (selectedModel.includes("all")) return data;
-  return data.filter(modelItem => selectedModel.some(sel => modelItem.name === sel || modelItem.name.includes(sel)));
-}
-
 // --- LOGIC: Table Generation ---
 // realResult is the full drawn row (mains + specials, or mains + lotto bonus);
 // cells are highlighted index-aware so a predicted star only lights up against
 // the drawn stars and a predicted main only against the drawn mains.
 function generateTable(data, title = '', realResult = [], calcProfit = false, game = "") {
-  const filteredData = filterDataByModel(data);
-  if (filteredData.length === 0) return `<p style="padding: 10px; color: #888;">No predictions for selected model(s).</p>`;
+  const modelRows = data || [];
+  if (modelRows.length === 0) return `<p style="padding: 10px; color: #888;">No predictions.</p>`;
 
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
   // Joker+ is positional: hits are leading/trailing runs, not membership, and
@@ -449,15 +368,15 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   html += '<table border="1">';
 
   html += '<tr><th style="min-width: 150px;">Model</th><th style="width: 50px;">#</th>';
-  if (filteredData.length > 0 && filteredData[0].predictions.length > 0) {
+  if (modelRows.length > 0 && modelRows[0].predictions.length > 0) {
     // Joker+'s 7th column is the sign, not a seventh number.
-    Array.from({ length: filteredData[0].predictions[0].length }).forEach((_, i) => html += (isJoker && i === 6) ? '<th>Sign</th>' : `<th>Num ${i + 1}</th>`);
+    Array.from({ length: modelRows[0].predictions[0].length }).forEach((_, i) => html += (isJoker && i === 6) ? '<th>Sign</th>' : `<th>Num ${i + 1}</th>`);
   }
   if(hasReal) html += '<th>Hits</th>';
   if(calcProfit) html += '<th>Profit</th>';
   html += '</tr>';
 
-  filteredData.forEach((model) => {
+  modelRows.forEach((model) => {
     model.predictions.forEach((row, rowIndex) => {
       const modelType = model.name || "not known";
       const { mains: ticketMains, specials: ticketSpecials } = splitTicket(row, realMains, specialCount);
@@ -941,7 +860,7 @@ app.get('/database/:folder', (req, res) => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         let fileProfit = 0; let fileBest = { mains: 0, specials: 0, left: 0, right: 0 };
-        const validPredictions = filterDataByModel(jsonData.currentPrediction);
+        const validPredictions = jsonData.currentPrediction || [];
 
         if (validPredictions && validPredictions.length > 0) {
             if(calcProfit) {
@@ -957,7 +876,7 @@ app.get('/database/:folder', (req, res) => {
                 // trusting jsonData.matchingNumbers: old day JSONs still carry
                 // the pooled main+special shape in that field, newer ones the
                 // split one, and recomputing renders both vintages the same
-                // way - and respects the active model filter.
+                // way.
                 const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(jsonData.realResult, game);
                 validPredictions.forEach(predObj => {
                     predObj.predictions.forEach(p => {
@@ -1056,7 +975,7 @@ app.get('/database/:folder/:file', (req, res) => {
   html += `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h1 style="margin: 0;">${file}</h1>
-        <a href="/database/${folder}" class="settings-btn" style="text-decoration: none;">Back to History</a>
+        <a href="/database/${folder}" class="nav-btn" style="text-decoration: none;">Back to History</a>
     </div>
 
     <div class="card expanded">
@@ -1190,21 +1109,6 @@ app.get('/', (req, res) => {
 
   html += generateFooter();
   res.send(html);
-});
-
-app.post('/playedNumbers', (req, res) => {
-  let playedNumbers = req.body.playedNumbers;
-  if (!playedNumbers) return res.status(400).send('No numbers');
-  if (!Array.isArray(playedNumbers)) playedNumbers = [playedNumbers];
-  selectedPlayedNumbers = playedNumbers.map(n => Number(n)).filter(n => !isNaN(n));
-  res.json({ success: true });
-});
-  
-app.post('/playedModel', (req, res) => {
-  let playedModel = req.body.selectedModel;
-  if (!Array.isArray(playedModel)) playedModel = [playedModel];
-  selectedModel = playedModel;
-  res.json({ success: true });
 });
 
 app.listen(config.PORT, config.INTERFACE, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
