@@ -211,5 +211,20 @@
     "rlTicketLearningRate": 0.036017381912900014,
     "rlTicketEpochs": 10,
     "rlTicketSamplesPerDay": 16,
-    "rlTicketTrainDays": 60
+    "rlTicketTrainDays": 60,
+    "subsetEnsembleModels": [
+        "LSTM Base Model",
+        "LaplaceMonteCarlo Model",
+        "PoissonMarkov Model"
+    ],
+    "subsetEnsembleWeighted": true,
+    "subsetEnsembleObjective": 1.0898,
+    "subsetEnsembleMean": 1.2,
+    "subsetEnsembleTunedOn": {
+        "days": 80,
+        "from": "2025-11-13",
+        "to": "2026-09-10",
+        "candidates": 7,
+        "confidencePenalty": 1.0
+    }
 }

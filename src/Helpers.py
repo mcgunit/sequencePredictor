@@ -475,11 +475,17 @@ class Helpers():
                 values[-1] = encode_zodiac(last)
         return list(map(int, values))
 
-    def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json"):
+    def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json",
+                                          combinationShuffles=100):
         """
         Scans every game folder under databaseDir and writes a per-game,
         per-model performance summary over ALL scored history (each file's
         currentPrediction vs its realResult), for the web UI's History page.
+
+        Next to the single-row ranking, each game gets a "combinations"
+        section (_build_combination_report): the best SET of established
+        rows to play together, with a shuffled-history control run
+        combinationShuffles times (0 disables the control).
 
         Ranking metric per game:
         - keno/pick3/jokerplus (real payout tables exist): average profit per
@@ -517,6 +523,10 @@ class Helpers():
             gameSpecialCount = next(
                 (count for g, count in self.SPECIAL_COLUMN_COUNTS.items() if g in game), 0)
             stats = {}
+            # Per scored day: the real result plus every row's ticket(s) and
+            # its hits/profit that day - the table the portfolio search in
+            # _build_combination_report works from.
+            dayTable = []
 
             for fileName in os.listdir(gameDir):
                 if not fileName.endswith(".json"):
@@ -531,6 +541,17 @@ class Helpers():
                 scoredModels = dayData.get("currentPrediction") or []
                 if not realResult or not scoredModels:
                     continue
+
+                try:
+                    dayDate = datetime.strptime(fileName[:-5], "%Y-%m-%d")
+                except ValueError:
+                    dayDate = None
+                dayMainCount, _ = self.main_special_split(game, realResult)
+                dayRecord = {
+                    "file": fileName, "date": dayDate, "realResult": realResult,
+                    "resultMains": [int(v) for v in realResult[:dayMainCount]], "rows": {},
+                }
+                dayTable.append(dayRecord)
 
                 for model in scoredModels:
                     name = model.get("name")
@@ -573,6 +594,7 @@ class Helpers():
                     if realBonus:
                         entry["special_hits_total"] += len(ticketMainSet & realBonus)
 
+                    rowProfit, rowBets, playable = 0.0, 0, []
                     if "keno" in game:
                         # Profit exists only for playable 5-10-number subsets,
                         # not the full 20-number ticket.
@@ -581,11 +603,16 @@ class Helpers():
                             if profit is not None:
                                 entry["profit_total"] += profit
                                 entry["bets"] += 1
+                                rowProfit += profit
+                                rowBets += 1
+                                playable.append([int(n) for n in ticket])
                     elif "pick3" in game:
                         profit = self.pick3_ticket_profit(mainTicket, realResult)
                         if profit is not None:
                             entry["profit_total"] += profit
                             entry["bets"] += 1
+                            rowProfit += profit
+                            rowBets += 1
                     elif is_jokerplus(game):
                         # One 1.50 EUR ticket per draw on the 7-value row
                         # (digits + sign); a 6-digit row scores sign-unknown.
@@ -593,6 +620,21 @@ class Helpers():
                         if profit is not None:
                             entry["profit_total"] += profit
                             entry["bets"] += 1
+                            rowProfit += profit
+                            rowBets += 1
+
+                    # Same numbers again, per (row, day) for the portfolio
+                    # search. Two rows sharing a name on one day (should not
+                    # happen) keep the last one here while the totals above
+                    # count both.
+                    dayRecord["rows"][name] = {
+                        "mainTicket": list(mainTicket),
+                        "mains": sorted(ticketMainSet),
+                        "hits": hits,
+                        "profit": rowProfit if rowBets else None,
+                        "bets": rowBets,
+                        "playable": playable,
+                    }
 
             models = []
             for name, entry in stats.items():
@@ -642,6 +684,15 @@ class Helpers():
                 "bestModel": models[0]["name"],
                 "models": models,
             }
+
+            # Portfolio search over the established rows (roadmap item 2):
+            # which SET of rows is worth playing together, with a shuffled-
+            # history control against the multiple-comparisons effect.
+            try:
+                report["games"][game]["combinations"] = self._build_combination_report(
+                    game, dayTable, models, hasPayout, minDraws, shuffles=combinationShuffles)
+            except Exception as e:
+                print(f"Combination report failed for {game}: {e}")
 
         # ------------------------------------------------------------------
         # Phase-shift (lag) analysis: score each file's newPrediction not only
@@ -988,6 +1039,428 @@ class Helpers():
             json.dump(report, outfile, indent=2)
         print(f"Model performance report written to {outputPath}")
         return report
+
+    def build_vote_ensemble_predictions(self, rows, main_count, special_count, model_scores=None,
+                                        keno_subset_sizes=(), subset_mode="softmax", subset_temperature=0.5):
+        """
+        The one vote-ensemble recipe shared by the served `WeightedEnsemble
+        Model` / `SubsetEnsemble Model` rows (Predictor.py) and the subset
+        tuner (HyperoptEnsemble.py), so a tuned subset is scored exactly the
+        way it will later be played: score-weighted vote over the given rows'
+        main tickets (count_number_frequencies_by_position - mains and
+        special columns voted separately), top-main_count numbers as the
+        ticket, the special column(s) appended from their own vote, and for
+        Keno the playable sub-selections sliced from the main vote with
+        generate_subset_from_scores.
+
+        rows: prediction entries ({"name", "predictions"}) that take part in
+        the vote. Returns [main_ticket, *keno_subsets] or None when no ticket
+        can be built (no rows, too few distinct numbers for a full ticket).
+        """
+        rows = [row for row in (rows or []) if row.get("predictions") and row["predictions"][0]]
+        if not rows or main_count <= 0:
+            return None
+
+        main_frequencies, special_frequencies = self.count_number_frequencies_by_position(
+            {"newPrediction": rows}, main_count, model_scores=model_scores)
+
+        main_ticket = self.build_weighted_ensemble_prediction(main_frequencies, main_count)
+        if not main_ticket:
+            return None
+        ticket_numbers = main_ticket["predictions"][0]
+
+        predictions = [ticket_numbers] + [
+            self.generate_subset_from_scores(
+                main_frequencies, ticket_numbers, subset_size,
+                mode=subset_mode, temperature=subset_temperature)
+            for subset_size in (keno_subset_sizes or [])
+        ]
+
+        if special_count > 0:
+            special_ticket = self.build_weighted_ensemble_prediction(special_frequencies, special_count)
+            if not special_ticket:
+                return None
+            predictions[0] = ticket_numbers + special_ticket["predictions"][0]
+
+        return predictions
+
+    def _keno_profit_lookup(self):
+        """
+        {played: [net profit for 0..played matches]} for the playable 5-10
+        number Keno tickets, probed from keno_ticket_profit itself with
+        synthetic tickets - so the vectorized shuffle control in
+        _build_combination_report never carries a second copy of the payout
+        table that could drift from the scalar function.
+        """
+        reference = list(range(1, 21))
+        lookup = {}
+        for played in range(5, 11):
+            values = []
+            for matches in range(0, played + 1):
+                ticket = reference[:matches] + list(range(21, 21 + played - matches))
+                values.append(float(self.keno_ticket_profit(ticket, reference)))
+            lookup[played] = np.array(values)
+        return lookup
+
+    def _combination_cross_scores(self, game, days, rowIndex, hasPayout, valid, value, betCount):
+        """
+        Builds `score_under(perm)` for the shuffled-history control: the
+        (rows x days) value/bet matrices the portfolio search would see if
+        day d's tickets were scored against the real result of day perm[d].
+        Every ticket-vs-result score is computed once up front (hits by a
+        one-hot matrix product for the hit-scored games and Keno, whose
+        payout depends only on (played, matches); the positional payout
+        functions themselves for Pick3/Joker+, memoized per distinct
+        ticket), so each shuffle is an index lookup. The identity permutation
+        must reproduce the observed matrices - checked by the caller.
+        """
+        R, D = valid.shape
+        positional_payout = hasPayout and ("pick3" in game or is_jokerplus(game))
+
+        if positional_payout:
+            profitFn = self.pick3_ticket_profit if "pick3" in game else self.jokerplus_ticket_profit
+            results = [day["realResult"] for day in days]
+            uniqueTickets = {}
+            ticketOf = np.zeros((R, D), dtype=int)
+            for d, day in enumerate(days):
+                for name, row in day["rows"].items():
+                    r = rowIndex.get(name)
+                    if r is None or not valid[r, d]:
+                        continue
+                    key = tuple(row["mainTicket"])
+                    ticketOf[r, d] = uniqueTickets.setdefault(key, len(uniqueTickets))
+            cross = np.zeros((max(len(uniqueTickets), 1), D))
+            for key, t in uniqueTickets.items():
+                ticket = list(key)
+                for e, result in enumerate(results):
+                    profit = profitFn(ticket, result)
+                    cross[t, e] = profit if profit is not None else 0.0
+
+            def score_under(perm):
+                permuted = np.where(valid, cross[ticketOf, perm[None, :]], 0.0)
+                return permuted, betCount
+            return score_under
+
+        # One-hot everything on the main number range.
+        maxNumber = 0
+        for day in days:
+            if day["resultMains"]:
+                maxNumber = max(maxNumber, max(day["resultMains"]))
+            for row in day["rows"].values():
+                tickets = row["playable"] if hasPayout else [row["mains"]]
+                for ticket in tickets:
+                    if ticket:
+                        maxNumber = max(maxNumber, max(ticket))
+        width = maxNumber + 1
+        resultOneHot = np.zeros((D, width))
+        for d, day in enumerate(days):
+            resultOneHot[d, day["resultMains"]] = 1.0
+
+        ticketRows, rIdx, dIdx, played = [], [], [], []
+        for d, day in enumerate(days):
+            for name, row in day["rows"].items():
+                r = rowIndex.get(name)
+                if r is None or not valid[r, d]:
+                    continue
+                tickets = row["playable"] if hasPayout else [row["mains"]]
+                for ticket in tickets:
+                    oneHot = np.zeros(width)
+                    oneHot[list(ticket)] = 1.0
+                    ticketRows.append(oneHot)
+                    rIdx.append(r)
+                    dIdx.append(d)
+                    played.append(len(ticket))
+        if not ticketRows:
+            return None
+        ticketMatrix = np.array(ticketRows)
+        rIdx, dIdx, played = np.array(rIdx), np.array(dIdx), np.array(played)
+        # matches[t, e] = hits of ticket t against the real result of day e.
+        matches = np.rint(ticketMatrix @ resultOneHot.T).astype(int)
+
+        if hasPayout:
+            lookup = self._keno_profit_lookup()
+            cross = np.zeros(matches.shape)
+            for size, table in lookup.items():
+                sel = played == size
+                if sel.any():
+                    cross[sel] = table[np.clip(matches[sel], 0, size)]
+        else:
+            cross = matches.astype(float)
+
+        ticketIds = np.arange(len(rIdx))
+
+        def score_under(perm):
+            vals = cross[ticketIds, perm[dIdx]]
+            permuted = np.zeros((R, D))
+            np.add.at(permuted, (rIdx, dIdx), vals)
+            return permuted, betCount
+        return score_under
+
+    def _build_combination_report(self, game, dayTable, models, hasPayout, minDraws,
+                                  shuffles=100, topN=10, maxRows=32, seed=20260914):
+        """
+        Roadmap item 2, "portfolio of rows": which SET of tracked rows is
+        worth playing together. Every pair and triple of the established rows
+        (draws >= minDraws, and a real stake for the payout games) is scored
+        on the draws all of its members were scored on:
+
+        - payout games (keno/pick3/jokerplus): `profit_per_draw`, the net
+          result of playing every member's tickets each draw. Profit is
+          additive, so a set only beats its best member when at least two
+          rows are positive on the shared draws - `beatsBestSingle` says
+          whether that is the case. A greedy build-up beyond the best triple
+          adds rows while profit per draw keeps improving. (Profit per BET,
+          the single-row metric, is a stake-weighted mean of the members and
+          therefore can never beat the best member - it is reported, not
+          ranked on.)
+        - hit-scored games: `avg_best_hits`, the average over shared draws of
+          the best line held that draw - the quantity a player with several
+          lines cares about, and the one that rewards rows whose good days
+          do NOT coincide. It grows with every extra line, so pairs and
+          triples are ranked within their size and no greedy build-up is run.
+
+        Multiple comparisons: with ~20 rows there are ~1500 combinations, so
+        a "best" one always exists by luck. `evaluated` is the number of
+        combinations scored and `control` re-runs the identical search
+        `shuffles` times with the real results permuted across days (every
+        ticket keeps its day, the outcome it is scored against moves), and
+        reports where the observed best sits in that best-by-luck
+        distribution (`p_value` = share of shuffles that did at least as well,
+        with +1 smoothing). A p-value that is not small means the card shows
+        the winner of a lottery among combinations, not an edge.
+        """
+        metric = "profit_per_draw" if hasPayout else "avg_best_hits"
+        base = {
+            "metric": metric,
+            "minDrawsForRanking": minDraws,
+            "candidateRows": [],
+            "evaluated": 0,
+            "best": None,
+            "ranking": [],
+            "bestSingle": None,
+            "beatsBestSingle": None,
+            "control": None,
+        }
+
+        established = [m for m in models if m["draws"] >= minDraws and (m["bets"] > 0 if hasPayout else True)]
+        # `models` is ranked best-first, so the cap keeps the strongest rows.
+        established = established[:maxRows]
+        names = sorted(m["name"] for m in established)
+        base["candidateRows"] = names
+        if len(names) < 2 or not dayTable:
+            base["note"] = "fewer than two established rows"
+            return base
+
+        days = sorted(dayTable, key=lambda d: (d["date"] is None, d["date"] or datetime.min, d["file"]))
+        R, D = len(names), len(days)
+        rowIndex = {name: i for i, name in enumerate(names)}
+        valid = np.zeros((R, D), dtype=bool)
+        value = np.zeros((R, D))      # profit (payout games) or main hits
+        hitsM = np.zeros((R, D))      # main hits, for the descriptive columns
+        betCount = np.zeros((R, D))
+        for d, day in enumerate(days):
+            for name, row in day["rows"].items():
+                r = rowIndex.get(name)
+                if r is None:
+                    continue
+                if hasPayout:
+                    if row["bets"] <= 0:
+                        continue  # no playable ticket that day (e.g. a Keno row without subsets)
+                    value[r, d] = row["profit"]
+                    betCount[r, d] = row["bets"]
+                else:
+                    value[r, d] = row["hits"]
+                hitsM[r, d] = row["hits"]
+                valid[r, d] = True
+
+        V = valid.astype(float)
+
+        def evaluate_all(val, bets):
+            """All pairs and triples at once: [(metric, members, how, shared, total, bets)]."""
+            VV = val * V
+            BB = bets * V
+            found = []
+            shared2 = V @ V.T
+            with np.errstate(divide="ignore", invalid="ignore"):
+                if hasPayout:
+                    tot2 = VV @ V.T + V @ VV.T
+                    bet2 = BB @ V.T + V @ BB.T
+                    met2 = tot2 / shared2
+                else:
+                    mask2 = V[:, None, :] * V[None, :, :]
+                    tot2 = VV @ V.T + V @ VV.T
+                    bet2 = 2 * shared2
+                    met2 = (np.maximum(VV[:, None, :], VV[None, :, :]) * mask2).sum(-1) / shared2
+            for a in range(R):
+                for b in range(a + 1, R):
+                    if shared2[a, b] >= minDraws:
+                        found.append((float(met2[a, b]), (a, b), "pair", int(shared2[a, b]),
+                                      float(tot2[a, b]), float(bet2[a, b])))
+            for a in range(R):
+                Va = V[a]
+                VbA = V * Va                      # rows masked by a's scored days
+                shared3 = VbA @ V.T               # [b, c] -> days where a, b, c all scored
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    if hasPayout:
+                        tot3 = (V * (VV[a] * Va)) @ V.T + (VV * Va) @ V.T + VbA @ VV.T
+                        bet3 = (V * (BB[a] * Va)) @ V.T + (BB * Va) @ V.T + VbA @ BB.T
+                        met3 = tot3 / shared3
+                    else:
+                        mask3 = Va[None, None, :] * V[:, None, :] * V[None, :, :]
+                        tot3 = (V * (VV[a] * Va)) @ V.T + (VV * Va) @ V.T + VbA @ VV.T
+                        bet3 = 3 * shared3
+                        best3 = np.maximum(np.maximum(VV[a][None, None, :], VV[:, None, :]), VV[None, :, :])
+                        met3 = (best3 * mask3).sum(-1) / shared3
+                for b in range(a + 1, R):
+                    for c in range(b + 1, R):
+                        if shared3[b, c] >= minDraws:
+                            found.append((float(met3[b, c]), (a, b, c), "triple", int(shared3[b, c]),
+                                          float(tot3[b, c]), float(bet3[b, c])))
+            return found
+
+        def metric_of(members, val):
+            mask = valid[list(members)].all(0)
+            shared = int(mask.sum())
+            if shared < minDraws:
+                return None
+            sub = val[list(members)][:, mask]
+            if hasPayout:
+                return float(sub.sum() / shared)
+            return float(sub.max(0).mean())
+
+        def greedy(val, bets, start):
+            """Adds rows to `start` while profit per draw improves (payout games)."""
+            members = list(start)
+            current = metric_of(members, val)
+            tries = 0
+            while current is not None:
+                bestAdd = None
+                for r in range(R):
+                    if r in members:
+                        continue
+                    tries += 1
+                    m = metric_of(members + [r], val)
+                    if m is not None and (bestAdd is None or m > bestAdd[0]):
+                        bestAdd = (m, r)
+                if bestAdd is None or bestAdd[0] <= current:
+                    break
+                members.append(bestAdd[1])
+                current = bestAdd[0]
+            return sorted(members), current, tries
+
+        def headline(found, val, bets):
+            """(best metric, candidates incl. greedy, evaluated) of one search run."""
+            evaluated = len(found)
+            candidates = list(found)
+            if hasPayout:
+                triples = [c for c in candidates if c[2] == "triple"]
+                if triples:
+                    startMembers = max(triples, key=lambda c: c[0])[1]
+                    gMembers, gMetric, tries = greedy(val, bets, startMembers)
+                    evaluated += tries
+                    if gMetric is not None and len(gMembers) > 3:
+                        mask = valid[gMembers].all(0)
+                        candidates.append((gMetric, tuple(gMembers), "greedy", int(mask.sum()),
+                                           float(val[gMembers][:, mask].sum()), float(bets[gMembers][:, mask].sum())))
+                best = max((c[0] for c in candidates), default=None)
+            else:
+                best = max((c[0] for c in candidates if c[2] == "pair"), default=None)
+            return best, candidates, evaluated
+
+        def describe(candidate):
+            metricValue, members, how = candidate[0], list(candidate[1]), candidate[2]
+            mask = valid[members].all(0)
+            shared = int(mask.sum())
+            sub = value[members][:, mask]
+            hitsSub = hitsM[members][:, mask]
+            entry = {"members": [names[i] for i in members], "size": len(members), "how": how, "draws": shared}
+            if hasPayout:
+                bets = float(betCount[members][:, mask].sum())
+                total = float(sub.sum())
+                daily = sub.sum(0)
+                entry.update({
+                    "profit_total": round(total, 2),
+                    "bets": int(bets),
+                    "profit_per_bet": round(total / bets, 3) if bets else None,
+                    "profit_per_draw": round(total / shared, 3),
+                    "win_day_rate": round(float((daily > 0).mean()), 3),
+                    "daily_std": round(float(daily.std()), 3),
+                })
+            else:
+                entry.update({
+                    "profit_total": None, "bets": shared * len(members), "profit_per_bet": None,
+                    "profit_per_draw": None, "win_day_rate": None, "daily_std": None,
+                })
+            entry.update({
+                "avg_hits": round(float(hitsSub.mean()), 3),
+                "avg_best_hits": round(float(hitsSub.max(0).mean()), 3),
+                "best_hits": int(hitsSub.max()),
+            })
+            entry["value"] = round(float(metricValue), 3)
+            return entry
+
+        found = evaluate_all(value, betCount)
+        observedBest, candidates, evaluated = headline(found, value, betCount)
+        base["evaluated"] = int(evaluated)
+        if observedBest is None:
+            base["note"] = f"no combination shares at least {minDraws} scored draws"
+            return base
+
+        if hasPayout:
+            ranked = sorted(candidates, key=lambda c: c[0], reverse=True)[:topN]
+        else:
+            pairs = sorted((c for c in candidates if c[2] == "pair"), key=lambda c: c[0], reverse=True)
+            triples = sorted((c for c in candidates if c[2] == "triple"), key=lambda c: c[0], reverse=True)
+            ranked = pairs[:max(1, topN // 2)] + triples[:max(1, topN // 2)]
+        base["ranking"] = [describe(c) for c in ranked]
+        best = base["ranking"][0]
+        base["best"] = best
+
+        # The best single established row on the SAME draws, same metric
+        # (profit per draw / average hits of its one line).
+        bestMembers = [rowIndex[n] for n in best["members"]]
+        sharedMask = valid[bestMembers].all(0)
+        singles = []
+        for r in range(R):
+            if not valid[r][sharedMask].all():
+                continue
+            sub = value[r][sharedMask]
+            singles.append((float(sub.sum() / sharedMask.sum()) if hasPayout else float(sub.mean()), names[r]))
+        if singles:
+            singleValue, singleName = max(singles)
+            base["bestSingle"] = {"name": singleName, "value": round(singleValue, 3), "draws": int(sharedMask.sum())}
+            if hasPayout:
+                base["beatsBestSingle"] = bool(best["value"] > round(singleValue, 3))
+
+        if shuffles and shuffles > 0:
+            try:
+                score_under = self._combination_cross_scores(game, days, rowIndex, hasPayout, valid, value, betCount)
+                if score_under is None:
+                    raise ValueError("no tickets to shuffle")
+                identity, _ = score_under(np.arange(D))
+                if not np.allclose(identity, value):
+                    raise ValueError("identity permutation does not reproduce the observed scores")
+                rng = np.random.default_rng(seed)
+                shuffledBest = []
+                for _ in range(int(shuffles)):
+                    val_s, bets_s = score_under(rng.permutation(D))
+                    best_s, _, _ = headline(evaluate_all(val_s, bets_s), val_s, bets_s)
+                    if best_s is not None:
+                        shuffledBest.append(best_s)
+                if shuffledBest:
+                    arr = np.array(shuffledBest)
+                    base["control"] = {
+                        "shuffles": int(len(arr)),
+                        "observed": round(float(observedBest), 3),
+                        "best_mean": round(float(arr.mean()), 3),
+                        "best_p95": round(float(np.percentile(arr, 95)), 3),
+                        "p_value": round(float((1 + (arr >= observedBest).sum()) / (len(arr) + 1)), 3),
+                    }
+            except Exception as e:
+                print(f"Shuffle control for {game} combinations skipped: {e}")
+                base["control"] = {"error": str(e)}
+
+        return base
 
     def load_weights_if_fingerprint_matches(self, model, model_path, fingerprint):
         """

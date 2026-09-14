@@ -211,5 +211,20 @@
     "rlTicketLearningRate": 0.019541898503665764,
     "rlTicketEpochs": 10,
     "rlTicketSamplesPerDay": 32,
-    "rlTicketTrainDays": 240
+    "rlTicketTrainDays": 240,
+    "subsetEnsembleModels": [
+        "MarkovBayesian Model",
+        "MarkovBayesianEnhanched Model",
+        "PoissonMonteCarlo Model"
+    ],
+    "subsetEnsembleWeighted": false,
+    "subsetEnsembleObjective": 0.9641,
+    "subsetEnsembleMean": 1.0952,
+    "subsetEnsembleTunedOn": {
+        "days": 42,
+        "from": "2025-11-19",
+        "to": "2026-09-09",
+        "candidates": 8,
+        "confidencePenalty": 1.0
+    }
 }

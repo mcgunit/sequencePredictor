@@ -589,6 +589,128 @@ function generatePerformanceSummary() {
     </div>`;
 }
 
+// --- LOGIC: Best combination per game (README roadmap item 2, "portfolio of
+// rows") - which SET of tracked rows is worth playing together, from the
+// "combinations" section Helpers._build_combination_report writes into
+// modelPerformance.json, with its shuffled-history control. ---
+function generateCombinationSummary() {
+  const reportPath = path.join(dataPath, 'modelPerformance.json');
+  if (!fs.existsSync(reportPath)) return '';
+
+  let report;
+  try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); }
+  catch (e) { return ''; }
+
+  const metricLabel = { profit_per_draw: 'Profit / draw', avg_best_hits: 'Best-line avg hits' };
+  const fmt = (v, metric) => (v === null || v === undefined) ? '-' : (metric === 'profit_per_draw' ? `${v} €` : v);
+  const pct = (v) => (v === null || v === undefined) ? '-' : `${Math.round(v * 100)}%`;
+  const members = (list) => list.join(' <span style="color:#aaa;">+</span> ');
+
+  let rows = '';
+  Object.keys(report.games).sort().forEach((game) => {
+    const combo = report.games[game].combinations;
+    if (!combo) return;
+    const isProfit = combo.metric === 'profit_per_draw';
+    const label = metricLabel[combo.metric] || combo.metric;
+
+    if (!combo.best) {
+      rows += `
+      <tr>
+        <td style="font-weight: bold; text-align: left;">${game}</td>
+        <td colspan="5" style="text-align: left; color: #888;">${combo.note || 'no combination could be scored'} (${combo.candidateRows.length} established rows)</td>
+      </tr>`;
+      return;
+    }
+
+    const best = combo.best;
+    const value = best.value;
+    const valueColor = isProfit ? (value > 0 ? '#27ae60' : '#c0392b') : '#2c3e50';
+    // "Beats the best single row" only means something where the metric is
+    // additive (profit); for the hit games the best line of two rows is by
+    // construction at least as good as either line alone.
+    let single = '';
+    if (combo.bestSingle) {
+      const verdict = isProfit
+        ? (combo.beatsBestSingle ? '<span style="color:#27ae60; font-weight:bold;">beats it</span>' : '<span style="color:#c0392b; font-weight:bold;">does not beat it</span>')
+        : 'best single line';
+      single = `${combo.bestSingle.name} ${fmt(combo.bestSingle.value, combo.metric)} <span style="color:#7f8c8d;">(${verdict})</span>`;
+    }
+    let control = `${combo.evaluated} combinations evaluated`;
+    if (combo.control && combo.control.p_value !== undefined) {
+      const c = combo.control;
+      const weak = c.p_value > 0.05;
+      control += ` · shuffled history: best-by-luck ${fmt(c.best_mean, combo.metric)} on average, ${fmt(c.best_p95, combo.metric)} at the 95th pct · `
+        + `<span style="font-weight:bold; color:${weak ? '#c0392b' : '#27ae60'};" title="share of ${c.shuffles} shuffles whose best combination did at least as well">p = ${c.p_value}</span>`
+        + (weak ? ' <span style="color:#7f8c8d;">(consistent with luck)</span>' : '');
+    } else if (combo.control && combo.control.error) {
+      control += ` · control not available (${combo.control.error})`;
+    }
+
+    const ranking = combo.ranking.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td style="text-align: left;">${members(r.members)}</td>
+        <td>${r.how}</td>
+        <td style="font-weight: bold;">${fmt(r.value, combo.metric)}</td>
+        <td>${isProfit ? fmt(r.profit_per_bet, 'profit_per_draw') : r.avg_hits}</td>
+        <td>${isProfit ? pct(r.win_day_rate) : r.best_hits}</td>
+        <td>${r.draws}</td>
+      </tr>`).join('');
+
+    rows += `
+      <tr style="cursor: pointer;" onclick="const d = document.getElementById('combo-${game}'); d.style.display = d.style.display === 'none' ? 'table-row' : 'none';">
+        <td style="font-weight: bold; text-align: left;">${game} <span style="color: #aaa; font-size: 0.85em;">▼</span></td>
+        <td style="text-align: left;">${members(best.members)}</td>
+        <td>${label}</td>
+        <td style="font-weight: bold; color: ${valueColor};">${fmt(value, combo.metric)}</td>
+        <td>${best.draws}</td>
+        <td style="text-align: left; font-size: 0.9em;">${single}</td>
+      </tr>
+      <tr id="combo-${game}" style="display: none;">
+        <td colspan="6" style="padding: 0;">
+          <p style="margin: 8px 12px; color: #7f8c8d; font-size: 0.85em;">${control}</p>
+          <table style="width: 100%; min-width: 0; margin: 0;">
+            <tr><th>#</th><th style="text-align: left;">Rows played together</th><th>Set</th><th>${label}</th><th>${isProfit ? 'Profit / bet' : 'Avg hits / line'}</th><th>${isProfit ? 'Winning draws' : 'Best day'}</th><th>Shared draws</th></tr>
+            ${ranking}
+          </table>
+        </td>
+      </tr>`;
+  });
+
+  if (!rows) return '';
+
+  return `
+    <div class="card" style="margin-top: 25px;">
+      <div class="card-header" onclick="toggleCard(this)">
+        <div>
+          <span class="card-title">🧩 Best combination per game</span>
+          <span class="card-meta" style="margin-left: 10px;">which rows to play together · all scored history</span>
+        </div>
+        <div class="card-icon">▼</div>
+      </div>
+      <div class="card-body">
+        <div class="table-wrapper">
+          <table style="min-width: 0;">
+            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Rows played together</th><th>Metric</th><th>Value</th><th>Shared draws</th><th style="text-align: left;">Best single row on the same draws</th></tr>
+            ${rows}
+          </table>
+        </div>
+        <p style="color: #7f8c8d; font-size: 0.85em; margin-bottom: 0;">
+          Every pair and triple of the ranked rows is scored on the draws all of its members were scored on.
+          Keno/Pick3/Joker+ rank by <b>net profit per draw</b> of playing every member's tickets (profit adds up, so a set
+          only beats its best row when at least two rows are positive on those draws; a greedy build-up beyond the best
+          triple keeps adding rows while that improves). The other games rank by the <b>best line held per draw</b> -
+          the average over draws of the best-scoring member's hits, which rewards rows whose good days do not coincide;
+          it grows with every extra line, so pairs and triples are ranked separately. Click a game for the ranking and
+          the control: the same search is re-run on shuffled history (each ticket keeps its day, the drawn result it is
+          scored against is moved to another day). With hundreds of combinations a "best" one always exists by luck;
+          <b>p</b> is the share of shuffles whose best combination did at least as well - read a combination as an edge
+          only when p is small and stays small as draws accumulate.
+        </p>
+      </div>
+    </div>`;
+}
+
 // --- LOGIC: Phase-shift (lag) analysis card - each predictor run scores its
 // newPrediction against draws +1..+30 and keeps only the best peak of that
 // run. The table shows this run's peak plus how often each lag has peaked
@@ -815,6 +937,7 @@ app.get('/database', (req, res) => {
   });
   html += '</div>';
   html += generatePerformanceSummary();
+  html += generateCombinationSummary();
   html += generateLagAnalysis();
   html += generateRandomnessWatch();
   html += generateFooter();

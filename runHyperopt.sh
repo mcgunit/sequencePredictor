@@ -14,6 +14,11 @@ python3 HyperoptBoost.py >> /root/sequencePredictor/log/hyperoptBoost.log 2>&1
 # after the other tuners - and before TrainMetaLearner.py, which stays last.
 python3 HyperoptRLTicket.py >> /root/sequencePredictor/log/hyperoptRLTicket.log 2>&1
 
+# Select the rows the SubsetEnsemble Model votes over (README roadmap item 2).
+# Scores subsets on the stored day JSONs only - seconds per trial, minutes per
+# game - and shares process.lock, so it stays sequenced with the others.
+python3 HyperoptEnsemble.py >> /root/sequencePredictor/log/hyperoptEnsemble.log 2>&1
+
 # Tune the two quantum meta-learner variants (quantum-kernel SVC and VQC) into
 # the same bestParams_<game>.json files. Shares process.lock, so it stays
 # sequenced after the other tuners - and it MUST run before TrainMetaLearner.py:

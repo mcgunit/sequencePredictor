@@ -103,7 +103,8 @@ def getKenoSubsetSizes(name, bestParams_json_object):
     """
     Keno is the only game with sub-selections (playable 5-10-number tickets
     out of the full 20). Shared by statisticalMethod (individual models),
-    addWeightedEnsemblePrediction, and the MetaLearner block, so all three
+    the two vote-ensemble rows (addWeightedEnsemblePrediction /
+    addSubsetEnsemblePrediction) and the MetaLearner block, so all of them
     respect the same use_5..use_10 hyperopt-tuned toggles instead of each
     reimplementing this lookup.
     """
@@ -443,6 +444,7 @@ def process_single_history_entry_second_step(args):
         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
             current_json_object, model_scores=bestParams_json_object.get("modelScores"), game=name)
         addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
+        addSubsetEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
     except Exception as e:
         print("Failed to calculate the number frequencies: ", e)
 
@@ -638,6 +640,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         current_json_object["numberFrequency"] = helpers.count_number_frequencies_from_new_prediction(
                             current_json_object, model_scores=bestParams_json_object.get("modelScores"), game=name)
                         addWeightedEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
+                        addSubsetEnsemblePrediction(current_json_object, name, model_scores=bestParams_json_object.get("modelScores"), bestParams_json_object=bestParams_json_object)
                     except Exception as e:
                         print("Failed to calculate the number frequencies: ", e)
 
@@ -893,6 +896,35 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
     return listOfDecodedPredictions
 
 
+def _appendVoteEnsembleRow(current_json_object, name, rows, rowName, model_scores, bestParams_json_object,
+                           subsetMode, subsetTemperature):
+    """
+    Shared body of the two vote-ensemble rows (WeightedEnsemble Model over
+    every row, SubsetEnsemble Model over a tuned subset): builds the ticket
+    from `rows` with Helpers.build_vote_ensemble_predictions - the exact
+    recipe HyperoptEnsemble.py scores when it selects the subset - and
+    appends it to newPrediction as `rowName`. The ticket size comes from the
+    first row that carries a prediction; specials are split off with the
+    game's SPECIAL_COLUMN_COUNTS and voted on separately.
+    """
+    predictions = current_json_object.get("newPrediction", [])
+    ticket_size = next((len(model["predictions"][0]) for model in rows if model.get("predictions")), 0)
+    if ticket_size == 0:
+        return
+
+    specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
+    mainCount = ticket_size - specialColumnCount
+
+    ensemblePredictions = helpers.build_vote_ensemble_predictions(
+        rows, mainCount, specialColumnCount, model_scores=model_scores,
+        keno_subset_sizes=getKenoSubsetSizes(name, bestParams_json_object),
+        subset_mode=subsetMode, subset_temperature=subsetTemperature)
+    if not ensemblePredictions:
+        return
+
+    predictions.append({"name": rowName, "predictions": ensemblePredictions})
+
+
 def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, bestParams_json_object=None):
     """
     Appends the score-weighted vote as its own ticket/row in newPrediction (so
@@ -911,51 +943,61 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     crowd out the special slot(s), producing an out-of-range special number.
 
     For Keno, also generates the same use_5..use_10 sub-selections every
-    individual model produces (previously missing entirely for this row),
-    using Helpers.generate_subset_from_scores over the already-computed main
-    vote so a subset is just "which of these 20 numbers", not a fresh vote.
+    individual model produces, using Helpers.generate_subset_from_scores
+    over the already-computed main vote so a subset is just "which of these
+    20 numbers", not a fresh vote. The recipe itself lives in
+    Helpers.build_vote_ensemble_predictions (shared with SubsetEnsemble
+    Model and HyperoptEnsemble.py).
     """
     if Helpers.is_positional_game(name):
         return
 
     bestParams_json_object = bestParams_json_object or {}
+    _appendVoteEnsembleRow(
+        current_json_object, name, current_json_object.get("newPrediction", []), "WeightedEnsemble Model",
+        model_scores, bestParams_json_object,
+        bestParams_json_object.get("weightedEnsembleSubsetMode", "softmax"),
+        bestParams_json_object.get("weightedEnsembleSubsetTemperature", 0.5))
 
-    predictions = current_json_object.get("newPrediction", [])
-    ticket_size = next((len(model["predictions"][0]) for model in predictions if model.get("predictions")), 0)
-    if ticket_size == 0:
+
+def addSubsetEnsemblePrediction(current_json_object, name, model_scores=None, bestParams_json_object=None):
+    """
+    `SubsetEnsemble Model` (README roadmap item 2): the WeightedEnsemble vote
+    restricted to the rows HyperoptEnsemble.py selected for this game -
+    bestParams "subsetEnsembleModels" (the member names) and
+    "subsetEnsembleWeighted" (vote with the modelScores weights, or count
+    every member once). Nothing is served until the tuner has written a
+    selection of at least two rows. A day on which a selected member did not
+    run is skipped for this row: the subset was scored only on days every
+    member was present, and a vote among the remaining rows would be a
+    different ensemble wearing this row's name. Positional games are skipped
+    like WeightedEnsemble Model (roadmap item 7 covers the per-slot vote).
+    Keno sub-selections use subsetEnsembleSubsetMode/Temperature when tuned,
+    otherwise WeightedEnsemble Model's tuned values.
+    """
+    if Helpers.is_positional_game(name):
         return
 
-    specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
-    mainCount = ticket_size - specialColumnCount
-
-    mainFrequencies, specialFrequencies = helpers.count_number_frequencies_by_position(
-        current_json_object, mainCount, model_scores=model_scores)
-
-    mainTicket = helpers.build_weighted_ensemble_prediction(mainFrequencies, mainCount)
-    if not mainTicket:
+    bestParams_json_object = bestParams_json_object or {}
+    members = bestParams_json_object.get("subsetEnsembleModels") or []
+    if len(members) < 2:
         return
 
-    ticketNumbers = mainTicket["predictions"][0]
+    rows = [row for row in current_json_object.get("newPrediction", [])
+            if row.get("name") in members and row.get("predictions") and row["predictions"][0]]
+    present = {row["name"] for row in rows}
+    missing = [member for member in members if member not in present]
+    if missing:
+        print(f"SubsetEnsemble Model skipped for {name}: selected member(s) not predicted today: {missing}")
+        return
 
-    # Subsets (Keno only) are drawn from the main-number vote before any
-    # special-column concatenation below - Keno has no special columns
-    # (mutually exclusive with SPECIAL_COLUMN_COUNTS), so this ordering never
-    # actually interacts with the special-column branch in practice.
-    ensemblePredictions = [ticketNumbers] + [
-        helpers.generate_subset_from_scores(
-            mainFrequencies, ticketNumbers, subsetSize,
-            mode=bestParams_json_object.get("weightedEnsembleSubsetMode", "softmax"),
-            temperature=bestParams_json_object.get("weightedEnsembleSubsetTemperature", 0.5))
-        for subsetSize in getKenoSubsetSizes(name, bestParams_json_object)
-    ]
-
-    if specialColumnCount > 0:
-        specialTicket = helpers.build_weighted_ensemble_prediction(specialFrequencies, specialColumnCount)
-        if not specialTicket:
-            return
-        ensemblePredictions[0] = ticketNumbers + specialTicket["predictions"][0]
-
-    predictions.append({"name": "WeightedEnsemble Model", "predictions": ensemblePredictions})
+    weights = model_scores if bestParams_json_object.get("subsetEnsembleWeighted", True) else None
+    _appendVoteEnsembleRow(
+        current_json_object, name, rows, "SubsetEnsemble Model", weights, bestParams_json_object,
+        bestParams_json_object.get("subsetEnsembleSubsetMode",
+                                   bestParams_json_object.get("weightedEnsembleSubsetMode", "softmax")),
+        bestParams_json_object.get("subsetEnsembleSubsetTemperature",
+                                   bestParams_json_object.get("weightedEnsembleSubsetTemperature", 0.5)))
 
 
 def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, modelDisplayName="LSTM Base Model",
