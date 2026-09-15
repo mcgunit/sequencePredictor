@@ -1,19 +1,17 @@
 import os, argparse, json, sys, time, re
 # Pin the BLAS pools before numpy is imported - the vote is a handful of small
-# array ops per day, and a 16-thread OpenBLAS pool per trial process would only
-# add spin-wait overhead (measured on the other tuners, see HyperoptBoost.py).
+# array ops per day; a 16-thread OpenBLAS pool would only add spin-wait
+# overhead (measured on the other tuners, see HyperoptBoost.py).
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 import optuna
 import numpy as np
-from multiprocessing import cpu_count
 from art import text2art
 from datetime import datetime
 
 from src.Helpers import Helpers
-from src.HyperoptRunner import (open_study, fail_stale_running_trials, optimize_study,
-                                install_sigterm_handler)
+from src.HyperoptRunner import open_study, fail_stale_running_trials, install_sigterm_handler
 
 helpers = Helpers()
 
@@ -45,25 +43,43 @@ EXCLUDED_ROWS = ("WeightedEnsemble Model", ROW_NAME, "RL Ticket Model")
 
 # A game needs at least this many scoreable days before tuning on it means
 # anything, and a subset is scored only on days where all of its members
-# exist - so a trial ends up with fewer days than this is pruned.
+# exist - a subset that ends up with fewer days than this is infeasible.
 MIN_EVALUATION_DAYS = 10
-# Every scored trial must sit on (nearly) the same draws, or trial values are
-# not comparable: a subset is scored only on the days all of its members
-# exist, and with 2^N subsets searched, a subset that happened to break even
-# on the ten days its members coexisted WILL be found and outrank every
-# subset that lost the house edge over the whole window (seen in testing with
-# an absolute 30-day floor: six rows, ten shared days, mean 0.0 vs -0.65 for
+# Every scored subset must sit on (nearly) the same draws, or values are not
+# comparable: a subset is scored only on the days all of its members exist,
+# and with 2^N subsets in the space, a subset that happened to break even on
+# the ten days its members coexisted WILL be found and outrank every subset
+# that lost the house edge over the whole window (seen in testing with an
+# absolute 30-day floor: six rows, ten shared days, mean 0.0 vs -0.65 for
 # everything scored on 300 days). So: a row is a candidate only when present
-# on MIN_ROW_COVERAGE of the window, and a trial counts only when its members
-# coexist on MIN_TRIAL_COVERAGE of it. Younger rows (boosting, meta-learner,
-# quantum - weeks old next to a year of statistical rows) join automatically
-# as they age into the window, or right away with a shorter --days.
+# on MIN_ROW_COVERAGE of the window, and a subset counts only when its
+# members coexist on MIN_TRIAL_COVERAGE of it. Younger rows (boosting,
+# meta-learner, quantum - weeks old next to a year of statistical rows) join
+# automatically as they age into the window, or right away with a shorter
+# --days.
 MIN_ROW_COVERAGE = 0.8
 MIN_TRIAL_COVERAGE = 0.6
-# Trial value = mean - penalty * std / sqrt(days) of the per-day score: a lower
-# confidence bound that mildly favours the subsets scored on more of the
-# window within the coverage band above. 0 = plain mean.
+# Subset value = mean - penalty * std / sqrt(days) of the per-day score: a
+# lower confidence bound that mildly favours the subsets scored on more of
+# the window within the coverage band above. 0 = plain mean.
 DEFAULT_CONFIDENCE_PENALTY = 1.0
+
+# Search. One subset evaluation is 2-20 ms in-process (the vote over ~100
+# stored days), so the space is simply enumerated whenever 2^k x 2 (include
+# flags x weighted/flat) fits the evaluation budget - k <= 12 at the default.
+# Beyond that a deterministic local search runs: hill-climbing over single
+# flag toggles from the all-in vote (weighted and flat) and from the best
+# pair, every subset evaluated once. Optuna's TPE was tried first and is the
+# wrong tool here: sampling boolean flags independently, it collapses onto
+# its mode and re-proposes the same subset trial after trial (a production
+# run spent 162 trials on 37 distinct subsets, one of them 62 times), and
+# the process-per-trial runner spends ~2 s launching a 5 ms evaluation.
+DEFAULT_MAX_EVALUATIONS = 16384
+# Evaluated subsets are recorded into the game's Optuna study (db.sqlite3,
+# the dashboard) as completed trials, best first - all of them when the
+# search evaluated at most this many, otherwise the top ones - so the study
+# is the ranking of this run, without duplicates.
+DEFAULT_RECORD_TRIALS = 256
 
 
 def is_running():
@@ -169,7 +185,7 @@ def candidate_rows(evaluation_days):
     """
     Row names eligible for the vote: present (with a non-empty main ticket)
     on at least MIN_ROW_COVERAGE of the evaluation days and never one of
-    EXCLUDED_ROWS. Sorted, so the Optuna parameter set is stable across runs.
+    EXCLUDED_ROWS. Sorted, so the parameter set is stable across runs.
     """
     presence = {}
     for _, rows, _ in evaluation_days:
@@ -186,7 +202,7 @@ def candidate_rows(evaluation_days):
 
 
 def include_param(name):
-    """Optuna parameter name of a row's include flag ("Markov Model" -> subsetEnsemble_include_MarkovModel)."""
+    """Study parameter name of a row's include flag ("Markov Model" -> subsetEnsemble_include_MarkovModel)."""
     return "subsetEnsemble_include_" + re.sub(r"[^A-Za-z0-9]+", "", name)
 
 
@@ -226,38 +242,34 @@ def score_day(predictions, realResult, dataset_name, mainCount):
     return float(len(ticketMains & realMains)), 1
 
 
-def objective_subset_ensemble(trial, dataset_name, evaluation_days, candidates, model_scores,
-                              specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode, subsetTemperature,
-                              confidencePenalty=DEFAULT_CONFIDENCE_PENALTY):
+def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scores, specialColumnCount,
+                    fallbackMainCount, kenoSubsetSizes, subsetMode, subsetTemperature,
+                    confidencePenalty=DEFAULT_CONFIDENCE_PENALTY):
     """
-    One include flag per candidate row plus the weighted/flat choice. The
-    selected rows are voted exactly as Predictor.py will serve them
-    (Helpers.build_vote_ensemble_predictions) on every evaluation day where
-    all of them exist, and scored per day like the report scores the served
-    rows: profit per bet for Keno, main-ticket hits otherwise. Trial value is
-    the lower confidence bound mean - confidencePenalty * std / sqrt(days) of
-    that per-day series (see DEFAULT_CONFIDENCE_PENALTY); the plain mean is
-    kept as user attribute "mean". Fewer than two members, or members that
-    coexist on less than MIN_TRIAL_COVERAGE of the window (at least
-    MIN_EVALUATION_DAYS), prunes the trial (recorded, never a score).
+    Scores one subset: the selected rows are voted exactly as Predictor.py
+    will serve them (Helpers.build_vote_ensemble_predictions) on every
+    evaluation day where all of them exist, and scored per day like the
+    report scores the served rows - profit per bet for Keno, main-ticket hits
+    otherwise. Returns {"value", "mean", "days"} with value the lower
+    confidence bound mean - confidencePenalty * std / sqrt(days) of that
+    per-day series, or None when the subset is infeasible: fewer than two
+    members, or members that coexist on less than MIN_TRIAL_COVERAGE of the
+    window (and at least MIN_EVALUATION_DAYS).
     """
-    included = [name for name in candidates if trial.suggest_categorical(include_param(name), [True, False])]
-    weighted = trial.suggest_categorical("subsetEnsembleWeighted", [True, False])
-    trial.set_user_attr("members", included)
-    if len(included) < 2:
-        raise optuna.TrialPruned()  # a one-row "ensemble" is just that row
+    if len(members) < 2:
+        return None  # a one-row "ensemble" is just that row
 
     # The softmax Keno sub-selection samples; a fixed seed keeps identical
     # subsets identically scored (the other tuners reseed for the same reason).
     np.random.seed(42)
     weights = model_scores if weighted else None
-    memberSet = set(included)
+    memberSet = set(members)
 
     daily = []
     for _, rows, realResult in evaluation_days:
         memberRows = [row for row in rows
                       if row.get("name") in memberSet and row.get("predictions") and row["predictions"][0]]
-        if len({row["name"] for row in memberRows}) < len(included):
+        if len({row["name"] for row in memberRows}) < len(members):
             continue  # a member did not run that day - production skips the row too
         mainCount = main_count_of(memberRows, specialColumnCount, fallbackMainCount)
         predictions = helpers.build_vote_ensemble_predictions(
@@ -269,14 +281,107 @@ def objective_subset_ensemble(trial, dataset_name, evaluation_days, candidates, 
         if dayBets > 0:
             daily.append(dayScore / dayBets)
 
-    trial.set_user_attr("scored_days", len(daily))
     if len(daily) < max(MIN_EVALUATION_DAYS, int(np.ceil(MIN_TRIAL_COVERAGE * len(evaluation_days)))):
-        raise optuna.TrialPruned()
+        return None
     daily = np.array(daily, dtype=float)
     mean = float(daily.mean())
     std = float(daily.std(ddof=1)) if len(daily) > 1 else 0.0
-    trial.set_user_attr("mean", mean)
-    return mean - float(confidencePenalty) * std / np.sqrt(len(daily))
+    return {"value": mean - float(confidencePenalty) * std / np.sqrt(len(daily)), "mean": mean, "days": len(daily)}
+
+
+def search_subsets(candidates, evaluate, max_evaluations):
+    """
+    Exhaustive enumeration of every (subset, weighted) combination when
+    2^k x 2 fits max_evaluations, otherwise a deterministic local search:
+    hill-climbing over single include-flag toggles and the weighted flip,
+    started from the all-in vote (weighted and flat) and from the best pair,
+    until no neighbour improves or the budget is spent. Every combination is
+    evaluated at most once (memoized), so the returned ranking has no
+    duplicates. Returns (ranking best-first as [(value, members, weighted,
+    mean, days)], evaluated combinations, infeasible combinations, how).
+    """
+    k = len(candidates)
+    cache = {}
+
+    def score(mask, weighted):
+        key = (mask, weighted)
+        if key not in cache:
+            members = [name for name, on in zip(candidates, mask) if on]
+            cache[key] = evaluate(members, weighted)
+        return cache[key]
+
+    def value_of(mask, weighted):
+        result = score(mask, weighted)
+        return result["value"] if result else float("-inf")
+
+    if 2 ** k * 2 <= max_evaluations:
+        how = "exhaustive"
+        for bits in range(2 ** k):
+            mask = tuple(bool(bits >> i & 1) for i in range(k))
+            for weighted in (True, False):
+                score(mask, weighted)
+    else:
+        how = "local search"
+        allIn = tuple([True] * k)
+        starts = [(allIn, True), (allIn, False)]
+        # Best pair as the third start: k(k-1) evaluations, then the climb
+        # from below meets the climb from the all-in vote above.
+        bestPair = None
+        for i in range(k):
+            for j in range(i + 1, k):
+                if len(cache) >= max_evaluations:
+                    break
+                mask = tuple(idx in (i, j) for idx in range(k))
+                for weighted in (True, False):
+                    v = value_of(mask, weighted)
+                    if bestPair is None or v > bestPair[0]:
+                        bestPair = (v, mask, weighted)
+        if bestPair is not None:
+            starts.append((bestPair[1], bestPair[2]))
+
+        for mask, weighted in starts:
+            current = value_of(mask, weighted)
+            while len(cache) < max_evaluations:
+                bestMove = None
+                neighbours = [(mask[:i] + (not mask[i],) + mask[i + 1:], weighted) for i in range(k)]
+                neighbours.append((mask, not weighted))
+                for nMask, nWeighted in neighbours:
+                    if len(cache) >= max_evaluations:
+                        break
+                    v = value_of(nMask, nWeighted)
+                    if bestMove is None or v > bestMove[0]:
+                        bestMove = (v, nMask, nWeighted)
+                if bestMove is None or bestMove[0] <= current:
+                    break
+                current, mask, weighted = bestMove
+
+    ranking = sorted(
+        ((result["value"], [name for name, on in zip(candidates, mask) if on], weighted, result["mean"], result["days"])
+         for (mask, weighted), result in cache.items() if result),
+        key=lambda item: (item[0], -len(item[1])), reverse=True)
+    infeasible = sum(1 for result in cache.values() if result is None)
+    return ranking, len(cache), infeasible, how
+
+
+def record_results(study, candidates, ranking, limit, runTag):
+    """
+    Writes the ranking (best first, at most `limit` entries) into the Optuna
+    study as completed trials - the include flags and the weighted flag as
+    categorical parameters, members/mean/days/run as user attributes - so
+    db.sqlite3 and the dashboard carry this run's ranking without duplicates.
+    """
+    distributions = {include_param(name): optuna.distributions.CategoricalDistribution([True, False])
+                     for name in candidates}
+    distributions["subsetEnsembleWeighted"] = optuna.distributions.CategoricalDistribution([True, False])
+    recorded = 0
+    for value, members, weighted, mean, days in ranking[:limit]:
+        params = {include_param(name): (name in members) for name in candidates}
+        params["subsetEnsembleWeighted"] = bool(weighted)
+        study.add_trial(optuna.trial.create_trial(
+            params=params, distributions=distributions, value=float(value),
+            user_attrs={"members": list(members), "mean": float(mean), "scored_days": int(days), "run": runTag}))
+        recorded += 1
+    return recorded
 
 
 if __name__ == "__main__":
@@ -306,18 +411,19 @@ if __name__ == "__main__":
                             help='Most recent scoreable day JSONs to select on (0 = all). Rows present on fewer '
                                  'than 80%% of them are not candidates, so a shorter window lets younger rows '
                                  '(boosting, meta-learner, quantum) take part; a longer one gives more draws.')
-        parser.add_argument('-t', '--trials', type=int, default=200,
-                            help='Trials per game. The space is one include flag per row (~2^20), '
-                                 'a trial takes about a second, so a few hundred is cheap.')
-        parser.add_argument(
-            '--parallel-trials', type=int, default=1,
-            help='Trials evaluated at the same time, each in its own process. Default 1: trials take '
-                 'about a second and the runner spaces launches 3 s apart, so more processes would be '
-                 'slower here, not faster.')
+        parser.add_argument('-t', '--trials', '--max-evaluations', dest='max_evaluations', type=int,
+                            default=DEFAULT_MAX_EVALUATIONS,
+                            help='Evaluation budget per game (subset x weighted/flat combinations). Every '
+                                 'combination is enumerated when 2^rows x 2 fits the budget (12 rows at the '
+                                 'default), otherwise a deterministic local search runs within it. One '
+                                 'evaluation takes 2-20 ms.')
+        parser.add_argument('--record', type=int, default=DEFAULT_RECORD_TRIALS,
+                            help='How many of the best evaluated combinations are written into the Optuna '
+                                 'study as trials (the dashboard ranking).')
         parser.add_argument(
             '--confidence-penalty', type=float, default=DEFAULT_CONFIDENCE_PENALTY,
-            help='Trial value = mean - penalty * std / sqrt(days) of the per-day score, so a subset scored '
-                 'on few (lucky) days does not outrank one scored on many. 0 = plain mean.')
+            help='Subset value = mean - penalty * std / sqrt(days) of the per-day score, so a subset scored '
+                 'on fewer days of the window does not outrank one scored on more. 0 = plain mean.')
         parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
         parser.add_argument(
             '-g', '--games',
@@ -331,13 +437,13 @@ if __name__ == "__main__":
         print_intro()
 
         evaluationDayCount = int(args.days)
-        n_trials = int(args.trials)
+        maxEvaluations = max(4, int(args.max_evaluations))
+        recordLimit = max(1, int(args.record))
         pushToGit = bool(args.save)
-        parallel = max(1, min(int(args.parallel_trials), max(1, cpu_count() - 1)))
         confidencePenalty = max(0.0, float(args.confidence_penalty))
 
         print("Push to git: ", pushToGit)
-        print("Running ", n_trials, "trials")
+        print("Evaluation budget per game: ", maxEvaluations)
 
         games = [g.strip() for g in args.games.split(',') if g.strip()]
         unknown_games = [g for g in games if g not in GAMES]
@@ -347,6 +453,7 @@ if __name__ == "__main__":
 
         path = os.getcwd()
         optunaDatabase = "sqlite:///db.sqlite3"
+        runTag = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         for dataset_name in GAMES:
             if dataset_name not in games:
@@ -397,60 +504,57 @@ if __name__ == "__main__":
                 subsetTemperature = existingData.get("subsetEnsembleSubsetTemperature",
                                                      existingData.get("weightedEnsembleSubsetTemperature", 0.5))
 
-                studyName = f"{dataset_name}-subset_ensemble"
-                study = open_study(studyName, optunaDatabase, parallel=parallel)
-                fail_stale_running_trials(study)
-                # Baseline the search can only improve on: every candidate in,
-                # score-weighted - the WeightedEnsemble vote over the same rows.
-                study.enqueue_trial({**{p: True for p in paramNames}, "subsetEnsembleWeighted": True},
-                                    skip_if_exists=True)
+                evaluate = lambda members, weighted, dataset_name=dataset_name, evaluation_days=evaluation_days, \
+                                  modelScores=modelScores, specialColumnCount=specialColumnCount, \
+                                  fallbackMainCount=fallbackMainCount, kenoSubsetSizes=kenoSubsetSizes, \
+                                  subsetMode=subsetMode, subsetTemperature=subsetTemperature: \
+                    evaluate_subset(members, weighted, dataset_name, evaluation_days, modelScores,
+                                    specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode,
+                                    subsetTemperature, confidencePenalty)
 
-                objective = lambda trial, dataset_name=dataset_name, evaluation_days=evaluation_days, \
-                                   candidates=candidates, modelScores=modelScores, \
-                                   specialColumnCount=specialColumnCount, fallbackMainCount=fallbackMainCount, \
-                                   kenoSubsetSizes=kenoSubsetSizes, subsetMode=subsetMode, \
-                                   subsetTemperature=subsetTemperature, confidencePenalty=confidencePenalty: \
-                    objective_subset_ensemble(
-                        trial, dataset_name, evaluation_days, candidates, modelScores,
-                        specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode, subsetTemperature,
-                        confidencePenalty)
-
-                runStart = datetime.now()
-                studyStart = time.time()
-                optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
-                print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
-
-                # Best of THIS run only: the study persists across weeks, but
-                # every week scores on a longer (different) day window, so
-                # trial values of different runs are not comparable.
-                study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
-                thisRun = [t for t in study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.COMPLETE,))
-                           if t.datetime_start is not None and t.datetime_start >= runStart and t.value is not None]
-                if not thisRun:
-                    print(f"No completed trials for {studyName} in this run (all pruned/failed) - keeping existing params")
+                searchStart = time.time()
+                ranking, evaluated, infeasible, how = search_subsets(candidates, evaluate, maxEvaluations)
+                print(f"{how}: {evaluated} combinations evaluated ({infeasible} infeasible) "
+                      f"in {time.time() - searchStart:.1f}s")
+                if not ranking:
+                    print(f"No feasible subset for {dataset_name} (members never coexist on "
+                          f"{MIN_TRIAL_COVERAGE:.0%} of the window) - keeping existing params")
                     continue
-                best = max(thisRun, key=lambda t: t.value)
-                members = list(best.user_attrs.get("members", []))
-                weighted = bool(best.params.get("subsetEnsembleWeighted", True))
 
+                # The study is the record of this run's ranking (best first,
+                # no duplicates); older runs' trials stay as history and
+                # RUNNING leftovers of a killed run are marked failed.
+                studyName = f"{dataset_name}-subset_ensemble"
+                study = open_study(studyName, optunaDatabase, quiet=True)
+                fail_stale_running_trials(study)
+                recordStart = time.time()
+                recorded = record_results(study, candidates, ranking, recordLimit, runTag)
+                print(f"Recorded the best {recorded} combinations into study {studyName} "
+                      f"in {time.time() - recordStart:.1f}s")
+
+                value, members, weighted, mean, days = ranking[0]
+                baseline = next((item for item in ranking if len(item[1]) == len(candidates) and item[2]), None)
                 metric = "profit per bet" if dataset_name in PAYOUT_GAMES else "avg main hits"
-                bestMean = float(best.user_attrs.get("mean", best.value))
-                print(f"Best subset for {dataset_name} ({metric} {bestMean:.4f}, lower bound {best.value:.4f} on "
-                      f"{best.user_attrs.get('scored_days')} days, {'weighted' if weighted else 'flat'} vote): "
-                      f"{', '.join(members)}")
+                print(f"Best subset for {dataset_name} ({metric} {mean:.4f}, lower bound {value:.4f} on "
+                      f"{days} days, {'weighted' if weighted else 'flat'} vote): {', '.join(members)}")
+                if baseline:
+                    print(f"  all-in weighted vote (the WeightedEnsemble Model over the same rows): "
+                          f"{metric} {baseline[3]:.4f}, lower bound {baseline[0]:.4f} on {baseline[4]} days")
 
                 # Only the derived selection is written - never the row's own
                 # score into modelScores (it would feed back into its own
-                # weights), and not the twenty include flags.
-                existingData["subsetEnsembleModels"] = members
-                existingData["subsetEnsembleWeighted"] = weighted
-                existingData["subsetEnsembleObjective"] = round(float(best.value), 4)
-                existingData["subsetEnsembleMean"] = round(bestMean, 4)
+                # weights), and not the include flags.
+                existingData["subsetEnsembleModels"] = list(members)
+                existingData["subsetEnsembleWeighted"] = bool(weighted)
+                existingData["subsetEnsembleObjective"] = round(float(value), 4)
+                existingData["subsetEnsembleMean"] = round(float(mean), 4)
                 existingData["subsetEnsembleTunedOn"] = {
-                    "days": int(best.user_attrs.get("scored_days") or 0),
+                    "days": int(days),
                     "from": evaluation_days[0][0].strftime("%Y-%m-%d"),
                     "to": evaluation_days[-1][0].strftime("%Y-%m-%d"),
                     "candidates": len(candidates),
+                    "evaluated": int(evaluated),
+                    "search": how,
                     "confidencePenalty": confidencePenalty,
                 }
 
