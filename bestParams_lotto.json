@@ -215,17 +215,18 @@
     "subsetEnsembleModels": [
         "LSTM Base Model",
         "LaplaceMonteCarlo Model",
-        "Markov Model",
-        "PoissonMonteCarlo Model"
+        "MarkovBayesian Model"
     ],
     "subsetEnsembleWeighted": false,
-    "subsetEnsembleObjective": 0.8777,
-    "subsetEnsembleMean": 0.9747,
+    "subsetEnsembleObjective": 0.9283,
+    "subsetEnsembleMean": 1.0253,
     "subsetEnsembleTunedOn": {
         "days": 79,
         "from": "2025-11-12",
         "to": "2026-09-12",
         "candidates": 8,
+        "evaluated": 512,
+        "search": "exhaustive",
         "confidencePenalty": 1.0
     }
 }

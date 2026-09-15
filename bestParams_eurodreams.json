@@ -213,22 +213,20 @@
     "rlTicketSamplesPerDay": 16,
     "rlTicketTrainDays": 60,
     "subsetEnsembleModels": [
-        "HybridStatisticalModel",
         "LSTM Base Model",
         "LaplaceMonteCarlo Model",
-        "MarkovBayesian Model",
-        "MarkovBayesianEnhanched Model",
-        "PoissonMarkov Model",
-        "PoissonMonteCarlo Model"
+        "PoissonMarkov Model"
     ],
     "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": 0.9947,
-    "subsetEnsembleMean": 1.0875,
+    "subsetEnsembleObjective": 1.0898,
+    "subsetEnsembleMean": 1.2,
     "subsetEnsembleTunedOn": {
         "days": 80,
         "from": "2025-11-13",
         "to": "2026-09-10",
         "candidates": 7,
+        "evaluated": 256,
+        "search": "exhaustive",
         "confidencePenalty": 1.0
     }
 }
