@@ -59,6 +59,14 @@ MIN_EVALUATION_DAYS = 10
 # --days.
 MIN_ROW_COVERAGE = 0.8
 MIN_TRIAL_COVERAGE = 0.6
+# ...and the row must still be emitted: present on at least RECENT_MIN_DAYS
+# of the RECENT_DAYS most recent scoreable days. History alone is not
+# enough - the LSTM Base Model row stopped appearing in mid-August 2026 yet
+# covered 79 of 87 lotto days, was selected, and the served row was then
+# skipped every day for a missing member. Three of five tolerates a one-off
+# DL child failure without dropping a live row for a week.
+RECENT_DAYS = 5
+RECENT_MIN_DAYS = 3
 # Subset value = mean - penalty * std / sqrt(days) of the per-day score: a
 # lower confidence bound that mildly favours the subsets scored on more of
 # the window within the coverage band above. 0 = plain mean.
@@ -184,11 +192,17 @@ def load_evaluation_days(historyDir, days):
 def candidate_rows(evaluation_days):
     """
     Row names eligible for the vote: present (with a non-empty main ticket)
-    on at least MIN_ROW_COVERAGE of the evaluation days and never one of
+    on at least MIN_ROW_COVERAGE of the evaluation days AND on at least
+    RECENT_MIN_DAYS of the last RECENT_DAYS of them (a row the pipeline no
+    longer emits cannot be a member of a served row), never one of
     EXCLUDED_ROWS. Sorted, so the parameter set is stable across runs.
+    Returns (candidates, dropped_stale) with the rows that had the history
+    but not the recent presence, for the log.
     """
-    presence = {}
-    for _, rows, _ in evaluation_days:
+    presence, recent = {}, {}
+    recentDays = evaluation_days[-RECENT_DAYS:]
+    for index, (_, rows, _) in enumerate(evaluation_days):
+        isRecent = index >= len(evaluation_days) - len(recentDays)
         seen = set()
         for row in rows:
             name = row.get("name")
@@ -196,9 +210,15 @@ def candidate_rows(evaluation_days):
                 continue
             if row.get("predictions") and row["predictions"][0]:
                 presence[name] = presence.get(name, 0) + 1
+                if isRecent:
+                    recent[name] = recent.get(name, 0) + 1
                 seen.add(name)
     needed = max(MIN_EVALUATION_DAYS, int(np.ceil(MIN_ROW_COVERAGE * len(evaluation_days))))
-    return sorted(name for name, count in presence.items() if count >= needed)
+    recentNeeded = min(RECENT_MIN_DAYS, len(recentDays))
+    withHistory = sorted(name for name, count in presence.items() if count >= needed)
+    candidates = [name for name in withHistory if recent.get(name, 0) >= recentNeeded]
+    stale = [name for name in withHistory if name not in candidates]
+    return candidates, stale
 
 
 def include_param(name):
@@ -470,7 +490,10 @@ if __name__ == "__main__":
                 print(f"Evaluating on {len(evaluation_days)} days "
                       f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
 
-                candidates = candidate_rows(evaluation_days)
+                candidates, stale = candidate_rows(evaluation_days)
+                if stale:
+                    print(f"Not candidates (history but absent from {RECENT_DAYS - RECENT_MIN_DAYS + 1}+ of the "
+                          f"last {RECENT_DAYS} days - no longer emitted?): {', '.join(stale)}")
                 if len(candidates) < 2:
                     print(f"Skipping {dataset_name}: only {len(candidates)} candidate row(s) present on "
                           f"at least {MIN_ROW_COVERAGE:.0%} of those days")
