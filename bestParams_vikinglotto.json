@@ -224,8 +224,8 @@
         "days": 42,
         "from": "2025-11-19",
         "to": "2026-09-09",
-        "candidates": 8,
-        "evaluated": 512,
+        "candidates": 7,
+        "evaluated": 256,
         "search": "exhaustive",
         "confidencePenalty": 1.0
     }
