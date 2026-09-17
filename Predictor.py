@@ -361,23 +361,38 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
         modelToUse = lstm
         modelToUse.setDataPath(dataPath)
         modelToUse.setModelPath(modelPath)
-        modelToUse.setBatchSize(bestParams_json_object["batchSize"])
-        modelToUse.setEpochs(bestParams_json_object["epochs"])
-        modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
-        modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
-        modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
-        modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
-        modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
-        modelToUse.setLearningRate(bestParams_json_object["learningRate"])
-        modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
-        modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
-        modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
-        modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
-        modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
-        modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
-        modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
+        # Tuned keys are applied when present; a game that HyperoptDeepLearning.py
+        # has never tuned (jokerplus on 2026-09-17: none of the 16 keys) keeps
+        # the LSTMModel defaults instead of taking the whole DL step down with a
+        # KeyError before the TCN/unified rows ran - the same .get() stance the
+        # unified rows have always taken.
+        lstmSetters = [
+            ("batchSize", modelToUse.setBatchSize),
+            ("epochs", modelToUse.setEpochs),
+            ("num_lstm_layers", modelToUse.setNumberOfLSTMLayers),
+            ("lstm_units", modelToUse.setNumberOfLstmUnits),
+            ("num_bidirectional_layers", modelToUse.setNumberOfBidrectionalLayers),
+            ("bidirectional_lstm_units", modelToUse.setNumberOfBidirectionalLstmUnits),
+            ("optimizer_type", modelToUse.setOptimizer),
+            ("learningRate", modelToUse.setLearningRate),
+            ("dropout", modelToUse.setDropout),  # 0.2 - 0.5
+            ("l2Regularization", modelToUse.setL2Regularization),  # 0.0001 - 0.001
+            ("useFinalLSTMLayer", modelToUse.setUseFinalLSTMLayer),
+            ("earlyStopPatience", modelToUse.setEarlyStopPatience),
+            ("reduceLearningRatePatience", modelToUse.setReduceLearningRatePAience),
+            ("reduceLearningRateFactor", modelToUse.setReducedLearningRateFactor),
+            ("windowSize", modelToUse.setWindowSize),  # 50 - 100
+            ("labelSmoothing", modelToUse.setLabelSmoothing),
+        ]
+        missingKeys = [key for key, _ in lstmSetters if key not in bestParams_json_object]
+        if missingKeys:
+            print(f"LSTM Base Model for {name}: {len(missingKeys)} untuned key(s) ({', '.join(missingKeys[:4])}"
+                  f"{', ...' if len(missingKeys) > 4 else ''}) - using the model defaults; "
+                  f"tune with HyperoptDeepLearning.py -g {name} --models lstm_model")
+        for key, setter in lstmSetters:
+            if key in bestParams_json_object:
+                setter(bestParams_json_object[key])
         modelToUse.setPredictionWindowSize(modelToUse.window_size)
-        modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
         modelToUse.setTrainSeconds(trainSeconds)
 
         # Own try/except (like every other model): the LSTM raising - e.g.
