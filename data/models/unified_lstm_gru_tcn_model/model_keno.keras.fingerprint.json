@@ -1,0 +1,14 @@
+{
+  "max_value": 70,
+  "num_classes": 80,
+  "digitsPerDraw": 20,
+  "specialColumnCount": 0,
+  "specialNumClasses": 0,
+  "lstm_units": 128,
+  "gru_units": 32,
+  "tcn_units": 32,
+  "num_tcn_layers": 1,
+  "window_size": 18,
+  "num_heads": 2,
+  "key_dim": 64
+}

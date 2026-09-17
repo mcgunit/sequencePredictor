@@ -1,0 +1,15 @@
+{
+  "max_value": 45,
+  "num_classes": 45,
+  "digitsPerDraw": 6,
+  "specialColumnCount": 0,
+  "specialNumClasses": 0,
+  "num_lstm_layers": 1,
+  "num_bidirectional_layers": 1,
+  "lstm_units": 32,
+  "bidirectional_lstm_units": 64,
+  "useFinalLSTMLayer": false,
+  "window_size": 4,
+  "num_heads": 2,
+  "key_dim": 16
+}

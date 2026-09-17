@@ -1,0 +1,13 @@
+{
+  "max_value": 45,
+  "num_classes": 45,
+  "digitsPerDraw": 6,
+  "specialColumnCount": 0,
+  "specialNumClasses": 0,
+  "lstm_units": 16,
+  "tcn_units": 16,
+  "num_tcn_layers": 2,
+  "window_size": 6,
+  "num_heads": 8,
+  "key_dim": 64
+}
