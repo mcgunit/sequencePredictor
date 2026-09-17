@@ -318,8 +318,8 @@
     "subsetEnsembleMean": 1.1583,
     "subsetEnsembleTunedOn": {
         "days": 120,
-        "from": "2026-05-17",
-        "to": "2026-09-13",
+        "from": "2026-05-18",
+        "to": "2026-09-14",
         "candidates": 7,
         "evaluated": 256,
         "search": "exhaustive",
