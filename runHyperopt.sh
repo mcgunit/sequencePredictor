@@ -2,6 +2,25 @@
 
 cd /root/sequencePredictor/
 
+# Wait for the daily predictor to release process.lock instead of letting
+# every tuner exit with "Another instance is already running": with the deep
+# learning rows time-boxed back into the daily run (runPredictor.sh -a true)
+# a Saturday run that also recovers a gap can still be busy at 14:00, and a
+# skipped week of tuning would be silent. Waits at most 6 hours.
+LOCK=/root/sequencePredictor/process.lock
+waited=0
+while [ -f "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; do
+    if [ "$waited" -ge 21600 ]; then
+        echo "$(date -u '+%F %T') runHyperopt.sh: process.lock still held by PID $(cat "$LOCK") after 6h - giving up this week" >> /root/sequencePredictor/log/hyperoptStatistics.log
+        exit 1
+    fi
+    if [ "$waited" -eq 0 ]; then
+        echo "$(date -u '+%F %T') runHyperopt.sh: waiting for process.lock (held by PID $(cat "$LOCK"))" >> /root/sequencePredictor/log/hyperoptStatistics.log
+    fi
+    sleep 60
+    waited=$((waited + 60))
+done
+
 python3 HyperoptStatistics.py >> /root/sequencePredictor/log/hyperoptStatistics.log 2>&1
 
 # Tune the boosting model (XGBoost Model) the same way, into the same

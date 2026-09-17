@@ -22,6 +22,7 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
+from TimeBudget import TimeBudgetCallback
 
 helpers = Helpers()
 
@@ -182,6 +183,20 @@ class GNNModel:
     def setBatchSize(self, batchSize): self.batchSize = batchSize
     def setDropout(self, dropout): self.dropout = dropout
     def setL2Regularization(self, value): self.l2Regularization = value
+    def setTrainSeconds(self, seconds):
+        """
+        Wall-clock budget for one training run, in seconds (None/0 =
+        unlimited). Enforced by TimeBudgetCallback (src/TimeBudget.py): the
+        run stops at the budget like an early stop and keeps the best weights
+        reached, so the model still predicts. Set by Predictor.py from
+        --dl-model-seconds; the tuner leaves it unset.
+        """
+        self.trainSeconds = float(seconds) if seconds and float(seconds) > 0 else None
+
+    def _timeBudgetCallbacks(self, model_name=""):
+        budget = getattr(self, "trainSeconds", None)
+        return [TimeBudgetCallback(budget, label=model_name)] if budget else []
+
     def setEarlyStopPatience(self, value): self.earlyStopPatience = value
     def setReduceLearningRatePatience(self, value): self.reduceLearningRatePatience = value
     def setReducedLearningRateFactor(self, value): self.reduceLearningRateFactor = value
@@ -402,7 +417,7 @@ class GNNModel:
                             epochs=self.epochs,
                             batch_size=self.batchSize,
                             verbose=False,
-                            callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), SelectiveProgbarLogger(verbose=1, epoch_interval=50)])
+                            callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), *self._timeBudgetCallbacks(model_name), SelectiveProgbarLogger(verbose=1, epoch_interval=50)])
         return history
 
     # ---------------------------

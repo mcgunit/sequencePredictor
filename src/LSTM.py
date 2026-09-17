@@ -24,6 +24,7 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
+from TimeBudget import TimeBudgetCallback
 
 helpers = Helpers()
 
@@ -111,6 +112,20 @@ class LSTMModel:
     def setL2Regularization(self, value):
         self.l2Regularization = value
     
+    def setTrainSeconds(self, seconds):
+        """
+        Wall-clock budget for one training run, in seconds (None/0 =
+        unlimited). Enforced by TimeBudgetCallback (src/TimeBudget.py): the
+        run stops at the budget like an early stop and keeps the best weights
+        reached, so the model still predicts. Set by Predictor.py from
+        --dl-model-seconds; the tuner leaves it unset.
+        """
+        self.trainSeconds = float(seconds) if seconds and float(seconds) > 0 else None
+
+    def _timeBudgetCallbacks(self, model_name=""):
+        budget = getattr(self, "trainSeconds", None)
+        return [TimeBudgetCallback(budget, label=model_name)] if budget else []
+
     def setEarlyStopPatience(self, value):
         self.earlyStopPatience = value
     
@@ -312,7 +327,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), *self._timeBudgetCallbacks(model_name), SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
     def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=False, specialColumnCount=0):

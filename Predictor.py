@@ -13,7 +13,7 @@ import joblib
 from art import text2art
 from datetime import datetime
 from multiprocessing import Pool, cpu_count, get_context
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from src.TCN import TCNModel
 from src.LSTM import LSTMModel
@@ -72,6 +72,27 @@ LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 # played), so it keeps being fully dropped via skipLastColumns. Mirrored in
 # Helpers.SPECIAL_COLUMN_COUNTS, HyperoptDeepLearning.py and server.js.
 SPECIAL_COLUMN_COUNTS = {"euromillions": 2, "eurodreams": 1, "vikinglotto": 1, "jokerplus": 1}
+
+# --- DEEP LEARNING TIME BUDGETS (set from --dl-model-seconds / --dl-timeout) ---
+# What let the heavy DL models back into the daily cron: their training used
+# to take so long it blocked the prediction flow (disabled mid-August 2026).
+# DL_MODEL_SECONDS caps ONE model's training run (src/TimeBudget.py: the run
+# stops at the budget like an early stop and predicts with the best weights
+# reached - quality degrades, the row survives). DL_TIMEOUT_SECONDS is the
+# parent's hard deadline on the whole per-day DL child (0 = auto, see
+# dlChildDeadline: enabled models x (DL_MODEL_SECONDS + per-model overhead)
+# + child start-up); at the deadline the child is killed and the rows it had
+# finished are kept (deepLearningStep checkpoints them after every model,
+# cheap rows first). The budget caps fit() only: data loading, graph build
+# and first-batch compilation, the post-stop validation pass, prediction and
+# saving run outside it (measured 1-40 s per model, the TCN's first batch
+# alone took 50 s), hence the per-model overhead allowance. The per-model
+# budget travels into the spawned child as an argument - spawn starts a
+# fresh interpreter, module globals set here never reach it.
+DL_MODEL_SECONDS = 240
+DL_TIMEOUT_SECONDS = 0
+DL_PER_MODEL_OVERHEAD_SECONDS = 60
+DL_CHILD_STARTUP_SECONDS = 120
 
 
 def matchingSplitArgs(name, realResult):
@@ -284,74 +305,165 @@ def process_single_history_entry_first_step(args):
 
 
 def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
-                     years_back, specialColumnCount, skipRows, repoPath, fullAi=True):
+                     years_back, specialColumnCount, skipRows, repoPath, fullAi=True,
+                     trainSeconds=None, partialPath=None):
     """
     Trains and predicts every deep learning model for one day: LSTM Base
     Model plus the UNIFIED_DL_MODELS rows. Module-level and fully
     argument-driven so it can run in a spawned child process (see
     runDeepLearningStepInChild). Returns (newPredictionRaw, unique_labels,
     dlRows, anomalyWatch) - newPredictionRaw/unique_labels are None if the
-    LSTM failed, anomalyWatch is None unless the Autoencoder Model ran (it
-    must be computed in this same child - the trained model dies with it).
+    LSTM did not run or failed, anomalyWatch is None unless the Autoencoder
+    Model ran (it must be computed in this same child - the trained model
+    dies with it).
+
+    Order and budgets: the cheap research rows (Transformer/GNN/Autoencoder)
+    run first, then the LSTM, then the heavy TCN/unified rows, and after
+    every model the results so far are written to partialPath - so when the
+    parent kills this child at its deadline (or the OOM killer does), the day
+    loses only the model that was still training, never the rows that always
+    fit. trainSeconds caps each model's training run (TimeBudgetCallback).
+    fullAi=False (--ai off) runs the cheap rows only.
     """
     dlRows = []
     predictedSequence = None
     unique_labels = None
+    anomalyWatch = None
 
-    # fullAi=False (the cron default, --ai off) skips the heavy legacy DL
-    # models (LSTM base + the requiresFullAi registry rows) but still runs
-    # the lightweight research models per their use<Prefix> toggles.
-    if not fullAi or not bestParams_json_object.get("useLstm", True):
-        dlRows, anomalyWatch = runUnifiedDeepLearningModels(
-            dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
-            skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount,
-            fullAi=fullAi)
-        return predictedSequence, unique_labels, dlRows, anomalyWatch
-
-    modelToUse = lstm
-    modelToUse.setDataPath(dataPath)
-    modelToUse.setModelPath(modelPath)
-    modelToUse.setBatchSize(bestParams_json_object["batchSize"])
-    modelToUse.setEpochs(bestParams_json_object["epochs"])
-    modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
-    modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
-    modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
-    modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
-    modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
-    modelToUse.setLearningRate(bestParams_json_object["learningRate"])
-    modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
-    modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
-    modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
-    modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
-    modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
-    modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
-    modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
-    modelToUse.setPredictionWindowSize(modelToUse.window_size)
-    modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
-
-    # Own try/except (like every other model): the LSTM raising - e.g.
-    # training went NaN with no healthy checkpoint (see LSTM.run) - must cost
-    # only its own row, not the unified DL rows that follow.
-    try:
-        latest_raw_predictions, unique_labels = modelToUse.run(
-            name, skipLastColumns, skipRows=skipRows, years_back=years_back,
-            specialColumnCount=specialColumnCount)
-        predictedSequence = latest_raw_predictions.tolist()
-        dlRows = deepLearningMethod(
-            dlRows, predictedSequence, unique_labels, gameName=name,
-            kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
-    except Exception as e:
-        print("Failed to perform LSTM Base Model prediction: ", e)
+    def checkpoint(rows=None):
+        if not partialPath:
+            return
+        try:
+            snapshot = {
+                "marker": {"name": name, "skipRows": int(skipRows)},
+                "newPredictionRaw": predictedSequence,
+                "labels": unique_labels,
+                "dlRows": rows if rows is not None else dlRows,
+                "anomalyWatch": anomalyWatch,
+            }
+            tmpPath = partialPath + ".tmp"
+            with open(tmpPath, "w") as outfile:
+                json.dump(snapshot, outfile, default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
+            os.replace(tmpPath, partialPath)
+        except Exception as e:
+            print("Could not write the partial deep learning results: ", e)
 
     dlRows, anomalyWatch = runUnifiedDeepLearningModels(
         dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
         skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount,
-        fullAi=fullAi)
+        fullAi=fullAi, tier="light", trainSeconds=trainSeconds, onModelDone=checkpoint)
+    checkpoint()
+
+    if not fullAi:
+        return predictedSequence, unique_labels, dlRows, anomalyWatch
+
+    if bestParams_json_object.get("useLstm", True):
+        modelToUse = lstm
+        modelToUse.setDataPath(dataPath)
+        modelToUse.setModelPath(modelPath)
+        modelToUse.setBatchSize(bestParams_json_object["batchSize"])
+        modelToUse.setEpochs(bestParams_json_object["epochs"])
+        modelToUse.setNumberOfLSTMLayers(bestParams_json_object["num_lstm_layers"])
+        modelToUse.setNumberOfLstmUnits(bestParams_json_object["lstm_units"])
+        modelToUse.setNumberOfBidrectionalLayers(bestParams_json_object["num_bidirectional_layers"])
+        modelToUse.setNumberOfBidirectionalLstmUnits(bestParams_json_object["bidirectional_lstm_units"])
+        modelToUse.setOptimizer(bestParams_json_object["optimizer_type"])
+        modelToUse.setLearningRate(bestParams_json_object["learningRate"])
+        modelToUse.setDropout(bestParams_json_object["dropout"]) # 0.2 - 0.5
+        modelToUse.setL2Regularization(bestParams_json_object["l2Regularization"]) # 0.0001 - 0.001
+        modelToUse.setUseFinalLSTMLayer(bestParams_json_object["useFinalLSTMLayer"])
+        modelToUse.setEarlyStopPatience(bestParams_json_object["earlyStopPatience"])
+        modelToUse.setReduceLearningRatePAience(bestParams_json_object["reduceLearningRatePatience"])
+        modelToUse.setReducedLearningRateFactor(bestParams_json_object["reduceLearningRateFactor"])
+        modelToUse.setWindowSize(bestParams_json_object["windowSize"]) # 50 - 100
+        modelToUse.setPredictionWindowSize(modelToUse.window_size)
+        modelToUse.setLabelSmoothing(bestParams_json_object["labelSmoothing"])
+        modelToUse.setTrainSeconds(trainSeconds)
+
+        # Own try/except (like every other model): the LSTM raising - e.g.
+        # training went NaN with no healthy checkpoint (see LSTM.run) - must cost
+        # only its own row, not the unified DL rows that follow.
+        started = time.time()
+        try:
+            latest_raw_predictions, unique_labels = modelToUse.run(
+                name, skipLastColumns, skipRows=skipRows, years_back=years_back,
+                specialColumnCount=specialColumnCount)
+            predictedSequence = latest_raw_predictions.tolist()
+            dlRows = deepLearningMethod(
+                dlRows, predictedSequence, unique_labels, gameName=name,
+                kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
+            print(f"LSTM Base Model: {time.time() - started:.0f}s")
+        except Exception as e:
+            print("Failed to perform LSTM Base Model prediction: ", e)
+        checkpoint()
+    else:
+        print("LSTM Base Model disabled via useLstm - skipping")
+
+    dlRows, heavyAnomalyWatch = runUnifiedDeepLearningModels(
+        dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
+        skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount,
+        fullAi=fullAi, tier="heavy", trainSeconds=trainSeconds, onModelDone=checkpoint)
+    if anomalyWatch is None:
+        anomalyWatch = heavyAnomalyWatch
 
     return predictedSequence, unique_labels, dlRows, anomalyWatch
 
 
-def runDeepLearningStepInChild(*args):
+def enabledDlModelCount(bestParams_json_object, fullAi):
+    """How many DL models deepLearningStep will train for this game with these flags."""
+    count = 1 if fullAi and bestParams_json_object.get("useLstm", True) else 0
+    for _, prefix, _, _, modelDefaults in UNIFIED_DL_MODELS:
+        if modelDefaults.get("requiresFullAi", True) and not fullAi:
+            continue
+        if bestParams_json_object.get("use" + prefix[0].upper() + prefix[1:], True):
+            count += 1
+    return count
+
+
+def dlChildDeadline(bestParams_json_object, fullAi):
+    """
+    Seconds the parent waits for the per-day DL child: --dl-timeout when
+    given, else auto = enabled models x (--dl-model-seconds +
+    DL_PER_MODEL_OVERHEAD_SECONDS for each model's data load, graph
+    compilation, prediction and saving) + DL_CHILD_STARTUP_SECONDS for the
+    TF import, CUDA init and the anomaly scores. None = no deadline: both
+    budgets off (--dl-model-seconds 0 without --dl-timeout), the
+    pre-2026-09 behaviour.
+    """
+    if DL_TIMEOUT_SECONDS and DL_TIMEOUT_SECONDS > 0:
+        return float(DL_TIMEOUT_SECONDS)
+    if not DL_MODEL_SECONDS or DL_MODEL_SECONDS <= 0:
+        return None
+    count = enabledDlModelCount(bestParams_json_object, fullAi)
+    return count * (float(DL_MODEL_SECONDS) + DL_PER_MODEL_OVERHEAD_SECONDS) + DL_CHILD_STARTUP_SECONDS
+
+
+def readPartialDlResults(partialPath, name, skipRows):
+    """
+    The rows a killed DL child had checkpointed (see deepLearningStep), or
+    nothing. The snapshot's marker must match this game and day (skipRows):
+    a leftover of another run must never be served as today's rows.
+    """
+    try:
+        with open(partialPath, "r") as infile:
+            snapshot = json.load(infile)
+    except FileNotFoundError:
+        print("No partial deep learning results were written - skipping DL rows for this day")
+        return None, None, [], None
+    except Exception as e:
+        print("Could not read the partial deep learning results - skipping DL rows for this day: ", e)
+        return None, None, [], None
+    if snapshot.get("marker") != {"name": name, "skipRows": int(skipRows)}:
+        print("Partial deep learning results belong to another game/day - ignoring them")
+        return None, None, [], None
+    dlRows = snapshot.get("dlRows") or []
+    print(f"Recovered {len(dlRows)} deep learning row(s) that finished before the child stopped: "
+          f"{[row.get('name') for row in dlRows]}")
+    return snapshot.get("newPredictionRaw"), snapshot.get("labels"), dlRows, snapshot.get("anomalyWatch")
+
+
+def runDeepLearningStepInChild(name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
+                               years_back, specialColumnCount, skipRows, repoPath, fullAi=True):
     """
     Runs deepLearningStep in a one-shot spawned child process, for two
     reasons learned the hard way:
@@ -368,15 +480,61 @@ def runDeepLearningStepInChild(*args):
       process. A fresh child per day releases everything back to the OS on
       exit, so RSS can't ratchet up in the first place.
 
+    The child also has a wall-clock deadline
+    (dlChildDeadline) and every model a training budget (DL_MODEL_SECONDS):
+    training that used to block the prediction flow for hours now stops at
+    the budget and predicts with the best weights so far, and a child that
+    still overruns is killed - keeping the rows it had checkpointed. This is
+    what allows the daily cron to run with --ai on again.
+
     Costs one TF import + CUDA init per day (~15-30s) - small next to the
     minutes of training it wraps.
     """
+    cacheDir = os.path.join(repoPath, "data", "hyperOptCache")
+    os.makedirs(cacheDir, exist_ok=True)
+    # Leftovers of a parent that was hard-killed mid-step (OOM killer,
+    # container stop) never got the cleanup below; only one Predictor runs at
+    # a time (process.lock), so any dl_partial file for this game is stale.
+    for leftover in os.listdir(cacheDir):
+        if leftover.startswith(f"dl_partial_{name}_"):
+            try:
+                os.remove(os.path.join(cacheDir, leftover))
+            except Exception:
+                pass
+    partialPath = os.path.join(cacheDir, f"dl_partial_{name}_{os.getpid()}_{time.time_ns()}.json")
+    deadline = dlChildDeadline(bestParams_json_object, fullAi)
+    trainSeconds = float(DL_MODEL_SECONDS) if DL_MODEL_SECONDS and DL_MODEL_SECONDS > 0 else None
+    print(f"Deep learning step for {name}: {enabledDlModelCount(bestParams_json_object, fullAi)} model(s), "
+          f"{'no training budget' if trainSeconds is None else f'{trainSeconds:.0f}s training budget per model'}, "
+          f"{'no deadline' if deadline is None else f'{deadline:.0f}s deadline'}")
+
+    executor = ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn"))
+    started = time.time()
     try:
-        with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
-            return executor.submit(deepLearningStep, *args).result()
+        future = executor.submit(deepLearningStep, name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
+                                 years_back, specialColumnCount, skipRows, repoPath, fullAi, trainSeconds, partialPath)
+        result = future.result(timeout=deadline)
+        print(f"Deep learning step for {name} finished in {time.time() - started:.0f}s")
+        return result
+    except FuturesTimeoutError:
+        # The pool has exactly this one process: kill it, keep what it saved.
+        for child in list(executor._processes.values()):
+            child.kill()
+        print(f"Deep learning step for {name} exceeded its {deadline:.0f}s deadline - child killed, "
+              f"keeping the DL rows that finished")
+        return readPartialDlResults(partialPath, name, skipRows)
     except Exception as e:
-        print("Deep learning step died (likely OOM-killed) - skipping DL rows for this day: ", e)
-        return None, None, [], None
+        print("Deep learning step died (likely OOM-killed) - keeping the DL rows that finished: ", e)
+        return readPartialDlResults(partialPath, name, skipRows)
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+        for leftover in (partialPath, partialPath + ".tmp"):
+            try:
+                os.remove(leftover)
+            except FileNotFoundError:
+                pass
+            except Exception:
+                pass
 
 
 def process_single_history_entry_second_step(args):
@@ -1068,12 +1226,13 @@ def lightDlModelsEnabled(bestParams_json_object):
     """
     True if at least one of the lightweight research models (the registry
     entries with requiresFullAi=False) is enabled by its use<Prefix> key.
-    The cron runs with --ai off because the LSTM/TCN/unified trainings are
-    what blow the memory/time budget - the Transformer/GNN/Autoencoder rows
-    are an order of magnitude cheaper, so they get their own gate and run
-    (in the same one-shot spawned child) even without --ai. Callers use this
-    to skip spawning the child (one TF import, ~15-30s) when nothing in it
-    would run anyway.
+    From mid-August to 2026-09-16 the cron ran with --ai off because the
+    LSTM/TCN/unified trainings blew the time budget and blocked the flow;
+    the Transformer/GNN/Autoencoder rows are an order of magnitude cheaper,
+    so they got their own gate and run (in the same one-shot spawned child)
+    even without --ai - and still do when --ai is off by hand. Callers use
+    this to skip spawning the child (one TF import, ~15-30s) when nothing in
+    it would run anyway.
     """
     return any(
         bestParams_json_object.get("use" + prefix[0].upper() + prefix[1:], True)
@@ -1083,7 +1242,7 @@ def lightDlModelsEnabled(bestParams_json_object):
 
 def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath, skipLastColumns,
                                   bestParams_json_object, skipRows=0, years_back=None, specialColumnCount=0,
-                                  fullAi=True):
+                                  fullAi=True, tier=None, trainSeconds=None, onModelDone=None):
     """
     Runs UnifiedLstmTcn Model and UnifiedLstmGruTcn Model (see
     src/UnifiedLstmTcn.py / src/UnifiedLstmGruTcn.py) alongside the existing
@@ -1092,16 +1251,25 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
     bestParams_<game>.json written before this feature landed (the project
     already hit a real KeyError crash once from assuming a new key always
     exists).
+
+    tier="light" runs only the cheap research rows (requiresFullAi=False),
+    tier="heavy" only the TCN/unified rows, None both. trainSeconds is each
+    model's training budget (setTrainSeconds); onModelDone(rows) is called
+    after every model so deepLearningStep can checkpoint partial results.
     """
     autoencoderRan = False
     for model, prefix, displayName, modelTypeFolder, modelDefaults in UNIFIED_DL_MODELS:
         # Heavy rows (TCN/unified*) stay behind the --ai flag; the lightweight
         # research rows only need their own use<Prefix> toggle (default on).
-        if modelDefaults.get("requiresFullAi", True) and not fullAi:
+        heavy = modelDefaults.get("requiresFullAi", True)
+        if heavy and not fullAi:
+            continue
+        if (tier == "light" and heavy) or (tier == "heavy" and not heavy):
             continue
         if not bestParams_json_object.get("use" + prefix[0].upper() + prefix[1:], True):
             print(f"{displayName} disabled via use{prefix[0].upper() + prefix[1:]} - skipping")
             continue
+        started = time.time()
         try:
             modelPath = os.path.join(path, "data", "models", modelTypeFolder)
             model.setDataPath(dataPath)
@@ -1155,6 +1323,8 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
                 model.setNumHeads(bestParams_json_object.get(f"{prefix}_numHeads", 4))
             if hasattr(model, "setKeyDim"):
                 model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
+            if hasattr(model, "setTrainSeconds"):
+                model.setTrainSeconds(trainSeconds)
 
             latest_raw_predictions, unique_labels = model.run(
                 name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
@@ -1165,8 +1335,14 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
 
             if model is autoencoderAnomaly:
                 autoencoderRan = True
+            print(f"{displayName}: {time.time() - started:.0f}s")
         except Exception as e:
             print(f"Failed to perform {displayName} prediction: ", e)
+        if onModelDone is not None:
+            try:
+                onModelDone(listOfDecodedPredictions)
+            except Exception as e:
+                print("Could not checkpoint the deep learning rows: ", e)
 
     # Security layer (README "Unsupervised Anomaly Detection"): the
     # autoencoder's reconstruction NLL on each REAL draw, computed on the
@@ -2004,12 +2180,29 @@ if __name__ == "__main__":
         parser.add_argument(
             '-a', '--ai', type=helpers.str2bool, default=False,
             help='Enable the HEAVY deep learning models (LSTM/TCN/Unified). '
-                 'Off by default for now: their training is what grows past '
-                 'the container memory limit and gets OOM-killed. The '
+                 'Off by default; the daily cron (runPredictor.sh) turns it on '
+                 'now that every training run is capped by --dl-model-seconds '
+                 'and the per-day DL child by --dl-timeout, so training can no '
+                 'longer block the prediction flow (it did, so it was off from '
+                 'mid-August 2026 until this landed). The '
                  'lightweight research models (Transformer/GNN/Autoencoder) '
                  'run regardless, gated by their own useTransformer/useGnn/'
                  'useAutoencoder keys in bestParams_<game>.json. ANDed with '
                  'each game\'s own ai flag in the datasets list.')
+        parser.add_argument(
+            '--dl-model-seconds', type=int, default=DL_MODEL_SECONDS,
+            help='Wall-clock training budget per deep learning model per day (default 240). At the '
+                 'budget the run stops like an early stop and predicts with the best weights so far - '
+                 'the row survives, only training quality degrades. Checked after every batch, so a '
+                 'model can overrun by one batch (a freshly compiled graph\'s first batch took up to 50 s). '
+                 '0 = unlimited, which also switches the automatic --dl-timeout off.')
+        parser.add_argument(
+            '--dl-timeout', type=int, default=DL_TIMEOUT_SECONDS,
+            help='Hard deadline in seconds for the whole per-day deep learning child; at the deadline '
+                 'the child is killed and the rows it had finished are kept (cheap rows run first). '
+                 '0 (default) = auto: enabled models x (--dl-model-seconds + 60 s of load/compile/predict '
+                 'overhead) + 120 s child start-up - 37 min for 7 models at the default budget. With '
+                 '--dl-model-seconds 0 there is no automatic deadline; pass one here to keep a hard cap.')
         parser.add_argument(
             '-b', '--boost', type=helpers.str2bool, default=True,
             help='Enable the gradient boosting models. ANDed with each '
@@ -2034,8 +2227,12 @@ if __name__ == "__main__":
         pushToGit = bool(args.save)
         aiEnabled = bool(args.ai)
         boostEnabled = bool(args.boost)
+        DL_MODEL_SECONDS = max(0, int(args.dl_model_seconds))
+        DL_TIMEOUT_SECONDS = max(0, int(args.dl_timeout))
 
         print("Deep learning enabled: ", aiEnabled)
+        print("Deep learning budgets: ", f"{DL_MODEL_SECONDS}s per model training" if DL_MODEL_SECONDS else "no per-model budget",
+              "/", f"{DL_TIMEOUT_SECONDS}s per day" if DL_TIMEOUT_SECONDS else "auto deadline per day")
         print("Boosting enabled: ", boostEnabled)
 
         print("Push to git: ", pushToGit)
