@@ -454,9 +454,10 @@ function calculateProfit(prediction, realResult, game, name) {
     2: { 2: 6.5 },
     "lost": -1
   };
+  // Mirror of Helpers.PAYOUT_TABLE_PICK3 (Reglement Pick-3, juli 2024).
   const payoutTablePick3 = {
-    straight: 500, box_with_doubles: 160, box_no_doubles: 80,
-    front_pair: 50, back_pair: 50, last_number: 1, lost: -4 
+    straight: 500, straight_consolation: 1, box_with_doubles: 160, box_no_doubles: 80,
+    front_pair: 50, back_pair: 50, bet_cost: 1
   };
   const played = prediction.length;
 
@@ -470,20 +471,29 @@ function calculateProfit(prediction, realResult, game, name) {
       return 0; 
     }
     case "pick3": {
-      if (played != 3 || realResult.length != 3) return 0;
-      const pred = prediction; const actual = realResult;
-      const isSame = pred[0] === actual[0] && pred[1] === actual[1] && pred[2] === actual[2];
-      const isPermutation = [...pred].sort().join('') === [...actual].sort().join('');
-      if (isSame) return payoutTablePick3.straight;
-      else if (isPermutation) {
-        const countMap = {}; for (let n of pred) countMap[n] = (countMap[n] || 0) + 1;
-        const hasDouble = Object.values(countMap).includes(2);
-        return hasDouble ? payoutTablePick3.box_with_doubles : payoutTablePick3.box_no_doubles;
-      } 
-      else if (pred[0] === actual[0] && pred[1] === actual[1]) return payoutTablePick3.front_pair;
-      else if (pred[1] === actual[1] && pred[2] === actual[2]) return payoutTablePick3.back_pair;
-      else if (pred[2] === actual[2]) return payoutTablePick3.last_number;
-      else return payoutTablePick3.lost;
+      // Official cumulative model, the same as Helpers.pick3_ticket_profit
+      // (which scores the backtests, the tuners and the performance report):
+      // the tracked ticket plays every bet type at 1 EUR - straight, box,
+      // front pair, back pair; a triple cannot play box, so its stake is 3 -
+      // each bet is evaluated on its own, prizes cumulate, and the stake is
+      // deducted. The previous version paid the first matching tier only and
+      // never deducted the stake, so an exact [1,2,3] showed 500 here and
+      // 676 in the backtest, and every pick3 row's History profit disagreed
+      // with its tuning profit.
+      if (played != 3 || realResult.length < 3) return 0;
+      const pred = prediction.map(Number); const actual = realResult.slice(0, 3).map(Number);
+      const distinct = new Set(pred).size;
+      const isTriple = distinct === 1;
+      const stake = (isTriple ? 3 : 4) * payoutTablePick3.bet_cost;
+      let payout = 0;
+      if (pred[0] === actual[0] && pred[1] === actual[1] && pred[2] === actual[2]) payout += payoutTablePick3.straight;
+      else if (pred[2] === actual[2]) payout += payoutTablePick3.straight_consolation;
+      if (!isTriple && [...pred].sort((a, b) => a - b).join(',') === [...actual].sort((a, b) => a - b).join(',')) {
+        payout += distinct === 2 ? payoutTablePick3.box_with_doubles : payoutTablePick3.box_no_doubles;
+      }
+      if (pred[0] === actual[0] && pred[1] === actual[1]) payout += payoutTablePick3.front_pair;
+      if (pred[1] === actual[1] && pred[2] === actual[2]) payout += payoutTablePick3.back_pair;
+      return payout - stake;
     }
     case "jokerplus": {
       // Positional run tiers + sign, one 1.50 EUR stake per row (Z6).

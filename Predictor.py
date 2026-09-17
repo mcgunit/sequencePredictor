@@ -94,6 +94,25 @@ DL_TIMEOUT_SECONDS = 0
 DL_PER_MODEL_OVERHEAD_SECONDS = 60
 DL_CHILD_STARTUP_SECONDS = 120
 
+# --- POSITIONAL VOTE ROWS (pick3, Joker+ - README roadmap item 7) ---
+# The untuned WeightedEnsemble Model votes per slot over the rows that own a
+# model of their own only: the meta rows are aggregates of these and the DL
+# research rows emit identical tickets day after day, so an all-rows vote
+# double-counts. The tuned SubsetEnsemble Model may contain any row
+# HyperoptEnsemble.py selected. Joker+ gets both rows only behind this flag in
+# bestParams_jokerplus.json: its digits are system-generated, the player only
+# picks the sign, so a digit ticket is fiction there (see README, Joker+).
+POSITIONAL_VOTE_DEFAULT_ROWS = {"Markov Model", "MarkovMonteCarlo Model", "PoissonMonteCarlo Model",
+                                "LaplaceMonteCarlo Model", "XGBoost Model", "LightGBM Model", "CatBoost Model"}
+JOKERPLUS_ENSEMBLE_FLAG = "useJokerplusEnsemble"
+
+
+def positionalEnsembleEnabled(name, bestParams_json_object):
+    """Vote rows run for every game except Joker+, which needs JOKERPLUS_ENSEMBLE_FLAG."""
+    if Helpers.is_jokerplus(name):
+        return bool((bestParams_json_object or {}).get(JOKERPLUS_ENSEMBLE_FLAG, False))
+    return True
+
 
 def matchingSplitArgs(name, realResult):
     """
@@ -1079,10 +1098,27 @@ def _appendVoteEnsembleRow(current_json_object, name, rows, rowName, model_score
     appends it to newPrediction as `rowName`. The ticket size comes from the
     first row that carries a prediction; specials are split off with the
     game's SPECIAL_COLUMN_COUNTS and voted on separately.
+
+    Positional games (pick3, Joker+) vote per slot instead
+    (Helpers.build_positional_vote_predictions): argmax digit per drawn
+    position, ties to the lowest digit, duplicates allowed, drawn order kept
+    - a set-style top-3 would sort the digits and could never express a
+    repeated one. The row carries a per-slot "positionConfidence" (winning
+    vote share) and the WeightedEnsemble vote writes "positionFrequency"
+    (one digit histogram per slot) into the day JSON for the per-slot chart.
     """
     predictions = current_json_object.get("newPrediction", [])
     ticket_size = next((len(model["predictions"][0]) for model in rows if model.get("predictions")), 0)
     if ticket_size == 0:
+        return
+
+    if Helpers.is_positional_game(name):
+        vote = helpers.build_positional_vote_predictions(rows, ticket_size, model_scores=model_scores)
+        if not vote:
+            return
+        predictions.append({"name": rowName, "predictions": [vote["ticket"]], "positionConfidence": vote["confidence"]})
+        if rowName == "WeightedEnsemble Model":
+            current_json_object["positionFrequency"] = vote["frequency"]
         return
 
     specialColumnCount = next((count for game, count in SPECIAL_COLUMN_COUNTS.items() if game in name), 0)
@@ -1102,10 +1138,10 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     """
     Appends the score-weighted vote as its own ticket/row in newPrediction (so
     it shows up in the Model table next to every individual model's own
-    prediction), instead of only existing as a separate chart. Skipped for
-    the positional games (Pick3, Joker+ - Helpers.is_positional_game), since
-    a frequency vote across models has no notion of position and cannot
-    express the repeated digits those games routinely draw.
+    prediction), instead of only existing as a separate chart. For the
+    positional games (Pick3, Joker+ - Helpers.is_positional_game) the vote is
+    taken per slot over POSITIONAL_VOTE_DEFAULT_ROWS (see there); Joker+ only
+    with JOKERPLUS_ENSEMBLE_FLAG.
 
     For games with special columns (Euromillions star numbers, EuroDreams
     dream number, VikingLotto super viking - see SPECIAL_COLUMN_COUNTS), the
@@ -1122,12 +1158,14 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     Helpers.build_vote_ensemble_predictions (shared with SubsetEnsemble
     Model and HyperoptEnsemble.py).
     """
-    if Helpers.is_positional_game(name):
-        return
-
     bestParams_json_object = bestParams_json_object or {}
+    rows = current_json_object.get("newPrediction", [])
+    if Helpers.is_positional_game(name):
+        if not positionalEnsembleEnabled(name, bestParams_json_object):
+            return
+        rows = [row for row in rows if row.get("name") in POSITIONAL_VOTE_DEFAULT_ROWS]
     _appendVoteEnsembleRow(
-        current_json_object, name, current_json_object.get("newPrediction", []), "WeightedEnsemble Model",
+        current_json_object, name, rows, "WeightedEnsemble Model",
         model_scores, bestParams_json_object,
         bestParams_json_object.get("weightedEnsembleSubsetMode", "softmax"),
         bestParams_json_object.get("weightedEnsembleSubsetTemperature", 0.5))
@@ -1143,15 +1181,16 @@ def addSubsetEnsemblePrediction(current_json_object, name, model_scores=None, be
     selection of at least two rows. A day on which a selected member did not
     run is skipped for this row: the subset was scored only on days every
     member was present, and a vote among the remaining rows would be a
-    different ensemble wearing this row's name. Positional games are skipped
-    like WeightedEnsemble Model (roadmap item 7 covers the per-slot vote).
+    different ensemble wearing this row's name. Positional games vote per
+    slot over the selected rows (any row the tuner picked, unlike the
+    untuned WeightedEnsemble Model); Joker+ only with JOKERPLUS_ENSEMBLE_FLAG.
     Keno sub-selections use subsetEnsembleSubsetMode/Temperature when tuned,
     otherwise WeightedEnsemble Model's tuned values.
     """
-    if Helpers.is_positional_game(name):
+    bestParams_json_object = bestParams_json_object or {}
+    if Helpers.is_positional_game(name) and not positionalEnsembleEnabled(name, bestParams_json_object):
         return
 
-    bestParams_json_object = bestParams_json_object or {}
     members = bestParams_json_object.get("subsetEnsembleModels") or []
     if len(members) < 2:
         return

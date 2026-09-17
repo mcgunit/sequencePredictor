@@ -27,14 +27,24 @@ ROW_NAME = "SubsetEnsemble Model"
 # all of them, and it is the real-life record: each row's ticket is what the
 # pipeline actually emitted that day, tuned as it was then.
 #
-# Positional games (pick3, jokerplus) are not tuned: the vote row is not
-# served for them (see Predictor.addWeightedEnsemblePrediction); README
-# roadmap item 7 adds the per-slot vote that will make them tunable here.
-GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto")
+# The positional games (pick3, Joker+) vote per slot (README roadmap item 7,
+# Helpers.build_positional_vote_predictions - the same recipe Predictor.py
+# serves) and are scored with their real payout tables. Joker+ is tuned only
+# when bestParams_jokerplus.json sets JOKERPLUS_ENSEMBLE_FLAG, like the
+# served rows: its digits are system-generated, the player only picks the
+# sign.
+GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto", "pick3", "jokerplus")
+JOKERPLUS_ENSEMBLE_FLAG = "useJokerplusEnsemble"
 
-# Only Keno has a real payout table among the served games - its objective
-# is profit per bet; the others are scored by main-ticket hits.
-PAYOUT_GAMES = ("keno",)
+# Games with a real payout table - their objective is profit per bet (Keno:
+# the playable subsets; pick3: the cumulative four-bet ticket; Joker+: the
+# 1.50 EUR ticket); the others are scored by main-ticket hits.
+PAYOUT_GAMES = ("keno", "pick3", "jokerplus")
+# Positional games add a small per-slot accuracy tie-breaker to the value:
+# pick3/Joker+ payouts are sparse (most days every subset loses the stake),
+# so many subsets tie on profit and the tie-breaker orders them by how often
+# their slots were right.
+SLOT_ACCURACY_WEIGHT = 0.01
 
 # Rows that can never be members: the two vote rows themselves (a vote over a
 # vote), and the RL row, which Predictor.py appends AFTER the ensembles so it
@@ -240,13 +250,20 @@ def main_count_of(rows, special_column_count, fallback):
 def score_day(predictions, realResult, dataset_name, mainCount):
     """
     One day's contribution in the report's own currency (see
-    Helpers.generate_model_performance_report): for Keno the net profit and
+    Helpers.generate_model_performance_report): pick3 and Joker+ the net
+    profit of the positional ticket (one bet), for Keno the net profit and
     bet count over the playable sub-selections (predictions[1:] - the
     20-number main ticket has no payout), elsewhere the main-ticket hits
     against the drawn mains (realResult sliced with main_special_split, so
     stars/dream/viking and lotto's bonus never count as mains).
     Returns (score, bets).
     """
+    if "pick3" in dataset_name:
+        p = helpers.pick3_ticket_profit(predictions[0], realResult)
+        return (float(p), 1) if p is not None else (0.0, 0)
+    if helpers.is_jokerplus(dataset_name):
+        p = helpers.jokerplus_ticket_profit(predictions[0], realResult)
+        return (float(p), 1) if p is not None else (0.0, 0)
     if dataset_name in PAYOUT_GAMES:
         profit, bets = 0.0, 0
         for subset in predictions[1:]:
@@ -272,7 +289,9 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     report scores the served rows - profit per bet for Keno, main-ticket hits
     otherwise. Returns {"value", "mean", "days"} with value the lower
     confidence bound mean - confidencePenalty * std / sqrt(days) of that
-    per-day series, or None when the subset is infeasible: fewer than two
+    per-day series (positional games add SLOT_ACCURACY_WEIGHT x the mean
+    share of slots the ticket got right), or None when the subset is
+    infeasible: fewer than two
     members, or members that coexist on less than MIN_TRIAL_COVERAGE of the
     window (and at least MIN_EVALUATION_DAYS).
     """
@@ -284,19 +303,31 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     np.random.seed(42)
     weights = model_scores if weighted else None
     memberSet = set(members)
+    positional = helpers.is_positional_game(dataset_name)
 
-    daily = []
+    daily, slotAccuracy = [], []
     for _, rows, realResult in evaluation_days:
         memberRows = [row for row in rows
                       if row.get("name") in memberSet and row.get("predictions") and row["predictions"][0]]
         if len({row["name"] for row in memberRows}) < len(members):
             continue  # a member did not run that day - production skips the row too
-        mainCount = main_count_of(memberRows, specialColumnCount, fallbackMainCount)
-        predictions = helpers.build_vote_ensemble_predictions(
-            memberRows, mainCount, specialColumnCount, model_scores=weights,
-            keno_subset_sizes=kenoSubsetSizes, subset_mode=subsetMode, subset_temperature=subsetTemperature)
-        if not predictions:
-            continue
+        if positional:
+            # Per-slot vote over the full stored ticket (pick3: 3 digits;
+            # Joker+: 6 digits + the zodiac code as slot 7).
+            slotCount = len(memberRows[0]["predictions"][0])
+            vote = helpers.build_positional_vote_predictions(memberRows, slotCount, model_scores=weights)
+            if not vote:
+                continue
+            predictions = [vote["ticket"]]
+            mainCount = slotCount
+            slotAccuracy.append(sum(int(t) == int(r) for t, r in zip(vote["ticket"], realResult[:slotCount])) / slotCount)
+        else:
+            mainCount = main_count_of(memberRows, specialColumnCount, fallbackMainCount)
+            predictions = helpers.build_vote_ensemble_predictions(
+                memberRows, mainCount, specialColumnCount, model_scores=weights,
+                keno_subset_sizes=kenoSubsetSizes, subset_mode=subsetMode, subset_temperature=subsetTemperature)
+            if not predictions:
+                continue
         dayScore, dayBets = score_day(predictions, realResult, dataset_name, mainCount)
         if dayBets > 0:
             daily.append(dayScore / dayBets)
@@ -306,7 +337,10 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     daily = np.array(daily, dtype=float)
     mean = float(daily.mean())
     std = float(daily.std(ddof=1)) if len(daily) > 1 else 0.0
-    return {"value": mean - float(confidencePenalty) * std / np.sqrt(len(daily)), "mean": mean, "days": len(daily)}
+    value = mean - float(confidencePenalty) * std / np.sqrt(len(daily))
+    if slotAccuracy:
+        value += SLOT_ACCURACY_WEIGHT * float(np.mean(slotAccuracy))
+    return {"value": value, "mean": mean, "days": len(daily)}
 
 
 def search_subsets(candidates, evaluate, max_evaluations):
@@ -510,8 +544,13 @@ if __name__ == "__main__":
                     with open(jsonBestParamsFilePath, "r") as infile:
                         existingData = json.load(infile)
 
+                if helpers.is_jokerplus(dataset_name) and not existingData.get(JOKERPLUS_ENSEMBLE_FLAG, False):
+                    print(f"Skipping {dataset_name}: the vote rows are switched off for Joker+ "
+                          f"(set \"{JOKERPLUS_ENSEMBLE_FLAG}\": true in bestParams_{dataset_name}.json to tune and serve them)")
+                    continue
+
                 kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
-                if dataset_name in PAYOUT_GAMES and not kenoSubsetSizes:
+                if "keno" in dataset_name and not kenoSubsetSizes:
                     print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
                           f"bestParams_{dataset_name}.json, nothing to score profit on")
                     continue
@@ -558,6 +597,8 @@ if __name__ == "__main__":
                 value, members, weighted, mean, days = ranking[0]
                 baseline = next((item for item in ranking if len(item[1]) == len(candidates) and item[2]), None)
                 metric = "profit per bet" if dataset_name in PAYOUT_GAMES else "avg main hits"
+                if helpers.is_positional_game(dataset_name):
+                    metric += " (per-slot vote)"
                 print(f"Best subset for {dataset_name} ({metric} {mean:.4f}, lower bound {value:.4f} on "
                       f"{days} days, {'weighted' if weighted else 'flat'} vote): {', '.join(members)}")
                 if baseline:

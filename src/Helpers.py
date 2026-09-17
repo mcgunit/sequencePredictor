@@ -1084,6 +1084,67 @@ class Helpers():
 
         return predictions
 
+    def count_position_votes(self, rows, slot_count, model_scores=None):
+        """
+        Per-slot weighted vote for the positional games (pick3, Joker+):
+        returns slot_count dicts {value: weighted votes}, one per drawn
+        position, built from each row's main ticket (predictions[0]) - the
+        digit a model put in slot k votes for that digit in slot k only, so
+        exact order and repeated digits (28% of pick3 draws, 86% of Joker+
+        draws) can be expressed. Weights are the pooled vote's
+        (_build_model_weight_lookup: modelScores min-max mapped to [1, 2],
+        unscored rows 1). A ticket shorter than slot_count votes only for the
+        slots it has; Joker+ tickets carry the zodiac code as slot 7, which
+        is voted like any other slot. The pooled counters stay untouched -
+        Keno subset generation and its tuning depend on them - this is new
+        code beside them (README roadmap item 7).
+        """
+        weight_for = self._build_model_weight_lookup(model_scores or {})
+        votes = [dict() for _ in range(slot_count)]
+        for row in rows or []:
+            predictions = row.get("predictions") or []
+            if not predictions or not predictions[0]:
+                continue
+            weight = weight_for(row.get("name"))
+            for slot, value in enumerate(predictions[0][:slot_count]):
+                # A non-integral value is not a digit and casts no vote: a
+                # few stored Markov pick3 tickets leaked probabilities
+                # (0.16...), and int() would silently turn those into a vote
+                # for 0 - which then also wins every tie.
+                try:
+                    number = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if not number.is_integer():
+                    continue
+                value = int(number)
+                votes[slot][value] = votes[slot].get(value, 0.0) + weight
+        return votes
+
+    def build_positional_vote_predictions(self, rows, slot_count, model_scores=None):
+        """
+        The per-slot vote as a ticket: for every slot the value with the most
+        weighted votes, ties to the lowest value (the rule the positional
+        meta-learner and the RL row use), in drawn order, duplicates across
+        slots allowed. Returns {"ticket": [...], "confidence": [winning vote
+        share per slot], "frequency": [{value: votes} per slot]}, or None
+        when no row could vote for some slot.
+        """
+        votes = self.count_position_votes(rows, slot_count, model_scores=model_scores)
+        ticket, confidence = [], []
+        for slot in votes:
+            if not slot:
+                return None
+            best = min(slot, key=lambda value: (-slot[value], value))
+            total = sum(slot.values())
+            ticket.append(int(best))
+            confidence.append(round(slot[best] / total, 3) if total else 0.0)
+        return {
+            "ticket": ticket,
+            "confidence": confidence,
+            "frequency": [{int(k): round(float(v), 4) for k, v in sorted(slot.items())} for slot in votes],
+        }
+
     def _keno_profit_lookup(self):
         """
         {played: [net profit for 0..played matches]} for the playable 5-10
