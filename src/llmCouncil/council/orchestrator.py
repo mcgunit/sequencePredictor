@@ -1,0 +1,234 @@
+"""Council orchestration. This is the importable entry point.
+
+    from council import load_config, run_council
+
+    config = load_config(Path("config.json"))
+    result = run_council("Which city is the capital of Belgium?", config)
+    print(result["head"]["answer"])
+
+`run_council` returns the same structure that the CLI writes to answers.json:
+
+    {
+      "question": str,
+      "members": [ {name, lab, seconds, ok, answer|error, cached?}, ... ],
+      "head":    {name, lab, seconds, ok, answer|error}        # may be absent
+    }
+
+It does not raise on model failure; inspect the `ok` flags. It raises only on
+programming or configuration errors.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import random
+import time
+from pathlib import Path
+
+from council import cache as cache_mod
+from council import answer as answer_mod
+from council import client, head as head_mod, health, prompts, sampling
+
+log = logging.getLogger(__name__)
+
+# Bump when a default prompt changes, so stale answers are not reused. Prompts
+# set in config are folded into the cache key automatically.
+PROMPT_VERSION = "v2"
+
+
+class ConfigError(ValueError):
+    """The configuration is unusable."""
+
+
+class EndpointsUnavailable(RuntimeError):
+    """One or more endpoints failed preflight."""
+
+    def __init__(self, problems: list[str]):
+        super().__init__("; ".join(problems))
+        self.problems = problems
+
+
+def load_config(path: Path | str) -> dict:
+    """Read a config file. Raises ConfigError if it is unusable."""
+    path = Path(path)
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"could not read {path}: {exc}") from exc
+    if not config.get("members"):
+        raise ConfigError(f"{path} defines no members")
+    return config
+
+
+def enabled_members(config: dict) -> list[dict]:
+    return [m for m in config["members"] if m.get("enabled", True)]
+
+
+def order_for_head(members: list[dict], results: list[dict],
+                   config: dict) -> list[dict]:
+    """Order the answers shown to the head.
+
+    Heads show position bias: in testing, a 3B head adopted the last member's
+    answer and discarded two correct earlier ones. Shuffling per run does not
+    remove the bias but stops it favouring the same member every night, so a
+    systematic error does not always land on the same model. Set
+    `shuffle_members` to false for a fully deterministic run.
+    """
+    if not config.get("shuffle_members", True):
+        return results
+    seed = config.get("shuffle_seed")
+    rng = random.Random(seed) if seed is not None else random.Random()
+    shuffled = list(results)
+    rng.shuffle(shuffled)
+    return shuffled
+
+
+def head_config(config: dict) -> dict | None:
+    candidate = config.get("head")
+    return candidate if candidate and candidate.get("enabled", True) else None
+
+
+def make_cache(config: dict, use_cache: bool = True) -> cache_mod.Cache:
+    directory = config.get("cache_dir")
+    return cache_mod.Cache(
+        Path(directory) if use_cache and directory else None, PROMPT_VERSION
+    )
+
+
+def check_endpoints(config: dict, endpoints: list[dict]) -> list[str]:
+    """Check every endpoint. Returns a list of problems; empty means all good."""
+    problems = []
+    timeout = config.get("health_timeout_s", 5)
+    for endpoint in endpoints:
+        try:
+            health.check(endpoint["base_url"], timeout)
+            log.info("  %-18s ok   %s", endpoint["name"], endpoint["base_url"])
+        except health.EndpointUnavailable as exc:
+            log.error("  %-18s DOWN %s", endpoint["name"], exc)
+            problems.append(f"{endpoint['name']}: {exc}")
+    return problems
+
+
+def ask_member(config: dict, member: dict, question: str,
+               cache: cache_mod.Cache, retries: int,
+               context: str | None = None) -> dict:
+    """Ask one member, or return its cached answer. Never raises."""
+    system = prompts.member_system_prompt(member, config)
+    user = prompts.with_context(question, context)
+
+    cached = cache.get(user, member, system)
+    if cached:
+        return cached
+
+    started = time.monotonic()
+    log.info("asking %s", member["name"])
+    try:
+        answer = client.ask(
+            member["base_url"],
+            user,
+            timeout_s=config["request_timeout_s"],
+            system_prompt=system,
+            model=member.get("model"),
+            retries=retries,
+            retry_delay_s=config.get("retry_delay_s", 5.0),
+            **sampling.for_member(member),
+        )
+        outcome = {"ok": True, "answer": answer}
+    except client.CompletionError as exc:
+        log.error("%s failed: %s", member["name"], exc)
+        outcome = {"ok": False, "error": str(exc)}
+
+    result = {
+        "name": member["name"],
+        "lab": member.get("lab"),
+        "seconds": round(time.monotonic() - started, 1),
+        **outcome,
+    }
+    cache.put(user, member, result, system)
+    return result
+
+
+def run_head(config: dict, head_cfg: dict, question: str,
+             members: list[dict], retries: int,
+             context: str | None = None) -> dict:
+    """Run the aggregation step. Never raises."""
+    started = time.monotonic()
+    try:
+        answer = head_mod.synthesise(
+            head_cfg, question, members, config["request_timeout_s"],
+            config=config, context=context, retries=retries,
+        )
+        outcome = {"ok": True, "answer": answer,
+                   "value": answer_mod.extract(answer)}
+    except client.CompletionError as exc:
+        log.error("head failed: %s", exc)
+        outcome = {"ok": False, "error": str(exc)}
+
+    return {
+        "name": head_cfg["name"],
+        "lab": head_cfg.get("lab"),
+        "seconds": round(time.monotonic() - started, 1),
+        **outcome,
+    }
+
+
+def run_council(question: str, config: dict, *,
+                context: str | None = None,
+                use_head: bool = True,
+                use_cache: bool = True,
+                retries: int | None = None,
+                preflight: bool = True) -> dict:
+    """Put one question to the council and return the collected result.
+
+    `context` is per-question data (prior answers, working notes, constraints)
+    prepended to the question for every member and for the head. It is shared
+    verbatim, so it does not make members correlated the way per-member framing
+    would - but note that every member does see it, so a wrong premise in the
+    context can mislead all of them at once.
+
+    Raises ConfigError if no members are enabled, and EndpointsUnavailable if
+    preflight is on and any endpoint is down. Model failures are reported in
+    the returned dict rather than raised.
+    """
+    members = enabled_members(config)
+    if not members:
+        raise ConfigError("no enabled members in config")
+
+    head_cfg = head_config(config) if use_head else None
+    cache = make_cache(config, use_cache)
+    if retries is None:
+        retries = config.get("retries", 2)
+
+    if preflight:
+        endpoints = members + ([head_cfg] if head_cfg else [])
+        log.info("checking %d endpoint(s)", len(endpoints))
+        problems = check_endpoints(config, endpoints)
+        if problems:
+            raise EndpointsUnavailable(problems)
+
+    results = [ask_member(config, m, question, cache, retries, context)
+               for m in members]
+    output = {"question": question, "members": results}
+    if context:
+        output["context"] = context
+
+    if head_cfg:
+        if any(r["ok"] for r in results):
+            output["head"] = run_head(
+                config, head_cfg, question,
+                order_for_head(members, results, config),
+                retries, context,
+            )
+        else:
+            log.error("skipping head: no member answered")
+
+    return output
+
+
+def succeeded(result: dict) -> bool:
+    """True when every member answered and the head, if run, answered too."""
+    if not all(m["ok"] for m in result["members"]):
+        return False
+    head_result = result.get("head")
+    return not (head_result and not head_result["ok"])
