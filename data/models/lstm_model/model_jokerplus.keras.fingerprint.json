@@ -1,0 +1,16 @@
+{
+  "max_value": 11,
+  "num_classes": 10,
+  "digitsPerDraw": 7,
+  "specialColumnCount": 1,
+  "specialNumClasses": 12,
+  "embedding_input_dim": 12,
+  "num_lstm_layers": 1,
+  "num_bidirectional_layers": 1,
+  "lstm_units": 16,
+  "bidirectional_lstm_units": 128,
+  "useFinalLSTMLayer": false,
+  "window_size": 12,
+  "num_heads": 2,
+  "key_dim": 16
+}
