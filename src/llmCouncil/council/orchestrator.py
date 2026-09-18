@@ -178,7 +178,8 @@ def run_council(question: str, config: dict, *,
                 use_head: bool = True,
                 use_cache: bool = True,
                 retries: int | None = None,
-                preflight: bool = True) -> dict:
+                preflight: bool = True,
+                on_event=None) -> dict:
     """Put one question to the council and return the collected result.
 
     `context` is per-question data (prior answers, working notes, constraints)
@@ -187,10 +188,22 @@ def run_council(question: str, config: dict, *,
     would - but note that every member does see it, so a wrong premise in the
     context can mislead all of them at once.
 
+    `on_event` is called as the run proceeds, for progress display. It gets
+    (kind, payload) where kind is one of "start", "member_start", "member_done",
+    "head_start", "head_done". Anything it raises is swallowed: a progress
+    display must never be able to fail a run.
+
     Raises ConfigError if no members are enabled, and EndpointsUnavailable if
     preflight is on and any endpoint is down. Model failures are reported in
     the returned dict rather than raised.
     """
+    def emit(kind: str, payload: dict) -> None:
+        if on_event is None:
+            return
+        try:
+            on_event(kind, payload)
+        except Exception:                            # noqa: BLE001
+            log.debug("progress callback failed", exc_info=True)
     members = enabled_members(config)
     if not members:
         raise ConfigError("no enabled members in config")
@@ -207,19 +220,40 @@ def run_council(question: str, config: dict, *,
         if problems:
             raise EndpointsUnavailable(problems)
 
-    results = [ask_member(config, m, question, cache, retries, context)
-               for m in members]
+    emit("start", {
+        "members": [m["name"] for m in members],
+        "head": head_cfg["name"] if head_cfg else None,
+    })
+
+    results = []
+    for member in members:
+        emit("member_start", {"name": member["name"]})
+        result = ask_member(config, member, question, cache, retries, context)
+        emit("member_done", {
+            "name": member["name"],
+            "ok": result["ok"],
+            "cached": bool(result.get("cached")),
+            "seconds": result["seconds"],
+        })
+        results.append(result)
+
     output = {"question": question, "members": results}
     if context:
         output["context"] = context
 
     if head_cfg:
         if any(r["ok"] for r in results):
+            emit("head_start", {"name": head_cfg["name"]})
             output["head"] = run_head(
                 config, head_cfg, question,
                 order_for_head(members, results, config),
                 retries, context,
             )
+            emit("head_done", {
+                "name": head_cfg["name"],
+                "ok": output["head"]["ok"],
+                "seconds": output["head"]["seconds"],
+            })
         else:
             log.error("skipping head: no member answered")
 

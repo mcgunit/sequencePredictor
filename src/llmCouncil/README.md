@@ -33,6 +33,11 @@ council/
   chat.py            interactive terminal interface for debugging
   prompts.py         system prompts, roles, and context assembly
   answer.py          extract the machine-readable result from the head
+  jobs.py            single-slot job queue for the web API
+api.py               HTTP API in front of run_council()
+web/
+  council.js         Express router: chat page + proxy to api.py
+  INTEGRATION.md     how to wire it into an existing server.js
 ```
 
 No third-party dependencies; standard library only.
@@ -226,6 +231,78 @@ member dissents. When context carries prior answers, a mistake that got through
 once can be reinforced rather than caught. Prefer stating prior answers as
 claims to check rather than as established facts.
 
+## Web API
+
+`api.py` puts an HTTP API in front of `run_council()` so a web page can use the
+council. Start it alongside the model servers:
+
+```bash
+python api.py --config config.json --host 127.0.0.1 --port 8099 --check
+```
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/ask` | `{"question": str, "context": str?}` -> 202 with a job |
+| GET | `/job/<id>` | Job state, and the result once finished |
+| GET | `/jobs` | The last few jobs |
+| GET | `/health` | Liveness, and whether a job is running |
+| GET | `/endpoints` | Member and head names, for the page header |
+
+While a job runs, `progress` carries a per-seat state map — each member is
+`waiting`, `asking`, `answered`, `cached` or `failed`, plus the head's own
+state and the current phase. `run_council` takes an `on_event` callback that
+drives this; anything the callback raises is swallowed, so a progress display
+can never fail a run.
+
+### Polling, not a held request
+
+A council run takes minutes with real models — longer than a browser, a proxy
+or a load balancer will hold a request open. `/ask` therefore returns a job id
+immediately and the client polls `/job/<id>` until `state` is `done` or
+`failed`. A dropped connection loses nothing; the job keeps running and the id
+still resolves.
+
+### One job at a time
+
+A second `/ask` while a job is running returns **409** with `busy: true`. The
+model servers run `--parallel 1` and the council asks sequentially, so
+concurrent runs would queue inside llama-server regardless — and each costs
+minutes of CPU. Refusing plainly beats silently doubling everyone's wait.
+
+A run that fails records the error on the job and frees the slot, so one bad
+run cannot wedge the queue.
+
+### Bind to localhost
+
+The API has no authentication of its own. It binds to `127.0.0.1` by default
+and is intended to sit behind a front end that already authenticates — the
+Express app reverse-proxies to it, so login and CSRF stay in one place. Binding
+to `0.0.0.0` without auth in front would expose an endpoint where one request
+costs minutes of CPU; the server logs a warning if you do.
+
+### The round table
+
+The page is two columns: the conversation on the left (two thirds) and the
+council table on the right (one third). The table panel is sticky, so it stays
+in view while a long answer scrolls — the point of a live diagram is lost if
+you have to scroll back to it.
+
+There is one table for the page rather than one per turn: it shows the current
+run, or the last one once finished. Per-turn tables would push the
+conversation down and leave a row of stale diagrams behind.
+
+A seat per member sits around the head, coloured by state — waiting, answering
+(pulsing), answered, cached, failed — with a legend under it. Members report
+inward along animated lines only while the head is actually aggregating.
+
+Every seat's colour comes from the run's real progress, reported by the API.
+Nothing is on a timer: an animation that did not track the run would be
+decoration pretending to be information.
+
+Below 900px the layout stacks and the table moves above the conversation, so
+it is still visible without scrolling past everything. Animations respect
+`prefers-reduced-motion`.
+
 ## Aggregation
 
 The head receives every successful member answer in one prompt and produces the
@@ -338,7 +415,9 @@ on a separate host.
 - [x] **4. Persistence and resilience** — per-member answer cache, retry with
       backoff, permanent vs transient error handling
 - [x] **5a. Chat mode** — interactive terminal interface for debugging
-- [ ] **5b. Scheduling** — nightly trigger, output handling
+- [x] **5b. Web API** — job queue, polling endpoints, localhost-bound
+- [x] **5c. Web page** — Express router, chat UI, polling front end
+- [ ] **5d. Scheduling** — nightly trigger, output handling
 
 ## Prototype topology
 

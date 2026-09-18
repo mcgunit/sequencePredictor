@@ -4,6 +4,7 @@ const fs = require('fs');
 
 const config = require("./config");
 const auth = require("./auth");
+const council = require("./council");
 
 const app = express();
 
@@ -20,6 +21,13 @@ if (auth.misconfigured()) {
 app.set('trust proxy', config.TRUST_PROXY);
 app.use(express.urlencoded({ extended: false, limit: '16kb' }));
 app.use(auth.middleware);
+
+// Init the LLM Council
+council.install(app, {
+  header: generateHeader,
+  footer: generateFooter,
+  escapeHtml: auth.escapeHtml
+});
 
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
@@ -347,6 +355,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">History</a>
+        <a href="/council">Council</a>
         ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a>' : ''}
       </div>
       ${user && !user.open ? `
