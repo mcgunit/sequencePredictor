@@ -1,11 +1,25 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
 
 const config = require("./config");
+const auth = require("./auth");
 
 const app = express();
+
+// Login and user management (auth.js, README roadmap item 3): form posts
+// need the body parser; the middleware redirects anonymous requests to
+// /login when WEB_USER / WEB_PASSWORD are set and is a no-op otherwise.
+// Half-configured credentials would silently mean "open", so they stop the
+// server instead. trust proxy makes req.ip - the login lockout key - the
+// client's address when a reverse proxy on this machine forwards to us.
+if (auth.misconfigured()) {
+  console.error('Set both WEB_USER and WEB_PASSWORD to require a login, or neither for open access - refusing to start with only one of them.');
+  process.exit(1);
+}
+app.set('trust proxy', config.TRUST_PROXY);
+app.use(express.urlencoded({ extended: false, limit: '16kb' }));
+app.use(auth.middleware);
 
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
@@ -184,7 +198,7 @@ function splitTicket(row, realMains, specialCount) {
 }
 
 // --- HELPER: Generate HTML Header ---
-function generateHeader(title = "Sequence Predictor") {
+function generateHeader(title = "Sequence Predictor", user = null) {
   return `
   <!DOCTYPE html>
   <html lang="en">
@@ -242,6 +256,20 @@ function generateHeader(title = "Sequence Predictor") {
         font-size: 1em; transition: background 0.2s;
       }
       .nav-btn:hover { background-color: #2c3e50; }
+
+      /* LOGIN STATE + USER ADMIN FORMS (auth.js) */
+      .nav-user { color: #bdc3c7; font-size: 0.9em; display: flex; align-items: center; gap: 12px; }
+      .nav-user b { color: white; }
+      .nav-user form { margin: 0; }
+      .nav-user .nav-btn { padding: 6px 12px; font-size: 0.9em; }
+      .auth-form label { display: block; font-weight: 600; margin: 10px 0 4px 0; max-width: 420px; }
+      .auth-form input, .inline-form input[type=password] {
+        padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+      }
+      .auth-form input { width: 100%; display: block; }
+      .auth-form .nav-btn { margin-top: 12px; }
+      .inline-form { display: inline-flex; gap: 6px; align-items: center; margin: 2px 6px 2px 0; }
+      .inline-form .nav-btn { padding: 6px 10px; font-size: 0.9em; }
       
       /* LAYOUT */
       .container { padding: 20px; max-width: 1000px; margin: auto; }
@@ -319,8 +347,13 @@ function generateHeader(title = "Sequence Predictor") {
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">History</a>
-        <a id="optuna-link" href="#" target="_blank">Optuna</a>
+        ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a>' : ''}
       </div>
+      ${user && !user.open ? `
+      <div class="nav-user">
+        <span>Signed in as <b>${auth.escapeHtml(user.name)}</b></span>
+        <form method="post" action="/logout"><input type="hidden" name="_csrf" value="${auth.escapeHtml(user.csrf)}"><button type="submit" class="nav-btn">Logout</button></form>
+      </div>` : ''}
     </div>
 
     <script>
@@ -329,15 +362,6 @@ function generateHeader(title = "Sequence Predictor") {
         const card = header.parentElement;
         card.classList.toggle('expanded');
       }
-
-      // Dynamic Optuna Link
-      document.addEventListener("DOMContentLoaded", function() {
-        const optunaLink = document.getElementById("optuna-link");
-        if(optunaLink) {
-            // Uses current window hostname (e.g., localhost, 192.168.x.x, etc.) and adds port 3002
-            optunaLink.href = \`\${window.location.protocol}//\${window.location.hostname}:3002\`;
-        }
-      });
     </script>
     <div class="container">
   `;
@@ -938,7 +962,7 @@ function generateRandomnessWatch() {
 // 1. Database Index
 app.get('/database', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-  let html = generateHeader("Database Folders");
+  let html = generateHeader("Database Folders", req.user);
   html += '<h1>Available Database Folders</h1><div style="display: flex; gap: 10px; flex-wrap: wrap;">';
   folders.forEach((folder) => {
     html += `<form action="/database/${folder}" method="get">
@@ -979,7 +1003,7 @@ app.get('/database/:folder', (req, res) => {
 
   const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(b) - new Date(a));
 
-  let html = generateHeader(`${folder} Predictions`);
+  let html = generateHeader(`${folder} Predictions`, req.user);
   html += `<h1>${folder}</h1><div>`;
 
   sortedMonths.forEach((month, index) => {
@@ -1104,7 +1128,7 @@ app.get('/database/:folder/:file', (req, res) => {
   const currentFrequency = chartFrequency(jsonData.currentNumberFrequency, game);
   const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
 
-  let html = generateHeader(`${file} Details`);
+  let html = generateHeader(`${file} Details`, req.user);
   html += `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h1 style="margin: 0;">${file}</h1>
@@ -1186,7 +1210,7 @@ app.get('/database/:folder/:file', (req, res) => {
 // 5. Home Page
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-  let html = generateHeader("Home - Dashboard");
+  let html = generateHeader("Home - Dashboard", req.user);
   html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>`;
 
   folders.forEach((folder) => {
@@ -1244,5 +1268,12 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-app.listen(config.PORT, config.INTERFACE, () => { console.log(`Server running at http://${config.INTERFACE}:${config.PORT}`); });
-exec('optuna-dashboard sqlite:///db.sqlite3 --host 0.0.0.0 --port 8080', (error) => { if(error) console.log("Optuna dashboard not started."); });
+// Login, logout and the admin's user page (auth.js). The Optuna dashboard is
+// no longer started or linked from here - start it by hand when needed:
+// optuna-dashboard sqlite:///db.sqlite3
+auth.install(app, { header: generateHeader, footer: generateFooter });
+
+app.listen(config.PORT, config.INTERFACE, () => {
+  console.log(`Server running at http://${config.INTERFACE}:${config.PORT}` +
+              (auth.enabled() ? ` - login required (admin: ${config.ADMIN_USER})` : ' - open access: set WEB_USER and WEB_PASSWORD to require a login'));
+});
