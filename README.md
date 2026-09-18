@@ -745,15 +745,24 @@ To run the server use the command:
 
 ### Login and users
 
-Set two environment variables to require a login (`auth.js`, roadmap item 3):
+Set two variables to require a login (`auth.js`, roadmap item 3) - either in the environment or in a `.env` file in the repo root (gitignored; copy `.env.example`), which `config.js` loads at startup with real environment variables taking precedence:
+
+```
+    cp .env.example .env      # then edit WEB_USER and WEB_PASSWORD
+    npm start
+```
+
+or, without a file:
 
 ```
     WEB_USER=admin WEB_PASSWORD='a long passphrase' npm start
 ```
 
+A change to `.env` needs a server restart (nodemon does not watch it).
+
 - `WEB_USER` / `WEB_PASSWORD` are the **administrator**: they live only in the environment, never on disk. With both unset the pages are open (local development) and the Users page is read-only with a notice; with only one of them set the server refuses to start rather than silently running open.
 - The administrator sees everything plus the **Users** page (`/admin/users`), where accounts are added, deleted and given a new password (there is no self-service password reset; the administrator sets one). A user signs in with their own password and sees the predictions and the History pages.
-- Accounts are stored in `config/users.json` (user name, salted `scrypt` hash - never the password; every file account is a plain user, the administrator is only ever the environment one), the session cookie is signed with a secret from `WEB_SESSION_SECRET` (at least 32 bytes - 64 hex characters or a long passphrase; shorter values are ignored with a warning) or, when unset, one generated once into `config/session.secret`. The `config/` folder is gitignored on purpose: the daily predictor commits everything under `data/`, which is why the accounts do not live there. Nodemon ignores the folder (`package.json`); with `pm2 --watch` add `--ignore-watch="config data"` so a user change does not restart the server.
+- Accounts are stored in `config/users.json` (user name, salted `scrypt` hash - never the password; every file account is a plain user, the administrator is only ever the environment one), the session cookie is signed with a secret from `WEB_SESSION_SECRET` (or `SESSION_SECRET`; at least 32 bytes - 64 hex characters or a long passphrase; shorter values are ignored with a warning) or, when unset, one generated once into `config/session.secret`. The `config/` folder is gitignored on purpose: the daily predictor commits everything under `data/`, which is why the accounts do not live there. Nodemon ignores the folder (`package.json`); with `pm2 --watch` add `--ignore-watch="config data"` so a user change does not restart the server.
 - Sessions last 24 hours, renewed while in use but never beyond 7 days from the sign-in; changing a user's password ends that user's sessions, rotating `WEB_PASSWORD` ends the administrator's, and a deleted user is out on the next request. The cookie is `HttpOnly` + `SameSite=Strict` and gets the `Secure` flag when the request arrived over HTTPS (directly or via `X-Forwarded-Proto`). Five failed sign-ins for a user name from one client address lock that combination for 15 minutes; a sign-in with an unknown name costs the same time as with a known one, so names cannot be enumerated. All forms carry a CSRF token that survives a session renewal. `WEB_TRUST_PROXY` (default `loopback`) tells Express which reverse proxy's `X-Forwarded-For` / `X-Forwarded-Proto` to believe, so the lockout keys on the real client behind a proxy on this machine instead of on the proxy.
 - The login form sends the password in clear text, so put the server behind HTTPS (a reverse proxy or TLS terminator) when it is reachable beyond the local machine.
 
