@@ -256,12 +256,34 @@ function page(req, header, footer, escapeHtml) {
       return n;                                        // model output is untrusted.
     }
 
+    // Two different "not available" cases, and the page must tell them apart:
+    // the API itself is down (fetch rejects, handled below), or the API is up
+    // but the llama.cpp boxes behind it are off - api.py reports that in
+    // d.status, and the models are deliberately not powered 24/7. Asking in
+    // either state would only produce a failed run, so the button stays
+    // disabled until the council can actually sit.
+    function summon(detail) {
+      document.getElementById('council-panel').textContent =
+        'The members of the council have to be summoned.' + (detail ? '  (' + detail + ')' : '');
+      askBtn.disabled = true;
+      hint.textContent = 'the model endpoints are not answering';
+      tablePhase.textContent = 'No session - the council is not in.';
+    }
+
     fetch('/council/api/endpoints').then(function (r) { return r.json(); }).then(function (d) {
       if (!d.members) return;
+      var status = d.status;
+      if (status && !status.ready) {
+        var down = (status.members || []).filter(function (m) { return !m.ok; }).map(function (m) { return m.name; });
+        if (status.head && !status.head.ok) down.push(status.head.name);
+        return summon(down.length ? 'not answering: ' + down.join(', ') : 'no members reachable');
+      }
       var names = d.members.map(function (m) { return m.name; }).join(', ');
+      var downSome = status ? (status.total - status.reachable) : 0;
       document.getElementById('council-panel').textContent =
         'Members: ' + names + (d.head ? '  |  Head: ' + d.head.name : '') +
-        '  |  Preset: ' + (d.preset || 'default');
+        '  |  Preset: ' + (d.preset || 'default') +
+        (downSome > 0 ? '  |  ' + downSome + ' member(s) not answering' : '');
       // Show the empty table straight away, so the seats are visible before
       // the first question rather than appearing from nowhere.
       updateTable({
@@ -271,7 +293,7 @@ function page(req, header, footer, escapeHtml) {
       });
       tablePhase.textContent = 'Waiting for a question.';
     }).catch(function () {
-      document.getElementById('council-panel').textContent = 'The members of the council have to be summoned.';
+      summon('the council api is not running');
     });
 
     // Round table: one seat per member around the head. Seat colours come

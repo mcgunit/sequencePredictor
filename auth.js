@@ -426,4 +426,10 @@ function install(app, render) {
   });
 }
 
-module.exports = { enabled, misconfigured, middleware, install, escapeHtml, safeNext, USERS_FILE, SECRET_FILE };
+// requireAdmin / csrfOk / ensureConfigDir are exported for the other page
+// modules (council.js and the account, audit and job pages to come) so every
+// one of them gates and validates exactly like the user pages here.
+module.exports = {
+  enabled, misconfigured, middleware, install, escapeHtml, safeNext,
+  requireAdmin, csrfOk, ensureConfigDir, USERS_FILE, SECRET_FILE, CONFIG_DIR: config.CONFIG_DIR,
+};

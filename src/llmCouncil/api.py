@@ -13,8 +13,13 @@ Endpoints:
                       409 when a job is already running
   GET  /job/<id>                                          -> 200 {job}
   GET  /jobs                                              -> 200 {jobs: [...]}
-  GET  /health                                            -> 200 {ok, busy}
-  GET  /endpoints                                         -> 200 {members, head}
+  GET  /health                                            -> 200 {ok, busy, status}
+  GET  /endpoints                                         -> 200 {members, head, status}
+
+`status` is the live reachability of the llama.cpp endpoints (see
+endpoint_status): the API stays up while the model boxes are switched off, and
+the page uses this to say the council has to be summoned instead of accepting
+a question that could not be answered.
 
 A job is {id, state, question, progress, created} plus `result` once state is
 "done" or `error` when "failed". `result` is exactly what run_council returns.
@@ -26,10 +31,15 @@ import argparse
 import json
 import logging
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from council import health
 from council import jobs as jobs_mod
 from council import orchestrator, sampling
 from council.orchestrator import ConfigError, EndpointsUnavailable, load_config
@@ -39,6 +49,74 @@ log = logging.getLogger("council.api")
 MAX_BODY = 64 * 1024
 MAX_QUESTION = 4000
 MAX_CONTEXT = 20000
+
+# The model boxes are not on 24/7 (they cost electricity), so the API must
+# survive them being down and simply report that the council cannot sit. The
+# probe is therefore live rather than a start-up check - but it must not make
+# the page wait: every endpoint is probed in parallel with a short timeout and
+# the verdict is cached for STATUS_TTL_S, so a dark model box costs one short
+# timeout per quarter minute, not one per page load.
+STATUS_TTL_S = 15
+STATUS_TIMEOUT_S = 2
+_status_lock = threading.Lock()
+_status_cache: dict = {"at": 0.0, "value": None}
+
+
+def _probe(endpoint: dict, timeout_s: int) -> dict:
+    """One endpoint's reachability. Never raises - a probe cannot break a page."""
+    entry = {"name": endpoint.get("name"), "ok": False, "detail": None}
+    try:
+        health.check(endpoint["base_url"], timeout_s)
+        entry["ok"] = True
+    except health.EndpointUnavailable as exc:
+        entry["detail"] = str(exc)
+    except Exception as exc:  # malformed config, DNS, anything else
+        entry["detail"] = f"{type(exc).__name__}: {exc}"
+    return entry
+
+
+def endpoint_status(config: dict, force: bool = False) -> dict:
+    """
+    Live view of the llama.cpp endpoints behind this API, cached for
+    STATUS_TTL_S seconds:
+
+        {checked, ready, reachable, total, members: [...], head: {...}|null}
+
+    `ready` is what the page gates on: at least one member answers and, when a
+    head is configured, the head answers too - without the head there is
+    nobody to synthesise the members' answers into a verdict.
+    """
+    now = time.monotonic()
+    with _status_lock:
+        cached = _status_cache["value"]
+        if cached is not None and not force and now - _status_cache["at"] < STATUS_TTL_S:
+            return cached
+
+    members = orchestrator.enabled_members(config)
+    head = orchestrator.head_config(config)
+    timeout_s = min(int(config.get("health_timeout_s", 5)), STATUS_TIMEOUT_S)
+    endpoints = list(members) + ([head] if head else [])
+
+    results = []
+    if endpoints:
+        with ThreadPoolExecutor(max_workers=min(8, len(endpoints))) as pool:
+            results = list(pool.map(lambda e: _probe(e, timeout_s), endpoints))
+    member_results = results[:len(members)]
+    head_result = results[len(members)] if head else None
+
+    reachable = sum(1 for entry in member_results if entry["ok"])
+    status = {
+        "checked": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ready": bool(reachable and (head_result is None or head_result["ok"])),
+        "reachable": reachable,
+        "total": len(member_results),
+        "members": member_results,
+        "head": head_result,
+    }
+    with _status_lock:
+        _status_cache["at"] = time.monotonic()
+        _status_cache["value"] = status
+    return status
 
 
 def make_runner(config: dict) -> jobs_mod.JobRunner:
@@ -85,7 +163,12 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
 
 
 def describe_endpoints(config: dict) -> dict:
-    """What the page shows in its header. No secrets here - names only."""
+    """What the page shows in its header. No secrets here - names only.
+
+    Carries the live endpoint status as well, so the page learns in its one
+    start-up call both who sits on the council and whether they can be
+    reached at all.
+    """
     members = [
         {"name": m["name"], "lab": m.get("lab"),
          "temperature": sampling.for_member(m)["temperature"]}
@@ -96,6 +179,7 @@ def describe_endpoints(config: dict) -> dict:
         "members": members,
         "head": {"name": head["name"], "lab": head.get("lab")} if head else None,
         "preset": config.get("head_preset", "default"),
+        "status": endpoint_status(config),
     }
 
 
@@ -131,10 +215,16 @@ class Handler(BaseHTTPRequestHandler):
             return None
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path.rstrip("/") or "/"
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        query = dict(pair.split("=", 1) for pair in parsed.query.split("&") if "=" in pair)
 
         if path == "/health":
-            self._send(200, {"ok": True, "busy": self.runner.active() is not None})
+            self._send(200, {
+                "ok": True,
+                "busy": self.runner.active() is not None,
+                "status": endpoint_status(self.config, force=query.get("force") == "1"),
+            })
         elif path == "/endpoints":
             self._send(200, describe_endpoints(self.config))
         elif path == "/jobs":
@@ -205,7 +295,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8099)
     parser.add_argument("--check", action="store_true",
-                        help="verify the model endpoints before serving")
+                        help="verify the model endpoints once and refuse to serve if any is "
+                             "down. For a manual pre-flight only: leave it off for the API "
+                             "the web page talks to, which must stay up while the model "
+                             "boxes are off and report that through /health and /endpoints.")
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args(argv)
 

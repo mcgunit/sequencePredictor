@@ -5,6 +5,7 @@ const fs = require('fs');
 const config = require("./config");
 const auth = require("./auth");
 const council = require("./council");
+const services = require("./services");
 
 const app = express();
 
@@ -421,7 +422,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">History</a>
         <a href="/council">Council</a>
-        ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a>' : ''}
+        ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a><a href="/admin/jobs">Jobs</a>' : ''}
       </div>
       ${user && !user.open ? `
       <div class="nav-user">
@@ -1354,8 +1355,37 @@ app.get('/', (req, res) => {
 // no longer started or linked from here - start it by hand when needed:
 // optuna-dashboard sqlite:///db.sqlite3
 auth.install(app, { header: generateHeader, footer: generateFooter });
+// The Jobs page and the services it supervises (services.js): today the
+// Council API, which had to be started by hand until now.
+services.install(app, { header: generateHeader, footer: generateFooter });
 
-app.listen(config.PORT, config.INTERFACE, () => {
+// The UI is reachable from outside (a Tailscale funnel proxies to this
+// port), pm2 restarts the process on exit, and a future in-server scheduler
+// would own the daily pipeline - so an unexpected throw must be logged with
+// its stack instead of dying silently or being swallowed.
+process.on('uncaughtException', (error) => {
+  console.error(`[${new Date().toISOString()}] uncaught exception:`, error);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(`[${new Date().toISOString()}] unhandled rejection:`, reason);
+});
+
+const server = app.listen(config.PORT, config.INTERFACE, () => {
   console.log(`Server running at http://${config.INTERFACE}:${config.PORT}` +
               (auth.enabled() ? ` - login required (admin: ${config.ADMIN_USER})` : ' - open access: set WEB_USER and WEB_PASSWORD to require a login'));
+  services.startAll();
+});
+
+// Services are ordinary children, so they must go down with the server
+// rather than being left behind on a restart or a deploy.
+['SIGTERM', 'SIGINT'].forEach((signal) => process.on(signal, () => {
+  console.log(`${signal} received - stopping supervised services`);
+  services.stopAll();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 6000).unref();
+}));
+process.on('exit', () => services.stopAll());
+server.on('error', (error) => {
+  console.error(`Could not listen on ${config.INTERFACE}:${config.PORT}: ${error.message}`);
+  process.exit(1);
 });

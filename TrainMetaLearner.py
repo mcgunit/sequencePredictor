@@ -1,4 +1,4 @@
-import os, argparse, json, functools
+import os, argparse, json, functools, sys
 import numpy as np
 import joblib
 
@@ -629,36 +629,97 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
         print(f"{label}: saved meta-learner to {artifact_path}")
 
 
+LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
+
+
+def is_running():
+    """
+    Checks if another instance is running based on the lock file.
+
+    Same shared lock every other entry point takes (Predictor.py, the five
+    Hyperopt tuners): only one of them may touch the training data, the
+    bestParams files and git at a time. This script used to take no lock at
+    all, so a daily prediction run starting while the weekly chain was still
+    training the meta-learner had both processes pushing to git and loading
+    the same artifacts - the Sunday 09:00 predictor came within 2.5 hours of
+    the 2026-09-20 retrain. The PID in the lock is verified to be alive, so a
+    lock left by a crashed run is stale and removed.
+    """
+    if not os.path.exists(LOCK_FILE):
+        return False
+    try:
+        with open(LOCK_FILE, "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)  # signal 0 = existence check only, nothing is sent
+        return True
+    except (ValueError, ProcessLookupError):
+        print("Removing stale lock file (owner process no longer exists)")
+        remove_lock()
+        return False
+    except PermissionError:
+        # Process exists but belongs to another user - definitely running.
+        return True
+
+
+def create_lock():
+    """Creates the lock file."""
+    try:
+        with open(LOCK_FILE, "x") as f:  # "x" creates the file, failing if it exists
+            f.write(str(os.getpid()))
+        return True
+    except FileExistsError:
+        return False
+
+
+def remove_lock():
+    """Removes the lock file."""
+    try:
+        os.remove(LOCK_FILE)
+    except FileNotFoundError:
+        pass
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        prog="Train Meta-Learner",
-        description="Trains a stacking meta-learner over each statistical model's per-number score, per game"
-    )
-    parser.add_argument(
-        "-g", "--games",
-        type=str,
-        default=",".join(GAME_CONFIG.keys()),
-        help='Comma-separated list of games, e.g. "lotto,keno,pick3,jokerplus"'
-    )
-    parser.add_argument(
-        "-d", "--days",
-        type=int,
-        default=300,
-        help="How many most-recent draws to backtest for training data"
-    )
-    args = parser.parse_args()
+    if is_running():
+        print("Another instance is already running. Exiting.")
+        sys.exit(1)
 
-    games = [g.strip() for g in args.games.split(",") if g.strip()]
-    unknown_games = [g for g in games if g not in GAME_CONFIG]
-    if unknown_games:
-        print(f"Unknown game(s), ignoring: {unknown_games}")
+    if not create_lock():
+        print("Failed to create lock file. Exiting.")
+        sys.exit(1)
 
-    path = os.getcwd()
+    try:
+        parser = argparse.ArgumentParser(
+            prog="Train Meta-Learner",
+            description="Trains a stacking meta-learner over each statistical model's per-number score, per game"
+        )
+        parser.add_argument(
+            "-g", "--games",
+            type=str,
+            default=",".join(GAME_CONFIG.keys()),
+            help='Comma-separated list of games, e.g. "lotto,keno,pick3,jokerplus"'
+        )
+        parser.add_argument(
+            "-d", "--days",
+            type=int,
+            default=300,
+            help="How many most-recent draws to backtest for training data"
+        )
+        args = parser.parse_args()
 
-    for dataset_name in games:
-        if dataset_name not in GAME_CONFIG:
-            continue
-        try:
-            train_meta_learner(dataset_name, GAME_CONFIG[dataset_name], path, args.days)
-        except Exception as e:
-            print(f"Failed to train meta-learner for {dataset_name}: {e}")
+        games = [g.strip() for g in args.games.split(",") if g.strip()]
+        unknown_games = [g for g in games if g not in GAME_CONFIG]
+        if unknown_games:
+            print(f"Unknown game(s), ignoring: {unknown_games}")
+
+        path = os.getcwd()
+
+        for dataset_name in games:
+            if dataset_name not in GAME_CONFIG:
+                continue
+            try:
+                train_meta_learner(dataset_name, GAME_CONFIG[dataset_name], path, args.days)
+            except Exception as e:
+                print(f"Failed to train meta-learner for {dataset_name}: {e}")
+    finally:
+        remove_lock()

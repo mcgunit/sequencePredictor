@@ -46,14 +46,47 @@ ${user && user.role === 'admin' ? '<a href="/council">Council</a>' : ''}
 
 ## 5. Start the Python API
 
-On the machine running the orchestrator:
+**The web server starts it.** `services.js` supervises the API as a child of
+the Node process: it starts with the server, is restarted with a growing
+backoff if it dies (and marked failed rather than hammered after five exits in
+ten minutes), stops with the server, and is visible on the admin **Jobs** page
+with its state, its log and start/stop/restart buttons. Set
+`COUNCIL_API_AUTOSTART=off` in `.env` to go back to starting it by hand. If
+something already answers on the port - the other checkout, or an instance you
+started yourself - the server adopts it and says so instead of starting a
+second one.
+
+By hand it is:
 
 ```bash
-python api.py --config config.json --port 8099 --check
+python api.py --config config.json --port 8099
 ```
 
-When it is not running the page says "The members of the council have to be
-summoned", rather than failing silently.
+Leave `--check` **off** here. It probes the model endpoints once and refuses to
+serve when any of them is down, which is useful as a manual pre-flight but
+wrong for the API the page talks to: the llama.cpp boxes are not powered
+around the clock, and with `--check` the API would simply not start while they
+are off.
+
+The API is therefore always up, and reports the state of the models instead.
+`GET /health` and `GET /endpoints` both carry a `status` object - every
+configured endpoint probed in parallel with a 2 s timeout, cached for 15 s, so
+a dark model box costs one short timeout per quarter minute rather than one
+per page load:
+
+```json
+{"checked": "2026-09-20T16:27:06+00:00", "ready": false, "reachable": 0, "total": 3,
+ "members": [{"name": "qwen2.5-1.5b", "ok": false, "detail": "...unreachable..."}],
+ "head": {"name": "head-llama-3.2-3b", "ok": false, "detail": "..."}}
+```
+
+`ready` is what the page gates on: at least one member answers and, when a head
+is configured, the head answers too - without the head there is nobody to
+synthesise the members' answers. The page then says "The members of the council
+have to be summoned" and keeps the Ask button disabled, naming the endpoints
+that did not answer. It shows the same message when the API itself is not
+running, and when only some members are down it serves normally with a
+"n member(s) not answering" note.
 
 ## Configuration
 
