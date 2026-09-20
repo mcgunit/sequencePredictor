@@ -21,6 +21,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const audit = require('./audit');
 
 const COOKIE_NAME = 'sp_session';
 const SESSION_HOURS = 24;                 // renewed while in use ...
@@ -237,6 +238,9 @@ function middleware(req, res, next) {
   const session = readSession(req);
   const account = session ? resolveSession(session) : null;
   if (!account) {
+    // A correctly signed session whose account is gone (deleted user, changed
+    // admin password, password reset): worth recording, and rare by nature.
+    if (session) audit.record('session.rejected', req, session.u);
     clearSession(res);
     if (req.method === 'GET') return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
     return res.status(401).send('Login required');
@@ -294,6 +298,7 @@ function usersPage(render, req, message, isError) {
         <td style="text-align: left; font-weight: bold;">${escapeHtml(u.name)}</td>
         <td>user</td>
         <td>${escapeHtml((u.createdAt || '').slice(0, 10))}</td>
+        <td>${u.lastLoginAt ? `${escapeHtml(shortTime(u.lastLoginAt))}<br><span style="color:#7f8c8d; font-size:0.85em;">${escapeHtml(u.lastLoginIp || '')} · ${u.logins || 1} sign-in(s)</span>` : '<span style="color:#888;">never</span>'}</td>
         <td>${writable ? `
           <form method="post" action="/admin/users/password" class="inline-form">${csrf}<input type="hidden" name="username" value="${escapeHtml(u.name)}">
             <input type="password" name="password" placeholder="new password" minlength="${MIN_PASSWORD_LENGTH}" required><button type="submit" class="nav-btn">Set password</button></form>
@@ -306,14 +311,15 @@ function usersPage(render, req, message, isError) {
     : `<p style="color: #7f8c8d;">Administrator: <b>${escapeHtml(config.ADMIN_USER)}</b> (from the environment). Users below sign in with their own password and see the predictions and the History pages only. Changing a user's password ends that user's open sessions.</p>`;
   return render.header('Users', req.user) + `
     <h1>Users</h1>
+    <p><a href="/admin/activity" class="nav-btn" style="text-decoration:none;">Recent activity →</a></p>
     ${notice}
     ${message ? `<p style="color: ${isError ? '#c0392b' : '#27ae60'}; font-weight: bold;">${escapeHtml(message)}</p>` : ''}
     <div class="card expanded">
       <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Accounts</span><div class="card-icon">▼</div></div>
       <div class="card-body">
         <div class="table-wrapper"><table style="min-width: 0;">
-          <tr><th style="text-align: left;">User</th><th>Role</th><th>Created</th><th>Actions</th></tr>
-          ${rows || '<tr><td colspan="4" style="color: #888;">No users yet.</td></tr>'}
+          <tr><th style="text-align: left;">User</th><th>Role</th><th>Created</th><th>Last seen</th><th>Actions</th></tr>
+          ${rows || '<tr><td colspan="5" style="color: #888;">No users yet.</td></tr>'}
         </table></div>
       </div>
     </div>
@@ -328,6 +334,76 @@ function usersPage(render, req, message, isError) {
         </form>
       </div>
     </div>` : ''}` + render.footer();
+}
+
+
+function shortTime(iso) {
+  if (!iso) return '-';
+  return String(iso).replace('T', ' ').slice(0, 16) + ' UTC';
+}
+
+function activityTable(entries, showUser) {
+  if (!entries.length) return '<p style="color:#888;">Nothing recorded yet.</p>';
+  const rows = entries.map((entry) => `
+      <tr>
+        <td style="text-align:left; white-space:nowrap;">${escapeHtml(shortTime(entry.at))}</td>
+        ${showUser ? `<td style="text-align:left; font-weight:bold;">${escapeHtml(entry.user)}</td>` : ''}
+        <td style="text-align:left;">${escapeHtml(audit.label(entry.event))}${entry.detail ? ` <span style="color:#7f8c8d;">(${escapeHtml(entry.detail)})</span>` : ''}</td>
+        <td style="text-align:left;">${escapeHtml(entry.ip || '-')}</td>
+        <td style="text-align:left; color:#7f8c8d; font-size:0.85em;">${escapeHtml((entry.agent || '').slice(0, 60))}</td>
+      </tr>`).join('');
+  return `<div class="table-wrapper"><table style="min-width:0;">
+      <tr><th style="text-align:left;">When</th>${showUser ? '<th style="text-align:left;">User</th>' : ''}<th style="text-align:left;">What</th><th style="text-align:left;">From</th><th style="text-align:left;">Browser</th></tr>
+      ${rows}
+    </table></div>`;
+}
+
+// Every signed-in user gets this page: their own password, and the sign-ins
+// recorded for their name so they can see a session they did not start.
+function accountPage(render, req, message, isError) {
+  const user = req.user;
+  const csrf = `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrf)}">`;
+  const isAdmin = user.role === 'admin';
+  const form = user.open
+    ? '<p style="background:#fdf2e9; border:1px solid #f5cba7; padding:10px; border-radius:6px;">Authentication is <b>off</b> on this server, so there is no password to change.</p>'
+    : isAdmin
+      ? `<p>The administrator signs in with <code>WEB_USER</code> and <code>WEB_PASSWORD</code> from the server's <code>.env</code> file, which is deliberately not editable from a web page: it is the credential that could change everyone else's. To change it, edit <code>.env</code> and restart the server (<code>pm2 restart sequencePredictor</code>). Every administrator session ends the moment the password changes.</p>`
+      : `<form method="post" action="/account/password" class="auth-form">${csrf}
+          <label>Current password<input type="password" name="current" autocomplete="current-password" required></label>
+          <label>New password <span style="color:#7f8c8d; font-weight:normal;">(at least ${MIN_PASSWORD_LENGTH} characters)</span><input type="password" name="password" minlength="${MIN_PASSWORD_LENGTH}" autocomplete="new-password" required></label>
+          <label>New password again<input type="password" name="confirm" minlength="${MIN_PASSWORD_LENGTH}" autocomplete="new-password" required></label>
+          <button type="submit" class="nav-btn" style="background:#27ae60; border-color:#1e8449;">Change my password</button>
+        </form>
+        <p style="color:#7f8c8d;">Changing it signs out your other browsers and keeps this one signed in.</p>`;
+
+  const history = user.open ? [] : audit.recent(15, user.name);
+  return render.header('Your account', user) + `
+    <h1>Your account</h1>
+    <p style="color:#7f8c8d;">Signed in as <b>${escapeHtml(user.name)}</b> - ${isAdmin ? 'administrator' : 'user'}.</p>
+    ${message ? `<p style="color:${isError ? '#c0392b' : '#27ae60'}; font-weight:bold;">${escapeHtml(message)}</p>` : ''}
+    <div class="card expanded">
+      <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Password</span><div class="card-icon">▼</div></div>
+      <div class="card-body">${form}</div>
+    </div>
+    <div class="card expanded">
+      <div class="card-header" onclick="toggleCard(this)">
+        <div><span class="card-title">Your recent activity</span><span class="card-meta" style="margin-left:10px;">sign-ins and changes recorded for your name</span></div>
+        <div class="card-icon">▼</div>
+      </div>
+      <div class="card-body">${activityTable(history, false)}</div>
+    </div>` + render.footer();
+}
+
+function activityPage(render, req) {
+  return render.header('Activity', req.user) + `
+    <h1>Activity</h1>
+    <p style="color:#7f8c8d;">Sign-ins, failed attempts and account changes, newest first. Recorded in
+      <code>${escapeHtml(audit.FILE)}</code>, which is rotated at 2 MB with one older file kept, so it cannot grow without bound.
+      Addresses are the caller's as seen through the reverse proxy.</p>
+    <div class="card expanded">
+      <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Last 200 events</span><div class="card-icon">▼</div></div>
+      <div class="card-body">${activityTable(audit.recent(200), true)}</div>
+    </div>` + render.footer();
 }
 
 // --- routes ----------------------------------------------------------------------
@@ -348,7 +424,10 @@ function install(app, render) {
     if (!username || !password || username.length > 64 || password.length > 1024) {
       return res.status(400).send(loginPage('User name and password are required.', next));
     }
-    if (isLocked(req, username)) return res.status(429).send(loginPage('Too many failed attempts - try again in 15 minutes.', next));
+    if (isLocked(req, username)) {
+      audit.record('login.locked', req, username);
+      return res.status(429).send(loginPage('Too many failed attempts - try again in 15 minutes.', next));
+    }
 
     let role = null;
     if (safeEqual(username, config.ADMIN_USER)) {
@@ -363,22 +442,83 @@ function install(app, render) {
     }
     if (!role) {
       recordFailure(req, username);
+      audit.record('login.failed', req, username);
       return res.status(401).send(loginPage('Unknown user name or wrong password.', next));
     }
     clearFailures(req, username);
+    if (role === 'user') {
+      // Last seen lives on the account itself, so the Users page can show it
+      // without reading the audit trail for every row.
+      const users = loadUsers();
+      const user = findUser(users, username);
+      if (user) {
+        user.lastLoginAt = new Date().toISOString();
+        user.lastLoginIp = String(req.ip || '').replace(/^::ffff:/, '');
+        user.logins = (user.logins || 0) + 1;
+        saveUsers(users);
+      }
+    }
+    audit.record('login.ok', req, username, role === 'admin' ? 'administrator' : null);
     issueSession(req, res, username, role);
     res.redirect(next);
   });
 
-  const logout = (req, res) => { clearSession(res); res.redirect('/login'); };
+  const logout = (req, res) => {
+    // /logout deliberately bypasses the middleware (an expired session must
+    // still get a clean redirect instead of a bare 401), so req.user does not
+    // exist here - the session is read directly to name who signed out.
+    const session = readSession(req);
+    if (session && resolveSession(session)) audit.record('logout', req, session.u);
+    clearSession(res);
+    res.redirect('/login');
+  };
   app.post('/logout', logout);
   app.get('/logout', logout);
+
+  app.get('/account', (req, res) => {
+    res.send(accountPage(render, req, req.query.msg ? String(req.query.msg).slice(0, 200) : null, req.query.err === '1'));
+  });
+
+  app.post('/account/password', (req, res) => {
+    const backToAccount = (message, isError) => res.redirect(`/account?msg=${encodeURIComponent(message)}${isError ? '&err=1' : ''}`);
+    if (!csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
+    if (!enabled() || req.user.open) return backToAccount('Authentication is off on this server.', true);
+    if (req.user.role === 'admin') return backToAccount('The administrator password is set in .env, not here.', true);
+
+    const body = req.body || {};
+    const current = String(body.current || '');
+    const password = String(body.password || '');
+    const confirm = String(body.confirm || '');
+    const users = loadUsers();
+    const user = findUser(users, req.user.name);
+    if (!user) return backToAccount('Your account no longer exists.', true);
+    if (!verifyPassword(current, user.salt, user.hash)) {
+      audit.record('password.rejected', req, req.user.name);
+      return backToAccount('That is not your current password.', true);
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) return backToAccount(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`, true);
+    if (password !== confirm) return backToAccount('The two new passwords do not match.', true);
+    if (password === current) return backToAccount('The new password is the same as the current one.', true);
+
+    Object.assign(user, hashPassword(password), { passwordChangedAt: new Date().toISOString() });
+    saveUsers(users);
+    audit.record('password.self', req, req.user.name);
+    // The change revokes every session older than it - including this one, so
+    // the browser that made the change is given a fresh session rather than
+    // being thrown back to the login page.
+    issueSession(req, res, user.name, 'user');
+    backToAccount('Your password has been changed. Your other browsers have been signed out.', false);
+  });
 
   const adminOnly = requireAdmin(render);
   // In open mode the page is read-only: without an administrator identity
   // nobody may create accounts that would become valid the moment
   // authentication is switched on.
   const writable = (req, res, next) => (enabled() ? next() : res.status(403).send('User management needs WEB_USER and WEB_PASSWORD to be set.'));
+
+  app.get('/admin/activity', adminOnly, (req, res) => {
+    res.send(activityPage(render, req));
+  });
 
   app.get('/admin/users', adminOnly, (req, res) => {
     res.send(usersPage(render, req, req.query.msg ? String(req.query.msg).slice(0, 200) : null, req.query.err === '1'));
@@ -399,6 +539,7 @@ function install(app, render) {
     if (users.some((u) => u.name.toLowerCase() === username.toLowerCase())) return back(res, `User ${username} already exists.`, true);
     users.push({ name: username, role: 'user', createdAt: new Date().toISOString(), ...hashPassword(password) });
     saveUsers(users);
+    audit.record('user.added', req, username, `by ${req.user.name}`);
     back(res, `User ${username} added.`, false);
   });
 
@@ -413,6 +554,7 @@ function install(app, render) {
     if (!user) return back(res, `User ${username} not found.`, true);
     Object.assign(user, hashPassword(password), { passwordChangedAt: new Date().toISOString() });
     saveUsers(users);
+    audit.record('password.admin', req, username, `by ${req.user.name}`);
     back(res, `Password of ${username} changed - the user's open sessions are ended.`, false);
   });
 
@@ -422,6 +564,7 @@ function install(app, render) {
     const users = loadUsers();
     if (!findUser(users, username)) return back(res, `User ${username} not found.`, true);
     saveUsers(users.filter((u) => u.name !== username));
+    audit.record('user.deleted', req, username, `by ${req.user.name}`);
     back(res, `User ${username} deleted.`, false);
   });
 }
@@ -432,4 +575,5 @@ function install(app, render) {
 module.exports = {
   enabled, misconfigured, middleware, install, escapeHtml, safeNext,
   requireAdmin, csrfOk, ensureConfigDir, USERS_FILE, SECRET_FILE, CONFIG_DIR: config.CONFIG_DIR,
+  MIN_PASSWORD_LENGTH,
 };

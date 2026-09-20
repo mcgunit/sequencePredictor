@@ -171,6 +171,58 @@ function chartFrequency(freq, game) {
   return digitsOnly;
 }
 
+// --- LOGIC: is the pipeline busy right now? ---
+// Every Python entry point (Predictor.py, the five tuners, TrainMetaLearner)
+// takes this one PID lock file in the repo root, so it is the cheapest honest
+// answer to "is a run in progress" - no scheduler needed, and it stays true
+// when a job is started by hand or by cron. /proc gives the command line, so
+// the banner can say which job it is rather than just "busy".
+const PIPELINE_LOCK = path.join(__dirname, 'process.lock');
+const JOB_NAMES = {
+  'Predictor.py': 'Today\'s predictions are being computed',
+  'HyperoptStatistics.py': 'Weekly tuning: statistical models',
+  'HyperoptBoost.py': 'Weekly tuning: boosting models',
+  'HyperoptRLTicket.py': 'Weekly tuning: RL ticket model',
+  'HyperoptEnsemble.py': 'Weekly tuning: ensemble subsets',
+  'HyperoptQuantum.py': 'Weekly tuning: quantum meta-learners',
+  'HyperoptDeepLearning.py': 'Tuning: deep learning models',
+  'TrainMetaLearner.py': 'Retraining the meta-learner',
+};
+
+function pipelineStatus() {
+  let pid;
+  let since = null;
+  try {
+    pid = Number(fs.readFileSync(PIPELINE_LOCK, 'utf-8').trim());
+    since = fs.statSync(PIPELINE_LOCK).mtimeMs;
+  } catch (e) {
+    return null;                       // no lock: nothing running
+  }
+  if (!pid || Number.isNaN(pid)) return null;
+  let cmdline;
+  try {
+    cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8').replace(/\0/g, ' ').trim();
+  } catch (e) {
+    return null;                       // stale lock of a dead run - the scripts clean it up themselves
+  }
+  const script = Object.keys(JOB_NAMES).find((name) => cmdline.includes(name));
+  return { pid, since, what: script ? JOB_NAMES[script] : 'A pipeline job is running' };
+}
+
+function pipelineBanner() {
+  const status = pipelineStatus();
+  if (!status) return '';
+  const minutes = Math.max(0, Math.round((Date.now() - status.since) / 60000));
+  const running = minutes < 1 ? 'just started' : `running for ${minutes < 90 ? `${minutes} min` : `${(minutes / 60).toFixed(1)} h`}`;
+  return `
+    <div style="background:#eaf4fd; border:1px solid #aed6f1; color:#21618c; border-radius:8px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+      <span style="display:inline-block; width:14px; height:14px; border:3px solid #aed6f1; border-top-color:#2980b9; border-radius:50%; animation:sp-spin 1s linear infinite;"></span>
+      <span><b>${status.what}.</b> ${running} - this page updates when it finishes.</span>
+    </div>
+    <style>@keyframes sp-spin { to { transform: rotate(360deg); } }</style>
+    <script>setTimeout(function () { location.reload(); }, 60000);</script>`;
+}
+
 // --- LOGIC: which draw a "new prediction" is for ---
 // A day JSON is named after the draw it scored, and its "newPrediction" is
 // the prediction for the NEXT draw of that game (checked against the data:
@@ -426,7 +478,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
       </div>
       ${user && !user.open ? `
       <div class="nav-user">
-        <span>Signed in as <b>${auth.escapeHtml(user.name)}</b></span>
+        <span>Signed in as <a href="/account" style="color:white; text-decoration:underline;">${auth.escapeHtml(user.name)}</a></span>
         <form method="post" action="/logout"><input type="hidden" name="_csrf" value="${auth.escapeHtml(user.csrf)}"><button type="submit" class="nav-btn">Logout</button></form>
       </div>` : ''}
     </div>
@@ -1292,6 +1344,9 @@ app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
   let html = generateHeader("Home - Dashboard", req.user);
   html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>`;
+  // Visible to every visitor: a run in progress explains why today's draw is
+  // not here yet, and is the one thing a reader cannot otherwise tell.
+  html += pipelineBanner();
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
