@@ -209,5 +209,21 @@
     "quantumVqc_encodingScale": 0.75,
     "quantumVqc_learningRate": 0.0996687648458058,
     "quantumVqc_epochs": 30,
-    "quantumVqc_batchSize": 256
+    "quantumVqc_batchSize": 256,
+    "subsetEnsembleModels": [
+        "LaplaceMonteCarlo Model",
+        "Markov Model"
+    ],
+    "subsetEnsembleWeighted": true,
+    "subsetEnsembleObjective": -2.0414,
+    "subsetEnsembleMean": -0.8,
+    "subsetEnsembleTunedOn": {
+        "days": 120,
+        "from": "2026-05-22",
+        "to": "2026-09-18",
+        "candidates": 3,
+        "evaluated": 16,
+        "search": "exhaustive",
+        "confidencePenalty": 1.0
+    }
 }

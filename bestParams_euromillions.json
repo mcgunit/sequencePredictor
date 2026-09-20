@@ -219,12 +219,12 @@
         "PoissonMarkov Model"
     ],
     "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": 0.5818,
-    "subsetEnsembleMean": 0.6591,
+    "subsetEnsembleObjective": 0.5682,
+    "subsetEnsembleMean": 0.6444,
     "subsetEnsembleTunedOn": {
-        "days": 88,
+        "days": 90,
         "from": "2025-11-11",
-        "to": "2026-09-11",
+        "to": "2026-09-18",
         "candidates": 7,
         "evaluated": 256,
         "search": "exhaustive",
