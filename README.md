@@ -784,6 +784,12 @@ A change to `.env` needs a server restart (nodemon does not watch it).
 
 The Optuna dashboard is no longer started or linked by the server; start it by hand when you want it: `optuna-dashboard sqlite:///db.sqlite3`.
 
+### First login, and what's new
+
+A new account meets a short introduction the first time it opens any page: what this project is, and what each page is for - with the Users, Jobs and Activity step shown only to an administrator. After that, a feature that ships with a note pops that note once, and only for the accounts that may see it. `announcements.js` is the single file to edit: one entry per feature, newest first, `level: 'major'` to open the dialog or `'minor'` to light a dot on the **?** in the navbar, `audience: 'all'` or `'admin'`. Every string is escaped when rendered, so the file holds text rather than markup, and `npm test` checks the rules that keep it safe to edit - permanent unique ids matching their date, known level and audience, no HTML, newest first - because an edited id would pop an old note at everyone again.
+
+What an account has already seen lives in `config/user-state.json`, gitignored like the accounts, deliberately not in `users.json`: the administrator has no record there, and interface state should not sit next to password hashes. The dialog is injected by `generateHeader`, so it finds the reader on whichever page they land on; dismissing it is a plain form post that works without JavaScript, "Later" hides it for the session, and the **?** link opens `/whats-new`, which lists everything and can replay the introduction.
+
 ### Is a run in progress?
 
 Every Python entry point takes the same `process.lock` in the repo root, so the home page can answer "is the pipeline busy" without a scheduler, and keeps answering it whether the job was started by cron, by hand or (later) by the server: a banner names the job (`Today's predictions are being computed`, `Weekly tuning: boosting models`, ...) and how long it has been running, and the page reloads once a minute while it lasts. The command line behind the locked PID is what names the job, and a lock whose process is gone shows nothing - the scripts clean stale locks up themselves. Every visitor sees this, not just the administrator: a reader who wonders why today's draw is missing gets the answer instead of an empty card.

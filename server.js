@@ -6,6 +6,7 @@ const config = require("./config");
 const auth = require("./auth");
 const council = require("./council");
 const services = require("./services");
+const whatsnew = require("./whatsnew");
 
 const app = express();
 
@@ -383,6 +384,9 @@ function generateHeader(title = "Sequence Predictor", user = null) {
       }
       .nav-btn:hover { background-color: #2c3e50; }
 
+      /* FIRST-LOGIN INTRODUCTION AND WHAT'S NEW (whatsnew.js) */
+      ${whatsnew.DIALOG_CSS}
+
       /* LOGIN STATE + USER ADMIN FORMS (auth.js) */
       .nav-user { color: #bdc3c7; font-size: 0.9em; display: flex; align-items: center; gap: 12px; }
       .nav-user b { color: white; }
@@ -475,6 +479,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
         <a href="/database">History</a>
         <a href="/council">Council</a>
         ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a><a href="/admin/jobs">Jobs</a>' : ''}
+        ${whatsnew.navLink(user)}
       </div>
       ${user && !user.open ? `
       <div class="nav-user">
@@ -490,6 +495,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
         card.classList.toggle('expanded');
       }
     </script>
+    ${whatsnew.dialog(user)}
     <div class="container">
   `;
 }
@@ -1343,7 +1349,10 @@ app.get('/database/:folder/:file', (req, res) => {
 app.get('/', (req, res) => {
   const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
   let html = generateHeader("Home - Dashboard", req.user);
-  html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>`;
+  html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>
+    <p style="color: #7f8c8d; margin-top: -12px;">One card per game. Open a card for every model's ticket for the next draw -
+       each row is one method, kept separate on purpose so its real-life record can be followed on the
+       <a href="/database">History</a> page.</p>`;
   // Visible to every visitor: a run in progress explains why today's draw is
   // not here yet, and is the one thing a reader cannot otherwise tell.
   html += pipelineBanner();
@@ -1370,6 +1379,7 @@ app.get('/', (req, res) => {
             <div>
                 <span class="card-title">${folder}</span>
                 ${drawMeta}
+                <span class="card-meta" style="margin-left: 10px;">${(jsonData.newPrediction || []).length} model rows</span>
             </div>
             <div class="card-icon">▼</div>
           </div>
@@ -1413,6 +1423,8 @@ auth.install(app, { header: generateHeader, footer: generateFooter });
 // The Jobs page and the services it supervises (services.js): today the
 // Council API, which had to be started by hand until now.
 services.install(app, { header: generateHeader, footer: generateFooter });
+// First-login introduction and the what's-new note (whatsnew.js).
+whatsnew.install(app, { header: generateHeader, footer: generateFooter }, auth);
 
 // The UI is reachable from outside (a Tailscale funnel proxies to this
 // port), pm2 restarts the process on exit, and a future in-server scheduler
