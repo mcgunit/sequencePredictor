@@ -170,6 +170,71 @@ function chartFrequency(freq, game) {
   return digitsOnly;
 }
 
+// --- LOGIC: which draw a "new prediction" is for ---
+// A day JSON is named after the draw it scored, and its "newPrediction" is
+// the prediction for the NEXT draw of that game (checked against the data:
+// file D's newPrediction is exactly what file D+1 carries as its scored
+// currentPrediction). The schedule differs per game and has changed before -
+// Keno/Pick3/Joker+ draw daily, Lotto Wed+Sat, Euromillions Tue+Fri,
+// EuroDreams Mon+Thu, VikingLotto Wed - so it is read from the game's own
+// recent draw dates instead of being hardcoded: the weekdays of the last
+// SCHEDULE_WINDOW stored draws are the schedule, and the prediction applies
+// to the first date after its file that falls on one of them.
+const SCHEDULE_WINDOW = 40;
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// "2026-9-16.json" (day files are not zero padded) -> local Date, or null
+// for anything that isn't a day file.
+function parseDayFileDate(file) {
+  const parts = String(file).replace('.json', '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [year, month, day] = parts;
+  const date = new Date(year, month - 1, day);
+  return (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) ? date : null;
+}
+
+function formatDrawDate(date) {
+  return `${WEEKDAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+// First date after `anchor` (default: the newest stored draw) whose weekday
+// is one the game actually draws on. null when there are no day files or no
+// such date within two weeks (an unreadable schedule shows no date at all
+// rather than a guessed one).
+function nextDrawDate(fileDates, anchor) {
+  const dates = fileDates.filter(Boolean).sort((a, b) => a - b);
+  if (!dates.length) return null;
+  const from = anchor || dates[dates.length - 1];
+  // Only draws up to the anchor define its schedule, so a history page from
+  // before a schedule change is read with the schedule of its own time.
+  const upToAnchor = dates.filter((d) => d <= from);
+  const weekdays = new Set((upToAnchor.length ? upToAnchor : dates).slice(-SCHEDULE_WINDOW).map((d) => d.getDay()));
+  const next = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  for (let step = 0; step < 14; step += 1) {
+    next.setDate(next.getDate() + 1);
+    if (weekdays.has(next.getDay())) return next;
+  }
+  return null;
+}
+
+// The "for the draw of ..." line next to a new-prediction table. On the home
+// page (warnWhenPast) a date in the past means the newest stored prediction
+// is for a draw that has already taken place - the predictor has not run
+// since - which the reader must see; on a history page that is the normal
+// state of every older day, so the date is shown plainly.
+function drawDateMeta(fileDates, anchor, warnWhenPast) {
+  const next = nextDrawDate(fileDates, anchor);
+  if (!next) return '';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const label = formatDrawDate(next);
+  if (warnWhenPast && next < today) {
+    return `<span class="card-meta" style="margin-left: 10px; color: #c0392b;" title="This is the newest stored prediction; the predictor has not produced one for a later draw yet.">for the draw of ${label} - already drawn, no newer run yet</span>`;
+  }
+  const when = next.getTime() === today.getTime() ? 'today, ' : '';
+  return `<span class="card-meta" style="margin-left: 10px;">for the draw of ${when}${label}</span>`;
+}
+
 // Database folder names equal game names today, but the routes historically
 // matched with includes() (e.g. a "keno_backup" folder still behaves as keno),
 // so keep that tolerance. vikinglotto must be tested before lotto because
@@ -1136,6 +1201,11 @@ app.get('/database/:folder/:file', (req, res) => {
   // other games get the same object back.
   const currentFrequency = chartFrequency(jsonData.currentNumberFrequency, game);
   const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
+  // The draw this day's "Next Draw Prediction" was made for: the next one
+  // after this file, on the game's own schedule (see drawDateMeta).
+  const nextDrawMeta = drawDateMeta(
+    fs.readdirSync(path.join(dataPath, folder)).filter((f) => f.endsWith('.json')).map(parseDayFileDate),
+    parseDayFileDate(file), false);
 
   let html = generateHeader(`${file} Details`, req.user);
   html += `
@@ -1189,7 +1259,7 @@ app.get('/database/:folder/:file', (req, res) => {
 
     <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
-             <span class="card-title">Next Draw Prediction</span><div class="card-icon">▼</div>
+             <div><span class="card-title">Next Draw Prediction</span>${nextDrawMeta}</div><div class="card-icon">▼</div>
         </div>
         <div class="card-body">
             ${generateTable(jsonData.newPrediction, '', [], false, game)}
@@ -1233,6 +1303,9 @@ app.get('/', (req, res) => {
       // name, digit-only chart); every other game renders exactly as before.
       const game = gameFromFolder(folder);
       const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
+      // Which draw these numbers are for: the next one after the newest
+      // scored day file (see drawDateMeta).
+      const drawMeta = drawDateMeta(files.map(parseDayFileDate), null, true);
 
       // Collapsed by default (No 'expanded' class)
       html += `
@@ -1240,7 +1313,7 @@ app.get('/', (req, res) => {
           <div class="card-header" onclick="toggleCard(this)">
             <div>
                 <span class="card-title">${folder}</span>
-                <!--<span class="card-meta">(${latestFile})</span>-->
+                ${drawMeta}
             </div>
             <div class="card-icon">▼</div>
           </div>
