@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# The daily run. Since README roadmap item 8 the web server's own scheduler
+# (jobs.js) starts this same command at 09:00 and the crontab entries are
+# gone; this script stays as the hand-run path and as the fallback while the
+# schedule is off (config/scheduler.disabled). Keep the two in step -
+# test/jobs.test.js fails if they diverge.
+
 cd /root/sequencePredictor/
 
 # --ai on again (change of 2026-09-16): every deep learning training run is capped

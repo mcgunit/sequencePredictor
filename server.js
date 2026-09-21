@@ -6,6 +6,7 @@ const config = require("./config");
 const auth = require("./auth");
 const council = require("./council");
 const services = require("./services");
+const jobs = require("./jobs");
 const whatsnew = require("./whatsnew");
 
 const app = express();
@@ -1420,16 +1421,19 @@ app.get('/', (req, res) => {
 // no longer started or linked from here - start it by hand when needed:
 // optuna-dashboard sqlite:///db.sqlite3
 auth.install(app, { header: generateHeader, footer: generateFooter });
-// The Jobs page and the services it supervises (services.js): today the
-// Council API, which had to be started by hand until now.
-services.install(app, { header: generateHeader, footer: generateFooter });
+// The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
+// 8) above the supervised services (services.js, today the Council API).
+// services.js renders whatever the third argument returns, so it stays
+// independent of the schedule.
+services.install(app, { header: generateHeader, footer: generateFooter }, jobs.section);
+jobs.install(app, { header: generateHeader, footer: generateFooter });
 // First-login introduction and the what's-new note (whatsnew.js).
 whatsnew.install(app, { header: generateHeader, footer: generateFooter }, auth);
 
 // The UI is reachable from outside (a Tailscale funnel proxies to this
-// port), pm2 restarts the process on exit, and a future in-server scheduler
-// would own the daily pipeline - so an unexpected throw must be logged with
-// its stack instead of dying silently or being swallowed.
+// port), pm2 restarts the process on exit, and this process now owns the
+// daily pipeline schedule - so an unexpected throw must be logged with its
+// stack instead of dying silently or being swallowed.
 process.on('uncaughtException', (error) => {
   console.error(`[${new Date().toISOString()}] uncaught exception:`, error);
 });
@@ -1441,12 +1445,20 @@ const server = app.listen(config.PORT, config.INTERFACE, () => {
   console.log(`Server running at http://${config.INTERFACE}:${config.PORT}` +
               (auth.enabled() ? ` - login required (admin: ${config.ADMIN_USER})` : ' - open access: set WEB_USER and WEB_PASSWORD to require a login'));
   services.startAll();
+  // The schedule starts last and, by default, in dry mode: it records what
+  // it would have run so it can be watched for a weekend next to the still
+  // existing crontab entries (see jobs.js and README roadmap item 8).
+  jobs.start();
 });
 
 // Services are ordinary children, so they must go down with the server
 // rather than being left behind on a restart or a deploy.
 ['SIGTERM', 'SIGINT'].forEach((signal) => process.on(signal, () => {
   console.log(`${signal} received - stopping supervised services`);
+  // Only the schedule's timer stops. A pipeline job launched with
+  // setsid --fork keeps running on purpose and is adopted again at the next
+  // start - that is what makes a deploy safe during a 12-hour tuning run.
+  jobs.stop();
   services.stopAll();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 6000).unref();

@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-21-server-schedule',
+    date: '2026-09-21',
+    level: 'major',
+    audience: 'admin',
+    title: 'The server keeps the schedule, not crontab',
+    body: [
+      'The Jobs page now lists the daily predictor and the six jobs of the weekly tuning chain: when each last ran, how long it took, how it ended, at which commit, and a Run now button for each.',
+      'The weekly chain no longer waits for a fixed hour - it starts when the Saturday predictor run finishes - and a job that finds the pipeline busy waits its turn instead of skipping the week. A running job survives a deploy and is picked up again when the server comes back.',
+      'It starts in dry mode: it records what it would have run and starts nothing, so it is safe next to the crontab entries. To cut over, watch a weekend, remove the three crontab lines, set SCHEDULER=on in .env and restart. To fall back, create config/scheduler.disabled - no restart needed.',
+    ],
+    link: { href: '/admin/jobs', label: 'Open Jobs' },
+  },
+  {
     id: '2026-09-20-your-account',
     date: '2026-09-20',
     level: 'major',

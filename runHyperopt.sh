@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# The weekly tuning chain. Since README roadmap item 8 the web server's
+# scheduler (jobs.js) runs these same scripts, in this same order, as seven
+# separate jobs - started when Saturday's predictor finishes instead of at a
+# fixed hour, each one visible with its own exit code on the Jobs page. This
+# script stays as the hand-run path and as the fallback while the schedule is
+# off; keep the order identical, test/jobs.test.js compares the two.
+
 cd /root/sequencePredictor/
 
 # Wait for the daily predictor to release process.lock instead of letting

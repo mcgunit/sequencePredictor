@@ -350,7 +350,7 @@ function since(at) {
   return `${(seconds / 3600).toFixed(1)} h`;
 }
 
-function page(req, render, services, message) {
+function page(req, render, services, message, extra) {
   const esc = auth.escapeHtml;
   const csrf = `<input type="hidden" name="_csrf" value="${esc(req.user.csrf)}">`;
   const cards = services.map((s) => {
@@ -392,17 +392,32 @@ function page(req, render, services, message) {
   return render.header('Jobs', req.user) + `
     <h1>Jobs</h1>
     ${message ? `<p style="color:#27ae60; font-weight:bold;">${esc(message)}</p>` : ''}
-    <p style="color:#7f8c8d;">Services the web server keeps running. This page refreshes every 15 seconds.
-       The scheduled pipeline jobs - the daily predictor and the weekly tuning chain - join this page with roadmap item 8; they are still started by cron today.</p>
+    <p style="color:#7f8c8d;">What this server runs for you: the scheduled pipeline jobs (jobs.js) and the services it keeps up (below).
+       This page refreshes every 15 seconds.</p>
+    ${extra || ''}
+    <h2>Services</h2>
     ${cards}
     <script>setTimeout(function () { location.reload(); }, 15000);</script>` + render.footer();
 }
 
-function install(app, render) {
+// `extraSection` is an optional (req) => html callback rendered above the
+// services - jobs.js passes the scheduled pipeline jobs through it, so this
+// module keeps knowing nothing about the schedule.
+function install(app, render, extraSection) {
   const adminOnly = auth.requireAdmin(render);
 
   app.get('/admin/jobs', adminOnly, async (req, res) => {
-    res.send(page(req, render, await status(), req.query.msg ? String(req.query.msg).slice(0, 200) : null));
+    let extra = '';
+    if (extraSection) {
+      try {
+        extra = await extraSection(req);
+      } catch (e) {
+        // A broken schedule section must not take the page that operates the
+        // services with it.
+        extra = `<p style="color:#c0392b;">The scheduled jobs could not be rendered: ${auth.escapeHtml(e.message)}</p>`;
+      }
+    }
+    res.send(page(req, render, await status(), req.query.msg ? String(req.query.msg).slice(0, 200) : null, extra));
   });
 
   app.post('/admin/jobs/action', adminOnly, async (req, res) => {

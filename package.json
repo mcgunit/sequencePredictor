@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "nodemon server.js",
-    "test": "node test/announcements.test.js"
+    "test": "node test/announcements.test.js && node test/jobs.test.js"
   },
   "nodemonConfig": {
     "ignore": [

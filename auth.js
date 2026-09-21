@@ -229,9 +229,18 @@ function safeNext(target) {
   } catch (e) { return '/'; }
 }
 
+// Open access has no session to bind a form token to, and an empty token
+// makes csrfOk() refuse every POST - which silently disabled every button on
+// the Jobs page (start a service, run a job) in local development. A token
+// minted once per process keeps csrfOk's shape and its protection (a
+// cross-origin page still cannot read it) while letting the forms work. It
+// grants nothing: the open-access guards on user management are separate and
+// stay.
+const OPEN_ACCESS_CSRF = crypto.randomBytes(16).toString('hex');
+
 function middleware(req, res, next) {
   if (!enabled()) {
-    req.user = { name: 'open access', role: 'admin', open: true, csrf: '' };
+    req.user = { name: 'open access', role: 'admin', open: true, csrf: OPEN_ACCESS_CSRF };
     return next();
   }
   if (req.path === '/login' || req.path === '/logout') return next();
