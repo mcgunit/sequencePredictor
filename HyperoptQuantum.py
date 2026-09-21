@@ -202,7 +202,7 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
         prepare_foundation_scores(
             models, start_index, total_rows,
             skipLastColumns=game_cfg["skip_last_columns"],
-            specialColumnCount=specialColumnCount,
+            specialColumnCount=game_cfg["special_column_count"],
             label=f"{dataset_name}: ")
 
         backtester = Backtester(loader)
