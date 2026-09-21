@@ -107,7 +107,15 @@ def forecast(request):
 
     count = int(request.get("quantiles") or 199)
     count = max(9, min(count, 999))
-    levels = [round((i + 1) / (count + 1), 6) for i in range(count)]
+    # Chronos-2 is trained on 21 quantile levels (0.01, 0.05 ... 0.95, 0.99)
+    # and clamps anything outside that span to the nearest trained level, so a
+    # grid reaching 0.005 buys nothing and only makes the library warn. Inside
+    # the span a finer grid is pure interpolation between those 21 knots:
+    # measured identical to three decimals on pick3 and lotto against the 21
+    # native levels. It is kept because reading the curve at every label
+    # boundary is what the caller needs, not because it adds resolution.
+    low, high = 0.01, 0.99
+    levels = [round(low + i * (high - low) / (count - 1), 6) for i in range(count)]
 
     contexts = []
     for values in series:
