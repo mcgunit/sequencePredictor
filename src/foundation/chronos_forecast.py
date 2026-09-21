@@ -20,12 +20,9 @@ model load per day:
 `labels` is the game's value range. The reply gives, per position, a
 probability for every label.
 
-Turning a continuous quantile forecast into a distribution over discrete
-labels is the one place where a naive implementation invents signal: binning
-each quantile sample to its nearest label piles mass at the ends of the
-range. Instead the quantile curve is read as an empirical CDF and each label
-gets the mass between its half-open bounds [label - 0.5, label + 0.5], with
-the tails folded into the first and last label.
+The mapping from a quantile curve to label probabilities lives in
+quantile_labels.py, shared with the TimesFM worker so both models are read
+exactly the same way.
 """
 
 import json
@@ -37,13 +34,18 @@ LIBS = os.environ.get("FOUNDATION_LIBS", "/root/.foundation-libs")
 if os.path.isdir(LIBS) and LIBS not in sys.path:
     sys.path.insert(0, LIBS)
 
+from quantile_labels import label_probabilities, levels_within
+
 MODEL = os.environ.get("CHRONOS_MODEL", "amazon/chronos-2")
 DEVICE = os.environ.get("CHRONOS_DEVICE", "cpu")
 # Longer contexts cost time and add nothing here: a lottery position series is
 # stationary by construction, so a few hundred draws already carry whatever
 # structure exists (for sorted games, the order statistics).
-MAX_CONTEXT = int(os.environ.get("CHRONOS_CONTEXT", "512"))
+MAX_CONTEXT = int(os.environ.get("CHRONOS_CONTEXT") or os.environ.get("FOUNDATION_CONTEXT") or "512")
 THREADS = int(os.environ.get("CHRONOS_THREADS", "4"))
+# What amazon/chronos-2 was trained on; anything outside is clamped by the
+# library to these ends.
+TRAINED_QUANTILE_RANGE = (0.01, 0.99)
 
 _pipeline = None
 
@@ -58,45 +60,6 @@ def pipeline():
     return _pipeline
 
 
-def label_probabilities(quantile_values, quantile_levels, labels):
-    """
-    Probability per label from one position's quantile curve.
-
-    quantile_values must be non-decreasing (they come from the model that
-    way); ties are handled by the interpolation below, which reads the curve
-    as the inverse CDF and evaluates F at each label boundary.
-    """
-    import numpy as np
-
-    values = np.asarray(quantile_values, dtype=float)
-    levels = np.asarray(quantile_levels, dtype=float)
-    lo, hi = float(labels[0]), float(labels[-1])
-
-    # F(x) by interpolating the inverse CDF. Outside the quantile range the
-    # CDF is clamped to [levels[0], levels[-1]]; the leftover tail mass is
-    # given to the edge labels below, never dropped.
-    def cdf(x):
-        return float(np.interp(x, values, levels, left=levels[0], right=levels[-1]))
-
-    masses = []
-    for label in labels:
-        left = max(lo - 0.5, label - 0.5)
-        right = min(hi + 0.5, label + 0.5)
-        masses.append(max(0.0, cdf(right) - cdf(left)))
-
-    masses = np.asarray(masses, dtype=float)
-    # Tails: everything the model put below the first or above the last label.
-    masses[0] += max(0.0, cdf(lo - 0.5) - 0.0)
-    masses[-1] += max(0.0, 1.0 - cdf(hi + 0.5))
-
-    total = masses.sum()
-    if total <= 0:
-        masses = np.full(len(labels), 1.0 / len(labels))   # no information -> uniform
-    else:
-        masses = masses / total
-    return {str(int(label)): float(round(mass, 6)) for label, mass in zip(labels, masses)}
-
-
 def forecast(request):
     import torch
 
@@ -107,15 +70,11 @@ def forecast(request):
 
     count = int(request.get("quantiles") or 199)
     count = max(9, min(count, 999))
-    # Chronos-2 is trained on 21 quantile levels (0.01, 0.05 ... 0.95, 0.99)
-    # and clamps anything outside that span to the nearest trained level, so a
-    # grid reaching 0.005 buys nothing and only makes the library warn. Inside
-    # the span a finer grid is pure interpolation between those 21 knots:
-    # measured identical to three decimals on pick3 and lotto against the 21
-    # native levels. It is kept because reading the curve at every label
-    # boundary is what the caller needs, not because it adds resolution.
-    low, high = 0.01, 0.99
-    levels = [round(low + i * (high - low) / (count - 1), 6) for i in range(count)]
+    # Chronos-2 is trained on 21 quantile levels (0.01, 0.05 ... 0.95, 0.99).
+    # A finer in-range grid is pure interpolation between those knots, kept
+    # only because reading the curve at every label boundary is what the
+    # caller needs - see quantile_labels.py.
+    levels = levels_within(count, *TRAINED_QUANTILE_RANGE)
 
     contexts = []
     for values in series:

@@ -6,6 +6,8 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.XGBoost import XGBoostPredictor
+from src.ChronosModel import ChronosModel
+from src.TimesFmModel import TimesFmModel
 
 # Ordered list of base-model display names fed into the meta-learner -
 # HybridStatisticalModel is deliberately excluded: it's itself a vote-based
@@ -29,7 +31,21 @@ BASE_MODEL_NAMES = [
     "PoissonMarkov Model",
     "LaplaceMonteCarlo Model",
     "XGBoost Model",
+    "Chronos Model",
+    "TimesFM Model",
 ]
+
+# The foundation models (README roadmap item 5) are the only base models that
+# are not always available: they need their own library directory, which a
+# machine may not have. They are also the only ones that cannot be run inside
+# the Backtester's forked pool - see prepare_foundation_scores below, which
+# every caller that collects a table must invoke. Chronos-2 is a feature by
+# default; TimesFM-3 costs ~2.8 GB against Chronos's ~0.8 GB for a second
+# reading of the same kind of signal, so it is opt-in per game.
+FOUNDATION_MODELS = (
+    ("Chronos Model", ChronosModel, "useChronosFeature", True),
+    ("TimesFM Model", TimesFmModel, "useTimesFmFeature", False),
+)
 
 # Models with no per-position modeling of their own - excluded for the
 # positional games (Pick3, Joker+: the draw is an ordered digit sequence, see
@@ -167,4 +183,107 @@ def build_models(dataPath, bestParams, is_positional=False, is_pick3=None):
     xgboost.setSaveModels(False)
     models["XGBoost Model"] = xgboost
 
+    # Foundation models as meta-learner features: a zero-shot per-position
+    # distribution from a model that has never seen a lottery is a genuinely
+    # different signal from the Markov/Poisson family and from boosting -
+    # which is the whole point of stacking. Appended last for the same reason
+    # XGBoost was: existing artifacts store their own feature_names and never
+    # ask for a column they were not trained with, so every older artifact
+    # keeps working and the column order of every existing feature is stable.
+    # Re-run TrainMetaLearner.py to actually pick the new feature up.
+    for name, cls, flag, default in FOUNDATION_MODELS:
+        if not bestParams.get(flag, default) or not cls.installed():
+            continue
+        model = cls()
+        model.setDataPath(dataPath)
+        model.setSortedPrediction(not is_positional)
+        model.setRecentDraws(bestParams.get("foundationContext", 512))
+        models[name] = model
+
     return models
+
+
+def expected_model_names(dataPath, bestParams, is_positional=False, is_pick3=None):
+    """
+    The names build_models() will produce here, without constructing
+    anything. A cached score table is only reusable if it was collected from
+    the same SET of base models, and the callers check that before deciding
+    whether to collect - so this has to answer before the models exist.
+    `python3 -m src.ModelFactory` pins it against build_models().
+    """
+    if is_pick3 is not None:
+        is_positional = bool(is_pick3)
+    names = [name for name in BASE_MODEL_NAMES
+             if not (is_positional and name in DISABLED_FOR_POSITIONAL)
+             and name not in {n for n, _, _, _ in FOUNDATION_MODELS}]
+    for name, cls, flag, default in FOUNDATION_MODELS:
+        if bestParams.get(flag, default) and cls.installed():
+            names.append(name)
+    return names
+
+
+def prepare_foundation_scores(models, start_index, total_rows, skipLastColumns=0,
+                              specialColumnCount=0, label=""):
+    """
+    Forecast every day the backtest will ask for, here, in this process, and
+    then put each foundation model into cache-only mode.
+
+    src/Backtester.py forks its pool and shares the model objects
+    copy-on-write. A forked child must not talk to the parent's worker (two
+    conversations in one pipe) and must not start its own (fifteen children x
+    0.8-2.8 GB is how a 16 GB box dies), so the parent does the work up front
+    - one warm worker, ~0.2 s per day - and the children then read an
+    inherited dictionary. Returns {model name: days forecast}.
+
+    The keys mirror exactly what Backtester._backtest_day asks for: the main
+    (or positional) call with the special column(s) dropped, plus the
+    special-only call for the games that have one.
+    """
+    foundation = {name: model for name, model in models.items()
+                  if getattr(model, "IS_FOUNDATION_MODEL", False)}
+    if not foundation:
+        return {}
+
+    mainSkip = specialColumnCount if specialColumnCount > 0 else skipLastColumns
+    keys = []
+    for index in range(start_index, total_rows):
+        skipRows = total_rows - index
+        keys.append((skipRows, mainSkip, 0))
+        if specialColumnCount > 0:
+            keys.append((skipRows, 0, specialColumnCount))
+
+    done = {}
+    for name, model in foundation.items():
+        print(f"{label}{name}: forecasting {len(keys)} day-slices before the backtest forks...")
+        done[name] = model.precompute(keys, label=f"{label}{name}")
+        if done[name] == 0:
+            print(f"{label}{name}: no forecast succeeded - the column will be all zeros "
+                  f"(is {name} installed? see README 'Foundation models')")
+    return done
+
+
+if __name__ == "__main__":
+    # expected_model_names() duplicates build_models()'s inclusion rules, and
+    # a drift between them would silently reuse a score table collected from
+    # a different set of base models. This is the check that they agree.
+    #
+    #   python3 -m src.ModelFactory
+    import itertools
+    import os
+
+    dataPath = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "data", "trainingData", "lotto")
+    cases = [dict(pair) for pair in itertools.product(
+        [("useChronosFeature", True), ("useChronosFeature", False)],
+        [("useTimesFmFeature", True), ("useTimesFmFeature", False)])]
+    failures = 0
+    for is_positional in (False, True):
+        for params in cases:
+            built = list(build_models(dataPath, params, is_positional=is_positional).keys())
+            expected = expected_model_names(dataPath, params, is_positional=is_positional)
+            if built != expected:
+                failures += 1
+                print(f"MISMATCH positional={is_positional} {params}\n  built    {built}\n  expected {expected}")
+    print(f"{2 * len(cases) - failures}/{2 * len(cases)} configurations agree"
+          + ("" if not failures else " - FIX expected_model_names()"))
+    raise SystemExit(1 if failures else 0)

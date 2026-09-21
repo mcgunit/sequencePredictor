@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
-from src.ModelFactory import BASE_MODEL_NAMES, build_models
+from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
 
 from HyperoptStatistics import GAME_CONFIG
@@ -335,8 +335,10 @@ def fit_positional_meta_model(results, model_names, label, fit_func, positions=P
 # - base params: the subset of bestParams the base models are built from
 #   (ModelFactory.build_models reads only markov*/poisson*/laplace*/xgBoost*
 #   keys; quantum/meta/subset keys merged later in the pipeline don't touch
-#   the base-model scores, so they must NOT invalidate the cache).
-BASE_PARAM_PREFIXES = ("markov", "poisson", "laplace", "xgBoost")
+#   the base-model scores, so they must NOT invalidate the cache;
+#   "foundation" covers foundationContext, which decides how much history
+#   the foundation models are shown and therefore what their column holds).
+BASE_PARAM_PREFIXES = ("markov", "poisson", "laplace", "xgBoost", "foundation")
 
 
 def base_param_subset(bestParams):
@@ -373,7 +375,8 @@ def save_meta_score_table(path, dataset_name, results, model_names, days_back, t
         print(f"Could not persist the {dataset_name} {table_kind}-table cache (continuing): {e}")
 
 
-def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind="score"):
+def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind="score",
+                          model_names=None):
     """Returns (results, model_names) sliced to the newest days_back days, or None."""
     cachePath = meta_table_cache_path(path, dataset_name, table_kind)
     if not os.path.exists(cachePath):
@@ -385,6 +388,12 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams,
     if cache.get("total_rows") != total_rows:
         return None
     if cache.get("days", 0) < days_back or len(cache.get("results") or []) == 0:
+        return None
+    # The base-model SET, not just their parameters: a table collected before
+    # a foundation model was added (or on a machine where its libraries are
+    # missing) has no column for it, and training on it would silently drop
+    # the new feature instead of collecting it.
+    if model_names is not None and list(cache.get("model_names") or []) != list(model_names):
         return None
     if cache.get("base_params") != base_param_subset(bestParams):
         return None
@@ -427,7 +436,8 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
 
     start_index = max(0, total_rows - days_back)
 
-    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind)
+    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind,
+                                   model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional))
     if cached is not None:
         results, model_names = cached
     else:
@@ -436,6 +446,17 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
         # models left out - the same configuration Pick3 and Joker+ need.
         models = build_models(dataPath, bestParams, is_positional=is_positional)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
+
+        # Foundation models (Chronos-2, TimesFM-3) cannot run inside the
+        # Backtester's forked pool - one warm worker per child would cost
+        # gigabytes - so every day they will be asked for is forecast here
+        # first and the models then answer from that cache. Must stay before
+        # the Backtester is run.
+        prepare_foundation_scores(
+            models, start_index, total_rows,
+            skipLastColumns=game_cfg["skip_last_columns"],
+            specialColumnCount=specialColumnCount,
+            label=f"{dataset_name}: ")
 
         backtester = Backtester(loader)
         for name, model in models.items():

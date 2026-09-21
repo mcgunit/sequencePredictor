@@ -17,6 +17,17 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-21-foundation-models',
+    date: '2026-09-21',
+    level: 'minor',
+    audience: 'all',
+    title: 'A second foundation model joins the predictions',
+    body: [
+      'Two pretrained time-series models from different labs - Chronos-2 and TimesFM-3 - now each produce a row per game, asked cold for the next value of every drawn position without ever having seen a lottery.',
+      'They are shown next to an OrderStatistics Baseline row on purpose. For the games whose numbers come out sorted, the first position is simply the smallest number drawn, so getting its range right is arithmetic rather than prediction: a foundation model is only interesting once it beats that baseline, and where the two models disagree with each other there is probably nothing to find.',
+    ],
+  },
+  {
     id: '2026-09-21-server-schedule',
     date: '2026-09-21',
     level: 'major',

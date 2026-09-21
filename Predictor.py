@@ -28,6 +28,7 @@ from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
 from src.ChronosModel import ChronosModel
+from src.TimesFmModel import TimesFmModel
 from src.Baselines import ColumnFrequencyBaseline
 from src.TransformerModel import TransformerModel
 from src.GNN import GNNModel
@@ -61,6 +62,7 @@ hybridStatisticalModel = HybridStatisticalModel()
 # (README roadmap item 5). Module-level like the models above, so the Chronos
 # worker process is loaded once and reused for every game and history day.
 chronosModel = ChronosModel()
+timesFmModel = TimesFmModel()
 orderStatisticsBaseline = ColumnFrequencyBaseline()
 poissonMarkov = PoissonMarkov()
 xgboostPredictor = XGBoostPredictor()
@@ -1804,28 +1806,52 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # differs (GradientBoostingClassifier vs LogisticRegression, see
     # TrainMetaLearner.py) - so both are computed from one shared score pass
     # instead of scoring every base model twice.
-    # --- Chronos Model and the baseline it must be read against ------------
-    # A pretrained time-series foundation model, zero-shot, one series per
-    # drawn position (README roadmap item 5 and src/ChronosModel.py). It runs
-    # in its own interpreter with its own libraries, costs a fraction of a
-    # second per game once warm, and degrades to no row at all when those
-    # libraries are absent - so it is on by default and harmless where it
-    # cannot run.
-    if bestParams_json_object.get("useChronos", True):
+    # --- FOUNDATION MODELS, and the baseline they must be read against -----
+    # Pretrained time-series models asked, zero-shot, for each drawn
+    # position's next value: amazon/chronos-2 (src/ChronosModel.py) and
+    # google/timesfm-3.0 (src/TimesFmModel.py), both through the identical
+    # protocol so what they agree on is a property of the data and what only
+    # one of them sees is a property of that model. They run in their own
+    # interpreter with their own libraries, cost a fraction of a second per
+    # game once warm, and degrade to no row at all when those libraries are
+    # absent - so they are on by default and harmless where they cannot run.
+    #
+    # LIVE DAY ONLY (skipRows == 0), for two reasons that agree. A history
+    # rebuild runs this step in a pool of up to 8 spawned children, and a
+    # foundation worker in each would add 0.8 GB (Chronos) or 2.8 GB
+    # (TimesFM) on top of that child's TensorFlow import - 16 GB does not
+    # stretch that far. It is also the honest choice: backfilling a new row
+    # into days that are already scored would hand it a track record it never
+    # earned out of sample, the same rule the tuned SubsetEnsemble row keeps.
+    for foundationFlag, foundationModel, foundationRow in (
+            ("useChronos", chronosModel, "Chronos Model"),
+            ("useTimesFm", timesFmModel, "TimesFM Model")):
+        if skipRows != 0 or not bestParams_json_object.get(foundationFlag, True):
+            continue
         try:
-            chronosModel.setDataPath(dataPath)
-            chronosModel.setSortedPrediction(sortedPrediction)
-            chronosModel.clear()
-            chronosSequence, chronosSubsets = helpers.run_model_with_special_column(
-                chronosModel, generateSubsets=subsets, skipRows=skipRows,
+            foundationModel.setDataPath(dataPath)
+            foundationModel.setSortedPrediction(sortedPrediction)
+            # Same context the meta-learner's feature was collected with
+            # (ModelFactory.build_models): a row served on a different amount
+            # of history than it was trained on is a different model.
+            foundationModel.setRecentDraws(bestParams_json_object.get("foundationContext", 512))
+            foundationModel.clear()
+            foundationSequence, foundationSubsets = helpers.run_model_with_special_column(
+                foundationModel, generateSubsets=subsets, skipRows=skipRows,
                 skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
-            if chronosSequence:
-                chronosPrediction = {"name": "Chronos Model", "predictions": [chronosSequence]}
-                for key in chronosSubsets:
-                    chronosPrediction["predictions"].append(chronosSubsets[key])
-                listOfDecodedPredictions.append(chronosPrediction)
+            if foundationSequence:
+                foundationPrediction = {"name": foundationRow, "predictions": [foundationSequence]}
+                for key in foundationSubsets:
+                    foundationPrediction["predictions"].append(foundationSubsets[key])
+                listOfDecodedPredictions.append(foundationPrediction)
         except Exception as e:
-            print("Failed to perform Chronos Model prediction: ", e)
+            print(f"Failed to perform {foundationRow} prediction: ", e)
+        finally:
+            # Release the worker as soon as this game's row exists. Kept
+            # warm across a whole predictor run the two of them would hold
+            # 3.7 GB while the deep-learning child is training, for the sake
+            # of saving a 1.4 s / 4.2 s load per game.
+            foundationModel.close()
 
     # The honest yardstick for every per-position model, Chronos first: for a
     # sorted game the k-th position is the k-th order statistic, so its
@@ -1957,6 +1983,25 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "LaplaceMonteCarlo Model": laplaceMonteCarlo,
                 "XGBoost Model": xgboostPredictor,
             }
+
+            # The foundation models are features of the meta-learner too
+            # (ModelFactory.BASE_MODEL_NAMES), and an artifact asks for a
+            # column by name: without an instance here the column would be
+            # served as 0.0 while it was TRAINED on real scores - a silent
+            # train/serve mismatch, the worst kind. Added whenever the
+            # libraries are installed, not behind the feature flag: the
+            # artifact's own feature_names decide what is asked for, and a
+            # column it names must be answered honestly or not at all. The
+            # row block above has already filled this day's cache, so these
+            # cost nothing here; if a game serves the feature with the row
+            # switched off, the worker starts once for the day.
+            for featureName, featureModel in (("Chronos Model", chronosModel), ("TimesFM Model", timesFmModel)):
+                if not type(featureModel).installed():
+                    continue
+                featureModel.setDataPath(dataPath)
+                featureModel.setSortedPrediction(not isPositional)
+                featureModel.setRecentDraws(bestParams_json_object.get("foundationContext", 512))
+                modelInstances[featureName] = featureModel
 
             def scoreNumbersFor(featureNames, skipLast, special):
                 return {

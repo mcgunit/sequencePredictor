@@ -22,7 +22,7 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
-from src.ModelFactory import BASE_MODEL_NAMES, build_models
+from src.ModelFactory import BASE_MODEL_NAMES, build_models, prepare_foundation_scores
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -436,6 +436,15 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
 
     models = build_models(dataPath, bestParams, is_pick3=False)
     model_names = [name for name in BASE_MODEL_NAMES if name in models]
+
+    # Foundation models cannot run inside the Backtester's forked pool (see
+    # ModelFactory.prepare_foundation_scores). This precompute happens in the
+    # parent, which is also where this whole table is built so the trial
+    # processes inherit it - so it is paid once per run, not once per trial.
+    prepare_foundation_scores(
+        models, start_index, total_rows,
+        skipLastColumns=game_cfg["skip_last_columns"],
+        label=f"{dataset_name} keno subsets: ")
 
     backtester = Backtester(loader)
     for name, model in models.items():

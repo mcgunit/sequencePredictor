@@ -18,7 +18,7 @@ from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, optimize_study, install_sigterm_handler
-from src.ModelFactory import BASE_MODEL_NAMES, build_models
+from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
 
 # Reuse the per-game min/max/draw_size/skip_last_columns/special_column_count
@@ -188,12 +188,22 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
     # Shared with TrainMetaLearner.py (same cache helpers): whichever script
     # collects first persists the table, the other reuses it - see the cache
     # validity rules next to load_meta_score_table.
-    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind)
+    cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind,
+                                   model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional))
     if cached is not None:
         results, model_names = cached
     else:
         models = build_models(dataPath, bestParams, is_positional=is_positional)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
+
+        # Foundation models cannot run inside the Backtester's forked pool
+        # (see ModelFactory.prepare_foundation_scores): every day is
+        # forecast here, once, before the fork.
+        prepare_foundation_scores(
+            models, start_index, total_rows,
+            skipLastColumns=game_cfg["skip_last_columns"],
+            specialColumnCount=specialColumnCount,
+            label=f"{dataset_name}: ")
 
         backtester = Backtester(loader)
         for name, model in models.items():
