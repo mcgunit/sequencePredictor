@@ -27,6 +27,8 @@ from src.PoissonMonteCarlo import PoissonMonteCarlo
 from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
+from src.ChronosModel import ChronosModel
+from src.Baselines import ColumnFrequencyBaseline
 from src.TransformerModel import TransformerModel
 from src.GNN import GNNModel
 from src.AutoencoderAnomaly import AutoencoderAnomaly
@@ -55,6 +57,11 @@ markovBayesianEnhanced = MarkovBayesianEnhanced()
 poissonMonteCarlo = PoissonMonteCarlo()
 laplaceMonteCarlo = LaplaceMonteCarlo()
 hybridStatisticalModel = HybridStatisticalModel()
+# Zero-shot foundation-model row and the baseline it has to be read against
+# (README roadmap item 5). Module-level like the models above, so the Chronos
+# worker process is loaded once and reused for every game and history day.
+chronosModel = ChronosModel()
+orderStatisticsBaseline = ColumnFrequencyBaseline()
 poissonMarkov = PoissonMarkov()
 xgboostPredictor = XGBoostPredictor()
 command = Command()
@@ -1797,6 +1804,50 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # differs (GradientBoostingClassifier vs LogisticRegression, see
     # TrainMetaLearner.py) - so both are computed from one shared score pass
     # instead of scoring every base model twice.
+    # --- Chronos Model and the baseline it must be read against ------------
+    # A pretrained time-series foundation model, zero-shot, one series per
+    # drawn position (README roadmap item 5 and src/ChronosModel.py). It runs
+    # in its own interpreter with its own libraries, costs a fraction of a
+    # second per game once warm, and degrades to no row at all when those
+    # libraries are absent - so it is on by default and harmless where it
+    # cannot run.
+    if bestParams_json_object.get("useChronos", True):
+        try:
+            chronosModel.setDataPath(dataPath)
+            chronosModel.setSortedPrediction(sortedPrediction)
+            chronosModel.clear()
+            chronosSequence, chronosSubsets = helpers.run_model_with_special_column(
+                chronosModel, generateSubsets=subsets, skipRows=skipRows,
+                skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+            if chronosSequence:
+                chronosPrediction = {"name": "Chronos Model", "predictions": [chronosSequence]}
+                for key in chronosSubsets:
+                    chronosPrediction["predictions"].append(chronosSubsets[key])
+                listOfDecodedPredictions.append(chronosPrediction)
+        except Exception as e:
+            print("Failed to perform Chronos Model prediction: ", e)
+
+    # The honest yardstick for every per-position model, Chronos first: for a
+    # sorted game the k-th position is the k-th order statistic, so its
+    # historical mode is right by arithmetic rather than by prediction. A
+    # per-position model is only interesting once it beats this row, not once
+    # it beats chance. On the positional games the same computation is the
+    # per-slot most frequent digit, which on an honest process is noise.
+    if bestParams_json_object.get("useOrderStatisticsBaseline", True):
+        try:
+            orderStatisticsBaseline.setDataPath(dataPath)
+            orderStatisticsBaseline.setSortedPrediction(sortedPrediction)
+            baselineSequence, baselineSubsets = helpers.run_model_with_special_column(
+                orderStatisticsBaseline, generateSubsets=subsets, skipRows=skipRows,
+                skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+            if baselineSequence:
+                baselinePrediction = {"name": "OrderStatistics Baseline", "predictions": [baselineSequence]}
+                for key in baselineSubsets:
+                    baselinePrediction["predictions"].append(baselineSubsets[key])
+                listOfDecodedPredictions.append(baselinePrediction)
+        except Exception as e:
+            print("Failed to build the OrderStatistics Baseline: ", e)
+
     metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
     metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
     # Quantum meta-learners (README's quantum research track, trained by
