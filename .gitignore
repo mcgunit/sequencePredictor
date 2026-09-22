@@ -177,3 +177,4 @@ test/backtestResults/keno_global_backtest.json
 # Web UI accounts and session secret (auth.js) - never committed
 config/
 src/llmCouncil/answers.json
+data/controls/
