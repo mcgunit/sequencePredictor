@@ -299,6 +299,27 @@ Every seat's colour comes from the run's real progress, reported by the API.
 Nothing is on a timer: an animation that did not track the run would be
 decoration pretending to be information.
 
+The seats also say what their members said. A `member_done` progress event
+carries the member's answer, so the moment a member finishes its seat grows a
+speech bubble with the opening of its answer (the full text on hover), the
+"voices" list under the table gets the line, and the conversation on the left
+gets that member's full answer - all while the other members are still
+thinking and before the head has said a word. With `ask_members: "parallel"`
+several seats pulse at once and the bubbles appear in whatever order the
+models finish.
+
+### Sessions
+
+Conversations are kept per account, on the server, in the gitignored
+`config/council-sessions/` folder (one directory per account, one file per
+session): reloading the page, or coming back tomorrow, shows them again, and
+one account's sessions are unreachable from another's by construction. A
+session exists from its first question onward - there is no empty session to
+create, and a session with no messages is never written nor listed. The turn
+is recorded when the question is submitted and completed by the Node server's
+own poller when api.py finishes, so closing the tab does not lose the answer,
+and a restarted server resumes polling for whatever was still pending.
+
 Below 900px the layout stacks and the table moves above the conversation, so
 it is still visible without scrolling past everything. Animations respect
 `prefers-reduced-motion`.
@@ -389,6 +410,7 @@ Useful combinations:
 | `retries` | Extra attempts per request after the first |
 | `retry_delay_s` | Base backoff; attempt N waits N x this |
 | `cache_dir` | Where member answers are cached; omit or `null` to disable |
+| `ask_members` | `sequential` (default): one member after another. `parallel`: every member at the same time, one thread each - each member is its own llama-server, so this shares the model box between them rather than queueing inside one server. Anything else falls back to sequential with a warning |
 | `shuffle_members` | Randomise the order answers reach the head (default true) |
 | `shuffle_seed` | Fix the shuffle for a reproducible run; null means random |
 | `head_preset` | Built-in head prompt: `default` or `math` |

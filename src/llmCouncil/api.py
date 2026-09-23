@@ -127,9 +127,13 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
     carries one of: waiting, asking, answered, failed, cached.
     """
     def run(question: str, context: str | None, progress) -> dict:
-        state = {"seats": {}, "head": None, "phase": "starting"}
+        state = {"seats": {}, "head": None, "phase": "starting",
+                 "mode": orchestrator.ask_mode(config)}
 
         def on_event(kind: str, payload: dict) -> None:
+            # run_council serialises these calls, so in parallel mode the
+            # seats of several members can be "asking" at once without two
+            # threads writing this dict together.
             if kind == "start":
                 state["seats"] = {n: {"state": "waiting"} for n in payload["members"]}
                 state["head"] = {"name": payload["head"], "state": "waiting"} \
@@ -140,8 +144,12 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
             elif kind == "member_done":
                 seat = "cached" if payload["cached"] else (
                     "answered" if payload["ok"] else "failed")
+                # The answer travels with the seat: the page shows what each
+                # member said the moment it said it, instead of after the
+                # head has finished minutes later.
                 state["seats"][payload["name"]] = {
-                    "state": seat, "seconds": payload["seconds"]}
+                    "state": seat, "seconds": payload["seconds"],
+                    "answer": payload.get("answer"), "error": payload.get("error")}
             elif kind == "head_start":
                 state["phase"] = "head"
                 state["head"] = {"name": payload["name"], "state": "asking"}
@@ -150,6 +158,8 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
                     "name": payload["name"],
                     "state": "answered" if payload["ok"] else "failed",
                     "seconds": payload["seconds"],
+                    "answer": payload.get("answer"), "value": payload.get("value"),
+                    "error": payload.get("error"),
                 }
             # A fresh dict each time: the job holds a reference, and mutating
             # one in place could be serialised mid-update by a polling request.
@@ -179,6 +189,7 @@ def describe_endpoints(config: dict) -> dict:
         "members": members,
         "head": {"name": head["name"], "lab": head.get("lab")} if head else None,
         "preset": config.get("head_preset", "default"),
+        "ask_members": orchestrator.ask_mode(config),
         "status": endpoint_status(config),
     }
 

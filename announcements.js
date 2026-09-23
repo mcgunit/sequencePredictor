@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-23-council-sessions',
+    date: '2026-09-23',
+    level: 'major',
+    audience: 'all',
+    title: 'Council conversations are kept, and the table now talks',
+    body: [
+      'Your council conversations are saved to your account: reload the page or come back tomorrow and they are still there, listed beside the Council page. Start another with New session; delete one you no longer want.',
+      'While the council deliberates, each member\'s answer appears at its seat the moment it is ready - a speech bubble on the round table, a line in the voices list under it, and the full text in the conversation - instead of everything arriving at once when the head has finished.',
+      'Closing the tab no longer loses an answer: the server keeps polling the council for you and files the answer in your session.',
+    ],
+    link: { href: '/council', label: 'Open the Council' },
+  },
+  {
     id: '2026-09-21-foundation-models',
     date: '2026-09-21',
     level: 'minor',

@@ -5,10 +5,13 @@ browser will hold a request open. So the web API starts a job, returns its id
 immediately, and the caller polls for the result.
 
 Exactly one job runs at a time. The llama-servers are started with
-`--parallel 1` and the council asks its members sequentially, so concurrent
-runs would queue inside llama-server anyway - and each one costs minutes of
-CPU. Refusing a second job with a clear "busy" is more honest than silently
-doubling everyone's wait, and it stops one page from monopolising the box.
+`--parallel 1`, so a second run's requests would queue inside each
+llama-server behind the first run's - whether the council asks its members
+one after another (the default) or all at once (`ask_members: "parallel"`,
+which spreads one run over the member servers, not two runs over one) - and
+each run costs minutes of CPU. Refusing a second job with a clear "busy" is
+more honest than silently doubling everyone's wait, and it stops one page
+from monopolising the box.
 """
 
 from __future__ import annotations

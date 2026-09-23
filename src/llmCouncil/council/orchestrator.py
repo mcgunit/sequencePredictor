@@ -23,7 +23,9 @@ from __future__ import annotations
 import json
 import logging
 import random
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from council import cache as cache_mod
@@ -82,6 +84,32 @@ def order_for_head(members: list[dict], results: list[dict],
     shuffled = list(results)
     rng.shuffle(shuffled)
     return shuffled
+
+
+ASK_SEQUENTIAL = "sequential"
+ASK_PARALLEL = "parallel"
+
+
+def ask_mode(config: dict) -> str:
+    """How the members are asked: one after another (default) or all at once.
+
+    Every member is its own llama-server, so asking them at the same time
+    does not queue inside one server - it shares the model box's CPU and
+    memory between them instead. Whether that is a win depends on the box:
+    four small models on a machine with headroom finish in the time of the
+    slowest one; four models that each need most of the RAM thrash. That is
+    an operator's call, hence a config key rather than a default.
+
+        "ask_members": "sequential" | "parallel"
+
+    Anything else is treated as sequential and logged once, so a typo cannot
+    silently change how a run behaves.
+    """
+    value = str(config.get("ask_members", ASK_SEQUENTIAL) or ASK_SEQUENTIAL).strip().lower()
+    if value not in (ASK_SEQUENTIAL, ASK_PARALLEL):
+        log.warning("ask_members=%r is not %r or %r - asking sequentially", value, ASK_SEQUENTIAL, ASK_PARALLEL)
+        return ASK_SEQUENTIAL
+    return value
 
 
 def head_config(config: dict) -> dict | None:
@@ -190,20 +218,27 @@ def run_council(question: str, config: dict, *,
 
     `on_event` is called as the run proceeds, for progress display. It gets
     (kind, payload) where kind is one of "start", "member_start", "member_done",
-    "head_start", "head_done". Anything it raises is swallowed: a progress
-    display must never be able to fail a run.
+    "head_start", "head_done". A "member_done" payload carries the member's
+    answer (or error) so a page can show what each member said the moment it
+    said it, and "head_done" carries the head's. Calls are serialised with a
+    lock, because in parallel mode (see ask_mode) they arrive from several
+    threads. Anything it raises is swallowed: a progress display must never
+    be able to fail a run.
 
     Raises ConfigError if no members are enabled, and EndpointsUnavailable if
     preflight is on and any endpoint is down. Model failures are reported in
     the returned dict rather than raised.
     """
+    emit_lock = threading.Lock()
+
     def emit(kind: str, payload: dict) -> None:
         if on_event is None:
             return
-        try:
-            on_event(kind, payload)
-        except Exception:                            # noqa: BLE001
-            log.debug("progress callback failed", exc_info=True)
+        with emit_lock:
+            try:
+                on_event(kind, payload)
+            except Exception:                            # noqa: BLE001
+                log.debug("progress callback failed", exc_info=True)
     members = enabled_members(config)
     if not members:
         raise ConfigError("no enabled members in config")
@@ -225,8 +260,7 @@ def run_council(question: str, config: dict, *,
         "head": head_cfg["name"] if head_cfg else None,
     })
 
-    results = []
-    for member in members:
+    def ask_one(member: dict) -> dict:
         emit("member_start", {"name": member["name"]})
         result = ask_member(config, member, question, cache, retries, context)
         emit("member_done", {
@@ -234,8 +268,21 @@ def run_council(question: str, config: dict, *,
             "ok": result["ok"],
             "cached": bool(result.get("cached")),
             "seconds": result["seconds"],
+            # What was said, not just that something was: the page shows a
+            # member's answer at its seat as soon as it lands.
+            "answer": result.get("answer"),
+            "error": result.get("error"),
         })
-        results.append(result)
+        return result
+
+    if ask_mode(config) == ASK_PARALLEL and len(members) > 1:
+        # One thread per member. The results are put back in config order so
+        # the output - and the cache, and the head's shuffled view of it -
+        # is the same shape as a sequential run.
+        with ThreadPoolExecutor(max_workers=len(members)) as pool:
+            results = list(pool.map(ask_one, members))
+    else:
+        results = [ask_one(member) for member in members]
 
     output = {"question": question, "members": results}
     if context:
@@ -253,6 +300,9 @@ def run_council(question: str, config: dict, *,
                 "name": head_cfg["name"],
                 "ok": output["head"]["ok"],
                 "seconds": output["head"]["seconds"],
+                "answer": output["head"].get("answer"),
+                "value": output["head"].get("value"),
+                "error": output["head"].get("error"),
             })
         else:
             log.error("skipping head: no member answered")
