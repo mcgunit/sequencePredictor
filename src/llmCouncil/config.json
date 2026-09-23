@@ -4,7 +4,7 @@
   "retries": 2,
   "retry_delay_s": 5.0,
   "cache_dir": ".cache",
-  "ask_members": "sequential",
+  "ask_members": "parallel", 
   "shuffle_members": true,
   "shuffle_seed": null,
   "member_system_prompt": null,
