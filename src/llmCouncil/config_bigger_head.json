@@ -58,9 +58,9 @@
     }
   ],
   "head": {
-    "name": "head-gemma-4-E2B",
+    "name": "head-gemma-4-26B",
     "lab": "meta",
-    "base_url": "http://192.168.0.250:8094",
+    "base_url": "http://192.168.0.250:8089",
     "model": null,
     "temperature": 0.0,
     "max_tokens": 8192,
