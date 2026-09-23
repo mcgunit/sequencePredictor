@@ -13,7 +13,7 @@
     {
       "name": "qwen2.5-1.5b",
       "lab": "alibaba",
-      "base_url": "http://10.10.10.209:8090",
+      "base_url": "http://192.168.0.250:8090",
       "model": null,
       "enabled": true,
       "temperature": 0.7,
@@ -24,7 +24,7 @@
     {
       "name": "llama-3.2-1b",
       "lab": "meta",
-      "base_url": "http://10.10.10.209:8091",
+      "base_url": "http://192.168.0.250:8091",
       "model": null,
       "enabled": true,
       "temperature": 0.7,
@@ -35,22 +35,34 @@
     {
       "name": "phi-4-mini",
       "lab": "microsoft",
-      "base_url": "http://10.10.10.209:8092",
+      "base_url": "http://192.168.0.250:8092",
       "model": null,
       "enabled": true,
       "temperature": 0.7,
       "seed": null,
       "role": null,
       "system_prompt": null
+    },
+    {
+      "name": "llama-3.2-3b",
+      "lab": "meta",
+      "base_url": "http://192.168.0.250:8093",
+      "model": null,
+      "temperature": 0.7,
+      "max_tokens": 4096,
+      "enabled": true,
+      "seed": 42,
+      "role": null,
+      "system_prompt": null
     }
   ],
   "head": {
-    "name": "head-llama-3.2-3b",
+    "name": "head-gemma-4-26B",
     "lab": "meta",
-    "base_url": "http://10.10.10.209:8093",
+    "base_url": "http://192.168.0.250:8089",
     "model": null,
     "temperature": 0.0,
-    "max_tokens": 4096,
+    "max_tokens": 8192,
     "enabled": true,
     "seed": 42,
     "role": null,
