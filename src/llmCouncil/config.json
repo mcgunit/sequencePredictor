@@ -13,7 +13,7 @@
   "head_system_prompt": null,
   "members": [
     {
-      "name": "qwen2.5-1.5b",
+      "name": "qwen2.5",
       "lab": "alibaba",
       "base_url": "http://192.168.0.250:8090",
       "model": null,
@@ -24,7 +24,7 @@
       "system_prompt": null
     },
     {
-      "name": "llama-3.2-1b",
+      "name": "llama-3.2",
       "lab": "meta",
       "base_url": "http://192.168.0.250:8091",
       "model": null,
@@ -46,7 +46,7 @@
       "system_prompt": null
     },
     {
-      "name": "llama-3.2-3b",
+      "name": "llama-3.2",
       "lab": "meta",
       "base_url": "http://192.168.0.250:8093",
       "model": null,
@@ -59,7 +59,7 @@
     }
   ],
   "head": {
-    "name": "head-gemma-4-E2B",
+    "name": "head-gemma-4",
     "lab": "meta",
     "base_url": "http://192.168.0.250:8094",
     "model": null,
