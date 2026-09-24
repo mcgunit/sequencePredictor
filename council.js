@@ -252,7 +252,24 @@ function page(req, header, footer, escapeHtml) {
     .member-excerpt { color: #666; font-size: 0.88em; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .member[data-collapsed="0"] .member-excerpt { display: none; }
     .member[data-collapsed="1"] .member-body { display: none; }
-    .member-body, .head-body { white-space: pre-wrap; word-break: break-word; margin-top: 5px; line-height: 1.45; }
+    .member-body, .head-body { word-break: break-word; margin-top: 5px; line-height: 1.45; }
+    /* rendered markdown: compact block spacing inside an answer */
+    .md p { margin: 0 0 6px 0; }
+    .md p:last-child { margin-bottom: 0; }
+    .md h4, .md h5, .md h6 { margin: 8px 0 4px 0; color: #2c3e50; }
+    .md h4 { font-size: 1.02em; } .md h5 { font-size: 0.98em; } .md h6 { font-size: 0.94em; }
+    .md ul, .md ol { margin: 2px 0 6px 0; padding-left: 22px; }
+    .md li { margin: 1px 0; }
+    .md code { background: #f4f5f7; border: 1px solid #e8eaed; border-radius: 3px; padding: 0 4px; font-size: 0.9em; }
+    .md pre { background: #2c3e50; color: #ecf0f1; padding: 8px 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; font-size: 0.86em; }
+    .md pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+    .md blockquote { border-left: 3px solid #d6dbdf; margin: 4px 0; padding: 2px 10px; color: #555; }
+    .md hr { border: none; border-top: 1px solid #e1e4e8; margin: 8px 0; }
+    .md table { border-collapse: collapse; margin: 6px 0; font-size: 0.92em; min-width: 0; }
+    .md th, .md td { border: 1px solid #e1e4e8; padding: 3px 8px; text-align: left; }
+    .md th { background: #f4f5f7; }
+    .md a { color: #2980b9; }
+    .md .md-pending { color: #7f8c8d; font-style: italic; }
     .member-failed { color: #c0392b; }
     .head {
       background: #f1f8ff; border: 1px solid #b6d4f5; border-left: 4px solid #3498db;
@@ -406,9 +423,156 @@ function page(req, header, footer, escapeHtml) {
       if (text !== undefined) n.textContent = text;   // textContent, never innerHTML:
       return n;                                        // model output is untrusted.
     }
+    // Excerpts strip the markdown syntax so a one-line summary does not
+    // read as "### **Result**".
+    function stripMd(text) {
+      return String(text || '')
+        .replace(/\`\`\`[\\s\\S]*?\`\`\`/g, ' [code] ')
+        .replace(/\`([^\`]*)\`/g, '$1')
+        .replace(/!?\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')
+        .replace(/^\\s{0,3}#{1,6}\\s+/gm, '')
+        .replace(/^\\s*>\\s?/gm, '')
+        .replace(/^\\s*([-*+]|\\d+[.)])\\s+/gm, '')
+        .replace(/(\\*\\*|__)(.*?)\\1/g, '$2')
+        .replace(/(^|\\W)[*_]([^*_\\n]+)[*_](?=\\W|$)/g, '$1$2')
+        .replace(/^\\s*[-*_]{3,}\\s*$/gm, '')
+        .replace(/\\|/g, ' ');
+    }
     function excerpt(text, max) {
-      var one = String(text || '').replace(/\\s+/g, ' ').trim();
+      var one = stripMd(text).replace(/\\s+/g, ' ').trim();
       return one.length > max ? one.slice(0, max - 1) + '…' : one;
+    }
+    // Markdown, rendered by building DOM nodes and never by innerHTML: the
+    // text comes from the models, which is untrusted output. Covers what the
+    // members actually write - headings, paragraphs, bold and italics, inline
+    // and fenced code, bullet and numbered lists (nested by indentation),
+    // block quotes, rules, pipe tables and http(s) links. It is re-run on
+    // every streamed chunk, so a half-finished construct simply renders as
+    // far as it goes and settles when the closing marks arrive.
+    function inlineMd(parent, text) {
+      var re = /(\`+)([^\`]*?)\\1|\\[([^\\]\\n]+)\\]\\((https?:\\/\\/[^\\s)]+)\\)|\\*\\*(.+?)\\*\\*|__(.+?)__|(^|[^\\w*])\\*([^*\\n]+?)\\*(?=[^\\w*]|$)/g;
+      var last = 0, m;
+      while ((m = re.exec(text))) {
+        var lead = m[7] || '';
+        if (m.index + lead.length > last) parent.appendChild(document.createTextNode(text.slice(last, m.index + lead.length)));
+        if (m[1] !== undefined) {
+          parent.appendChild(el('code', null, m[2]));
+        } else if (m[3] !== undefined) {
+          var a = el('a', null, m[3]);
+          a.href = m[4]; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          parent.appendChild(a);
+        } else if (m[5] !== undefined || m[6] !== undefined) {
+          var b = el('strong'); inlineMd(b, m[5] !== undefined ? m[5] : m[6]); parent.appendChild(b);
+        } else {
+          var i = el('em'); inlineMd(i, m[8]); parent.appendChild(i);
+        }
+        last = re.lastIndex;
+      }
+      if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+    }
+    function renderMarkdown(container, text) {
+      container.innerHTML = '';
+      container.classList.add('md');
+      var lines = String(text || '').replace(/\\r\\n?/g, '\\n').split('\\n');
+      var i = 0, para = [];
+      function flushPara() {
+        if (!para.length) return;
+        var p = el('p');
+        para.forEach(function (line, k) { if (k) p.appendChild(el('br')); inlineMd(p, line); });
+        container.appendChild(p);
+        para = [];
+      }
+      function isTableSep(line) { return /^\\s*\\|?\\s*:?-{2,}:?\\s*(\\|\\s*:?-{2,}:?\\s*)*\\|?\\s*$/.test(line); }
+      function cells(line) {
+        var t = line.trim();
+        if (t.charAt(0) === '|') t = t.slice(1);
+        if (t.charAt(t.length - 1) === '|') t = t.slice(0, -1);
+        return t.split('|').map(function (c) { return c.trim(); });
+      }
+      while (i < lines.length) {
+        var line = lines[i];
+        var fence = line.match(/^\\s*(\`\`\`|~~~)\\s*(\\w+)?\\s*$/);
+        if (fence) {
+          flushPara();
+          var code = [];
+          i += 1;
+          while (i < lines.length && !lines[i].match(/^\\s*(\`\`\`|~~~)\\s*$/)) { code.push(lines[i]); i += 1; }
+          i += 1;                                     // past the closing fence, or the end
+          var pre = el('pre'); pre.appendChild(el('code', null, code.join('\\n')));
+          container.appendChild(pre);
+          continue;
+        }
+        var heading = line.match(/^\\s{0,3}(#{1,6})\\s+(.*?)\\s*#*\\s*$/);
+        if (heading) {
+          flushPara();
+          var level = heading[1].length;
+          var h = el(level <= 2 ? 'h4' : (level === 3 ? 'h5' : 'h6'));
+          inlineMd(h, heading[2]);
+          container.appendChild(h);
+          i += 1; continue;
+        }
+        if (/^\\s*([-*_])\\s*(\\1\\s*){2,}$/.test(line)) { flushPara(); container.appendChild(el('hr')); i += 1; continue; }
+        if (/^\\s*>/.test(line)) {
+          flushPara();
+          var quoted = [];
+          while (i < lines.length && /^\\s*>/.test(lines[i])) { quoted.push(lines[i].replace(/^\\s*>\\s?/, '')); i += 1; }
+          var bq = el('blockquote'); renderMarkdown(bq, quoted.join('\\n')); bq.classList.remove('md');
+          container.appendChild(bq);
+          continue;
+        }
+        if (line.indexOf('|') !== -1 && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+          flushPara();
+          var table = el('table'), thead = el('thead'), tr = el('tr');
+          cells(line).forEach(function (c) { var th = el('th'); inlineMd(th, c); tr.appendChild(th); });
+          thead.appendChild(tr); table.appendChild(thead);
+          var tbody = el('tbody');
+          i += 2;
+          while (i < lines.length && lines[i].indexOf('|') !== -1 && lines[i].trim()) {
+            var row = el('tr');
+            cells(lines[i]).forEach(function (c) { var td = el('td'); inlineMd(td, c); row.appendChild(td); });
+            tbody.appendChild(row); i += 1;
+          }
+          table.appendChild(tbody); container.appendChild(table);
+          continue;
+        }
+        var item = line.match(/^(\\s*)([-*+]|\\d+[.)])\\s+(.*)$/);
+        if (item) {
+          flushPara();
+          // nested lists by indentation: a stack of (indent, list element)
+          var stack = [];
+          while (i < lines.length) {
+            var it = lines[i].match(/^(\\s*)([-*+]|\\d+[.)])\\s+(.*)$/);
+            if (!it) {
+              // a continuation line belongs to the previous item if indented
+              if (stack.length && /^\\s{2,}\\S/.test(lines[i]) && lines[i].trim()) {
+                var lastLi = stack[stack.length - 1].list.lastElementChild;
+                if (lastLi) { lastLi.appendChild(el('br')); inlineMd(lastLi, lines[i].trim()); }
+                i += 1; continue;
+              }
+              break;
+            }
+            var indent = it[1].replace(/\\t/g, '  ').length;
+            var ordered = /\\d/.test(it[2]);
+            while (stack.length && indent < stack[stack.length - 1].indent) stack.pop();
+            if (!stack.length || indent > stack[stack.length - 1].indent) {
+              var list = el(ordered ? 'ol' : 'ul');
+              if (stack.length) {
+                var parentLi = stack[stack.length - 1].list.lastElementChild || stack[stack.length - 1].list;
+                parentLi.appendChild(list);
+              } else container.appendChild(list);
+              stack.push({ indent: indent, list: list });
+            }
+            var li = el('li'); inlineMd(li, it[3]);
+            stack[stack.length - 1].list.appendChild(li);
+            i += 1;
+          }
+          continue;
+        }
+        if (!line.trim()) { flushPara(); i += 1; continue; }
+        para.push(line);
+        i += 1;
+      }
+      flushPara();
     }
     function setSessionInUrl(id) {
       var url = new URL(location.href);
@@ -548,6 +712,21 @@ function page(req, header, footer, escapeHtml) {
       });
       headLabel.textContent = 'H';
       root.appendChild(headLabel);
+      // the head's own bubble, under its seat, while it types and once done
+      var headSpeech = progress.head ? seatSpeech({ state: headState, answer: progress.head.answer,
+                                                    partial: progress.head.partial, error: progress.head.error }) : null;
+      if (headSpeech) {
+        var hbw = 150, hbh = 18, hbx = cx - hbw / 2, hby = cy + 30;
+        var hg = svg('g', {});
+        var ht = svg('title', {}); ht.textContent = headSpeech.full; hg.appendChild(ht);
+        hg.appendChild(svg('rect', { x: hbx, y: hby, width: hbw, height: hbh, rx: 6, ry: 6,
+          fill: headState === 'failed' ? '#fdecea' : '#f1f8ff',
+          stroke: headState === 'failed' ? '#e74c3c' : (headSpeech.typing ? '#f39c12' : '#3498db'), 'stroke-width': 1 }));
+        var hq = svg('text', { x: hbx + 7, y: hby + 12.5, fill: '#2c3e50', 'font-size': 9.5, 'font-style': 'italic' });
+        hq.textContent = '“' + headSpeech.text + '”';
+        hg.appendChild(hq);
+        root.appendChild(hg);
+      }
       // the members
       var bubbles = seatNames.length <= 6;   // past six seats the bubbles would overlap
       positions.forEach(function (p) {
@@ -712,7 +891,7 @@ function page(req, header, footer, escapeHtml) {
       var text = m.ok === false ? 'failed: ' + (m.error || 'no answer') : (m.answer || '');
       var body = box.querySelector('.member-body');
       body.className = m.ok === false ? 'member-body member-failed' : 'member-body';
-      body.textContent = text;
+      if (m.ok === false) body.textContent = text; else renderMarkdown(body, text);
       if (m.streaming) body.appendChild(el('span', 'cursor', '▍'));
       box.querySelector('.member-excerpt').textContent = excerpt(text, 160);
       box.setAttribute('data-streaming', m.streaming ? '1' : '0');
@@ -732,8 +911,12 @@ function page(req, header, footer, escapeHtml) {
           renderMember(turn, { name: name, ok: true, answer: seat.partial, streaming: true });
         }
       });
-      if (progress.head && progress.head.state === 'asking' && progress.head.partial) {
-        renderHead(turn, { name: progress.head.name, ok: true, answer: progress.head.partial, streaming: true });
+      if (progress.head && progress.head.state === 'asking') {
+        // A big head model on a CPU can take minutes to read four members'
+        // answers before it produces its first token. The box appears at
+        // once so that wait is visible as waiting, not as nothing.
+        if (progress.head.partial) renderHead(turn, { name: progress.head.name, ok: true, answer: progress.head.partial, streaming: true });
+        else renderHead(turn, { name: progress.head.name, ok: true, pending: true, streaming: true });
       }
     }
     // The head's verdict, created on its first streamed chunk or on the final
@@ -749,7 +932,9 @@ function page(req, header, footer, escapeHtml) {
       }
       var body = head.querySelector('.head-body');
       body.className = h.ok === false ? 'head-body member-failed' : 'head-body';
-      body.textContent = h.ok === false ? 'failed: ' + (h.error || 'no answer') : (h.answer || '');
+      if (h.ok === false) body.textContent = 'failed: ' + (h.error || 'no answer');
+      else if (h.pending) { renderMarkdown(body, ''); body.appendChild(el('span', 'md-pending', 'reading the members\u2019 answers…')); }
+      else renderMarkdown(body, h.answer || '');
       if (h.streaming) body.appendChild(el('span', 'cursor', '▍'));
       head.querySelectorAll('.head-value, .head-novalue').forEach(function (n) { n.remove(); });
       if (!h.streaming && h.ok !== false) {

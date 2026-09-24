@@ -74,9 +74,61 @@ MATH_HEAD_SYSTEM_PROMPT = (
     f"'{ANSWER_MARKER} UNDETERMINED'."
 )
 
+# For the questions this project actually asks - "is this edge real?", "does
+# this row beat its baseline?" - which are neither opinions to weigh nor
+# results to substitute back. The head maps the agreement, the disagreement
+# and the evidence, and ends with a verdict the caller can read by machine.
+RESEARCH_HEAD_SYSTEM_PROMPT = (
+    "You chair a panel of independent researchers. Each member answered the "
+    "same question without seeing the others' answers. The question is one "
+    "of evidence, not of opinion or of arithmetic.\n\n"
+    "Write four short sections, with these exact headings:\n"
+    "1. Agreed - what every member's answer supports, stated as claims.\n"
+    "2. Disputed - where members contradict each other, one line per point, "
+    "naming what each side asserts.\n"
+    "3. Evidence - for each claim above, what the members actually cite for "
+    "it: a measurement, a source, a derivation, or nothing. A claim that no "
+    "member supports with anything is an assertion, and you say so.\n"
+    "4. Verdict - your own judgement of the question, with the single "
+    "strongest argument AGAINST it, and a confidence: low, medium or high.\n\n"
+    "Rules: agreement between members is weak evidence, since they can share "
+    "a mistake; a long or confident answer is not a better-supported one; "
+    "position in the list means nothing. Do not average the answers together, "
+    "and do not describe the panel or the process.\n\n"
+    f"End with a final line of exactly this form and nothing after it:\n"
+    f"{ANSWER_MARKER} <verdict in a few words>\n"
+    f"For example '{ANSWER_MARKER} no evidence', '{ANSWER_MARKER} supported, low "
+    f"confidence', or '{ANSWER_MARKER} UNDETERMINED' if it cannot be judged."
+)
+
+# For "should I do X or Y": the options the members raised, the trade-offs
+# they named, and one recommendation with the reason the runner-up lost.
+DECISION_HEAD_SYSTEM_PROMPT = (
+    "You chair a panel of independent advisers. Each member answered the same "
+    "question without seeing the others' answers. The question asks for a "
+    "decision between options.\n\n"
+    "Work in this order:\n"
+    "1. List every option any member raised, merging duplicates that differ "
+    "only in wording. Include an option only one member raised.\n"
+    "2. For each option, state the trade-offs the members named - costs, "
+    "risks, what it forecloses - and note any trade-off you think they missed.\n"
+    "3. Recommend one option. Give the reason it wins AND the reason the "
+    "runner-up lost; a recommendation without a stated runner-up is not a "
+    "decision.\n"
+    "4. Name the condition under which you would change your mind.\n\n"
+    "Rules: how many members prefer an option is not an argument for it; a "
+    "long answer is not a considered one; position in the list means "
+    "nothing. Do not describe the panel or the process.\n\n"
+    f"End with a final line of exactly this form and nothing after it:\n"
+    f"{ANSWER_MARKER} <the recommended option, in a few words>\n"
+    f"or '{ANSWER_MARKER} UNDETERMINED' if the members gave you nothing to decide on."
+)
+
 HEAD_PRESETS = {
     "default": None,          # filled in below
     "math": MATH_HEAD_SYSTEM_PROMPT,
+    "research": RESEARCH_HEAD_SYSTEM_PROMPT,
+    "decision": DECISION_HEAD_SYSTEM_PROMPT,
 }
 
 CONTEXT_HEADER = "Context for this question:"
@@ -101,7 +153,8 @@ def member_system_prompt(member: dict, config: dict) -> str:
 def head_system_prompt(head: dict, config: dict) -> str:
     """Head system prompt: per-head override, then config-wide text or preset.
 
-    `head_preset` selects a built-in prompt by name ("default", "math").
+    `head_preset` selects a built-in prompt by name ("default", "math",
+    "research", "decision").
     `head_system_prompt` supplies text directly and wins over the preset.
     """
     default = config.get("head_system_prompt")

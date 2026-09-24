@@ -323,6 +323,25 @@ streaming mode is the longest a server may go without sending anything, which
 is the right shape for slow CPU inference: a long reply is fine, a stall is
 not.
 
+Answers are markdown, and the page renders them as such - headings, lists
+(nested by indentation), bold and italics, inline and fenced code, block
+quotes, rules, pipe tables and http(s) links - by building DOM nodes and never
+through `innerHTML`, because the text is model output and therefore
+untrusted. The renderer re-runs on every streamed chunk, so a construct that
+is still half-written renders as far as it goes and settles when its closing
+marks arrive. Excerpts (the member rows, the voices list, the bubbles) have
+the markdown syntax stripped so a summary does not read as `### **Result**`.
+
+When streaming looks as if it is not working for one endpoint, the council log
+says which of two very different things is happening. `<name>: first token
+after 42.0s` is a server that is merely slow to start - a big model reading a
+long prompt on a CPU can take minutes before its first token, and streams
+normally after that; the page shows the head's box with "reading the members'
+answers" during that wait. `<name>: a 1800-character reply arrived in 1
+piece(s)` is a server that generated everything first and sent it at once - a
+buffering proxy in front of it, or a backend that does not really stream -
+and no client-side change can help that.
+
 The conversation is kept compact: a member's answer is one row - who, and the
 opening words - that opens on click, and the rows fold away by themselves the
 moment the head has reported, so what remains in view per turn is the
@@ -435,7 +454,7 @@ Useful combinations:
 | `ask_members` | `sequential` (default): one member after another. `parallel`: every member at the same time, one thread each - each member is its own llama-server, so this shares the model box between them rather than queueing inside one server. Anything else falls back to sequential with a warning |
 | `shuffle_members` | Randomise the order answers reach the head (default true) |
 | `shuffle_seed` | Fix the shuffle for a reproducible run; null means random |
-| `head_preset` | Built-in head prompt: `default` or `math` |
+| `head_preset` | Built-in head prompt: `default` (weigh opinions, prose reply), `math` (verify each result by substitution, `ANSWER: <result>`), `research` (agreed / disputed / evidence / verdict with confidence and the strongest counter-argument, `ANSWER: <verdict>`), `decision` (options, trade-offs, one recommendation with the reason the runner-up lost, `ANSWER: <option>`). `head_system_prompt` replaces any of them with your own text |
 | `member_system_prompt` | Replaces the default member system prompt; null uses the default |
 | `head_system_prompt` | Replaces the default head system prompt; null uses the default |
 | `members[]` | `name`, `lab`, `base_url`, `model`, `enabled`, plus optional `temperature`, `max_tokens`, `seed`, `role`, `system_prompt` |

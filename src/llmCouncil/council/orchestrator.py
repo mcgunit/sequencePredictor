@@ -280,23 +280,55 @@ def run_council(question: str, config: dict, *,
     streaming = stream_answers(config) and on_event is not None
 
     def chunker(kind: str, name: str):
-        """A throttled reporter of a growing reply, or None when not streaming."""
+        """A throttled reporter of a growing reply, or None when not streaming.
+
+        It also keeps two diagnostics on itself - when the first token came
+        and how many chunks arrived - because "it does not stream" has two
+        very different causes that only the log can tell apart: a server that
+        sends nothing until the reply is complete (zero chunks before done),
+        and a server that is merely slow to produce its first token (a long
+        prompt on a big CPU model can take minutes before the first chunk,
+        and then streams normally).
+        """
         if not streaming:
             return None
         last = [0.0]
+        started = time.monotonic()
 
         def report(partial: str) -> None:
+            report.chunks += 1
+            if report.first_after is None:
+                report.first_after = round(time.monotonic() - started, 1)
+                log.info("%s: first token after %.1fs", name, report.first_after)
             now = time.monotonic()
             if now - last[0] < CHUNK_INTERVAL_S:
                 return
             last[0] = now
             emit(kind, {"name": name, "partial": partial})
+        report.chunks = 0
+        report.first_after = None
         return report
+
+    def note_streaming(name: str, reporter, result: dict) -> None:
+        if reporter is None or result.get("cached") or not result.get("ok"):
+            return
+        length = len(result.get("answer") or "")
+        if reporter.chunks <= 1 and length > 200:
+            # One event carrying a long reply is a server that generated the
+            # whole answer first and sent it in a piece - a buffering proxy,
+            # or a backend that only pretends to stream. The page then shows
+            # nothing until the end, which looks like "streaming is off".
+            log.warning("%s: a %d-character reply arrived in %d piece(s) after %ss - that server "
+                        "does not really stream (a buffering proxy, or streaming unsupported)",
+                        name, length, reporter.chunks, reporter.first_after)
+        else:
+            log.info("%s: %d chunk(s), first after %ss", name, reporter.chunks, reporter.first_after)
 
     def ask_one(member: dict) -> dict:
         emit("member_start", {"name": member["name"]})
-        result = ask_member(config, member, question, cache, retries, context,
-                            on_chunk=chunker("member_chunk", member["name"]))
+        reporter = chunker("member_chunk", member["name"])
+        result = ask_member(config, member, question, cache, retries, context, on_chunk=reporter)
+        note_streaming(member["name"], reporter, result)
         emit("member_done", {
             "name": member["name"],
             "ok": result["ok"],
@@ -325,11 +357,13 @@ def run_council(question: str, config: dict, *,
     if head_cfg:
         if any(r["ok"] for r in results):
             emit("head_start", {"name": head_cfg["name"]})
+            head_reporter = chunker("head_chunk", head_cfg["name"])
             output["head"] = run_head(
                 config, head_cfg, question,
                 order_for_head(members, results, config),
-                retries, context, on_chunk=chunker("head_chunk", head_cfg["name"]),
+                retries, context, on_chunk=head_reporter,
             )
+            note_streaming(head_cfg["name"], head_reporter, output["head"])
             emit("head_done", {
                 "name": head_cfg["name"],
                 "ok": output["head"]["ok"],
