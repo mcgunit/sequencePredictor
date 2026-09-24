@@ -28,6 +28,7 @@ DEFAULT_HEAD_SYSTEM_PROMPT = (
     "question without seeing the others' answers.\n\n"
     "Weigh the answers on their merits and produce a single response for the "
     "reader. Apply these rules:\n"
+    "- Be brief as possible in answers \n"
     "- Judge each claim on its own. A long, detailed answer is not more "
     "reliable than a short one; elaboration is often where errors appear.\n"
     "- Agreement between members is weak evidence, not proof. Members can "

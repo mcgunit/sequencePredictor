@@ -141,6 +141,11 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
                 state["phase"] = "members"
             elif kind == "member_start":
                 state["seats"][payload["name"]] = {"state": "asking"}
+            elif kind == "member_chunk":
+                # The reply so far, so the page can show it typing.
+                state["seats"][payload["name"]] = {"state": "asking", "partial": payload["partial"]}
+            elif kind == "head_chunk":
+                state["head"] = {"name": payload["name"], "state": "asking", "partial": payload["partial"]}
             elif kind == "member_done":
                 seat = "cached" if payload["cached"] else (
                     "answered" if payload["ok"] else "failed")
@@ -177,7 +182,7 @@ def describe_endpoints(config: dict) -> dict:
 
     Carries the live endpoint status as well, so the page learns in its one
     start-up call both who sits on the council and whether they can be
-    reached at all.
+    reached at all - and whether replies stream, so it knows to poll faster.
     """
     members = [
         {"name": m["name"], "lab": m.get("lab"),
@@ -190,6 +195,7 @@ def describe_endpoints(config: dict) -> dict:
         "head": {"name": head["name"], "lab": head.get("lab")} if head else None,
         "preset": config.get("head_preset", "default"),
         "ask_members": orchestrator.ask_mode(config),
+        "stream_answers": orchestrator.stream_answers(config),
         "status": endpoint_status(config),
     }
 

@@ -308,6 +308,27 @@ thinking and before the head has said a word. With `ask_members: "parallel"`
 several seats pulse at once and the bubbles appear in whatever order the
 models finish.
 
+### Streaming, and a compact conversation
+
+Replies are requested with `stream: true` and assembled from the server-sent
+events (`client._post_stream`), and the text-so-far is reported through the
+same progress channel the seats are coloured from - at most four times a
+second per reply, since every report copies the whole progress state - so the
+page shows each member's answer being typed, with a cursor, in the
+conversation, in the voices list and in its seat's bubble (which shows the
+tail of the text while it grows). The head's verdict streams the same way. No
+new transport was needed: the page already polls the job, and it simply polls
+every second instead of every two while replies are in flight. The timeout in
+streaming mode is the longest a server may go without sending anything, which
+is the right shape for slow CPU inference: a long reply is fine, a stall is
+not.
+
+The conversation is kept compact: a member's answer is one row - who, and the
+opening words - that opens on click, and the rows fold away by themselves the
+moment the head has reported, so what remains in view per turn is the
+question and the verdict. A reply that is still streaming stays open so it
+can be watched; sessions loaded from history show their members folded.
+
 ### Sessions
 
 Conversations are kept per account, on the server, in the gitignored
@@ -410,6 +431,7 @@ Useful combinations:
 | `retries` | Extra attempts per request after the first |
 | `retry_delay_s` | Base backoff; attempt N waits N x this |
 | `cache_dir` | Where member answers are cached; omit or `null` to disable |
+| `stream_answers` | Stream member and head replies token by token so the page shows them being typed (default true). Set false for a server that does not speak server-sent events; the run then reports each reply when it is complete |
 | `ask_members` | `sequential` (default): one member after another. `parallel`: every member at the same time, one thread each - each member is its own llama-server, so this shares the model box between them rather than queueing inside one server. Anything else falls back to sequential with a warning |
 | `shuffle_members` | Randomise the order answers reach the head (default true) |
 | `shuffle_seed` | Fix the shuffle for a reproducible run; null means random |

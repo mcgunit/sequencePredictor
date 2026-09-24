@@ -4,11 +4,12 @@
   "retries": 2,
   "retry_delay_s": 5.0,
   "cache_dir": ".cache",
+  "stream_answers": true,
   "ask_members": "parallel", 
   "shuffle_members": true,
   "shuffle_seed": null,
   "member_system_prompt": null,
-  "head_preset": "math",
+  "head_preset": "default",
   "head_system_prompt": null,
   "members": [
     {

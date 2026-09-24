@@ -226,31 +226,46 @@ function page(req, header, footer, escapeHtml) {
       .council-side { position: static; width: 100%; min-width: 0; order: -1; }
     }
 
-    .council-log { min-height: 200px; }
-    .turn { margin-bottom: 25px; }
+    .council-log { min-height: 200px; font-size: 0.93em; }
+    .turn { margin-bottom: 16px; }
     .turn-q {
-      background: #2c3e50; color: white; padding: 12px 16px; border-radius: 8px;
-      margin-bottom: 12px; white-space: pre-wrap; word-break: break-word;
+      background: #2c3e50; color: white; padding: 8px 12px; border-radius: 8px;
+      margin-bottom: 8px; white-space: pre-wrap; word-break: break-word;
+      display: flex; gap: 10px; align-items: baseline;
     }
-    .turn-when { color: #95a5a6; font-size: 0.8em; margin: -8px 0 10px 4px; }
-    .turn-status { color: #7f8c8d; font-style: italic; padding: 8px 0; }
+    .turn-q .turn-text { flex: 1 1 auto; min-width: 0; }
+    .turn-when { color: #95a5a6; font-size: 0.78em; flex: none; white-space: nowrap; }
+    .turn-status { color: #7f8c8d; font-style: italic; padding: 4px 0; font-size: 0.9em; }
+    /* A member's answer is a compact row that opens on click: the line shows
+       who and the opening words, the body the whole text. While an answer is
+       still streaming in, the row stays open so it can be watched growing;
+       once the head has reported, the members fold away and the head's
+       verdict is what remains in view. */
     .member {
       background: white; border: 1px solid #e1e4e8; border-radius: 6px;
-      padding: 12px 16px; margin-bottom: 10px;
+      padding: 6px 10px; margin-bottom: 5px;
     }
-    .member-name { font-weight: bold; color: #2c3e50; font-size: 0.9em; }
+    .member-head { display: flex; gap: 8px; align-items: baseline; cursor: pointer; min-width: 0; }
+    .member-caret { color: #95a5a6; font-size: 0.8em; flex: none; width: 10px; }
+    .member-name { font-weight: bold; color: #2c3e50; font-size: 0.88em; flex: none; }
     .member-name span { color: #7f8c8d; font-weight: normal; }
-    .member-body, .head-body { white-space: pre-wrap; word-break: break-word; margin-top: 6px; }
+    .member-excerpt { color: #666; font-size: 0.88em; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .member[data-collapsed="0"] .member-excerpt { display: none; }
+    .member[data-collapsed="1"] .member-body { display: none; }
+    .member-body, .head-body { white-space: pre-wrap; word-break: break-word; margin-top: 5px; line-height: 1.45; }
     .member-failed { color: #c0392b; }
     .head {
       background: #f1f8ff; border: 1px solid #b6d4f5; border-left: 4px solid #3498db;
-      border-radius: 6px; padding: 14px 18px; margin-top: 14px;
+      border-radius: 6px; padding: 8px 12px; margin-top: 8px;
     }
     .head-value {
-      margin-top: 10px; padding: 8px 12px; background: #2ecc71; color: white;
-      border-radius: 4px; font-weight: bold; display: inline-block;
+      margin-top: 6px; padding: 5px 10px; background: #2ecc71; color: white;
+      border-radius: 4px; font-weight: bold; display: inline-block; font-size: 0.95em;
     }
-    .head-novalue { margin-top: 10px; color: #c0392b; font-weight: bold; }
+    .head-novalue { margin-top: 6px; color: #c0392b; font-weight: bold; }
+    .cursor { display: inline-block; width: 0.55em; color: #3498db; animation: blink 1s steps(2) infinite; }
+    @keyframes blink { to { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
     .council-error { color: #c0392b; font-weight: bold; padding: 10px 0; }
     .table-stage { display: flex; justify-content: center; padding: 4px 0; }
     .table-stage svg { max-width: 460px; width: 100%; height: auto; }
@@ -376,6 +391,7 @@ function page(req, header, footer, escapeHtml) {
     var busy = false;
     var councilOut = false;     // the models are off: asking is disabled, reading is not
     var members = [];
+    var streams = true;         // api.py says whether replies stream (stream_answers)
     // The session shown right now, from the URL so a reload comes back to
     // it; null until the first question of a new conversation is accepted -
     // there is no empty session to create.
@@ -417,6 +433,7 @@ function page(req, header, footer, escapeHtml) {
     fetch('/council/api/endpoints').then(function (r) { return r.json(); }).then(function (d) {
       if (!d.members) return;
       members = d.members;
+      streams = d.stream_answers !== false;
       var status = d.status;
       var mode = d.ask_members === 'parallel' ? 'asked all at once' : 'asked one after another';
       if (status && !status.ready) {
@@ -472,6 +489,11 @@ function page(req, header, footer, escapeHtml) {
       if (seat.state === 'failed') return { text: 'failed: ' + (seat.error || 'no answer'), full: seat.error || 'failed' };
       if (seat.answer && (seat.state === 'answered' || seat.state === 'cached')) {
         return { text: excerpt(seat.answer, 26), full: seat.answer };
+      }
+      if (seat.state === 'asking' && seat.partial) {
+        // the tail of what is being typed, so the bubble moves with the reply
+        var tail = String(seat.partial).replace(/\s+/g, ' ').trim();
+        return { text: (tail.length > 24 ? '…' + tail.slice(-23) : tail), full: seat.partial, typing: true };
       }
       return null;
     }
@@ -581,7 +603,7 @@ function page(req, header, footer, escapeHtml) {
           g.appendChild(svg('rect', {
             x: bx, y: by, width: bw, height: bh, rx: 6, ry: 6,
             fill: seat.state === 'failed' ? '#fdecea' : '#ffffff',
-            stroke: seat.state === 'failed' ? '#e74c3c' : '#b2bec3', 'stroke-width': 1
+            stroke: seat.state === 'failed' ? '#e74c3c' : (speech.typing ? '#f39c12' : '#b2bec3'), 'stroke-width': 1
           }));
           var quote = svg('text', {
             x: bx + 7, y: by + 12.5, fill: seat.state === 'failed' ? '#c0392b' : '#2c3e50',
@@ -626,7 +648,7 @@ function page(req, header, footer, escapeHtml) {
         dot.style.background = (SEAT_COLOURS[seat.state] || SEAT_COLOURS.waiting).fill;
         li.appendChild(dot);
         li.appendChild(el('b', null, name));
-        li.appendChild(el('span', null, speech ? excerpt(speech.full, 140)
+        li.appendChild(el('span', null, speech ? (speech.typing ? excerpt(speech.full, 140) + ' ▍' : excerpt(speech.full, 140))
           : (seat.state === 'asking' ? 'thinking…' : (seat.state === 'waiting' ? 'waiting' : ''))));
         if (speech) { any = true; li.title = speech.full; }
         li.addEventListener('click', function () {
@@ -635,14 +657,15 @@ function page(req, header, footer, escapeHtml) {
         });
         voices.appendChild(li);
       });
-      if (progress.head && (progress.head.answer || progress.head.state === 'asking' || progress.head.error)) {
+      if (progress.head && (progress.head.answer || progress.head.partial || progress.head.state === 'asking' || progress.head.error)) {
         var hl = el('li', 'voice-head');
         var hd = el('i');
         hd.style.background = (SEAT_COLOURS[progress.head.state] || SEAT_COLOURS.waiting).fill;
         hl.appendChild(hd);
         hl.appendChild(el('b', null, progress.head.name || 'head'));
         hl.appendChild(el('span', null, progress.head.answer ? excerpt(progress.head.value ? 'ANSWER: ' + progress.head.value + ' — ' + progress.head.answer : progress.head.answer, 140)
-          : (progress.head.error ? 'failed: ' + progress.head.error : 'weighing the answers…')));
+          : (progress.head.partial ? excerpt(progress.head.partial, 140) + ' ▍'
+          : (progress.head.error ? 'failed: ' + progress.head.error : 'weighing the answers…'))));
         if (progress.head.answer) hl.title = progress.head.answer;
         voices.appendChild(hl);
       }
@@ -654,22 +677,49 @@ function page(req, header, footer, escapeHtml) {
       members.forEach(function (m) { seats[m.name] = { state: 'waiting' }; });
       return seats;
     }
-    // A member's answer, in the conversation. Rendered as soon as the
-    // progress carries it, and not again when the final result arrives.
+    // A member's answer, in the conversation: created when the first
+    // streamed chunk (or the finished answer) arrives, and UPDATED in place
+    // after that, so the same box grows while the member is typing and then
+    // settles. m.streaming marks a reply still being generated.
+    function memberBox(turn, name) {
+      return turn.querySelector('[data-member="' + String(name).replace(/"/g, '') + '"]');
+    }
+    function setCollapsed(box, collapsed) {
+      box.setAttribute('data-collapsed', collapsed ? '1' : '0');
+      box.querySelector('.member-caret').textContent = collapsed ? '▸' : '▾';
+    }
     function renderMember(turn, m) {
-      if (turn.querySelector('[data-member="' + String(m.name).replace(/"/g, '') + '"]')) return;
-      var box = el('div', 'member');
-      box.setAttribute('data-member', m.name);
-      var name = el('div', 'member-name');
-      name.textContent = m.name;
-      var meta = el('span');
-      meta.textContent = '  ' + (m.lab || '') + '  ' + (m.seconds !== undefined ? m.seconds + 's' : '') + (m.cached ? '  (cached)' : '');
-      name.appendChild(meta);
-      box.appendChild(name);
-      box.appendChild(el('div', m.ok ? 'member-body' : 'member-body member-failed',
-                         m.ok ? m.answer : 'failed: ' + m.error));
-      var status = turn.querySelector('.turn-status');
-      if (status) turn.insertBefore(box, status); else turn.appendChild(box);
+      var box = memberBox(turn, m.name);
+      if (!box) {
+        box = el('div', 'member');
+        box.setAttribute('data-member', m.name);
+        var head = el('div', 'member-head');
+        head.appendChild(el('span', 'member-caret', '▾'));
+        var name = el('span', 'member-name', m.name);
+        name.appendChild(el('span'));
+        head.appendChild(name);
+        head.appendChild(el('span', 'member-excerpt'));
+        head.addEventListener('click', function () { setCollapsed(box, box.getAttribute('data-collapsed') !== '1'); });
+        box.appendChild(head);
+        box.appendChild(el('div', 'member-body'));
+        var status = turn.querySelector('.turn-status');
+        if (status) turn.insertBefore(box, status); else turn.appendChild(box);
+        setCollapsed(box, false);
+      }
+      var meta = box.querySelector('.member-name span');
+      meta.textContent = '  ' + (m.lab || '') + (m.seconds !== undefined ? '  ' + m.seconds + 's' : '') +
+        (m.cached ? '  (cached)' : '') + (m.streaming ? '  typing…' : '');
+      var text = m.ok === false ? 'failed: ' + (m.error || 'no answer') : (m.answer || '');
+      var body = box.querySelector('.member-body');
+      body.className = m.ok === false ? 'member-body member-failed' : 'member-body';
+      body.textContent = text;
+      if (m.streaming) body.appendChild(el('span', 'cursor', '▍'));
+      box.querySelector('.member-excerpt').textContent = excerpt(text, 160);
+      box.setAttribute('data-streaming', m.streaming ? '1' : '0');
+      if (m.streaming) setCollapsed(box, false);
+    }
+    function collapseMembers(turn) {
+      turn.querySelectorAll('.member[data-streaming="0"]').forEach(function (box) { setCollapsed(box, true); });
     }
     function renderFromProgress(turn, progress) {
       Object.keys(progress.seats || {}).forEach(function (name) {
@@ -678,22 +728,41 @@ function page(req, header, footer, escapeHtml) {
           renderMember(turn, { name: name, ok: true, answer: seat.answer, seconds: seat.seconds, cached: seat.state === 'cached' });
         } else if (seat.state === 'failed') {
           renderMember(turn, { name: name, ok: false, error: seat.error || 'no answer', seconds: seat.seconds });
+        } else if (seat.state === 'asking' && seat.partial) {
+          renderMember(turn, { name: name, ok: true, answer: seat.partial, streaming: true });
         }
       });
+      if (progress.head && progress.head.state === 'asking' && progress.head.partial) {
+        renderHead(turn, { name: progress.head.name, ok: true, answer: progress.head.partial, streaming: true });
+      }
+    }
+    // The head's verdict, created on its first streamed chunk or on the final
+    // result and updated in place like a member's box - but never folded: it
+    // is the part of a turn that is meant to stay in view.
+    function renderHead(turn, h) {
+      var head = turn.querySelector('.head');
+      if (!head) {
+        head = el('div', 'head');
+        head.appendChild(el('div', 'member-name', h.name));
+        head.appendChild(el('div', 'head-body'));
+        turn.appendChild(head);
+      }
+      var body = head.querySelector('.head-body');
+      body.className = h.ok === false ? 'head-body member-failed' : 'head-body';
+      body.textContent = h.ok === false ? 'failed: ' + (h.error || 'no answer') : (h.answer || '');
+      if (h.streaming) body.appendChild(el('span', 'cursor', '▍'));
+      head.querySelectorAll('.head-value, .head-novalue').forEach(function (n) { n.remove(); });
+      if (!h.streaming && h.ok !== false) {
+        if (h.value) head.appendChild(el('div', 'head-value', h.value));
+        else head.appendChild(el('div', 'head-novalue', 'no ANSWER: line found'));
+      }
     }
     function renderResult(turn, result) {
       (result.members || []).forEach(function (m) { renderMember(turn, m); });
-      if (result.head && !turn.querySelector('.head')) {
-        var head = el('div', 'head');
-        head.appendChild(el('div', 'member-name', result.head.name));
-        if (result.head.ok) {
-          head.appendChild(el('div', 'head-body', result.head.answer));
-          if (result.head.value) head.appendChild(el('div', 'head-value', result.head.value));
-          else head.appendChild(el('div', 'head-novalue', 'no ANSWER: line found'));
-        } else {
-          head.appendChild(el('div', 'head-body member-failed', 'failed: ' + result.head.error));
-        }
-        turn.appendChild(head);
+      if (result.head) {
+        renderHead(turn, result.head);
+        // The verdict is in; the deliberation folds to one line per member.
+        collapseMembers(turn);
       }
     }
     // The last progress snapshot is dropped when a job finishes, so the
@@ -738,14 +807,18 @@ function page(req, header, footer, escapeHtml) {
             tablePhase.textContent = 'the council could not sit.';
             finish();
           } else {
+            var working = false;
             if (job.progress && job.progress.seats) {
               updateTable(job.progress);
               renderFromProgress(turn, job.progress);
               status.textContent = PHASE_TEXT[job.progress.phase] || 'working…';
+              working = job.progress.phase === 'members' || job.progress.phase === 'head';
             } else {
               status.textContent = (job.state || 'working') + '…';
             }
-            setTimeout(function () { poll(id, turn, status, turnId); }, 2000);
+            // While replies stream in, poll every second so the text grows
+            // at reading speed; otherwise the usual two.
+            setTimeout(function () { poll(id, turn, status, turnId); }, working && streams ? 1000 : 2000);
           }
         })
         .catch(function (e) {
@@ -777,8 +850,10 @@ function page(req, header, footer, escapeHtml) {
     }
     function newTurn(question, when) {
       var turn = el('div', 'turn');
-      turn.appendChild(el('div', 'turn-q', question));
-      if (when) turn.appendChild(el('div', 'turn-when', new Date(when).toLocaleString()));
+      var q = el('div', 'turn-q');
+      q.appendChild(el('span', 'turn-text', question));
+      q.appendChild(el('span', 'turn-when', new Date(when || Date.now()).toLocaleString()));
+      turn.appendChild(q);
       log.appendChild(turn);
       return turn;
     }
@@ -872,7 +947,7 @@ function page(req, header, footer, escapeHtml) {
         var lastResult = null;
         d.session.turns.forEach(function (t) {
           var turn = newTurn(t.question, t.asked);
-          if (t.state === 'done' && t.result) { renderResult(turn, t.result); lastResult = t.result; }
+          if (t.state === 'done' && t.result) { renderResult(turn, t.result); collapseMembers(turn); lastResult = t.result; }
           else if (t.state === 'failed') turn.appendChild(el('div', 'council-error', t.error || 'run failed'));
           else if (t.state === 'pending') {
             var status = el('div', 'turn-status', 'still running…');

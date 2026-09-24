@@ -112,6 +112,19 @@ def ask_mode(config: dict) -> str:
     return value
 
 
+def stream_answers(config: dict) -> bool:
+    """Whether member and head replies are streamed token by token so a page
+    can show them growing (`"stream_answers": true`, the default). Turn it
+    off for a server that does not speak server-sent events."""
+    return bool(config.get("stream_answers", True))
+
+
+# How often a growing reply is reported. Every emit copies the whole progress
+# state for the page, so per-token would be wasteful; a quarter second is
+# faster than anyone reads.
+CHUNK_INTERVAL_S = 0.25
+
+
 def head_config(config: dict) -> dict | None:
     candidate = config.get("head")
     return candidate if candidate and candidate.get("enabled", True) else None
@@ -140,7 +153,7 @@ def check_endpoints(config: dict, endpoints: list[dict]) -> list[str]:
 
 def ask_member(config: dict, member: dict, question: str,
                cache: cache_mod.Cache, retries: int,
-               context: str | None = None) -> dict:
+               context: str | None = None, on_chunk=None) -> dict:
     """Ask one member, or return its cached answer. Never raises."""
     system = prompts.member_system_prompt(member, config)
     user = prompts.with_context(question, context)
@@ -160,6 +173,7 @@ def ask_member(config: dict, member: dict, question: str,
             model=member.get("model"),
             retries=retries,
             retry_delay_s=config.get("retry_delay_s", 5.0),
+            on_chunk=on_chunk,
             **sampling.for_member(member),
         )
         outcome = {"ok": True, "answer": answer}
@@ -179,13 +193,13 @@ def ask_member(config: dict, member: dict, question: str,
 
 def run_head(config: dict, head_cfg: dict, question: str,
              members: list[dict], retries: int,
-             context: str | None = None) -> dict:
+             context: str | None = None, on_chunk=None) -> dict:
     """Run the aggregation step. Never raises."""
     started = time.monotonic()
     try:
         answer = head_mod.synthesise(
             head_cfg, question, members, config["request_timeout_s"],
-            config=config, context=context, retries=retries,
+            config=config, context=context, retries=retries, on_chunk=on_chunk,
         )
         outcome = {"ok": True, "answer": answer,
                    "value": answer_mod.extract(answer)}
@@ -217,10 +231,13 @@ def run_council(question: str, config: dict, *,
     context can mislead all of them at once.
 
     `on_event` is called as the run proceeds, for progress display. It gets
-    (kind, payload) where kind is one of "start", "member_start", "member_done",
-    "head_start", "head_done". A "member_done" payload carries the member's
-    answer (or error) so a page can show what each member said the moment it
-    said it, and "head_done" carries the head's. Calls are serialised with a
+    (kind, payload) where kind is one of "start", "member_start",
+    "member_chunk", "member_done", "head_start", "head_chunk", "head_done".
+    A "member_done" payload carries the member's answer (or error) so a page
+    can show what each member said the moment it said it, and "head_done"
+    carries the head's; the "*_chunk" events carry the text so far while a
+    reply is still being generated (see stream_answers), at most every
+    CHUNK_INTERVAL_S. Calls are serialised with a
     lock, because in parallel mode (see ask_mode) they arrive from several
     threads. Anything it raises is swallowed: a progress display must never
     be able to fail a run.
@@ -260,9 +277,26 @@ def run_council(question: str, config: dict, *,
         "head": head_cfg["name"] if head_cfg else None,
     })
 
+    streaming = stream_answers(config) and on_event is not None
+
+    def chunker(kind: str, name: str):
+        """A throttled reporter of a growing reply, or None when not streaming."""
+        if not streaming:
+            return None
+        last = [0.0]
+
+        def report(partial: str) -> None:
+            now = time.monotonic()
+            if now - last[0] < CHUNK_INTERVAL_S:
+                return
+            last[0] = now
+            emit(kind, {"name": name, "partial": partial})
+        return report
+
     def ask_one(member: dict) -> dict:
         emit("member_start", {"name": member["name"]})
-        result = ask_member(config, member, question, cache, retries, context)
+        result = ask_member(config, member, question, cache, retries, context,
+                            on_chunk=chunker("member_chunk", member["name"]))
         emit("member_done", {
             "name": member["name"],
             "ok": result["ok"],
@@ -294,7 +328,7 @@ def run_council(question: str, config: dict, *,
             output["head"] = run_head(
                 config, head_cfg, question,
                 order_for_head(members, results, config),
-                retries, context,
+                retries, context, on_chunk=chunker("head_chunk", head_cfg["name"]),
             )
             emit("head_done", {
                 "name": head_cfg["name"],
