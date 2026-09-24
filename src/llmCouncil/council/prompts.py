@@ -17,7 +17,7 @@ from __future__ import annotations
 # each other, so what is wanted is each one's best independent answer. Override
 # via `member_system_prompt` in config to test the alternative.
 DEFAULT_MEMBER_SYSTEM_PROMPT = (
-    "Answer the question directly and thoroughly. Show your reasoning. "
+    "Answer the question directly and thoroughly but be brief in your output, spare tokens. Show your reasoning. "
     "Where you are uncertain, say so explicitly rather than guessing. "
     "Do not pad the answer: additional detail you are not confident in is "
     "worse than a short answer."
