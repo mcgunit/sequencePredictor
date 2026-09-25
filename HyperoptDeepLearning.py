@@ -68,7 +68,8 @@ path = os.getcwd()
 # prefixed keys. Without a prefix, two independent per-model_type Optuna
 # studies writing e.g. a bare "batchSize" would silently clobber each other
 # (and LSTM's own already-tuned bare "batchSize") in bestParams_<game>.json -
-# same reasoning as HyperoptStatistics.py's suggest_keno_subset docstring.
+# same reasoning as HyperoptBoost.suggest_boosting_params' per-model prefixes
+# (BOOSTING_PARAM_SUFFIXES in src/BoostingBase.py).
 MODEL_PARAM_PREFIX = {
     "tcn_model": "tcn",
     "unified_lstm_tcn_model": "unifiedLstmTcn",

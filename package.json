@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "nodemon server.js",
-    "test": "node test/announcements.test.js && node test/jobs.test.js && node test/council.test.js"
+    "test": "node test/announcements.test.js && node test/jobs.test.js && node test/council.test.js && python3 -m src.TuningScore && python3 -m src.TuningGate"
   },
   "nodemonConfig": {
     "ignore": [

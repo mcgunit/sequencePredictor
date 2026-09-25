@@ -23,6 +23,8 @@ from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, prepare_foundation_scores
+from src.TuningScore import score_rows, score_bets_by_day, attrs_for_trial, describe
+from src.TuningGate import challenge, make_defaults
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -121,33 +123,47 @@ def print_intro():
     print("Find best parameters for Predictor")
 
 
-def suggest_keno_subset(trial, model_name):
+# The game's served Keno subset sizes, set per game in __main__ from
+# bestParams_<game>.json (None = every playable size, what Predictor's own
+# template serves). Module global so the objectives - which run in forked
+# trial processes and in the gate's reference children - inherit it.
+SERVED_KENO_SUBSETS = None
+
+
+def keno_subsets_served(bestParams):
     """
-    Binary inclusion mask over the 5-10 playable Keno subset sizes, for one
-    specific model. Returns None (caller should treat the trial as invalid) if
-    the resulting subset is empty - a meaningless trial.
-
-    Param names are prefixed with `model_name` (e.g. "markov_use_5") rather
-    than a shared "use_5" - each strategy runs its own independent Optuna
-    study and searches its own subset choice, so sharing bare "use_5"/etc.
-    keys across strategies means whichever strategy's study.optimize() call
-    happens to run last silently overwrites every other strategy's tuned
-    choice in bestParams_<game>.json when merged in. Prefixing keeps each
-    strategy's own choice distinct so nothing gets clobbered.
+    The Keno subset sizes the game serves: the global use_<n> flags, a
+    missing flag read as served (Predictor's statisticalMethod and boosting
+    templates default them to True; its vote-ensemble rows read a missing
+    flag as not played - the file has carried all six keys for years).
     """
-    inclusion_mask = [trial.suggest_categorical(f"{model_name}_use_{v}", [True, False]) for v in KENO_SUBSET_VALUES]
-    subset = [v for v, include in zip(KENO_SUBSET_VALUES, inclusion_mask) if include]
+    return [size for size in KENO_SUBSET_VALUES if bestParams.get(f"use_{size}", True)]
 
-    if not subset:
-        return None
 
-    return subset
+def served_keno_subsets(model_name):
+    """
+    The Keno subset sizes a trial (and a gate reference) bets on: the sizes
+    the game serves. Until September 2026 this was suggest_keno_subset, a
+    searched per-model inclusion mask written as "<model>_use_<n>" keys -
+    which Predictor never read (getKenoSubsetSizes uses the global flags), so
+    a trial's value depended on ticket sizes that never reached production
+    and the gate would have compared unlike tickets. Returns None when the
+    game serves no playable size (the caller treats the trial as invalid).
+    The stale per-model keys in older files are simply ignored.
+    """
+    sizes = list(KENO_SUBSET_VALUES) if SERVED_KENO_SUBSETS is None else list(SERVED_KENO_SUBSETS)
+    return sizes or None
 
 
 # Wall-clock budget per tuning trial (CLI --trial-timeout): a statistical trial
 # is seconds, so this only catches a runaway configuration - the Backtester
 # terminates its pool and the trial is recorded as PRUNED (see run_backtest).
 TRIAL_TIMEOUT_SECONDS = 1200
+# Champion/challenger gate (src/TuningGate.py), set from the CLI in __main__:
+# this run's best trial replaces the served parameters only if it beats them
+# and the untuned defaults, re-scored on the same window, by GATE_MARGIN.
+GATE_ENABLED = True
+GATE_MARGIN = 0.0
 
 
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back):
@@ -157,12 +173,15 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     defaults), runs `model` through Backtester over the last
     `days_to_rebuild` days, and returns that model's compact summary dict
     (see Backtester.summarize): {"hits_avg", "profit_total", "main": {...},
-    "subsets": {...}, "errors": {...}}.
+    "subsets": {...}, "errors": {...}} plus "tuning", the objective of
+    src/TuningScore.py (a lower confidence bound over the days, jackpots
+    capped) that score_from_summary returns.
 
     Backtester reseeds numpy/random per backtested day (see Backtester.py),
-    so results are deterministic for a given set of hyperparameters - no need
-    to repeat/average multiple runs per trial like the old Process-based
-    pipeline did.
+    so results are deterministic for a given set of hyperparameters; the
+    repeat-and-average the old Process-based pipeline did would return the
+    same number, which is why the objective works on the spread over the
+    days instead.
     """
     loader = DataLoader()
     loader.setDataPath(dataPath)
@@ -204,23 +223,29 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
         raise optuna.TrialPruned()
 
     summary = backtester.summarize(results)
-    return summary.get("models", {}).get(model_name, {})
+    model_summary = dict(summary.get("models", {}).get(model_name, {}))
+    model_summary["tuning"] = score_rows(results, model_name, payout=game_param is not None,
+                                         positional=helpers.is_positional_game(dataset_name), game=dataset_name)
+    return model_summary
 
 
 def score_from_summary(model_summary):
     """
-    Optuna objective value: profit_per_bet if this game has a payout model,
-    else avg hits. profit_per_bet (not profit_total) so trials aren't scored
-    unfairly by how many subset sizes they happen to bet on - e.g. a trial
-    betting only subset size 5 shouldn't look "worse" than one betting all 6
-    sizes purely because it places fewer bets. Note this does NOT protect
-    against a single rare jackpot-tier payout dominating the score (see
-    Backtester.summarize()'s "lucky_strikes" field to check for that
-    separately - profit_per_bet is just as vulnerable to one big hit as
-    profit_total is, only rescaled).
+    Optuna objective value: the "tuning" score run_backtest attached
+    (src/TuningScore.py - a lower confidence bound over the window's days,
+    capped profit per bet where this game has a payout model, slot hits for
+    the positional games, hits otherwise). A summary without it (an older
+    caller) falls back to the pre-September-2026 value, raw profit_per_bet
+    or avg hits: per bet so a trial betting fewer subset sizes is not
+    penalised for placing fewer bets, but the number one jackpot-tier payout
+    in the window decides (see Backtester.summarize()'s "lucky_strikes").
     """
     if not model_summary:
         return float("-inf")
+
+    tuning = model_summary.get("tuning")
+    if tuning is not None:
+        return tuning["score"]
 
     profit_per_bet = model_summary.get("profit_per_bet")
     if profit_per_bet is not None:
@@ -228,6 +253,18 @@ def score_from_summary(model_summary):
 
     hits = model_summary.get("hits_avg")
     return hits if hits is not None else float("-inf")
+
+
+def finish_trial(trial, model_summary):
+    """
+    score_from_summary plus the diagnostics on the trial (the raw profit per
+    bet, the lucky strikes - src/TuningScore.py), so a look at the study
+    shows what a value was made of.
+    """
+    tuning = model_summary.get("tuning") if model_summary else None
+    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+    print(f"Trial {trial.number}: {describe(tuning)}")
+    return score_from_summary(model_summary)
 
 
 def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -254,11 +291,11 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "markov")
+        subsets = served_keno_subsets("markov")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("markov", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("markov", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_markov_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -281,11 +318,11 @@ def objective_markov_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "markov_mc")
+        subsets = served_keno_subsets("markov_mc")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("markov_mc", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("markov_mc", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_markov_bayesian(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -298,11 +335,11 @@ def objective_markov_bayesian(trial, dataset_name, dataPath, game_cfg, days_to_r
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "markov_bayesian")
+        subsets = served_keno_subsets("markov_bayesian")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("markov_bayesian", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("markov_bayesian", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_markov_bayesian_enhanced(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -315,11 +352,11 @@ def objective_markov_bayesian_enhanced(trial, dataset_name, dataPath, game_cfg, 
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "markov_bayesian_enhanced")
+        subsets = served_keno_subsets("markov_bayesian_enhanced")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("markov_bayesian_enhanced", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("markov_bayesian_enhanced", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_poisson_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -331,11 +368,11 @@ def objective_poisson_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "poisson_mc")
+        subsets = served_keno_subsets("poisson_mc")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("poisson_mc", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("poisson_mc", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_poisson_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -348,11 +385,11 @@ def objective_poisson_markov(trial, dataset_name, dataPath, game_cfg, days_to_re
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "poisson_markov")
+        subsets = served_keno_subsets("poisson_markov")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("poisson_markov", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("poisson_markov", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_laplace_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -363,11 +400,11 @@ def objective_laplace_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "laplace_mc")
+        subsets = served_keno_subsets("laplace_mc")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("laplace_mc", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("laplace_mc", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 def objective_hybrid(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
@@ -381,11 +418,11 @@ def objective_hybrid(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
     subsets = []
     if "keno" in dataset_name:
-        subsets = suggest_keno_subset(trial, "hybrid_statistical")
+        subsets = served_keno_subsets("hybrid_statistical")
         if subsets is None:
             return float("-inf")
 
-    return score_from_summary(run_backtest("hybrid_statistical", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
+    return finish_trial(trial, run_backtest("hybrid_statistical", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
 # Caches the (expensive, one-time) precompute build_keno_ensemble_day_data does
@@ -415,10 +452,12 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
         with open(bestParamsPath, "r") as infile:
             bestParams = json.load(infile)
 
-    # Same lookup Predictor.py's getKenoSubsetSizes does - a single global
-    # choice shared by every model/row, not the per-model-prefixed use_X
-    # choices the individual objectives above each search independently.
-    subset_sizes = [size for size in (5, 6, 7, 8, 9, 10) if bestParams.get(f"use_{size}")]
+    # The served sizes - the global use_<n> flags, the same set
+    # served_keno_subsets gives every other strategy (SERVED_KENO_SUBSETS is
+    # set in __main__ before this precompute runs; the fallback covers a
+    # direct call). Predictor's statisticalMethod, where the meta-learner
+    # rows are served, defaults a missing flag to True the same way.
+    subset_sizes = list(SERVED_KENO_SUBSETS) if SERVED_KENO_SUBSETS is not None else keno_subsets_served(bestParams)
     if not subset_sizes:
         return {"subset_sizes": [], "days": []}
 
@@ -450,15 +489,26 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
     for name, model in models.items():
         backtester.add_model(name, model)
 
-    results = backtester.backtest(
-        start_index=start_index,
-        end_index=total_rows,
-        skipLastColumns=game_cfg["skip_last_columns"],
-        years_back=years_back,
-        include_baselines=False,
-        collect_scores=True,
-        verbose=False
-    )
+    # The one step of this tuner no trial budget reaches: it runs in the
+    # coordinator, once per game. Bounded by its own wall clock (three trial
+    # budgets: measured 43 min at 31 days on 2026-09-05 with a 90-tree
+    # depth-8 XGBoost served, ~6 min a week later with the 10-tree one) so a
+    # slow served configuration cannot hold the weekly chain for hours - the
+    # row is then skipped this run instead.
+    try:
+        results = backtester.backtest(
+            max_seconds=3 * TRIAL_TIMEOUT_SECONDS,
+            start_index=start_index,
+            end_index=total_rows,
+            skipLastColumns=game_cfg["skip_last_columns"],
+            years_back=years_back,
+            include_baselines=False,
+            collect_scores=True,
+            verbose=False
+        )
+    except BacktestTimeout as e:
+        print(f"Keno ensemble day table not built ({e}) - KenoSubsetTuning is skipped this run")
+        return {"subset_sizes": subset_sizes, "days": []}
 
     model_scores = bestParams.get("modelScores", {})
 
@@ -550,18 +600,17 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
     meta_v2_mode = trial.suggest_categorical("metaLearnerV2SubsetMode", ["top", "softmax"])
     meta_v2_temperature = trial.suggest_float("metaLearnerV2SubsetTemperature", 0.05, 2.0)
 
-    total_profit = 0.0
-    bet_count = 0
+    bets_by_day = []
 
     for day in cached["days"]:
+        day_bets = []
         for subset_size in cached["subset_sizes"]:
             subset = helpers.generate_subset_from_scores(
                 day["weighted_scores"], day["weighted_ticket"], subset_size,
                 mode=weighted_mode, temperature=weighted_temperature)
             profit = helpers.keno_ticket_profit(subset, day["actual"])
             if profit is not None:
-                total_profit += profit
-                bet_count += 1
+                day_bets.append(profit)
 
             if day["meta_ticket"] is not None:
                 subset = helpers.generate_subset_from_scores(
@@ -569,8 +618,7 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
                     mode=meta_mode, temperature=meta_temperature)
                 profit = helpers.keno_ticket_profit(subset, day["actual"])
                 if profit is not None:
-                    total_profit += profit
-                    bet_count += 1
+                    day_bets.append(profit)
 
             if day["meta_v2_ticket"] is not None:
                 subset = helpers.generate_subset_from_scores(
@@ -578,10 +626,17 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
                     mode=meta_v2_mode, temperature=meta_v2_temperature)
                 profit = helpers.keno_ticket_profit(subset, day["actual"])
                 if profit is not None:
-                    total_profit += profit
-                    bet_count += 1
+                    day_bets.append(profit)
 
-    return total_profit / bet_count if bet_count else float("-inf")
+        bets_by_day.append(day_bets)
+
+    # The same objective as the model strategies (src/TuningScore.py): a lower
+    # confidence bound of the per-day capped profit per bet, not the raw mean
+    # that one 6/6 in the window could decide.
+    tuning = score_bets_by_day(bets_by_day, payout=True)
+    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+    print(f"Trial {trial.number}: {describe(tuning)}")
+    return tuning["score"]
 
 
 # Maps a -s/--strategies CLI name to its objective + the "use<X>" flag Predictor.py
@@ -593,6 +648,55 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
 # a constant no-op score - wasted runtime plus a meaningless "Best Score: 0.0"
 # in the log and an empty study row in db.sqlite3 for every game it never
 # applied to.
+# What Predictor.py serves when a tuned key is missing from bestParams_<game>.json
+# - its built-in template (Predictor.py, the bestParams_json_object literal)
+# and the .get() fallbacks of the ensemble subset keys. The "default" reference
+# of the champion/challenger gate (src/TuningGate.py): a first tuning of a row
+# has to beat this, not just exist. Kept in step with Predictor.py by hand.
+SERVED_DEFAULTS = {
+    "markovSoftMaxTemperature": 0.10002049510925136,
+    "markovMinOccurences": 9,
+    "markovAlpha": 0.20682688936213361,
+    "markovRecencyWeight": 1.591825953176242,
+    "markovRecencyMode": "constant",
+    "markovPairDecayFactor": 0.34980042438509473,
+    "markovSmoothingFactor": 0.6342058116675424,
+    "markovSubsetSelectionMode": "softmax",
+    "markovBlendMode": "log",
+    "markovOrder": 1,
+    "markovPairScoringWeight": 0.0,
+    "markovMcSoftMaxTemperature": 0.1,
+    "markovMcMinOccurences": 9,
+    "markovMcAlpha": 0.2,
+    "markovMcRecencyWeight": 1.0,
+    "markovMcRecencyMode": "constant",
+    "markovMcPairDecayFactor": 0.3,
+    "markovMcSmoothingFactor": 0.6,
+    "markovMcOrder": 1,
+    "markovMcNumSimulations": 1000,
+    "markovBayesianSoftMaxTemperature": 0.24235148017270242,
+    "markovBayesianMinOccurences": 14,
+    "markovBayesianAlpha": 0.1452615422969012,
+    "markovBayesianEnhancedSoftMaxTemperature": 0.4244268734953605,
+    "markovBayesianEnhancedAlpha": 0.4015984866176651,
+    "markovBayesianEnhancedMinOccurences": 19,
+    "poissonMonteCarloNumberOfSimulations": 600,
+    "poissonMonteCarloWeightFactor": 0.836053158339262,
+    "poissonMarkovWeight": 0.48068822894893704,
+    "poissonMarkovNumberOfSimulations": 100,
+    "laplaceMonteCarloNumberOfSimulations": 900,
+    "hybridStatisticalModelSoftMaxTemperature": 0.918188590362822,
+    "hybridStatisticalModelAlpha": 0.7874157368729954,
+    "hybridStatisticalModelMinOcurrences": 19,
+    "hybridStatisticalModelNumberOfSimulations": 900,
+    "weightedEnsembleSubsetMode": "softmax",
+    "weightedEnsembleSubsetTemperature": 0.5,
+    "metaLearnerSubsetMode": "softmax",
+    "metaLearnerSubsetTemperature": 0.5,
+    "metaLearnerV2SubsetMode": "softmax",
+    "metaLearnerV2SubsetTemperature": 0.5,
+}
+
 STRATEGIES = {
     "Markov": {"objective": objective_markov, "use_key": "useMarkov"},
     "MarkovMonteCarlo": {"objective": objective_markov_mc, "use_key": "useMarkovMonteCarlo"},
@@ -649,8 +753,21 @@ if __name__ == "__main__":
             epilog='Check it out'
         )
 
-        parser.add_argument('-d', '--days', type=int, default=31)
+        parser.add_argument(
+            '-d', '--days', type=int, default=90,
+            help='Backtest window in draws, for every trial and for the gate\'s references. Was 31 '
+                 'until September 2026, when the objective turned out to be decided by whether one '
+                 'jackpot fell inside the window (README "Hyperopt & backtesting").')
         parser.add_argument('-t', '--trials', type=int, default=15)
+        parser.add_argument(
+            '--gate-margin', type=float, default=0.0,
+            help='How much this run\'s best trial must beat the served parameters AND the untuned '
+                 'defaults by - both re-scored on the same window - before it replaces them '
+                 '(src/TuningGate.py). 0 = any improvement.')
+        parser.add_argument(
+            '--no-gate', action='store_true',
+            help='Write this run\'s best trial without comparing it to what is served. Never the '
+                 'study\'s all-time best any more: that is how one lucky window locked itself in.')
         parser.add_argument(
             '--trial-timeout', type=int, default=1200,
             help='Wall-clock budget in seconds per tuning trial; a trial over budget is pruned '
@@ -678,6 +795,8 @@ if __name__ == "__main__":
         daysToRebuild = int(args.days)
         n_trials = int(args.trials)
         TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
+        GATE_ENABLED = not args.no_gate
+        GATE_MARGIN = float(args.gate_margin)
         years_back = None  # None = all available data
 
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
@@ -729,6 +848,11 @@ if __name__ == "__main__":
                     with open(jsonBestParamsFilePath, "r") as infile:
                         existingData = json.load(infile)
 
+                # Trials and gate references bet the sizes Predictor serves.
+                SERVED_KENO_SUBSETS = keno_subsets_served(existingData) if "keno" in dataset_name else None
+                if "keno" in dataset_name:
+                    print(f"Keno subset sizes served (use_<n>): {SERVED_KENO_SUBSETS}")
+
                 is_positional = helpers.is_positional_game(dataset_name)
                 profits = {}
 
@@ -754,13 +878,20 @@ if __name__ == "__main__":
                         # Trials run in their own processes (HyperoptRunner):
                         # the one-time ensemble backtest must be built here,
                         # in the parent, so every trial inherits it through
-                        # the fork instead of rebuilding it (43 min in prod).
+                        # the fork instead of rebuilding it (6-43 min in prod
+                        # at 31 days, depending on the served XGBoost).
                         print(f"Precomputing the Keno ensemble day table for {strategy_name}")
                         _KENO_SUBSET_TUNING_CACHE[dataset_name] = build_keno_ensemble_day_data(
                             dataset_name, dataPath, game_cfg, daysToRebuild, years_back)
+                    if strategy_name == "KenoSubsetTuning" and not _KENO_SUBSET_TUNING_CACHE[dataset_name]["days"]:
+                        print(f"Skipping {strategy_name} for {dataset_name} - no day table this run")
+                        continue
 
                     study = open_study(studyName, optunaDatabase)
                     fail_stale_running_trials(study)
+                    # Trials that exist before this run - the gate compares
+                    # only what this run adds (TuningGate.run_trials).
+                    known_trials = {t.number for t in study.get_trials(deepcopy=False)}
 
                     objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
                                        game_cfg=game_cfg: strategy["objective"](
@@ -773,13 +904,33 @@ if __name__ == "__main__":
                     study = open_study(studyName, optunaDatabase, quiet=True)
                     if not has_completed_trials(study):
                         print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
+                        existingData.get("modelScores", {}).pop(STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name), None)
                         continue
 
-                    print(f"Best Parameters for {strategy_name}: ", study.best_params)
-                    print(f"Best Score for {strategy_name}: ", study.best_value)
-
-                    profits[strategy_name] = study.best_value
-                    existingData.update(study.best_params)
+                    # Champion/challenger (src/TuningGate.py): this run's best
+                    # trial is written only if it beats the served parameters
+                    # and the untuned defaults, re-scored on this run's window.
+                    # Never study.best_params: the study's all-time best is the
+                    # trial that caught the biggest payout (pick3 Markov's 21
+                    # per bet and PoissonMonteCarlo's 42 are one and two
+                    # straights in a 31-day window, nothing else).
+                    display_name = STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name)
+                    outcome = challenge(
+                        study, known_trials, objective, existingData, make_defaults(SERVED_DEFAULTS, existingData),
+                        timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild)
+                    print(outcome["summary"])
+                    existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
+                    if outcome["params"] is not None:
+                        existingData.update(outcome["params"])
+                    if outcome["served_score"] is not None:
+                        profits[strategy_name] = outcome["served_score"]
+                    else:
+                        # Kept without a score on this run's objective: drop a
+                        # raw-profit-era entry (pick3 Markov 21/bet) rather than
+                        # let it take the whole [1, 2] vote-weight range against
+                        # bounds of about -1..+0.2 (Helpers._build_model_weight_lookup).
+                        existingData.get("modelScores", {}).pop(display_name, None)
 
                     # Predictor.py reads these directly for Markov (they're not
                     # tuned separately per non-positional game the way the

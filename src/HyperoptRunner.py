@@ -272,6 +272,84 @@ def kill_tree(pid, grace_seconds=5):
             pass
 
 
+def run_isolated(fn, timeout_seconds=None, label="reference"):
+    """
+    Calls fn() in a forked child and returns ("ok", value), ("error", text)
+    or ("timeout", None); the value travels back through a pipe, so it must
+    be picklable (floats and dicts are what the callers send).
+
+    For the champion/challenger references of src/TuningGate.py: scoring the
+    served parameters is a full backtest, and a coordinator that has run a
+    library fit itself can never safely fork a trial process again (the
+    OpenMP/BLAS pools of a fit do not survive a fork) - so, like a trial, the
+    reference runs in a child that dies with its parent, and a stalled one is
+    killed with its workers after timeout_seconds.
+    """
+    ctx = multiprocessing.get_context("fork")
+    parent_conn, child_conn = ctx.Pipe(duplex=False)
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    def body():
+        _die_with_parent()
+        try:
+            sys.stdout.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError):
+            pass
+        try:
+            result = ("ok", fn())
+        except BaseException as e:  # noqa: BLE001 - anything the objective raises is a result
+            result = ("error", f"{type(e).__name__}: {e}")
+        try:
+            child_conn.send(result)
+        except Exception as e:  # unpicklable value
+            try:
+                child_conn.send(("error", f"result could not be sent: {e}"))
+            except Exception:
+                pass
+        child_conn.close()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+
+    proc = ctx.Process(target=body, name=f"reference:{label}")
+    proc.start()
+    child_conn.close()
+    deadline = time.time() + timeout_seconds if timeout_seconds else None
+    result = ("error", "no result")
+    try:
+        try:
+            while True:
+                if parent_conn.poll(1):
+                    try:
+                        result = parent_conn.recv()
+                    except EOFError:
+                        result = ("error", "the child closed the pipe without a result")
+                    break
+                if not proc.is_alive():
+                    # sent-and-exited between the poll and the liveness check?
+                    if parent_conn.poll(0):
+                        continue
+                    result = ("error", f"the child exited with code {proc.exitcode} without a result")
+                    break
+                if deadline is not None and time.time() > deadline:
+                    kill_tree(proc.pid)
+                    result = ("timeout", None)
+                    break
+        except BaseException:
+            # SIGTERM/Ctrl+C or a crash of the coordinator: never leave the
+            # reference and its Backtester workers fitting for a run that is
+            # gone - the caller's finally releases process.lock, and
+            # multiprocessing's atexit hook would otherwise join this
+            # non-daemon child without a timeout.
+            kill_tree(proc.pid)
+            raise
+    finally:
+        proc.join(timeout=10)
+        parent_conn.close()
+    return result
+
+
 # --- the coordinator ------------------------------------------------------------
 
 def _trial_process(study_name, storage_url, objective, parallel, pruner_factory):

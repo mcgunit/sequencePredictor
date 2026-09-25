@@ -20,7 +20,9 @@ from src.DataLoader import DataLoader
 from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
 from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
 from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
-from src.BoostingBase import apply_boosting_params
+from src.BoostingBase import apply_boosting_params, BOOSTING_PARAM_SUFFIXES
+from src.TuningScore import score_rows, attrs_for_trial, describe
+from src.TuningGate import challenge, make_defaults
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -56,8 +58,8 @@ GAME_CONFIG = {
 KENO_SUBSET_VALUES = [5, 6, 7, 8, 9, 10]
 
 # Games with a real payout table - the Backtester computes profit rows for
-# them and score_from_summary tunes on profit_per_bet (mirrors
-# HyperoptStatistics.PAYOUT_GAMES).
+# them and the objective is built on capped profit per bet (src/TuningScore.py;
+# mirrors HyperoptStatistics.PAYOUT_GAMES).
 PAYOUT_GAMES = ("keno", "pick3", "jokerplus")
 
 
@@ -113,22 +115,36 @@ def print_intro():
     print("Find best boosting parameters for Predictor")
 
 
-def suggest_keno_subset(trial, model_name):
-    """
-    Binary inclusion mask over the 5-10 playable Keno subset sizes for one
-    specific model - identical to HyperoptStatistics.py's version, including
-    the model-name prefix on every param name so this study's tuned choice
-    can't be silently overwritten by another strategy's study when both get
-    merged into the same bestParams_<game>.json. Returns None (caller should
-    treat the trial as invalid) if the mask selects nothing.
-    """
-    inclusion_mask = [trial.suggest_categorical(f"{model_name}_use_{v}", [True, False]) for v in KENO_SUBSET_VALUES]
-    subset = [v for v, include in zip(KENO_SUBSET_VALUES, inclusion_mask) if include]
+# The game's served Keno subset sizes, set per game in __main__ from
+# bestParams_<game>.json (None = every playable size, what Predictor's own
+# template serves). Module global so the objectives - which run in forked
+# trial processes and in the gate's reference children - inherit it.
+SERVED_KENO_SUBSETS = None
 
-    if not subset:
-        return None
 
-    return subset
+def keno_subsets_served(bestParams):
+    """
+    The Keno subset sizes the game serves: the global use_<n> flags, a
+    missing flag read as served (Predictor's statisticalMethod and boosting
+    templates default them to True; its vote-ensemble rows read a missing
+    flag as not played - the file has carried all six keys for years).
+    """
+    return [size for size in KENO_SUBSET_VALUES if bestParams.get(f"use_{size}", True)]
+
+
+def served_keno_subsets(model_name):
+    """
+    The Keno subset sizes a trial (and a gate reference) bets on: the sizes
+    the game serves. Until September 2026 this was suggest_keno_subset, a
+    searched per-model inclusion mask written as "<model>_use_<n>" keys -
+    which Predictor never read (getKenoSubsetSizes uses the global flags), so
+    a trial's value depended on ticket sizes that never reached production
+    and the gate would have compared unlike tickets. Returns None when the
+    game serves no playable size (the caller treats the trial as invalid).
+    The stale per-model keys in older files are simply ignored.
+    """
+    sizes = list(KENO_SUBSET_VALUES) if SERVED_KENO_SUBSETS is None else list(SERVED_KENO_SUBSETS)
+    return sizes or None
 
 
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
@@ -136,9 +152,13 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     """
     Same Backtester-driven evaluation HyperoptStatistics.py uses (rolling
     walk-forward over the last `days_to_rebuild` draws, each day retrained on
-    only the data before it), returning that model's compact summary dict.
-    Backtester reseeds numpy/random per (day, model), so a given set of
-    hyperparameters scores deterministically - no repeat/average needed.
+    only the data before it), returning that model's compact summary dict
+    with the tuning objective attached under "tuning" (src/TuningScore.py: a
+    lower confidence bound over the days, jackpots capped - see there for why
+    raw profit per bet was replaced). Backtester reseeds numpy/random per
+    (day, model), so a given set of hyperparameters scores deterministically;
+    a repeat would return the same number, which is why the objective works
+    on the spread over the days instead.
     """
     loader = DataLoader()
     loader.setDataPath(dataPath)
@@ -168,11 +188,12 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     # the bottom quartile after half the window. Pruned trials are recorded
     # as PRUNED - never as a bad score - so the ranking of finished trials is
     # untouched.
+    positional = helpers.is_positional_game(dataset_name)
     progress_callback = None
     if trial is not None:
         def progress_callback(iteration, rows):
-            partial = backtester.summarize(rows).get("models", {}).get(model_name, {})
-            trial.report(score_from_summary(partial), step=iteration)
+            partial = score_rows(rows, model_name, payout=game_param is not None, positional=positional, game=dataset_name)
+            trial.report(partial["score"], step=iteration)
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
@@ -193,19 +214,28 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     )
 
     summary = backtester.summarize(results)
-    return summary.get("models", {}).get(model_name, {})
+    model_summary = dict(summary.get("models", {}).get(model_name, {}))
+    model_summary["tuning"] = score_rows(results, model_name, payout=game_param is not None, positional=positional,
+                                         game=dataset_name)
+    return model_summary
 
 
 def score_from_summary(model_summary):
     """
-    Optuna objective value: profit_per_bet where this game has a payout model,
-    else avg hits - same rationale as HyperoptStatistics.score_from_summary
-    (per-bet so a trial betting fewer subset sizes isn't penalised for placing
-    fewer bets; still vulnerable to a single jackpot-tier payout dominating,
-    see Backtester.summarize()'s "lucky_strikes").
+    Optuna objective value: the "tuning" score run_backtest attached
+    (src/TuningScore.py - a lower confidence bound over the window's days,
+    capped profit per bet where this game has a payout model, slot hits for
+    the positional games, hits otherwise). A summary without it (an older
+    caller) falls back to the pre-September-2026 value, raw profit_per_bet
+    or avg hits - the number one jackpot-tier payout in the window could
+    decide (see Backtester.summarize()'s "lucky_strikes").
     """
     if not model_summary:
         return float("-inf")
+
+    tuning = model_summary.get("tuning")
+    if tuning is not None:
+        return tuning["score"]
 
     profit_per_bet = model_summary.get("profit_per_bet")
     if profit_per_bet is not None:
@@ -221,7 +251,7 @@ def suggest_boosting_params(trial, prefix):
     (see BOOSTING_PARAM_SUFFIXES in src/BoostingBase.py) so the six models'
     tuned values land under their own bestParams_<game>.json keys instead of
     clobbering each other - the same reasoning as
-    HyperoptDeepLearning.MODEL_PARAM_PREFIX and suggest_keno_subset below.
+    HyperoptDeepLearning.MODEL_PARAM_PREFIX.
 
     Shared deliberately: the point of running three libraries over two
     formulations is to compare them, which only means anything if each was
@@ -262,6 +292,7 @@ CATBOOST_BORDER_COUNT = 254
 # Refit cadence (days per fit) for the walk-forward evaluation and the pruning
 # percentile (0 disables pruning) - set from the CLI in __main__.
 REFIT_EVERY = 7
+REFIT_BLOCKS = 5  # the block count the budget, threads and parallelism were calibrated for
 PRUNE_PERCENTILE = 25.0
 # Pruning only after half the window has been scored and only once this many
 # trials have COMPLETED, so a good configuration with an unlucky first week is
@@ -289,6 +320,11 @@ MEMORY_RESERVE_GB = 2.0
 # cadence and budget - so a faster box or a larger --trial-timeout starts from
 # a clean slate. Set in __main__.
 BUDGET_TAG = ""
+# Champion/challenger gate (src/TuningGate.py), set from the CLI in __main__:
+# this run's best trial replaces the served parameters only if it beats them
+# and the untuned defaults, re-scored on the same window, by GATE_MARGIN.
+GATE_ENABLED = True
+GATE_MARGIN = 0.0
 
 
 def fit_cost(prefix, params):
@@ -364,7 +400,11 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         cost = fit_cost(prefix, params)
         trial.set_user_attr("fit_cost", cost)
         trial.set_user_attr("budget_tag", BUDGET_TAG)
-        floor = known_timeout_cost_floor(trial.study, BUDGET_TAG)
+        # A FixedTrial (a TuningGate reference: the served parameters being
+        # re-scored) has no study and gets no cost gate - it is what Predictor
+        # serves and refits every day, so it is evaluated once regardless.
+        study = getattr(trial, "study", None)
+        floor = known_timeout_cost_floor(study, BUDGET_TAG) if study is not None else None
         if floor is not None and cost >= floor:
             reason = (f"fit cost {cost:.0f} >= {floor:.0f} of a trial that hit the "
                       f"{TRIAL_TIMEOUT_SECONDS}s budget")
@@ -409,7 +449,7 @@ def make_boosting_objective(model_class, prefix, backtest_name):
 
         subsets = []
         if "keno" in dataset_name:
-            subsets = suggest_keno_subset(trial, backtest_name)
+            subsets = served_keno_subsets(backtest_name)
             if subsets is None:
                 return float("-inf")
 
@@ -429,9 +469,15 @@ def make_boosting_objective(model_class, prefix, backtest_name):
             print(f"Trial {trial.number} pruned: {e}")
             raise optuna.TrialPruned()
         trial.set_user_attr("seconds", round(time.time() - started, 1))
+        # The raw profit per bet and the lucky strikes travel with the trial,
+        # so a look at the study shows what a value was made of.
+        tuning = summary.get("tuning") if summary else None
+        trial.set_user_attr("tuning", attrs_for_trial(tuning))
+        print(f"Trial {trial.number}: {describe(tuning)}")
         return score_from_summary(summary)
 
     objective.prefix = prefix  # optimize_study sizes the parallelism per library
+    objective.backtest_name = backtest_name  # the row's name in the Backtester (Keno subsets, logs)
     return objective
 
 
@@ -524,7 +570,20 @@ if __name__ == "__main__":
             epilog='Check it out'
         )
 
-        parser.add_argument('-d', '--days', type=int, default=31)
+        parser.add_argument(
+            '-d', '--days', type=int, default=90,
+            help='Backtest window in draws, for every trial and for the gate\'s references. Was 31 '
+                 'until September 2026, when the objective turned out to be decided by whether one '
+                 'jackpot fell inside the window (README "Hyperopt & backtesting").')
+        parser.add_argument(
+            '--gate-margin', type=float, default=0.0,
+            help='How much this run\'s best trial must beat the served parameters AND the untuned '
+                 'defaults by - both re-scored on the same window - before it replaces them '
+                 '(src/TuningGate.py). 0 = any improvement.')
+        parser.add_argument(
+            '--no-gate', action='store_true',
+            help='Write this run\'s best trial without comparing it to what is served. Never the '
+                 'study\'s all-time best any more: that is how one lucky window locked itself in.')
         parser.add_argument(
             '-t', '--trials', type=int, default=15,
             help='Evaluated trials per study and run (studies persist in db.sqlite3, so runs add up). '
@@ -538,13 +597,17 @@ if __name__ == "__main__":
                  'machine with the same window, cadence and budget. Default 20 minutes - the '
                  'study medians are minutes, the outliers were hours.')
         parser.add_argument(
-            '--refit-every', type=int, default=7,
+            '--refit-every', type=int, default=None,
             help='Refit cadence for the walk-forward evaluation: one boosted fit per block of N '
                  'consecutive days (block-aligned, never leaky - see BoostingBase.setRefitEvery). '
-                 '1 = refit every day (production behavior, slowest); 7 (default) measured ~7x '
-                 'faster on the CatBoost strategies (eurodreams CatBoostMultiLabel, 2 trials x 21 '
-                 'days: 7.5 min -> 66 s); equal to --days = one fit per trial. Same cadence for '
-                 'every trial, so the ranking is unaffected.')
+                 'Default: the window over five blocks (7 at -d 31, 18 at the -d 90 default), so a '
+                 'trial keeps the shape the 20-minute budget, the CatBoost thread count and the trial '
+                 'parallelism were calibrated for at any window of 29 days or more (the cadence never '
+                 'drops below 7, so a shorter window has fewer blocks). 1 = refit every day '
+                 '(production behavior, slowest); 7 measured ~7x faster than 1 on the CatBoost '
+                 'strategies (eurodreams CatBoostMultiLabel, 2 trials x 21 days: 7.5 min -> 66 s); '
+                 'equal to --days = one fit per trial. Same cadence for every trial and for the '
+                 'gate\'s references, so the ranking is unaffected.')
         parser.add_argument(
             '--prune-percentile', type=float, default=25.0,
             help='Optuna PercentilePruner threshold: stop a trial whose partial score after half the '
@@ -594,10 +657,13 @@ if __name__ == "__main__":
         n_trials = int(args.trials)
         TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
         CATBOOST_BORDER_COUNT = int(args.catboost_border_count)
-        REFIT_EVERY = max(1, int(args.refit_every))
+        REFIT_EVERY = max(1, int(args.refit_every)) if args.refit_every is not None \
+            else max(7, -(-daysToRebuild // REFIT_BLOCKS))
         PRUNE_PERCENTILE = max(0.0, float(args.prune_percentile))
         PARALLEL_TRIALS = max(0, int(args.parallel_trials))
         MEMORY_RESERVE_GB = max(0.0, float(args.memory_reserve_gb))
+        GATE_ENABLED = not args.no_gate
+        GATE_MARGIN = float(args.gate_margin)
         BUDGET_TAG = (f"{cpu_count()}c-{total_memory_gb():.0f}g-d{daysToRebuild}"
                       f"-r{REFIT_EVERY}-t{TRIAL_TIMEOUT_SECONDS}")
         try:
@@ -656,6 +722,11 @@ if __name__ == "__main__":
                     with open(jsonBestParamsFilePath, "r") as infile:
                         existingData = json.load(infile)
 
+                # Trials and gate references bet the sizes Predictor serves.
+                SERVED_KENO_SUBSETS = keno_subsets_served(existingData) if "keno" in dataset_name else None
+                if "keno" in dataset_name:
+                    print(f"Keno subset sizes served (use_<n>): {SERVED_KENO_SUBSETS}")
+
                 profits = {}
 
                 for strategy_name in strategies:
@@ -676,6 +747,9 @@ if __name__ == "__main__":
 
                     study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory())
                     fail_stale_running_trials(study)
+                    # Trials that exist before this run - the gate compares
+                    # only what this run adds (TuningGate.run_trials).
+                    known_trials = {t.number for t in study.get_trials(deepcopy=False)}
 
                     objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
                                        game_cfg=game_cfg: strategy["objective"](
@@ -701,13 +775,37 @@ if __name__ == "__main__":
                     # tuned before and move on.
                     if not has_completed_trials(study):
                         print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
+                        existingData.get("modelScores", {}).pop(STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name), None)
                         continue
 
-                    print(f"Best Parameters for {strategy_name}: ", study.best_params)
-                    print(f"Best Score for {strategy_name}: ", study.best_value)
-
-                    profits[strategy_name] = study.best_value
-                    existingData.update(study.best_params)
+                    # Champion/challenger (src/TuningGate.py): this run's best
+                    # trial is written only if it beats the served parameters
+                    # and the untuned defaults, re-scored on this run's window.
+                    # Never study.best_params: the study's all-time best is the
+                    # trial that caught the biggest payout (keno LightGBM's 5.0
+                    # of 10 Sept 2026 was one 6/6 on an otherwise losing window,
+                    # and it stayed served because no later window came close).
+                    display_name = STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name)
+                    prefix = strategy["objective"].prefix
+                    code_defaults = {f"{prefix}{suffix}": default for suffix, _, default in BOOSTING_PARAM_SUFFIXES}
+                    outcome = challenge(
+                        study, known_trials, objective, existingData, make_defaults(code_defaults, existingData),
+                        timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild)
+                    print(outcome["summary"])
+                    existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
+                    if outcome["params"] is not None:
+                        existingData.update(outcome["params"])
+                    if outcome["served_score"] is not None:
+                        profits[strategy_name] = outcome["served_score"]
+                    else:
+                        # Kept without a score on this run's objective. An entry
+                        # left from the raw-profit era (pick3 up to 41.6/bet) would
+                        # be min-max scaled against bounds of about -1..+0.2 and
+                        # take the whole [1, 2] vote-weight range for itself
+                        # (Helpers._build_model_weight_lookup): neutral 1.0
+                        # instead, until this row is re-scored.
+                        existingData.get("modelScores", {}).pop(display_name, None)
 
                     # Predictor.py gates this model on its use_key; hyperopt
                     # never disables a model (the same policy the statistical

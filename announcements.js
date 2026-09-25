@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-24-tuning-gate',
+    date: '2026-09-24',
+    level: 'minor',
+    audience: 'all',
+    title: 'Tuning can no longer be hijacked by one lucky draw',
+    body: [
+      'The weekly statistical and boosting tuners used to rank their trials by raw profit per bet over 31 days, and to keep the best trial a study had ever seen. One jackpot inside the window decided both: the keno LightGBM parameters served since 10 September scored 5.0 per bet from a single 6/6, the pick3 XGBoost and CatBoost parameters from single straights - each on a window that otherwise lost, and each locked in because no later window could match the luck.',
+      'Trials are now scored by a lower confidence bound over the days of the window, with jackpots capped so they count as one good bet; pick3 is scored on digits in the right slot and Joker+ on its leading and trailing runs, which every draw informs. The window is 90 draws instead of 31.',
+      'A run\'s best trial replaces the served parameters only if it beats them and the untuned defaults, both re-scored on the same window. Every decision is recorded in the game\'s bestParams file under tuningGate, with the raw profit and the number of lucky strikes next to the score, so a hijack stays visible.',
+    ],
+    link: { href: '/admin/jobs', label: 'Jobs page' },
+  },
+  {
     id: '2026-09-23-council-sessions',
     date: '2026-09-23',
     level: 'major',

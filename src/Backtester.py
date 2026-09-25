@@ -21,6 +21,28 @@ helpers = Helpers()
 _worker_ctx = {}
 
 
+def _worker_dies_with_parent():
+    """
+    Pool initializer: Linux prctl(PR_SET_PDEATHSIG, SIGTERM), so a worker ends
+    when the process that forked the pool does. Without it a backtest whose
+    owner is SIGKILLed (the OOM killer, `kill -9` of a hyperopt trial or of a
+    TuningGate reference child) leaves its workers reparented to PID 1 and
+    fitting until their block completes - hours for a deep CatBoost
+    configuration, on cores and memory the next trial then competes for -
+    and nothing can find them any more (HyperoptRunner.kill_tree walks the
+    parent chain). SIGTERM is the default-terminate signal here; the tuners'
+    own handler (HyperoptRunner._exit_on_sigterm) resets a pool worker to
+    SIG_DFL first, so the worker dies without running Python in a C callback.
+    Best effort: silently a no-op where prctl is unavailable.
+    """
+    try:
+        import ctypes
+        import signal as _signal
+        ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, _signal.SIGTERM)  # 1 = PR_SET_PDEATHSIG
+    except (OSError, AttributeError):
+        pass
+
+
 def _positional_hits(prediction, actual, game):
     """
     Hit count of one positional-game ticket in the game's own currency.
@@ -611,7 +633,7 @@ class Backtester:
         chunksize = max(1, int(chunksize))
         results = []
 
-        with Pool(processes=num_workers) as pool:
+        with Pool(processes=num_workers, initializer=_worker_dies_with_parent) as pool:
             # Wall-clock budget (hyperopt trials): a single pathological
             # hyperparameter combination (CatBoost depth 10 x 300 trees x
             # 50-draw windows) was measured at 12 hours for one 31-day
@@ -863,29 +885,15 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Failed to load {bestParamsPath}, using defaults: ", e)
 
-    # Each strategy's own bestParams entry stores its subset choice under a
-    # model-prefixed key (e.g. "markov_use_5", "hybrid_statistical_use_10") -
-    # see HyperoptStatistics.py's suggest_keno_subset - since a shared bare
-    # "use_5" key would get silently overwritten by whichever strategy's study
-    # happened to run last. Backtester.backtest() accepts a per-model dict for
-    # generate_subsets (see its docstring), so each model genuinely only gets
-    # asked for the sizes it was individually tuned for - a model that hasn't
-    # been hyperopted yet (no "<model>_use_N" keys at all) falls back to all
-    # 6 sizes rather than silently getting none.
-    KENO_MODEL_NAMES = [
-        "markov", "markov_mc", "markov_bayesian", "markov_bayesian_enhanced",
-        "poisson_mc", "poisson_markov", "laplace_mc", "hybrid_statistical"
-    ]
-
-    def tuned_subset_sizes(model_name):
-        has_any_tuned_flag = any(f"{model_name}_use_{size}" in bestParams for size in [5, 6, 7, 8, 9, 10])
-        if not has_any_tuned_flag:
-            return [5, 6, 7, 8, 9, 10]
-        return [size for size in [5, 6, 7, 8, 9, 10] if bestParams.get(f"{model_name}_use_{size}", False)]
-
+    # Bet the Keno subset sizes the game serves - the global use_<n> flags
+    # Predictor.getKenoSubsetSizes reads and the tuners' keno_subsets_served
+    # bets (HyperoptStatistics.py / HyperoptBoost.py). Older files still
+    # carry stale per-model "<model>_use_<n>" masks from the pre-September-
+    # 2026 tuners; nothing writes or reads them any more, so they are
+    # ignored here too. A file serving no size falls back to all six.
     generateSubsets = [5, 6, 7, 8, 9, 10]
     if "keno" in name:
-        generateSubsets = {model_name: tuned_subset_sizes(model_name) for model_name in KENO_MODEL_NAMES}
+        generateSubsets = [size for size in (5, 6, 7, 8, 9, 10) if bestParams.get(f"use_{size}", True)] or [5, 6, 7, 8, 9, 10]
 
     # -------------------------
     # Markov
