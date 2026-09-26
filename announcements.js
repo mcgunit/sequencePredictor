@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-27-control-experiments',
+    date: '2026-09-27',
+    level: 'minor',
+    audience: 'all',
+    title: 'The History page now shows what the best row scores on nothing',
+    body: [
+      'Two control experiments run every Sunday after the predictor. The first scores every tracked row on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - so the Best model per game card can show the null band: the score the best of the rows reaches by selection alone. Rows within it are greyed and marked, like rows with too few draws.',
+      'The second asks a suite of classifiers to tell windows of real draws from fair simulated ones, held against the same suite on two fair histories and on the shuffled real draws. Its verdict is a new column on the Randomness watch card, next to the daily entropy tripwire - the controlled test the tripwire cannot give.',
+      'Both are measurements of the rows, never inputs to them. They run in their own weekly plan that starts only after Sunday\'s predictor has finished, so they are never part of Saturday\'s tuning chain and never push Sunday\'s predictions behind them; like the chain, they queue in the same order, so a run that overruns into Monday morning makes that day\'s predictor wait for it.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-09-24-tuning-gate',
     date: '2026-09-24',
     level: 'minor',

@@ -55,7 +55,7 @@ from src.DataLoader import DataLoader
 from src.Helpers import Helpers
 from src.ControlHistories import build_control_dataset, CONTROL_ROOT
 from src.ModelFactory import build_models, prepare_foundation_scores
-from HyperoptStatistics import GAME_CONFIG
+from HyperoptStatistics import GAME_CONFIG, is_running, create_lock, remove_lock
 
 helpers = Helpers()
 
@@ -109,6 +109,12 @@ def evaluate(game, dataPath, days, foundation=False):
         value = (entry.get("main") or {}).get("hits", entry.get("hits_avg"))
         if value is not None:
             scores[name] = float(value)
+    # Pick3 note: the Backtester's "_hits" is the historical SET count (a box
+    # counts three), and so is the History page's average hits for pick3
+    # (Helpers.generate_model_performance_report) - the band is shown against
+    # that column, so it stays in that currency. The tuners score pick3 on
+    # slot hits instead (src/TuningScore); that is a different question.
+    # Joker+ is runs on both sides.
     return scores, len(results)
 
 
@@ -161,6 +167,9 @@ def run(game, mode, seeds, days, foundation, recent=None):
     report = selection_report(per_seed)
     report.update({"game": game, "mode": mode, "seeds": list(seeds), "days": days, "recent": recent or 0,
                    "foundation_rows": bool(foundation),
+                   # what the numbers are, for the History page's band label:
+                   # the same count the page's "Avg hits" column uses
+                   "metric": "hits per draw",
                    "winner_per_seed": winners, "generated_at": datetime.now().isoformat(timespec="seconds")})
     os.makedirs(RESULT_DIR, exist_ok=True)
     with open(os.path.join(RESULT_DIR, f"{game}-{mode}.json"), "w") as handle:
@@ -219,4 +228,18 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # The same process.lock every other entry point takes (imported from
+    # HyperoptStatistics so the rule lives in one place): the scheduler and a
+    # hand-run runPredictor.sh both decide from it whether the box is busy, and
+    # a control run is a full backtest per history. A live lock means exit, as
+    # for the tuners - the scheduler queues the job behind the holder.
+    if is_running():
+        print("Another instance is already running. Exiting.")
+        sys.exit(1)
+    if not create_lock():
+        print("Failed to create lock file. Exiting.")
+        sys.exit(1)
+    try:
+        sys.exit(main())
+    finally:
+        remove_lock()

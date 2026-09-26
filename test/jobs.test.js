@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const jobs = require('../jobs');
-const { dueAt, weekId, dayId, lastWeekdaySlot, nextDaily, CHAIN_KEYS, CHAIN_PLAN,
+const { dueAt, weekId, dayId, lastWeekdaySlot, nextDaily, CHAIN_KEYS, CHAIN_PLAN, CONTROL_KEYS, CONTROLS_PLAN, PLANS, planTriggerAt,
         chainTriggerAt, exitCodeFrom, allowedQueue } = jobs._internals;
 
 let checks = 0;
@@ -21,15 +21,20 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 7, 'seven jobs: the daily predictor and the six of the weekly chain');
+ok(jobs.JOBS.length === 9, 'nine jobs: the daily predictor, the six of the weekly tuning chain and the two control experiments');
 ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true',
   'the daily job is Predictor.py -a true, exactly as runPredictor.sh had it');
 ok(byKey.predictor.daily.hour === 9 && byKey.predictor.daily.minute === 0, 'the predictor keeps its 09:00 slot');
 ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner',
   'the weekly chain keeps the order runHyperopt.sh documented');
+ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,nullControls', 'the control plan runs Q2 (an hour) before Q0 (hours)');
+ok(jobs.JOBS.every((j) => !j.plan || PLANS[j.plan]), 'every planned job belongs to a known plan');
 ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'),
   'the quantum tuner must run before the retrain - that is why the retrain is weekly at all');
 ok(CHAIN_KEYS[CHAIN_KEYS.length - 1] === 'trainMetaLearner', 'the meta-learner retrain stays last');
+ok(byKey.nullControls.args.includes('-d') && byKey.nullControls.args.includes('both') && byKey.randomnessDiscrimination.args.includes('-w'),
+  'the controls run with an explicit window, both control kinds and every game');
+ok(['nullControls', 'randomnessDiscrimination'].every((k) => byKey[k].args[1].split(',').length === 7), 'both controls cover the seven games');
 
 // The shell scripts stay as the hand-run path, so they must not drift from
 // the schedule: same scripts, same order, or one of the two is wrong.
@@ -41,6 +46,9 @@ const orderInShell = CHAIN_KEYS.map((key) => runHyperopt.indexOf(`python3 ${byKe
 ok(orderInShell.every((i) => i > 0), 'every chain job appears in runHyperopt.sh');
 ok(orderInShell.every((pos, i) => i === 0 || pos > orderInShell[i - 1]),
   'the chain runs in runHyperopt.sh order - if one moves, both must move');
+const controlsInShell = CONTROL_KEYS.map((key) => runHyperopt.indexOf(`python3 ${byKey[key].script}`));
+ok(controlsInShell.every((i) => i > orderInShell[orderInShell.length - 1]) && controlsInShell[0] < controlsInShell[1],
+  'the hand-run path runs the controls after the retrain, in the plan order');
 
 jobs.JOBS.forEach((job) => {
   ok(fs.existsSync(path.join(__dirname, '..', job.script)), `${job.key}: ${job.script} exists in the repo`);
@@ -49,6 +57,28 @@ jobs.JOBS.forEach((job) => {
 });
 ok(new Set(jobs.JOBS.map((j) => j.log)).size === jobs.JOBS.length, 'every job writes to its own log');
 ok(jobs.JOBS.filter((j) => j.daily).length === 1, 'only the predictor runs on a clock');
+
+// --- the weekly control experiments: their own Sunday plan ------------------
+// Measurements of the rows, never inputs to them, and hours long: started by
+// Sunday's predictor finishing, so a tuning chain that overruns into Sunday
+// still lets that day's predictions go first, on the agreed FIFO.
+const SUN = '2026-09-27';
+ok(PLANS[CONTROLS_PLAN].weekday === 0 && PLANS[CHAIN_PLAN].weekday === 6, 'tuning on Saturday, controls on Sunday');
+ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T10:30:00`)) === `${CONTROLS_PLAN}@2026-W39`,
+  "a predictor finishing after Sunday's slot starts this week's controls");
+ok(planTriggerAt(CONTROLS_PLAN, {}, at('2026-09-26T10:30:00')) === null, 'Saturday starts no controls');
+ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T04:30:00`)) === null, "a chain-delayed Saturday predictor finishing before Sunday 09:00 starts nothing");
+ok(planTriggerAt(CHAIN_PLAN, {}, at(`${SUN}T10:30:00`)) === null, 'Sunday starts no tuning chain');
+ok(planTriggerAt(CONTROLS_PLAN, { [`${CONTROLS_PLAN}@2026-W39`]: { at: 'x' } }, at(`${SUN}T10:30:00`)) === null,
+  'controls that already ran this week are not started again');
+ok(!plans({}, at(`${SUN}T22:00:00`)).includes(CONTROLS_PLAN), "no catch-up while Sunday's run could still be going");
+ok(plans({}, at(`${SUN}T23:30:00`)).includes(CONTROLS_PLAN), 'by Sunday night controls that never started are caught up');
+ok(plans({}, at('2026-09-29T08:00:00')).includes(CONTROLS_PLAN) && !plans({}, at('2026-09-29T10:00:00')).includes(CONTROLS_PLAN),
+  'and until Tuesday morning, then the week is written off');
+ok(dueAt({}, at('2026-09-28T12:00:00')).find((d) => d.plan === CONTROLS_PLAN).occurrence === `${CONTROLS_PLAN}@2026-W39`,
+  'Monday still belongs to the ISO week of the Sunday that anchors it');
+ok(dueAt({}, at('2026-09-28T08:00:00')).map((d) => d.plan).join(',') === `${CHAIN_PLAN},${CONTROLS_PLAN}`,
+  'when both weekly plans are owed at once the tuning chain is queued first');
 
 // --- the daily predictor ----------------------------------------------------
 ok(plans({}, at('2026-09-23T09:00:00')).includes('predictor'), 'due at its slot');
@@ -85,7 +115,7 @@ ok(dueAt({}, at('2026-09-27T12:00:00')).find((d) => d.plan === CHAIN_PLAN).occur
 // A review of this module found the chain could run twice in one weekend: a
 // Friday catch-up predictor finishing at 04:30 on Saturday anchors to LAST
 // Saturday, so it fired under the previous week's id and left this week's id
-// free for the 23:00 safety net to fire the whole six-job chain again.
+// free for the 23:00 safety net to fire the whole chain again.
 ok(chainTriggerAt({}, at(`${SAT}T10:30:00`)) === `${CHAIN_PLAN}@2026-W39`,
   "a predictor finishing after Saturday's slot starts this week's chain");
 ok(chainTriggerAt({}, at(`${SAT}T04:30:00`)) === null,
@@ -130,5 +160,32 @@ ok(weekId(at('2027-01-03T12:00:00')) === '2026-W53', 'the Sunday of a week that 
 ok(dayId(at('2026-09-05T23:00:00')) === '2026-09-05', 'day ids are zero padded');
 ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at('2026-09-24T09:00:00').getTime(),
   'after today\'s slot the next one is tomorrow');
+
+
+// --- what the two control jobs say and do on the Jobs page -----------------
+{
+  const { nextDueText, planBaseline } = jobs._internals;
+  const anyNow = at('2026-09-26T20:00:00');
+  ok(CONTROL_KEYS.every((k) => nextDueText(byKey[k], anyNow) === "when Sunday's predictor finishes"),
+    'the two control jobs say Sunday on the Jobs page, from the plan table');
+  ok(CHAIN_KEYS.every((k) => nextDueText(byKey[k], anyNow) === "when Saturday's predictor finishes"), 'the chain jobs still say Saturday');
+  // Every scheduled entry point takes process.lock, or the scheduler's "one
+  // job at a time behind the same lock" promise is void for it.
+  jobs.JOBS.forEach((job) => {
+    const text = fs.readFileSync(path.join(__dirname, '..', job.script), 'utf-8');
+    ok(text.includes('create_lock') && text.includes('remove_lock'), `${job.key}: ${job.script} takes and releases process.lock`);
+  });
+  // A plan added to a running installation is baselined on its own: the
+  // occurrence inside its catch-up net at the deploy is marked handled, once,
+  // instead of starting hours of controls on the deploy.
+  const deploy = planBaseline({}, {}, at('2026-09-28T21:00:00'));   // a Monday evening deploy
+  ok(deploy.fresh.length === 2 && deploy.skipped.map((e) => e.occurrence).join(',') === `${CONTROLS_PLAN}@2026-W39`,
+    'at a Monday deploy the controls occurrence inside the net is skipped; the chain is past its net');
+  const sunday = planBaseline({ [CHAIN_PLAN]: 'x' }, {}, at('2026-09-27T12:00:00'));
+  ok(sunday.fresh.join(',') === CONTROLS_PLAN && sunday.skipped.length === 0,
+    'a Sunday-noon deploy skips nothing: the net opens at 23:00 and this week\'s controls still run tonight');
+  const done = planBaseline({ [CHAIN_PLAN]: 'x', [CONTROLS_PLAN]: 'x' }, {}, at('2026-09-28T21:00:00'));
+  ok(done.fresh.length === 0 && done.skipped.length === 0, 'a baselined plan is never baselined again - its next miss is a real miss');
+}
 
 console.log(`jobs.js: ${checks} checks passed (${jobs.JOBS.length} jobs, ${CHAIN_KEYS.length} in the weekly chain)`);

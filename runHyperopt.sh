@@ -1,11 +1,15 @@
 #!/bin/bash
 
-# The weekly tuning chain. Since README roadmap item 8 the web server's
-# scheduler (jobs.js) runs these same scripts, in this same order, as seven
-# separate jobs - started when Saturday's predictor finishes instead of at a
-# fixed hour, each one visible with its own exit code on the Jobs page. This
-# script stays as the hand-run path and as the fallback while the schedule is
-# off; keep the order identical, test/jobs.test.js compares the two.
+# The weekly tuning chain plus the two control experiments. Since README
+# roadmap item 8 the web server's scheduler (jobs.js) runs these same scripts,
+# in this same order, as eight separate jobs in two plans: the six tuners
+# (HyperoptStatistics.py .. TrainMetaLearner.py) as the weekly chain, started
+# when Saturday's predictor finishes, and RandomnessDiscrimination.py and
+# NullControls.py as the weekly controls plan, started when Sunday's predictor
+# finishes - never at a fixed hour, each one visible with its own exit code on
+# the Jobs page. This script stays as the hand-run path for both and as the
+# fallback while the schedule is off; keep the order identical,
+# test/jobs.test.js compares the two.
 
 cd /root/sequencePredictor/
 
@@ -56,3 +60,10 @@ python3 HyperoptQuantum.py >> /root/sequencePredictor/log/hyperoptQuantum.log 2>
 # Retrain the Phase 1 stacking meta-learner on the freshly tuned bestParams_<game>.json
 # files, so Predictor.py's MetaLearner Model always reflects the latest hyperopt run.
 python3 TrainMetaLearner.py >> /root/sequencePredictor/log/TrainMetaLearner.log 2>&1
+
+# The two control experiments (README "Null controls"), after everything that
+# changes what is served: measurements of the rows, never inputs to them.
+# Q2 first (about an hour), then Q0 (hours: a full backtest per control
+# history). Both write under data/controls/ for the History page's cards.
+python3 RandomnessDiscrimination.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -w 10 -n 3 >> /root/sequencePredictor/log/randomnessDiscrimination.log 2>&1
+python3 NullControls.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -m both -n 3 -d 120 >> /root/sequencePredictor/log/nullControls.log 2>&1

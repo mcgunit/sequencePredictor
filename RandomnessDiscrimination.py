@@ -62,7 +62,7 @@ from sklearn.svm import SVC
 from src.ControlHistories import control_draws, main_numbers, CONTROL_ROOT
 from src.Helpers import Helpers
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
-from HyperoptStatistics import GAME_CONFIG
+from HyperoptStatistics import GAME_CONFIG, is_running, create_lock, remove_lock
 
 helpers = Helpers()
 RESULT_DIR = os.path.join(CONTROL_ROOT, "discrimination")
@@ -249,12 +249,18 @@ def compute_verdict(record):
     null_mean, null_sd = stats(null_values)
     shuffled_mean, shuffled_sd = stats(shuffled_values)
     threshold = null_mean + 2 * null_sd
+
+    def number(value):
+        # A comparison whose whole suite failed has no mean: None, not NaN -
+        # the History page's JSON reader rejects NaN and would drop the record.
+        return None if value != value else round(value, 4)
+
     return {
         "metric": "best AUC of the classifier suite, per repetition",
-        "real_max_of_suite_mean": round(real_mean, 4), "real_max_of_suite_sd": round(real_sd, 4),
-        "null_max_of_suite_mean": round(null_mean, 4), "null_max_of_suite_sd": round(null_sd, 4),
-        "shuffled_max_of_suite_mean": round(shuffled_mean, 4), "shuffled_max_of_suite_sd": round(shuffled_sd, 4),
-        "null_threshold_2sd": round(threshold, 4),
+        "real_max_of_suite_mean": number(real_mean), "real_max_of_suite_sd": number(real_sd),
+        "null_max_of_suite_mean": number(null_mean), "null_max_of_suite_sd": number(null_sd),
+        "shuffled_max_of_suite_mean": number(shuffled_mean), "shuffled_max_of_suite_sd": number(shuffled_sd),
+        "null_threshold_2sd": number(threshold),
         "per_seed_real": [round(v, 4) for v in real_values],
         "per_seed_null": [round(v, 4) for v in null_values],
         "per_seed_shuffled": [round(v, 4) for v in shuffled_values],
@@ -354,4 +360,18 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # The same process.lock every other entry point takes (imported from
+    # HyperoptStatistics so the rule lives in one place): the scheduler and a
+    # hand-run runPredictor.sh both decide from it whether the box is busy, and
+    # a control run is a full backtest per history. A live lock means exit, as
+    # for the tuners - the scheduler queues the job behind the holder.
+    if is_running():
+        print("Another instance is already running. Exiting.")
+        sys.exit(1)
+    if not create_lock():
+        print("Failed to create lock file. Exiting.")
+        sys.exit(1)
+    try:
+        sys.exit(main())
+    finally:
+        remove_lock()

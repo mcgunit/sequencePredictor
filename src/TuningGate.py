@@ -17,6 +17,11 @@ its parameters stayed. Two things change here:
      Predictor.py serves when the keys are missing). A reference that could
      not be scored - timeout, error - cannot block; the tuner then behaves as
      before for that comparison and says so in the log and the record.
+  3. When the untuned defaults beat both the challenger and the incumbent,
+     the defaults are written back: the row is reverted. The first
+     production run found three such rows (lotto LaplaceMonteCarlo's served
+     parameters scored 0.77 against the code default's 0.82) - a gate that
+     only ever writes challengers would have kept serving the worse set.
 
 The references are scored by the strategy's own Optuna objective driven by an
 optuna.trial.FixedTrial, so the incumbent goes through exactly the code that
@@ -180,8 +185,10 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      bare float; tests inject one, the tuners use
                      evaluate_reference through run_isolated
 
-    Returns a dict: replace (bool), reason, params (the dict to write, or
-    None), challenger / incumbent / default scores (None = unscored),
+    Returns a dict: decision ("replaced" | "reverted" | "kept"), replace and
+    reverted (bools), reason, params (the dict to write - the challenger's
+    trial params, the untuned defaults, or None), challenger / incumbent /
+    default scores (None = unscored),
     served_score (the score of what is served after this decision, for
     modelScores; None when unknown), trial (the challenger's number), record
     (for bestParams["tuningGate"]) and summary (log lines).
@@ -213,6 +220,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     notes = []
 
     incumbent_tuning = default_tuning = None
+    default_params = None
     if not enabled:
         incumbent = default = None
         replace, reason = True, "gate disabled - this run's best trial is written"
@@ -243,11 +251,24 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
             default, default_tuning = _scored(evaluate(default_params, "default"))
         replace, reason = decide(challenger, incumbent, default, margin)
 
-    served_score = challenger if replace else incumbent
+    # The third outcome: the untuned defaults beat everything scored, so they
+    # are served. Only when something of this strategy IS tuned (otherwise the
+    # incumbent already is the default) and the default's parameters are
+    # known; an unscored incumbent cannot block here either.
+    revert = False
+    if not replace and enabled and default_params is not None and is_tuned(param_names, served) \
+            and _finite(default) and default > challenger + margin \
+            and (incumbent is None or default > incumbent + margin):
+        revert = True
+        reason = (f"default {_fmt(default)} beats challenger {_fmt(challenger)}"
+                  + (f" and incumbent {_fmt(incumbent)}" if incumbent is not None else " (incumbent unscored)")
+                  + " - reverted to the untuned defaults")
+
+    served_score = challenger if replace else (default if revert else incumbent)
     if served_score is not None and not math.isfinite(served_score):
         served_score = None  # a -inf weight would reach modelScores and the JSON file
     record.update({
-        "decision": "replaced" if replace else "kept",
+        "decision": "replaced" if replace else ("reverted" if revert else "kept"),
         "reason": reason + (" (" + "; ".join(notes) + ")" if notes else ""),
         "trial": best.number,
         "challenger": json_safe(challenger),
@@ -261,8 +282,10 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     lines = [f"  {label}: this run's best is trial {best.number} at {_fmt(challenger)}"
              f" (study's all-time best {_fmt(record['study_best'])}) | {describe(tuning)}",
              f"  {label}: incumbent {_fmt(incumbent)} ({describe(incumbent_tuning)}), default {_fmt(default)} -> "
-             f"{'REPLACED' if replace else 'KEPT'}: {record['reason']}"]
-    return {"replace": replace, "reason": record["reason"], "params": dict(best.params) if replace else None,
+             f"{'REPLACED' if replace else ('REVERTED TO DEFAULTS' if revert else 'KEPT')}: {record['reason']}"]
+    params = dict(best.params) if replace else (dict(default_params) if revert else None)
+    return {"replace": replace, "reverted": revert, "decision": record["decision"], "reason": record["reason"],
+            "params": params,
             "challenger": challenger, "incumbent": incumbent, "default": default,
             "served_score": served_score, "trial": best.number, "record": record, "summary": "\n".join(lines)}
 
@@ -342,6 +365,24 @@ if __name__ == "__main__":
     out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
                     evaluate=scorer({"incumbent": -1.0, "default": -0.2}))
     check(not out["replace"] and "default" in out["reason"], "default blocks")
+
+    # 3b. the untuned default beats both -> the defaults are written back
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -1.0, "default": -0.2}))
+    check(out["decision"] == "reverted" and out["reverted"] and not out["replace"], f"default wins -> reverted: {out['decision']}")
+    check(out["params"] == {"xEstimators": 100, "xDepth": 3, "m_use_5": True, "m_use_6": False}, f"defaults written: {out['params']}")
+    check(out["served_score"] == -0.2 and out["record"]["decision"] == "reverted" and "REVERTED" in out["summary"], out["summary"])
+    # a tie with the challenger is not a win for the default; an untuned row cannot revert
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -1.0, "default": -0.4}))
+    check(out["decision"] == "kept" and out["params"] is None, "default tying the challenger keeps")
+    out = challenge(study, known, None, {"use_5": True}, make_defaults(table, {"use_5": True}), 10, "t",
+                    evaluate=scorer({"incumbent": -0.1}))
+    check(out["decision"] == "kept", f"untuned row: incumbent is the default, nothing to revert to: {out['decision']}")
+    # default beats the challenger while the incumbent is unscored -> reverted too
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": None, "default": -0.2}))
+    check(out["decision"] == "reverted" and "incumbent unscored" in out["reason"], out["reason"])
 
     # 4. an unscorable reference cannot block
     out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",

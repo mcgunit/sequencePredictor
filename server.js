@@ -34,6 +34,11 @@ council.install(app, {
 
 // Paths
 const dataPath = path.join(__dirname, 'data', 'database');
+// The weekly control experiments (NullControls.py, RandomnessDiscrimination.py)
+// write here; controls.js reads them for the History page. Optional: the
+// cards render without them.
+const controlsPath = path.join(__dirname, 'data', 'controls');
+const controls = require('./controls');
 // modelsPath removed as it is no longer used
 
 // --- GAME SHAPES ---
@@ -189,6 +194,8 @@ const JOB_NAMES = {
   'HyperoptQuantum.py': 'Weekly tuning: quantum meta-learners',
   'HyperoptDeepLearning.py': 'Tuning: deep learning models',
   'TrainMetaLearner.py': 'Retraining the meta-learner',
+  'RandomnessDiscrimination.py': 'Weekly controls: randomness discrimination',
+  'NullControls.py': 'Weekly controls: null histories',
 };
 
 function pipelineStatus() {
@@ -698,6 +705,7 @@ function generatePerformanceSummary() {
   const metricLabel = { profit_per_bet: 'Profit / bet', avg_hits: 'Avg hits' };
 
   let rows = '';
+  let anyBand = false;
   Object.keys(report.games).sort().forEach((game) => {
     const info = report.games[game];
     const best = info.models[0];
@@ -705,24 +713,44 @@ function generatePerformanceSummary() {
     const valueColor = info.metric === 'profit_per_bet' ? (value > 0 ? '#27ae60' : '#c0392b') : '#2c3e50';
     const display = info.metric === 'profit_per_bet' ? `${value} €` : value;
 
+    // Q0 (README "Null controls"): what the best of the rows scores on a
+    // history with nothing in it. A hits-ranked row at or under that band
+    // has not shown anything a leaderboard over noise would not show, and is
+    // greyed like a row with too few draws. The payout games rank by profit,
+    // which the control does not measure, so there the band is shown against
+    // the rows' average hits but greys nothing.
+    const band = controls.nullBand(controls.loadNullControls(controlsPath, game));
+    if (band) anyBand = true;
+    const bandGreys = Boolean(band) && info.metric === 'avg_hits';
+    const bandTitle = !band ? '' : Object.keys(band.modes).map((mode) => {
+      const b = band.modes[mode];
+      return `${mode}: best of ${b.rows} rows ${b.best.toFixed(3)} ± ${b.sd.toFixed(3)} over ${b.seeds} histories of ${b.days} days (random ticket ${b.random})`;
+    }).join(' · ') + ` · ${band.generatedAt || ''}`;
+    const bandCell = !band ? '<span style="color: #aaa;" title="NullControls.py has not run for this game">not run</span>'
+      : `<span title="${bandTitle}">≤ ${band.ceiling.toFixed(2)} ${band.metric.replace(' per draw', '/draw')}${bandGreys ? '' : ' <span style="color:#aaa;">(info)</span>'}</span>`;
+    const inBand = (m) => bandGreys && controls.withinBand(m.avg_hits, band);
+
     // Expandable full ranking per game
     const ranking = info.models.map((m, i) => {
       const v = m[info.metric];
       const mDisplay = v === null || v === undefined ? '-' : (info.metric === 'profit_per_bet' ? `${v} €` : v);
-      const young = m.draws < info.minDrawsForRanking ? ' style="color: #aaa;" title="Too few scored draws to rank"' : '';
-      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}</td><td>${m.best_hits}</td><td>${m.draws}</td></tr>`;
+      const young = m.draws < info.minDrawsForRanking ? ' style="color: #aaa;" title="Too few scored draws to rank"'
+        : (inBand(m) ? ` style="color: #999; font-style: italic;" title="Within the null band: the best of ${band.modes[band.from].rows} rows scores up to ${band.ceiling.toFixed(3)} on a ${band.from} history with nothing in it"` : '');
+      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td></tr>`;
     }).join('');
 
+    const bestNote = inBand(best) ? ' <span style="color: #999; font-weight: normal; font-size: 0.85em;" title="The best row is within the null band">∅ within band</span>' : '';
     rows += `
       <tr style="cursor: pointer;" onclick="const d = document.getElementById('rank-${game}'); d.style.display = d.style.display === 'none' ? 'table-row' : 'none';">
         <td style="font-weight: bold; text-align: left;">${game} <span style="color: #aaa; font-size: 0.85em;">▼</span></td>
         <td style="text-align: left;">${best.name}</td>
         <td>${metricLabel[info.metric] || info.metric}</td>
-        <td style="font-weight: bold; color: ${valueColor};">${display}</td>
+        <td style="font-weight: bold; color: ${valueColor};">${display}${bestNote}</td>
         <td>${best.draws}</td>
+        <td>${bandCell}</td>
       </tr>
       <tr id="rank-${game}" style="display: none;">
-        <td colspan="5" style="padding: 0;">
+        <td colspan="6" style="padding: 0;">
           <table style="width: 100%; min-width: 0; margin: 0;">
             <tr><th>#</th><th style="text-align: left;">Model</th><th>${metricLabel[info.metric] || info.metric}</th><th>Avg hits</th><th>Best day</th><th>Scored draws</th></tr>
             ${ranking}
@@ -745,13 +773,14 @@ function generatePerformanceSummary() {
       <div class="card-body">
         <div class="table-wrapper">
           <table style="min-width: 0;">
-            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th></tr>
+            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th><th title="Q0: what the best of the rows scores on a history with nothing in it">Null band</th></tr>
             ${rows}
           </table>
         </div>
         <p style="color: #7f8c8d; font-size: 0.85em; margin-bottom: 0;">
           Keno/Pick3/Joker+ rank by average profit per bet (real payout tables); other games by average hits of the main ticket.
           Click a game row for the full model ranking. Greyed models have fewer scored draws than the ranking minimum.
+          ${anyBand ? '<b>Null band</b> (weekly <code>NullControls.py</code>): the best of the tracked rows, run on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - scores this much by selection alone (mean over the control histories plus two standard deviations). Rows marked ∅ sit within it: they have shown nothing a leaderboard over noise would not show. For the payout games the band is on average hits, not on the profit they rank by, so it is information only.' : 'The <b>null band</b> column fills in once the weekly <code>NullControls.py</code> job has run: what the best row scores on a history with nothing in it.'}
         </p>
       </div>
     </div>`;
@@ -1004,6 +1033,7 @@ function generateRandomnessWatch() {
 
   let gameRows = '';
   let modelCards = '';
+  let anyQ2 = false;
   Object.keys(report.games).sort().forEach((game) => {
     const rw = report.games[game].randomnessWatch;
     const aw = report.games[game].anomalyWatch;
@@ -1015,7 +1045,16 @@ function generateRandomnessWatch() {
     const entAlert = rw && rw.entropy_norm !== null && rw.entropy_norm < 0.95;
     const klAlert = rw && rw.kl_vs_history !== null && rw.kl_vs_history > 0.1;
     const aeAlert = aw && aw.alert;
-    const status = (entAlert || klAlert || aeAlert)
+    // Q2 (README "Null controls"): the controlled test of the same question
+    // the tripwires above ask - a classifier suite against a null band and a
+    // shuffled control, weekly. This is the verdict; the rest is the alarm.
+    const q2Record = controls.loadDiscrimination(controlsPath, game);
+    const q2 = q2Record ? controls.describeDiscrimination(q2Record) : null;
+    if (q2) anyQ2 = true;
+    const q2Alert = Boolean(q2 && q2.evidence);
+    const q2Cell = !q2 ? '<span style="color:#aaa;" title="RandomnessDiscrimination.py has not run for this game">not run</span>'
+      : `<span title="best AUC of the suite, mean over ${q2.repetitions} repetitions: real ${q2.real} ± ${q2.realSd}, null ${q2.nullMean} ± ${q2.nullSd} (band ≤ ${q2.threshold}), shuffled ${q2.shuffled} · ${q2.window}-draw windows over the newest ${q2.draws || 'all'} draws${q2.quantum ? ', quantum suite included' : ''} · ${q2.generatedAt || ''}" style="${q2.evidence ? 'color:#e74c3c; font-weight:bold;' : ''}">${q2.label}${q2.evidence ? ' ⚠' : ''}<br><small style="color:#7f8c8d;">AUC ${q2.real} vs band ≤ ${q2.threshold}</small></span>`;
+    const status = (entAlert || klAlert || aeAlert || q2Alert)
       ? '<span style="background:#e67e22; color:white; padding:2px 8px; border-radius:3px; font-weight:bold;">watch</span>'
       : '<span style="background:#2ecc71; color:white; padding:2px 8px; border-radius:3px;">normal</span>';
 
@@ -1034,6 +1073,7 @@ function generateRandomnessWatch() {
       <td>${!rw || rw.kl_vs_history === null ? '-' : rw.kl_vs_history}</td>
       <td>${!rw || rw.kl_vs_uniform === null ? '-' : rw.kl_vs_uniform}</td>
       <td>${anomaly}</td>
+      <td>${q2Cell}</td>
       <td>${rw ? rw.draws_total : '-'}</td>
       <td style="text-align:left; color:#7f8c8d; font-size:0.85em;">${trend}</td>
     </tr>`;
@@ -1075,7 +1115,7 @@ function generateRandomnessWatch() {
       <div class="card-body">
         <div class="table-wrapper">
           <table>
-            <tr><th style="text-align:left;">Game</th><th>Status</th><th>Entropy (norm.)</th><th>KL vs history</th><th>KL vs uniform</th><th>AE anomaly</th><th>Draws</th><th style="text-align:left;">Entropy trend (oldest → newest)</th></tr>
+            <tr><th style="text-align:left;">Game</th><th>Status</th><th>Entropy (norm.)</th><th>KL vs history</th><th>KL vs uniform</th><th>AE anomaly</th><th title="Q2: real draw windows against fair simulated ones, held to the null band of the same pipeline">Controlled test (Q2)</th><th>Draws</th><th style="text-align:left;">Entropy trend (oldest → newest)</th></tr>
             ${gameRows}
           </table>
         </div>
@@ -1087,6 +1127,7 @@ function generateRandomnessWatch() {
           from the real draw distribution. <b>AE anomaly</b> is the autoencoder security layer: the most negative
           rolling z of its reconstruction NLL over the last 30 real draws - a strongly negative value (⚠ below -3)
           means real draws suddenly became easy to reconstruct, i.e. a predictability spike.
+          ${anyQ2 ? '<b>Controlled test</b> (weekly <code>RandomnessDiscrimination.py</code>, README "Null controls"): the verdict the tripwires cannot give. A suite of classifiers - logistic, SVM, random forest, gradient boosting, a small network, a quantum kernel and a VQC - is asked to tell windows of real draws from fair simulated ones, and its best AUC is held against the same suite\'s best on two fair histories (the null band, mean + 2 sd) and on the real draws shuffled (which keeps every frequency and kills only the order). Only above the band <i>and</i> above the shuffled control does the real process differ from a fair one in a way that uses time; and even then the README lists the boring causes to rule out first.' : 'The <b>controlled test</b> column fills in once the weekly <code>RandomnessDiscrimination.py</code> job has run.'}
         </p>
         ${modelCards}
       </div>

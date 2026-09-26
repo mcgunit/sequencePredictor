@@ -69,12 +69,35 @@ const WAIT_ALARM_MS = 6 * 3600 * 1000;
 // chain order is load-bearing and documented there: every tuner takes the
 // shared process.lock, HyperoptQuantum.py must run BEFORE TrainMetaLearner.py
 // so the weekly retrain sees freshly tuned quantum parameters, and
-// TrainMetaLearner.py stays last.
+// TrainMetaLearner.py stays last. The two control experiments (README "Null
+// controls") are measurements of the rows, never inputs to them: their own
+// plan, started only by Sunday's predictor finishing (or the Sunday 23:00
+// catch-up net), so they are never in the chain and never hold up Sunday's
+// predictions. Same FIFO rule as the chain: a control run that overruns into
+// Monday 09:00 queues that day's predictor behind it.
 const CHAIN_PLAN = 'weeklyTuning';
-const CHAIN_WEEKDAY = 6;                   // Saturday
-const CHAIN_ANCHOR_HOUR = 9;               // ...its predictor slot
-const CHAIN_CATCHUP_AFTER_MS = 14 * 3600 * 1000;   // Saturday 23:00
-const CHAIN_CATCHUP_UNTIL_MS = 48 * 3600 * 1000;   // Monday 09:00
+const CONTROLS_PLAN = 'weeklyControls';
+// Two weekly plans, each a run of jobs started by the predictor finishing on
+// its weekday (after that day's 09:00 slot), and caught up by the safety net
+// in dueAt when that never happens. The tuning chain owns Saturday; the two
+// control experiments (README "Null controls") own Sunday, so a chain that
+// overruns into Sunday morning still lets Sunday's predictions go first - the
+// queue stays the agreed FIFO, and the controls only ever start behind a
+// finished predictor.
+const PLANS = {
+  [CHAIN_PLAN]: {
+    name: 'Weekly tuning chain', label: "this week's tuning chain",
+    weekday: 6, anchorHour: 9,                       // Saturday, its predictor slot
+    catchUpAfterMs: 14 * 3600 * 1000,                // Saturday 23:00
+    catchUpUntilMs: 48 * 3600 * 1000,                // Monday 09:00
+  },
+  [CONTROLS_PLAN]: {
+    name: 'Weekly control experiments', label: "this week's control experiments",
+    weekday: 0, anchorHour: 9,                       // Sunday, its predictor slot
+    catchUpAfterMs: 14 * 3600 * 1000,                // Sunday 23:00
+    catchUpUntilMs: 48 * 3600 * 1000,                // Tuesday 09:00
+  },
+};
 
 const JOBS = [
   {
@@ -95,42 +118,62 @@ const JOBS = [
     key: 'hyperoptStatistics',
     name: 'Weekly tuning: statistical models',
     description: 'Tunes the statistical rows into bestParams_<game>.json (HyperoptStatistics.py).',
-    script: 'HyperoptStatistics.py', args: [], log: 'hyperoptStatistics.log', chain: true,
+    script: 'HyperoptStatistics.py', args: [], log: 'hyperoptStatistics.log', plan: CHAIN_PLAN,
   },
   {
     key: 'hyperoptBoost',
     name: 'Weekly tuning: boosting models',
     description: 'Tunes XGBoost Model into the same files (HyperoptBoost.py).',
-    script: 'HyperoptBoost.py', args: [], log: 'hyperoptBoost.log', chain: true,
+    script: 'HyperoptBoost.py', args: [], log: 'hyperoptBoost.log', plan: CHAIN_PLAN,
   },
   {
     key: 'hyperoptRLTicket',
     name: 'Weekly tuning: RL ticket model',
     description: 'Tunes RL Ticket Model - pure numpy, minutes not hours (HyperoptRLTicket.py).',
-    script: 'HyperoptRLTicket.py', args: [], log: 'hyperoptRLTicket.log', chain: true,
+    script: 'HyperoptRLTicket.py', args: [], log: 'hyperoptRLTicket.log', plan: CHAIN_PLAN,
   },
   {
     key: 'hyperoptEnsemble',
     name: 'Weekly tuning: ensemble subsets',
     description: 'Selects the rows SubsetEnsemble Model votes over, from the stored day JSONs (HyperoptEnsemble.py).',
-    script: 'HyperoptEnsemble.py', args: [], log: 'hyperoptEnsemble.log', chain: true,
+    script: 'HyperoptEnsemble.py', args: [], log: 'hyperoptEnsemble.log', plan: CHAIN_PLAN,
   },
   {
     key: 'hyperoptQuantum',
     name: 'Weekly tuning: quantum meta-learners',
     description: 'Tunes the quantum-kernel SVC and the VQC. Must run before the retrain below, '
                + 'which is the whole point: fresh parameters, not week-old ones (HyperoptQuantum.py).',
-    script: 'HyperoptQuantum.py', args: [], log: 'hyperoptQuantum.log', chain: true,
+    script: 'HyperoptQuantum.py', args: [], log: 'hyperoptQuantum.log', plan: CHAIN_PLAN,
   },
   {
     key: 'trainMetaLearner',
     name: 'Weekly retrain: meta-learner',
     description: 'Retrains the stacking meta-learner on the freshly tuned parameters. Always last (TrainMetaLearner.py).',
-    script: 'TrainMetaLearner.py', args: [], log: 'TrainMetaLearner.log', chain: true,
+    script: 'TrainMetaLearner.py', args: [], log: 'TrainMetaLearner.log', plan: CHAIN_PLAN,
+  },
+  {
+    key: 'randomnessDiscrimination',
+    name: 'Weekly controls: randomness discrimination (Q2)',
+    description: 'Can a classifier suite tell windows of real draws from fair simulated ones better than it tells two fair '
+               + 'histories apart? Held to a null band and a shuffled control; the verdict on the Randomness watch card '
+               + '(RandomnessDiscrimination.py, about an hour for every game).',
+    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus', '-w', '10', '-n', '3'],
+    log: 'randomnessDiscrimination.log', plan: CONTROLS_PLAN,
+  },
+  {
+    key: 'nullControls',
+    name: 'Weekly controls: null histories (Q0)',
+    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each, so the Best-model card can show '
+               + 'what the best row scores on nothing - the null band its rows are greyed under (NullControls.py, hours: a full '
+               + 'backtest per history, which is why the controls have their own Sunday plan).',
+    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus', '-m', 'both', '-n', '3', '-d', '120'],
+    log: 'nullControls.log', plan: CONTROLS_PLAN,
   },
 ];
 
-const CHAIN_KEYS = JOBS.filter((j) => j.chain).map((j) => j.key);
+const planKeys = (plan) => JOBS.filter((j) => j.plan === plan).map((j) => j.key);
+const CHAIN_KEYS = planKeys(CHAIN_PLAN);
+const CONTROL_KEYS = planKeys(CONTROLS_PLAN);
 
 function jobByKey(key) {
   return JOBS.find((j) => j.key === key) || null;
@@ -292,7 +335,7 @@ function lockHolder() {
 // handled, what is queued, what is running, and the run history the Jobs
 // page shows. In config/ because it is gitignored - data/ is committed by
 // the pipeline itself.
-const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null };
+const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {} };
 
 let state = null;
 let timer = null;
@@ -357,14 +400,15 @@ function enqueue(key, reason, manual) {
 }
 
 // A plan is one occurrence that may expand into several queued jobs: the
-// weekly chain is six of them, kept in order by the FIFO queue.
+// weekly tuning chain is six of them and the control plan two, kept in order
+// by the FIFO queue.
 function enqueuePlan(plan, occurrenceId, reason) {
-  const keys = plan === CHAIN_PLAN ? CHAIN_KEYS : [plan];
+  const keys = PLANS[plan] ? planKeys(plan) : [plan];
   const dry = mode() === 'dry';
   remember(occurrenceId, reason);
   if (dry) {
-    log(`DRY RUN: would start ${keys.length === 1 ? jobByKey(keys[0]).name : `the weekly chain (${keys.length} jobs)`} - ${reason}`);
-    record({ at: Date.now(), key: plan, name: keys.length === 1 ? jobByKey(keys[0]).name : 'Weekly tuning chain',
+    log(`DRY RUN: would start ${PLANS[plan] ? `${PLANS[plan].name} (${keys.length} jobs)` : jobByKey(keys[0]).name} - ${reason}`);
+    record({ at: Date.now(), key: plan, name: PLANS[plan] ? PLANS[plan].name : jobByKey(keys[0]).name,
              reason, dry: true, occurrence: occurrenceId });
     return;
   }
@@ -537,26 +581,29 @@ function dueAt(occurrences, now) {
     }
   }
 
-  // The chain is normally started by Saturday's predictor finishing. This is
+  // A plan is normally started by its weekday's predictor finishing. This is
   // only the safety net: the box was down, or that predictor never ran, and
   // the week would otherwise be skipped in silence - the exact failure this
   // item exists to remove.
-  const anchor = lastWeekdaySlot(now, CHAIN_WEEKDAY, CHAIN_ANCHOR_HOUR, 0);
-  const sinceAnchor = now - anchor;
-  const chainId = `${CHAIN_PLAN}@${weekId(anchor)}`;
-  if (!occurrences[chainId] && sinceAnchor >= CHAIN_CATCHUP_AFTER_MS && sinceAnchor <= CHAIN_CATCHUP_UNTIL_MS) {
-    due.push({ plan: CHAIN_PLAN, occurrence: chainId,
-               reason: "catch-up: this week's tuning chain has not run" });
-  }
+  Object.keys(PLANS).forEach((plan) => {
+    const spec = PLANS[plan];
+    const anchor = lastWeekdaySlot(now, spec.weekday, spec.anchorHour, 0);
+    const sinceAnchor = now - anchor;
+    const id = `${plan}@${weekId(anchor)}`;
+    if (!occurrences[id] && sinceAnchor >= spec.catchUpAfterMs && sinceAnchor <= spec.catchUpUntilMs) {
+      due.push({ plan, occurrence: id, reason: `catch-up: ${spec.label} has not run` });
+    }
+  });
   return due;
 }
 
 // Which weekly occurrence a predictor finishing at `now` should start, or
 // null for "not this one". Pure, so test/jobs.test.js can walk the Saturday
 // edges - the ones that could otherwise run the chain twice in a weekend.
-function chainTriggerAt(occurrences, now) {
-  if (now.getDay() !== CHAIN_WEEKDAY) return null;
-  const anchor = lastWeekdaySlot(now, CHAIN_WEEKDAY, CHAIN_ANCHOR_HOUR, 0);
+function planTriggerAt(plan, occurrences, now) {
+  const spec = PLANS[plan];
+  if (now.getDay() !== spec.weekday) return null;
+  const anchor = lastWeekdaySlot(now, spec.weekday, spec.anchorHour, 0);
   // Only a predictor finishing AFTER Saturday's own 09:00 slot is the
   // trigger. Before it - a Friday catch-up run spilling past midnight, a
   // hand-started run at 04:00, a restart finalizing a Friday-evening run -
@@ -566,13 +613,21 @@ function chainTriggerAt(occurrences, now) {
   // second time at 23:00. Recording nothing is right: the 09:00 predictor,
   // or the 23:00 safety net, still starts it exactly once.
   if (dayId(anchor) !== dayId(now)) return null;
-  const id = `${CHAIN_PLAN}@${weekId(anchor)}`;
+  const id = `${plan}@${weekId(anchor)}`;
   return occurrences[id] ? null : id;
 }
 
+function chainTriggerAt(occurrences, now) {
+  return planTriggerAt(CHAIN_PLAN, occurrences, now);
+}
+
+// Every plan gets its chance: a predictor finishing on a Saturday starts the
+// tuning chain, on a Sunday the control experiments.
 function maybeTriggerChain(now, why) {
-  const id = chainTriggerAt(state.occurrences, now);
-  if (id) enqueuePlan(CHAIN_PLAN, id, `triggered by ${why}`);
+  Object.keys(PLANS).forEach((plan) => {
+    const id = planTriggerAt(plan, state.occurrences, now);
+    if (id) enqueuePlan(plan, id, `triggered by ${why}`);
+  });
 }
 
 // A first start must not fire every slot it never saw: the state file is new,
@@ -586,6 +641,29 @@ function baseline(now) {
   if (skipped.length) {
     log(`first start: ${skipped.map((s) => s.occurrence).join(', ')} treated as already handled `
       + '(they belong to the crontab era, not to this schedule)');
+  }
+}
+
+// A plan added to a running installation must not fire its catch-up net on
+// the deploy: the plan is new, not missed. Its occurrence currently inside
+// the net is marked handled once, per plan, and said so in the log.
+// Pure, for the test: which plans are new to this installation, and which of
+// their occurrences sit inside the catch-up net right now.
+function planBaseline(baselinedPlans, occurrences, now) {
+  const fresh = Object.keys(PLANS).filter((plan) => !(baselinedPlans || {})[plan]);
+  const skipped = fresh.length ? dueAt(occurrences, now).filter((entry) => fresh.includes(entry.plan)) : [];
+  return { fresh, skipped };
+}
+
+function baselinePlans(now) {
+  state.baselinedPlans = state.baselinedPlans || {};
+  const { fresh, skipped } = planBaseline(state.baselinedPlans, state.occurrences, now);
+  if (!fresh.length) return;
+  skipped.forEach((entry) => remember(entry.occurrence, `baseline: ${entry.plan} was added to the schedule`));
+  fresh.forEach((plan) => { state.baselinedPlans[plan] = new Date().toISOString(); });
+  saveState();
+  if (skipped.length) {
+    log(`plan added: ${skipped.map((s) => s.occurrence).join(', ')} treated as already handled (the plan is new, not missed)`);
   }
 }
 
@@ -712,6 +790,7 @@ function start() {
   sweepRunFiles();
   adoptOrClose();
   if (!state.baselinedAt) baseline(new Date());
+  baselinePlans(new Date());
   rotateAll();
   tick();
   timer = setInterval(tick, TICK_MS);
@@ -726,9 +805,11 @@ function stop() {
 }
 
 // --- status and page --------------------------------------------------------
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function nextDueText(job, now) {
   if (job.daily) return `${stamp(nextDaily(now, job.daily))} (daily ${pad(job.daily.hour)}:${pad(job.daily.minute)})`;
-  return "when Saturday's predictor finishes";
+  const spec = job.plan && PLANS[job.plan];
+  return `when ${spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday'}'s predictor finishes`;
 }
 
 function lastRunOf(key) {
@@ -847,9 +928,9 @@ function section(req) {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <p style="color:#7f8c8d; margin-top:0;">The daily predictor and the weekly tuning chain, owned by this server instead of crontab
-           (README roadmap item 8). One job runs at a time, behind the same <code>process.lock</code> every Python entry point takes;
-           the chain starts when Saturday's predictor finishes; a job launched here survives a deploy because it is reparented with
+        <p style="color:#7f8c8d; margin-top:0;">The daily predictor, the weekly tuning chain and the weekly control experiments, owned by this
+           server instead of crontab (README roadmap item 8). One job runs at a time, behind the same <code>process.lock</code> every Python
+           entry point takes; the chain starts when Saturday's predictor finishes and the controls when Sunday's does; a job launched here survives a deploy because it is reparented with
            <code>setsid --fork</code>. Mode comes from ${esc(s.modeReason)} - create <code>config/scheduler.disabled</code> to stop the
            schedule without a restart.</p>
         ${s.mode === 'dry' ? '<p style="color:#f39c12;"><b>Dry run.</b> The schedule only records what it would have started, so it is safe next to the crontab entries. Set <code>SCHEDULER=on</code> in .env and remove them to cut over. <i>Run now</i> still really runs a job.</p>' : ''}
@@ -913,6 +994,7 @@ module.exports = {
   // a reparented job without a browser and a real 12-hour tuner).
   _internals: {
     dueAt, weekId, dayId, dailySlot, nextDaily, lastWeekdaySlot, CHAIN_KEYS, CHAIN_PLAN,
+    CONTROL_KEYS, CONTROLS_PLAN, PLANS, planKeys, planTriggerAt, nextDueText, planBaseline,
     enqueue, startNext, tick, lockHolder, maybeTriggerChain, state: () => state,
     chainTriggerAt, exitCodeFrom, allowedQueue,
   },
