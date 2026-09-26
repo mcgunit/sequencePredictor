@@ -219,12 +219,12 @@
         "PoissonMonteCarlo Model"
     ],
     "subsetEnsembleWeighted": false,
-    "subsetEnsembleObjective": 0.9759,
-    "subsetEnsembleMean": 1.0674,
+    "subsetEnsembleObjective": 0.9973,
+    "subsetEnsembleMean": 1.0879,
     "subsetEnsembleTunedOn": {
-        "days": 89,
+        "days": 91,
         "from": "2025-11-13",
-        "to": "2026-09-17",
+        "to": "2026-09-24",
         "candidates": 6,
         "evaluated": 128,
         "search": "exhaustive",
