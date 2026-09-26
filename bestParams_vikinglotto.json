@@ -208,10 +208,10 @@
     "catBoostMlSubsetMode": "top",
     "catBoostMlSubsetTemperature": 0.24586696719435214,
     "useCatBoostMultiLabel": true,
-    "rlTicketLearningRate": 0.005071533333274172,
+    "rlTicketLearningRate": 0.0050992237029881685,
     "rlTicketEpochs": 20,
     "rlTicketSamplesPerDay": 64,
-    "rlTicketTrainDays": 120,
+    "rlTicketTrainDays": 60,
     "subsetEnsembleModels": [
         "HybridStatisticalModel",
         "LaplaceMonteCarlo Model",
