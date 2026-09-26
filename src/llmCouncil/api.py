@@ -164,6 +164,7 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
                     "state": "answered" if payload["ok"] else "failed",
                     "seconds": payload["seconds"],
                     "answer": payload.get("answer"), "value": payload.get("value"),
+                    "expects_value": payload.get("expects_value"),
                     "error": payload.get("error"),
                 }
             # A fresh dict each time: the job holds a reference, and mutating

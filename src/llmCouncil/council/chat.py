@@ -72,7 +72,7 @@ def _show_head(result: dict | None) -> None:
         print(_wrap(head["answer"]))
         if head.get("value"):
             print(f"\n  parsed value: {head['value']}")
-        elif head.get("value") is None:
+        elif head.get("expects_value"):
             print("\n  (no ANSWER: line found)")
     else:
         print(f"head FAILED: {head['error']}")

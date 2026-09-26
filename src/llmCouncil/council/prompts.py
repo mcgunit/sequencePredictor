@@ -17,10 +17,12 @@ from __future__ import annotations
 # each other, so what is wanted is each one's best independent answer. Override
 # via `member_system_prompt` in config to test the alternative.
 DEFAULT_MEMBER_SYSTEM_PROMPT = (
-    "Answer the question directly and thoroughly but be brief in your output, spare tokens. Show your reasoning. "
-    "Where you are uncertain, say so explicitly rather than guessing. "
-    "Do not pad the answer: additional detail you are not confident in is "
-    "worse than a short answer."
+    "Answer the question that was asked, on its reasonable reading: 'Can you "
+    "solve X?' asks for the solution, not for yes or no. Answer it directly "
+    "and thoroughly but be brief in your output, spare tokens. Show your "
+    "reasoning. Where you are uncertain, say so explicitly rather than "
+    "guessing. Do not pad the answer: additional detail you are not confident "
+    "in is worse than a short answer."
 )
 
 DEFAULT_HEAD_SYSTEM_PROMPT = (
@@ -28,7 +30,10 @@ DEFAULT_HEAD_SYSTEM_PROMPT = (
     "question without seeing the others' answers.\n\n"
     "Weigh the answers on their merits and produce a single response for the "
     "reader. Apply these rules:\n"
-    "- Be brief as possible in answers \n"
+    "- Answer the question that was asked, on its reasonable reading. 'Can "
+    "you solve X?' asks for the solution, not for yes or no; an ill-posed "
+    "question gets its sensible interpretation, not an objection. Solving "
+    "for x in '1 + 1 = x' means x = 2.\n"
     "- Judge each claim on its own. A long, detailed answer is not more "
     "reliable than a short one; elaboration is often where errors appear.\n"
     "- Agreement between members is weak evidence, not proof. Members can "
@@ -39,7 +44,10 @@ DEFAULT_HEAD_SYSTEM_PROMPT = (
     "them. Do not average the answers together.\n"
     "- State what remains genuinely uncertain rather than papering over it.\n\n"
     "Write the final answer directly, as the answer to the question. Do not "
-    "describe the panel, the members, or the process of comparing them."
+    "describe the panel, the members, or the process of comparing them. Be "
+    "brief: the answer first, then only the reasoning a reader needs to trust "
+    "it - but never so brief that the answer itself is missing. A bare "
+    "'yes' or 'no' is not an answer to a question that asked for a result."
 )
 
 ANSWER_MARKER = "ANSWER:"

@@ -196,13 +196,18 @@ def run_head(config: dict, head_cfg: dict, question: str,
              context: str | None = None, on_chunk=None) -> dict:
     """Run the aggregation step. Never raises."""
     started = time.monotonic()
+    # Only a head that was told to end with the marker (the math, research
+    # and decision presets, or a custom prompt that mentions it) is expected
+    # to; the default preset answers in prose and has no value to parse.
+    expects_value = prompts.ANSWER_MARKER in prompts.head_system_prompt(head_cfg, config)
     try:
         answer = head_mod.synthesise(
             head_cfg, question, members, config["request_timeout_s"],
             config=config, context=context, retries=retries, on_chunk=on_chunk,
         )
         outcome = {"ok": True, "answer": answer,
-                   "value": answer_mod.extract(answer)}
+                   "value": answer_mod.extract(answer, expected=expects_value),
+                   "expects_value": expects_value}
     except client.CompletionError as exc:
         log.error("head failed: %s", exc)
         outcome = {"ok": False, "error": str(exc)}
@@ -370,6 +375,7 @@ def run_council(question: str, config: dict, *,
                 "seconds": output["head"]["seconds"],
                 "answer": output["head"].get("answer"),
                 "value": output["head"].get("value"),
+                "expects_value": output["head"].get("expects_value"),
                 "error": output["head"].get("error"),
             })
         else:

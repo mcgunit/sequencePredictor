@@ -939,7 +939,9 @@ function page(req, header, footer, escapeHtml) {
       head.querySelectorAll('.head-value, .head-novalue').forEach(function (n) { n.remove(); });
       if (!h.streaming && h.ok !== false) {
         if (h.value) head.appendChild(el('div', 'head-value', h.value));
-        else head.appendChild(el('div', 'head-novalue', 'no ANSWER: line found'));
+        // Only a preset that asks for the marker (math, research, decision)
+        // can be missing it; the default preset answers in prose.
+        else if (h.expects_value) head.appendChild(el('div', 'head-novalue', 'no ANSWER: line found'));
       }
     }
     function renderResult(turn, result) {
@@ -967,7 +969,8 @@ function page(req, header, footer, escapeHtml) {
           ? { name: result.head.name,
               state: result.head.ok ? 'answered' : 'failed',
               seconds: result.head.seconds, answer: result.head.answer,
-              value: result.head.value, error: result.head.error }
+              value: result.head.value, expects_value: result.head.expects_value,
+              error: result.head.error }
           : null
       };
     }

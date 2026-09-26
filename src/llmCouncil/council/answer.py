@@ -20,11 +20,14 @@ log = logging.getLogger(__name__)
 UNDETERMINED = "UNDETERMINED"
 
 
-def extract(text: str) -> str | None:
+def extract(text: str, expected: bool = True) -> str | None:
     """Return the value after the last ANSWER: marker, or None if absent.
 
     The last marker wins: a model that restates the format while explaining
     itself would otherwise have its example picked up instead of its answer.
+    `expected` says whether the head was asked for the marker at all (the
+    `default` preset is prose and never is): a missing line is only worth a
+    warning when it was asked for.
     """
     if not text:
         return None
@@ -37,7 +40,7 @@ def extract(text: str) -> str | None:
             if value:
                 found = value
 
-    if found is None:
+    if found is None and expected:
         log.warning("head reply has no %s line", ANSWER_MARKER)
     return found
 
