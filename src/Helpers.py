@@ -2019,8 +2019,13 @@ class Helpers():
             #print("Skipping Rows: ", skipRows)
             #print("Length of data before skipping rows: ", len(numbers))
             numbers = numbers[:-skipRows]
+            dates = dates[:-skipRows]
             #print("Length after skipping rows: ", len(numbers))
             #print("last entry: ", numbers[len(numbers)-1])
+
+        # The draw dates aligned with `numbers`, for callers that need to map a
+        # row index back to a date (src/Lockbox.py); read through DataLoader.dates.
+        self.last_loaded_dates = [d for d in dates]
 
         # Isolate the trailing special/bonus column(s) (e.g. Euromillions's 2
         # star columns, EuroDreams's 1 dream number, VikingLotto's 1 super

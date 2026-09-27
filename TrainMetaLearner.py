@@ -7,13 +7,15 @@ from datetime import datetime, timezone
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.utils.class_weight import compute_sample_weight
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score
 
 from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
+from src.Calibration import calibration_report, describe as describe_calibration
+from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox, as_json as lockbox_json
 
 from HyperoptStatistics import GAME_CONFIG
 
@@ -253,13 +255,21 @@ def fit_gradient_boosting(X, y):
     return model
 
 
-def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, actual_key, label, fit_func):
+def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, actual_key, label, fit_func,
+                   draw_size=None):
     """
     Splits results into a walk-forward holdout (last 20% of days - Backtester
     preserves day order via pool.imap, not imap_unordered, so this is a
     genuine train-before/test-after split), fits+reports on that split for an
     honest sanity check, then refits on the full window before returning -
     standard practice once you're ready to persist, not a leakage shortcut.
+
+    Returns (meta_model, metrics): the calibration and ranking report of the
+    holdout (src/Calibration.py - Brier, log-loss, AUC, reliability bins and
+    the top-draw_size hits per day the History page ranks on), None when the
+    holdout is too small or single-class. The report is persisted in the
+    artifact and in meta_learner_metrics.json, so a week's number can be read
+    against last week's instead of scrolling a log for an accuracy line.
     """
     split_index = int(len(results) * 0.8)
     train_rows, test_rows = results[:split_index], results[split_index:]
@@ -269,19 +279,31 @@ def fit_meta_model(results, model_names, min_number, max_number, scores_suffix, 
 
     meta_model = fit_func(X_train, y_train)
 
+    metrics = None
     if len(test_rows) > 0 and len(set(y_test.tolist())) > 1:
-        y_pred = meta_model.predict(X_test)
         y_proba = meta_model.predict_proba(X_test)[:, 1]
-        print(f"{label}: held-out accuracy={accuracy_score(y_test, y_pred):.4f} "
-              f"auc={roc_auc_score(y_test, y_proba):.4f} (train_days={len(train_rows)}, test_days={len(test_rows)})")
+        metrics = calibration_report(y_test, y_proba, block=max_number - min_number + 1, draw_size=draw_size)
+        metrics.update({"train_days": len(train_rows), "test_days": len(test_rows),
+                        "accuracy": round(float(accuracy_score(y_test, meta_model.predict(X_test))), 4)})
+        print(describe_calibration(metrics, f"{label}: held-out ({len(train_rows)} train / {len(test_rows)} test days)"))
     else:
-        print(f"{label}: not enough held-out days/classes to report accuracy/AUC "
+        print(f"{label}: not enough held-out days/classes to report calibration "
               f"(train_days={len(train_rows)}, test_days={len(test_rows)})")
 
     X_full, y_full = build_training_table(results, model_names, min_number, max_number, scores_suffix, actual_key)
     meta_model = fit_func(X_full, y_full)
 
-    return meta_model
+    return meta_model, metrics
+
+
+def score_rows_with(meta_model, rows, model_names, min_number, max_number, scores_suffix, actual_key, draw_size=None):
+    """The calibration report of a fitted model on other rows (the lockbox)."""
+    X, y = build_training_table(rows, model_names, min_number, max_number, scores_suffix, actual_key)
+    if len(y) == 0 or len(set(y.tolist())) < 2:
+        return None
+    report = calibration_report(y, meta_model.predict_proba(X)[:, 1], block=max_number - min_number + 1, draw_size=draw_size)
+    report["days"] = len(rows)
+    return report
 
 
 def fit_positional_meta_model(results, model_names, label, fit_func, positions=PICK3_POSITIONS,
@@ -299,6 +321,7 @@ def fit_positional_meta_model(results, model_names, label, fit_func, positions=P
     split_index = int(len(results) * 0.8)
     train_rows, test_rows = results[:split_index], results[split_index:]
 
+    metrics = None
     if len(train_rows) > 0 and len(test_rows) > 0:
         X_train, y_train = build_positional_training_table(train_rows, model_names, positions, classes)
         X_test, _ = build_positional_training_table(test_rows, model_names, positions, classes)
@@ -306,6 +329,7 @@ def fit_positional_meta_model(results, model_names, label, fit_func, positions=P
         position_models = fit_position_models(X_train, y_train, fit_func, positions, classes)
         mean_profit, accuracies, _ = evaluate_positional_holdout(
             position_models, X_test, [row["actual_ordered"] for row in test_rows], positions, classes, game)
+        metrics = positional_metrics(mean_profit, accuracies, len(train_rows), len(test_rows))
 
         accuracy_text = " ".join(f"pos{pos}={accuracy:.3f}" for pos, accuracy in enumerate(accuracies))
         print(f"{label}: held-out per-position top-1 accuracy {accuracy_text} (chance 0.1) "
@@ -316,7 +340,15 @@ def fit_positional_meta_model(results, model_names, label, fit_func, positions=P
               f"(train_days={len(train_rows)}, test_days={len(test_rows)})")
 
     X_full, y_full = build_positional_training_table(results, model_names, positions, classes)
-    return fit_position_models(X_full, y_full, fit_func, positions, classes)
+    return fit_position_models(X_full, y_full, fit_func, positions, classes), metrics
+
+
+def positional_metrics(mean_profit, accuracies, train_days, test_days):
+    """The positional games' held-out report, JSON-safe (per-slot top-1 vs chance 0.1, argmax-ticket profit)."""
+    return {"per_position_top1": [round(float(a), 4) for a in accuracies], "chance_top1": 0.1,
+            "mean_top1": round(float(np.mean(accuracies)), 4) if len(accuracies) else None,
+            "argmax_profit_per_day": round(float(mean_profit), 4),
+            "train_days": int(train_days), "test_days": int(test_days)}
 
 
 # The backtest with collect_scores=True is the most expensive stage of the
@@ -404,7 +436,7 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams,
     return sliced, cache["model_names"]
 
 
-def train_meta_learner(dataset_name, game_cfg, path, days_back):
+def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=False, lockbox=None):
     # Positional games (Pick3: straight/pair payouts per slot; Joker+: prizes
     # on the leading/trailing runs of 6 digits - digits repeat in both) get
     # the positional table/artifact path below instead of the flat per-number
@@ -433,6 +465,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
     if total_rows == 0:
         print(f"No data found for {dataset_name}, skipping.")
         return
+    dates = list(getattr(loader, "dates", []))
 
     start_index = max(0, total_rows - days_back)
 
@@ -485,6 +518,19 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
     if not results:
         print(f"No backtest rows produced for {dataset_name}, skipping.")
         return
+
+    # The lockbox (src/Lockbox.py, lockbox.json at the root, loaded once in
+    # __main__): its days leave the table before any split or fit. They are
+    # scored once, on request, with the frozen artifacts below (--lockbox-report).
+    results, locked_rows = lockbox_split(results, dates, lockbox)
+    if lockbox:
+        print(f"{dataset_name}: {describe_lockbox(lockbox)} - {len(locked_rows)} table day(s) withheld from fitting, "
+              f"{len(results)} remain")
+        if not results:
+            print(f"{dataset_name}: nothing left to train on, skipping.")
+            return
+    metrics_out = {}
+    lockbox_out = {}
 
     # Special-column games (Euromillions/EuroDreams/VikingLotto) need their
     # main numbers and special column(s) modeled - and scored - completely
@@ -571,7 +617,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
             # "positional" flag is what tells the serving side to build a
             # per-slot digit ticket in drawn order rather than a sorted
             # top-draw_size ranking, so it must never be dropped.
-            position_models = fit_positional_meta_model(
+            position_models, metrics = fit_positional_meta_model(
                 results, model_names, label, fit_func, positions, POSITIONAL_CLASSES, dataset_name)
 
             artifact = {
@@ -601,26 +647,42 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
                 # - i.e. a zodiac CODE, decoded to its name only for display
                 # (Helpers.decode_zodiac). The sign is the only part of a
                 # Joker+ ticket a player can actually choose.
-                special_meta_model = fit_meta_model(
+                special_meta_model, special_metrics = fit_meta_model(
                     results, model_names, special_min, special_max,
                     scores_suffix="_special_scores", actual_key="actual_special",
-                    label=f"{label} (special column)", fit_func=fit_func)
+                    label=f"{label} (special column)", fit_func=fit_func, draw_size=specialColumnCount)
 
                 artifact.update({
                     "special_model": special_meta_model,
                     "special_min_number": special_min,
                     "special_max_number": special_max,
                     "special_draw_size": specialColumnCount,
+                    "special_metrics": special_metrics,
                 })
+                metrics = dict(metrics or {}, special=special_metrics)
+
+            artifact["metrics"] = metrics
+            artifact["lockbox"] = lockbox_json(lockbox)
+            metrics_out[label] = {"artifact": artifact_filename, "positional": True, "metrics": metrics}
+            if lockbox_report and locked_rows:
+                X_lock, _ = build_positional_training_table(locked_rows, model_names, positions, POSITIONAL_CLASSES)
+                mean_profit, accuracies, _ = evaluate_positional_holdout(
+                    position_models, X_lock, [row["actual_ordered"] for row in locked_rows], positions,
+                    POSITIONAL_CLASSES, dataset_name)
+                lockbox_out[label] = positional_metrics(mean_profit, accuracies, len(results), len(locked_rows))
+                print(f"{label}: LOCKBOX ({len(locked_rows)} days) per-position top-1 "
+                      + " ".join(f"pos{pos}={a:.3f}" for pos, a in enumerate(accuracies))
+                      + f" argmax-ticket profit/day={mean_profit:.2f} EUR")
 
             artifact_path = os.path.join(modelDir, artifact_filename)
             joblib.dump(artifact, artifact_path)
             print(f"{label}: saved positional meta-learner to {artifact_path}")
             continue
 
-        meta_model = fit_meta_model(
+        meta_model, metrics = fit_meta_model(
             results, model_names, game_cfg["min"], game_cfg["max"],
-            scores_suffix="_scores", actual_key=main_actual_key, label=label, fit_func=fit_func)
+            scores_suffix="_scores", actual_key=main_actual_key, label=label, fit_func=fit_func,
+            draw_size=game_cfg["draw_size"])
 
         artifact = {
             "model": meta_model,
@@ -633,21 +695,56 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back):
         }
 
         if specialColumnCount > 0:
-            special_meta_model = fit_meta_model(
+            special_meta_model, special_metrics = fit_meta_model(
                 results, model_names, special_min, special_max,
                 scores_suffix="_special_scores", actual_key="actual_special",
-                label=f"{label} (special column)", fit_func=fit_func)
+                label=f"{label} (special column)", fit_func=fit_func, draw_size=specialColumnCount)
 
             artifact.update({
                 "special_model": special_meta_model,
                 "special_min_number": special_min,
                 "special_max_number": special_max,
                 "special_draw_size": specialColumnCount,
+                "special_metrics": special_metrics,
             })
+            metrics = dict(metrics or {}, special=special_metrics)
+
+        artifact["metrics"] = metrics
+        artifact["lockbox"] = lockbox_json(lockbox)
+        metrics_out[label] = {"artifact": artifact_filename, "positional": False, "metrics": metrics}
+        if lockbox_report and locked_rows:
+            report = score_rows_with(meta_model, locked_rows, model_names, game_cfg["min"], game_cfg["max"],
+                                     "_scores", main_actual_key, draw_size=game_cfg["draw_size"])
+            if specialColumnCount > 0 and report is not None:
+                report["special"] = score_rows_with(special_meta_model, locked_rows, model_names, special_min, special_max,
+                                                    "_special_scores", "actual_special", draw_size=specialColumnCount)
+            lockbox_out[label] = report
+            print(describe_calibration(report, f"{label}: LOCKBOX ({len(locked_rows)} days)"))
 
         artifact_path = os.path.join(modelDir, artifact_filename)
         joblib.dump(artifact, artifact_path)
         print(f"{label}: saved meta-learner to {artifact_path}")
+
+    # The numbers next to the artifacts, one file per game: this week's
+    # held-out calibration and ranking of every variant, readable against
+    # last week's without a log.
+    with open(os.path.join(modelDir, "meta_learner_metrics.json"), "w") as handle:
+        json.dump({"game": dataset_name, "trained_at": datetime.now(timezone.utc).isoformat(), "days": days_back,
+                   "table_days": len(results), "lockbox": lockbox_json(lockbox), "lockbox_days_withheld": len(locked_rows),
+                   "variants": metrics_out}, handle, indent=2)
+    if lockbox_report:
+        if not lockbox:
+            print(f"{dataset_name}: --lockbox-report asked, but no lockbox is declared (lockbox.json)")
+        elif not locked_rows:
+            print(f"{dataset_name}: --lockbox-report: no table day falls inside the {describe_lockbox(lockbox)} "
+                  f"(the table covers the newest {days_back} draws)")
+        else:
+            with open(os.path.join(modelDir, "lockbox_report.json"), "w") as handle:
+                json.dump({"game": dataset_name, "evaluated_at": datetime.now(timezone.utc).isoformat(),
+                           "lockbox": lockbox_json(lockbox), "lockbox_days": len(locked_rows), "fit_days": len(results),
+                           "variants": lockbox_out}, handle, indent=2)
+            print(f"{dataset_name}: lockbox report written to {os.path.join(modelDir, 'lockbox_report.json')} - "
+                  "this is the one look the design gets; changing it afterwards makes the lockbox development data")
 
 
 LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
@@ -726,6 +823,11 @@ if __name__ == "__main__":
             default=300,
             help="How many most-recent draws to backtest for training data"
         )
+        parser.add_argument(
+            "--lockbox-report", action="store_true",
+            help="Score the freshly fitted artifacts once on the lockbox days (lockbox.json, README 'Lockbox "
+                 "period') and write data/models/<game>/lockbox_report.json. The lockbox days are always "
+                 "withheld from fitting; this flag only adds the evaluation - do not run it every week.")
         args = parser.parse_args()
 
         games = [g.strip() for g in args.games.split(",") if g.strip()]
@@ -734,12 +836,22 @@ if __name__ == "__main__":
             print(f"Unknown game(s), ignoring: {unknown_games}")
 
         path = os.getcwd()
+        # A malformed lockbox.json must stop the run here, before any backtest
+        # is spent - not fail every game inside its own try and exit 0.
+        try:
+            lockbox = load_lockbox(path)
+        except ValueError as e:
+            print(f"LOCKBOX ERROR: {e}")
+            sys.exit(1)
+        if lockbox:
+            print(f"Training under the {describe_lockbox(lockbox)}: its days are withheld from every table")
 
         for dataset_name in games:
             if dataset_name not in GAME_CONFIG:
                 continue
             try:
-                train_meta_learner(dataset_name, GAME_CONFIG[dataset_name], path, args.days)
+                train_meta_learner(dataset_name, GAME_CONFIG[dataset_name], path, args.days,
+                                   lockbox_report=args.lockbox_report, lockbox=lockbox)
             except Exception as e:
                 print(f"Failed to train meta-learner for {dataset_name}: {e}")
     finally:

@@ -20,6 +20,7 @@ from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, optimize_study, install_sigterm_handler
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
+from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox
 
 # Reuse the per-game min/max/draw_size/skip_last_columns/special_column_count
 # table and the (day, number) -> [scores, label] table builder instead of
@@ -144,7 +145,7 @@ VARIANTS = [
 ]
 
 
-def collect_score_table(dataset_name, game_cfg, path, days_back):
+def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
     """
     Same data-collection pass as TrainMetaLearner.train_meta_learner: backtest
     the 8 base models with collect_scores=True over the last days_back draws.
@@ -227,6 +228,17 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
         print(f"No backtest rows produced for {dataset_name}, skipping.")
         return None
 
+    # The lockbox (src/Lockbox.py): its days are never tuned on. They leave
+    # the table here, before either 75/25 day split - the flat one below and
+    # the positional one of Pick3 and Joker+, which returns early.
+    if lockbox:
+        results, locked = lockbox_split(results, list(getattr(loader, "dates", [])), lockbox)
+        print(f"{dataset_name}: {describe_lockbox(lockbox)} - {len(locked)} table day(s) withheld from tuning, "
+              f"{len(results)} remain")
+        if not results:
+            print(f"No backtest rows remain for {dataset_name} outside the lockbox, skipping.")
+            return None
+
     if is_positional:
         return results, model_names, "actual_ordered"
 
@@ -240,7 +252,6 @@ def collect_score_table(dataset_name, game_cfg, path, days_back):
     # from it), the main table carries far more days x numbers of signal, and
     # the ticket-level hits metric below only exists for the main draw.
     main_actual_key = "actual_main" if game_cfg["special_column_count"] > 0 else "actual"
-
     return results, model_names, main_actual_key
 
 
@@ -470,6 +481,15 @@ if __name__ == "__main__":
         print("Selected games:", games)
 
         path = os.getcwd()
+        # A malformed lockbox.json must stop the run here, before any backtest
+        # is spent - not fail every game inside its own try and exit 0.
+        try:
+            lockbox = load_lockbox(path)
+        except ValueError as e:
+            print(f"LOCKBOX ERROR: {e}")
+            sys.exit(1)
+        if lockbox:
+            print(f"Tuning under the {describe_lockbox(lockbox)}: its days are withheld from every table")
         optunaDatabase = "sqlite:///db.sqlite3"
 
         for dataset_name, game_cfg in GAME_CONFIG.items():
@@ -484,7 +504,7 @@ if __name__ == "__main__":
                 is_positional = helpers.is_positional_game(dataset_name)
                 positions = positional_positions(game_cfg) if is_positional else None
 
-                collected = collect_score_table(dataset_name, game_cfg, path, days_back)
+                collected = collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=lockbox)
                 if collected is None:
                     continue
                 results, model_names, main_actual_key = collected

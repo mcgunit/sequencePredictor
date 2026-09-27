@@ -269,6 +269,10 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
         served_score = None  # a -inf weight would reach modelScores and the JSON file
     record.update({
         "decision": "replaced" if replace else ("reverted" if revert else "kept"),
+        # how much choosing went into the challenger: this run's finite
+        # trials, and the study's completed trials the sampler was guided by
+        "run_trials": len(trials),
+        "study_trials": sum(1 for t in study.get_trials(deepcopy=False) if t.state == optuna.trial.TrialState.COMPLETE),
         "reason": reason + (" (" + "; ".join(notes) + ")" if notes else ""),
         "trial": best.number,
         "challenger": json_safe(challenger),

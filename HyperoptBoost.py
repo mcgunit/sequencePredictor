@@ -23,6 +23,7 @@ from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
 from src.BoostingBase import apply_boosting_params, BOOSTING_PARAM_SUFFIXES
 from src.TuningScore import score_rows, attrs_for_trial, describe
 from src.TuningGate import challenge, make_defaults
+from src.Lockbox import load as load_lockbox, window_overlap as lockbox_overlap, describe as describe_lockbox
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -684,6 +685,13 @@ if __name__ == "__main__":
 
         path = os.getcwd()
         optunaDatabase = "sqlite:///db.sqlite3"
+        # The lockbox is a warning here, never a reason to skip a game - and a
+        # malformed declaration is a warning too, said once, not a per-game failure.
+        try:
+            lockbox = load_lockbox(path)
+        except ValueError as e:
+            print(f"LOCKBOX WARNING: {e} - ignoring lockbox.json this run")
+            lockbox = None
 
         for dataset_name, game_cfg in GAME_CONFIG.items():
             if dataset_name not in games:
@@ -726,6 +734,21 @@ if __name__ == "__main__":
                 SERVED_KENO_SUBSETS = keno_subsets_served(existingData) if "keno" in dataset_name else None
                 if "keno" in dataset_name:
                     print(f"Keno subset sizes served (use_<n>): {SERVED_KENO_SUBSETS}")
+
+                # The lockbox (src/Lockbox.py) is enforced on the meta-learner
+                # tables; the row tuners score on the newest draws by design,
+                # so an overlap is said out loud rather than silently tuned on.
+                if lockbox:
+                    probe = DataLoader()
+                    probe.setDataPath(dataPath)
+                    probe.setGameRange(game_cfg["min"], game_cfg["max"])
+                    probe.setDrawSize(game_cfg["draw_size"])
+                    probe.load_numbers(skipLastColumns=game_cfg["skip_last_columns"])
+                    inside = lockbox_overlap(getattr(probe, "dates", []), daysToRebuild, lockbox)
+                    if inside:
+                        print(f"LOCKBOX WARNING: {inside} of the {daysToRebuild} tuning days fall inside the "
+                              f"{describe_lockbox(lockbox)} - trials and gate references score on lockbox draws; "
+                              "keep the lockbox older than the window or shorten -d")
 
                 profits = {}
 

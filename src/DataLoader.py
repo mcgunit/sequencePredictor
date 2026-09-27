@@ -41,4 +41,6 @@ class DataLoader:
             years_back=years_back,
             specialColumnCount=specialColumnCount
         )
+        # Dates in the same order as `numbers` (the lockbox maps row indices to them).
+        self.dates = list(getattr(helpers, "last_loaded_dates", []))
         return numbers, num_classes, unique_labels

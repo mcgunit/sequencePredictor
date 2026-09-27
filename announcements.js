@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-28-tuning-controls-calibration-lockbox',
+    date: '2026-09-28',
+    level: 'minor',
+    audience: 'admin',
+    title: 'Three research controls: tuning on nothing, calibration metrics, a lockbox',
+    body: [
+      'TuningControls.py runs the statistical tuner on a history with nothing in it and compares the best trial with the untuned defaults, next to the gate\'s real-history gain: what the hyperopt gains by choosing alone, so a real tuning gain can be read against it.',
+      'The weekly meta-learner retrain now reports and stores per-number calibration and ranking metrics - Brier, log-loss, reliability bins, and the top-ticket hits per day against chance - in the artifacts and in meta_learner_metrics.json, instead of a printed accuracy line.',
+      'A lockbox period can be declared in lockbox.json: the meta-learner trainer and the quantum tuner never fit or tune on its days, and TrainMetaLearner.py --lockbox-report scores the frozen artifacts on it once.',
+    ],
+    link: { href: '/admin/jobs', label: 'Jobs page' },
+  },
+  {
     id: '2026-09-27-control-experiments',
     date: '2026-09-27',
     level: 'minor',
