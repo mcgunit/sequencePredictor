@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-28-since-the-freeze',
+    date: '2026-09-28',
+    level: 'minor',
+    audience: 'all',
+    title: 'The best model per game, counted since the design freeze',
+    body: [
+      'The Best model per game card now shows, next to the all-history ranking, the best row counted only over the days since a declared date - and each model\'s value and draw count since that date in the expanded ranking.',
+      'Nothing was rebuilt. Every stored day was predicted before its draw, so counting from the date the design was frozen turns the record after it into that design\'s own track record, with the same minimum-draws guard as before.',
+      'The date is declared in since.json at the repository root. Until one is declared the column reads "not declared"; once declared, a game reads "no scored draw since that date yet" until its first draw on or after the date is scored. The null band is not applied to the since column, because a handful of draws clears a band measured over long histories by luck alone.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-09-28-tuning-controls-calibration-lockbox',
     date: '2026-09-28',
     level: 'minor',

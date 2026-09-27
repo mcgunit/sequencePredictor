@@ -38,6 +38,7 @@ from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
 from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
 from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
 from src.BoostingBase import apply_boosting_params
+from src.Since import load as load_since
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -2472,8 +2473,16 @@ if __name__ == "__main__":
         # Per-game/per-model performance summary over all scored history -
         # rendered by the web UI's History page (see server.js /database) and
         # committed alongside the prediction jsons below.
+        # The forward record (src/Since.py): a declared date from which the
+        # History page ranks the frozen design's own days. A malformed
+        # since.json costs the since ranking, never the report.
+        since = None
         try:
-            helpers.generate_model_performance_report(os.path.join(path, "data", "database"))
+            since = load_since(path)
+        except ValueError as e:
+            print(f"SINCE WARNING: {e} - the History page keeps the all-history ranking only")
+        try:
+            helpers.generate_model_performance_report(os.path.join(path, "data", "database"), since=since)
         except Exception as e:
             print("Failed to generate model performance report: ", e)
 

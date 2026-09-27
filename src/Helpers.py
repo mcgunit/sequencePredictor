@@ -101,6 +101,12 @@ def is_jokerplus(name):
     return "jokerplus" in str(name or "").lower()
 
 
+try:
+    from Since import on_or_after as since_on_or_after
+except ImportError:  # imported as src.Helpers from the repository root
+    from src.Since import on_or_after as since_on_or_after
+
+
 class Helpers():
 
     # Module-level codec/predicates exposed on the class as well, so both
@@ -476,11 +482,18 @@ class Helpers():
         return list(map(int, values))
 
     def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json",
-                                          combinationShuffles=100):
+                                          combinationShuffles=100, since=None):
         """
         Scans every game folder under databaseDir and writes a per-game,
         per-model performance summary over ALL scored history (each file's
         currentPrediction vs its realResult), for the web UI's History page.
+
+        `since` (src/Since.py, since.json at the repository root) adds a
+        second ranking per game under "since": the same aggregates over the
+        stored days on or after the declared date only - the forward record
+        of a frozen design, ranked with the same metric and the same
+        minimum-draws guard. Nothing is rebuilt: the stored days were all
+        predicted before their draw, the date is a filter.
 
         Next to the single-row ranking, each game gets a "combinations"
         section (_build_combination_report): the best SET of established
@@ -511,6 +524,11 @@ class Helpers():
             "generatedAt": datetime.now().isoformat(timespec="seconds"),
             "games": {},
         }
+        if since:
+            # The declaration itself, so the page can tell "declared, no scored
+            # day on or after the date yet" from "not declared"; the per-game
+            # "since" blocks below need at least one such day.
+            report["since"] = {"date": since["since"].isoformat(), "label": since["label"]}
 
         for game in sorted(os.listdir(databaseDir)):
             gameDir = os.path.join(databaseDir, game)
@@ -684,6 +702,44 @@ class Helpers():
                 "bestModel": models[0]["name"],
                 "models": models,
             }
+
+            # The forward record: the same per-row aggregates over the days
+            # on or after the declared date, from the day table just built.
+            if since:
+                sinceStats = {}
+                for day in dayTable:
+                    if not since_on_or_after(since, day["date"]):
+                        continue
+                    for name, row in day["rows"].items():
+                        entry = sinceStats.setdefault(name, {"draws": 0, "hits_total": 0, "best_hits": 0,
+                                                             "profit_total": 0.0, "bets": 0})
+                        entry["draws"] += 1
+                        entry["hits_total"] += row["hits"]
+                        entry["best_hits"] = max(entry["best_hits"], row["hits"])
+                        if row["bets"]:
+                            entry["profit_total"] += row["profit"]
+                            entry["bets"] += row["bets"]
+                if sinceStats:
+                    sinceModels = [{
+                        "name": name,
+                        "draws": entry["draws"],
+                        "avg_hits": round(entry["hits_total"] / entry["draws"], 3),
+                        "best_hits": entry["best_hits"],
+                        "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
+                        "profit_per_bet": round(entry["profit_total"] / entry["bets"], 3) if entry["bets"] else None,
+                        "bets": entry["bets"],
+                    } for name, entry in sinceStats.items()]
+                    sinceMinDraws = min(10, max(m["draws"] for m in sinceModels))
+                    sinceModels = (sorted([m for m in sinceModels if m["draws"] >= sinceMinDraws], key=sortKey, reverse=True)
+                                   + sorted([m for m in sinceModels if m["draws"] < sinceMinDraws], key=sortKey, reverse=True))
+                    report["games"][game]["since"] = {
+                        "date": since["since"].isoformat(),
+                        "label": since["label"],
+                        "metric": metric,
+                        "minDrawsForRanking": sinceMinDraws,
+                        "bestModel": sinceModels[0]["name"],
+                        "models": sinceModels,
+                    }
 
             # Portfolio search over the established rows (roadmap item 2):
             # which SET of rows is worth playing together, with a shuffled-

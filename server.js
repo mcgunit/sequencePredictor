@@ -706,6 +706,10 @@ function generatePerformanceSummary() {
 
   let rows = '';
   let anyBand = false;
+  // The declaration is recorded once at report level, so the card can tell
+  // "declared, no scored draw on or after the date yet" from "not declared".
+  const declared = report.since || null;
+  const anySince = Boolean(declared);
   Object.keys(report.games).sort().forEach((game) => {
     const info = report.games[game];
     const best = info.models[0];
@@ -730,16 +734,37 @@ function generatePerformanceSummary() {
       : `<span title="${bandTitle}">≤ ${band.ceiling.toFixed(2)} ${band.metric.replace(' per draw', '/draw')}${bandGreys ? '' : ' <span style="color:#aaa;">(info)</span>'}</span>`;
     const inBand = (m) => bandGreys && controls.withinBand(m.avg_hits, band);
 
+    // The forward record (since.json, src/Since.py): the same ranking over
+    // the days on or after the declared date - the frozen design's own track
+    // record, next to all history. Young there means young there.
+    const since = info.since || null;
+    const sinceByName = {};
+    (since ? since.models : []).forEach((m) => { sinceByName[m.name] = m; });
+    const sinceDisplay = (v) => (v === null || v === undefined ? '-' : (info.metric === 'profit_per_bet' ? `${v} €` : v));
+    const sinceBest = since ? sinceByName[since.bestModel] : null;
+    // The null band is not applied here: it is measured over long control
+    // histories, and the best of thirty rows over a handful of draws clears
+    // it by luck almost always.
+    const sinceCell = since
+      ? `<span title="${auth.escapeHtml(since.label)}: ${since.models.length} rows scored on ${sinceBest ? sinceBest.draws : 0} draws since ${since.date}"><b>${since.bestModel}</b> ${sinceDisplay(sinceBest ? sinceBest[info.metric] : null)} <span style="color:#7f8c8d;">(${sinceBest ? sinceBest.draws : 0} draws${sinceBest && sinceBest.draws < since.minDrawsForRanking ? ', too few to rank' : ''})</span></span>`
+      : declared
+        ? `<span style="color: #aaa;" title="${auth.escapeHtml(declared.label)}: no stored draw on or after ${declared.date} has been scored for this game yet">no scored draw since ${declared.date} yet</span>`
+        : '<span style="color: #aaa;" title="No since.json declared: the forward record starts when you declare a date">not declared</span>';
+
     // Expandable full ranking per game
     const ranking = info.models.map((m, i) => {
       const v = m[info.metric];
       const mDisplay = v === null || v === undefined ? '-' : (info.metric === 'profit_per_bet' ? `${v} €` : v);
       const young = m.draws < info.minDrawsForRanking ? ' style="color: #aaa;" title="Too few scored draws to rank"'
         : (inBand(m) ? ` style="color: #999; font-style: italic;" title="Within the null band: the best of ${band.modes[band.from].rows} rows scores up to ${band.ceiling.toFixed(3)} on a ${band.from} history with nothing in it"` : '');
-      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td></tr>`;
+      const sm = sinceByName[m.name];
+      const sinceYoung = sm && since && sm.draws < since.minDrawsForRanking;
+      const sinceCells = !since ? '' : `<td${sinceYoung ? ' style="color:#aaa;" title="Too few scored draws since the date to rank"' : ''}>${sm ? sinceDisplay(sm[info.metric]) : '-'}</td><td${sinceYoung ? ' style="color:#aaa;"' : ''}>${sm ? sm.draws : '-'}</td>`;
+      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td>${sinceCells}</tr>`;
     }).join('');
 
     const bestNote = inBand(best) ? ' <span style="color: #999; font-weight: normal; font-size: 0.85em;" title="The best row is within the null band">∅ within band</span>' : '';
+
     rows += `
       <tr style="cursor: pointer;" onclick="const d = document.getElementById('rank-${game}'); d.style.display = d.style.display === 'none' ? 'table-row' : 'none';">
         <td style="font-weight: bold; text-align: left;">${game} <span style="color: #aaa; font-size: 0.85em;">▼</span></td>
@@ -748,11 +773,12 @@ function generatePerformanceSummary() {
         <td style="font-weight: bold; color: ${valueColor};">${display}${bestNote}</td>
         <td>${best.draws}</td>
         <td>${bandCell}</td>
+        <td style="text-align: left;">${sinceCell}</td>
       </tr>
       <tr id="rank-${game}" style="display: none;">
-        <td colspan="6" style="padding: 0;">
+        <td colspan="7" style="padding: 0;">
           <table style="width: 100%; min-width: 0; margin: 0;">
-            <tr><th>#</th><th style="text-align: left;">Model</th><th>${metricLabel[info.metric] || info.metric}</th><th>Avg hits</th><th>Best day</th><th>Scored draws</th></tr>
+            <tr><th>#</th><th style="text-align: left;">Model</th><th>${metricLabel[info.metric] || info.metric}</th><th>Avg hits</th><th>Best day</th><th>Scored draws</th>${since ? `<th title="${auth.escapeHtml(since.label)} - the null band is measured over long control histories and is not applied to this column">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
             ${ranking}
           </table>
         </td>
@@ -773,13 +799,14 @@ function generatePerformanceSummary() {
       <div class="card-body">
         <div class="table-wrapper">
           <table style="min-width: 0;">
-            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th><th title="Q0: what the best of the rows scores on a history with nothing in it">Null band</th></tr>
+            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th><th title="Q0: what the best of the rows scores on a history with nothing in it">Null band</th><th style="text-align: left;" title="The forward record: the same ranking over the days since the declared date (since.json)">Best since the freeze</th></tr>
             ${rows}
           </table>
         </div>
         <p style="color: #7f8c8d; font-size: 0.85em; margin-bottom: 0;">
           Keno/Pick3/Joker+ rank by average profit per bet (real payout tables); other games by average hits of the main ticket.
           Click a game row for the full model ranking. Greyed models have fewer scored draws than the ranking minimum.
+          ${anySince ? `<b>Best since the freeze</b> (${auth.escapeHtml(declared.label)}, from ${declared.date}): the same ranking counted only over the stored days on or after the declared date - the frozen design\'s own track record, every day of it predicted before its draw. Nothing is rebuilt; the date is a filter. A game reads "no scored draw since ... yet" until its first draw on or after the date is scored; rows with fewer than the ranking minimum of draws since the date are shown grey in that column until they have them. The null band is not applied to this column: it is measured over long control histories, and the best of thirty rows over a handful of draws clears it by luck almost always.` : 'The <b>Best since the freeze</b> column fills in once a date is declared in <code>since.json</code>: the same ranking counted only over the days from that date on.'}
           ${anyBand ? '<b>Null band</b> (weekly <code>NullControls.py</code>): the best of the tracked rows, run on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - scores this much by selection alone (mean over the control histories plus two standard deviations). Rows marked ∅ sit within it: they have shown nothing a leaderboard over noise would not show. For the payout games the band is on average hits, not on the profit they rank by, so it is information only.' : 'The <b>null band</b> column fills in once the weekly <code>NullControls.py</code> job has run: what the best row scores on a history with nothing in it.'}
         </p>
       </div>
