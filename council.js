@@ -280,6 +280,7 @@ function page(req, header, footer, escapeHtml) {
       border-radius: 4px; font-weight: bold; display: inline-block; font-size: 0.95em;
     }
     .head-novalue { margin-top: 6px; color: #c0392b; font-weight: bold; }
+    .head-note { margin-top: 6px; color: #7f8c8d; font-size: 0.85em; font-style: italic; }
     .cursor { display: inline-block; width: 0.55em; color: #3498db; animation: blink 1s steps(2) infinite; }
     @keyframes blink { to { opacity: 0; } }
     @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
@@ -936,8 +937,11 @@ function page(req, header, footer, escapeHtml) {
       else if (h.pending) { renderMarkdown(body, ''); body.appendChild(el('span', 'md-pending', 'reading the members\u2019 answers…')); }
       else renderMarkdown(body, h.answer || '');
       if (h.streaming) body.appendChild(el('span', 'cursor', '▍'));
-      head.querySelectorAll('.head-value, .head-novalue').forEach(function (n) { n.remove(); });
+      head.querySelectorAll('.head-value, .head-novalue, .head-note').forEach(function (n) { n.remove(); });
       if (!h.streaming && h.ok !== false) {
+        // What the orchestrator had to do to get a chair's answer (a copied
+        // member's reply, asked again) - said, not hidden.
+        if (h.note) head.appendChild(el('div', 'head-note', h.note));
         if (h.value) head.appendChild(el('div', 'head-value', h.value));
         // Only a preset that asks for the marker (math, research, decision)
         // can be missing it; the default preset answers in prose.
@@ -970,7 +974,7 @@ function page(req, header, footer, escapeHtml) {
               state: result.head.ok ? 'answered' : 'failed',
               seconds: result.head.seconds, answer: result.head.answer,
               value: result.head.value, expects_value: result.head.expects_value,
-              error: result.head.error }
+              note: result.head.note, error: result.head.error }
           : null
       };
     }

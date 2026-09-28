@@ -381,6 +381,21 @@ final response. Two deliberate choices:
 The head runs at a lower temperature than the members. Members benefit from
 some variety; the head should be as steady as possible.
 
+- **A copied answer is asked again, once.** A small head faced with members
+  that contradict each other (asked "who created you?", four models named four
+  makers) will hand back one member's answer word for word - which is not
+  chairing. The orchestrator compares the head's reply with every member's
+  (case and whitespace ignored; the same text, one text making up at least
+  80% of the other, or a 90% character match counts - a member's sentence
+  quoted inside a longer synthesis does not; two-word answers are exempt) and,
+  when it is a copy, asks the head once more with the copy named. The second
+  reply stands when it arrives; if that call fails the first reply is kept.
+  Either way the result carries a `note` saying what happened, shown in grey
+  under the head's answer on the page. The default head prompt also says
+  it outright: never copy a member, and a question about the responder itself
+  has no single answer for a panel of different models. This costs a second
+  head call only when the first one copied.
+
 If no member answers, the head is skipped. If the head fails, the member
 answers are still written out.
 

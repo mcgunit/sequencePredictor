@@ -20,6 +20,7 @@ programming or configuration errors.
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import random
@@ -191,10 +192,55 @@ def ask_member(config: dict, member: dict, question: str,
     return result
 
 
+COPY_RATIO = 0.9   # SequenceMatcher ratio above which a head reply is a member's reply
+COPY_SHARE = 0.8   # a text contained in the other counts as a copy only when it IS most of it
+
+
+def copied_member(answer: str, members: list[dict]) -> int | None:
+    """
+    The 1-based number (as the head saw it: "Member N") of the member whose
+    answer the head's reply is a copy of, or None. Whitespace and case are
+    ignored. A copy is: the same text; one text contained in the other and
+    making up at least COPY_SHARE of it (a preamble or sign-off around a
+    member's answer is still a copy; a member's sentence quoted inside a
+    longer synthesis is not); or a SequenceMatcher ratio of COPY_RATIO or
+    better - autojunk off, since with it on difflib scores a near-verbatim
+    copy of a long answer close to zero. Short answers ("42", "yes") are
+    exempt: agreeing in two words is not copying.
+    """
+    def norm(text):
+        return " ".join((text or "").lower().split())
+
+    reply = norm(answer)
+    if len(reply) < 40:
+        return None
+    for index, member in enumerate([m for m in members if m.get("ok")], start=1):
+        text = norm(member.get("answer"))
+        if len(text) < 40:
+            continue
+        if reply == text:
+            return index
+        if text in reply and len(text) >= COPY_SHARE * len(reply):
+            return index
+        if reply in text and len(reply) >= COPY_SHARE * len(text):
+            return index
+        if difflib.SequenceMatcher(None, reply, text, autojunk=False).ratio() >= COPY_RATIO:
+            return index
+    return None
+
+
 def run_head(config: dict, head_cfg: dict, question: str,
              members: list[dict], retries: int,
              context: str | None = None, on_chunk=None) -> dict:
-    """Run the aggregation step. Never raises."""
+    """Run the aggregation step. Never raises.
+
+    A head that hands back one member's answer word for word has not chaired
+    anything - a small head does this readily when the members contradict
+    each other. The reply is checked against the members' answers and, once,
+    asked again with the copy named; the second reply stands when it arrives,
+    the first is kept if the second call fails, and the head result says what
+    happened ("note").
+    """
     started = time.monotonic()
     # Only a head that was told to end with the marker (the math, research
     # and decision presets, or a custom prompt that mentions it) is expected
@@ -205,9 +251,31 @@ def run_head(config: dict, head_cfg: dict, question: str,
             head_cfg, question, members, config["request_timeout_s"],
             config=config, context=context, retries=retries, on_chunk=on_chunk,
         )
+        note = None
+        copied = copied_member(answer, members)
+        if copied is not None:
+            log.warning("head repeated Member %d word for word - asking again", copied)
+            nudge = (f"Your previous reply repeated Member {copied} word for word. A chair does not "
+                     "copy a member: weigh all the answers, say where they disagree and which is "
+                     "right or that it cannot be decided, and write your own answer in your own words.")
+            try:
+                # No client retries here: the first reply is the fallback,
+                # so a busy box must not keep the page waiting a second cycle.
+                answer = head_mod.synthesise(
+                    head_cfg, question, members, config["request_timeout_s"],
+                    config=config, context=context, retries=0, on_chunk=on_chunk, nudge=nudge,
+                )
+            except client.CompletionError as exc:
+                log.error("head re-ask failed, keeping the first reply: %s", exc)
+                note = (f"the head first repeated Member {copied} word for word and was asked again; "
+                        f"the second attempt failed ({exc}), so the first reply is shown")
+            else:
+                again = copied_member(answer, members)
+                note = (f"the head first repeated Member {copied} word for word and was asked again"
+                        + (f"; it repeated Member {again} again" if again is not None else ""))
         outcome = {"ok": True, "answer": answer,
                    "value": answer_mod.extract(answer, expected=expects_value),
-                   "expects_value": expects_value}
+                   "expects_value": expects_value, "note": note}
     except client.CompletionError as exc:
         log.error("head failed: %s", exc)
         outcome = {"ok": False, "error": str(exc)}
@@ -376,6 +444,7 @@ def run_council(question: str, config: dict, *,
                 "answer": output["head"].get("answer"),
                 "value": output["head"].get("value"),
                 "expects_value": output["head"].get("expects_value"),
+                "note": output["head"].get("note"),
                 "error": output["head"].get("error"),
             })
         else:

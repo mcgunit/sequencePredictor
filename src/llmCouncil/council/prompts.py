@@ -36,6 +36,12 @@ DEFAULT_HEAD_SYSTEM_PROMPT = (
     "for x in '1 + 1 = x' means x = 2.\n"
     "- Judge each claim on its own. A long, detailed answer is not more "
     "reliable than a short one; elaboration is often where errors appear.\n"
+    "- Never copy a member's answer. Your reply is your own judgement of "
+    "theirs, in your own words; repeating one member is not chairing.\n"
+    "- A question about the responder itself ('who created you', 'what model "
+    "are you') has no single answer for a panel: the members are different "
+    "models from different makers. Say so; do not adopt one member's "
+    "identity as yours.\n"
     "- Agreement between members is weak evidence, not proof. Members can "
     "share the same mistake.\n"
     "- Where members contradict each other on a point of fact, say so "
@@ -185,11 +191,13 @@ def with_context(question: str, context: str | None) -> str:
 
 
 def head_prompt(question: str, members: list[dict],
-                context: str | None = None) -> str:
+                context: str | None = None, nudge: str | None = None) -> str:
     """Assemble the head's user message from the successful member answers.
 
     Members are anonymised: the head sees "Member 1", never a model name, so it
-    cannot defer to a brand rather than to an argument.
+    cannot defer to a brand rather than to an argument. `nudge` is an extra
+    closing paragraph for a second attempt (the orchestrator adds one when the
+    first reply copied a member word for word).
     """
     parts = []
     if context:
@@ -197,5 +205,9 @@ def head_prompt(question: str, members: list[dict],
     parts.append(f"Question put to the panel:\n{question}\n")
     for index, member in enumerate(members, start=1):
         parts.append(f"--- Member {index} ---\n{member['answer'].strip()}\n")
-    parts.append("Produce the final answer, following the rules you were given.")
+    parts.append("Produce the final answer, following the rules you were given. Write it in "
+                 "your own words - a member's answer copied is not a chair's answer - and "
+                 "where the members disagree, say so and judge.")
+    if nudge:
+        parts.append(nudge)
     return "\n".join(parts)
