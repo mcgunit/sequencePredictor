@@ -19,7 +19,7 @@ from src.DataLoader import DataLoader
 from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, optimize_study, install_sigterm_handler
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
-from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
+from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc, fit_classical_svm
 from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox
 
 # Reuse the per-game min/max/draw_size/skip_last_columns/special_column_count
@@ -98,7 +98,15 @@ def print_intro():
     print("Quantum Hyperopt")
     print("Licence : MIT License")
     print(ascii_art)
-    print("Find best parameters for the quantum meta-learner models")
+    print("Find best parameters for the quantum meta-learner models and their classical SVM control")
+
+
+# The encoding-scale grid shared by both quantum variants (see
+# suggest_quantum_kernel). 0.1 to 2.0 by 0.05: 39 points, the old 0.5-2.0
+# by 0.25 grid a subset of it.
+ENCODING_SCALE_LOW = 0.1
+ENCODING_SCALE_HIGH = 2.0
+ENCODING_SCALE_STEP = 0.05
 
 
 def suggest_quantum_kernel(trial):
@@ -110,11 +118,18 @@ def suggest_quantum_kernel(trial):
     README quantum track's deliberate starting width, but routing it through
     Optuna anyway makes the tuned value land in the json for TrainMetaLearner
     to read and turns a future widening into a one-list change here.
+
+    encodingScale (the kernel bandwidth, see README) searches 0.1-2.0 in
+    steps of 0.05 since 28 Sept 2026 - it was 0.5-2.0 by 0.25 and the tuned
+    values sat on its lower edge. Every old grid value lies on the new grid,
+    and Optuna continues the persisted studies: a parameter whose
+    distribution changed is sampled independently of the earlier trials.
     """
     return {
         "quantumKernel_nQubits": trial.suggest_categorical("quantumKernel_nQubits", [4]),
         "quantumKernel_encodingLayers": trial.suggest_int("quantumKernel_encodingLayers", 1, 3),
-        "quantumKernel_encodingScale": trial.suggest_float("quantumKernel_encodingScale", 0.5, 2.0, step=0.25),
+        "quantumKernel_encodingScale": trial.suggest_float("quantumKernel_encodingScale", ENCODING_SCALE_LOW,
+                                                           ENCODING_SCALE_HIGH, step=ENCODING_SCALE_STEP),
         "quantumKernel_C": trial.suggest_float("quantumKernel_C", 0.1, 100, log=True),
         "quantumKernel_maxTrainSamples": trial.suggest_categorical("quantumKernel_maxTrainSamples", [1000, 2000, 4000]),
     }
@@ -131,10 +146,30 @@ def suggest_quantum_vqc(trial):
     return {
         "quantumVqc_nQubits": trial.suggest_categorical("quantumVqc_nQubits", [4]),
         "quantumVqc_numLayers": trial.suggest_int("quantumVqc_numLayers", 1, 4),
-        "quantumVqc_encodingScale": trial.suggest_float("quantumVqc_encodingScale", 0.5, 2.0, step=0.25),
+        "quantumVqc_encodingScale": trial.suggest_float("quantumVqc_encodingScale", ENCODING_SCALE_LOW,
+                                                        ENCODING_SCALE_HIGH, step=ENCODING_SCALE_STEP),
         "quantumVqc_learningRate": trial.suggest_float("quantumVqc_learningRate", 0.005, 0.1, log=True),
         "quantumVqc_epochs": trial.suggest_int("quantumVqc_epochs", 30, 120, step=30),
         "quantumVqc_batchSize": trial.suggest_categorical("quantumVqc_batchSize", [64, 128, 256]),
+    }
+
+
+def suggest_classical_svm(trial):
+    """
+    Search space for the quantum kernel's classical control
+    (RbfKernelClassifier), same key-name contract. nFeatures mirrors the
+    quantum rows' nQubits and stays 4 so the two rows keep reducing to the
+    same width; gamma is the RBF width (sklearn's "scale" default is about
+    1 / n_features on standardised features, so 0.25 sits inside the range),
+    C and the sample cap the same ranges as the quantum kernel. RBF fits on
+    at most 4000 rows take seconds, so this study costs a fraction of the
+    quantum ones.
+    """
+    return {
+        "classicalSvm_nFeatures": trial.suggest_categorical("classicalSvm_nFeatures", [4]),
+        "classicalSvm_gamma": trial.suggest_float("classicalSvm_gamma", 0.01, 10.0, log=True),
+        "classicalSvm_C": trial.suggest_float("classicalSvm_C", 0.1, 100, log=True),
+        "classicalSvm_maxTrainSamples": trial.suggest_categorical("classicalSvm_maxTrainSamples", [1000, 2000, 4000]),
     }
 
 
@@ -142,6 +177,9 @@ def suggest_quantum_vqc(trial):
 VARIANTS = [
     ("quantum_kernel", fit_quantum_kernel, suggest_quantum_kernel),
     ("quantum_vqc", fit_quantum_vqc, suggest_quantum_vqc),
+    # the classical control is tuned by the same objective on the same split,
+    # so its row is not handicapped against tuned quantum rows
+    ("classical_svm", fit_classical_svm, suggest_classical_svm),
 ]
 
 
@@ -149,7 +187,7 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
     """
     Same data-collection pass as TrainMetaLearner.train_meta_learner: backtest
     the 8 base models with collect_scores=True over the last days_back draws.
-    Run ONCE per game and cached across both quantum studies - the backtest is
+    Run ONCE per game and cached across the three studies - the backtest is
     the expensive part (XGBoost genuinely trains per day) while the tunables
     only affect the quantum classifier fitted on top, so re-collecting per
     trial or per study would multiply minutes of work for identical tables.

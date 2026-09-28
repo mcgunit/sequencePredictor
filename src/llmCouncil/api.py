@@ -145,7 +145,8 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
                 # The reply so far, so the page can show it typing.
                 state["seats"][payload["name"]] = {"state": "asking", "partial": payload["partial"]}
             elif kind == "head_chunk":
-                state["head"] = {"name": payload["name"], "state": "asking", "partial": payload["partial"]}
+                state["head"] = {"name": payload["name"], "state": "asking", "partial": payload["partial"],
+                                 "order": (state.get("head") or {}).get("order")}
             elif kind == "member_done":
                 seat = "cached" if payload["cached"] else (
                     "answered" if payload["ok"] else "failed")
@@ -157,11 +158,15 @@ def make_runner(config: dict) -> jobs_mod.JobRunner:
                     "answer": payload.get("answer"), "error": payload.get("error")}
             elif kind == "head_start":
                 state["phase"] = "head"
-                state["head"] = {"name": payload["name"], "state": "asking"}
+                # order: the answered members as the head reads them, so the
+                # page can label each card with the "Member N" the head uses.
+                state["head"] = {"name": payload["name"], "state": "asking",
+                                 "order": payload.get("order")}
             elif kind == "head_done":
                 state["head"] = {
                     "name": payload["name"],
                     "state": "answered" if payload["ok"] else "failed",
+                    "order": payload.get("order"),
                     "seconds": payload["seconds"],
                     "answer": payload.get("answer"), "value": payload.get("value"),
                     "expects_value": payload.get("expects_value"),

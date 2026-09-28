@@ -1883,8 +1883,13 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # trained model class inside differs (see src/QuantumModels.py).
     quantumMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_meta_learner.joblib")
     quantumVqcMetaLearnerPath = os.path.join(path, "data", "models", name, "quantum_vqc_meta_learner.joblib")
+    # The quantum kernel's classical control - an RBF-kernel SVC on the same
+    # reduced features (src/QuantumModels.RbfKernelClassifier) - is its own
+    # row for the same reason: the comparison is made on the History page.
+    classicalSvmMetaLearnerPath = os.path.join(path, "data", "models", name, "classical_svm_meta_learner.joblib")
 
-    if any(os.path.exists(p) for p in (metaLearnerPath, metaLearnerV2Path, quantumMetaLearnerPath, quantumVqcMetaLearnerPath)):
+    if any(os.path.exists(p) for p in (metaLearnerPath, metaLearnerV2Path, quantumMetaLearnerPath,
+                                       quantumVqcMetaLearnerPath, classicalSvmMetaLearnerPath)):
         try:
             # Re-apply this game's tuned params to every base model
             # feeding the meta-learner(s), independent of whether that
@@ -2174,7 +2179,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             runMetaLearnerVariant(metaLearnerPath, "MetaLearner Model", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature")
             runMetaLearnerVariant(metaLearnerV2Path, "MetaLearnerV2 Model", "metaLearnerV2SubsetMode", "metaLearnerV2SubsetTemperature")
             # Quantum rows share the classical rows' feature names, so the
-            # score caches above mean all four variants cost one scoring
+            # score caches above mean all five variants cost one scoring
             # pass; runMetaLearnerVariant's artifact-missing early-return
             # and per-variant try/except give each row a graceful skip and
             # failure isolation (an artifact that fails to unpickle - e.g.
@@ -2182,6 +2187,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             # loses its own row).
             runMetaLearnerVariant(quantumMetaLearnerPath, "QuantumMetaLearner Model", "quantumMetaLearnerSubsetMode", "quantumMetaLearnerSubsetTemperature")
             runMetaLearnerVariant(quantumVqcMetaLearnerPath, "QuantumVQC Model", "quantumVqcSubsetMode", "quantumVqcSubsetTemperature")
+            runMetaLearnerVariant(classicalSvmMetaLearnerPath, "ClassicalSVM Model", "classicalSvmSubsetMode", "classicalSvmSubsetTemperature")
         except Exception as e:
             print("Failed to perform Meta-Learner prediction: ", e)
 

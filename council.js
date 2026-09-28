@@ -249,6 +249,14 @@ function page(req, header, footer, escapeHtml) {
     .member-caret { color: #95a5a6; font-size: 0.8em; flex: none; width: 10px; }
     .member-name { font-weight: bold; color: #2c3e50; font-size: 0.88em; flex: none; }
     .member-name span { color: #7f8c8d; font-weight: normal; }
+    /* The number the head used for this member ("Member 2"): the head reads
+       the answers anonymised and shuffled, so the number is the only way to
+       follow a "Member 2 says..." in its verdict back to a card. */
+    .member-seat {
+      color: #7f8c8d; font-size: 0.76em; flex: none; border: 1px solid #d6dbdf;
+      border-radius: 3px; padding: 0 5px; white-space: nowrap;
+    }
+    .member-seat:empty { display: none; }
     .member-excerpt { color: #666; font-size: 0.88em; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .member[data-collapsed="0"] .member-excerpt { display: none; }
     .member[data-collapsed="1"] .member-body { display: none; }
@@ -878,6 +886,7 @@ function page(req, header, footer, escapeHtml) {
         var name = el('span', 'member-name', m.name);
         name.appendChild(el('span'));
         head.appendChild(name);
+        head.appendChild(el('span', 'member-seat'));
         head.appendChild(el('span', 'member-excerpt'));
         head.addEventListener('click', function () { setCollapsed(box, box.getAttribute('data-collapsed') !== '1'); });
         box.appendChild(head);
@@ -901,6 +910,18 @@ function page(req, header, footer, escapeHtml) {
     function collapseMembers(turn) {
       turn.querySelectorAll('.member[data-streaming="0"]').forEach(function (box) { setCollapsed(box, true); });
     }
+    // Number the member cards the way the head numbered them. The order is the
+    // list of answered member names as the head read them (result.head.order,
+    // sent with head_start), so "Member 1" in the verdict is order[0]. A
+    // member missing from it did not answer and gets no number.
+    function labelMembers(turn, order) {
+      if (!order || !order.length) return;
+      turn.querySelectorAll('.member .member-seat').forEach(function (n) { n.textContent = ''; });
+      order.forEach(function (name, i) {
+        var box = memberBox(turn, name);
+        if (box) box.querySelector('.member-seat').textContent = 'Member ' + (i + 1);
+      });
+    }
     function renderFromProgress(turn, progress) {
       Object.keys(progress.seats || {}).forEach(function (name) {
         var seat = progress.seats[name];
@@ -912,6 +933,7 @@ function page(req, header, footer, escapeHtml) {
           renderMember(turn, { name: name, ok: true, answer: seat.partial, streaming: true });
         }
       });
+      if (progress.head) labelMembers(turn, progress.head.order);
       if (progress.head && progress.head.state === 'asking') {
         // A big head model on a CPU can take minutes to read four members'
         // answers before it produces its first token. The box appears at
@@ -951,6 +973,7 @@ function page(req, header, footer, escapeHtml) {
     function renderResult(turn, result) {
       (result.members || []).forEach(function (m) { renderMember(turn, m); });
       if (result.head) {
+        labelMembers(turn, result.head.order);
         renderHead(turn, result.head);
         // The verdict is in; the deliberation folds to one line per member.
         collapseMembers(turn);

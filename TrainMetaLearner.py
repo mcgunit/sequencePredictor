@@ -1,4 +1,5 @@
-import os, argparse, json, functools, sys
+import os, argparse, json, functools, sys, platform
+from importlib import metadata as importlib_metadata
 import numpy as np
 import joblib
 
@@ -13,13 +14,33 @@ from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
-from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
+from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc, fit_classical_svm
 from src.Calibration import calibration_report, describe as describe_calibration
 from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox, as_json as lockbox_json
 
 from HyperoptStatistics import GAME_CONFIG
 
 helpers = Helpers()
+
+# The libraries a pickled meta-learner depends on, recorded in every artifact.
+ARTIFACT_PACKAGES = ("numpy", "scikit-learn", "joblib")
+
+
+def package_versions(packages=ARTIFACT_PACKAGES):
+    """
+    The interpreter and the libraries a meta-learner artifact was written
+    with (README: "training metadata and package versions"). A joblib
+    artifact is only as loadable as the scikit-learn that pickled it, and a
+    metric that moved between two weeks reads differently when the library
+    moved with it. None for a package that is not installed.
+    """
+    versions = {"python": platform.python_version()}
+    for name in packages:
+        try:
+            versions[name] = importlib_metadata.version(name)
+        except importlib_metadata.PackageNotFoundError:
+            versions[name] = None
+    return versions
 
 
 def build_training_table(rows, model_names, min_number, max_number, scores_suffix="_scores", actual_key="actual"):
@@ -531,6 +552,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
             return
     metrics_out = {}
     lockbox_out = {}
+    versions = package_versions()
 
     # Special-column games (Euromillions/EuroDreams/VikingLotto) need their
     # main numbers and special column(s) modeled - and scored - completely
@@ -602,16 +624,36 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
             quantum_vqc_params,
         ))
 
+    # The quantum kernel's classical control (README Q1: "compare with ...
+    # classical-kernel SVM"): the same scaler and PCA to the same width, the
+    # same class-balanced sample cap, the same calibrated SVC - only the
+    # kernel differs (RBF instead of state overlap). Its own tracked row, so
+    # the comparison is made by the History page over months rather than by
+    # a printed line once; the metrics file below records both every week.
+    if bestParams.get("useClassicalSvmMetaLearner", True):
+        classical_svm_params = {
+            "classicalSvm_nFeatures": bestParams.get("classicalSvm_nFeatures", 4),
+            "classicalSvm_gamma": bestParams.get("classicalSvm_gamma", "scale"),
+            "classicalSvm_C": bestParams.get("classicalSvm_C", 1.0),
+            "classicalSvm_maxTrainSamples": bestParams.get("classicalSvm_maxTrainSamples", 2000),
+        }
+        variants.append((
+            functools.partial(fit_classical_svm, params=classical_svm_params),
+            "classical_svm_meta_learner.joblib", f"{dataset_name} (classical svm)",
+            classical_svm_params,
+        ))
+
     for fit_func, artifact_filename, label, variant_params in variants:
         # Training metadata (README's persistence requirement): when the
-        # artifact was produced and the exact hyperparameters it was fitted
-        # with ({} for the classical variants - theirs are fixed in code
-        # above). Additive keys only, so Predictor.py's runMetaLearnerVariant
-        # serves old and new artifacts unchanged.
+        # artifact was produced, the exact hyperparameters it was fitted
+        # with ({} for the two classical variants - theirs are fixed in code
+        # above) and the package versions that wrote it. Additive keys only,
+        # so Predictor.py's runMetaLearnerVariant serves old and new
+        # artifacts unchanged.
         trained_at = datetime.now(timezone.utc).isoformat()
 
         if is_positional:
-            # Same four variants, same filenames, but a different artifact
+            # Same variants, same filenames, but a different artifact
             # shape: one classifier per position (the main/special separation
             # pattern, applied per slot) instead of one flat "model". The
             # "positional" flag is what tells the serving side to build a
@@ -631,6 +673,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
                 "max_number": game_cfg["max"],
                 "trained_at": trained_at,
                 "params": variant_params,
+                "versions": versions,
             }
 
             if specialColumnCount > 0:
@@ -692,6 +735,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
             "draw_size": game_cfg["draw_size"],
             "trained_at": trained_at,
             "params": variant_params,
+            "versions": versions,
         }
 
         if specialColumnCount > 0:
@@ -731,7 +775,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     with open(os.path.join(modelDir, "meta_learner_metrics.json"), "w") as handle:
         json.dump({"game": dataset_name, "trained_at": datetime.now(timezone.utc).isoformat(), "days": days_back,
                    "table_days": len(results), "lockbox": lockbox_json(lockbox), "lockbox_days_withheld": len(locked_rows),
-                   "variants": metrics_out}, handle, indent=2)
+                   "versions": versions, "variants": metrics_out}, handle, indent=2)
     if lockbox_report:
         if not lockbox:
             print(f"{dataset_name}: --lockbox-report asked, but no lockbox is declared (lockbox.json)")
@@ -742,7 +786,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
             with open(os.path.join(modelDir, "lockbox_report.json"), "w") as handle:
                 json.dump({"game": dataset_name, "evaluated_at": datetime.now(timezone.utc).isoformat(),
                            "lockbox": lockbox_json(lockbox), "lockbox_days": len(locked_rows), "fit_days": len(results),
-                           "variants": lockbox_out}, handle, indent=2)
+                           "versions": versions, "variants": lockbox_out}, handle, indent=2)
             print(f"{dataset_name}: lockbox report written to {os.path.join(modelDir, 'lockbox_report.json')} - "
                   "this is the one look the design gets; changing it afterwards makes the lockbox development data")
 

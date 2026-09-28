@@ -141,7 +141,8 @@ const JOBS = [
   {
     key: 'hyperoptQuantum',
     name: 'Weekly tuning: quantum meta-learners',
-    description: 'Tunes the quantum-kernel SVC and the VQC. Must run before the retrain below, '
+    description: 'Tunes the quantum-kernel SVC, the VQC and their classical RBF-SVM control, three Optuna '
+               + 'studies per game. Must run before the retrain below, '
                + 'which is the whole point: fresh parameters, not week-old ones (HyperoptQuantum.py).',
     script: 'HyperoptQuantum.py', args: [], log: 'hyperoptQuantum.log', plan: CHAIN_PLAN,
   },

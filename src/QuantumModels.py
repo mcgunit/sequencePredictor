@@ -102,10 +102,22 @@ def _ring_phases(n_qubits):
     return phases
 
 
-def _z0_signs(n_qubits):
-    # <Z> readout on qubit 0: +1 for basis states where its bit is 0, -1
-    # where it is 1; <Z> = sum(|amplitude|^2 * sign)
-    return 1.0 - 2.0 * _qubit_bits(n_qubits)[:, 0]
+def _readout_signs(n_qubits):
+    """
+    <Z> readout on the LAST qubit: +1 for basis states where its bit is 0,
+    -1 where it is 1; <Z> = sum(|amplitude|^2 * sign). The last qubit and not
+    qubit 0 because of the CNOT ring that precedes the readout
+    (_cnot_ring_source_indices): its final CNOT has qubit 0 as TARGET, and Z
+    on a CNOT's target pulls back through the ring to Z_1 Z_2 ... Z_{n-1} -
+    an observable without qubit 0 - so with a qubit-0 readout the last
+    layer's two rotations on qubit 0 could never change the output (their
+    gradient is exactly zero; the module self-check shows it). The last
+    qubit is the ring's final CONTROL, and Z on it pulls back to
+    Z_0 Z_1 ... Z_{n-1}, which every qubit's rotations move. Until 28 Sept
+    2026 the readout was qubit 0; artifacts carry their own sign vector, so
+    models trained before then keep serving exactly as trained.
+    """
+    return 1.0 - 2.0 * _qubit_bits(n_qubits)[:, n_qubits - 1]
 
 
 def _cnot_ring_source_indices(n_qubits):
@@ -117,7 +129,10 @@ def _cnot_ring_source_indices(n_qubits):
     purpose: CZ (and RZ) are diagonal, so they never change |amplitude|^2 -
     a trailing CZ ring would be completely invisible to the Z-basis readout
     and its layer's parameters would train against a dead gradient. A CNOT
-    ring moves probability between basis states and keeps every layer live.
+    ring moves probability between basis states and keeps every layer live -
+    provided the readout qubit is the ring's final control, not its final
+    target, whose Z pulls back past the last layer's gates on it (see
+    _readout_signs).
     """
     dim = 2 ** n_qubits
     src = np.arange(dim)
@@ -319,6 +334,62 @@ class QuantumKernelClassifier:
 
 
 # ---------------------------------------------------------------------------
+# Classical control for the quantum kernel (README Q1: "compare with ...
+# classical-kernel SVM")
+# ---------------------------------------------------------------------------
+
+class RbfKernelClassifier:
+    """
+    The quantum-kernel classifier with the one quantum piece replaced: the
+    same StandardScaler + PCA to the same width (n_features, the control's
+    n_qubits), the same class-balanced subsampling, the same probability-
+    calibrated, class-balanced SVC - and a classical RBF kernel
+    exp(-gamma |x - y|^2) where the quantum row measures the state overlap
+    |<phi(x)|phi(y)>|^2. Same pipeline, same features, same evaluation; the
+    kernel differs, and so do the SVC settings each row is tuned to (C, the
+    sample cap, here the RBF width), because HyperoptQuantum tunes each row
+    by its own study - a C chosen for the fidelity kernel is not the right C
+    for an RBF. Same picklable sklearn-style API.
+    """
+
+    def __init__(self, n_features=4, gamma="scale", C=1.0, max_train_samples=2000, random_state=0):
+        self.n_features = int(n_features)
+        # "scale" is sklearn's 1 / (n_features * X.var()); a number is the
+        # tuned width
+        self.gamma = gamma if isinstance(gamma, str) else float(gamma)
+        self.C = float(C)
+        self.max_train_samples = int(max_train_samples)
+        self.random_state = int(random_state)
+
+    def fit(self, X, y):
+        X = np.asarray(X, dtype=float)
+        y = np.asarray(y, dtype=int)
+
+        # fitted on the given training data ONLY - the same leakage rule as
+        # the quantum classifiers (_fit_feature_reduction)
+        self._scaler, self._pca = _fit_feature_reduction(X, self.n_features, self.random_state)
+        feats = _reduce_features(self._scaler, self._pca, X, self.n_features)
+
+        rng = np.random.default_rng(self.random_state)
+        keep = _balanced_subsample_indices(y, self.max_train_samples, rng)
+
+        self._svc = SVC(kernel="rbf", gamma=self.gamma, C=self.C, probability=True,
+                        class_weight="balanced", random_state=self.random_state)
+        self._svc.fit(feats[keep], y[keep])
+        self.classes_ = self._svc.classes_
+        return self
+
+    def predict_proba(self, X):
+        feats = _reduce_features(self._scaler, self._pca, np.asarray(X, dtype=float), self.n_features)
+        return self._svc.predict_proba(feats)
+
+    def predict(self, X):
+        # argmax of the Platt-scaled probabilities, like QuantumKernelClassifier
+        proba = self.predict_proba(X)
+        return self.classes_[np.argmax(proba, axis=1)]
+
+
+# ---------------------------------------------------------------------------
 # Variational quantum classifier (README candidate 2)
 # ---------------------------------------------------------------------------
 
@@ -331,7 +402,8 @@ class VariationalQuantumClassifier:
     (RZ, CZ) don't change |amplitude|^2, so anything diagonal at the tail of
     the circuit is invisible to the Z-basis readout and its parameters would
     sit on an exactly-zero gradient - see _cnot_ring_source_indices. Readout
-    is P(class 1) = (1 + <Z on qubit 0>) / 2, squashed through a trainable
+    is P(class 1) = (1 + <Z on the last qubit>) / 2 (the ring's final control;
+    _readout_signs says why not qubit 0), squashed through a trainable
     affine + sigmoid so the raw expectation can calibrate itself to the class
     balance. Trained with class-weighted binary cross-entropy and Adam in
     numpy; circuit gradients come from the exact parameter-shift rule,
@@ -372,7 +444,7 @@ class VariationalQuantumClassifier:
         return self._readout(states)
 
     def _readout(self, states):
-        # raw P(class 1) = (1 + <Z on qubit 0>) / 2, before the trainable
+        # raw P(class 1) = (1 + <Z on the last qubit>) / 2, before the trainable
         # affine + sigmoid calibration
         z = (np.abs(states) ** 2) @ self._z_signs
         return 0.5 * (1.0 + z)
@@ -401,6 +473,75 @@ class VariationalQuantumClassifier:
             states = states[:, self._ring_perm]
         return self._readout(states)
 
+    def _loss_and_gradient(self, params, encoded, y, pos_weight):
+        """
+        Class-weighted binary cross-entropy of the calibrated readout on one
+        already-encoded minibatch, and its exact gradient with respect to
+        every parameter: the rotation angles by the parameter-shift rule, the
+        two readout parameters analytically. fit() calls this once per
+        minibatch; the module self-check (python3 -m src.QuantumModels) calls
+        it against central finite differences of the same loss, which is what
+        makes the shift rule testable gate by gate instead of through a
+        training curve. `params` is the flat vector fit() optimises: the
+        (num_layers, n_qubits, 2) angles, then readout weight and bias.
+        """
+        n_theta = self.num_layers * self.n_qubits * 2
+        thetas = params[:n_theta].reshape(self.num_layers, self.n_qubits, 2)
+        readout_w = params[n_theta]
+        readout_b = params[n_theta + 1]
+        n_batch = len(y)
+
+        # Forward pass in circuit order, caching the state right BEFORE every
+        # rotation: each parameter-shift evaluation can then restart from its
+        # own gate instead of re-running the whole circuit - roughly halves
+        # the gate applications per optimizer step without changing the math.
+        prefix_states = []
+        states = encoded.copy()
+        for layer in range(self.num_layers):
+            for kind in (0, 1):  # RZ pass, then RY pass
+                for qubit in range(self.n_qubits):
+                    prefix_states.append((layer, kind, qubit, states.copy()))
+                    if kind == 0:
+                        _apply_rz(states, thetas[layer, qubit, 0], qubit, self.n_qubits)
+                    else:
+                        _apply_ry(states, thetas[layer, qubit, 1], qubit, self.n_qubits)
+            states = states[:, self._ring_perm]
+        praw = self._readout(states)
+        prob = _sigmoid(readout_w * praw + readout_b)
+
+        weights = np.where(y == 1, pos_weight, 1.0)
+        # the loss itself is only reported (and differentiated numerically by
+        # the self-check); the optimiser needs the gradient below
+        clipped = np.clip(prob, 1e-12, 1.0 - 1e-12)
+        loss = -np.sum(weights * (y * np.log(clipped) + (1 - y) * np.log(1.0 - clipped))) / np.sum(weights)
+        # d(weighted BCE)/d(logit) for a sigmoid output collapses to
+        # weight * (p - y); normalizing by the weight sum keeps step sizes
+        # comparable across batches with different class mixes
+        dlogit = weights * (prob - y) / np.sum(weights)
+
+        grad = np.empty_like(params)
+        for layer, kind, qubit, before in prefix_states:
+            # parameter-shift rule: gates generated by a Pauli/2 have the
+            # exact derivative (f(t + pi/2) - f(t - pi/2)) / 2. Both shifted
+            # circuits are evaluated over the whole minibatch at once, stacked
+            # into one array so the shared suffix is walked a single time.
+            angle = thetas[layer, qubit, kind]
+            both = np.concatenate([before, before])
+            shifted_angles = np.concatenate([
+                np.full(n_batch, angle + np.pi / 2),
+                np.full(n_batch, angle - np.pi / 2),
+            ])
+            if kind == 0:
+                _apply_rz(both, shifted_angles, qubit, self.n_qubits)
+            else:
+                _apply_ry(both, shifted_angles, qubit, self.n_qubits)
+            praw_both = self._tail_readout(both, thetas, layer, kind, qubit)
+            dpraw = 0.5 * (praw_both[:n_batch] - praw_both[n_batch:])
+            grad[(layer * self.n_qubits + qubit) * 2 + kind] = readout_w * np.dot(dlogit, dpraw)
+        grad[n_theta] = np.dot(dlogit, praw)
+        grad[n_theta + 1] = np.sum(dlogit)
+        return loss, grad
+
     def fit(self, X, y):
         X = np.asarray(X, dtype=float)
         y = np.asarray(y, dtype=int)
@@ -412,7 +553,7 @@ class VariationalQuantumClassifier:
 
         self._feature_map = QuantumFeatureMap(self.n_qubits, self.encoding_layers, self.encoding_scale)
         self._ring_perm = _cnot_ring_source_indices(self.n_qubits)
-        self._z_signs = _z0_signs(self.n_qubits)
+        self._z_signs = _readout_signs(self.n_qubits)
 
         rng = np.random.default_rng(self.random_state)
         # small init keeps the ansatz near the identity so early training is
@@ -450,59 +591,7 @@ class VariationalQuantumClassifier:
                 yb = y[batch]
 
                 encoded = self._feature_map.encode(feats[batch])
-                n_batch = len(batch)
-
-                thetas = params[:n_theta].reshape(self.num_layers, self.n_qubits, 2)
-                readout_w = params[n_theta]
-                readout_b = params[n_theta + 1]
-
-                # Forward pass in circuit order, caching the state right
-                # BEFORE every rotation: each parameter-shift evaluation can
-                # then restart from its own gate instead of re-running the
-                # whole circuit - roughly halves the gate applications per
-                # optimizer step without changing the math.
-                prefix_states = []
-                states = encoded.copy()
-                for layer in range(self.num_layers):
-                    for kind in (0, 1):  # RZ pass, then RY pass
-                        for qubit in range(self.n_qubits):
-                            prefix_states.append((layer, kind, qubit, states.copy()))
-                            if kind == 0:
-                                _apply_rz(states, thetas[layer, qubit, 0], qubit, self.n_qubits)
-                            else:
-                                _apply_ry(states, thetas[layer, qubit, 1], qubit, self.n_qubits)
-                    states = states[:, self._ring_perm]
-                praw = self._readout(states)
-                prob = _sigmoid(readout_w * praw + readout_b)
-
-                weights = np.where(yb == 1, pos_weight, 1.0)
-                # d(weighted BCE)/d(logit) for a sigmoid output collapses to
-                # weight * (p - y); normalizing by the weight sum keeps step
-                # sizes comparable across batches with different class mixes
-                dlogit = weights * (prob - yb) / np.sum(weights)
-
-                grad = np.empty_like(params)
-                for layer, kind, qubit, before in prefix_states:
-                    # parameter-shift rule: gates generated by a Pauli/2 have
-                    # the exact derivative (f(t + pi/2) - f(t - pi/2)) / 2.
-                    # Both shifted circuits are evaluated over the whole
-                    # minibatch at once, stacked into one array so the
-                    # shared suffix is walked a single time.
-                    angle = thetas[layer, qubit, kind]
-                    both = np.concatenate([before, before])
-                    shifted_angles = np.concatenate([
-                        np.full(n_batch, angle + np.pi / 2),
-                        np.full(n_batch, angle - np.pi / 2),
-                    ])
-                    if kind == 0:
-                        _apply_rz(both, shifted_angles, qubit, self.n_qubits)
-                    else:
-                        _apply_ry(both, shifted_angles, qubit, self.n_qubits)
-                    praw_both = self._tail_readout(both, thetas, layer, kind, qubit)
-                    dpraw = 0.5 * (praw_both[:n_batch] - praw_both[n_batch:])
-                    grad[(layer * self.n_qubits + qubit) * 2 + kind] = readout_w * np.dot(dlogit, dpraw)
-                grad[n_theta] = np.dot(dlogit, praw)
-                grad[n_theta + 1] = np.sum(dlogit)
+                _, grad = self._loss_and_gradient(params, encoded, yb, pos_weight)
 
                 step += 1
                 m = beta1 * m + (1 - beta1) * grad
@@ -580,3 +669,143 @@ def fit_quantum_vqc(X, y, params=None):
         batch_size=int(params.get("quantumVqc_batchSize", 128)),
     )
     return model.fit(X, y)
+
+
+def fit_classical_svm(X, y, params=None):
+    """
+    Factory for the classical RBF control row, same call convention as
+    fit_quantum_kernel (bind tuned params with functools.partial).
+
+    bestParams keys (all optional, defaults in parentheses):
+        classicalSvm_nFeatures        -> n_features        (4, the quantum rows' qubit count)
+        classicalSvm_gamma            -> gamma             ("scale"; a number when tuned)
+        classicalSvm_C                -> C                 (1.0)
+        classicalSvm_maxTrainSamples  -> max_train_samples (2000)
+    """
+    params = params or {}
+    model = RbfKernelClassifier(
+        n_features=int(params.get("classicalSvm_nFeatures", 4)),
+        gamma=params.get("classicalSvm_gamma", "scale"),
+        C=float(params.get("classicalSvm_C", 1.0)),
+        max_train_samples=int(params.get("classicalSvm_maxTrainSamples", 2000)),
+    )
+    return model.fit(X, y)
+
+
+# ---------------------------------------------------------------------------
+# Self-check: python3 -m src.QuantumModels (part of npm test)
+# ---------------------------------------------------------------------------
+
+def _self_check():
+    import pickle
+
+    rng = np.random.default_rng(3)
+
+    # 1. The parameter-shift gradient against central finite differences of
+    #    the very loss fit() minimises, for every parameter: each RZ and RY
+    #    angle in every layer (the shift rule is exact only for gates
+    #    generated by a Pauli/2, so a wrong gate convention or a wrong suffix
+    #    walk in _tail_readout shows up here as a mismatch) and the two
+    #    readout parameters. Angles are drawn wide so the check does not sit
+    #    in the near-identity region where every gradient is small.
+    X = rng.normal(size=(48, 6))
+    y = (rng.random(48) < 0.3).astype(int)
+    vqc = VariationalQuantumClassifier(n_qubits=4, num_layers=2, encoding_scale=0.7)
+    vqc._scaler, vqc._pca = _fit_feature_reduction(X, vqc.n_qubits, 0)
+    feats = _reduce_features(vqc._scaler, vqc._pca, X, vqc.n_qubits)
+    vqc._feature_map = QuantumFeatureMap(vqc.n_qubits, vqc.encoding_layers, vqc.encoding_scale)
+    vqc._ring_perm = _cnot_ring_source_indices(vqc.n_qubits)
+    vqc._z_signs = _readout_signs(vqc.n_qubits)
+    encoded = vqc._feature_map.encode(feats)
+    n_theta = vqc.num_layers * vqc.n_qubits * 2
+    params = np.concatenate([rng.normal(0.0, 0.8, size=n_theta), [3.0, -1.0]])
+    pos_weight = (len(y) - y.sum()) / y.sum()
+
+    loss, grad = vqc._loss_and_gradient(params, encoded, y, pos_weight)
+    eps = 1e-6
+    numeric = np.empty_like(params)
+    for i in range(len(params)):
+        up, down = params.copy(), params.copy()
+        up[i] += eps
+        down[i] -= eps
+        numeric[i] = (vqc._loss_and_gradient(up, encoded, y, pos_weight)[0]
+                      - vqc._loss_and_gradient(down, encoded, y, pos_weight)[0]) / (2 * eps)
+    worst = float(np.max(np.abs(numeric - grad)))
+    largest = float(np.max(np.abs(grad)))
+    smallest = float(np.min(np.abs(grad[:n_theta])))
+    assert np.isfinite(loss) and largest > 1e-3, f"degenerate check point: loss={loss}, max|grad|={largest}"
+    # every angle must be live, or the comparison below is 0 == 0 for it and
+    # proves nothing about that gate
+    assert smallest > 1e-5, f"an angle is dead at the check point: min |grad| = {smallest:.1e}"
+    assert worst < 1e-6, f"parameter-shift gradient disagrees with finite differences by {worst:.2e}"
+    kinds = ["RZ", "RY"]
+    per_kind = {k: float(np.max(np.abs((numeric - grad)[[i for i in range(n_theta) if i % 2 == kinds.index(k)]])))
+                for k in kinds}
+    print(f"parameter-shift vs finite differences over {len(params)} parameters: worst |diff| = {worst:.1e} "
+          f"(RZ {per_kind['RZ']:.1e}, RY {per_kind['RY']:.1e}, readout "
+          f"{float(np.max(np.abs((numeric - grad)[n_theta:]))):.1e}); max |grad| = {largest:.3f}")
+
+    # 1b. Why the readout is the last qubit: with Z on qubit 0 - the ring's
+    #     final target - the last layer's two rotations on qubit 0 are inert
+    #     for every input, and the comparison above would pass them as
+    #     0 == 0. Shown here so the reason stays checked, not just written.
+    vqc._z_signs = 1.0 - 2.0 * _qubit_bits(vqc.n_qubits)[:, 0]
+    _, grad_qubit0 = vqc._loss_and_gradient(params, encoded, y, pos_weight)
+    vqc._z_signs = _readout_signs(vqc.n_qubits)
+    dead = [((vqc.num_layers - 1) * vqc.n_qubits + 0) * 2 + kind for kind in (0, 1)]
+    assert np.max(np.abs(grad_qubit0[dead])) < 1e-12, "expected a qubit-0 readout to leave the last layer's qubit-0 angles dead"
+    print(f"readout on qubit 0 would leave the last layer's two qubit-0 angles dead (|grad| < 1e-12); "
+          f"on the last qubit every angle is live (min |grad| = {smallest:.1e})")
+
+    # 1c. The training loop end to end on the refactored gradient step.
+    trained = fit_quantum_vqc(X, y, {"quantumVqc_epochs": 3, "quantumVqc_batchSize": 16})
+    proba_vqc = trained.predict_proba(X)
+    assert proba_vqc.shape == (len(X), 2) and np.allclose(proba_vqc.sum(axis=1), 1.0)
+    print("VQC fits end to end and returns calibrated two-column probabilities")
+
+    # 2. A shift rule with the wrong shift would pass nothing above; make sure
+    #    the check itself has teeth by breaking it on purpose.
+    broken = grad.copy()
+    broken[0] *= 1.01
+    assert np.max(np.abs(numeric - broken)) > 1e-6 or abs(grad[0]) < 1e-4, "the check cannot tell a 1% error"
+    print("a 1% error in one angle's gradient is detected")
+
+    # 3. The fidelity kernel is a kernel: symmetric, unit diagonal, PSD.
+    states = QuantumFeatureMap(4, 2, 0.7).encode(feats)
+    kernel = _quantum_kernel(states, states)
+    assert np.allclose(kernel, kernel.T) and np.allclose(np.diag(kernel), 1.0)
+    assert np.min(np.linalg.eigvalsh(kernel)) > -1e-9, "quantum kernel is not PSD"
+    print(f"quantum kernel on {len(feats)} rows: symmetric, unit diagonal, smallest eigenvalue "
+          f"{np.min(np.linalg.eigvalsh(kernel)):.1e}")
+
+    # 4. The classical control: fits, gives calibrated two-column
+    #    probabilities, learns a separable toy problem, survives pickling
+    #    (the joblib artifact), and takes a tuned numeric gamma.
+    #    Four columns, so the PCA to four features is a rotation and keeps the
+    #    two the label depends on (on wider isotropic noise it would not).
+    X_toy = rng.normal(size=(400, 4))
+    y_toy = (X_toy[:, 0] * X_toy[:, 1] > 0).astype(int)       # XOR-like: not linearly separable
+    control = fit_classical_svm(X_toy[:300], y_toy[:300])
+    proba = control.predict_proba(X_toy[300:])
+    assert proba.shape == (100, 2) and np.allclose(proba.sum(axis=1), 1.0)
+    accuracy = float(np.mean(control.predict(X_toy[300:]) == y_toy[300:]))
+    assert accuracy > 0.75, f"RBF control only {accuracy:.2f} accurate on a separable toy problem"
+    again = pickle.loads(pickle.dumps(control))
+    assert np.array_equal(again.predict_proba(X_toy[300:]), proba)
+    tuned = fit_classical_svm(X_toy[:300], y_toy[:300],
+                              params={"classicalSvm_gamma": 0.5, "classicalSvm_C": 10.0,
+                                      "classicalSvm_maxTrainSamples": 200})
+    assert tuned._svc.gamma == 0.5 and len(tuned._svc.support_) <= 200
+    print(f"RBF control: {accuracy:.2f} accurate on the XOR-like toy holdout, pickle round-trip exact, "
+          f"tuned gamma/C/sample cap applied")
+
+    # 5. Both kernel rows and the VQC share one preprocessing: the same
+    #    scaler + PCA reduce to the same width on the same rows.
+    quantum = QuantumKernelClassifier(max_train_samples=200).fit(X_toy[:300], y_toy[:300])
+    assert np.allclose(quantum._pca.components_, control._pca.components_)
+    print("quantum kernel row and its classical control reduce features identically")
+    print("QuantumModels self-check OK")
+
+
+if __name__ == "__main__":
+    _self_check()

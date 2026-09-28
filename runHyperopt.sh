@@ -50,11 +50,11 @@ python3 HyperoptRLTicket.py >> /root/sequencePredictor/log/hyperoptRLTicket.log 
 # others.
 python3 HyperoptEnsemble.py >> /root/sequencePredictor/log/hyperoptEnsemble.log 2>&1
 
-# Tune the two quantum meta-learner variants (quantum-kernel SVC and VQC) into
-# the same bestParams_<game>.json files. Shares process.lock, so it stays
+# Tune the two quantum meta-learner variants (quantum-kernel SVC and VQC) and
+# their classical RBF-SVM control into the same bestParams_<game>.json files. Shares process.lock, so it stays
 # sequenced after the other tuners - and it MUST run before TrainMetaLearner.py:
 # the whole point is that the weekly retrain trains the quantum artifacts on
-# freshly tuned quantumKernel_*/quantumVqc_* params instead of week-old ones.
+# freshly tuned quantumKernel_*/quantumVqc_*/classicalSvm_* params instead of week-old ones.
 python3 HyperoptQuantum.py >> /root/sequencePredictor/log/hyperoptQuantum.log 2>&1
 
 # Retrain the Phase 1 stacking meta-learner on the freshly tuned bestParams_<game>.json

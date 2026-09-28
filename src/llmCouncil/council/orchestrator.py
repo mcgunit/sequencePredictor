@@ -11,8 +11,13 @@
     {
       "question": str,
       "members": [ {name, lab, seconds, ok, answer|error, cached?}, ... ],
-      "head":    {name, lab, seconds, ok, answer|error}        # may be absent
+      "head":    {name, lab, seconds, ok, answer|error, order}  # may be absent
     }
+
+`head.order` lists the names of the answered members in the order the head
+read them ("Member 1" in the head's text is order[0]): the head sees
+anonymised, shuffled answers, so without it a reader could not tell which
+member the head means.
 
 It does not raise on model failure; inspect the `ok` flags. It raises only on
 programming or configuration errors.
@@ -229,6 +234,13 @@ def copied_member(answer: str, members: list[dict]) -> int | None:
     return None
 
 
+def head_order(members: list[dict]) -> list[str]:
+    """Names of the members whose answers the head is shown, numbered as the
+    head numbers them: "Member N" is head_order(members)[N - 1]. Failed
+    members are left out, exactly as head.synthesise leaves them out."""
+    return [m["name"] for m in members if m.get("ok")]
+
+
 def run_head(config: dict, head_cfg: dict, question: str,
              members: list[dict], retries: int,
              context: str | None = None, on_chunk=None) -> dict:
@@ -284,6 +296,7 @@ def run_head(config: dict, head_cfg: dict, question: str,
         "name": head_cfg["name"],
         "lab": head_cfg.get("lab"),
         "seconds": round(time.monotonic() - started, 1),
+        "order": head_order(members),
         **outcome,
     }
 
@@ -429,17 +442,20 @@ def run_council(question: str, config: dict, *,
 
     if head_cfg:
         if any(r["ok"] for r in results):
-            emit("head_start", {"name": head_cfg["name"]})
+            ordered = order_for_head(members, results, config)
+            # The order goes out with head_start, so the page can number the
+            # member cards while the head is still reading them.
+            emit("head_start", {"name": head_cfg["name"], "order": head_order(ordered)})
             head_reporter = chunker("head_chunk", head_cfg["name"])
             output["head"] = run_head(
-                config, head_cfg, question,
-                order_for_head(members, results, config),
+                config, head_cfg, question, ordered,
                 retries, context, on_chunk=head_reporter,
             )
             note_streaming(head_cfg["name"], head_reporter, output["head"])
             emit("head_done", {
                 "name": head_cfg["name"],
                 "ok": output["head"]["ok"],
+                "order": output["head"]["order"],
                 "seconds": output["head"]["seconds"],
                 "answer": output["head"].get("answer"),
                 "value": output["head"].get("value"),

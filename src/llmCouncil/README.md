@@ -118,9 +118,13 @@ if succeeded(result):
 {
   "question": str,
   "members": [{"name", "lab", "seconds", "ok", "answer" | "error", "cached"?}],
-  "head":    {"name", "lab", "seconds", "ok", "answer" | "error"}   # optional
+  "head":    {"name", "lab", "seconds", "ok", "answer" | "error", "order"}   # optional
 }
 ```
+
+`head.order` is the list of answered members' names in the order the head
+read them: the head sees anonymised, shuffled answers, so "Member 2" in its
+text is `order[1]`. The same order goes out with the `head_start` event.
 
 It does not raise when a model fails — check the `ok` flags, or call
 `succeeded(result)`. It raises `ConfigError` for an unusable config and
@@ -346,7 +350,11 @@ The conversation is kept compact: a member's answer is one row - who, and the
 opening words - that opens on click, and the rows fold away by themselves the
 moment the head has reported, so what remains in view per turn is the
 question and the verdict. A reply that is still streaming stays open so it
-can be watched; sessions loaded from history show their members folded.
+can be watched; sessions loaded from history show their members folded. Once
+the head starts, each row also carries the number the head knows that member
+by ("Member 3"), taken from the run's own shuffled order, so the verdict's
+references resolve to cards; a member that failed has no number, because the
+head never saw it.
 
 ### Sessions
 
@@ -371,6 +379,10 @@ final response. Two deliberate choices:
 
 - **Members are anonymised.** The head sees "Member 1", "Member 2" and so on,
   never model names, so it cannot defer to a brand rather than to an argument.
+  The numbers follow the shuffled order of that run, not the config, so the
+  result carries them (`head.order`) and the page shows each member's number
+  on its card from the moment the head starts reading: a "Member 2 says" in
+  the verdict, or in the copy note, can be followed back to the card it means.
 - **The head is told not to average.** Its prompt instructs it to judge claims
   individually, to treat agreement as weak evidence rather than proof, to
   surface contradictions explicitly, and to drop claims it judges wrong even

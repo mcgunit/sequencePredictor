@@ -17,6 +17,32 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-28-classical-svm-control',
+    date: '2026-09-28',
+    level: 'minor',
+    audience: 'all',
+    title: 'A classical control row for the quantum kernel',
+    body: [
+      'ClassicalSVM Model is a new tracked row for every game: the quantum-kernel meta-learner with its one quantum piece replaced by a classical RBF kernel - same features, same reduction, same balanced subsampling and calibrated classifier, with its own weekly-tuned kernel width, C and sample cap. It appears on the History page as the quantum rows do, from the first weekly meta-learner retrain that writes its artifact, and the weekly quantum tuner tunes it alongside them.',
+      'Whether the quantum kernel ever separates from this control, and either from the null band, is the question the quantum track was asking; the two rows now answer it side by side over time.',
+      'Also this week: the variational classifier\'s gradient is checked against finite differences by the test suite - a check that at once found two rotations the circuit could never use, because it read out the qubit the entangling ring writes last; the readout moved, the check now insists every angle is live, and the VQC rows pick up the corrected circuit at the next weekly retrain. Every meta-learner artifact records the library versions it was written with, and the quantum rows\' encoding-scale search extends down to 0.1, where the tuned values were pressing against the old lower bound.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
+    id: '2026-09-28-council-head-chairs',
+    date: '2026-09-28',
+    level: 'minor',
+    audience: 'all',
+    title: 'The council head judges the members instead of repeating one',
+    body: [
+      'Asked a question the members answer differently, the small head used to hand back one member\'s answer word for word. Its prompt now says outright that a copied answer is not a chair\'s answer, and that a question about the responder itself has no single answer for a panel of different models.',
+      'The orchestrator also checks the head\'s reply against every member\'s answer and, when it is a copy, asks the head once more with the copy named. The second reply stands; if that call fails the first is kept, and a grey note under the verdict says what happened either way. The extra call happens only when the first reply copied.',
+      'The head reads the members anonymised and in a shuffled order, so "Member 2" in its verdict meant nothing on the page. Each member\'s card now shows the number the head knows it by, from the moment the head starts reading.',
+    ],
+    link: { href: '/council', label: 'Council page' },
+  },
+  {
     id: '2026-09-28-since-the-freeze',
     date: '2026-09-28',
     level: 'minor',
