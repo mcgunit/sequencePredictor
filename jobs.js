@@ -162,6 +162,17 @@ const JOBS = [
     log: 'randomnessDiscrimination.log', plan: CONTROLS_PLAN,
   },
   {
+    key: 'featureControl',
+    name: 'Weekly controls: irrelevant-feature control (meta-learners)',
+    description: 'Refits every served meta-learner variant on the table the Saturday chain cached, with shuffled-copy noise '
+               + 'columns appended: does any meta-learner give a provably irrelevant column stable importance, and which base '
+               + 'models matter more than noise does? Verdicts per game and variant on the History page '
+               + '(IrrelevantFeatureControl.py, refits only - no backtest - about an hour for the seven games together, '
+               + 'almost all of it the VQC refits: one keno-sized VQC fit takes two to three minutes and each game gets four).',
+    script: 'IrrelevantFeatureControl.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus', '-r', '3', '-k', '3'],
+    log: 'featureControl.log', plan: CONTROLS_PLAN,
+  },
+  {
     key: 'nullControls',
     name: 'Weekly controls: null histories (Q0)',
     description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each, so the Best-model card can show '

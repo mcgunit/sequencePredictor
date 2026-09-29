@@ -196,6 +196,7 @@ const JOB_NAMES = {
   'TrainMetaLearner.py': 'Retraining the meta-learner',
   'RandomnessDiscrimination.py': 'Weekly controls: randomness discrimination',
   'NullControls.py': 'Weekly controls: null histories',
+  'IrrelevantFeatureControl.py': 'Weekly controls: irrelevant-feature control',
 };
 
 function pipelineStatus() {
@@ -1045,6 +1046,88 @@ function generateLagAnalysis() {
     </div>`;
 }
 
+// --- LOGIC: Meta-learner feature control card (README "Null controls") -----
+// Per game and served meta-learner variant: did the model give provably
+// irrelevant columns stable importance, what did they cost it held-out, and
+// which base models matter more than noise does? Read from the weekly
+// IrrelevantFeatureControl.py records; the card is absent until one exists.
+function generateFeatureControl() {
+  const reportPath = path.join(dataPath, 'modelPerformance.json');
+  if (!fs.existsSync(reportPath)) return '';
+  let report;
+  try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); }
+  catch (e) { return ''; }
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (x, digits) => (x === null || x === undefined || !Number.isFinite(Number(x))) ? '-' : Number(x).toFixed(digits);
+  let rows = '';
+  let anyFits = false;
+  let newest = '';
+  Object.keys(report.games).sort().forEach((game) => {
+    const record = controls.loadFeatureControl(controlsPath, game);
+    if (!record) return;
+    const d = controls.describeFeatureControl(record);
+    if (d.anyFitsNoise) anyFits = true;
+    if (d.generatedAt && String(d.generatedAt) > newest) newest = String(d.generatedAt);
+    const gameCell = `<td rowspan="${d.variants.length || 1}" style="text-align:left; font-weight:bold; vertical-align:top;">${esc(game)}<br>`
+      + `<small style="color:#7f8c8d; font-weight:normal;">${d.tableDays === null ? '?' : d.tableDays} table days${d.positional ? ' (positional)' : ''}`
+      + `${d.lockboxDays ? `, ${d.lockboxDays} lockbox day(s) withheld` : ''}${d.behind ? `, ${d.behind} draw(s) behind the file` : ''} · ${d.repeats === null ? '?' : d.repeats} × ${d.noiseColumns === null ? '?' : d.noiseColumns} noise columns</small></td>`;
+    if (!d.variants.length) {
+      rows += `<tr>${gameCell}<td colspan="5" style="color:#aaa;">no variant was scored</td></tr>`;
+      return;
+    }
+    d.variants.forEach((v, i) => {
+      const verdict = v.error
+        ? `<span style="color:#aaa;" title="${esc(v.error)}">failed</span>`
+        : `<span style="${v.fitsNoise ? 'color:#e74c3c; font-weight:bold;' : 'color:#27ae60;'}" title="${esc(v.rule)}">${v.verdict}${v.fitsNoise ? ' ⚠' : ''}</span>`;
+      rows += `<tr>
+        ${i === 0 ? gameCell : ''}
+        <td style="text-align:left;">${esc(v.label)}</td>
+        <td>${verdict}</td>
+        <td title="share of the model's positive training-side permutation importance that lands on the noise columns; a noise column matters ${fmt(v.noiseRatio, 2)}x an average real column (t ${fmt(v.noiseT, 1)})">${v.noiseShare === null ? '-' : fmt(v.noiseShare * 100, 1) + '%'}</td>
+        <td title="held-out AUC of the fit without noise → mean over the fits with noise">${fmt(v.heldoutWithout, 4)} → ${fmt(v.heldoutWith, 4)}</td>
+        <td style="text-align:left;" title="base models whose held-out importance exceeds the noise columns' mean + 2 sd (band ${fmt(v.band, 4)})">${v.above.length ? v.above.map(esc).join(', ') : '<span style="color:#aaa;">none</span>'}</td>
+      </tr>`;
+    });
+  });
+  if (!rows) return '';
+
+  return `
+    <div class="card" style="margin-top: 25px;">
+      <div class="card-header" onclick="toggleCard(this)">
+        <div>
+          <span class="card-title">🧪 Meta-learner feature control (irrelevant column)</span>
+          <span class="card-meta" style="margin-left: 10px;">does any meta-learner give a random column stable importance?${anyFits ? ' <b style="color:#e74c3c;">yes ⚠</b>' : ''}</span>
+        </div>
+        <div class="card-icon">▼</div>
+      </div>
+      <div class="card-body">
+        <div class="table-wrapper">
+          <table>
+            <tr><th style="text-align:left;">Game</th><th style="text-align:left;">Meta-learner</th><th>Noise</th><th title="how much of the model's attribution went to the noise columns">Noise share</th><th title="held-out AUC without → with the noise columns">Held-out AUC</th><th style="text-align:left;" title="base models whose held-out importance clears the noise columns' band">Base models above the noise band</th></tr>
+            ${rows}
+          </table>
+        </div>
+        <p style="color: #7f8c8d; font-size: 0.85em;">
+          Weekly <code>IrrelevantFeatureControl.py</code> (README "Null controls"): every meta-learner variant is refitted on its
+          own training table with three <b>noise columns</b> appended - shuffled copies of real base-model scores, so they look
+          exactly like a base model and mean nothing. <b>Noise share</b> is how much of the model's attribution (permutation
+          importance on the training rows) lands on them: a model that cannot tell noise from signal gives three noise columns
+          among eleven about 27%, a model that ignores them 0%. <b>Fits noise</b> (⚠) means a noise column matters in training
+          at least a tenth as much as an average real column, consistently (pooled importance more than two standard errors
+          above zero) - the model's weights on the real columns are then not evidence of anything either.
+          <b>Held-out AUC</b> without → with noise is what the extra columns cost. The <b>base models above the noise band</b>
+          are the columns whose held-out importance exceeds what the noise columns score (their mean + 2 sd): the ones that carry
+          more than noise does. Importance is the ranking power lost when a column is scrambled (the drop in |AUC − 0.5|), so a
+          model whose probabilities came out inverted still shows what it leans on. With eight base models tested against a
+          two-sigma band, one clears it by chance about one week in five: a column counts when it stays above the band week after
+          week, not when it appears once. The lockbox days leave the table first, exactly as in the trainer.
+          ${newest ? `Newest record ${esc(newest.slice(0, 16).replace('T', ' '))}.` : ''}
+        </p>
+      </div>
+    </div>`;
+}
+
 // --- LOGIC: Randomness watch card (README "Entropy & Divergence Analysis") -
 // per game: KL(recent 60 draws || full history) for drift, KL(recent ||
 // uniform) + normalized entropy for distance from a fair draw, a trend over
@@ -1176,6 +1259,7 @@ app.get('/database', (req, res) => {
   html += generateCombinationSummary();
   html += generateLagAnalysis();
   html += generateRandomnessWatch();
+  html += generateFeatureControl();
   html += generateFooter();
   res.send(html);
 });

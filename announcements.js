@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-28-irrelevant-feature-control',
+    date: '2026-09-28',
+    level: 'minor',
+    audience: 'all',
+    title: 'A fourth control: can the meta-learners tell a real base model from noise?',
+    body: [
+      'Every Sunday, after the randomness test, the meta-learner variants of every game are refitted with three noise columns appended - shuffled copies of real base-model scores, so they look exactly like a base model and mean nothing. A variant that gives them weight is fitting noise, and its held-out numbers are then the same selection effect the null band measures at the row level.',
+      'The new Meta-learner feature control card on the History page shows, per game and variant, whether the noise was ignored or fitted, what share of the model\'s attribution went to it, what it cost in held-out AUC, and which base models matter more than noise does - the columns above the noise band.',
+      'It reads the table the Saturday chain cached and refits only, so it costs refits, not a backtest. First results on 4 October 2026.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-09-28-classical-svm-control',
     date: '2026-09-28',
     level: 'minor',

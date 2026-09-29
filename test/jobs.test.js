@@ -21,20 +21,22 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 9, 'nine jobs: the daily predictor, the six of the weekly tuning chain and the two control experiments');
+ok(jobs.JOBS.length === 10, 'ten jobs: the daily predictor, the six of the weekly tuning chain and the three control experiments');
 ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true',
   'the daily job is Predictor.py -a true, exactly as runPredictor.sh had it');
 ok(byKey.predictor.daily.hour === 9 && byKey.predictor.daily.minute === 0, 'the predictor keeps its 09:00 slot');
 ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner',
   'the weekly chain keeps the order runHyperopt.sh documented');
-ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,nullControls', 'the control plan runs Q2 (an hour) before Q0 (hours)');
+ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,featureControl,nullControls',
+  'the control plan runs Q2 (an hour), then the feature control (refits, about an hour), then Q0 (hours)');
 ok(jobs.JOBS.every((j) => !j.plan || PLANS[j.plan]), 'every planned job belongs to a known plan');
 ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'),
   'the quantum tuner must run before the retrain - that is why the retrain is weekly at all');
 ok(CHAIN_KEYS[CHAIN_KEYS.length - 1] === 'trainMetaLearner', 'the meta-learner retrain stays last');
 ok(byKey.nullControls.args.includes('-d') && byKey.nullControls.args.includes('both') && byKey.randomnessDiscrimination.args.includes('-w'),
   'the controls run with an explicit window, both control kinds and every game');
-ok(['nullControls', 'randomnessDiscrimination'].every((k) => byKey[k].args[1].split(',').length === 7), 'both controls cover the seven games');
+ok(['nullControls', 'randomnessDiscrimination', 'featureControl'].every((k) => byKey[k].args[1].split(',').length === 7), 'every control covers the seven games');
+ok(byKey.featureControl.args.includes('-r') && byKey.featureControl.args.includes('-k'), 'the feature control runs with explicit repeats and noise columns');
 
 // The shell scripts stay as the hand-run path, so they must not drift from
 // the schedule: same scripts, same order, or one of the two is wrong.
@@ -47,7 +49,7 @@ ok(orderInShell.every((i) => i > 0), 'every chain job appears in runHyperopt.sh'
 ok(orderInShell.every((pos, i) => i === 0 || pos > orderInShell[i - 1]),
   'the chain runs in runHyperopt.sh order - if one moves, both must move');
 const controlsInShell = CONTROL_KEYS.map((key) => runHyperopt.indexOf(`python3 ${byKey[key].script}`));
-ok(controlsInShell.every((i) => i > orderInShell[orderInShell.length - 1]) && controlsInShell[0] < controlsInShell[1],
+ok(controlsInShell.every((i) => i > orderInShell[orderInShell.length - 1]) && controlsInShell.every((pos, i) => i === 0 || pos > controlsInShell[i - 1]),
   'the hand-run path runs the controls after the retrain, in the plan order');
 
 jobs.JOBS.forEach((job) => {

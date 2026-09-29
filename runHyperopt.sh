@@ -61,9 +61,12 @@ python3 HyperoptQuantum.py >> /root/sequencePredictor/log/hyperoptQuantum.log 2>
 # files, so Predictor.py's MetaLearner Model always reflects the latest hyperopt run.
 python3 TrainMetaLearner.py >> /root/sequencePredictor/log/TrainMetaLearner.log 2>&1
 
-# The two control experiments (README "Null controls"), after everything that
+# The control experiments (README "Null controls"), after everything that
 # changes what is served: measurements of the rows, never inputs to them.
-# Q2 first (about an hour), then Q0 (hours: a full backtest per control
-# history). Both write under data/controls/ for the History page's cards.
+# Q2 first (about an hour), then the irrelevant-feature control on the
+# meta-learner table the chain just cached (refits only, about an hour), then
+# Q0 (hours: a full backtest per control history). All write under
+# data/controls/ for the History page's cards.
 python3 RandomnessDiscrimination.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -w 10 -n 3 >> /root/sequencePredictor/log/randomnessDiscrimination.log 2>&1
+python3 IrrelevantFeatureControl.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -r 3 -k 3 >> /root/sequencePredictor/log/featureControl.log 2>&1
 python3 NullControls.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -m both -n 3 -d 120 >> /root/sequencePredictor/log/nullControls.log 2>&1

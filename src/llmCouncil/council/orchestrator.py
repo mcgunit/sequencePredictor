@@ -267,9 +267,15 @@ def run_head(config: dict, head_cfg: dict, question: str,
         copied = copied_member(answer, members)
         if copied is not None:
             log.warning("head repeated Member %d word for word - asking again", copied)
+            # The two rules a small head breaks most on a question that makes
+            # it copy: restated here, once, because the copy shows the
+            # system prompt alone did not hold.
             nudge = (f"Your previous reply repeated Member {copied} word for word. A chair does not "
                      "copy a member: weigh all the answers, say where they disagree and which is "
-                     "right or that it cannot be decided, and write your own answer in your own words.")
+                     "right or that it cannot be decided, and write your own answer in your own words. "
+                     "If the question is about the responder itself - who made you, what model you are - "
+                     "the members are different models from different makers, so the panel has no single "
+                     "answer: say that, and do not adopt one member's identity as yours.")
             try:
                 # No client retries here: the first reply is the fallback,
                 # so a busy box must not keep the page waiting a second cycle.

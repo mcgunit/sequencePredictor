@@ -400,7 +400,7 @@ some variety; the head should be as steady as possible.
   (case and whitespace ignored; the same text, one text making up at least
   80% of the other, or a 90% character match counts - a member's sentence
   quoted inside a longer synthesis does not; two-word answers are exempt) and,
-  when it is a copy, asks the head once more with the copy named. The second
+  when it is a copy, asks the head once more with the copy named and the two rules a copying head breaks most often restated: no copying, and no adopting one member's identity on a question about the responder itself. The second
   reply stands when it arrives; if that call fails the first reply is kept.
   Either way the result carries a `note` saying what happened, shown in grey
   under the head's answer on the page. The default head prompt also says

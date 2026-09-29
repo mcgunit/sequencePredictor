@@ -86,5 +86,51 @@ const dMarginals = controls.describeDiscrimination({ game: 'x', verdict: verdict
 ok(!dMarginals.evidence && dMarginals.aboveBand && dMarginals.label.includes('shuffled control'),
   'above the band but not the shuffled history is marginals, not time - said so');
 
+// --- irrelevant-feature control ---------------------------------------------
+fs.mkdirSync(path.join(dir, 'features'));
+const variant = (over) => Object.assign({
+  repeats: 3, noise_columns: 3,
+  noise: { train_importance_mean: 0.001, train_importance_sd: 0.0005, train_t: 3.2, share_of_train_importance: 0.03,
+    noise_to_real_ratio: 0.04, heldout_importance_mean: 0.0002, heldout_importance_sd: 0.001, heldout_band: 0.0022 },
+  columns: {}, real_above_noise_band: ['Markov Model', 'XGBoost Model'],
+  heldout_auc_without_noise: 0.6123, heldout_auc_with_noise_mean: 0.6101, heldout_cost_of_noise: 0.0022,
+  fits_noise: false, rule: 'the rule', seconds: 12.3,
+}, over);
+write('features/lotto.json', { game: 'lotto', generated_at: '2026-10-04T12:00:00', repeats: 3, noise_columns: 3,
+  table: { days: 275, positional: false, behind_file_by: 1, lockbox_days_withheld: 25 },
+  variants: {
+    logistic: variant({}),
+    gradient_boosting: variant({ fits_noise: true, real_above_noise_band: [],
+      noise: { share_of_train_importance: 0.31, train_t: 5.5, heldout_band: 0.01 } }),
+    quantum_vqc: { error: 'boom', seconds: 1 },
+  } });
+write('features/keno.json', { game: 'lotto', variants: {} });
+fs.writeFileSync(path.join(dir, 'features', 'pick3.json'), '{');
+
+const fc = controls.loadFeatureControl(dir, 'lotto');
+ok(fc && fc.game === 'lotto', 'the feature-control record loads');
+ok(controls.loadFeatureControl(dir, 'keno') === null && controls.loadFeatureControl(dir, 'pick3') === null
+  && controls.loadFeatureControl(dir, 'jokerplus') === null && controls.loadFeatureControl(path.join(dir, 'nowhere'), 'lotto') === null,
+  'a record naming another game, a broken file, no file or no folder is no record');
+const fd = controls.describeFeatureControl(fc);
+ok(fd.variants.length === 3 && fd.tableDays === 275 && fd.behind === 1 && fd.lockboxDays === 25 && fd.generatedAt === '2026-10-04T12:00:00' && fd.repeats === 3,
+  'the description carries the table, the lockbox count and every variant');
+const lg = fd.variants.find((v) => v.key === 'logistic');
+const gb = fd.variants.find((v) => v.key === 'gradient_boosting');
+const vq = fd.variants.find((v) => v.key === 'quantum_vqc');
+ok(lg.label === 'MetaLearner (logistic)' && !lg.fitsNoise && lg.verdict === 'noise ignored' && lg.above.length === 2
+  && lg.heldoutWithout === 0.6123 && lg.heldoutWith === 0.6101 && lg.noiseShare === 0.03 && lg.noiseRatio === 0.04 && lg.rule === 'the rule',
+  'a variant that ignores noise reads as such, with its base models above the band and its numbers');
+ok(gb.fitsNoise && gb.verdict === 'fits noise' && gb.noiseShare === 0.31 && gb.noiseT === 5.5 && gb.above.length === 0 && fd.anyFitsNoise,
+  'a variant that fits noise is flagged, and the game with it');
+ok(vq.error === 'boom' && vq.verdict === 'failed' && !vq.fitsNoise && vq.noiseShare === null && vq.above.length === 0,
+  'a failed variant reads as failed, with no numbers');
+const partial = controls.describeFeatureControl({ game: 'x', variants: { classical_svm: { fits_noise: false } } });
+ok(partial.variants[0].label === 'ClassicalSVM (RBF control)' && partial.variants[0].noiseShare === null
+  && partial.variants[0].heldoutWithout === null && partial.variants[0].above.length === 0 && !partial.anyFitsNoise
+  && partial.tableDays === null, 'a record missing its numbers describes without throwing, with nulls');
+ok(Object.keys(controls.VARIANT_LABELS).join(',') === 'logistic,gradient_boosting,quantum_kernel,quantum_vqc,classical_svm',
+  'every served variant has a label');
+
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`controls.js: ${passed} checks passed`);

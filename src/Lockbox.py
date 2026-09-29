@@ -151,6 +151,17 @@ if __name__ == "__main__":
           "overlap counts the newest window's locked dates")
     check(describe(box).startswith("lockbox 2026-07-01 to 2026-09-26") and describe(None) == "no lockbox declared", describe(box))
     json.dumps(as_json(box))
+
+    # The repository's own declaration, if any: a malformed lockbox.json stops
+    # the trainer and the quantum tuner with LOCKBOX ERROR before any work, so
+    # it must fail here, in npm test, and not on a Saturday morning (a stray
+    # byte after the closing brace did exactly that on 27 Sept 2026).
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        declared = load(repo_root)
+        check(declared is None or describe(declared).startswith("lockbox "), "the repository's lockbox.json loads")
+    except ValueError as exc:
+        failures.append(f"the repository's lockbox.json does not load: {exc}")
     check(load("/nonexistent/root") is None, "no file, no lockbox")
 
     for message in failures:

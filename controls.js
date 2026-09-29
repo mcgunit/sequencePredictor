@@ -10,6 +10,10 @@
 //       simulated ones better than the same suite separates two fair
 //       histories. The controlled verdict next to the daily entropy tripwire
 //       on the "Randomness watch" card.
+//   FC  IrrelevantFeatureControl.py -> data/controls/features/<game>.json
+//       Whether any meta-learner variant gives noise columns appended to its
+//       table stable importance, and which base models matter more than
+//       noise does. The "Meta-learner feature control" card.
 //
 // Pure functions over parsed records, so the rules are testable
 // (test/controls.test.js); the readers swallow missing or broken files - the
@@ -108,4 +112,54 @@ function describeDiscrimination(record) {
   };
 }
 
-module.exports = { MODES, loadNullControls, nullBand, withinBand, loadDiscrimination, describeDiscrimination };
+// --- irrelevant-feature control ---------------------------------------------
+// The served row each variant key stands for, in the words the History page
+// uses for the rows themselves.
+const VARIANT_LABELS = {
+  logistic: 'MetaLearner (logistic)',
+  gradient_boosting: 'MetaLearnerV2 (gradient boosting)',
+  quantum_kernel: 'QuantumMetaLearner (quantum kernel)',
+  quantum_vqc: 'QuantumVQC',
+  classical_svm: 'ClassicalSVM (RBF control)',
+};
+
+function loadFeatureControl(dir, game) {
+  const record = readJson(path.join(dir, 'features', `${game}.json`));
+  return record && record.game === game && record.variants && typeof record.variants === 'object' ? record : null;
+}
+
+const num = (x) => {
+  const v = Number(x);
+  return x === null || x === undefined || !Number.isFinite(v) ? null : v;
+};
+
+// One row per variant; a variant that failed carries its error and nothing
+// else. Missing numbers read as null, never as NaN in the page.
+function describeFeatureControl(record) {
+  const variants = Object.keys(record.variants || {}).map((key) => {
+    const v = record.variants[key] || {};
+    const noise = v.noise || {};
+    const fitsNoise = Boolean(v.fits_noise);
+    return {
+      key, label: VARIANT_LABELS[key] || key,
+      error: v.error || null,
+      fitsNoise, verdict: v.error ? 'failed' : (fitsNoise ? 'fits noise' : 'noise ignored'),
+      noiseShare: num(noise.share_of_train_importance), noiseRatio: num(noise.noise_to_real_ratio),
+      noiseT: num(noise.train_t), band: num(noise.heldout_band),
+      above: Array.isArray(v.real_above_noise_band) ? v.real_above_noise_band.map(String) : [],
+      heldoutWithout: num(v.heldout_auc_without_noise), heldoutWith: num(v.heldout_auc_with_noise_mean),
+      cost: num(v.heldout_cost_of_noise), seconds: num(v.seconds), rule: v.rule || '',
+    };
+  });
+  const table = record.table || {};
+  return {
+    game: record.game, generatedAt: record.generated_at || null,
+    repeats: num(record.repeats), noiseColumns: num(record.noise_columns),
+    tableDays: num(table.days), positional: Boolean(table.positional), behind: num(table.behind_file_by),
+    lockboxDays: num(table.lockbox_days_withheld),
+    variants, anyFitsNoise: variants.some((v) => v.fitsNoise),
+  };
+}
+
+module.exports = { MODES, loadNullControls, nullBand, withinBand, loadDiscrimination, describeDiscrimination,
+  VARIANT_LABELS, loadFeatureControl, describeFeatureControl };

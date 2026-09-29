@@ -429,8 +429,16 @@ def save_meta_score_table(path, dataset_name, results, model_names, days_back, t
 
 
 def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind="score",
-                          model_names=None):
-    """Returns (results, model_names) sliced to the newest days_back days, or None."""
+                          model_names=None, tolerate_rows=0):
+    """
+    Returns (results, model_names) sliced to the newest days_back days, or None.
+
+    The cache is strict for the trainer and the tuner (a draw appended since
+    it was collected means recollecting). `tolerate_rows` lets a reader that
+    does not train - IrrelevantFeatureControl.py on Sunday, a day after the
+    chain collected the table - accept a table that is at most that many
+    draws behind the data file; the shortfall is printed so it is on record.
+    """
     cachePath = meta_table_cache_path(path, dataset_name, table_kind)
     if not os.path.exists(cachePath):
         return None
@@ -438,8 +446,12 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams,
         cache = joblib.load(cachePath)
     except Exception:
         return None
-    if cache.get("total_rows") != total_rows:
+    behind = total_rows - int(cache.get("total_rows") or 0)
+    if behind != 0 and not (0 < behind <= int(tolerate_rows or 0)):
         return None
+    if behind:
+        print(f"{dataset_name}: the cached score table is {behind} draw(s) behind the data file - accepted "
+              f"(tolerance {tolerate_rows})")
     if cache.get("days", 0) < days_back or len(cache.get("results") or []) == 0:
         return None
     # The base-model SET, not just their parameters: a table collected before
@@ -455,6 +467,91 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams,
     print(f"{dataset_name}: reusing the cached base-model score table "
           f"({len(sliced)} of {len(results)} cached days) - skipping the backtest")
     return sliced, cache["model_names"]
+
+
+VARIANT_KEYS = ("logistic", "gradient_boosting", "quantum_kernel", "quantum_vqc", "classical_svm")
+
+
+def meta_learner_variants(dataset_name, bestParams):
+    """
+    The meta-learner variants a game trains, resolved from its bestParams:
+    (fit_func, artifact filename, label, resolved params, key). One list for
+    the trainer and for IrrelevantFeatureControl.py, so the control tests
+    exactly the models that are served, with the parameters they are served
+    with. Keys are VARIANT_KEYS.
+    """
+    # "Lens diversity" (see README's Ideas section): a second, independently
+    # trained model class per game, added as its own MetaLearnerV2 Model row
+    # in Predictor.py rather than replacing MetaLearner Model - both get
+    # tracked side by side.
+    variants = [
+        (fit_logistic_regression, "meta_learner.joblib", dataset_name, {}, "logistic"),
+        (fit_gradient_boosting, "meta_learner_v2.joblib", f"{dataset_name} (v2)", {}, "gradient_boosting"),
+    ]
+
+    # Quantum meta-learners (README's quantum research track): two more
+    # lenses over the exact same training table - a quantum-kernel SVC and a
+    # variational quantum circuit (see src/QuantumModels.py) - each its own
+    # independently tracked Predictor row, never a replacement for the
+    # classical rows. Appended to the SAME variants list so the expensive
+    # backtest above still runs exactly once and every variant (special-column
+    # models included, via the shared fit_meta_model path) fits from the one
+    # shared `results`. The README suggested opt-in (default false) back when
+    # it assumed a heavy quantum-framework simulation; the numpy 4-qubit
+    # statevector implementation trains in minutes, so the flags default ON
+    # and exist as an off-switch instead. Hyperparameters are resolved from
+    # bestParams_<game>.json here (falling back to src/QuantumModels.py's
+    # documented defaults) and bound with functools.partial because
+    # fit_meta_model only ever calls fit_func(X, y); the resolved dict also
+    # goes into the artifact so a saved model documents what trained it.
+    if bestParams.get("useQuantumMetaLearner", True):
+        quantum_kernel_params = {
+            "quantumKernel_nQubits": bestParams.get("quantumKernel_nQubits", 4),
+            "quantumKernel_encodingLayers": bestParams.get("quantumKernel_encodingLayers", 2),
+            "quantumKernel_encodingScale": bestParams.get("quantumKernel_encodingScale", 1.0),
+            "quantumKernel_C": bestParams.get("quantumKernel_C", 1.0),
+            "quantumKernel_maxTrainSamples": bestParams.get("quantumKernel_maxTrainSamples", 2000),
+        }
+        variants.append((
+            functools.partial(fit_quantum_kernel, params=quantum_kernel_params),
+            "quantum_meta_learner.joblib", f"{dataset_name} (quantum kernel)",
+            quantum_kernel_params, "quantum_kernel",
+        ))
+
+    if bestParams.get("useQuantumVqcMetaLearner", True):
+        quantum_vqc_params = {
+            "quantumVqc_nQubits": bestParams.get("quantumVqc_nQubits", 4),
+            "quantumVqc_numLayers": bestParams.get("quantumVqc_numLayers", 2),
+            "quantumVqc_encodingScale": bestParams.get("quantumVqc_encodingScale", 1.0),
+            "quantumVqc_learningRate": bestParams.get("quantumVqc_learningRate", 0.05),
+            "quantumVqc_epochs": bestParams.get("quantumVqc_epochs", 80),
+            "quantumVqc_batchSize": bestParams.get("quantumVqc_batchSize", 128),
+        }
+        variants.append((
+            functools.partial(fit_quantum_vqc, params=quantum_vqc_params),
+            "quantum_vqc_meta_learner.joblib", f"{dataset_name} (quantum vqc)",
+            quantum_vqc_params, "quantum_vqc",
+        ))
+
+    # The quantum kernel's classical control (README Q1: "compare with ...
+    # classical-kernel SVM"): the same scaler and PCA to the same width, the
+    # same class-balanced sample cap, the same calibrated SVC - only the
+    # kernel differs (RBF instead of state overlap). Its own tracked row, so
+    # the comparison is made by the History page over months rather than by
+    # a printed line once; the metrics file below records both every week.
+    if bestParams.get("useClassicalSvmMetaLearner", True):
+        classical_svm_params = {
+            "classicalSvm_nFeatures": bestParams.get("classicalSvm_nFeatures", 4),
+            "classicalSvm_gamma": bestParams.get("classicalSvm_gamma", "scale"),
+            "classicalSvm_C": bestParams.get("classicalSvm_C", 1.0),
+            "classicalSvm_maxTrainSamples": bestParams.get("classicalSvm_maxTrainSamples", 2000),
+        }
+        variants.append((
+            functools.partial(fit_classical_svm, params=classical_svm_params),
+            "classical_svm_meta_learner.joblib", f"{dataset_name} (classical svm)",
+            classical_svm_params, "classical_svm",
+        ))
+    return variants
 
 
 def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=False, lockbox=None):
@@ -571,79 +668,9 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     modelDir = os.path.join(path, "data", "models", dataset_name)
     os.makedirs(modelDir, exist_ok=True)
 
-    # "Lens diversity" (see README's Ideas section): a second, independently
-    # trained model class per game, added as its own MetaLearnerV2 Model row
-    # in Predictor.py rather than replacing MetaLearner Model - both get
-    # tracked side by side.
-    variants = [
-        (fit_logistic_regression, "meta_learner.joblib", dataset_name, {}),
-        (fit_gradient_boosting, "meta_learner_v2.joblib", f"{dataset_name} (v2)", {}),
-    ]
+    variants = meta_learner_variants(dataset_name, bestParams)
 
-    # Quantum meta-learners (README's quantum research track): two more
-    # lenses over the exact same training table - a quantum-kernel SVC and a
-    # variational quantum circuit (see src/QuantumModels.py) - each its own
-    # independently tracked Predictor row, never a replacement for the
-    # classical rows. Appended to the SAME variants list so the expensive
-    # backtest above still runs exactly once and every variant (special-column
-    # models included, via the shared fit_meta_model path) fits from the one
-    # shared `results`. The README suggested opt-in (default false) back when
-    # it assumed a heavy quantum-framework simulation; the numpy 4-qubit
-    # statevector implementation trains in minutes, so the flags default ON
-    # and exist as an off-switch instead. Hyperparameters are resolved from
-    # bestParams_<game>.json here (falling back to src/QuantumModels.py's
-    # documented defaults) and bound with functools.partial because
-    # fit_meta_model only ever calls fit_func(X, y); the resolved dict also
-    # goes into the artifact so a saved model documents what trained it.
-    if bestParams.get("useQuantumMetaLearner", True):
-        quantum_kernel_params = {
-            "quantumKernel_nQubits": bestParams.get("quantumKernel_nQubits", 4),
-            "quantumKernel_encodingLayers": bestParams.get("quantumKernel_encodingLayers", 2),
-            "quantumKernel_encodingScale": bestParams.get("quantumKernel_encodingScale", 1.0),
-            "quantumKernel_C": bestParams.get("quantumKernel_C", 1.0),
-            "quantumKernel_maxTrainSamples": bestParams.get("quantumKernel_maxTrainSamples", 2000),
-        }
-        variants.append((
-            functools.partial(fit_quantum_kernel, params=quantum_kernel_params),
-            "quantum_meta_learner.joblib", f"{dataset_name} (quantum kernel)",
-            quantum_kernel_params,
-        ))
-
-    if bestParams.get("useQuantumVqcMetaLearner", True):
-        quantum_vqc_params = {
-            "quantumVqc_nQubits": bestParams.get("quantumVqc_nQubits", 4),
-            "quantumVqc_numLayers": bestParams.get("quantumVqc_numLayers", 2),
-            "quantumVqc_encodingScale": bestParams.get("quantumVqc_encodingScale", 1.0),
-            "quantumVqc_learningRate": bestParams.get("quantumVqc_learningRate", 0.05),
-            "quantumVqc_epochs": bestParams.get("quantumVqc_epochs", 80),
-            "quantumVqc_batchSize": bestParams.get("quantumVqc_batchSize", 128),
-        }
-        variants.append((
-            functools.partial(fit_quantum_vqc, params=quantum_vqc_params),
-            "quantum_vqc_meta_learner.joblib", f"{dataset_name} (quantum vqc)",
-            quantum_vqc_params,
-        ))
-
-    # The quantum kernel's classical control (README Q1: "compare with ...
-    # classical-kernel SVM"): the same scaler and PCA to the same width, the
-    # same class-balanced sample cap, the same calibrated SVC - only the
-    # kernel differs (RBF instead of state overlap). Its own tracked row, so
-    # the comparison is made by the History page over months rather than by
-    # a printed line once; the metrics file below records both every week.
-    if bestParams.get("useClassicalSvmMetaLearner", True):
-        classical_svm_params = {
-            "classicalSvm_nFeatures": bestParams.get("classicalSvm_nFeatures", 4),
-            "classicalSvm_gamma": bestParams.get("classicalSvm_gamma", "scale"),
-            "classicalSvm_C": bestParams.get("classicalSvm_C", 1.0),
-            "classicalSvm_maxTrainSamples": bestParams.get("classicalSvm_maxTrainSamples", 2000),
-        }
-        variants.append((
-            functools.partial(fit_classical_svm, params=classical_svm_params),
-            "classical_svm_meta_learner.joblib", f"{dataset_name} (classical svm)",
-            classical_svm_params,
-        ))
-
-    for fit_func, artifact_filename, label, variant_params in variants:
+    for fit_func, artifact_filename, label, variant_params, _variant_key in variants:
         # Training metadata (README's persistence requirement): when the
         # artifact was produced, the exact hyperparameters it was fitted
         # with ({} for the two classical variants - theirs are fixed in code
