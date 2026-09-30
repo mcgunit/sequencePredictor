@@ -181,7 +181,10 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     # (see Helpers.keno_ticket_profit/pick3_ticket_profit/
     # jokerplus_ticket_profit) - other games fall back to avg hits as the
     # tuning objective.
-    game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
+    # as in HyperoptStatistics.run_backtest: a positional game without a
+    # payout table must still be named, or its tickets come back sorted
+    has_payout = dataset_name in PAYOUT_GAMES
+    game_param = dataset_name if (has_payout or helpers.is_positional_game(dataset_name)) else None
 
     # Streaming pruning: after every completed day the partial summary is
     # scored with the SAME function the final value uses and reported to
@@ -193,7 +196,7 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     progress_callback = None
     if trial is not None:
         def progress_callback(iteration, rows):
-            partial = score_rows(rows, model_name, payout=game_param is not None, positional=positional, game=dataset_name)
+            partial = score_rows(rows, model_name, payout=has_payout, positional=positional, game=dataset_name)
             trial.report(partial["score"], step=iteration)
             if trial.should_prune():
                 raise optuna.TrialPruned()
@@ -216,7 +219,7 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
 
     summary = backtester.summarize(results)
     model_summary = dict(summary.get("models", {}).get(model_name, {}))
-    model_summary["tuning"] = score_rows(results, model_name, payout=game_param is not None, positional=positional,
+    model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional,
                                          game=dataset_name)
     return model_summary
 

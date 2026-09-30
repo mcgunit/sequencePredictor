@@ -47,6 +47,12 @@ GAME_CONFIG = {
     "eurodreams":   {"min": 1, "max": 40, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
     "keno":         {"min": 1, "max": 80, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
     "pick3":        {"min": 0, "max": 9, "draw_size": 3, "skip_last_columns": 0, "special_column_count": 0},
+    # The market games (README roadmap item 4, src/MarketGame.py): one slot per
+    # instrument of the frozen universe (5 coins, 4 shares), the digit is the
+    # next day's return bin 0..9 - positional like pick3, scored on exact slot
+    # hits, no payout table (the euro P&L is settled by the markets track).
+    "crypto":       {"min": 0, "max": 9, "draw_size": 5, "skip_last_columns": 0, "special_column_count": 0},
+    "shares":       {"min": 0, "max": 9, "draw_size": 4, "skip_last_columns": 0, "special_column_count": 0},
     "vikinglotto":  {"min": 1, "max": 48, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
     # Joker+: six digits 0-9 drawn WITH replacement in a fixed order (a
     # positional game like pick3, see Helpers.is_positional_game) plus one
@@ -207,8 +213,13 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     # Only Keno/Pick3/Joker+ have a real payout model to score profit with
     # (see Helpers.keno_ticket_profit/pick3_ticket_profit/
     # jokerplus_ticket_profit) - other games fall back to avg hits as the
-    # tuning objective.
-    game_param = dataset_name if dataset_name in PAYOUT_GAMES else None
+    # tuning objective. A positional game without a payout table (the
+    # market games) must still be NAMED to the Backtester: unnamed, it
+    # sorts every ticket and counts set hits, and the slot score below would
+    # then judge a sorted ticket against the drawn order.
+    has_payout = dataset_name in PAYOUT_GAMES
+    positional = helpers.is_positional_game(dataset_name)
+    game_param = dataset_name if (has_payout or positional) else None
 
     try:
         results = backtester.backtest(
@@ -229,8 +240,7 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
 
     summary = backtester.summarize(results)
     model_summary = dict(summary.get("models", {}).get(model_name, {}))
-    model_summary["tuning"] = score_rows(results, model_name, payout=game_param is not None,
-                                         positional=helpers.is_positional_game(dataset_name), game=dataset_name)
+    model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional, game=dataset_name)
     return model_summary
 
 
@@ -832,7 +842,14 @@ if __name__ == "__main__":
                 file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
 
                 try:
-                    if os.path.exists(os.path.join(dataPath, file)):
+                    if helpers.is_market_game(dataset_name):
+                        # the market history is cut from the bars store by
+                        # Predictor.py / MarketsDaily.py; the lottery fetcher
+                        # has nothing to add to it (an empty game name would
+                        # hit the all-games endpoint and append every
+                        # lottery's draws to the file)
+                        print(f"{dataset_name}: market history, no lottery fetch")
+                    elif os.path.exists(os.path.join(dataPath, file)):
                         print("Starting data fetcher")
                         filePath = os.path.join(dataPath, file)
                         dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)

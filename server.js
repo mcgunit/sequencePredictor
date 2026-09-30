@@ -39,6 +39,10 @@ const dataPath = path.join(__dirname, 'data', 'database');
 // cards render without them.
 const controlsPath = path.join(__dirname, 'data', 'controls');
 const controls = require('./controls');
+// The Crypto and Shares pages (README roadmap item 4): drawn from the
+// settlement's exports under data/markets/, see markets.js.
+const marketsPath = path.join(__dirname, 'data', 'markets');
+const markets = require('./markets');
 // modelsPath removed as it is no longer used
 
 // --- GAME SHAPES ---
@@ -197,6 +201,7 @@ const JOB_NAMES = {
   'RandomnessDiscrimination.py': 'Weekly controls: randomness discrimination',
   'NullControls.py': 'Weekly controls: null histories',
   'IrrelevantFeatureControl.py': 'Weekly controls: irrelevant-feature control',
+  'MarketsDaily.py': 'Refreshing the market games (bars and bins)',
 };
 
 function pipelineStatus() {
@@ -303,7 +308,7 @@ function drawDateMeta(fileDates, anchor, warnWhenPast) {
 // so keep that tolerance. vikinglotto must be tested before lotto because
 // "vikinglotto".includes("lotto") is true.
 function gameFromFolder(folder) {
-  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus"];
+  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus", "crypto", "shares"];
   for (const g of games) if (folder.includes(g)) return g;
   return folder;
 }
@@ -486,6 +491,8 @@ function generateHeader(title = "Sequence Predictor", user = null) {
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/database">History</a>
+        <a href="/markets/crypto">Crypto</a>
+        <a href="/markets/shares">Shares</a>
         <a href="/council">Council</a>
         ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a><a href="/admin/jobs">Jobs</a>' : ''}
         ${whatsnew.navLink(user)}
@@ -523,8 +530,11 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
 
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
   // Joker+ is positional: hits are leading/trailing runs, not membership, and
-  // its 7th value is a zodiac sign code that must be shown as a name.
+  // its 7th value is a zodiac sign code that must be shown as a name. The
+  // market games (crypto, shares) are positional too: a return bin in the
+  // right instrument's slot, so a cell lights only in its own slot.
   const isJoker = game === 'jokerplus';
+  const isMarket = game === 'crypto' || game === 'shares';
   const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(realResult, game);
   // No real result (next-draw / home tables) -> no highlighting and no Hits column.
   const hasReal = realMains.length > 0;
@@ -570,7 +580,8 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
             else if (cellIndex >= ticketMains.length - runs.right) cellStyle = 'background: #3498db; color: white;';
           }
         } else {
-          const isMatching = hasReal && (isSpecialCell ? realSpecials.includes(cell) : realMains.includes(cell));
+          const isMatching = hasReal && (isSpecialCell ? realSpecials.includes(cell)
+            : (isMarket ? realMains[cellIndex] === cell : realMains.includes(cell)));
           // Lotto bonus supplement: a played number equal to the bonus ball is
           // a tier-relevant hit ("5 (1)") but not a main hit - amber, not green.
           const isBonusMatch = hasReal && !isMatching && !isSpecialCell && realBonus.includes(cell);
@@ -586,7 +597,8 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
           // match reads "6/0 (Z)".
           hitDisplay = `${runs.left}/${runs.right} (${signHit})`;
         } else {
-          const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
+          const mainHits = isMarket ? ticketMains.filter((n, i) => realMains[i] === n).length
+            : ticketMains.filter(n => realMains.includes(n)).length;
           const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
             + ticketMains.filter(n => realBonus.includes(n)).length;
           // "3 (1)" = 3 main hits, 1 special/bonus hit; games without a
@@ -1331,7 +1343,10 @@ app.get('/database/:folder', (req, res) => {
                             const runs = jokerplusRuns(ticketMains, realMains);
                             candidate = { mains: runs.left + runs.right, specials: jokerplusSignHit(ticketSpecials, realSpecials), left: runs.left, right: runs.right };
                         } else {
-                            const mainHits = ticketMains.filter(n => realMains.includes(n)).length;
+                            // a market game's hit is the bin in its own slot
+                            const mainHits = (game === 'crypto' || game === 'shares')
+                              ? ticketMains.filter((n, i) => realMains[i] === n).length
+                              : ticketMains.filter(n => realMains.includes(n)).length;
                             // Lotto: the bonus supplements the tier ("5 (1)"),
                             // matched against the played numbers themselves.
                             const specialHits = ticketSpecials.filter(n => realSpecials.includes(n)).length
@@ -1573,6 +1588,7 @@ app.get('/', (req, res) => {
 // no longer started or linked from here - start it by hand when needed:
 // optuna-dashboard sqlite:///db.sqlite3
 auth.install(app, { header: generateHeader, footer: generateFooter });
+markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath });
 // The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
 // 8) above the supervised services (services.js, today the Council API).
 // services.js renders whatever the third argument returns, so it stays

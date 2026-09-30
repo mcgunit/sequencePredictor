@@ -115,6 +115,10 @@ def positional_profit(game, ticket, actual):
     """
     if helpers.is_jokerplus(game):
         return helpers.jokerplus_ticket_profit(list(ticket), list(actual))
+    if helpers.is_market_game(game):
+        # bin-space direction P&L in units (Helpers.market_ticket_profit);
+        # the euro P&L lives in the markets track, which has the returns
+        return helpers.market_ticket_profit(list(ticket), list(actual))
     return helpers.pick3_ticket_profit(list(ticket), list(actual))
 
 

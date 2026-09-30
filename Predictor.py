@@ -42,6 +42,8 @@ from src.Since import load as load_since
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
+from src.MarketGame import daily_refresh as market_refresh
+from src.MarketSettle import settle_and_export as market_settle
 
 tcn = TCNModel()
 lstm = LSTMModel()
@@ -990,9 +992,22 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     specialColumnCount = SPECIAL_COLUMN_COUNTS.get(name, 0)
 
+                    # A brand-new market game back-builds a month of history
+                    # on its first run (README item 4): the statistical,
+                    # boosting and meta rows for every day, the deep-learning
+                    # rows for the newest day only - a DL child costs 10-20
+                    # minutes a day, and 31 of them per market would hold the
+                    # daily slot for the better part of a day. The lottery
+                    # games and every later gap recovery are unchanged.
+                    lightHistory = Helpers.is_market_game(name) and not existingIndices and not forceRebuild
+                    if lightHistory and ai and len(rebuildIndices) > 1:
+                        print(f"{name}: first build - deep-learning rows on the newest day only, "
+                              f"{len(rebuildIndices) - 1} earlier day(s) with the statistical, boosting and meta rows")
                     argsList = [
                         (absoluteIndex, fullHistory[absoluteIndex], fullHistory, name, model_type, dataPath, modelPath,
-                            skipLastColumns, yearsOfHistory, ai, previousJsonFilePath, path, boost, bestParams_json_object,
+                            skipLastColumns, yearsOfHistory,
+                            (ai if absoluteIndex == rebuildIndices[-1] else False) if lightHistory else ai,
+                            previousJsonFilePath, path, boost, bestParams_json_object,
                             specialColumnCount)
                         for absoluteIndex in rebuildIndices
                     ]
@@ -1047,6 +1062,12 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
     if Helpers.is_jokerplus(name):
         print("RL Ticket Model skipped for jokerplus: the player cannot choose the digits "
               "(system-generated, only the zodiac sign is selectable) - nothing to construct")
+        return listOfDecodedPredictions
+    if Helpers.is_market_game(name):
+        # The RL row learns ticket construction against a payout table; a
+        # market game has bins and, later, position sizing (README item 4,
+        # phase M3/M4) - until that reward exists there is nothing to learn.
+        print(f"RL Ticket Model skipped for {name}: no payout table - position sizing comes with the markets track")
         return listOfDecodedPredictions
     try:
         rlTicket.setModelPath(os.path.join(path, "data", "models", "rl_model"))
@@ -2369,7 +2390,7 @@ if __name__ == "__main__":
         parser.add_argument(
             '-g', '--games',
             type=str,
-            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto",
+            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,shares",
             help='Comma-separated list of games, e.g. "euromillions,lotto,..."'
         )
         args = parser.parse_args()
@@ -2418,6 +2439,11 @@ if __name__ == "__main__":
             ("keno", "lstm_model", 0, True, True),    # DL models now generate Keno subsets too (see deepLearningMethod)
             ("pick3", "lstm_model", 0, True, True),
             ("vikinglotto", "lstm_model", 0, True, True),
+            # The market games (README roadmap item 4): positional like pick3,
+            # their history is written by MarketsDaily.py from the bars store
+            # before this run - never fetched here.
+            ("crypto", "lstm_model", 0, True, True),
+            ("shares", "lstm_model", 0, True, True),
         ]
 
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
@@ -2434,7 +2460,21 @@ if __name__ == "__main__":
                     }
 
                     # Lets check if file exists
-                    if os.path.exists(os.path.join(dataPath, file)):
+                    if Helpers.is_market_game(dataset_name):
+                        # A market game's history is cut from the bars in
+                        # data/markets.sqlite3 (src/MarketGame.py): fetch the
+                        # newest bars and rewrite the yearly CSV here, where a
+                        # lottery game downloads its CSV. A source that does
+                        # not answer leaves the CSV a day short, and the run
+                        # predicts from what is on disk - as for the lottery.
+                        try:
+                            market_refresh(path, dataset_name)
+                        except Exception as e:
+                            print(f"{dataset_name}: market refresh failed - continuing with the existing history: {e}")
+                        if not os.path.exists(dataPath) or not any(f.endswith(".csv") for f in os.listdir(dataPath)):
+                            print(f"{dataset_name}: no market history yet - skipping")
+                            continue
+                    elif os.path.exists(os.path.join(dataPath, file)):
                         print("Starting data fetcher")
                         filePath = os.path.join(dataPath, file)
                         dataFetcher.startDate = dataFetcher.calculate_start_date(filePath)
@@ -2491,6 +2531,16 @@ if __name__ == "__main__":
             helpers.generate_model_performance_report(os.path.join(path, "data", "database"), since=since)
         except Exception as e:
             print("Failed to generate model performance report: ", e)
+
+        # The market games (README roadmap item 4): settle every stored day
+        # against the real returns and export what the Crypto and Shares
+        # pages draw (data/markets/). A failure costs the pages a day, never
+        # the predictions.
+        for market_game in [g for g in games if Helpers.is_market_game(g)]:
+            try:
+                market_settle(path, market_game)
+            except Exception as e:
+                print(f"{market_game}: settlement/export failed: {e}")
 
         # try:
         #     helpers.generatePredictionTextFile(os.path.join(path, "data", "database"))

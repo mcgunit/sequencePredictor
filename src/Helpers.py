@@ -87,7 +87,39 @@ def decode_zodiac(code):
 # positional game" branch in the code base should ask is_positional_game()
 # instead of testing the literal 'pick3', with positions = the game's draw
 # size. Checks that are genuinely pick3-only (its payout table) stay pick3.
-POSITIONAL_GAMES = {"pick3", "jokerplus"}
+POSITIONAL_GAMES = {"pick3", "jokerplus", "crypto", "shares"}
+# The market games (README roadmap item 4): instrument = position, the next
+# day's return bin = digit 0..9, cut by src/MarketGame.py. Positional like
+# pick3, scored on exact slot hits (a bin in the right instrument's slot).
+MARKET_GAMES = {"crypto", "shares"}
+MARKET_BINS = 10
+
+
+def is_market_game(name):
+    """True for a game name / data path / folder of a market game (crypto, shares)."""
+    text = str(name or "").lower()
+    return any(game in text for game in MARKET_GAMES)
+
+
+def market_ticket_profit(prediction, real_result, k=MARKET_BINS, fee=0.1):
+    """
+    The fixed rule of README item 4 in BIN space, in units: per instrument,
+    long when the predicted bin lies in the upper half (>= k/2), flat
+    otherwise; a long pays +1 when the actual bin is in the upper half, -1
+    when not, minus `fee` per position taken. This is the "profit" the
+    positional machinery needs where it asks for one (the positional
+    meta-learner's holdout, the quantum tuner's objective); the euro paper
+    P&L with real returns and a real fee is settled from the bars by the
+    markets track itself, never here - the machinery only ever sees bins.
+    """
+    if not prediction or not real_result or len(prediction) != len(real_result):
+        return None
+    half = k / 2
+    total = 0.0
+    for predicted, actual in zip(prediction, real_result):
+        if int(predicted) >= half:
+            total += (1.0 if int(actual) >= half else -1.0) - fee
+    return total
 
 
 def is_positional_game(name):
@@ -120,6 +152,9 @@ class Helpers():
     decode_zodiac = staticmethod(decode_zodiac)
     is_positional_game = staticmethod(is_positional_game)
     is_jokerplus = staticmethod(is_jokerplus)
+    MARKET_GAMES = MARKET_GAMES
+    is_market_game = staticmethod(is_market_game)
+    market_ticket_profit = staticmethod(market_ticket_profit)
 
     PAYOUT_TABLE_KENO = {
         10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
@@ -276,6 +311,9 @@ class Helpers():
             # Six digits 0-9; the zodiac sign is the game's special column
             # (SPECIAL_UNIQUE_LABELS, codes 0-11), not a main label.
             unique_labels = np.arange(0, 10)
+        if is_market_game(dataPath):
+            # return bins 0..9 per instrument (src/MarketGame.K_BINS)
+            unique_labels = np.arange(0, MARKET_BINS)
         return unique_labels
 
     def run_model_with_special_column(self, model, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnCount=0):
@@ -600,6 +638,10 @@ class Helpers():
                         # trailing consecutive matches pay.
                         leftRun, rightRun = self.jokerplus_runs(ticketMains, realResult[:realMainCount])
                         hits = leftRun + rightRun
+                    elif is_market_game(game):
+                        # a bin in the right instrument's slot; a bin is not a
+                        # number, so a set intersection would count noise
+                        hits = sum(1 for p, a in zip(ticketMains, realResult[:realMainCount]) if int(p) == int(a))
                     else:
                         hits = len(ticketMainSet & set(map(int, realResult[:realMainCount])))
                     entry["draws"] += 1
@@ -647,7 +689,10 @@ class Helpers():
                     # count both.
                     dayRecord["rows"][name] = {
                         "mainTicket": list(mainTicket),
-                        "mains": sorted(ticketMainSet),
+                        # a market ticket keeps its slot order: the portfolio
+                        # control scores it slot by slot (a set would lose the
+                        # slots and fail the identity check)
+                        "mains": [int(v) for v in ticketMains] if is_market_game(game) else sorted(ticketMainSet),
                         "hits": hits,
                         "profit": rowProfit if rowBets else None,
                         "bets": rowBets,
@@ -1258,41 +1303,72 @@ class Helpers():
                 return permuted, betCount
             return score_under
 
-        # One-hot everything on the main number range.
-        maxNumber = 0
-        for day in days:
-            if day["resultMains"]:
-                maxNumber = max(maxNumber, max(day["resultMains"]))
-            for row in day["rows"].values():
-                tickets = row["playable"] if hasPayout else [row["mains"]]
-                for ticket in tickets:
-                    if ticket:
-                        maxNumber = max(maxNumber, max(ticket))
-        width = maxNumber + 1
-        resultOneHot = np.zeros((D, width))
-        for d, day in enumerate(days):
-            resultOneHot[d, day["resultMains"]] = 1.0
-
-        ticketRows, rIdx, dIdx, played = [], [], [], []
-        for d, day in enumerate(days):
-            for name, row in day["rows"].items():
-                r = rowIndex.get(name)
-                if r is None or not valid[r, d]:
-                    continue
-                tickets = row["playable"] if hasPayout else [row["mains"]]
-                for ticket in tickets:
-                    oneHot = np.zeros(width)
-                    oneHot[list(ticket)] = 1.0
-                    ticketRows.append(oneHot)
+        if is_market_game(game):
+            # The market games' currency is the bin in the right slot, so the
+            # cross table is slot equality, never a one-hot intersection -
+            # the observed per-row hits above were counted the same way, and
+            # the caller's identity check holds only when this agrees.
+            slots = max((len(day["resultMains"]) for day in days), default=0)
+            resultDigits = np.full((D, max(slots, 1)), -1, dtype=int)
+            for d, day in enumerate(days):
+                mains = list(day["resultMains"])
+                if len(mains) == slots:
+                    resultDigits[d, :] = mains
+            ticketRows, rIdx, dIdx, played = [], [], [], []
+            for d, day in enumerate(days):
+                for name, row in day["rows"].items():
+                    r = rowIndex.get(name)
+                    if r is None or not valid[r, d]:
+                        continue
+                    ticket = [int(v) for v in row["mains"]]
+                    if len(ticket) != slots:
+                        continue
+                    ticketRows.append(ticket)
                     rIdx.append(r)
                     dIdx.append(d)
                     played.append(len(ticket))
-        if not ticketRows:
-            return None
-        ticketMatrix = np.array(ticketRows)
-        rIdx, dIdx, played = np.array(rIdx), np.array(dIdx), np.array(played)
-        # matches[t, e] = hits of ticket t against the real result of day e.
-        matches = np.rint(ticketMatrix @ resultOneHot.T).astype(int)
+            if not ticketRows:
+                return None
+            ticketMatrix = np.array(ticketRows, dtype=int)
+            rIdx, dIdx, played = np.array(rIdx), np.array(dIdx), np.array(played)
+            # matches[t, e] = slots of ticket t equal to the real result of day e
+            matches = (ticketMatrix[:, None, :] == resultDigits[None, :, :]).sum(axis=2)
+        else:
+            # One-hot everything on the main number range.
+            maxNumber = 0
+            for day in days:
+                if day["resultMains"]:
+                    maxNumber = max(maxNumber, max(day["resultMains"]))
+                for row in day["rows"].values():
+                    tickets = row["playable"] if hasPayout else [row["mains"]]
+                    for ticket in tickets:
+                        if ticket:
+                            maxNumber = max(maxNumber, max(ticket))
+            width = maxNumber + 1
+            resultOneHot = np.zeros((D, width))
+            for d, day in enumerate(days):
+                resultOneHot[d, day["resultMains"]] = 1.0
+
+            ticketRows, rIdx, dIdx, played = [], [], [], []
+            for d, day in enumerate(days):
+                for name, row in day["rows"].items():
+                    r = rowIndex.get(name)
+                    if r is None or not valid[r, d]:
+                        continue
+                    tickets = row["playable"] if hasPayout else [row["mains"]]
+                    for ticket in tickets:
+                        oneHot = np.zeros(width)
+                        oneHot[list(ticket)] = 1.0
+                        ticketRows.append(oneHot)
+                        rIdx.append(r)
+                        dIdx.append(d)
+                        played.append(len(ticket))
+            if not ticketRows:
+                return None
+            ticketMatrix = np.array(ticketRows)
+            rIdx, dIdx, played = np.array(rIdx), np.array(dIdx), np.array(played)
+            # matches[t, e] = hits of ticket t against the real result of day e.
+            matches = np.rint(ticketMatrix @ resultOneHot.T).astype(int)
 
         if hasPayout:
             lookup = self._keno_profit_lookup()
@@ -1767,6 +1843,8 @@ class Helpers():
                 # not pass the special count still gets the 6 + 1 split.
                 realMainCount, specialColumnCount = self.main_special_split(game, real_result)
             return self._find_best_matching_jokerplus(real_result, predictions_dict, realMainCount, specialColumnCount)
+        if is_market_game(game):
+            return self._find_best_matching_positional(real_result, predictions_dict, realMainCount)
         real_mains = set(map(int, real_result[:realMainCount]))
         real_specials = set(map(int, real_result[realMainCount:realMainCount + specialColumnCount]))
         # Trailing values beyond mains + dedicated specials (lotto's bonus):
@@ -1807,6 +1885,38 @@ class Helpers():
                     best_match["special_match_count"] = len(special_matching_numbers)
 
         return best_match  # Return full details of the best matching prediction
+
+    def _find_best_matching_positional(self, real_result, predictions_dict, realMainCount):
+        """
+        find_best_matching_prediction's branch for the market games (crypto,
+        shares): a ticket is one return bin per instrument slot, and a hit is
+        the right bin in the right slot - never a set intersection, a bin is
+        not a number. Same returned keys as the other branches
+        (match_count = exact slot hits, matching_numbers = the matched bins in
+        slot order); the market games have no special column.
+        """
+        real_bins = [int(v) for v in real_result[:realMainCount]]
+        best_match = {
+            "model": None,
+            "prediction": None,
+            "matching_numbers": [],
+            "match_count": 0,
+            "special_matching_numbers": [],
+            "special_match_count": 0,
+        }
+        best_score = 0
+        for model in predictions_dict:
+            model_name = model["name"]
+            for predicted_list in model["predictions"]:
+                ticket = [int(v) for v in predicted_list[:realMainCount]]
+                matching = [a for p, a in zip(ticket, real_bins) if p == a]
+                if len(matching) > best_score:
+                    best_score = len(matching)
+                    best_match["model"] = model_name
+                    best_match["prediction"] = predicted_list
+                    best_match["matching_numbers"] = matching
+                    best_match["match_count"] = len(matching)
+        return best_match
 
     def _find_best_matching_jokerplus(self, real_result, predictions_dict, realMainCount, specialColumnCount):
         """

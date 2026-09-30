@@ -62,6 +62,12 @@ def _positional_hits(prediction, actual, game):
         n = min(len(digits), len(real))
         matched = real[:left] + (real[n - right:] if right else [])
         return left + right, matched
+    if helpers.is_market_game(game):
+        # a market game pays on the bin in the right instrument's slot: exact
+        # slot hits, never a set intersection (a bin is not a number)
+        pairs = list(zip([int(d) for d in prediction], [int(d) for d in actual]))
+        matched = [a for p, a in pairs if p == a]
+        return len(matched), matched
     return Metrics.count_hits(prediction, actual), Metrics.matching_numbers(prediction, actual)
 
 

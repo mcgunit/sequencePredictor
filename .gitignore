@@ -178,3 +178,9 @@ test/backtestResults/keno_global_backtest.json
 config/
 src/llmCouncil/answers.json
 data/controls/
+
+# markets track (README item 4): the SQLite store is re-fetchable and changes daily; its tracked record is the text exports
+data/markets.sqlite3
+data/markets.sqlite3-journal
+data/markets.sqlite3-wal
+data/markets.sqlite3-shm

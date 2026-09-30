@@ -79,6 +79,11 @@ class DataFetcher():
             return int(datetime.now().timestamp() - (30 * 24 * 3600)) * 1000
 
     def getLatestData(self, game, filePath, dryRun=False):
+        if not game:
+            # game-names= empty answers with EVERY game's draws, which would
+            # be appended to whatever file was passed (found in review with
+            # the market games, whose history is not the lottery's to fetch)
+            raise ValueError("getLatestData needs a game name - an empty one would fetch every game's draws")
 
         print("Startdate: ", self.startDate, datetime.fromtimestamp(self.startDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))
         print("Enddate: ", self.endDate, datetime.fromtimestamp(self.endDate/1000).strftime("%A, %B %d, %Y %I:%M:%S"))

@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-30-crypto-and-shares',
+    date: '2026-09-30',
+    level: 'major',
+    audience: 'all',
+    title: 'Two new sections: Crypto and Shares - the same models, on market prices',
+    body: [
+      'The research question of roadmap item 4: do the principles that fail to find structure in a fair lottery find any in market prices? Five coins (BTC, ETH, BNB, XRP, SOL against USDT) and four shares (NVDA, AAPL, MSFT, ASML) are tracked as two more games: each instrument\'s next-day return is cut into ten equiprobable bins, and every model predicts one bin per instrument, every day, like a digit of pick3.',
+      'The two pages in the top navigation show, per model, how often the exact bin, the adjacent bin and the direction were right against chance (10%, 28%, 50%) and the paper profit of a fixed rule with a fee; per coin or share, the actual price with the predicted course of the best models drawn on it and the next day\'s prediction of every model as a price with its band. Results settle the morning after, when the day\'s bar has closed.',
+      'A predictor, not a trading bot: nothing here is advice, and the same controls that judge the lottery rows will judge these before any number above chance is read as predictability. The first daily run builds a month of history for both markets, so the pages show settled results from the first morning; the deep-learning rows join from that day on.',
+    ],
+    link: { href: '/markets/crypto', label: 'Crypto page' },
+  },
+  {
     id: '2026-09-28-irrelevant-feature-control',
     date: '2026-09-28',
     level: 'minor',
