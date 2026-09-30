@@ -755,6 +755,22 @@ Built 2026-09-20/21 in two halves. First the services (`services.js`): the Counc
 
 **It ships in dry mode, which is what makes it safe to deploy next to the still-live crontab.** In `dry` the scheduler works out what it would start, records it and starts nothing, so a weekend can be watched before anything depends on it - including the chain trigger, which it observes through the lock even when cron started the predictor. The cutover is then three steps: watch a weekend in the Jobs page and in `log/scheduler.log`, remove the three crontab entries (`crontab -e`), and set `SCHEDULER=on` in `.env` before `pm2 restart sequencePredictor`. To fall back, `touch config/scheduler.disabled` - it needs no restart - and re-add the crontab lines. Open in the same item: nothing blocking; the natural next steps are a per-game predictor job (so one game's failure cannot cost the others their day) and mailing the admin when a job exits non-zero.
 
+### 9. Day-file storage: from one JSON per game and day to SQLite (medium-large, platform)
+
+Added 2026-09-30, when the markets track made the growth visible: every game writes one JSON file per scored day under `data/database/<game>/`, and the two market games (item 4) added two more a day. Measured that day in production:
+
+| what | size | growth |
+|---|---|---|
+| day files (`data/database`) | 10 MB, 1,029 files | 1.2 MB added in June 2026, 4.8 MB in September; about 10 MB a month with the markets |
+| training CSVs (`data/trainingData`) | 0.9 MB | a few KB a year per game |
+| git pack | 438 MB | about 1 MB a month from the day files; the rest is legacy Keras model blobs of 65-70 MB each from before model artifacts were ignored |
+
+The fourfold growth since June comes from the rows per day (7 then, about 30 now), not from the days. Three quarters of a day file are the two raw probability arrays, `currentPredictionRaw` and `newPredictionRaw`: the predictor copies yesterday's array into today's file and nothing reads them afterwards (the two helper functions that did, `extractFeaturesFromJsonForRefinement` and `extractFeaturesFromJsonForDetermineTopPrediction`, have no caller left). **Decision of the owner, 2026-09-30: the raw arrays stay for now** - dropping them would shrink every new day file about four times without a migration, and remains the cheap first step whenever the growth starts to matter.
+
+**What a migration has to carry.** The day files are written by `Predictor.py` (fresh day, history rebuild first and second step, `update_matching_numbers`) and by `HyperoptDeepLearning.py`'s rebuild; they are read by the index and History pages in `server.js` (day view, monthly best, folder listing, the card per game), by `Helpers.generate_model_performance_report` (which scans every file of every game each run and feeds the Best-model card, the null band, the since ranking and the portfolio search), by `Helpers.getLatestPrediction`'s neighbours, by `HyperoptRLTicket.py` and `HyperoptEnsemble.py` (both learn from the stored days), by `src/MarketSettle.py` (the market settlement) and by the shuffled-history control of the portfolio card. The natural shape is one SQLite file next to `db.sqlite3` and `data/markets.sqlite3` - tables `days` (game, date, real result), `rows` (day, model, ticket, hits, profit) and `raw` (the arrays, if kept) - with the daily `git add -A` replaced for that data by a text export per game and year, the way the markets keep `data/markets/<market>/results-<year>.csv`, so the repository keeps a diff-friendly record and the binary store stays out of it. Predictions and results of a day would then be one query instead of a file per game, and the page reads stop scaling with the number of days.
+
+**Trigger.** Not size: 10 MB a month is 120 MB a year on disk and about 12 MB a year in git. Do it when the pages need queries the files cannot give cheaply (a model's history over years, a per-instrument view across markets), or when `generate_model_performance_report`'s scan over every file starts to cost seconds in the daily run (about 3,600 files today per year of nine games). Until then, the first step above is the lever.
+
 ## Installation
 
 ### For Predictor (Python)
