@@ -159,10 +159,10 @@ ok(html.includes('chartjs-plugin-zoom') && html.includes('hammer.min.js') && htm
   && html.includes(`onclick="marketRange('chart-crypto-BTC', 30)">1M<`) && html.includes(`onclick="marketReset('chart-crypto-BTC')"`) && html.includes('height:420px')
   && html.includes("marketRender('chart-crypto-BTC')") && html.includes('.container { max-width: 1400px; }'),
   'the instrument charts zoom and pan, have range buttons and a reset, are taller, and the page is wider');
-ok(html.includes(`data-view-for="chart-crypto-BTC" data-view="price"`) && html.includes(`data-view="moves"`)
+ok(html.includes(`data-view-for="chart-crypto-BTC" data-view="lines"`) && html.includes(`data-view="bars"`) && html.includes(`data-view="moves"`)
   && html.includes(`data-chart="chart-crypto-BTC" data-model="Markov Model" checked`) && html.includes(`data-chart="chart-crypto-BTC" data-model="Odd Model" onchange`)
   && !html.includes(`data-model="Odd Model" checked`) && html.includes('(best over the scored days)') && html.includes(`marketModels('chart-crypto-BTC', 'all')`),
-  'two views to toggle, a switch per model with only the best one on, and best/all/none links');
+  'three views to toggle, a switch per model with only the best one on, and best/all/none links');
 const dataMatch = html.match(/window\.marketData\['chart-crypto-BTC'\] = (\{.*?\}); marketRender/s);
 const embedded = JSON.parse(dataMatch[1]);
 ok(embedded.labels.join(',') === '2026-09-29,2026-09-30,2026-10-01,next' && embedded.closes[3] === null && embedded.course['Markov Model'].join(',') === ',4,6,'
@@ -189,7 +189,11 @@ ok(Math.abs(w.marketRepresentative(6, edgesFx) - 0.006) < 1e-12 && Math.abs(w.ma
   && Math.abs(w.marketRepresentative(0, edgesFx) + 0.035) < 1e-12 && w.marketInterval(0, edgesFx)[0] === null && w.marketInterval(9, edgesFx)[1] === null,
   'the client turns a bin into a return exactly as MarketGame.representative_return does, open bins included');
 w.marketData.t = embedded;
-const priceModel = w.marketChartModel('t', 'price', ['Markov Model']);
+const linesModel = w.marketChartModel('t', 'lines', ['Markov Model']);
+ok(linesModel.datasets.length === 2 && linesModel.datasets[1].type === 'line' && linesModel.datasets[1].borderDash.join(',') === '3,3' && linesModel.datasets[1].model === 'Markov Model'
+  && linesModel.datasets[1].data[0] === null && Math.abs(linesModel.datasets[1].data[2] - 84000 * Math.exp(-0.004) * Math.exp(0.006)) < 1e-6 && Math.abs(linesModel.datasets[1].data[3] - 84900) < 1e-9,
+  'lines view: the dashed predicted course through the prices the bins stood for, the next-day price last');
+const priceModel = w.marketChartModel('t', 'bars', ['Markov Model']);
 ok(priceModel.datasets.length === 3 && priceModel.datasets[0].type === 'line' && priceModel.datasets[1].legendHidden === true && priceModel.datasets[2].label === 'Markov Model'
   && priceModel.datasets[1].grouped === false && priceModel.datasets[2].grouped === false && priceModel.datasets[2].model === 'Markov Model' && priceModel.datasets[2].legendColour === markets.COLOURS[0]
   && priceModel.datasets[2].data[0] === null && Math.abs(priceModel.datasets[2].data[2][0] - 84000 * Math.exp(-0.004)) < 1e-6
@@ -209,8 +213,9 @@ ok(Math.abs(openBand[0] - 2.5) < 1e-9 && openBand[1] > 3.0 && Math.abs(movesMode
 w.marketRender('t');
 const cfg = sandbox.lastConfig;
 ok(cfg && cfg.data.datasets.length === 1 && cfg.options.scales.y.title.text === 'USDT' && cfg.options.scales.y.beginAtZero === false && cfg.options.plugins.zoom === undefined
-  && cfg.options.scales.x.min === undefined && typeof cfg.options.plugins.tooltip.filter === 'function' && typeof cfg.options.plugins.legend.labels.generateLabels === 'function',
-  'rendering with no model on draws the close alone; the price axis does not start at zero; four labels open unranged; tooltip and legend helpers are wired');
+  && cfg.options.scales.x.min === undefined && typeof cfg.options.plugins.tooltip.filter === 'function' && typeof cfg.options.plugins.legend.labels.generateLabels === 'function'
+  && w.marketState.t.view === 'lines',
+  'rendering with no model on draws the close alone in the default lines view; the price axis does not start at zero; four labels open unranged; tooltip and legend helpers are wired');
 const tip = cfg.options.plugins.tooltip;
 ok(tip.filter({ raw: null, dataset: {} }) === false && tip.filter({ raw: [1, 2], dataset: { legendHidden: true } }) === false && tip.filter({ raw: 5, dataset: {} }) === true
   && tip.callbacks.label({ raw: [83663.4, 84168.9], dataset: { label: 'M' } }) === 'M: 83663 to 84169' && tip.callbacks.label({ raw: 84000.4, dataset: { label: 'BTC close' } }) === 'BTC close: 84000',

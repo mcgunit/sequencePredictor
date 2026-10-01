@@ -213,12 +213,15 @@ const COLOURS = ['#e67e22', '#8e44ad', '#16a085', '#2980b9', '#d35400', '#27ae60
   '#34495e', '#e84393', '#00a8ff', '#44bd32', '#8c7ae6', '#e1b12c'];
 
 // The chart client, one copy per page: a pure model builder (what the tests
-// run in Node) and the glue that draws it. Two views per instrument:
-//   price  the close as a line and, per switched-on model, the day's call as a
-//          bar from the previous game day's close to the price its bin stood
-//          for (green up, red down) over a paler bar for the bin's whole
-//          interval - so a "roughly flat" call reads as a short bar, not as a
-//          lagged copy of the close line;
+// run in Node) and the glue that draws it. Three views per instrument:
+//   lines  (default - the owner's preferred picture) the close as a line and,
+//          per switched-on model, a dashed line through the prices its bins
+//          stood for; a "roughly flat" call makes this a copy of the close
+//          line one day late, which the explainer card says in words;
+//   bars   the day's call as a bar from the previous game day's close to the
+//          price its bin stood for (green up, red down) over a paler bar for
+//          the bin's whole interval - the same calls drawn so that "flat"
+//          reads as a short bar instead of a lag;
 //   moves  the real move per day as a bar (percent) and, per model, the bin's
 //          interval as a paler floating bar with the call's middle as a dot -
 //          the view in which skill, or its absence, is visible.
@@ -260,7 +263,16 @@ function marketChartModel(id, view, enabled) {
   var pad = 0.1 * (hi - lo) || 0.01; var floor = lo - pad, ceil = hi + pad;
   var bandOf = function (c) { return [c.lo === null ? floor : c.lo, c.hi === null ? ceil : c.hi]; };
   var bar = function (extra) { return Object.assign({ type: 'bar', grouped: false, categoryPercentage: 0.9 }, extra); };   // grouped:false - every bar centred on its date, so a call sits on its band
-  if (view === 'price') {
+  if (view === 'lines') {   // the course: the close and, per model, a dashed line through the prices its bins stood for
+    datasets.push({ type: 'line', label: d.symbol + ' close', data: d.closes, borderColor: '#2c3e50', borderWidth: 2, pointRadius: 0, tension: 0.1, order: 0, legendColour: '#2c3e50' });
+    enabled.forEach(function (model) {
+      var colour = d.colours[model] || '#7f8c8d'; var line = [];
+      for (var i = 0; i < n; i++) { var c = call(model, i); line.push(c ? c.base * Math.exp(c.rep) : null); }
+      datasets.push({ type: 'line', label: model, data: line, borderColor: colour, backgroundColor: colour, borderDash: [3, 3], borderWidth: 1, pointRadius: 2, tension: 0.1, order: 1, legendColour: colour, model: model });
+    });
+    return { datasets: datasets, yTitle: d.quote, percent: false };
+  }
+  if (view === 'bars') {   // the calls: a bar per day from the previous game day's close to the bin's price, over the bin's interval
     datasets.push({ type: 'line', label: d.symbol + ' close', data: d.closes, borderColor: '#2c3e50', borderWidth: 2, pointRadius: 0, tension: 0.1, order: 0, legendColour: '#2c3e50' });
     enabled.forEach(function (model) {
       var colour = d.colours[model] || '#7f8c8d'; var band = [], step = [], fills = [];
@@ -321,7 +333,7 @@ function marketRender(id) {
   var state = window.marketState[id];
   if (!state) {   // open on the newest month: a year of 1 px bars is the close line alone
     var count = d.labels.length;
-    state = window.marketState[id] = { view: 'price', min: count > 31 ? d.labels[count - 31] : undefined, max: count > 31 ? d.labels[count - 1] : undefined };
+    state = window.marketState[id] = { view: 'lines', min: count > 31 ? d.labels[count - 31] : undefined, max: count > 31 ? d.labels[count - 1] : undefined };
   }
   var old = window.marketCharts[id];
   if (old) { try { state.min = old.options.scales.x.min; state.max = old.options.scales.x.max; old.destroy(); } catch (e) { /* a dead chart is replaced anyway */ } }
@@ -339,7 +351,7 @@ function marketRender(id) {
     var on = b.getAttribute('data-view') === state.view; b.style.background = on ? '#2c3e50' : 'white'; b.style.color = on ? 'white' : '#2c3e50';
   });
 }
-function marketView(id, view) { window.marketState[id] = window.marketState[id] || { view: 'price' }; window.marketState[id].view = view; marketRender(id); }
+function marketView(id, view) { window.marketState[id] = window.marketState[id] || { view: 'lines' }; window.marketState[id].view = view; marketRender(id); }
 function marketToggle(id) { marketRender(id); }
 function marketModels(id, which) {
   var d = window.marketData[id];
@@ -348,7 +360,7 @@ function marketModels(id, which) {
 }
 function marketRange(id, days) {
   var chart = window.marketCharts[id]; if (!chart) return;
-  var labels = chart.data.labels; var x = chart.options.scales.x; var state = window.marketState[id] || (window.marketState[id] = { view: 'price' });
+  var labels = chart.data.labels; var x = chart.options.scales.x; var state = window.marketState[id] || (window.marketState[id] = { view: 'lines' });
   if (typeof chart.resetZoom === 'function') chart.resetZoom('none');
   if (days > 0 && labels.length > days) { x.min = labels[labels.length - 1 - days]; x.max = labels[labels.length - 1]; } else { delete x.min; delete x.max; }
   state.min = x.min; state.max = x.max; chart.update();
@@ -670,20 +682,22 @@ function page(market, view, header, footer, user) {
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${esc(inst.symbol)} - ${esc(inst.name)}</span>
       <span class="card-meta" style="margin-left:10px;">last close ${price(inst.lastClose)} ${esc(inst.quote)} on ${esc(inst.lastDate || '-')}${inst.active ? '' : ' (inactive)'}</span></div><div class="card-icon">▼</div></div>
       <div class="card-body"><div class="chart-tools">
-        <button type="button" data-view-for="${id}" data-view="price" onclick="marketView('${id}', 'price')">Price</button>
-        <button type="button" data-view-for="${id}" data-view="moves" onclick="marketView('${id}', 'moves')">Moves</button><span class="sep">|</span>
+        <button type="button" data-view-for="${id}" data-view="lines" onclick="marketView('${id}', 'lines')" title="the close and each model's predicted course as a dashed line">Price lines</button>
+        <button type="button" data-view-for="${id}" data-view="bars" onclick="marketView('${id}', 'bars')" title="each day's call as a bar from the previous close to the predicted price, over the bin's interval">Price bars</button>
+        <button type="button" data-view-for="${id}" data-view="moves" onclick="marketView('${id}', 'moves')" title="the real move per day against each model's interval, in percent">Moves</button><span class="sep">|</span>
         ${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${id}', ${days})">${label}</button>`).join('')}
         <button type="button" onclick="marketReset('${id}')" style="margin-left:6px;">Reset zoom</button>
         <span class="hint">scroll or pinch to zoom, drag to pan</span></div>
       <div class="chart-models"><span style="color:#7f8c8d;">Models: <a href="#" onclick="marketModels('${id}', 'best'); return false;">best</a><a href="#" onclick="marketModels('${id}', 'all'); return false;">all</a><a href="#" onclick="marketModels('${id}', 'none'); return false;">none</a></span>${switches}</div>
       <div style="height:420px;"><canvas id="${id}"></canvas></div>
       <script>window.marketData['${id}'] = ${JSON.stringify(data)}; marketRender('${id}');</script>
-      <p style="color:#7f8c8d; font-size:0.85em;"><b>Price</b>: the close as a line; for each model switched on, a bar per day from the previous game day's close to the price its bin stood for
-        (green up, red down) over a paler bar for the bin's whole interval - a "roughly flat" call is a short bar, which is what most models make most days. Every bar's foot is the close
-        before it, so the feet trail the line by one day by construction: that is the day's starting point, not a lag. A hit is the close landing inside the pale bar on the same date;
-        the two open-ended bins run to the edge of what the chart shows. The last bar is the call for the next trading day${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.
-        <b>Moves</b>: the real move per day as a dark bar, in percent, with each model's interval as a paler bar and its middle as a dot - a hit is the dark bar ending inside the model's band.
-        The chart opens on the newest month; a year of closes is behind it (the range buttons, or zoom and pan), and the calls start where the tracking started.</p>
+      <p style="color:#7f8c8d; font-size:0.85em;"><b>Price lines</b>: the close as a line and, for each model switched on, a dashed line through the prices its bins stood for, day by day
+        (the previous game day's close moved by the bin's middle return); the last dashed point is the call for the next trading day${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.
+        A model calling "roughly flat" every day draws the close line one day late - that is the call, not a lag (the card at the top explains why). <b>Price bars</b>: the same calls as a bar
+        per day from the previous game day's close to the price its bin stood for (green up, red down) over a paler bar for the bin's whole interval, so a flat call reads as a short bar; a hit is the
+        close landing inside the pale bar on the same date, and the two open-ended bins run to the edge of what the chart shows. <b>Moves</b>: the real move per day as a dark bar, in percent,
+        with each model's interval as a paler bar and its middle as a dot - a hit is the dark bar ending inside the model's band. The chart opens on the newest month; a year of closes is behind it
+        (the range buttons, or zoom and pan), and the calls start where the tracking started.</p>
       ${nextRows ? `<div class="table-wrapper"><table><tr><th style="text-align:left;">Next day, per model</th><th>Bin</th><th>Direction</th><th>Price it stands for</th><th>Interval</th></tr>${nextRows}</table></div>`
         : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
       </div></div>`;
