@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-09-30-market-rows',
+    date: '2026-09-30',
+    level: 'minor',
+    audience: 'all',
+    title: 'Crypto and Shares: two rows built for markets, a proper score, and the controls',
+    body: [
+      'Two rows now model the returns themselves rather than the bins: a GARCH row, which forecasts each coin\'s or share\'s volatility for the next day and turns it into bin probabilities (it predicts how large the move is, not its direction - the known predictable part of returns), and a Regime HMM row, which reads the whole market as switching between a few regimes - calm, normal, turbulent - and predicts from the regime it believes the market is in. Two stripped-down versions of the regime row run next to it so that the difference between them says what the regimes are made of.',
+      'Before any hit rate or paper profit is read, the market pages judge every row by a proper score: how much probability it gave the bin that then happened, over hundreds of past days, with an interval against the GARCH row. A row counts as carrying information beyond volatility only when that interval lies above zero. A new card shows the verdicts, another shows which regime the model believes the market is in today.',
+      'The two markets joined the Sunday control experiments: their fair history is a random walk with the same volatility and no memory, so the null band and the randomness verdict appear for them on the History page like for every lottery game, once the first Sunday has run.',
+    ],
+    link: { href: '/markets/crypto', label: 'Crypto page' },
+  },
+  {
     id: '2026-09-30-crypto-and-shares',
     date: '2026-09-30',
     level: 'major',

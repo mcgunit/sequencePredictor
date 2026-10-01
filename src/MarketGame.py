@@ -15,7 +15,9 @@ The game history is written where every lottery game keeps its history,
 data/trainingData/<market>/<market>-gamedata-NL-<year>.csv, in the same
 shape (Datum;Nummer 1;...;Nummer N, newest first), so DataLoader,
 Backtester, the models, the hyperopts and Predictor.py read a market like
-they read pick3. The bin edges of every day are stored back in the SQLite
+they read pick3. Next to it, <market>-returns.tsv keeps the aligned log
+returns the bins were cut from (phase M3): the rows that model returns
+rather than bins read it, and a control history gets its own. The bin edges of every day are stored back in the SQLite
 store (table game_days) because a predicted bin only means something with
 the edges it was cut from: they turn a bin back into a return interval, a
 predicted price and a direction for the Markets pages and the settlement.
@@ -40,6 +42,13 @@ except ImportError:  # imported from within src/
 K_BINS = 10          # digits 0..9, like pick3
 MIN_HISTORY = 250    # returns an instrument needs before its first day can be binned (about a trading year)
 FILE_PATTERN = "{game}-gamedata-NL-{year}.csv"   # Predictor.py's convention for every game
+# The returns the bins were cut from, next to the yearly files: every aligned
+# day (the warm-up before the first game day included), oldest first, one
+# column per instrument. Not a .csv on purpose - Helpers.load_data and the
+# control builder read every .csv in a game folder as draws - and it is what
+# the market-specific rows (src/MarketModels.py: GARCH, Regime HMM) model,
+# so a control history (src/ControlHistories.py) carries its own.
+RETURNS_FILE = "{game}-returns.tsv"
 
 GAME_SCHEMA = """
 CREATE TABLE IF NOT EXISTS game_days (
@@ -239,6 +248,51 @@ def read_game_csv(folder):
     return rows
 
 
+def write_returns_file(days, matrix, symbols, folder, game):
+    """
+    <game>-returns.tsv: Datum<TAB>SYMBOL.. header, one row per aligned day
+    (oldest first), the log return per instrument. Fully derived like the
+    yearly files: an unchanged history produces an identical file.
+    """
+    os.makedirs(folder, exist_ok=True)
+    target = os.path.join(folder, RETURNS_FILE.format(game=game))
+    matrix = np.asarray(matrix, dtype=float)
+    lines = ["\t".join(["Datum"] + [str(s) for s in symbols])]
+    for day, row in zip(days, matrix):
+        lines.append("\t".join([str(day)] + [f"{float(v):.10g}" for v in row]))
+    with open(target, "w", newline="") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return target
+
+
+def read_returns_file(folder, game=None):
+    """
+    (days, matrix, symbols) from the folder's returns file - the one named
+    for `game`, else the only *-returns.tsv there (a control folder is named
+    for its seed, not its game). None when there is none.
+    """
+    if not os.path.isdir(folder):
+        return None
+    candidates = [RETURNS_FILE.format(game=game)] if game else []
+    candidates += sorted(n for n in os.listdir(folder) if n.endswith("-returns.tsv"))
+    for name in candidates:
+        target = os.path.join(folder, name)
+        if not os.path.exists(target):
+            continue
+        days, rows = [], []
+        with open(target, newline="") as handle:
+            header = handle.readline().rstrip("\n").split("\t")
+            for line in handle:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) < 2:
+                    continue
+                days.append(parts[0])
+                rows.append([float(v) for v in parts[1:]])
+        matrix = np.asarray(rows, dtype=float) if rows else np.zeros((0, max(0, len(header) - 1)))
+        return days, matrix, header[1:]
+    return None
+
+
 def daily_refresh(path, market, fetch=True, db_path=None, log=print):
     """
     What a market game needs before Predictor.py runs it, in one call: the
@@ -269,7 +323,8 @@ def daily_refresh(path, market, fetch=True, db_path=None, log=print):
 
 def refresh(conn, market, folder, k=K_BINS, min_history=MIN_HISTORY, log=print):
     """Store + CSV for one market. Returns (game days, files written)."""
-    game_days, symbols = build_game(conn, market, k, min_history)
+    days, matrix, symbols = aligned_returns(conn, market)
+    game_days = cut_game(days, matrix, k, min_history) if len(days) > min_history else []
     if not game_days:
         log(f"{market}: not enough aligned history to cut a game (need more than {min_history} common days)")
         return [], []
@@ -284,8 +339,10 @@ def refresh(conn, market, folder, k=K_BINS, min_history=MIN_HISTORY, log=print):
             f"re-cut; the stored day files under data/database/{market} were scored on the old cut (Predictor.py -r rebuilds them)")
     store_game_days(conn, market, game_days, symbols)
     files = write_game_csv(game_days, folder, market)
+    # the returns next to the bins: what the GARCH and Regime HMM rows model
+    files.append(write_returns_file(days, matrix, symbols, folder, market))
     log(f"{market}: {len(game_days)} game days {game_days[0]['date']} .. {game_days[-1]['date']} over {symbols}, "
-        f"{len(files)} yearly file(s) written")
+        f"{len(files) - 1} yearly file(s) and the returns file written")
     return game_days, files
 
 
@@ -377,13 +434,24 @@ def _self_check():
         with open(files[1]) as handle:
             lines = handle.read().strip().splitlines()[1:]
         assert lines[0].split(";")[0] == year_rows[-1][0] and lines[-1].split(";")[0] == year_rows[0][0]
-        # refresh does both
+        # refresh does both, and writes the returns next to the bins
         game_again, files_again = refresh(conn, "crypto", folder, log=lambda *_: None)
-        assert len(game_again) == len(game_days) and len(files_again) == 2
+        assert len(game_again) == len(game_days) and len(files_again) == 3 and files_again[-1].endswith("crypto-returns.tsv")
+        days_back, matrix_back, symbols_back = read_returns_file(folder, "crypto")
+        aligned_days, aligned_matrix, _ = aligned_returns(conn, "crypto")
+        assert days_back == aligned_days and symbols_back == symbols and np.allclose(matrix_back, aligned_matrix, atol=1e-9)
+        assert read_returns_file(folder) is not None and read_returns_file(os.path.join(folder, "nowhere")) is None
+        assert read_game_csv(folder) == back, "the returns file must not be read as draws"
+        # the bins in the files are the bins the returns file gives under the causal edges
+        by_date = dict(zip(days_back, matrix_back))
+        idx = {d: i for i, d in enumerate(days_back)}
+        for day in game_days[-3:]:
+            t = idx[day["date"]]
+            assert [bin_of(matrix_back[t, pos], quantile_edges(matrix_back[:t, pos], 10)) for pos in range(5)] == day["bins"]
         # a shorter cut removes the year file and the stored days it no longer has
         shorter = [d for d in game_days if d["date"] >= "2025-01-01"]
         write_game_csv(shorter, folder, "crypto")
-        assert sorted(os.listdir(folder)) == ["crypto-gamedata-NL-2025.csv"], os.listdir(folder)
+        assert sorted(os.listdir(folder)) == ["crypto-gamedata-NL-2025.csv", "crypto-returns.tsv"], os.listdir(folder)
         assert store_game_days(conn, "crypto", shorter, symbols) == len(shorter) * 5
         assert conn.execute("SELECT MIN(date) FROM game_days WHERE market = 'crypto'").fetchone()[0] == shorter[0]["date"]
         assert conn.execute("SELECT COUNT(DISTINCT date) FROM game_days WHERE market = 'crypto'").fetchone()[0] == len(shorter)
@@ -392,7 +460,7 @@ def _self_check():
         refresh(conn, "crypto", folder, log=said.append)
         assert any("WARNING the first game day moved" in line for line in said), said
     print("csv: yearly files in the lottery shape, newest first, exact round trip, byte-identical when nothing changed, "
-          "stale years and days removed, a moved first day announced")
+          "stale years and days removed, a moved first day announced; the returns file round-trips and re-cuts to the same bins")
     print("MarketGame self-check OK")
 
 

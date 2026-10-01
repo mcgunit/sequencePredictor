@@ -228,11 +228,11 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
     # collects first persists the table, the other reuses it - see the cache
     # validity rules next to load_meta_score_table.
     cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind,
-                                   model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional))
+                                   model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional, game=dataset_name))
     if cached is not None:
         results, model_names = cached
     else:
-        models = build_models(dataPath, bestParams, is_positional=is_positional)
+        models = build_models(dataPath, bestParams, is_positional=is_positional, game=dataset_name)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
 
         # Foundation models cannot run inside the Backtester's forked pool

@@ -2,8 +2,9 @@
 """
 The market games' daily refresh by hand (README roadmap item 4, phase M2):
 bring the bars up to date, re-cut the return bins and write the yearly game
-files Predictor.py reads - the same call Predictor.py makes for a market game
-before predicting it (src/MarketGame.daily_refresh).
+files Predictor.py reads, plus the returns file next to them that the GARCH
+and Regime HMM rows model (phase M3) - the same call Predictor.py makes for a
+market game before predicting it (src/MarketGame.daily_refresh).
 
     python3 MarketsDaily.py                      # both markets: fetch + cut + write
     python3 MarketsDaily.py --market crypto

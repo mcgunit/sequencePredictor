@@ -96,7 +96,7 @@ def load_table(game, cfg, path, days, tolerate_rows):
 
     cached = load_meta_score_table(
         path, game, days, total_rows, bestParams, meta_table_kind(game),
-        model_names=expected_model_names(dataPath, bestParams, is_positional=positional),
+        model_names=expected_model_names(dataPath, bestParams, is_positional=positional, game=game),
         tolerate_rows=tolerate_rows)
     if cached is None:
         print(f"{game}: no usable cached meta-learner table (data/hyperOptCache/meta_{meta_table_kind(game)}_table_{game}.joblib) - "

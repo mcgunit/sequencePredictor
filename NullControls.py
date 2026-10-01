@@ -80,7 +80,7 @@ def evaluate(game, dataPath, days, foundation=False):
     # off unless asked for, and then they need the same pre-fork precompute
     # every other collector does.
     bestParams = {"useChronosFeature": bool(foundation), "useTimesFmFeature": False}
-    models = build_models(dataPath, bestParams, is_positional=positional)
+    models = build_models(dataPath, bestParams, is_positional=positional, game=game)
     if foundation:
         prepare_foundation_scores(models, start_index, total_rows,
                                   skipLastColumns=cfg["skip_last_columns"],

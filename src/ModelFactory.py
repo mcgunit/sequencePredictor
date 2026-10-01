@@ -8,6 +8,8 @@ from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.XGBoost import XGBoostPredictor
 from src.ChronosModel import ChronosModel
 from src.TimesFmModel import TimesFmModel
+from src.MarketModels import MARKET_MODEL_NAMES, build_market_models
+from src.Helpers import is_market_game
 
 # Ordered list of base-model display names fed into the meta-learner -
 # HybridStatisticalModel is deliberately excluded: it's itself a vote-based
@@ -33,6 +35,12 @@ BASE_MODEL_NAMES = [
     "XGBoost Model",
     "Chronos Model",
     "TimesFM Model",
+    # The market rows (README roadmap item 4, M3 - src/MarketModels.py): built
+    # for the market games only (build_models(..., game=)), appended last for
+    # the same reason as the rows above, so no lottery artifact's column order
+    # moves. GARCH first: it is the reference the Regime HMM row and its two
+    # ablations are judged against.
+    *MARKET_MODEL_NAMES,
 ]
 
 # The foundation models (README roadmap item 5) are the only base models that
@@ -56,7 +64,7 @@ DISABLED_FOR_POSITIONAL = {"MarkovBayesian Model", "MarkovBayesianEnhanched Mode
 DISABLED_FOR_PICK3 = DISABLED_FOR_POSITIONAL
 
 
-def build_models(dataPath, bestParams, is_positional=False, is_pick3=None):
+def build_models(dataPath, bestParams, is_positional=False, is_pick3=None, game=None):
     """
     Instantiates the 7 base models configured with this game's already-tuned
     hyperopt params (bestParams_<game>.json), mirroring how Predictor.py's
@@ -74,6 +82,13 @@ def build_models(dataPath, bestParams, is_positional=False, is_pick3=None):
     is_pick3 is the historical name of the same flag, still accepted so
     callers written before Joker+ existed (TrainMetaLearner.py,
     HyperoptQuantum.py, HyperoptStatistics.py) keep working unchanged.
+
+    game: the game's name; for a market game (crypto, shares) the market rows
+    of src/MarketModels.py - GARCH, Regime HMM and its two ablations - are
+    added, configured from the same bestParams (garch*/regimeHmm* keys). They
+    read the returns file next to the game files, so a control history built
+    by src/ControlHistories.py runs them too. Without a game name no market
+    row is built, whatever the folder is called.
     """
     if is_pick3 is not None:
         is_positional = bool(is_pick3)
@@ -200,10 +215,13 @@ def build_models(dataPath, bestParams, is_positional=False, is_pick3=None):
         model.setRecentDraws(bestParams.get("foundationContext", 512))
         models[name] = model
 
+    if game and is_market_game(game):
+        models.update(build_market_models(dataPath, bestParams))
+
     return models
 
 
-def expected_model_names(dataPath, bestParams, is_positional=False, is_pick3=None):
+def expected_model_names(dataPath, bestParams, is_positional=False, is_pick3=None, game=None):
     """
     The names build_models() will produce here, without constructing
     anything. A cached score table is only reusable if it was collected from
@@ -215,10 +233,13 @@ def expected_model_names(dataPath, bestParams, is_positional=False, is_pick3=Non
         is_positional = bool(is_pick3)
     names = [name for name in BASE_MODEL_NAMES
              if not (is_positional and name in DISABLED_FOR_POSITIONAL)
-             and name not in {n for n, _, _, _ in FOUNDATION_MODELS}]
+             and name not in {n for n, _, _, _ in FOUNDATION_MODELS}
+             and name not in MARKET_MODEL_NAMES]
     for name, cls, flag, default in FOUNDATION_MODELS:
         if bestParams.get(flag, default) and cls.installed():
             names.append(name)
+    if game and is_market_game(game):
+        names.extend(MARKET_MODEL_NAMES)
     return names
 
 
@@ -277,13 +298,23 @@ if __name__ == "__main__":
         [("useChronosFeature", True), ("useChronosFeature", False)],
         [("useTimesFmFeature", True), ("useTimesFmFeature", False)])]
     failures = 0
-    for is_positional in (False, True):
+    # (positional flag, game name): the market games add the four market rows,
+    # the folder name alone never does
+    configurations = [(False, None), (True, None), (True, "pick3"), (True, "crypto"), (True, "shares")]
+    for is_positional, game in configurations:
         for params in cases:
-            built = list(build_models(dataPath, params, is_positional=is_positional).keys())
-            expected = expected_model_names(dataPath, params, is_positional=is_positional)
+            built = list(build_models(dataPath, params, is_positional=is_positional, game=game).keys())
+            expected = expected_model_names(dataPath, params, is_positional=is_positional, game=game)
             if built != expected:
                 failures += 1
-                print(f"MISMATCH positional={is_positional} {params}\n  built    {built}\n  expected {expected}")
-    print(f"{2 * len(cases) - failures}/{2 * len(cases)} configurations agree"
+                print(f"MISMATCH positional={is_positional} game={game} {params}\n  built    {built}\n  expected {expected}")
+            if game in ("crypto", "shares") and built[-4:] != MARKET_MODEL_NAMES:
+                failures += 1
+                print(f"the market rows must come last for {game}: {built}")
+            if game not in ("crypto", "shares") and any(name in MARKET_MODEL_NAMES for name in built):
+                failures += 1
+                print(f"a market row was built for {game}: {built}")
+    total = len(configurations) * len(cases)
+    print(f"{total - failures}/{total} configurations agree"
           + ("" if not failures else " - FIX expected_model_names()"))
     raise SystemExit(1 if failures else 0)

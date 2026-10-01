@@ -41,6 +41,18 @@ def _worker_dies_with_parent():
         ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, _signal.SIGTERM)  # 1 = PR_SET_PDEATHSIG
     except (OSError, AttributeError):
         pass
+    # One BLAS/OpenMP thread per worker: the pool already uses every core, and
+    # a numpy-heavy model (the market rows' HMM, src/MarketModels.py) in
+    # fifteen workers each spinning sixteen OpenBLAS threads put the load
+    # average at 230 and the backtest at a crawl (30 Sept 2026). The tuners
+    # pin the same limit through the environment before numpy loads; this
+    # covers every other owner of a pool (TrainMetaLearner, the controls).
+    # XGBoost keeps its own explicit thread setting.
+    try:
+        from threadpoolctl import threadpool_limits
+        threadpool_limits(limits=1)
+    except Exception:
+        pass
 
 
 def _positional_hits(prediction, actual, game):

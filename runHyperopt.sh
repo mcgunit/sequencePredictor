@@ -67,6 +67,7 @@ python3 TrainMetaLearner.py >> /root/sequencePredictor/log/TrainMetaLearner.log 
 # meta-learner table the chain just cached (refits only, about an hour), then
 # Q0 (hours: a full backtest per control history). All write under
 # data/controls/ for the History page's cards.
-python3 RandomnessDiscrimination.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -w 10 -n 3 >> /root/sequencePredictor/log/randomnessDiscrimination.log 2>&1
-python3 IrrelevantFeatureControl.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -r 3 -k 3 >> /root/sequencePredictor/log/featureControl.log 2>&1
-python3 NullControls.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus -m both -n 3 -d 120 >> /root/sequencePredictor/log/nullControls.log 2>&1
+python3 RandomnessDiscrimination.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares -w 10 -n 3 >> /root/sequencePredictor/log/randomnessDiscrimination.log 2>&1
+python3 IrrelevantFeatureControl.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares -r 3 -k 3 >> /root/sequencePredictor/log/featureControl.log 2>&1
+python3 MarketRows.py -g crypto,shares -d 250 >> /root/sequencePredictor/log/marketRows.log 2>&1
+python3 NullControls.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares -m both -n 3 -d 120 >> /root/sequencePredictor/log/nullControls.log 2>&1

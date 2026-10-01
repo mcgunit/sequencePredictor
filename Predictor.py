@@ -44,6 +44,7 @@ from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
 from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
+from src.MarketModels import build_market_models, GARCH_NAME
 
 tcn = TCNModel()
 lstm = LSTMModel()
@@ -1457,6 +1458,26 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
     return listOfDecodedPredictions, anomalyWatch
 
 
+# The market rows are kept per game across the days of one run, like the
+# module-level statistical models above: the Regime HMM reselects its number
+# of regimes on a cadence of game days and caches that selection per anchor,
+# which only pays off when the same instance serves the consecutive days of a
+# history rebuild. Rebuilt when the game's garch*/regimeHmm* parameters change.
+_marketRowCache = {}
+
+
+def marketRowsFor(name, dataPath, path, bestParams_json_object):
+    relevant = {k: v for k, v in sorted(bestParams_json_object.items()) if k.startswith(("garch", "regimeHmm"))}
+    key = (name, dataPath, json.dumps(relevant, sort_keys=True, default=str))
+    if _marketRowCache.get("key") != key:
+        _marketRowCache.clear()
+        _marketRowCache["key"] = key
+        _marketRowCache["rows"] = build_market_models(dataPath, bestParams_json_object,
+                                                      state_dir=os.path.join(path, "data", "models", name),
+                                                      regime_log=os.path.join(path, "data", "markets", f"{name}-regimes.json"))
+    return _marketRowCache["rows"]
+
+
 def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, skipLastColumns=0):
 
     bestParams_json_object = {
@@ -1896,6 +1917,32 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to build the OrderStatistics Baseline: ", e)
 
+    # The market rows (README roadmap item 4, M3 - src/MarketModels.py): the
+    # GARCH row and the Regime HMM row with its two ablations, for the market
+    # games only. They model the returns file next to the game files and hand
+    # back one bin per instrument like every row. The HMM rows keep their
+    # regime templates under data/models/<market>/ across the daily refits
+    # and log which regime they believe the market is in for the market page
+    # (data/markets/<market>-regimes.json). useGarch / useRegimeHmm in
+    # bestParams_<market>.json switch the rows off; both default on.
+    marketRows = {}
+    if Helpers.is_market_game(name):
+        try:
+            marketRows = marketRowsFor(name, dataPath, path, bestParams_json_object)
+        except Exception as e:
+            print("Failed to build the market rows: ", e)
+        for rowName, rowModel in marketRows.items():
+            if not bestParams_json_object.get("useGarch" if rowName == GARCH_NAME else "useRegimeHmm", True):
+                continue
+            try:
+                rowSequence, _ = helpers.run_model_with_special_column(
+                    rowModel, generateSubsets=[], skipRows=skipRows,
+                    skipLastColumns=skipLastColumns, specialColumnCount=specialColumnCount)
+                if rowSequence:
+                    listOfDecodedPredictions.append({"name": rowName, "predictions": [list(rowSequence)]})
+            except Exception as e:
+                print(f"Failed to perform {rowName}: ", e)
+
     metaLearnerPath = os.path.join(path, "data", "models", name, "meta_learner.joblib")
     metaLearnerV2Path = os.path.join(path, "data", "models", name, "meta_learner_v2.joblib")
     # Quantum meta-learners (README's quantum research track, trained by
@@ -2010,6 +2057,11 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 "LaplaceMonteCarlo Model": laplaceMonteCarlo,
                 "XGBoost Model": xgboostPredictor,
             }
+            # A market artifact (TrainMetaLearner on crypto/shares) was trained
+            # with the market rows' probabilities as columns
+            # (ModelFactory.build_models game=): served from the same
+            # instances the row block above ran, so this day's fit is reused.
+            modelInstances.update(marketRows)
 
             # The foundation models are features of the meta-learner too
             # (ModelFactory.BASE_MODEL_NAMES), and an artifact asks for a

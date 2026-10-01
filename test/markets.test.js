@@ -37,6 +37,35 @@ const record = {
 fs.writeFileSync(path.join(dir, 'crypto.json'), JSON.stringify(record));
 fs.writeFileSync(path.join(dir, 'shares.json'), '{');
 
+// the weekly MarketRows.py report and the regime log (phase M3)
+const controls = fs.mkdtempSync(path.join(os.tmpdir(), 'controls-'));
+fs.mkdirSync(path.join(controls, 'markets'));
+const interval = (mean, lo, hi, verdict) => ({ mean, lo, hi, verdict, days: 40 });
+const rowsRecord = {
+  market: 'crypto', generated_at: '2026-10-04T12:00:00+00:00', days_requested: 40, days_scored: 40, first_day: '2026-08-21', last_day: '2026-09-29',
+  k: 10, uniform_log_score: -2.302585, probability_floor: 0.0001, reference: 'GARCH Model', lockbox_days_withheld: 0, errors: {},
+  rows: [
+    { name: 'Regime HMM Model', kind: 'market', days: 40, scored_days: 40, log_score: -2.45, log_score_se: 0.03,
+      vs_reference: interval(-0.24, -0.4, -0.1, 'worse'), vs_uniform: interval(-0.15, -0.3, -0.02, 'worse'),
+      exact_rate: 0.09, adjacent_rate: 0.27, direction_rate: 0.48, trades: 90, pnl_return: -0.02, pnl_per_trade: -0.0002 },
+    { name: 'random', kind: 'baseline', days: 40, scored_days: 0, log_score: null, log_score_se: null, vs_reference: null, vs_uniform: null,
+      exact_rate: 0.1, adjacent_rate: 0.28, direction_rate: 0.5, trades: 100, pnl_return: 0.0, pnl_per_trade: 0.0 },
+    { name: 'GARCH Model', kind: 'market', days: 40, scored_days: 40, log_score: -2.21, log_score_se: 0.02,
+      vs_reference: null, vs_uniform: interval(0.09, 0.05, 0.13, 'better'),
+      exact_rate: 0.12, adjacent_rate: 0.3, direction_rate: 0.5, trades: 100, pnl_return: 0.01, pnl_per_trade: 0.0001 },
+    { name: 'Markov Model', kind: 'base', days: 40, scored_days: 40, log_score: -2.3, log_score_se: 0.02,
+      vs_reference: interval(-0.09, -0.2, 0.02, 'no difference'), vs_uniform: interval(0.0, -0.05, 0.05, 'no difference'),
+      exact_rate: 0.1, adjacent_rate: 0.28, direction_rate: 0.49, trades: 95, pnl_return: -0.005, pnl_per_trade: null },
+  ],
+};
+fs.writeFileSync(path.join(controls, 'markets', 'crypto-rows.json'), JSON.stringify(rowsRecord));
+fs.writeFileSync(path.join(controls, 'markets', 'shares-rows.json'), JSON.stringify({ market: 'crypto', rows: [] }));
+const regimeRecord = { updated: '2026-10-01', 'Regime HMM Model': [
+  { date: '2026-09-30', row: 'Regime HMM Model', regimes: 2, dominant: 0, volatility_rank: 1, label: 'calm', probability: 0.6, weights: [0.6, 0.4], expected_return: [0.001, 0.0], volatility: [0.02, 0.03], template: 1 },
+  { date: '2026-10-01', row: 'Regime HMM Model', regimes: 2, dominant: 1, volatility_rank: 2, label: 'turbulent', probability: 0.97, weights: [0.03, 0.97], expected_return: [0.0012, -0.002], volatility: [0.04, 0.05], template: 3 } ],
+  'Regime HMM Single Model': [{ date: '2026-10-01', row: 'Regime HMM Single Model', regimes: 1, dominant: 0, volatility_rank: 1, label: 'normal', probability: 1, weights: [1], expected_return: [0.0003, 0.0001], volatility: [0.03, 0.04], template: 1 }] };
+fs.writeFileSync(path.join(dir, 'crypto-regimes.json'), JSON.stringify(regimeRecord));
+
 // --- loading ------------------------------------------------------------------
 ok(markets.loadMarket(dir, 'crypto') && markets.loadMarket(dir, 'crypto').market === 'crypto', 'a market record loads');
 ok(markets.loadMarket(dir, 'shares') === null, 'a broken file is no record');
@@ -61,6 +90,27 @@ ok(view.drawn.length === 1 && view.daily.length === 2, 'drawn models and the dai
 const bare = markets.describeMarket({ market: 'shares', instruments: [], models: [] });
 ok(bare.scoredDays === 0 && bare.chance.exact === 0.1 && bare.madeOn === null && bare.daily.length === 0, 'an empty record describes with defaults');
 
+// --- the report and the regime log ------------------------------------------
+ok(markets.loadRows(controls, 'crypto') && markets.loadRows(controls, 'crypto').reference === 'GARCH Model', 'the rows report loads');
+ok(markets.loadRows(controls, 'shares') === null && markets.loadRows(path.join(controls, 'nowhere'), 'crypto') === null, 'a report naming another market, or none, is no report');
+ok(markets.loadRegimes(dir, 'crypto') && markets.loadRegimes(dir, 'shares') === null, 'the regime log loads when it exists');
+const rep = markets.describeRows(rowsRecord);
+ok(rep.rows.map((r) => r.name).join(',') === 'GARCH Model,Markov Model,Regime HMM Model,random', 'rows sort best log-score first, rows without probabilities last');
+ok(rep.referenceRow && rep.referenceRow.isReference && rep.referenceAboveUniform && rep.betterThanReference.length === 0,
+  'the reference is found, it is above uniform, and no row beats it in this record');
+ok(rep.rows[2].vsReference.verdict === 'worse' && rep.rows[1].vsReference.verdict === 'no difference' && rep.rows[3].logScore === null && rep.uniform < -2.3,
+  'intervals and verdicts pass through, uniform is log 1/10');
+ok(markets.describeRows(null) === null && markets.describeRows({ market: 'shares', rows: [] }).rows.length === 0, 'no report, or an empty one, describes safely');
+const better = markets.describeRows({ ...rowsRecord, rows: rowsRecord.rows.map((r) => (r.name === 'Markov Model' ? { ...r, vs_reference: interval(0.1, 0.02, 0.2, 'better') } : r)) });
+ok(better.betterThanReference.join(',') === 'Markov Model', 'a row whose interval against GARCH lies above zero is named');
+const regimes = markets.describeRegimes(regimeRecord, ['BTC', 'ETH']);
+ok(regimes.length === 2 && regimes[0].row === 'Regime HMM Model' && regimes[0].date === '2026-10-01' && regimes[0].template === 3 && regimes[0].label === 'turbulent'
+  && regimes[0].expected[0].symbol === 'BTC' && regimes[0].expected[1].value === -0.002 && regimes[0].history === 2,
+  'the newest reading per row, with the instruments named');
+ok(markets.describeRegimes(null, []).length === 0 && markets.describeRegimes({ updated: 'x' }, []).length === 0, 'no readings, no rows');
+const full = markets.describeMarket(record, { rows: rowsRecord, regimes: regimeRecord });
+ok(full.rows && full.rows.rows.length === 4 && full.regimes.length === 2 && full.regimes[0].expected[1].symbol === 'ETH', 'the view carries the report and the readings');
+ok(markets.describeMarket(record).rows === null && markets.describeMarket(record).regimes.length === 0, 'without extras the view has neither');
 // --- formatting ---------------------------------------------------------------
 ok(markets.pct(0.1234) === '12.3%' && markets.pct(null) === '-' && markets.pct(0.5, 0) === '50%', 'percentages');
 ok(markets.money(0.0123) === '+0.0123' && markets.money(-0.5, 2) === '-0.50' && markets.money(undefined) === '-', 'signed money');
@@ -75,16 +125,28 @@ ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+0.
 ok(html.includes('chart-crypto-BTC') && html.includes('daily-crypto') && (html.match(/new Chart\(/g) || []).length === 3, 'one chart per instrument plus the daily chart');
 ok(html.includes('84900') && html.includes('84500 - 85300') && html.includes('below 81000'), 'the next-day table shows the price, a closed and an open interval');
 ok(html.includes('(inactive)'), 'an inactive instrument is marked');
+const fullHtml = markets.page('crypto', full, header, footer, null);
+ok(fullHtml.includes('Rows under a proper score') && fullHtml.includes('No row carries information beyond GARCH') && fullHtml.includes('(reference)')
+  && fullHtml.includes('no probabilities') && fullHtml.includes('-0.240 [-0.400, -0.100] worse') && fullHtml.includes('GARCH itself is above the uniform forecast'),
+  'the score card names the reference, the verdicts and the intervals');
+ok(fullHtml.includes('Regime reading') && fullHtml.includes('T3') && fullHtml.includes('turbulent') && fullHtml.includes('2 of 2 by volatility') && fullHtml.includes('ETH -0.20%'),
+  'the regime card shows the template, its label and the expected returns');
+const betterRows = { ...rowsRecord, rows: rowsRecord.rows.map((r) => (r.name === 'Markov Model' ? { ...r, vs_reference: interval(0.1, 0.02, 0.2, 'better') } : r)) };
+ok(markets.page('crypto', markets.describeMarket(record, { rows: betterRows }), header, footer, null).includes('Markov Model</b> carries information beyond GARCH'),
+  'a better row is named in the headline');
+ok(!html.includes('Rows under a proper score') && !html.includes('Regime reading'), 'without a report or a log there is neither card');
 const empty = markets.page('shares', null, header, footer, null);
 ok(empty.includes('No market record yet') && empty.includes('data/markets/shares.json'), 'without a record the page says what will fill it');
 const noModels = markets.page('shares', markets.describeMarket({ market: 'shares', instruments: [], models: [], chance: { exact: 0.1, adjacent: 0.28, direction: 0.5 } }), header, footer, null);
 ok(noModels.includes('no settled day yet'), 'without settled days the models table says so');
 const routes = {};
-markets.install({ get: (p, h) => { routes[p] = h; } }, { header, footer, dataDir: dir });
+markets.install({ get: (p, h) => { routes[p] = h; } }, { header, footer, dataDir: dir, controlsDir: controls });
 ok(Object.keys(routes).sort().join(',') === '/markets/crypto,/markets/shares', 'two routes are installed');
 let sent = '';
 routes['/markets/crypto']({ user: null }, { send: (h) => { sent = h; } });
-ok(sent.includes('Crypto predictor') && sent.includes('chart-crypto-BTC'), 'the route renders the record on disk');
+ok(sent.includes('Crypto predictor') && sent.includes('chart-crypto-BTC') && sent.includes('Rows under a proper score') && sent.includes('Regime reading'),
+  'the route renders the record, the report and the readings on disk');
 
 fs.rmSync(dir, { recursive: true, force: true });
+fs.rmSync(controls, { recursive: true, force: true });
 console.log(`markets.js: ${passed} checks passed`);

@@ -21,21 +21,23 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 10, 'ten jobs: the daily predictor, the six of the weekly tuning chain and the three control experiments');
+ok(jobs.JOBS.length === 11, 'eleven jobs: the daily predictor, the six of the weekly tuning chain and the four control experiments');
 ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true',
   'the daily job is Predictor.py -a true, exactly as runPredictor.sh had it');
 ok(byKey.predictor.daily.hour === 9 && byKey.predictor.daily.minute === 0, 'the predictor keeps its 09:00 slot');
 ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner',
   'the weekly chain keeps the order runHyperopt.sh documented');
-ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,featureControl,nullControls',
-  'the control plan runs Q2 (an hour), then the feature control (refits, about an hour), then Q0 (hours)');
+ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,featureControl,marketRows,nullControls',
+  'the control plan runs Q2 (an hour), the feature control (refits, about an hour), the market rows report (minutes), then Q0 (hours)');
 ok(jobs.JOBS.every((j) => !j.plan || PLANS[j.plan]), 'every planned job belongs to a known plan');
 ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'),
   'the quantum tuner must run before the retrain - that is why the retrain is weekly at all');
 ok(CHAIN_KEYS[CHAIN_KEYS.length - 1] === 'trainMetaLearner', 'the meta-learner retrain stays last');
 ok(byKey.nullControls.args.includes('-d') && byKey.nullControls.args.includes('both') && byKey.randomnessDiscrimination.args.includes('-w'),
   'the controls run with an explicit window, both control kinds and every game');
-ok(['nullControls', 'randomnessDiscrimination', 'featureControl'].every((k) => byKey[k].args[1].split(',').length === 7), 'every control covers the seven games');
+ok(['nullControls', 'randomnessDiscrimination', 'featureControl'].every((k) => byKey[k].args[1].split(',').length === 9
+  && byKey[k].args[1].endsWith('crypto,shares')), 'every control covers the seven lottery games and the two markets');
+ok(byKey.marketRows.args.join(' ') === '-g crypto,shares -d 250', 'the market rows report scores both markets over an explicit window');
 ok(byKey.featureControl.args.includes('-r') && byKey.featureControl.args.includes('-k'), 'the feature control runs with explicit repeats and noise columns');
 
 // The shell scripts stay as the hand-run path, so they must not drift from

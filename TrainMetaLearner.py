@@ -391,11 +391,12 @@ def positional_metrics(mean_profit, accuracies, train_days, test_days):
 #   days are a suffix slice);
 # - base params: the subset of bestParams the base models are built from
 #   (ModelFactory.build_models reads only markov*/poisson*/laplace*/xgBoost*
+#   keys - and garch*/regimeHmm* for the market rows;
 #   keys; quantum/meta/subset keys merged later in the pipeline don't touch
 #   the base-model scores, so they must NOT invalidate the cache;
 #   "foundation" covers foundationContext, which decides how much history
 #   the foundation models are shown and therefore what their column holds).
-BASE_PARAM_PREFIXES = ("markov", "poisson", "laplace", "xgBoost", "foundation")
+BASE_PARAM_PREFIXES = ("markov", "poisson", "laplace", "xgBoost", "foundation", "garch", "regimeHmm")
 
 
 def base_param_subset(bestParams):
@@ -592,14 +593,14 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     start_index = max(0, total_rows - days_back)
 
     cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind,
-                                   model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional))
+                                   model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional, game=dataset_name))
     if cached is not None:
         results, model_names = cached
     else:
         # Positional base models (ModelFactory.build_models is_positional):
         # unsorted drawn-order tickets, pair-scored Markov, the three set-only
         # models left out - the same configuration Pick3 and Joker+ need.
-        models = build_models(dataPath, bestParams, is_positional=is_positional)
+        models = build_models(dataPath, bestParams, is_positional=is_positional, game=dataset_name)
         model_names = [name for name in BASE_MODEL_NAMES if name in models]
 
         # Foundation models (Chronos-2, TimesFM-3) cannot run inside the

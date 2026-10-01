@@ -1588,7 +1588,7 @@ app.get('/', (req, res) => {
 // no longer started or linked from here - start it by hand when needed:
 // optuna-dashboard sqlite:///db.sqlite3
 auth.install(app, { header: generateHeader, footer: generateFooter });
-markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath });
+markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath, controlsDir: controlsPath });
 // The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
 // 8) above the supervised services (services.js, today the Council API).
 // services.js renders whatever the third argument returns, so it stays

@@ -7,6 +7,11 @@
 // chance and the daily accuracy series. These pages draw that file and
 // nothing else - no database, no Python at request time.
 //
+// Two more records join the page (phase M3): data/controls/markets/<market>-rows.json,
+// the weekly MarketRows.py report that scores the market rows under a proper
+// scoring rule against GARCH, and data/markets/<market>-regimes.json, the
+// Regime HMM rows' reading of which regime the market is in.
+//
 // Pure functions (loadMarket, describeMarket, formatting) are exported for
 // test/markets.test.js; install() adds the two routes.
 'use strict';
@@ -28,6 +33,16 @@ function loadMarket(dir, market) {
   return record && record.market === market && Array.isArray(record.instruments) && Array.isArray(record.models) ? record : null;
 }
 
+function loadRows(controlsDir, market) {
+  const record = readJson(path.join(controlsDir, 'markets', `${market}-rows.json`));
+  return record && record.market === market && Array.isArray(record.rows) ? record : null;
+}
+
+function loadRegimes(dir, market) {
+  const record = readJson(path.join(dir, `${market}-regimes.json`));
+  return record && typeof record === 'object' ? record : null;
+}
+
 const num = (x) => {
   const v = Number(x);
   return x === null || x === undefined || !Number.isFinite(v) ? null : v;
@@ -40,9 +55,57 @@ const price = (x) => {
   return v >= 1000 ? v.toFixed(0) : (v >= 10 ? v.toFixed(2) : v.toFixed(4));
 };
 
+// The weekly report's rows, ready to print: log-scores, the interval and
+// verdict against GARCH and against uniform, hit rates and the fixed rule's
+// P&L with the real returns. Sorted best log-score first, rows without a
+// probability (the baselines) last.
+function describeRows(record) {
+  if (!record) return null;
+  const uniform = num(record.uniform_log_score);
+  const interval = (x) => (x && num(x.mean) !== null ? { mean: num(x.mean), lo: num(x.lo), hi: num(x.hi), verdict: String(x.verdict || ''), days: num(x.days) } : null);
+  const rows = (record.rows || []).map((r) => ({
+    name: String(r.name), kind: String(r.kind || 'base'), days: num(r.days), scoredDays: num(r.scored_days),
+    logScore: num(r.log_score), se: num(r.log_score_se),
+    vsReference: interval(r.vs_reference), vsUniform: interval(r.vs_uniform),
+    exact: num(r.exact_rate), adjacent: num(r.adjacent_rate), direction: num(r.direction_rate),
+    trades: num(r.trades), pnl: num(r.pnl_return), pnlPerTrade: num(r.pnl_per_trade),
+    isReference: String(r.name) === String(record.reference),
+  }));
+  rows.sort((a, b) => {
+    if ((a.logScore === null) !== (b.logScore === null)) return a.logScore === null ? 1 : -1;
+    if (a.logScore !== null && b.logScore !== null && a.logScore !== b.logScore) return b.logScore - a.logScore;
+    return (b.exact || 0) - (a.exact || 0);
+  });
+  const reference = rows.find((r) => r.isReference) || null;
+  return {
+    market: record.market, generatedAt: record.generated_at || null, days: num(record.days_scored), requested: num(record.days_requested),
+    firstDay: record.first_day || null, lastDay: record.last_day || null, uniform, reference: String(record.reference || ''),
+    referenceRow: reference, floor: num(record.probability_floor), rows, lockboxWithheld: num(record.lockbox_days_withheld) || 0,
+    betterThanReference: rows.filter((r) => r.vsReference && r.vsReference.verdict === 'better').map((r) => r.name),
+    referenceAboveUniform: !!(reference && reference.vsUniform && reference.vsUniform.verdict === 'better'),
+    errors: record.errors && typeof record.errors === 'object' ? record.errors : {},
+  };
+}
+
+// The newest reading of each Regime HMM row: which regime, how sure, how many.
+function describeRegimes(record, symbols) {
+  if (!record) return [];
+  return Object.keys(record).filter((k) => Array.isArray(record[k]) && record[k].length).sort().map((row) => {
+    const latest = record[row][record[row].length - 1];
+    return {
+      row, date: latest.date || null, regimes: num(latest.regimes), label: String(latest.label || ''), template: latest.template === null || latest.template === undefined ? null : num(latest.template),
+      probability: num(latest.probability), volatilityRank: num(latest.volatility_rank),
+      expected: Array.isArray(latest.expected_return) ? latest.expected_return.map((v, i) => ({ symbol: symbols && symbols[i] ? symbols[i] : `#${i + 1}`, value: num(v) })) : [],
+      volatility: Array.isArray(latest.volatility) ? latest.volatility.map((v) => num(v)) : [],
+      history: record[row].length,
+    };
+  });
+}
+
 // One view model per market: models with their rates read against chance,
 // instruments with what the charts need, the next-day table, the series.
-function describeMarket(record) {
+// `extras` = { rows, regimes }: the weekly report and the regime log.
+function describeMarket(record, extras) {
   const chance = record.chance || { exact: 0.1, adjacent: 0.28, direction: 0.5 };
   const models = (record.models || []).map((m) => {
     const exact = num(m.exact_rate); const adjacent = num(m.adjacent_rate); const direction = num(m.direction_rate);
@@ -77,6 +140,8 @@ function describeMarket(record) {
     models, drawn: Array.isArray(record.drawn_models) ? record.drawn_models.map(String) : [],
     instruments, daily: Array.isArray(record.daily) ? record.daily : [],
     scoredDays: models.length ? Math.max(...models.map((m) => m.days || 0)) : 0,
+    rows: describeRows(extras && extras.rows ? extras.rows : null),
+    regimes: describeRegimes(extras && extras.regimes ? extras.regimes : null, instruments.map((i) => i.symbol)),
   };
 }
 
@@ -132,6 +197,58 @@ function page(market, view, header, footer, user) {
         ] }, options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 1 } } } });</script></div></div>`;
   }
 
+  // the rows under a proper score (the weekly MarketRows.py report)
+  if (view.rows) {
+    const rep = view.rows;
+    const signed = (x, d = 3) => (num(x) === null ? '-' : (num(x) >= 0 ? '+' : '') + num(x).toFixed(d));
+    const verdictMark = (iv) => {
+      if (!iv) return '<span style="color:#aaa;">-</span>';
+      const colour = iv.verdict === 'better' ? '#27ae60' : (iv.verdict === 'worse' ? '#c0392b' : '#7f8c8d');
+      return `<span style="color:${colour};${iv.verdict === 'better' ? ' font-weight:bold;' : ''}" title="mean difference in log-score per day, 95% paired bootstrap interval over ${iv.days === null ? '?' : iv.days} days">${signed(iv.mean)} [${signed(iv.lo)}, ${signed(iv.hi)}] ${esc(iv.verdict)}</span>`;
+    };
+    const kindNote = { market: 'market row', base: 'lottery row', baseline: 'baseline' };
+    let table = '';
+    rep.rows.forEach((r) => {
+      table += `<tr><td style="text-align:left; font-weight:bold;">${esc(r.name)}${r.isReference ? ' <span style="color:#7f8c8d; font-weight:normal;">(reference)</span>' : ''}<br><span style="color:#aaa; font-size:0.8em;">${esc(kindNote[r.kind] || r.kind)}</span></td>
+        <td>${r.logScore === null ? '<span style="color:#aaa;">no probabilities</span>' : `<b>${r.logScore.toFixed(3)}</b>${r.se === null ? '' : ` <span style="color:#aaa;">± ${r.se.toFixed(3)}</span>`}`}</td>
+        <td>${r.isReference ? '<span style="color:#7f8c8d;">reference</span>' : verdictMark(r.vsReference)}</td><td>${verdictMark(r.vsUniform)}</td>
+        <td>${pct(r.exact)}</td><td>${pct(r.adjacent)}</td><td>${pct(r.direction)}</td><td>${r.trades === null ? '-' : r.trades}</td>
+        <td style="color:${(r.pnl || 0) >= 0 ? '#27ae60' : '#c0392b'};">${money(r.pnl)}</td></tr>`;
+    });
+    const headline = rep.betterThanReference.length
+      ? `<b style="color:#27ae60;">${esc(rep.betterThanReference.join(', '))}</b> carr${rep.betterThanReference.length === 1 ? 'ies' : 'y'} information beyond GARCH over this window (the interval's lower bound is above zero).`
+      : `<b>No row carries information beyond GARCH</b> over this window: every interval against the reference includes zero or lies below it.`;
+    const garchLine = rep.referenceRow
+      ? (rep.referenceAboveUniform ? `GARCH itself is above the uniform forecast (${rep.referenceRow.logScore.toFixed(3)} against ${rep.uniform.toFixed(3)}), which is volatility clustering - the known predictable component.`
+        : `GARCH itself is not distinguishable from the uniform forecast here (${rep.referenceRow.logScore === null ? '-' : rep.referenceRow.logScore.toFixed(3)} against ${rep.uniform.toFixed(3)}).`)
+      : '';
+    html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Rows under a proper score</span>
+      <span class="card-meta" style="margin-left:10px;">mean log-score of the probability each row gave the bin that happened, ${rep.days === null ? '?' : rep.days} game days${rep.firstDay ? ` ${esc(rep.firstDay)} to ${esc(rep.lastDay || '')}` : ''}, against GARCH</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em;">${headline} ${garchLine} A row is judged here before its hit rates or paper P&amp;L are read: the log-score rewards honest
+      probabilities and punishes overconfidence, so a row cannot win it by betting on the same bin every day. The uniform forecast scores ${rep.uniform === null ? '-' : rep.uniform.toFixed(3)}
+      (log of 1/${view.k}); a probability under ${rep.floor === null ? '-' : rep.floor} is scored as ${rep.floor === null ? '-' : rep.floor}.${rep.lockboxWithheld ? ` ${rep.lockboxWithheld} lockbox day(s) withheld.` : ''}</p>
+      <div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th title="mean over days of the mean over instruments of log p(actual bin); higher is better">Log-score</th>
+      <th title="difference to the GARCH row, 95% paired bootstrap interval over days">vs GARCH</th><th title="difference to the uniform forecast">vs uniform</th><th>Exact</th><th>Adjacent</th><th>Direction</th><th>Trades</th><th title="fixed rule with the real returns and the fee, in units of price (0.01 = 1%)">P&amp;L</th></tr>${table}</table></div>
+      <p style="color:#7f8c8d; font-size:0.85em;">Walk-forward, every day refitted on the past only (MarketRows.py, Sundays). "Better" and "worse" are read off the interval, not the point estimate. The two ablation rows
+      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.${Object.keys(rep.errors).length ? ` Rows that failed on some days: ${esc(Object.keys(rep.errors).join(', '))}.` : ''}
+      Generated ${esc(rep.generatedAt || '-')}.</p></div></div>`;
+  }
+
+  // the regime reading (the Regime HMM rows' templates)
+  if (view.regimes.length) {
+    let table = '';
+    view.regimes.forEach((r) => {
+      table += `<tr><td style="text-align:left; font-weight:bold;">${esc(r.row)}</td><td>${esc(r.date || '-')}</td><td>${r.regimes === null ? '-' : r.regimes}</td>
+        <td>${r.template === null ? '-' : `T${r.template}`}${r.label ? ` <span style="color:#7f8c8d;">(${esc(r.label)}${r.volatilityRank !== null && r.regimes !== null && r.regimes > 1 ? `, ${r.volatilityRank} of ${r.regimes} by volatility` : ''})</span>` : ''}</td>
+        <td>${pct(r.probability, 0)}</td><td style="text-align:left; font-size:0.85em;">${r.expected.map((e) => `${esc(e.symbol)} ${e.value === null ? '-' : (e.value * 100).toFixed(2) + '%'}`).join(', ')}</td></tr>`;
+    });
+    html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Regime reading</span>
+      <span class="card-meta" style="margin-left:10px;">which regime the Regime HMM rows believe the market is in, after the newest game day</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body"><div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th>After</th><th>Regimes</th><th title="a persistent template matched across the daily refits by the Wasserstein distance between the regime Gaussians; calm / normal / turbulent by the regime's volatility against the market's">Template</th><th>Probability</th><th style="text-align:left;">Expected next-day return</th></tr>${table}</table></div>
+      <p style="color:#7f8c8d; font-size:0.85em;">A regime is a Gaussian over the ${esc(meta.noun)}s' returns and their recent volatility and momentum; the label is the volatility of the dominant regime against the market's, the template number keeps its identity across refits.
+      The expected return is the mixture's mean per ${esc(meta.noun)} - a reading, not a recommendation.</p></div></div>`;
+  }
+
   // instruments
   view.instruments.forEach((inst) => {
     const id = `chart-${esc(market)}-${esc(inst.symbol)}`;
@@ -167,13 +284,14 @@ function page(market, view, header, footer, user) {
   return html + footer();
 }
 
-function install(app, { header, footer, dataDir }) {
+function install(app, { header, footer, dataDir, controlsDir }) {
   Object.keys(MARKETS).forEach((market) => {
     app.get(`/markets/${market}`, (req, res) => {
       const record = loadMarket(dataDir, market);
-      res.send(page(market, record ? describeMarket(record) : null, header, footer, req.user));
+      const extras = { rows: controlsDir ? loadRows(controlsDir, market) : null, regimes: loadRegimes(dataDir, market) };
+      res.send(page(market, record ? describeMarket(record, extras) : null, header, footer, req.user));
     });
   });
 }
 
-module.exports = { MARKETS, loadMarket, describeMarket, page, install, pct, money, price };
+module.exports = { MARKETS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, page, install, pct, money, price };
