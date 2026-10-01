@@ -2,9 +2,10 @@
 //
 // Predictor.py tracks the two markets as positional games, and after each
 // run src/MarketSettle.py settles every stored day against the real returns
-// and writes data/markets/<market>.json: closes, the predicted course per
-// model, the next day's predictions as prices, per-model accuracy against
-// chance and the daily accuracy series. These pages draw that file and
+// and writes data/markets/<market>.json: closes with, per date, the game
+// day's edges and return and every model's predicted bin, the next day's
+// predictions as prices, per-model accuracy against chance and the daily
+// accuracy series. These pages draw that file and
 // nothing else - no database, no Python at request time.
 //
 // Two more records join the page (phase M3): data/controls/markets/<market>-rows.json,
@@ -122,15 +123,29 @@ function describeMarket(record, extras) {
   const next = record.next || null;
   const instruments = (record.instruments || []).filter((i) => i && typeof i === 'object').map((i) => {
     const nextFor = next && next.instruments && next.instruments[i.symbol] ? next.instruments[i.symbol] : null;
+    // closes with a malformed point dropped; the aligned series (edges, moves,
+    // course) follow the same indices, or are blank when their length disagrees
+    const rawCloses = Array.isArray(i.closes) ? i.closes : [];
+    const keep = rawCloses.map((p, k) => (Array.isArray(p) && p.length === 2 && num(p[1]) !== null ? k : -1)).filter((k) => k >= 0);
+    const aligned = (arr) => (Array.isArray(arr) && arr.length === rawCloses.length ? keep.map((k) => arr[k]) : keep.map(() => null));
+    const course = {};
+    if (i.course && typeof i.course === 'object') {
+      Object.keys(i.course).forEach((model) => { course[model] = aligned(i.course[model]).map((b) => (b === null || b === undefined ? null : num(b))); });
+    }
     return {
       symbol: String(i.symbol), name: i.name || String(i.symbol), position: num(i.position), quote: i.quote || '',
       active: i.active !== false,
       lastClose: num(i.last_close), lastDate: i.last_date || null,
-      closes: Array.isArray(i.closes) ? i.closes.filter((p) => Array.isArray(p) && p.length === 2 && num(p[1]) !== null) : [],
-      course: i.predicted_course && typeof i.predicted_course === 'object' ? i.predicted_course : {},
+      closes: keep.map((k) => rawCloses[k]),
+      edges: aligned(i.edges).map((e) => (Array.isArray(e) ? e.map(num) : null)),
+      moves: aligned(i.moves).map(num),
+      course,
       next: nextFor ? (nextFor.predictions || []).map((p) => ({
         model: String(p.model), bin: num(p.bin), direction: num(p.direction), price: num(p.price), low: num(p.low), high: num(p.high),
       })) : [],
+      // the close the next-day call stands on: the newest GAME day's, which a
+      // newer bar of this instrument alone does not replace (MarketSettle.next_day_predictions)
+      nextBase: nextFor ? num(nextFor.last_close) : null, nextDate: nextFor ? nextFor.last_date || null : null,
     };
   });
   return {
@@ -138,6 +153,7 @@ function describeMarket(record, extras) {
     chance, newestGameDay: record.newest_game_day || null,
     madeOn: next ? next.made_on || null : null,
     models, drawn: Array.isArray(record.drawn_models) ? record.drawn_models.map(String) : [],
+    best: record.best_model ? String(record.best_model) : (Array.isArray(record.drawn_models) && record.drawn_models.length ? String(record.drawn_models[0]) : (models.length ? models[0].name : null)),
     instruments, daily: Array.isArray(record.daily) ? record.daily : [],
     scoredDays: models.length ? Math.max(...models.map((m) => m.days || 0)) : 0,
     rows: describeRows(extras && extras.rows ? extras.rows : null),
@@ -193,33 +209,164 @@ function gameViewLink(market, date) {
 
 // --- page -------------------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const COLOURS = ['#e67e22', '#8e44ad', '#16a085', '#c0392b', '#2980b9'];
+const COLOURS = ['#e67e22', '#8e44ad', '#16a085', '#2980b9', '#d35400', '#27ae60', '#7f8c8d', '#f39c12', '#1abc9c', '#9b59b6',
+  '#34495e', '#e84393', '#00a8ff', '#44bd32', '#8c7ae6', '#e1b12c'];
 
-// The instrument charts zoom (wheel, pinch) and pan (drag) through
-// chartjs-plugin-zoom, loaded on these pages only; hammer.js gives it touch
-// gestures. Range buttons set the category axis' min/max by label, which
-// needs no plugin, and "Reset" clears both. The market pages take a wider
-// container than the lottery pages so the charts get room; the explainer's
-// text keeps a readable line length of its own.
+// The chart client, one copy per page: a pure model builder (what the tests
+// run in Node) and the glue that draws it. Two views per instrument:
+//   price  the close as a line and, per switched-on model, the day's call as a
+//          bar from the previous game day's close to the price its bin stood
+//          for (green up, red down) over a paler bar for the bin's whole
+//          interval - so a "roughly flat" call reads as a short bar, not as a
+//          lagged copy of the close line;
+//   moves  the real move per day as a bar (percent) and, per model, the bin's
+//          interval as a paler floating bar with the call's middle as a dot -
+//          the view in which skill, or its absence, is visible.
+// A bin becomes a return the way MarketGame does it: the interval's midpoint,
+// and for the two open bins the edge moved outward by half the neighbouring
+// bin's width (representative_return); the base of a day is close x exp(-move),
+// the previous GAME day's close.
+const CHART_CLIENT_JS = `
+window.marketCharts = window.marketCharts || {}; window.marketData = window.marketData || {}; window.marketState = window.marketState || {};
+function marketInterval(bin, edges) { return [bin > 0 ? edges[bin - 1] : null, bin < edges.length ? edges[bin] : null]; }
+function marketRepresentative(bin, edges) {
+  var iv = marketInterval(bin, edges), lo = iv[0], hi = iv[1];
+  if (lo !== null && hi !== null) return 0.5 * (lo + hi);
+  var width = edges.length > 1 ? (lo === null ? edges[1] - edges[0] : edges[edges.length - 1] - edges[edges.length - 2]) : 0;
+  return lo === null ? edges[0] - 0.5 * width : edges[edges.length - 1] + 0.5 * width;
+}
+function marketAlpha(hex, a) { var n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
+function marketPrice(v) { return v >= 1000 ? v.toFixed(0) : (v >= 10 ? v.toFixed(2) : v.toFixed(4)); }
+var MARKET_REAL = 'rgba(44,62,80,0.75)';
+function marketChartModel(id, view, enabled) {
+  var d = window.marketData[id]; var n = d.labels.length; var last = n - 1;   // the last label is 'next'
+  var datasets = [];
+  var call = function (model, i) {   // {base, rep, lo, hi} in return space for label i, or null
+    if (i === last) {
+      var nx = d.next[model]; if (!nx || nx.price === null || d.lastClose === null) return null;
+      return { base: d.lastClose, rep: Math.log(nx.price / d.lastClose), lo: nx.low === null ? null : Math.log(nx.low / d.lastClose), hi: nx.high === null ? null : Math.log(nx.high / d.lastClose) };
+    }
+    var bins = d.course[model]; var bin = bins ? bins[i] : null; var edges = d.edges[i];
+    if (bin === null || bin === undefined || !edges || d.closes[i] === null || d.moves[i] === null) return null;
+    var iv = marketInterval(bin, edges);
+    return { base: d.closes[i] * Math.exp(-d.moves[i]), rep: marketRepresentative(bin, edges), lo: iv[0], hi: iv[1] };
+  };
+  // an open-ended bin ("everything below -3.1%") runs to the edge of what the chart shows: the extent of the moves and calls drawn, padded
+  var lo = Infinity, hi = -Infinity;
+  var see = function (v) { if (v !== null && v !== undefined && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
+  d.moves.forEach(see);
+  enabled.forEach(function (model) { for (var i = 0; i < n; i++) { var c = call(model, i); if (c) { see(c.rep); see(c.lo); see(c.hi); } } });
+  if (!isFinite(lo)) { lo = -0.01; hi = 0.01; }
+  var pad = 0.1 * (hi - lo) || 0.01; var floor = lo - pad, ceil = hi + pad;
+  var bandOf = function (c) { return [c.lo === null ? floor : c.lo, c.hi === null ? ceil : c.hi]; };
+  var bar = function (extra) { return Object.assign({ type: 'bar', grouped: false, categoryPercentage: 0.9 }, extra); };   // grouped:false - every bar centred on its date, so a call sits on its band
+  if (view === 'price') {
+    datasets.push({ type: 'line', label: d.symbol + ' close', data: d.closes, borderColor: '#2c3e50', borderWidth: 2, pointRadius: 0, tension: 0.1, order: 0, legendColour: '#2c3e50' });
+    enabled.forEach(function (model) {
+      var colour = d.colours[model] || '#7f8c8d'; var band = [], step = [], fills = [];
+      for (var i = 0; i < n; i++) {
+        var c = call(model, i);
+        if (!c) { band.push(null); step.push(null); fills.push('rgba(0,0,0,0)'); continue; }
+        var b = bandOf(c);
+        step.push([c.base, c.base * Math.exp(c.rep)]); fills.push(c.rep >= 0 ? '#27ae60' : '#c0392b');
+        band.push([c.base * Math.exp(b[0]), c.base * Math.exp(b[1])]);
+      }
+      datasets.push(bar({ label: model + ' - bin interval', data: band, backgroundColor: marketAlpha(colour, 0.22), borderWidth: 0, order: 3, legendHidden: true, barPercentage: 0.95 }));
+      datasets.push(bar({ label: model, data: step, backgroundColor: fills, borderColor: colour, borderWidth: 1, order: 2, barPercentage: 0.45, legendColour: colour, model: model }));
+    });
+    return { datasets: datasets, yTitle: d.quote, percent: false };
+  }
+  var real = d.moves.map(function (m) { return m === null ? null : m * 100; });
+  datasets.push(bar({ label: 'real move', data: real, backgroundColor: MARKET_REAL, order: 2, barPercentage: 0.5, legendColour: MARKET_REAL }));
+  enabled.forEach(function (model) {
+    var colour = d.colours[model] || '#7f8c8d'; var band = [], dots = [];
+    for (var i = 0; i < n; i++) {
+      var c = call(model, i);
+      if (!c) { band.push(null); dots.push(null); continue; }
+      var b = bandOf(c);
+      dots.push(c.rep * 100); band.push([b[0] * 100, b[1] * 100]);
+    }
+    datasets.push(bar({ label: model + ' - bin interval', data: band, backgroundColor: marketAlpha(colour, 0.22), borderWidth: 0, order: 3, legendHidden: true, barPercentage: 0.95 }));
+    datasets.push({ type: 'line', label: model, data: dots, borderColor: colour, backgroundColor: colour, showLine: false, pointRadius: 3, pointHoverRadius: 5, order: 1, legendColour: colour, model: model });
+  });
+  return { datasets: datasets, yTitle: '% move, close to close', percent: true };
+}
+function marketEnabled(id) {
+  return Array.prototype.slice.call(document.querySelectorAll('input[data-chart="' + id + '"]')).filter(function (b) { return b.checked; }).map(function (b) { return b.getAttribute('data-model'); });
+}
+function marketTooltip(percent) {
+  var one = function (v) { return percent ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : marketPrice(v); };
+  return { filter: function (item) { return item.raw !== null && item.raw !== undefined && !item.dataset.legendHidden; },
+    callbacks: { label: function (item) { var r = item.raw; return item.dataset.label + ': ' + (Array.isArray(r) ? one(r[0]) + ' to ' + one(r[1]) : one(r)); } } };
+}
+function marketLegend(id) {
+  return {
+    labels: { boxWidth: 12,
+      generateLabels: function (chart) {   // a bar's default swatch is its first element's colour, which is the transparent "no call" of the window's first day
+        var items = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+        items.forEach(function (it) { var ds = chart.data.datasets[it.datasetIndex]; if (ds && ds.legendColour) { it.fillStyle = ds.legendColour; it.strokeStyle = ds.legendColour; } });
+        return items;
+      },
+      filter: function (item, data) { return !data.datasets[item.datasetIndex].legendHidden; } },
+    onClick: function (e, item, legend) {   // a model's legend entry switches the model off (band and call together); the close and the real move toggle as usual
+      var ds = legend.chart.data.datasets[item.datasetIndex];
+      if (ds && ds.model) {
+        document.querySelectorAll('input[data-chart="' + id + '"]').forEach(function (b) { if (b.getAttribute('data-model') === ds.model) b.checked = false; });
+        marketRender(id);
+      } else { Chart.defaults.plugins.legend.onClick.call(this, e, item, legend); }
+    } };
+}
+function marketRender(id) {
+  var d = window.marketData[id]; if (!d) return;
+  var state = window.marketState[id];
+  if (!state) {   // open on the newest month: a year of 1 px bars is the close line alone
+    var count = d.labels.length;
+    state = window.marketState[id] = { view: 'price', min: count > 31 ? d.labels[count - 31] : undefined, max: count > 31 ? d.labels[count - 1] : undefined };
+  }
+  var old = window.marketCharts[id];
+  if (old) { try { state.min = old.options.scales.x.min; state.max = old.options.scales.x.max; old.destroy(); } catch (e) { /* a dead chart is replaced anyway */ } }
+  var model = marketChartModel(id, state.view, marketEnabled(id));
+  var scales = { x: { ticks: { maxTicksLimit: 10 }, stacked: false }, y: { title: { display: true, text: model.yTitle }, stacked: false } };
+  if (!model.percent) scales.y.beginAtZero = false;   // the bar controller's scale override would otherwise start the price axis at 0
+  if (state.min !== undefined) scales.x.min = state.min;
+  if (state.max !== undefined) scales.x.max = state.max;
+  if (model.percent) scales.y.grid = { color: function (ctx) { return ctx.tick && ctx.tick.value === 0 ? '#2c3e50' : 'rgba(0,0,0,0.08)'; } };
+  var zoom = window.ChartZoom ? { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } } : undefined;
+  window.marketCharts[id] = new Chart(document.getElementById(id).getContext('2d'), { type: 'line', data: { labels: d.labels, datasets: model.datasets },
+    options: { maintainAspectRatio: false, spanGaps: true, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: marketLegend(id), tooltip: marketTooltip(model.percent), zoom: zoom }, scales: scales } });
+  document.querySelectorAll('button[data-view-for="' + id + '"]').forEach(function (b) {
+    var on = b.getAttribute('data-view') === state.view; b.style.background = on ? '#2c3e50' : 'white'; b.style.color = on ? 'white' : '#2c3e50';
+  });
+}
+function marketView(id, view) { window.marketState[id] = window.marketState[id] || { view: 'price' }; window.marketState[id].view = view; marketRender(id); }
+function marketToggle(id) { marketRender(id); }
+function marketModels(id, which) {
+  var d = window.marketData[id];
+  document.querySelectorAll('input[data-chart="' + id + '"]').forEach(function (b) { b.checked = which === 'all' ? true : (which === 'none' ? false : b.getAttribute('data-model') === d.best); });
+  marketRender(id);
+}
+function marketRange(id, days) {
+  var chart = window.marketCharts[id]; if (!chart) return;
+  var labels = chart.data.labels; var x = chart.options.scales.x; var state = window.marketState[id] || (window.marketState[id] = { view: 'price' });
+  if (typeof chart.resetZoom === 'function') chart.resetZoom('none');
+  if (days > 0 && labels.length > days) { x.min = labels[labels.length - 1 - days]; x.max = labels[labels.length - 1]; } else { delete x.min; delete x.max; }
+  state.min = x.min; state.max = x.max; chart.update();
+}
+function marketReset(id) { marketRange(id, 0); }
+`;
+
 const CHART_SCRIPTS = `<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
 <style>.container { max-width: 1400px; } .chart-tools { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; font-size:0.85em; }
 .chart-tools button { padding:4px 10px; border:1px solid #ccd1d6; border-radius:4px; background:white; color:#2c3e50; cursor:pointer; } .chart-tools button:hover { background:#f1f3f5; }
-.chart-tools .hint { color:#7f8c8d; margin-left:auto; }</style>
+.chart-tools .hint { color:#7f8c8d; margin-left:auto; } .chart-tools .sep { color:#ccd1d6; margin:0 4px; }
+.chart-models { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:0.82em; margin:4px 0 10px; color:#2c3e50; } .chart-models label { cursor:pointer; white-space:nowrap; }
+.chart-models .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; } .chart-models a { color:#2980b9; margin-right:8px; }</style>
 <script>
   try { if (window.ChartZoom) Chart.register(window.ChartZoom); } catch (e) { /* zoom stays off, the chart still draws */ }
-  window.marketCharts = window.marketCharts || {};
-  // the newest \`days\` labels (the trailing 'next' label included); 0 = everything
-  function marketRange(id, days) {
-    const chart = window.marketCharts[id]; if (!chart) return;
-    const labels = chart.data.labels; const x = chart.options.scales.x;
-    if (typeof chart.resetZoom === 'function') chart.resetZoom('none');
-    if (days > 0 && labels.length > days) { x.min = labels[labels.length - 1 - days]; x.max = labels[labels.length - 1]; } else { delete x.min; delete x.max; }
-    chart.update();
-  }
-  function marketReset(id) { marketRange(id, 0); }
+${CHART_CLIENT_JS}
 </script>`;
-const ZOOM_OPTIONS = { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } };
 const RANGES = [['1M', 30], ['3M', 91], ['6M', 182], ['1Y', 365], ['All', 0]];
 
 function page(market, view, header, footer, user) {
@@ -491,35 +638,52 @@ function page(market, view, header, footer, user) {
       The expected return is the mixture's mean per ${esc(meta.noun)} - a reading, not a recommendation.</p></div></div>`;
   }
 
-  // instruments
+  // instruments: the data object per chart, the switches, the canvas
+  const modelNames = view.models.map((m) => m.name);
+  view.instruments.forEach((inst) => {
+    inst.course && Object.keys(inst.course).forEach((m) => { if (!modelNames.includes(m)) modelNames.push(m); });
+  });
+  const colourFor = (i) => {   // the palette first, then a golden-angle hue as hex (the client's alpha helper parses hex)
+    if (i < COLOURS.length) return COLOURS[i];
+    const h = (i * 137.508) % 360, sat = 0.55, lig = 0.42;
+    const f = (nn) => { const k = (nn + h / 30) % 12; const c = lig - sat * Math.min(lig, 1 - lig) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(c * 255).toString(16).padStart(2, '0'); };
+    return `#${f(0)}${f(8)}${f(4)}`;
+  };
+  const colours = Object.fromEntries(modelNames.map((m, i) => [m, colourFor(i)]));
+  const bestModel = view.best && modelNames.includes(view.best) ? view.best : (modelNames[0] || null);
   view.instruments.forEach((inst) => {
     const id = `chart-${esc(market)}-${esc(inst.symbol)}`;
-    const labels = inst.closes.map((p) => p[0]);
-    const nextLabel = 'next';
-    const datasets = [{ label: `${inst.symbol} close`, data: inst.closes.map((p) => p[1]), borderColor: '#2c3e50', tension: 0.1, pointRadius: 0, borderWidth: 2 }];
-    view.drawn.forEach((model, i) => {
-      const points = inst.course[model] || [];
-      const byDate = Object.fromEntries(points.map((p) => [p[0], p[1]]));
-      const nextPoint = inst.next.find((p) => p.model === model);
-      datasets.push({ label: `${model} predicted`, borderColor: COLOURS[i % COLOURS.length], tension: 0.1, pointRadius: 2, borderWidth: 1, borderDash: [3, 3],
-        data: labels.map((d) => (byDate[d] === undefined ? null : byDate[d])).concat([nextPoint ? nextPoint.price : null]) });
-    });
-    const chartLabels = labels.concat([nextLabel]);
-    datasets[0].data = datasets[0].data.concat([null]);
+    const labels = inst.closes.map((p) => p[0]).concat(['next']);
+    const data = {
+      symbol: inst.symbol, quote: inst.quote, labels, closes: inst.closes.map((p) => p[1]).concat([null]),
+      lastClose: inst.nextBase !== null && inst.nextBase !== undefined ? inst.nextBase : inst.lastClose,   // the newest game day's close, the base of the next-day call
+      edges: inst.edges.concat([null]), moves: inst.moves.concat([null]),
+      course: Object.fromEntries(Object.keys(inst.course).map((m) => [m, inst.course[m].concat([null])])),
+      next: Object.fromEntries(inst.next.map((p) => [p.model, { bin: p.bin, price: p.price, low: p.low, high: p.high }])),
+      colours, best: bestModel,
+    };
+    const switches = modelNames.map((m) => `<label><input type="checkbox" data-chart="${id}" data-model="${esc(m)}"${m === bestModel ? ' checked' : ''} onchange="marketToggle('${id}')">
+      <span class="swatch" style="background:${colours[m]};"></span>${esc(m)}${m === bestModel ? ' <span style="color:#7f8c8d;">(best over the scored days)</span>' : ''}</label>`).join('');
     const nextRows = inst.next.map((p) => `<tr><td style="text-align:left;">${esc(p.model)}</td><td>${p.bin === null ? '-' : p.bin}</td>
       <td>${p.direction === 1 ? '<span style="color:#27ae60;">up</span>' : (p.direction === -1 ? '<span style="color:#c0392b;">down</span>' : 'flat')}</td>
       <td>${price(p.price)}</td><td>${p.low === null ? 'below ' + price(p.high) : (p.high === null ? 'above ' + price(p.low) : `${price(p.low)} - ${price(p.high)}`)}</td></tr>`).join('');
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${esc(inst.symbol)} - ${esc(inst.name)}</span>
       <span class="card-meta" style="margin-left:10px;">last close ${price(inst.lastClose)} ${esc(inst.quote)} on ${esc(inst.lastDate || '-')}${inst.active ? '' : ' (inactive)'}</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><div class="chart-tools">${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${id}', ${days})">${label}</button>`).join('')}
+      <div class="card-body"><div class="chart-tools">
+        <button type="button" data-view-for="${id}" data-view="price" onclick="marketView('${id}', 'price')">Price</button>
+        <button type="button" data-view-for="${id}" data-view="moves" onclick="marketView('${id}', 'moves')">Moves</button><span class="sep">|</span>
+        ${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${id}', ${days})">${label}</button>`).join('')}
         <button type="button" onclick="marketReset('${id}')" style="margin-left:6px;">Reset zoom</button>
         <span class="hint">scroll or pinch to zoom, drag to pan</span></div>
+      <div class="chart-models"><span style="color:#7f8c8d;">Models: <a href="#" onclick="marketModels('${id}', 'best'); return false;">best</a><a href="#" onclick="marketModels('${id}', 'all'); return false;">all</a><a href="#" onclick="marketModels('${id}', 'none'); return false;">none</a></span>${switches}</div>
       <div style="height:420px;"><canvas id="${id}"></canvas></div>
-      <script>window.marketCharts['${id}'] = new Chart(document.getElementById('${id}').getContext('2d'), { type: 'line', data: { labels: ${JSON.stringify(chartLabels)}, datasets: ${JSON.stringify(datasets)} },
-        options: { maintainAspectRatio: false, spanGaps: true, interaction: { mode: 'index', intersect: false },
-          plugins: { legend: { labels: { boxWidth: 12 } }, zoom: ${JSON.stringify(ZOOM_OPTIONS)} }, scales: { x: { ticks: { maxTicksLimit: 10 } } } } });</script>
-      <p style="color:#7f8c8d; font-size:0.85em;">A year of closes${view.drawn.length ? '; the dashed lines are the price each model\'s predicted bin stood for, day by day (previous close moved by the bin\'s middle return), and the last dashed point is the prediction for the next trading day' : ''}${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.
-        Scroll on the chart or pinch to zoom in on a period, drag to move along it, or use the buttons; the predicted lines start where the tracking started.</p>
+      <script>window.marketData['${id}'] = ${JSON.stringify(data)}; marketRender('${id}');</script>
+      <p style="color:#7f8c8d; font-size:0.85em;"><b>Price</b>: the close as a line; for each model switched on, a bar per day from the previous game day's close to the price its bin stood for
+        (green up, red down) over a paler bar for the bin's whole interval - a "roughly flat" call is a short bar, which is what most models make most days. Every bar's foot is the close
+        before it, so the feet trail the line by one day by construction: that is the day's starting point, not a lag. A hit is the close landing inside the pale bar on the same date;
+        the two open-ended bins run to the edge of what the chart shows. The last bar is the call for the next trading day${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.
+        <b>Moves</b>: the real move per day as a dark bar, in percent, with each model's interval as a paler bar and its middle as a dot - a hit is the dark bar ending inside the model's band.
+        The chart opens on the newest month; a year of closes is behind it (the range buttons, or zoom and pan), and the calls start where the tracking started.</p>
       ${nextRows ? `<div class="table-wrapper"><table><tr><th style="text-align:left;">Next day, per model</th><th>Bin</th><th>Direction</th><th>Price it stands for</th><th>Interval</th></tr>${nextRows}</table></div>`
         : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
       </div></div>`;
@@ -540,5 +704,5 @@ function install(app, { header, footer, dataDir, controlsDir }) {
   });
 }
 
-module.exports = { MARKETS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, binInterval, intervalText, binOfMove, gameViewLink,
-  signedPct, page, install, pct, money, price };
+module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, binInterval,
+  intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };

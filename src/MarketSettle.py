@@ -212,38 +212,40 @@ def daily_series(conn, market):
     return series
 
 
-def predicted_history(conn, market, model_names, days):
+def chart_series(conn, market, member, dates):
     """
-    The predicted course to draw: for each instrument and each of the newest
-    `days` settled days, per model the price its predicted bin stood for
-    (the previous close moved by the bin's representative return).
+    What an instrument's chart needs for the dates it draws, aligned to
+    them: the game day's return and bin edges (None on a date that is not a
+    game day of this market), and per model the bin it predicted for the
+    date (None where it had none). The page turns a bin back into a price
+    from the previous GAME day's close - close x exp(-return), exactly as the
+    settlement does - which is not the instrument's own previous bar when
+    another instrument lacked a day in between.
     """
-    members = instruments(conn, market, active_only=False)
-    out = {}
-    if not model_names:
-        return out
-    placeholders = ",".join("?" for _ in model_names)
-    for member in members:
-        dates, values = closes(conn, member["id"])
-        close_by_date = dict(zip(dates, values))
-        rows = conn.execute(
-            f"SELECT p.model, p.for_date, p.bin FROM predictions p WHERE p.instrument_id = ? AND p.model IN ({placeholders}) "
-            "ORDER BY p.for_date DESC LIMIT ?", (member["id"], *model_names, days * len(model_names))).fetchall()
-        per_model = {}
-        for r in rows:
-            game_day = load_game_day(conn, market, r["for_date"])
-            close = close_by_date.get(r["for_date"])
-            if game_day is None or close is None or member["position"] >= len(game_day["edges"]):
-                continue
-            # the base the bin was cut against is the previous GAME day's
-            # close - the day's close undone by the day's aligned return -
-            # which is not the instrument's own previous bar when another
-            # instrument lacked a day in between
-            base = close * math.exp(-float(game_day["returns"][member["position"]]))
-            price = predicted_price(base, int(r["bin"]), game_day["edges"][member["position"]])
-            per_model.setdefault(r["model"], []).append([r["for_date"], round(price, 6)])
-        out[member["symbol"]] = {model: sorted(points) for model, points in per_model.items()}
-    return out
+    if not dates:
+        return {"edges": [], "moves": [], "course": {}}
+    since = dates[0]
+    index = {d: i for i, d in enumerate(dates)}
+    edges = [None] * len(dates)
+    moves = [None] * len(dates)
+    for r in conn.execute("SELECT date, ret, edges FROM game_days WHERE market = ? AND symbol = ? AND date >= ? ORDER BY date",
+                          (market, member["symbol"], since)).fetchall():
+        i = index.get(r["date"])
+        if i is None:
+            continue
+        edges[i] = [round(float(e), 6) for e in json.loads(r["edges"])]    # 1e-6 of a return: nothing the page shows resolves finer, and it halves the record
+        moves[i] = round(float(r["ret"]), 8)
+    course = {}
+    for r in conn.execute("SELECT model, for_date, bin FROM predictions WHERE instrument_id = ? AND for_date >= ? ORDER BY for_date",
+                          (member["id"], since)).fetchall():
+        i = index.get(r["for_date"])
+        # a ticket for a date that is no game day (any more) has no edges to
+        # stand on - a re-cut dropped the day but the settled rows stay - so
+        # it is not drawn
+        if i is None or r["bin"] is None or edges[i] is None:
+            continue
+        course.setdefault(r["model"], [None] * len(dates))[i] = int(r["bin"])
+    return {"edges": edges, "moves": moves, "course": course}
 
 
 def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
@@ -326,10 +328,12 @@ def next_day_predictions(conn, market, path):
     edges_day = latest_edges(conn, market)
     if not rows or edges_day is None:
         return None
-    members = {i["position"]: i for i in instruments(conn, market, active_only=False)}
+    # by symbol: game slots are dense over the cut's active instruments, the
+    # table's position need not be (a retired instrument keeps its column)
+    members = {i["symbol"]: i for i in instruments(conn, market, active_only=False)}
     out = {"made_on": newest_day, "for": "the next trading day", "instruments": {}}
     for pos, symbol in enumerate(edges_day["symbols"]):
-        member = members.get(pos)
+        member = members.get(symbol)
         if member is None:
             continue
         dates, values = closes(conn, member["id"])
@@ -393,21 +397,23 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     drawn = [m["name"] for m in models[:top_models]]
     members = instruments(conn, market, active_only=False)
     instruments_out = []
-    history = predicted_history(conn, market, drawn, chart_days)
     for member in members:
         dates, values = closes(conn, member["id"])
+        window = dates[-chart_days:]
+        series = chart_series(conn, market, member, window)
         instruments_out.append({
             "symbol": member["symbol"], "name": member["name"], "position": member["position"], "quote": member["quote"],
             "active": bool(member["active"]),
             "last_close": values[-1] if values else None, "last_date": dates[-1] if dates else None,
-            "closes": [[d, v] for d, v in zip(dates[-chart_days:], values[-chart_days:])],
-            "predicted_course": history.get(member["symbol"], {}),
+            "closes": [[d, v] for d, v in zip(window, values[-chart_days:])],
+            # aligned to "closes": the game day's edges and return, and every model's predicted bin
+            "edges": series["edges"], "moves": series["moves"], "course": series["course"],
         })
     newest = latest_edges(conn, market)
     record = {
         "market": market, "generated_at": utc_now(), "k": k, "fee": fee, "chance": chance_levels(k),
         "newest_game_day": newest["date"] if newest else None,
-        "instruments": instruments_out, "models": models, "drawn_models": drawn,
+        "instruments": instruments_out, "models": models, "drawn_models": drawn, "best_model": drawn[0] if drawn else None,
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
         "days": day_records(conn, market, days=DAY_RECORDS, k=k),
@@ -537,14 +543,19 @@ def _self_check():
         assert len(record["days"]) == 30 and record["days"][0]["date"] == game_days[-1]["date"]
         assert os.path.exists(out) and record["market"] == "crypto" and record["k"] == 10
         assert [i["symbol"] for i in record["instruments"]] == symbols and len(record["instruments"][0]["closes"]) == 40
-        assert record["drawn_models"] == ["Perfect Model", "Contrarian Model"]
-        course = record["instruments"][0]["predicted_course"]["Perfect Model"]
-        assert len(course) == 30 and course[0][0] < course[-1][0]
-        # a perfect prediction's course is the previous GAME day's close moved by the actual bin's representative return
+        assert record["drawn_models"] == ["Perfect Model", "Contrarian Model"] and record["best_model"] == "Perfect Model"
+        btc = record["instruments"][0]
         last_day = game_days[-1]
+        assert len(btc["edges"]) == 40 and len(btc["moves"]) == 40 and set(btc["course"]) == {"Perfect Model", "Contrarian Model"}
+        assert sum(1 for b in btc["course"]["Perfect Model"] if b is not None) == 30, "every settled day carries the model's bin"
+        assert btc["closes"][-1][0] == last_day["date"] and btc["course"]["Perfect Model"][-1] == last_day["bins"][0]
+        assert all(abs(a - b) < 1e-6 for a, b in zip(btc["edges"][-1], last_day["edges"][0])) and abs(btc["moves"][-1] - last_day["returns"][0]) < 1e-8
+        assert btc["course"]["Perfect Model"][0] is None and btc["edges"][0] is not None and btc["moves"][0] is not None, \
+            "a game day without a ticket carries the edges and the move but no bin"
+        # the page's base for a bin is close x exp(-move), the previous GAME day's close: the one the settlement's return spans
         btc_dates, btc_closes = closes(conn, crypto[0]["id"])
-        prev_close = btc_closes[btc_dates.index(last_day["date"]) - 1]
-        assert abs(course[-1][1] - predicted_price(prev_close, last_day["bins"][0], last_day["edges"][0])) < 1e-6
+        base = btc["closes"][-1][1] * math.exp(-btc["moves"][-1])
+        assert abs(base - btc_closes[btc_dates.index(last_day["date"]) - 1]) < 1e-6
         # ... also when another instrument lacked the day before: the base is the day before THAT, as the return spans it
         gap_day = game_days[-3]["date"]
         conn.execute("DELETE FROM bars WHERE instrument_id = ? AND date = ?", (crypto[4]["id"], gap_day))
@@ -557,12 +568,16 @@ def _self_check():
             json.dump({"realResult": after_gap["bins"], "currentPrediction": [{"name": "Perfect Model", "predictions": [after_gap["bins"]]}],
                        "newPrediction": [{"name": "Perfect Model", "predictions": [[5, 6, 7, 8, 9]]}]}, handle)
         settle_market(conn, root, "crypto", log=lambda *_: None)
-        history = predicted_history(conn, "crypto", ["Perfect Model"], 40)
-        point = [p for p in history["BTC"]["Perfect Model"] if p[0] == after_gap["date"]][0]
+        _, record2 = export_page_json(conn, root, "crypto", chart_days=40)
+        btc2 = record2["instruments"][0]
+        chart_dates = [p[0] for p in btc2["closes"]]
+        i_gap, i_after = chart_dates.index(gap_day), chart_dates.index(after_gap["date"])
+        assert btc2["edges"][i_gap] is None and btc2["moves"][i_gap] is None and btc2["course"]["Perfect Model"][i_gap] is None, "the gap day is no game day"
         idx = btc_dates.index(after_gap["date"])
-        two_back = btc_closes[idx - 2]      # the previous game day: the gap day is not a game day
-        assert abs(point[1] - predicted_price(two_back, after_gap["bins"][0], after_gap["edges"][0])) < 1e-6, "the base must be the previous game day's close"
-        assert abs(point[1] - predicted_price(btc_closes[idx - 1], after_gap["bins"][0], after_gap["edges"][0])) > 1e-9
+        base_after = btc2["closes"][i_after][1] * math.exp(-btc2["moves"][i_after])
+        assert abs(base_after - btc_closes[idx - 2]) < 1e-6, "the base must be the previous game day's close, two bars back across the gap"
+        assert abs(base_after - btc_closes[idx - 1]) > 1e-9
+        assert btc2["course"]["Perfect Model"][i_after] == after_gap["bins"][0] and all(abs(a - b) < 1e-6 for a, b in zip(btc2["edges"][i_after], after_gap["edges"][0]))
         # the next-day price stands on the newest game day's close; a newer bar is reported, not used
         upsert_bars(conn, crypto[0]["id"], [{"date": "2025-12-31", "open": 1, "high": 1, "low": 1, "close": 999.0, "volume": 1}], fetched_at="t")
         nxt2 = next_day_predictions(conn, "crypto", root)
@@ -577,7 +592,7 @@ def _self_check():
         assert top["bin"] == 5 and top["direction"] in (1, -1) and top["low"] < top["price"] < top["high"]
         assert len(record["daily"]) == 30 and record["chance"]["exact"] == 0.1
         json.dumps(record)
-        print("export: yearly results CSV, page json with closes, predicted course, next-day prices and the daily series")
+        print("export: yearly results CSV, page json with closes, every model's bins with the day's edges and return, next-day prices and the daily series")
 
         # Day records after the re-cut: the gap day lost its game day but keeps
         # its settled results, so it is not listed and does not eat a slot of
@@ -607,6 +622,12 @@ def _self_check():
         # exact_mean is the mean of per-model rates, as the daily chart draws it
         rates = [m["exact"] / m["positions"] for m in retired["models"] if m["positions"]]
         assert abs(retired["exact_mean"] - sum(rates) / len(rates)) < 1e-12
+        # the next-day prices stand on each slot's own instrument, found by symbol: ETH's on ETH's close, not on the retired column's
+        nxt3 = next_day_predictions(conn, "crypto", root)
+        assert set(nxt3["instruments"]) == set(symbols3), nxt3["instruments"].keys()
+        eth_dates, eth_closes = closes(conn, crypto[1]["id"])
+        assert nxt3["instruments"]["ETH"]["last_close"] == dict(zip(eth_dates, eth_closes))[newest3["date"]]
+        assert nxt3["instruments"]["ETH"]["predictions"][0]["bin"] == 1, nxt3["instruments"]["ETH"]["predictions"]
         print("day records: newest first, a day without a game day is skipped without shortening the list, a retired instrument keeps every bin in its own slot")
     print("MarketSettle self-check OK")
 

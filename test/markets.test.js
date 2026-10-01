@@ -17,16 +17,18 @@ const record = {
   market: 'crypto', generated_at: '2026-10-02T07:15:00+00:00', k: 10, fee: 0.001,
   chance: { exact: 0.1, adjacent: 0.28, direction: 0.5 }, newest_game_day: '2026-10-01',
   instruments: [
-    { symbol: 'BTC', name: 'Bitcoin', position: 0, quote: 'USDT', active: true, last_close: 84000, last_date: '2026-10-01',
+    { symbol: 'BTC', name: 'Bitcoin', position: 0, quote: 'USDT', active: true, last_close: 84500, last_date: '2026-10-02',
       closes: [['2026-09-29', 83500], ['2026-09-30', 83663], ['2026-10-01', 84000], ['bad', null]],
-      predicted_course: { 'Markov Model': [['2026-09-30', 83400], ['2026-10-01', 84100]] } },
-    { symbol: 'ETH', name: 'Ethereum', position: 1, quote: 'USDT', active: false, last_close: 3000, last_date: '2026-10-01', closes: [], predicted_course: {} },
+      edges: [null, [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025], [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025], null],
+      moves: [null, 0.00195, 0.004, null],
+      course: { 'Markov Model': [null, 4, 6, null], 'Odd Model': [null, null, 9, null] } },
+    { symbol: 'ETH', name: 'Ethereum', position: 1, quote: 'USDT', active: false, last_close: 3000, last_date: '2026-10-01', closes: [], edges: [1, 2], moves: 'x', course: { 'Markov Model': [1] } },
   ],
   models: [
     { name: 'Markov Model', days: 12, positions: 60, exact_rate: 0.15, adjacent_rate: 0.3, direction_rate: 0.45, trades: 25, pnl_total: 0.0123, pnl_per_trade: 0.000492, first_day: '2026-09-20', last_day: '2026-10-01' },
     { name: 'Odd Model', days: 3, positions: 15, exact_rate: null, adjacent_rate: 0.2, direction_rate: 0.6, trades: 0, pnl_total: 0, pnl_per_trade: null },
   ],
-  drawn_models: ['Markov Model'],
+  drawn_models: ['Markov Model'], best_model: 'Markov Model',
   next: { made_on: '2026-10-01', for: 'the next trading day', instruments: {
     BTC: { last_close: 84000, last_date: '2026-10-01', predictions: [
       { model: 'Markov Model', bin: 7, direction: 1, price: 84900, low: 84500, high: 85300 },
@@ -91,7 +93,12 @@ ok(markov.name === 'Markov Model' && markov.aboveExact && markov.aboveAdjacent &
   'rates are read against chance: 15% exact and 30% adjacent are above, 45% direction is not');
 ok(view.models[1].exact === null && !view.models[1].aboveExact && view.models[1].pnlPerTrade === null, 'missing rates read as null, never above chance');
 const btc = view.instruments[0];
-ok(btc.closes.length === 3 && btc.lastClose === 84000, 'a malformed close point is dropped');
+ok(btc.closes.length === 3 && btc.lastClose === 84500 && btc.nextBase === 84000 && btc.nextDate === '2026-10-01', 'a malformed close point is dropped; the next-day base is the newest game day\'s close, not the newer bar');
+ok(btc.edges.length === 3 && btc.edges[0] === null && btc.edges[2].length === 9 && btc.moves.join(',') === ',0.00195,0.004'
+  && btc.course['Markov Model'].join(',') === ',4,6' && btc.course['Odd Model'][2] === 9 && view.best === 'Markov Model',
+  'edges, moves and every model\'s bins follow the kept closes; the best model is named');
+ok(view.instruments[1].edges.length === 0 && view.instruments[1].moves.length === 0 && view.instruments[1].course['Markov Model'].length === 0,
+  'series whose length disagrees with the closes are blanked, never misaligned');
 ok(btc.next.length === 2 && btc.next[0].price === 84900 && btc.next[1].low === null && btc.next[1].high === 81000,
   'the next-day predictions carry price and open interval');
 ok(view.instruments[1].next.length === 0 && view.instruments[1].active === false, 'an instrument without a next-day entry has none, inactive is kept');
@@ -146,11 +153,76 @@ const footer = () => '</body></html>';
 const html = markets.page('crypto', view, header, footer, { name: 'ann' });
 ok(html.includes('<title>Crypto predictor</title>') && html.includes('ann'), 'the page uses the shared header');
 ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+0.0123'), 'the models table shows rates and P&L');
-ok(html.includes('chart-crypto-BTC') && html.includes('daily-crypto') && (html.match(/new Chart\(/g) || []).length === 3, 'one chart per instrument plus the daily chart');
-ok(html.includes('chartjs-plugin-zoom') && html.includes('hammer.min.js') && html.includes('Chart.register(window.ChartZoom)') && html.includes('"zoom":{"wheel":{"enabled":true}')
+ok(html.includes("marketRender('chart-crypto-BTC')") && html.includes("marketRender('chart-crypto-ETH')") && html.includes('daily-crypto')
+  && (html.match(/new Chart\(/g) || []).length === 2, 'one chart per instrument through the client, plus the daily chart');
+ok(html.includes('chartjs-plugin-zoom') && html.includes('hammer.min.js') && html.includes('Chart.register(window.ChartZoom)') && html.includes("wheel: { enabled: true }")
   && html.includes(`onclick="marketRange('chart-crypto-BTC', 30)">1M<`) && html.includes(`onclick="marketReset('chart-crypto-BTC')"`) && html.includes('height:420px')
-  && html.includes("window.marketCharts['chart-crypto-BTC'] = new Chart(") && html.includes('.container { max-width: 1400px; }'),
+  && html.includes("marketRender('chart-crypto-BTC')") && html.includes('.container { max-width: 1400px; }'),
   'the instrument charts zoom and pan, have range buttons and a reset, are taller, and the page is wider');
+ok(html.includes(`data-view-for="chart-crypto-BTC" data-view="price"`) && html.includes(`data-view="moves"`)
+  && html.includes(`data-chart="chart-crypto-BTC" data-model="Markov Model" checked`) && html.includes(`data-chart="chart-crypto-BTC" data-model="Odd Model" onchange`)
+  && !html.includes(`data-model="Odd Model" checked`) && html.includes('(best over the scored days)') && html.includes(`marketModels('chart-crypto-BTC', 'all')`),
+  'two views to toggle, a switch per model with only the best one on, and best/all/none links');
+const dataMatch = html.match(/window\.marketData\['chart-crypto-BTC'\] = (\{.*?\}); marketRender/s);
+const embedded = JSON.parse(dataMatch[1]);
+ok(embedded.labels.join(',') === '2026-09-29,2026-09-30,2026-10-01,next' && embedded.closes[3] === null && embedded.course['Markov Model'].join(',') === ',4,6,'
+  && embedded.next['Markov Model'].price === 84900 && embedded.best === 'Markov Model' && embedded.colours['Markov Model'] === markets.COLOURS[0] && embedded.lastClose === 84000,
+  'the embedded chart data is aligned to the labels with a trailing next slot standing on the newest game day\'s close');
+const many = markets.describeMarket({ ...record, models: Array.from({ length: 20 }, (_, i) => ({ name: `M${i}`, days: 1, exact_rate: 0.1 })), drawn_models: ['M0'], best_model: 'M0' });
+const manyHtml = markets.page('crypto', many, header, footer, null);
+const manyData = JSON.parse(manyHtml.match(/window\.marketData\['chart-crypto-BTC'\] = (\{.*?\}); marketRender/s)[1]);
+ok(new Set(Object.values(manyData.colours)).size === Object.keys(manyData.colours).length && Object.values(manyData.colours).every((c) => /^#[0-9a-f]{6}$/.test(c)),
+  'more models than the palette still get distinct hex colours');
+ok((markets.CHART_CLIENT_JS.match(/type: 'bar'/g) || []).length === 1 && markets.CHART_CLIENT_JS.includes("type: 'bar', grouped: false"),
+  'every bar dataset goes through the one helper that centres bars on their date');
+
+// --- the chart client runs in Node against a stubbed Chart ---------------------
+const vm = require('vm');
+const sandbox = { window: {}, document: { querySelectorAll: () => [], getElementById: () => ({ getContext: () => ({}) }) }, Math, Array, Object, parseInt, isFinite, console };
+sandbox.Chart = function (ctx, config) { this.config = config; this.data = config.data; this.options = config.options; sandbox.lastConfig = config; };
+sandbox.Chart.defaults = { plugins: { legend: { labels: { generateLabels: (chart) => chart.data.datasets.map((ds, i) => ({ text: ds.label, datasetIndex: i, fillStyle: 'x' })) }, onClick: () => {} } } };
+vm.createContext(sandbox);
+vm.runInContext(markets.CHART_CLIENT_JS, sandbox);
+const w = Object.assign(sandbox, { marketData: sandbox.window.marketData, marketState: sandbox.window.marketState });   // functions are globals of the context; data and state live on window
+const edgesFx = [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025];
+ok(Math.abs(w.marketRepresentative(6, edgesFx) - 0.006) < 1e-12 && Math.abs(w.marketRepresentative(9, edgesFx) - 0.03) < 1e-12
+  && Math.abs(w.marketRepresentative(0, edgesFx) + 0.035) < 1e-12 && w.marketInterval(0, edgesFx)[0] === null && w.marketInterval(9, edgesFx)[1] === null,
+  'the client turns a bin into a return exactly as MarketGame.representative_return does, open bins included');
+w.marketData.t = embedded;
+const priceModel = w.marketChartModel('t', 'price', ['Markov Model']);
+ok(priceModel.datasets.length === 3 && priceModel.datasets[0].type === 'line' && priceModel.datasets[1].legendHidden === true && priceModel.datasets[2].label === 'Markov Model'
+  && priceModel.datasets[1].grouped === false && priceModel.datasets[2].grouped === false && priceModel.datasets[2].model === 'Markov Model' && priceModel.datasets[2].legendColour === markets.COLOURS[0]
+  && priceModel.datasets[2].data[0] === null && Math.abs(priceModel.datasets[2].data[2][0] - 84000 * Math.exp(-0.004)) < 1e-6
+  && Math.abs(priceModel.datasets[2].data[2][1] - 84000 * Math.exp(-0.004) * Math.exp(0.006)) < 1e-6 && priceModel.datasets[2].backgroundColor[2] === '#27ae60'
+  && Math.abs(priceModel.datasets[2].data[3][0] - 84000) < 1e-9 && Math.abs(priceModel.datasets[2].data[3][1] - 84900) < 1e-9
+  && Math.abs(priceModel.datasets[1].data[3][0] - 84500) < 1e-9 && Math.abs(priceModel.datasets[1].data[3][1] - 85300) < 1e-9,
+  'price view: centred bars from the previous game day\'s close to the bin\'s price, green when up, the band over the bin\'s interval, the next slot on the newest game day\'s close');
+const movesModel = w.marketChartModel('t', 'moves', ['Markov Model', 'Odd Model']);
+ok(movesModel.datasets.length === 5 && movesModel.datasets[0].label === 'real move' && Math.abs(movesModel.datasets[0].data[2] - 0.4) < 1e-9 && movesModel.datasets[0].data[3] === null
+  && movesModel.datasets[0].backgroundColor === 'rgba(44,62,80,0.75)' && movesModel.datasets[2].type === 'line' && movesModel.datasets[2].showLine === false && Math.abs(movesModel.datasets[2].data[2] - 0.6) < 1e-9
+  && Math.abs(movesModel.datasets[1].data[2][0] - 0.3) < 1e-9 && Math.abs(movesModel.datasets[1].data[2][1] - 0.9) < 1e-9
+  && movesModel.datasets[4].data[2] !== null && movesModel.datasets[4].data[1] === null && movesModel.percent === true,
+  'moves view: the real move as one dark bar in percent, each model\'s band as a floating bar and its middle as a dot');
+// Odd Model played bin 9, an open-ended bin: its band runs from the edge to the top of what the chart shows, beyond the bin's middle
+const openBand = movesModel.datasets[3].data[2];
+ok(Math.abs(openBand[0] - 2.5) < 1e-9 && openBand[1] > 3.0 && Math.abs(movesModel.datasets[4].data[2] - 3.0) < 1e-9, 'an open-ended bin\'s band reaches the edge of the chart, not a half-width stub');
+w.marketRender('t');
+const cfg = sandbox.lastConfig;
+ok(cfg && cfg.data.datasets.length === 1 && cfg.options.scales.y.title.text === 'USDT' && cfg.options.scales.y.beginAtZero === false && cfg.options.plugins.zoom === undefined
+  && cfg.options.scales.x.min === undefined && typeof cfg.options.plugins.tooltip.filter === 'function' && typeof cfg.options.plugins.legend.labels.generateLabels === 'function',
+  'rendering with no model on draws the close alone; the price axis does not start at zero; four labels open unranged; tooltip and legend helpers are wired');
+const tip = cfg.options.plugins.tooltip;
+ok(tip.filter({ raw: null, dataset: {} }) === false && tip.filter({ raw: [1, 2], dataset: { legendHidden: true } }) === false && tip.filter({ raw: 5, dataset: {} }) === true
+  && tip.callbacks.label({ raw: [83663.4, 84168.9], dataset: { label: 'M' } }) === 'M: 83663 to 84169' && tip.callbacks.label({ raw: 84000.4, dataset: { label: 'BTC close' } }) === 'BTC close: 84000',
+  'tooltips skip empty rows and hidden bands and print floating bars as a readable range');
+w.marketState.t = { view: 'moves' }; w.marketRender('t');
+const tipPct = sandbox.lastConfig.options.plugins.tooltip;
+ok(tipPct.callbacks.label({ raw: [0.3, 0.8999999], dataset: { label: 'M' } }) === 'M: +0.30% to +0.90%' && sandbox.lastConfig.options.scales.y.beginAtZero === undefined,
+  'in the moves view tooltips read in percent and zero stays on the axis');
+w.marketData.long = Object.assign({}, embedded, { labels: Array.from({ length: 40 }, (_, i) => `d${i}`), closes: Array.from({ length: 40 }, () => 1), edges: Array.from({ length: 40 }, () => null),
+  moves: Array.from({ length: 40 }, () => null), course: {} });
+w.marketRender('long');
+ok(sandbox.lastConfig.options.scales.x.min === 'd9' && sandbox.lastConfig.options.scales.x.max === 'd39', 'a longer history opens on its newest month');
 ok(html.includes('84900') && html.includes('84500 - 85300') && html.includes('below 81000'), 'the next-day table shows the price, a closed and an open interval');
 ok(html.includes('(inactive)'), 'an inactive instrument is marked');
 ok(html.includes('How a day becomes a draw') && html.includes('1. Two closes, one number') && html.includes('a candle is four prices')
