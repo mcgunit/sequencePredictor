@@ -50,6 +50,7 @@ except ImportError:  # imported from within src/
 FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchange; shares are cheaper, this is the conservative one
 CHART_DAYS = 120       # closes and predicted course the page draws
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
+DAY_RECORDS = 30       # settled days the page lists day by day, newest first
 DAY_FILE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})\.json$")
 
 # Rows that do not predict on their own: aggregates of the others, never
@@ -245,6 +246,63 @@ def predicted_history(conn, market, model_names, days):
     return out
 
 
+def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
+    """
+    The newest settled game days, newest first, in market terms - what the
+    History page shows as digits, here as returns: per instrument the real
+    return and its bin with the edges the day was cut with, and per model
+    the predicted bin per instrument with the day's hits and P&L. This is
+    the market's day-by-day record; the day files stay the game view.
+    """
+    conn.executescript(GAME_SCHEMA)
+    # only dates that still have a stored game day count towards `days`: a
+    # re-cut can remove a day's game day while its settled results stay
+    dates = [r[0] for r in conn.execute(
+        "SELECT DISTINCT r.for_date FROM results r JOIN instruments i ON i.id = r.instrument_id "
+        "JOIN game_days g ON g.market = i.market AND g.date = r.for_date "
+        "WHERE i.market = ? ORDER BY r.for_date DESC LIMIT ?", (market, int(days))).fetchall()]
+    out = []
+    for day in dates:
+        game_day = load_game_day(conn, market, day)
+        if game_day is None:
+            continue
+        # game slots are dense over the ACTIVE instruments of the cut, by symbol;
+        # instruments.position is the table's column and need not be dense
+        slot_of = {symbol: pos for pos, symbol in enumerate(game_day["symbols"])}
+        rows = conn.execute(
+            "SELECT r.model, i.position, i.symbol, r.actual_bin, r.actual_return, r.hit_exact, r.hit_adjacent, r.hit_direction, r.pnl, p.bin "
+            "FROM results r JOIN instruments i ON i.id = r.instrument_id "
+            "LEFT JOIN predictions p ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
+            "WHERE i.market = ? AND r.for_date = ? ORDER BY r.model, i.position", (market, day)).fetchall()
+        per_model = {}
+        for r in rows:
+            pos = slot_of.get(r["symbol"])
+            if pos is None:
+                continue        # a result for an instrument the day's cut does not hold (retired since): not part of this draw
+            entry = per_model.setdefault(r["model"], {"name": r["model"], "bins": [None] * len(game_day["symbols"]),
+                                                      "exact": 0, "adjacent": 0, "direction": 0, "positions": 0, "pnl": 0.0, "trades": 0})
+            entry["bins"][pos] = None if r["bin"] is None else int(r["bin"])
+            entry["exact"] += int(r["hit_exact"] or 0)
+            entry["adjacent"] += int(r["hit_adjacent"] or 0)
+            entry["direction"] += int(r["hit_direction"] or 0)
+            entry["positions"] += 1
+            entry["pnl"] += float(r["pnl"] or 0.0)
+            entry["trades"] += int(r["bin"] is not None and int(r["bin"]) >= k / 2)
+        models = sorted(per_model.values(), key=lambda m: (-m["exact"], -m["direction"], m["name"]))
+        # the same definition as daily_series (the chart): the mean over models of each model's own exact rate
+        rates = [m["exact"] / m["positions"] for m in models if m["positions"]]
+        out.append({
+            "date": day,
+            "instruments": [{"symbol": symbol, "return": float(game_day["returns"][pos]), "bin": int(game_day["bins"][pos]),
+                             "edges": [float(e) for e in game_day["edges"][pos]]}
+                            for pos, symbol in enumerate(game_day["symbols"])],
+            "models": models,
+            "best": models[0]["name"] if models else None,
+            "exact_mean": (sum(rates) / len(rates)) if rates else None,
+        })
+    return out
+
+
 def next_day_predictions(conn, market, path):
     """
     The newest day file's newPrediction (for the day after it) as prices:
@@ -352,6 +410,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         "instruments": instruments_out, "models": models, "drawn_models": drawn,
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
+        "days": day_records(conn, market, days=DAY_RECORDS, k=k),
     }
     os.makedirs(os.path.join(path, "data", "markets"), exist_ok=True)
     out = os.path.join(path, "data", "markets", f"{market}.json")
@@ -467,7 +526,15 @@ def _self_check():
             assert lines[0].startswith("date;model;symbol;predicted_bin")
             total_lines += len(lines) - 1
         assert total_lines == 300, total_lines
+        records = day_records(conn, "crypto", days=10)
+        assert len(records) == 10 and records[0]["date"] == game_days[-1]["date"] and records[0]["date"] > records[-1]["date"], "newest first"
+        first = records[0]
+        assert [i["symbol"] for i in first["instruments"]] == symbols and first["instruments"][0]["bin"] == game_days[-1]["bins"][0]
+        assert abs(first["instruments"][0]["return"] - game_days[-1]["returns"][0]) < 1e-12 and len(first["instruments"][0]["edges"]) == 9
+        assert first["best"] == "Perfect Model" and first["models"][0]["exact"] == 5 and first["models"][0]["bins"] == game_days[-1]["bins"]
+        assert first["models"][1]["name"] == "Contrarian Model" and first["models"][1]["exact"] == 0 and abs(first["exact_mean"] - 0.5) < 1e-12
         out, record = export_page_json(conn, root, "crypto", chart_days=40)
+        assert len(record["days"]) == 30 and record["days"][0]["date"] == game_days[-1]["date"]
         assert os.path.exists(out) and record["market"] == "crypto" and record["k"] == 10
         assert [i["symbol"] for i in record["instruments"]] == symbols and len(record["instruments"][0]["closes"]) == 40
         assert record["drawn_models"] == ["Perfect Model", "Contrarian Model"]
@@ -511,6 +578,36 @@ def _self_check():
         assert len(record["daily"]) == 30 and record["chance"]["exact"] == 0.1
         json.dumps(record)
         print("export: yearly results CSV, page json with closes, predicted course, next-day prices and the daily series")
+
+        # Day records after the re-cut: the gap day lost its game day but keeps
+        # its settled results, so it is not listed and does not eat a slot of
+        # the requested count.
+        gap_records = day_records(conn, "crypto", days=5)
+        assert len(gap_records) == 5 and all(r["date"] != gap_day for r in gap_records), [r["date"] for r in gap_records]
+        assert conn.execute("SELECT COUNT(*) FROM results WHERE for_date = ?", (gap_day,)).fetchone()[0] > 0, "the results of the gap day stay"
+        # A retired instrument: BTC (table position 0) goes inactive, the game is
+        # re-cut over the four others (slots 0..3 by symbol, table positions
+        # 1..4), the day re-settled - a model's bins must land under ETH, BNB,
+        # XRP, SOL and not shift by the dead position.
+        conn.execute("UPDATE instruments SET active = 0 WHERE id = ?", (crypto[0]["id"],))
+        conn.commit()
+        game_days3, symbols3 = build_game(conn, "crypto", k=10, min_history=250)
+        assert symbols3 == ["ETH", "BNB", "XRP", "SOL"]
+        store_game_days(conn, "crypto", game_days3, symbols3)
+        newest3 = game_days3[-1]
+        d3 = date.fromisoformat(newest3["date"])
+        with open(os.path.join(folder, f"{d3.year}-{d3.month}-{d3.day}.json"), "w") as handle:
+            json.dump({"realResult": newest3["bins"], "currentPrediction": [{"name": "Perfect Model", "predictions": [list(newest3["bins"])]}],
+                       "newPrediction": [{"name": "Perfect Model", "predictions": [[1, 2, 3, 4]]}]}, handle)
+        settle_market(conn, root, "crypto", log=lambda *_: None)
+        retired = day_records(conn, "crypto", days=1)[0]
+        assert [i["symbol"] for i in retired["instruments"]] == symbols3 and retired["date"] == newest3["date"]
+        perfect3 = [m for m in retired["models"] if m["name"] == "Perfect Model"][0]
+        assert perfect3["bins"] == newest3["bins"] and perfect3["exact"] == 4 and perfect3["positions"] == 4, perfect3
+        # exact_mean is the mean of per-model rates, as the daily chart draws it
+        rates = [m["exact"] / m["positions"] for m in retired["models"] if m["positions"]]
+        assert abs(retired["exact_mean"] - sum(rates) / len(rates)) < 1e-12
+        print("day records: newest first, a day without a game day is skipped without shortening the list, a retired instrument keeps every bin in its own slot")
     print("MarketSettle self-check OK")
 
 

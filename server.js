@@ -53,6 +53,51 @@ const markets = require('./markets');
 // never pool them.
 const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1, jokerplus: 1 };
 
+// --- the three sections (decided with the owner on 1 Oct 2026) ---
+// The site is organised by what is predicted: the lottery games, crypto and
+// shares. The lottery pages (new predictions, History) list the lottery
+// folders only; the two markets have their own pages (markets.js), and their
+// day files under data/database/ remain reachable as the "game view" - the
+// same digits, scored the same way - from those pages and by URL.
+const MARKET_GAMES = ['crypto', 'shares'];
+const isMarketFolder = (folder) => MARKET_GAMES.includes(gameFromFolder(folder));
+// A route parameter must be a plain folder or file name. Express decodes %2F
+// to '/', and path.join would normalise 'x/..' away, so an existsSync check
+// alone lets 'lotto<img ...>/..' through to the page (found in review).
+const isPlainName = (name) => typeof name === 'string' && /^[A-Za-z0-9._-]+$/.test(name) && name !== '.' && name !== '..';
+function databaseFolders() {
+  return fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
+}
+function lotteryFolders() { return databaseFolders().filter((folder) => !isMarketFolder(folder)); }
+function dayFiles(folder) {
+  return fs.readdirSync(path.join(dataPath, folder)).filter((file) => file.endsWith('.json'))
+    .sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
+}
+// The instrument symbols of a market, in slot order, from its page record
+// (data/markets/<market>.json) - so the game view can head its columns BTC,
+// ETH, ... instead of Num 1, Num 2. Empty when the record is not there yet.
+function marketSymbols(game) {
+  const record = markets.loadMarket(marketsPath, game);
+  if (!record) return [];
+  return record.instruments.filter((i) => i && typeof i === 'object' && i.symbol !== undefined && i.symbol !== null)
+    .sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0)).map((i) => auth.escapeHtml(String(i.symbol)));
+}
+// The lottery section's own navigation: new predictions and the History.
+function lotteryNav(active) {
+  const item = (href, label, key) => `<a href="${href}" style="text-decoration:none; padding:6px 12px; border-radius:4px; color:${active === key ? 'white' : '#2c3e50'}; background:${active === key ? '#2c3e50' : '#e1e4e8'};">${label}</a>`;
+  return `<div style="display:flex; gap:8px; margin:0 0 18px; flex-wrap:wrap; align-items:center;"><span style="color:#7f8c8d; font-size:0.9em; margin-right:4px;">Lottery games:</span>
+    ${item('/lottery', 'New predictions', 'predictions')}${item('/database', 'History', 'history')}</div>`;
+}
+// The note on a market's game view: what the digits are, where the prices are.
+function marketGameViewNote(game) {
+  const title = markets.MARKETS[game] ? markets.MARKETS[game].title : game;
+  const symbols = marketSymbols(game);
+  return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
+    <b>This is the game view of the ${game} market.</b> Each day is one draw with one slot per ${game === 'crypto' ? 'coin' : 'share'}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}
+    and the digit is the <b>bin</b> of that day's return: 0 the worst tenth of its own past returns, 9 the best, 4 and 5 around zero. A hit is the right bin in the right slot.
+    The <a href="/markets/${game}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the same days as prices and returns, with a worked example.</div>`;
+}
+
 // --- JOKER+ ---
 // The Python side stores the Joker+ zodiac sign as its 0..11 code (regulation
 // order, see Helpers.ZODIAC_CANONICAL) so every model works on ints; the UI
@@ -490,7 +535,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
     <div class="navbar">
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
-        <a href="/database">History</a>
+        <a href="/lottery">Lottery</a>
         <a href="/markets/crypto">Crypto</a>
         <a href="/markets/shares">Shares</a>
         <a href="/council">Council</a>
@@ -545,8 +590,11 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
 
   html += '<tr><th style="min-width: 150px;">Model</th><th style="width: 50px;">#</th>';
   if (modelRows.length > 0 && modelRows[0].predictions.length > 0) {
-    // Joker+'s 7th column is the sign, not a seventh number.
-    Array.from({ length: modelRows[0].predictions[0].length }).forEach((_, i) => html += (isJoker && i === 6) ? '<th>Sign</th>' : `<th>Num ${i + 1}</th>`);
+    // Joker+'s 7th column is the sign, not a seventh number; a market's
+    // columns are its instruments (the slot is the coin or share).
+    const symbols = isMarket ? marketSymbols(game) : [];
+    Array.from({ length: modelRows[0].predictions[0].length }).forEach((_, i) => html += (isJoker && i === 6) ? '<th>Sign</th>'
+      : (isMarket ? `<th title="the return bin of ${symbols[i] || `slot ${i + 1}`}">${symbols[i] || `Slot ${i + 1}`}</th>` : `<th>Num ${i + 1}</th>`));
   }
   if(hasReal) html += '<th>Hits</th>';
   if(calcProfit) html += '<th>Profit</th>';
@@ -1258,15 +1306,23 @@ function generateRandomnessWatch() {
 
 // 1. Database Index
 app.get('/database', (req, res) => {
-  const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-  let html = generateHeader("Database Folders", req.user);
-  html += '<h1>Available Database Folders</h1><div style="display: flex; gap: 10px; flex-wrap: wrap;">';
+  const folders = lotteryFolders();
+  const marketFolders = databaseFolders().filter(isMarketFolder);
+  let html = generateHeader("Lottery games - History", req.user);
+  html += '<h1>History</h1>' + lotteryNav('history');
+  html += `<p style="color: #7f8c8d; margin-top: -8px;">Every past draw of every lottery game with what each model predicted and what it hit; below, the cards that rank the
+    rows and watch the draws (they include the two markets, which are tracked as games too).</p>`;
+  html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
   folders.forEach((folder) => {
     html += `<form action="/database/${folder}" method="get">
       <button type="submit" style="padding: 15px 30px; font-size: 1.1em; cursor: pointer; background: white; border: 1px solid #ccc; border-radius: 5px;">${folder}</button>
     </form>`;
   });
   html += '</div>';
+  if (marketFolders.length) {
+    html += `<p style="color: #7f8c8d; font-size: 0.9em;">The markets' game view, the same digits scored the same way: ${marketFolders.map((f) => `<a href="/database/${f}">${f}</a>`).join(' · ')}
+      - their own pages are <a href="/markets/crypto">Crypto</a> and <a href="/markets/shares">Shares</a>.</p>`;
+  }
   html += generatePerformanceSummary();
   html += generateCombinationSummary();
   html += generateLagAnalysis();
@@ -1279,6 +1335,7 @@ app.get('/database', (req, res) => {
 // 2. Folder View
 app.get('/database/:folder', (req, res) => {
   const folder = req.params.folder;
+  if (!isPlainName(folder)) return res.status(404).send('Folder not found');
   const folderPath = path.join(dataPath, folder);
   if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
   const game = gameFromFolder(folder);
@@ -1301,8 +1358,10 @@ app.get('/database/:folder', (req, res) => {
 
   const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(b) - new Date(a));
 
-  let html = generateHeader(`${folder} Predictions`, req.user);
-  html += `<h1>${folder}</h1><div>`;
+  let html = generateHeader(`${auth.escapeHtml(folder)} Predictions`, req.user);
+  html += `<h1>${auth.escapeHtml(folder)}</h1>`;
+  html += isMarketFolder(folder) ? marketGameViewNote(game) : lotteryNav('history');
+  html += '<div>';
 
   sortedMonths.forEach((month, index) => {
     filesByMonth[month].sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
@@ -1411,6 +1470,7 @@ app.get('/database/:folder', (req, res) => {
 app.get('/database/:folder/:file', (req, res) => {
   const folder = req.params.folder;
   const file = req.params.file;
+  if (!isPlainName(folder) || !isPlainName(file)) return res.status(404).send('File not found');
   const filePath = path.join(dataPath, folder, file);
   if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
   const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
@@ -1434,12 +1494,13 @@ app.get('/database/:folder/:file', (req, res) => {
     fs.readdirSync(path.join(dataPath, folder)).filter((f) => f.endsWith('.json')).map(parseDayFileDate),
     parseDayFileDate(file), false);
 
-  let html = generateHeader(`${file} Details`, req.user);
+  let html = generateHeader(`${auth.escapeHtml(file)} Details`, req.user);
   html += `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1 style="margin: 0;">${file}</h1>
-        <a href="/database/${folder}" class="nav-btn" style="text-decoration: none;">Back to History</a>
+        <h1 style="margin: 0;">${auth.escapeHtml(file)}</h1>
+        <a href="/database/${encodeURIComponent(folder)}" class="nav-btn" style="text-decoration: none;">Back to ${isMarketFolder(folder) ? `${auth.escapeHtml(folder)} game view` : 'History'}</a>
     </div>
+    ${isMarketFolder(folder) ? marketGameViewNote(game) : ''}
 
     <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
@@ -1460,7 +1521,9 @@ app.get('/database/:folder/:file', (req, res) => {
               ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N hits among the main numbers, M among the special numbers (euromillions stars / eurodreams dream / vikinglotto viking). Cells highlight green only within their own group.</p>`
               : (game === 'lotto'
                 ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
-                : ''))}
+                : (isMarketFolder(folder)
+                  ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. The <a href="/markets/${game}">${game} page</a> shows the newest 30 settled days as returns, with the interval every bin stood for.</p>`
+                  : '')))}
 
             ${currentFrequency && Object.keys(currentFrequency).length > 0 ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -1513,12 +1576,77 @@ app.get('/database/:folder/:file', (req, res) => {
   res.send(html);
 });
 
-// 5. Home Page
+// 4. Home: the three sections
+function sectionCard(title, text, lines, links) {
+  return `<div class="card" style="display:flex; flex-direction:column;">
+    <div style="padding: 18px 20px 6px;"><div class="card-title">${title}</div><p style="color:#555; margin:8px 0 0;">${text}</p></div>
+    <div style="padding: 6px 20px 10px; flex:1;">${lines.length ? `<ul style="margin:0; padding-left:18px; color:#2c3e50; font-size:0.95em; line-height:1.6;">${lines.map((l) => `<li>${l}</li>`).join('')}</ul>` : ''}</div>
+    <div style="padding: 0 20px 18px; display:flex; gap:8px; flex-wrap:wrap;">${links.map((l, i) => `<a href="${l.href}" class="nav-btn" style="text-decoration:none; ${i ? 'background:#7f8c8d;' : ''}">${l.label}</a>`).join('')}</div>
+  </div>`;
+}
+
+function lotterySectionLines() {
+  const lines = [];
+  lotteryFolders().forEach((folder) => {
+    const files = dayFiles(folder);
+    if (!files.length) return;
+    const next = nextDrawDate(files.map(parseDayFileDate), null);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const when = !next ? '' : (next.getTime() === today.getTime() ? 'today' : (next < today ? `${formatDrawDate(next)} (no newer run yet)` : formatDrawDate(next)));
+    let rows = 0;
+    try { rows = (JSON.parse(fs.readFileSync(path.join(dataPath, folder, files[0]), 'utf-8')).newPrediction || []).length; } catch (e) { rows = 0; }
+    lines.push(`<b>${folder}</b>${when ? ` - next draw ${when}` : ''}${rows ? `, ${rows} model rows` : ''}`);
+  });
+  return lines;
+}
+
+function marketSectionLines(game) {
+  const record = markets.loadMarket(marketsPath, game);
+  if (!record) return ['no record yet - it appears after the first daily run that includes this market'];
+  const view = markets.describeMarket(record, { regimes: markets.loadRegimes(marketsPath, game) });
+  const lines = [`<b>${view.instruments.map((i) => i.symbol).join(', ')}</b>`];
+  if (view.newestGameDay) lines.push(`newest settled day ${view.newestGameDay}${view.madeOn ? `, predictions for the day after ${view.madeOn}` : ''}`);
+  if (view.models.length) {
+    const best = view.models[0];
+    lines.push(`${view.models.length} model rows over ${view.scoredDays} day(s); best exact rate ${markets.pct(best.exact)} (${best.name}), chance ${markets.pct(view.chance.exact, 0)}`);
+  }
+  const reading = view.regimes.find((r) => r.row === 'Regime HMM Model');
+  if (reading && reading.label) lines.push(`regime reading: ${reading.label} (${markets.pct(reading.probability, 0)} sure)${reading.date ? `, after ${reading.date}` : ''}`);
+  return lines;
+}
+
 app.get('/', (req, res) => {
-  const folders = fs.readdirSync(dataPath, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((dir) => dir.name);
-  let html = generateHeader("Home - Dashboard", req.user);
-  html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>
-    <p style="color: #7f8c8d; margin-top: -12px;">One card per game. Open a card for every model's ticket for the next draw -
+  let html = generateHeader("Sequence Predictor", req.user);
+  html += `<h1 style="margin-bottom: 8px;">Sequence Predictor</h1>
+    <p style="color: #7f8c8d; margin-top: 0;">A research project that runs the same prediction models against three kinds of sequence and tracks, honestly, how each one does.
+    Pick a section.</p>`;
+  // Visible to every visitor: a run in progress explains why today's
+  // predictions are not here yet, and is the one thing a reader cannot
+  // otherwise tell.
+  html += pipelineBanner();
+  html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap:20px; align-items:stretch;">';
+  html += sectionCard('Lottery games',
+    'Lotto, EuroMillions, EuroDreams, VikingLotto, Keno, Pick3 and Joker+: every model\'s ticket for the next draw, and the record of every past draw.',
+    lotterySectionLines(), [{ href: '/lottery', label: 'New predictions' }, { href: '/database', label: 'History' }]);
+  html += sectionCard('Crypto',
+    'Five coins against USDT, every day. Each coin\'s next-day return is cut into ten equally likely bins and every model predicts one bin per coin - drawn as a price on the chart, with the price band it stands for in the table beneath.',
+    marketSectionLines('crypto'), [{ href: '/markets/crypto', label: 'Crypto page' }]);
+  html += sectionCard('Shares',
+    'Four shares on Nasdaq, every trading day, the same way: a bin per share per day, settled the morning after the close.',
+    marketSectionLines('shares'), [{ href: '/markets/shares', label: 'Shares page' }]);
+  html += '</div>';
+  html += `<p style="color: #7f8c8d; font-size: 0.9em; margin-top: 10px;">Not advice. The models are not expected to beat any of the three; measuring whether they do, against controls that are known to carry nothing, is the point.
+    The <a href="/council">Council</a> puts a question to several local language models at once.</p>`;
+  html += generateFooter();
+  res.send(html);
+});
+
+// 5. Lottery games: new predictions (the former home page, lottery folders only)
+app.get('/lottery', (req, res) => {
+  const folders = lotteryFolders();
+  let html = generateHeader("Lottery games - New predictions", req.user);
+  html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>` + lotteryNav('predictions');
+  html += `<p style="color: #7f8c8d; margin-top: -8px;">One card per game. Open a card for every model's ticket for the next draw -
        each row is one method, kept separate on purpose so its real-life record can be followed on the
        <a href="/database">History</a> page.</p>`;
   // Visible to every visitor: a run in progress explains why today's draw is
@@ -1527,7 +1655,7 @@ app.get('/', (req, res) => {
 
   folders.forEach((folder) => {
     const folderPath = path.join(dataPath, folder);
-    const files = fs.readdirSync(folderPath).filter((file) => file.endsWith('.json')).sort((a, b) => new Date(b.replace('.json', '')) - new Date(a.replace('.json', '')));
+    const files = dayFiles(folder);
 
     if (files.length > 0) {
       const latestFile = files[0];

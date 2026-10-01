@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-01-three-sections',
+    date: '2026-10-01',
+    level: 'major',
+    audience: 'all',
+    title: 'The site is organised in three sections: Lottery games, Crypto and Shares',
+    body: [
+      'The home page now asks which kind of sequence you want to look at. Lottery games is where the former home page went: every model\'s ticket for the next draw of the seven games, with the History next to it. Crypto and Shares have their own pages, as before, and the top bar shows the three sections.',
+      'The market pages explain themselves now. A first card, "How a day becomes a draw", takes the newest day and shows, coin by coin, the real return, the bin it fell in and the interval that bin stood for - so the digits on the game view are readable. A "Day by day" card lists the settled days as returns and bins; open a day for every model\'s ticket with its hits.',
+      'The game view of a market (the digit tables under History) is still there, reached from the market page, with the coin or share symbols (BTC, ETH, ... / NVDA, AAPL, ...) as column headings and a note on what the digits are.',
+    ],
+    link: { href: '/', label: 'Home' },
+  },
+  {
     id: '2026-09-30-market-rows',
     date: '2026-09-30',
     level: 'minor',
@@ -223,17 +236,22 @@ const ANNOUNCEMENTS = [
 // skipped for a plain user.
 const TOUR = {
   title: 'Welcome',
-  intro: 'This is a research project: it runs many prediction models against real lottery draws and tracks, honestly, how each one performs. It is not advice, and the models are not expected to beat the games - measuring that is the point.',
+  intro: 'This is a research project: it runs many prediction models against real lottery draws and, since autumn 2026, against crypto and share prices, and tracks, honestly, how each one performs. It is not advice, and the models are not expected to beat any of it - measuring that is the point.',
   steps: [
     {
       audience: 'all',
-      title: 'Predictions',
-      body: 'The home page has one card per game. Open a card to see every model\'s ticket for the next draw, and the date of the draw they are for. The chart under a card shows which numbers the models favour together.',
+      title: 'Three sections',
+      body: 'The home page offers three sections - Lottery games, Crypto and Shares - and the top bar repeats them as Lottery, Crypto and Shares. Each section has its own pages; what is predicted differs, the models and the honesty rules are the same.',
     },
     {
       audience: 'all',
-      title: 'History',
-      body: 'Every past draw is kept with what each model predicted, how many numbers it hit and what that would have paid. The cards at the top rank the models, show which combinations of models do best together, and watch whether the draws still look random.',
+      title: 'Lottery games',
+      body: 'New predictions has one card per game. Open a card to see every model\'s ticket for the next draw, and the date of the draw they are for. History keeps every past draw with what each model predicted, how many numbers it hit and what that would have paid; its cards rank the models, show which combinations do best together, and watch whether the draws still look random.',
+    },
+    {
+      audience: 'all',
+      title: 'Crypto and Shares',
+      body: 'Each coin\'s or share\'s next-day return is cut into ten equally likely bins, and every model predicts one bin per instrument, every day - a draw with one slot per coin. The pages show the price with the predicted course drawn on it, how often each model got the bin, the neighbouring bin and the direction right against chance, a paper profit, and the newest thirty settled days as returns and bins. A first card explains how a day becomes a draw, with the newest day as the example.',
     },
     {
       audience: 'all',
