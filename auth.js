@@ -267,7 +267,7 @@ function requireAdmin(render) {
   return (req, res, next) => {
     if (req.user && req.user.role === 'admin') return next();
     res.status(403).send(render.header('Forbidden', req.user) +
-      '<h1>Not allowed</h1><p>This page is for the administrator. <a href="/">Back to the predictions</a>.</p>' + render.footer());
+      '<h1>Not allowed</h1><p>This page is for the administrator. <a href="/">Back to the home page</a>.</p>' + render.footer());
   };
 }
 

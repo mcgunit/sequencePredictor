@@ -167,6 +167,9 @@ def store_game_days(conn, market, game_days, symbols):
              if r[0] not in new_dates]
     for stale_date in stale:
         conn.execute("DELETE FROM game_days WHERE market = ? AND date = ?", (market, stale_date))
+    # a cut over fewer instruments (one retired) must not leave the old cut's
+    # extra slots behind on the dates that stay - a day would read a symbol twice
+    conn.execute("DELETE FROM game_days WHERE market = ? AND position >= ?", (market, len(symbols)))
     written = 0
     for day in game_days:
         for pos, symbol in enumerate(symbols):
@@ -414,6 +417,12 @@ def _self_check():
     assert latest_edges(conn, "crypto")["date"] == game_days[-1]["date"]
     assert store_game_days(conn, "crypto", game_days, symbols) == written, "rewriting is idempotent"
     assert conn.execute("SELECT COUNT(*) FROM game_days").fetchone()[0] == written
+    # a cut over four instruments on the same dates leaves no fifth slot behind
+    four = [dict(d, bins=d["bins"][:4], edges=d["edges"][:4], returns=d["returns"][:4]) for d in game_days]
+    assert store_game_days(conn, "crypto", four, symbols[:4]) == len(four) * 4
+    assert load_game_day(conn, "crypto", four[-1]["date"])["symbols"] == symbols[:4]
+    assert conn.execute("SELECT COUNT(*) FROM game_days WHERE position >= 4").fetchone()[0] == 0
+    assert store_game_days(conn, "crypto", game_days, symbols) == written
     print("store: game days cut from the aligned returns, a missing bar drops its day for all, edges stored and read back")
 
     # 4. The yearly CSV files: Predictor's shape, newest first, round trip, stable.

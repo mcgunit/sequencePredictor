@@ -33,6 +33,15 @@ const record = {
       { model: 'Odd Model', bin: 0, direction: -1, price: 80000, low: null, high: 81000 } ] } } },
   daily: [{ date: '2026-09-30', models: 2, exact_mean: 0.1, direction_mean: 0.5, best_exact: 0.2, best_model: 'Markov Model', pnl_mean: 0 },
           { date: '2026-10-01', models: 2, exact_mean: 0.2, direction_mean: 0.4, best_exact: 0.4, best_model: 'Markov Model', pnl_mean: 0.001 }],
+  days: [
+    { date: '2026-10-01', best: 'Markov Model', exact_mean: 0.25,
+      instruments: [{ symbol: 'BTC', return: 0.004, bin: 6, edges: [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025] },
+                    { symbol: 'ETH', return: -0.041, bin: 0, edges: [-0.04, -0.025, -0.012, -0.005, 0.0, 0.004, 0.011, 0.02, 0.03] }],
+      models: [{ name: 'Markov Model', bins: [6, 3], exact: 1, adjacent: 1, direction: 1, positions: 2, pnl: 0.003, trades: 1 },
+               { name: 'Odd Model', bins: [1, null], exact: 0, adjacent: 0, direction: 0, positions: 2, pnl: 0, trades: 0 }] },
+    { date: '2026-09-30', best: 'Odd Model', exact_mean: 0, instruments: [{ symbol: 'BTC', return: -0.002, bin: 4, edges: [] }, { symbol: 'ETH', return: 0.001, bin: 5, edges: [] }], models: [] },
+    { date: 'bad' },
+  ],
 };
 fs.writeFileSync(path.join(dir, 'crypto.json'), JSON.stringify(record));
 fs.writeFileSync(path.join(dir, 'shares.json'), '{');
@@ -87,6 +96,21 @@ ok(btc.next.length === 2 && btc.next[0].price === 84900 && btc.next[1].low === n
   'the next-day predictions carry price and open interval');
 ok(view.instruments[1].next.length === 0 && view.instruments[1].active === false, 'an instrument without a next-day entry has none, inactive is kept');
 ok(view.drawn.length === 1 && view.daily.length === 2, 'drawn models and the daily series pass through');
+ok(view.days.length === 2 && view.days[0].date === '2026-10-01' && view.days[0].instruments[1].bin === 0 && view.days[0].models[1].bins[1] === null,
+  'the day records pass through, a malformed day is dropped, a missing bin stays null');
+ok(markets.intervalText(0, view.days[0].instruments[1].edges) === 'below -4.0%' && markets.intervalText(9, view.days[0].instruments[0].edges) === 'above +2.5%'
+  && markets.intervalText(6, view.days[0].instruments[0].edges) === '+0.3% to +0.9%' && markets.intervalText(4, []) === '-' && markets.intervalText(null, [0.1]) === '-',
+  'a bin reads as its return interval, open at the ends');
+ok(markets.signedPct(-0.00004) === '0.0%' && markets.signedPct(0.0123) === '+1.2%' && markets.signedPct(-0.0123, 2) === '-1.23%' && markets.signedPct(null) === '-', 'signed percentages never read -0.0%');
+ok(markets.binInterval(0, [1, 2])[0] === null && markets.binInterval(2, [1, 2])[1] === null && markets.binInterval(1, [1, 2]).join(',') === '1,2', 'bin intervals');
+ok(markets.gameViewLink('crypto', '2026-10-01') === '/database/crypto/2026-10-1.json' && markets.gameViewLink('shares', 'bad') === '/database/shares',
+  'the game view link uses the day file name without zero padding');
+ok(markets.describeDays(null).length === 0 && markets.describeDays([{ date: '2026-01-01', instruments: [] }]).length === 1, 'day records describe safely');
+ok(markets.describeDays([{ date: '2026-01-01', instruments: [null, { symbol: 'A' }], models: [null, 7, { bins: [1] }, { name: 'X', bins: [1] }] }])[0].models.length === 1
+  && markets.describeDays([{ date: '2026-01-01', instruments: [null, { symbol: 'A' }], models: [] }])[0].instruments.length === 1,
+  'malformed instrument and model entries are dropped, never thrown');
+ok(markets.describeMarket({ market: 'crypto', instruments: [null, { symbol: 'BTC' }], models: [] }).instruments.length === 1, 'a null instrument in the record is dropped');
+
 const bare = markets.describeMarket({ market: 'shares', instruments: [], models: [] });
 ok(bare.scoredDays === 0 && bare.chance.exact === 0.1 && bare.madeOn === null && bare.daily.length === 0, 'an empty record describes with defaults');
 
@@ -125,6 +149,21 @@ ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+0.
 ok(html.includes('chart-crypto-BTC') && html.includes('daily-crypto') && (html.match(/new Chart\(/g) || []).length === 3, 'one chart per instrument plus the daily chart');
 ok(html.includes('84900') && html.includes('84500 - 85300') && html.includes('below 81000'), 'the next-day table shows the price, a closed and an open interval');
 ok(html.includes('(inactive)'), 'an inactive instrument is marked');
+ok(html.includes('How a day becomes a draw') && html.includes('Worked example - 2026-10-01') && html.includes('letter-spacing:2px;">6 0<') && html.includes('/database/crypto/2026-10-1.json')
+  && html.includes('Markov Model</b>') === false && html.includes('Markov Model had played') && html.includes('1 of 2 coins in the right bin (green), 0 more in a neighbouring bin')
+  && html.includes('Every day is one draw') && !html.includes('Every every'),
+  'the explainer uses the newest day as a worked example with the draw and the best ticket, and opens with a readable sentence');
+ok(markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }), header, footer, null).includes('Every trading day is one draw'), 'the shares explainer names the trading day');
+ok(html.includes('Day by day') && html.includes('the newest 2 settled day(s)') && html.includes('+0.3% to +0.9%') && html.includes('below -4.0%') && html.includes('1/2</td>')
+  && (html.match(/<details/g) || []).length === 2 && html.includes('background:#2ecc71; color:white;" title="+0.3% to +0.9% - rule: long">6'),
+  'the day-by-day card lists each day as returns and bins, with every model\'s ticket inside');
+const twoSets = markets.page('crypto', markets.describeMarket({ ...record, days: [record.days[0], { date: '2026-09-29', best: null, exact_mean: null,
+  instruments: [{ symbol: 'BTC', return: 0.01, bin: 7, edges: [] }, { symbol: 'ETH', return: 0.0, bin: 4, edges: [] }, { symbol: 'SOL', return: -0.02, bin: 1, edges: [] }],
+  models: [{ name: 'Markov Model', bins: [7, 4, 2], exact: 2, adjacent: 3, direction: 2, positions: 3, pnl: 0.0, trades: 1 }] }] }), header, footer, null);
+ok(twoSets.includes('<th>SOL</th>') && (twoSets.match(/<th>BTC<\/th>/g) || []).length === 2, 'each day heads its model table with its own instruments');
+const noDays = markets.page('crypto', markets.describeMarket({ ...record, days: [] }), header, footer, null);
+ok(noDays.includes('How a day becomes a draw') && !noDays.includes('Worked example') && !noDays.includes('card-title">Day by day') && !noDays.includes('<i>Day by day</i>'),
+  'without settled days the explainer is generic and there is no day-by-day card');
 const fullHtml = markets.page('crypto', full, header, footer, null);
 ok(fullHtml.includes('Rows under a proper score') && fullHtml.includes('No row carries information beyond GARCH') && fullHtml.includes('(reference)')
   && fullHtml.includes('no probabilities') && fullHtml.includes('-0.240 [-0.400, -0.100] worse') && fullHtml.includes('GARCH itself is above the uniform forecast'),
