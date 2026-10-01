@@ -48,7 +48,7 @@ except ImportError:  # imported from within src/
                             predicted_price, price_interval, representative_return)
 
 FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchange; shares are cheaper, this is the conservative one
-CHART_DAYS = 120       # closes and predicted course the page draws
+CHART_DAYS = 365       # closes and predicted course the page draws (a year; the chart zooms)
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
 DAY_RECORDS = 30       # settled days the page lists day by day, newest first
 DAY_FILE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})\.json$")

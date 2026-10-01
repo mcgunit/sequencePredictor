@@ -147,14 +147,28 @@ const html = markets.page('crypto', view, header, footer, { name: 'ann' });
 ok(html.includes('<title>Crypto predictor</title>') && html.includes('ann'), 'the page uses the shared header');
 ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+0.0123'), 'the models table shows rates and P&L');
 ok(html.includes('chart-crypto-BTC') && html.includes('daily-crypto') && (html.match(/new Chart\(/g) || []).length === 3, 'one chart per instrument plus the daily chart');
+ok(html.includes('chartjs-plugin-zoom') && html.includes('hammer.min.js') && html.includes('Chart.register(window.ChartZoom)') && html.includes('"zoom":{"wheel":{"enabled":true}')
+  && html.includes(`onclick="marketRange('chart-crypto-BTC', 30)">1M<`) && html.includes(`onclick="marketReset('chart-crypto-BTC')"`) && html.includes('height:420px')
+  && html.includes("window.marketCharts['chart-crypto-BTC'] = new Chart(") && html.includes('.container { max-width: 1400px; }'),
+  'the instrument charts zoom and pan, have range buttons and a reset, are taller, and the page is wider');
 ok(html.includes('84900') && html.includes('84500 - 85300') && html.includes('below 81000'), 'the next-day table shows the price, a closed and an open interval');
 ok(html.includes('(inactive)'), 'an inactive instrument is marked');
-ok(html.includes('How a day becomes a draw') && html.includes('Worked example - 2026-10-01') && html.includes('letter-spacing:2px;">6 0<') && html.includes('/database/crypto/2026-10-1.json')
-  && html.includes('Markov Model</b>') === false && html.includes('Markov Model had played') && html.includes('1 of 2 coins in the right bin (green), 0 more in a neighbouring bin')
-  && html.includes('Every day is one draw') && !html.includes('Every every'),
-  'the explainer uses the newest day as a worked example with the draw and the best ticket, and opens with a readable sentence');
+ok(html.includes('How a day becomes a draw') && html.includes('1. Two closes, one number') && html.includes('a candle is four prices')
+  && html.includes("BTC's previous close was 83663; on 2026-10-01 it closed at 84000, 337 higher, a move of <b>+0.40%</b>")
+  && html.includes('2. The number goes into one of 10 bins') && html.includes('Each pile is one bin') && html.includes("a +2% day lands in BTC's bin 8 but only in ETH's bin 7")
+  && html.includes('Worked example - 2026-10-01, the newest settled day</b> (settled:') && html.includes('letter-spacing:2px;">6 0<') && html.includes('/database/crypto/2026-10-1.json')
+  && html.includes('Markov Model had played') && html.includes('1 of 2 coins in the right bin (green), 0 more in a neighbouring bin')
+  && html.includes('Every day is one draw') && !html.includes('Every every') && html.includes('a 7 played on BTC is judged against BTC\'s own bin, and ETH landing in 7')
+  && html.includes("bin 6 on 2026-10-01 ran from +0.30% to +0.90%, which from the close of 83663 means a close\n      between about 83914 and 84419"),
+  'the explainer walks through closes, bins and draw with the newest day, the best ticket and a price range');
+ok((html.match(/the day fell here/g) || []).length === 2 && html.includes('Markov Model predicted this') && html.includes('the green outline is the bin that Markov Model')
+  && html.includes('transform:translateX(50%)') && html.includes('>+0.3%</div>') && html.includes("BTC's bin 4 runs from -0.4% to 0.0%, while bin 0 is everything below -3.0%")
+  && html.includes('an inner bin is within one by luck 30% of the time, an end bin 20%') && html.includes('log return'),
+  'each instrument gets a strip of ten bins with its edges, the real move dark and the predicted bin outlined, and the caveats are stated');
+ok(markets.binOfMove(Math.log(1.02), [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025]) === 8 && markets.binOfMove(-1, [0]) === 0 && markets.binOfMove(1, [0]) === 1
+  && markets.intervalText(6, [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025], 2) === '+0.30% to +0.90%', 'a move finds its bin under the edges; intervals take a precision');
 ok(markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }), header, footer, null).includes('Every trading day is one draw'), 'the shares explainer names the trading day');
-ok(html.includes('Day by day') && html.includes('the newest 2 settled day(s)') && html.includes('+0.3% to +0.9%') && html.includes('below -4.0%') && html.includes('1/2</td>')
+ok(html.includes('Day by day') && html.includes('the newest 2 settled day(s)') && html.includes('+0.3% to +0.9%') && html.includes('title="bin 0: below -4.00% - the day fell here"') && html.includes('1/2</td>')
   && (html.match(/<details/g) || []).length === 2 && html.includes('background:#2ecc71; color:white;" title="+0.3% to +0.9% - rule: long">6'),
   'the day-by-day card lists each day as returns and bins, with every model\'s ticket inside');
 const twoSets = markets.page('crypto', markets.describeMarket({ ...record, days: [record.days[0], { date: '2026-09-29', best: null, exact_mean: null,
@@ -162,7 +176,7 @@ const twoSets = markets.page('crypto', markets.describeMarket({ ...record, days:
   models: [{ name: 'Markov Model', bins: [7, 4, 2], exact: 2, adjacent: 3, direction: 2, positions: 3, pnl: 0.0, trades: 1 }] }] }), header, footer, null);
 ok(twoSets.includes('<th>SOL</th>') && (twoSets.match(/<th>BTC<\/th>/g) || []).length === 2, 'each day heads its model table with its own instruments');
 const noDays = markets.page('crypto', markets.describeMarket({ ...record, days: [] }), header, footer, null);
-ok(noDays.includes('How a day becomes a draw') && !noDays.includes('Worked example') && !noDays.includes('card-title">Day by day') && !noDays.includes('<i>Day by day</i>'),
+ok(noDays.includes('How a day becomes a draw') && !noDays.includes('Worked example -') && noDays.includes('appears here after the first settled day') && !noDays.includes('card-title">Day by day') && !noDays.includes('<i>Day by day</i>'),
   'without settled days the explainer is generic and there is no day-by-day card');
 const fullHtml = markets.page('crypto', full, header, footer, null);
 ok(fullHtml.includes('Rows under a proper score') && fullHtml.includes('No row carries information beyond GARCH') && fullHtml.includes('(reference)')

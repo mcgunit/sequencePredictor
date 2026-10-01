@@ -93,9 +93,10 @@ function marketGameViewNote(game) {
   const title = markets.MARKETS[game] ? markets.MARKETS[game].title : game;
   const symbols = marketSymbols(game);
   return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
-    <b>This is the game view of the ${game} market.</b> Each day is one draw with one slot per ${game === 'crypto' ? 'coin' : 'share'}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}
-    and the digit is the <b>bin</b> of that day's return: 0 the worst tenth of its own past returns, 9 the best, 4 and 5 around zero. A hit is the right bin in the right slot.
-    The <a href="/markets/${game}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the same days as prices and returns, with a worked example.</div>`;
+    <b>This is the game view of the ${game} market.</b> Each day is one draw with one slot per ${game === 'crypto' ? 'coin' : 'share'}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
+    The digit is the <b>bin</b> of that day's move - today's close against yesterday's close, placed among the ${game === 'crypto' ? 'coin' : 'share'}'s own past daily moves sorted
+    from worst to best and cut into ten equal piles: 0 is a day among its worst tenth, 9 among its best, 4 and 5 barely moved. A hit is the right bin in the right slot.
+    The <a href="/markets/${game}" style="color:#7d6608; font-weight:bold;">${title} page</a> explains this in three steps with the newest day as the example, and shows the same days as prices and moves.</div>`;
 }
 
 // --- JOKER+ ---

@@ -176,13 +176,15 @@ const signedPct = (x, digits = 1) => {
   if (Number(text) === 0) return `${Math.abs(Number(text)).toFixed(digits)}%`;   // never "-0.0%"
   return `${num(x) >= 0 ? '+' : ''}${text}%`;
 };
-function intervalText(bin, edges) {
+function intervalText(bin, edges, digits = 1) {
   const [low, high] = binInterval(bin, edges);
   if (low === null && high === null) return '-';
-  if (low === null) return `below ${signedPct(high)}`;
-  if (high === null) return `above ${signedPct(low)}`;
-  return `${signedPct(low)} to ${signedPct(high)}`;
+  if (low === null) return `below ${signedPct(high, digits)}`;
+  if (high === null) return `above ${signedPct(low, digits)}`;
+  return `${signedPct(low, digits)} to ${signedPct(high, digits)}`;
 }
+// The bin a move would fall in under a day's edges (MarketGame.bin_of).
+const binOfMove = (move, edges) => edges.filter((e) => e <= move).length;
 // The day file behind a game day, as Predictor.py names it (no zero padding).
 function gameViewLink(market, date) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date));
@@ -193,9 +195,37 @@ function gameViewLink(market, date) {
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const COLOURS = ['#e67e22', '#8e44ad', '#16a085', '#c0392b', '#2980b9'];
 
+// The instrument charts zoom (wheel, pinch) and pan (drag) through
+// chartjs-plugin-zoom, loaded on these pages only; hammer.js gives it touch
+// gestures. Range buttons set the category axis' min/max by label, which
+// needs no plugin, and "Reset" clears both. The market pages take a wider
+// container than the lottery pages so the charts get room; the explainer's
+// text keeps a readable line length of its own.
+const CHART_SCRIPTS = `<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<style>.container { max-width: 1400px; } .chart-tools { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; font-size:0.85em; }
+.chart-tools button { padding:4px 10px; border:1px solid #ccd1d6; border-radius:4px; background:white; color:#2c3e50; cursor:pointer; } .chart-tools button:hover { background:#f1f3f5; }
+.chart-tools .hint { color:#7f8c8d; margin-left:auto; }</style>
+<script>
+  try { if (window.ChartZoom) Chart.register(window.ChartZoom); } catch (e) { /* zoom stays off, the chart still draws */ }
+  window.marketCharts = window.marketCharts || {};
+  // the newest \`days\` labels (the trailing 'next' label included); 0 = everything
+  function marketRange(id, days) {
+    const chart = window.marketCharts[id]; if (!chart) return;
+    const labels = chart.data.labels; const x = chart.options.scales.x;
+    if (typeof chart.resetZoom === 'function') chart.resetZoom('none');
+    if (days > 0 && labels.length > days) { x.min = labels[labels.length - 1 - days]; x.max = labels[labels.length - 1]; } else { delete x.min; delete x.max; }
+    chart.update();
+  }
+  function marketReset(id) { marketRange(id, 0); }
+</script>`;
+const ZOOM_OPTIONS = { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } };
+const RANGES = [['1M', 30], ['3M', 91], ['6M', 182], ['1Y', 365], ['All', 0]];
+
 function page(market, view, header, footer, user) {
   const meta = MARKETS[market];
   let html = header(meta.title, user);
+  html += CHART_SCRIPTS;
   html += `<h1>${esc(meta.title)}</h1>`;
   if (!view) {
     html += `<p style="color:#7f8c8d;">No market record yet. It appears after the first daily run that includes the <code>${esc(market)}</code>
@@ -210,42 +240,143 @@ function page(market, view, header, footer, user) {
     <b>Paper P&amp;L</b> is the fixed rule - long when the predicted bin is in the upper half, flat otherwise, minus a fee of ${pct(view.fee, 2)} per position - in
     units of the ${esc(meta.unit)} price (0.01 = 1%). Results settle the morning after, when the day's bar has closed.</p>`;
 
-  // how a day becomes a draw - the newest settled day as the worked example
+  // how a day becomes a draw - for a newcomer, in three steps, with the newest
+  // settled day as the worked example and a strip per instrument showing what
+  // a bin looks like. Wording reviewed by two reader personas on 1 Oct 2026.
   const example = view.days.length ? view.days[0] : null;
   const half = view.k / 2;
-  let worked = '';
+  const first = example && example.instruments.length ? example.instruments[0] : null;
+  const closeBefore = (symbol, date) => {
+    const inst = view.instruments.find((i) => i.symbol === symbol);
+    if (!inst) return null;
+    const idx = inst.closes.findIndex((p) => p[0] === date);
+    return idx > 0 ? inst.closes[idx - 1][1] : null;
+  };
+  const closeOn = (symbol, date) => {
+    const inst = view.instruments.find((i) => i.symbol === symbol);
+    const point = inst ? inst.closes.find((p) => p[0] === date) : null;
+    return point ? point[1] : null;
+  };
+  const candle = first ? { before: closeBefore(first.symbol, example.date), on: closeOn(first.symbol, example.date) } : null;
+  const best = example ? (example.models.find((m) => m.name === example.best) || example.models[0] || null) : null;
+  const dayWord = meta.calendar.replace(/ \(.*\)$/, '').replace(/^every /, '');      // "day" / "trading day"
+  const nouns = `${esc(meta.noun)}s`;
+  const closeNote = market === 'crypto'
+    ? 'a crypto day runs midnight to midnight UTC, 02:00 Belgian time in summer and 01:00 in winter, so the ticket is placed seven to eight hours into the day it predicts; none of those hours is used, because the models read closed daily candles only, and the day\'s close is still unknown'
+    : 'the New York session closes at 22:00 Belgian time in summer and 21:00 in winter, so a trading day\'s ticket is placed on its own morning, before New York opens, and a Monday\'s ticket is made on the Saturday';
+
+  // step 1: two closes, one number
+  let step1 = `<p><b>1. Two closes, one number.</b> On a price chart each ${esc(dayWord)} is drawn as one candle, and a candle is four prices: where the price opened, the highest
+    and lowest it reached, and where it closed. Only the last one, the <b>close</b>, is used here. The ${esc(dayWord)}'s <b>move</b> is how much the close changed since the close before it, in percent`;
+  if (candle && candle.before !== null && candle.on !== null) {
+    const diff = candle.on - candle.before;
+    // the difference in the close's own precision (price() would print 337 as 337.00)
+    const diffText = candle.before >= 1000 ? Math.round(Math.abs(diff)).toString() : (candle.before >= 10 ? Math.abs(diff).toFixed(2) : Math.abs(diff).toFixed(4));
+    step1 += `: ${esc(first.symbol)}'s previous close was ${price(candle.before)}; on ${esc(example.date)} it closed at ${price(candle.on)}, ${diffText} ${diff < 0 ? 'lower' : 'higher'}, a move of <b>${signedPct(first.ret, 2)}</b>`;
+  }
+  step1 += `. Nothing that happened within the ${esc(dayWord)} is used. Each new candle therefore adds exactly one number to the ${esc(meta.noun)}'s record: the move from the close before it to its own close.</p>`;
+
+  // step 2: the number goes into one of ten bins
+  let compare = '';
+  if (example && example.instruments.length > 1) {
+    const two = Math.log(1.02);
+    const placed = example.instruments.filter((i) => i.edges.length === view.k - 1).map((i) => ({ symbol: i.symbol, bin: binOfMove(two, i.edges) }));
+    if (placed.length > 1) {
+      const top = placed.reduce((a, b) => (b.bin > a.bin ? b : a));
+      const bottom = placed.reduce((a, b) => (b.bin < a.bin ? b : a));
+      if (top.bin !== bottom.bin) {
+        compare = ` Each ${esc(meta.noun)} has its own bins because the same move is a different event on each: on the strips below a +2% ${esc(dayWord)} lands in ${esc(top.symbol)}'s bin ${top.bin} but only in ${esc(bottom.symbol)}'s bin ${bottom.bin}.`;
+      }
+    }
+  }
+  if (!compare) compare = ` Each ${esc(meta.noun)} has its own bins, because the same move is a different event on each - ordinary for a volatile one, large for a calm one.`;
+  const step2 = `<p><b>2. The number goes into one of ${view.k} bins.</b> A bin is a <b>range of daily moves</b>, and every ${esc(meta.noun)} has its own ${view.k} ranges, cut from its own past:
+    take every daily move the ${esc(meta.noun)} has had on the days all the ${nouns} of this game traded side by side - years of them - sort them from the biggest fall to the biggest rise, and
+    cut the sorted list into ${view.k} equal piles. Each pile is one bin: bin 0 holds the ${esc(meta.noun)}'s worst tenth of days, bin ${view.k - 1} its best tenth, bins ${half - 1} and ${half} the days that
+    barely moved. The ${view.k - 1} cut points are the <b>bin edges</b>. They shift a little as days are added, and for any given day they are cut from the days before it only, so a day never
+    helps draw the lines that put it in its bin. Every bin therefore holds about one day in ${view.k}, like one face of a ${view.k}-sided die: a model that picks a bin blindly lands in the
+    right one about one time in ${view.k}, and that is the bar every model has to beat.${compare}</p>`;
+
+  // the strips: what a bin looks like, per instrument, with the real move and the best ticket
+  let strips = '';
+  if (example) {
+    const rows = example.instruments.map((inst, slot) => {
+      const predicted = best && best.bins[slot] !== undefined ? best.bins[slot] : null;
+      const cells = Array.from({ length: view.k }, (_, b) => {
+        const actual = inst.bin === b;
+        const played = predicted === b;
+        const style = actual ? 'background:#2c3e50; color:white; font-weight:bold;' : (played ? 'background:#d5f5e3;' : 'background:white;');
+        const border = played ? 'border:2px solid #27ae60;' : 'border:1px solid #ccd1d6;';
+        const title = `bin ${b}: ${intervalText(b, inst.edges, 2)}${actual ? ' - the day fell here' : ''}${played ? ` - ${best.name} predicted this` : ''}`;
+        return `<div style="flex:1; min-width:0; text-align:center; padding:3px 0; font-size:0.8em; ${style} ${border}" title="${esc(title)}">${b}</div>`;
+      }).join('');
+      const labels = Array.from({ length: view.k }, (_, b) => `<div style="flex:1; min-width:0; text-align:right; font-size:0.65em; color:#7f8c8d; transform:translateX(50%); white-space:nowrap;">${b < inst.edges.length ? esc(signedPct(inst.edges[b])) : ''}</div>`).join('');
+      return `<div style="display:flex; align-items:flex-start; gap:10px; margin:6px 0 14px;">
+        <div style="min-width:150px; font-size:0.9em; padding-top:3px;"><b>${esc(inst.symbol)}</b> <span style="color:${(inst.ret || 0) >= 0 ? '#27ae60' : '#c0392b'};">${signedPct(inst.ret, 2)}</span> &rarr; bin <b>${inst.bin === null ? '-' : inst.bin}</b></div>
+        <div style="flex:1; min-width:0;"><div style="display:flex; gap:1px;">${cells}</div><div style="display:flex; gap:1px; margin-right:0;">${labels}</div></div></div>`;
+    }).join('');
+    const ends = first && first.edges.length === view.k - 1
+      ? ` - ${esc(first.symbol)}'s bin ${half - 1} runs from ${esc(signedPct(first.edges[half - 2]))} to ${esc(signedPct(first.edges[half - 1]))}, while bin 0 is everything below ${esc(signedPct(first.edges[0]))} and bin ${view.k - 1} everything above ${esc(signedPct(first.edges[view.k - 2]))}, so the two end boxes have no outer edge`
+      : '';
+    strips = `<p style="margin:14px 0 2px;"><b>Worked example - ${esc(example.date)}, the newest settled day</b> (settled: its closes are in and every model's prediction for it has been scored against them).
+      Each strip is one ${esc(meta.noun)}'s ${view.k} bins, with the cut point between two bins written under their boundary. The boxes are drawn the same width because each holds a tenth of
+      the ${esc(meta.noun)}'s past days, not because the ranges are equal${ends}. The dark box is the bin the day's move fell in${best ? `; the green outline is the bin that ${esc(best.name)} - one of the
+      models, the one with the most exact hits that day - had predicted beforehand. That prediction is its ticket, explained in step 3` : ''}.</p>${rows}`;
+  } else {
+    strips = `<p style="color:#7f8c8d; font-size:0.9em;">The worked example - the newest day's moves on the ${view.k} bins, one strip per ${esc(meta.noun)} - appears here after the first settled day.</p>`;
+  }
+
+  // step 3: the draw, the ticket, the hit
+  let step3 = `<p><b>3. The bins side by side are the draw.</b> Every ${esc(dayWord)} is one draw with one slot per ${esc(meta.noun)}`;
   if (example) {
     const drawText = example.instruments.map((i) => (i.bin === null ? '?' : i.bin)).join(' ');
-    const best = example.models.find((m) => m.name === example.best) || example.models[0] || null;
-    worked += `<p style="margin:10px 0 6px;"><b>Worked example - ${esc(example.date)}, the newest settled day.</b></p>
-      <div class="table-wrapper" style="margin-top:0;"><table style="min-width:0;"><tr><th style="text-align:left;">${esc(meta.noun)}</th><th>Return, close to close</th><th>Bin</th><th>The bin's interval that day</th></tr>
-      ${example.instruments.map((i) => `<tr><td style="text-align:left; font-weight:bold;">${esc(i.symbol)}</td><td style="color:${(i.ret || 0) >= 0 ? '#27ae60' : '#c0392b'};">${signedPct(i.ret, 2)}</td><td><b>${i.bin === null ? '-' : i.bin}</b></td><td>${esc(intervalText(i.bin, i.edges))}</td></tr>`).join('')}
-      </table></div>
-      <p style="margin:8px 0 0;">So the draw of ${esc(example.date)} reads <b style="letter-spacing:2px;">${esc(drawText)}</b> on the <a href="${gameViewLink(market, example.date)}">game view</a>.`;
-    if (best) {
-      const cells = best.bins.map((b, i) => {
-        const actual = example.instruments[i] ? example.instruments[i].bin : null;
-        const hit = b !== null && actual !== null && b === actual;
-        const near = !hit && b !== null && actual !== null && Math.abs(b - actual) === 1;
-        return `<span style="display:inline-block; min-width:1.4em; text-align:center; padding:1px 4px; margin-right:2px; border-radius:3px; ${hit ? 'background:#2ecc71; color:white;' : (near ? 'background:#d5f5e3;' : 'background:#eee;')}">${b === null ? '?' : b}</span>`;
-      }).join('');
-      const settled = best.positions === null ? example.instruments.length : best.positions;
-      const neighbours = (best.adjacent === null || best.exact === null) ? null : best.adjacent - best.exact;
-      worked += ` ${esc(best.name)} had played ${cells} after the previous close - ${best.exact === null ? '-' : best.exact} of ${settled} ${esc(meta.noun)}s in the right bin (green), ${neighbours === null ? '-' : neighbours} more in a neighbouring bin (pale green), ${best.direction === null ? '-' : best.direction} on the right side of zero.`;
-    }
-    worked += '</p>';
+    step3 += `: the draw of ${esc(example.date)} reads <b style="letter-spacing:2px;">${esc(drawText)}</b>, which is what the <a href="${gameViewLink(market, example.date)}">game view</a> shows as digits`;
   }
+  step3 += `. A model's <b>ticket</b> is one bin per ${esc(meta.noun)}, made at 09:00 Belgian time after the previous candle has closed (${closeNote})`;
+  if (best) {
+    const cells = best.bins.map((b, i) => {
+      const actual = example.instruments[i] ? example.instruments[i].bin : null;
+      const hit = b !== null && actual !== null && b === actual;
+      const near = !hit && b !== null && actual !== null && Math.abs(b - actual) === 1;
+      return `<span style="display:inline-block; min-width:1.4em; text-align:center; padding:1px 4px; margin-right:2px; border-radius:3px; ${hit ? 'background:#2ecc71; color:white;' : (near ? 'background:#d5f5e3;' : 'background:#eee;')}">${b === null ? '?' : b}</span>`;
+    }).join('');
+    const settled = best.positions === null ? example.instruments.length : best.positions;
+    const neighbours = (best.adjacent === null || best.exact === null) ? null : best.adjacent - best.exact;
+    step3 += `. ${esc(best.name)} had played ${cells} after the previous close - ${best.exact === null ? '-' : best.exact} of ${settled} ${nouns} in the right bin (green), ${neighbours === null ? '-' : neighbours} more in a neighbouring bin (pale green), ${best.direction === null ? '-' : best.direction} on the right side of zero`;
+  }
+  const two = example && example.instruments.length > 1 ? example.instruments.slice(0, 2).map((i) => i.symbol) : [`one ${esc(meta.noun)}`, 'another'];
+  step3 += `. A <b>hit</b> is the right bin for the right ${esc(meta.noun)}, nothing else: a 7 played on ${esc(two[0])} is judged against ${esc(two[0])}'s own bin, and ${esc(two[1])} landing in 7 does not help it.
+    One bin off counts as <b>adjacent</b> (nearly right). <b>Direction</b> is whether the middle of the predicted bin has the same sign as the real move - up or down: that matters for the bin
+    that straddles zero (bin ${half - 1} on most days), which counts as down when its middle is below zero, and a day that closes exactly unchanged is a miss for every model.
+    Chance is 1 in ${view.k} for the exact bin, ${pct(c.adjacent, 0)} for adjacent (a blind guess spread over all ${view.k} bins: an inner bin is within one by luck ${Math.round(300 / view.k)}% of the time, an end bin ${Math.round(200 / view.k)}%)
+    and about ${pct(c.direction, 0)} for direction.</p>`;
+
+  // why bins, and that a bin is still a price range
+  let why = `<p><b>Why bins and not the price itself?</b> A price is never hit exactly, so "right" would need a tolerance, say &plusmn;1% - and with a fixed band a model that always says
+    "unchanged" scores a hit on every day that moves less than the band. That score would measure how calm the ${esc(meta.noun)} was, not the model, and the same &plusmn;1% would mean one thing
+    for a volatile ${esc(meta.noun)} and another for a calm one. With each ${esc(meta.noun)}'s own bins any answer - always bin ${half - 1}, always bin ${view.k - 1} - is right by luck about one time in ${view.k},
+    because every bin has held one day in ${view.k} of its past. About, not exactly: the edges come from the past and the day being scored is a new one, so in a calm stretch the middle bins
+    come up more often than one in ${view.k}, in a wild stretch the outer ones. That tilt - how big the move will be, not which way - is the one thing about a day's move known to be somewhat
+    predictable, and the GARCH row, a model that forecasts only that, sits in the table to show how much of a score is just that tilt. So the question this project asks - do these models beat
+    luck, and beat a plain volatility model? - has a clean answer, read against the same controls as the lottery games.</p>
+    <p style="margin-bottom:0;"><b>A bin is still a price range</b>`;
+  if (first && candle && candle.before !== null && first.bin !== null && first.edges.length) {
+    const [lo, hi] = binInterval(first.bin, first.edges);
+    const low = lo === null ? null : candle.before * Math.exp(lo);
+    const high = hi === null ? null : candle.before * Math.exp(hi);
+    const straddles = lo !== null && hi !== null && lo < 0 && hi > 0;
+    const middle = straddles ? (lo + hi) / 2 : null;
+    why += `: ${esc(first.symbol)}'s bin ${first.bin} on ${esc(example.date)} ran from ${esc(intervalText(first.bin, first.edges, 2))}${straddles ? ` (this bin straddles zero; its middle sits a hair ${middle < 0 ? 'below' : 'above'} zero, so for direction it counts as ${middle < 0 ? 'down' : 'up'})` : ''}, which from the close of ${price(candle.before)} means a close
+      ${low === null ? `below about ${price(high)}` : (high === null ? `above about ${price(low)}` : `between about ${price(low)} and ${price(high)}`)}`;
+  }
+  why += `. That is why the charts below can draw a predicted bin as a price, and the table under each chart lists the band.</p>`;
+
   html += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">How a day becomes a draw</span>
-    <span class="card-meta" style="margin-left:10px;">what the digits on the game view mean here</span></div><div class="card-icon">▼</div></div>
-    <div class="card-body"><p style="margin-top:0;">${esc(meta.calendar.replace(/ \(.*\)$/, '').replace(/^./, (c) => c.toUpperCase()))} is one draw with one slot per ${esc(meta.noun)}. A ${esc(meta.noun)}'s "number" is the <b>bin</b> of its
-    return from the previous close to this close: its past returns are cut into ${view.k} equally likely tenths, bin 0 is a day among the worst tenth it has ever had,
-    bin ${view.k - 1} among the best tenth, and bins ${half - 1} and ${half} sit around zero. The edges are fitted on that ${esc(meta.noun)}'s returns before the day, so each bin held
-    1 in ${view.k} of that past - the chance level a model's exact rate is read against, over many days and beyond the null band the controls give it, never from a handful of days.
-    A model's <b>ticket</b> is one bin per ${esc(meta.noun)}, made in the morning after the previous close (for crypto a few hours into the UTC day it predicts, for shares before
-    New York opens - a Monday's ticket is made on the Saturday); a <b>hit</b> is the right bin in the right slot (never a set: the same digit on another ${esc(meta.noun)} means nothing),
-    and the <b>direction</b> is whether the predicted bin lies on the same side of zero as the real return. A predicted bin is a return interval, which is why this page can draw it
-    as a price on the chart and list the price band it stands for under it.${worked}
-    <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:0;">The <a href="/database/${esc(market)}">game view</a> shows these same digits in the lottery layout, scored the same way (the right bin in the right slot).${view.days.length ? ' The <i>Day by day</i> card below is that history translated back into returns.' : ''}</p></div></div>`;
+    <span class="card-meta" style="margin-left:10px;">read this first: what a bin is, what a ticket is, what a hit is</span></div><div class="card-icon">▼</div></div>
+    <div class="card-body" style="max-width:1080px;">${step1}${step2}${strips}${step3}${why}
+    <p style="color:#7f8c8d; font-size:0.85em; margin:10px 0 0;">Strictly, every move and edge on this page is a log return - the kind that adds up day over day - rather than a chart's plain percentage change;
+    for ordinary days the two are the same number, at the &plusmn;3% edges they differ by a few hundredths of a percent, at &plusmn;6% by about two tenths.
+    The <a href="/database/${esc(market)}">game view</a> shows these same digits in the lottery layout, scored the same way (the right bin for the right ${esc(meta.noun)}).${view.days.length ? ' The <i>Day by day</i> card below is that history translated back into moves.' : ''}</p></div></div>`;
 
   // models
   html += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Models over ${view.scoredDays} scored day(s)</span>
@@ -380,11 +511,15 @@ function page(market, view, header, footer, user) {
       <td>${price(p.price)}</td><td>${p.low === null ? 'below ' + price(p.high) : (p.high === null ? 'above ' + price(p.low) : `${price(p.low)} - ${price(p.high)}`)}</td></tr>`).join('');
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${esc(inst.symbol)} - ${esc(inst.name)}</span>
       <span class="card-meta" style="margin-left:10px;">last close ${price(inst.lastClose)} ${esc(inst.quote)} on ${esc(inst.lastDate || '-')}${inst.active ? '' : ' (inactive)'}</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><div style="height:260px;"><canvas id="${id}"></canvas></div>
-      <script>new Chart(document.getElementById('${id}').getContext('2d'), { type: 'line', data: { labels: ${JSON.stringify(chartLabels)}, datasets: ${JSON.stringify(datasets)} },
-        options: { maintainAspectRatio: false, spanGaps: true, plugins: { legend: { labels: { boxWidth: 12 } } }, scales: { x: { ticks: { maxTicksLimit: 8 } } } } });</script>
-      <p style="color:#7f8c8d; font-size:0.85em;">The dashed lines are the price each model's predicted bin stood for, day by day (previous close moved by the bin's
-        middle return); the last dashed point is the prediction for the next trading day${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.</p>
+      <div class="card-body"><div class="chart-tools">${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${id}', ${days})">${label}</button>`).join('')}
+        <button type="button" onclick="marketReset('${id}')" style="margin-left:6px;">Reset zoom</button>
+        <span class="hint">scroll or pinch to zoom, drag to pan</span></div>
+      <div style="height:420px;"><canvas id="${id}"></canvas></div>
+      <script>window.marketCharts['${id}'] = new Chart(document.getElementById('${id}').getContext('2d'), { type: 'line', data: { labels: ${JSON.stringify(chartLabels)}, datasets: ${JSON.stringify(datasets)} },
+        options: { maintainAspectRatio: false, spanGaps: true, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { boxWidth: 12 } }, zoom: ${JSON.stringify(ZOOM_OPTIONS)} }, scales: { x: { ticks: { maxTicksLimit: 10 } } } } });</script>
+      <p style="color:#7f8c8d; font-size:0.85em;">A year of closes${view.drawn.length ? '; the dashed lines are the price each model\'s predicted bin stood for, day by day (previous close moved by the bin\'s middle return), and the last dashed point is the prediction for the next trading day' : ''}${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.
+        Scroll on the chart or pinch to zoom in on a period, drag to move along it, or use the buttons; the predicted lines start where the tracking started.</p>
       ${nextRows ? `<div class="table-wrapper"><table><tr><th style="text-align:left;">Next day, per model</th><th>Bin</th><th>Direction</th><th>Price it stands for</th><th>Interval</th></tr>${nextRows}</table></div>`
         : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
       </div></div>`;
@@ -405,5 +540,5 @@ function install(app, { header, footer, dataDir, controlsDir }) {
   });
 }
 
-module.exports = { MARKETS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, binInterval, intervalText, gameViewLink,
+module.exports = { MARKETS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, binInterval, intervalText, binOfMove, gameViewLink,
   signedPct, page, install, pct, money, price };
