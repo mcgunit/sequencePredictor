@@ -25,10 +25,14 @@ const record = {
     { symbol: 'ETH', name: 'Ethereum', position: 1, quote: 'USDT', active: false, last_close: 3000, last_date: '2026-10-01', closes: [], edges: [1, 2], moves: 'x', course: { 'Markov Model': [1] } },
   ],
   models: [
-    { name: 'Markov Model', days: 12, positions: 60, exact_rate: 0.15, adjacent_rate: 0.3, direction_rate: 0.45, trades: 25, pnl_total: 0.0123, pnl_per_trade: 0.000492, first_day: '2026-09-20', last_day: '2026-10-01' },
+    { name: 'Markov Model', days: 12, positions: 60, exact_rate: 0.15, adjacent_rate: 0.3, direction_rate: 0.45, trades: 25, pnl_total: 0.0123, pnl_per_trade: 0.000492, first_day: '2026-09-20', last_day: '2026-10-01',
+      pnl_cash_total: 12.34, pnl_cash_per_trade: 0.4936, wins: 14, win_rate: 0.56 },
     { name: 'Odd Model', days: 3, positions: 15, exact_rate: null, adjacent_rate: 0.2, direction_rate: 0.6, trades: 0, pnl_total: 0, pnl_per_trade: null },
   ],
   drawn_models: ['Markov Model'], best_model: 'Markov Model',
+  trading: { stake: 100, fee_per_leg: 0.001, currency: 'USDT', rule: 'long when up', dates: ['2026-09-30', '2026-10-01'],
+    models: { 'Markov Model': [['2026-09-30', 5.5, 5.5], ['2026-10-01', 6.84, 12.34]], 'Odd Model': [['2026-09-30', null, null], ['2026-10-01', 0, 0]] },
+    benchmark: [['2026-09-30', -1.2, -1.2], ['2026-10-01', 3.0, 1.8]] },
   next: { made_on: '2026-10-01', for: 'the next trading day', instruments: {
     BTC: { last_close: 84000, last_date: '2026-10-01', predictions: [
       { model: 'Markov Model', bin: 7, direction: 1, price: 84900, low: 84500, high: 85300 },
@@ -39,7 +43,7 @@ const record = {
     { date: '2026-10-01', best: 'Markov Model', exact_mean: 0.25,
       instruments: [{ symbol: 'BTC', return: 0.004, bin: 6, edges: [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025] },
                     { symbol: 'ETH', return: -0.041, bin: 0, edges: [-0.04, -0.025, -0.012, -0.005, 0.0, 0.004, 0.011, 0.02, 0.03] }],
-      models: [{ name: 'Markov Model', bins: [6, 3], exact: 1, adjacent: 1, direction: 1, positions: 2, pnl: 0.003, trades: 1 },
+      models: [{ name: 'Markov Model', bins: [6, 3], exact: 1, adjacent: 1, direction: 1, positions: 2, pnl: 0.003, pnl_cash: 0.2, trades: 1 },
                { name: 'Odd Model', bins: [1, null], exact: 0, adjacent: 0, direction: 0, positions: 2, pnl: 0, trades: 0 }] },
     { date: '2026-09-30', best: 'Odd Model', exact_mean: 0, instruments: [{ symbol: 'BTC', return: -0.002, bin: 4, edges: [] }, { symbol: 'ETH', return: 0.001, bin: 5, edges: [] }], models: [] },
     { date: 'bad' },
@@ -92,6 +96,10 @@ const markov = view.models[0];
 ok(markov.name === 'Markov Model' && markov.aboveExact && markov.aboveAdjacent && !markov.aboveDirection,
   'rates are read against chance: 15% exact and 30% adjacent are above, 45% direction is not');
 ok(view.models[1].exact === null && !view.models[1].aboveExact && view.models[1].pnlPerTrade === null, 'missing rates read as null, never above chance');
+ok(markov.pnlCash === 12.34 && markov.winRate === 0.56 && markov.wins === 14 && view.models[1].pnlCash === null, 'the money fields pass through, missing ones read as null');
+ok(view.trading && view.trading.stake === 100 && view.trading.currency === 'USDT' && view.trading.dates.length === 2 && view.trading.models['Markov Model'][1].total === 12.34
+  && view.trading.models['Odd Model'][0].total === null && view.trading.benchmark[1].total === 1.8 && markets.describeTrading(null) === null && markets.describeTrading({ models: 7 }).dates.length === 0,
+  'the trading book describes per model and for the market, and tolerates a missing or odd record');
 const btc = view.instruments[0];
 ok(btc.closes.length === 3 && btc.lastClose === 84500 && btc.nextBase === 84000 && btc.nextDate === '2026-10-01', 'a malformed close point is dropped; the next-day base is the newest game day\'s close, not the newer bar');
 ok(btc.edges.length === 3 && btc.edges[0] === null && btc.edges[2].length === 9 && btc.moves.join(',') === ',0.00195,0.004'
@@ -152,7 +160,17 @@ const header = (title, user) => `<html><title>${title}</title><body>${user ? use
 const footer = () => '</body></html>';
 const html = markets.page('crypto', view, header, footer, { name: 'ann' });
 ok(html.includes('<title>Crypto predictor</title>') && html.includes('ann'), 'the page uses the shared header');
-ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+0.0123'), 'the models table shows rates and P&L');
+ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+12.34') && html.includes('>56%<') && html.includes('P&amp;L USDT') && !html.includes('+0.0123'),
+  'the models table shows rates, the win rate and the money, not the fraction');
+ok(html.includes('card-title">Paper trading') && html.includes('best book +12.34 USDT (Markov Model), the market +1.80') && html.includes("marketRender('ledger-crypto')")
+  && html.includes(`data-chart="ledger-crypto" data-model="Markov Model" checked`) && html.includes(`data-chart="ledger-crypto" data-model="Odd Model" onchange`)
+  && html.includes('100 USDT</b> is bought at the previous close'),
+  'the paper-trading card names the rule, the best book against the market, and switches every model with the best on');
+const bookData = JSON.parse(html.match(/window\.marketData\['ledger-crypto'\] = (\{.*?\}); marketRender/s)[1]);
+ok(bookData.kind === 'ledger' && bookData.labels.join(',') === '2026-09-30,2026-10-01' && bookData.benchmark.join(',') === '-1.2,1.8' && bookData.series['Markov Model'].join(',') === '5.5,12.34'
+  && bookData.series['Odd Model'][0] === null && bookData.best === 'Markov Model',
+  'the book data is aligned to the settled days with the running totals');
+ok(!markets.page('crypto', markets.describeMarket({ ...record, trading: undefined }), header, footer, null).includes('card-title">Paper trading'), 'without a book there is no paper-trading card');
 ok(html.includes("marketRender('chart-crypto-BTC')") && html.includes("marketRender('chart-crypto-ETH')") && html.includes('daily-crypto')
   && (html.match(/new Chart\(/g) || []).length === 2, 'one chart per instrument through the client, plus the daily chart');
 ok(html.includes('chartjs-plugin-zoom') && html.includes('hammer.min.js') && html.includes('Chart.register(window.ChartZoom)') && html.includes("wheel: { enabled: true }")
@@ -224,6 +242,14 @@ w.marketState.t = { view: 'moves' }; w.marketRender('t');
 const tipPct = sandbox.lastConfig.options.plugins.tooltip;
 ok(tipPct.callbacks.label({ raw: [0.3, 0.8999999], dataset: { label: 'M' } }) === 'M: +0.30% to +0.90%' && sandbox.lastConfig.options.scales.y.beginAtZero === undefined,
   'in the moves view tooltips read in percent and zero stays on the axis');
+w.marketData.book = bookData;
+const bookModel = w.marketChartModel('book', 'lines', ['Markov Model']);
+ok(bookModel.datasets.length === 2 && bookModel.datasets[0].label === 'market, always long' && bookModel.datasets[0].data.join(',') === '-1.2,1.8'
+  && bookModel.datasets[1].model === 'Markov Model' && bookModel.datasets[1].data.join(',') === '5.5,12.34' && bookModel.money === true && bookModel.yTitle.includes('USDT'),
+  'the book chart: the market dashed, each switched-on model\'s running total as a line');
+w.marketRender('book');
+ok(sandbox.lastConfig.options.plugins.tooltip.callbacks.label({ raw: 12.345, dataset: { label: 'M' } }) === 'M: +12.35' && sandbox.lastConfig.options.scales.y.grid !== undefined,
+  'book tooltips read as signed money and the zero line is drawn');
 w.marketData.long = Object.assign({}, embedded, { labels: Array.from({ length: 40 }, (_, i) => `d${i}`), closes: Array.from({ length: 40 }, () => 1), edges: Array.from({ length: 40 }, () => null),
   moves: Array.from({ length: 40 }, () => null), course: {} });
 w.marketRender('long');

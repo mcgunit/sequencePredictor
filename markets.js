@@ -117,6 +117,7 @@ function describeMarket(record, extras) {
       aboveAdjacent: adjacent !== null && adjacent > chance.adjacent,
       aboveDirection: direction !== null && direction > chance.direction,
       pnlTotal: num(m.pnl_total), pnlPerTrade: num(m.pnl_per_trade),
+      pnlCash: num(m.pnl_cash_total), pnlCashPerTrade: num(m.pnl_cash_per_trade), wins: num(m.wins), winRate: num(m.win_rate),
       firstDay: m.first_day || null, lastDay: m.last_day || null,
     };
   });
@@ -159,6 +160,21 @@ function describeMarket(record, extras) {
     rows: describeRows(extras && extras.rows ? extras.rows : null),
     regimes: describeRegimes(extras && extras.regimes ? extras.regimes : null, instruments.map((i) => i.symbol)),
     days: describeDays(record.days),
+    trading: describeTrading(record.trading),
+  };
+}
+
+// The paper-trading book (MarketSettle.ledger): per model the money made per
+// settled day and the running total, the market benchmark, stake and fees.
+function describeTrading(t) {
+  if (!t || typeof t !== 'object') return null;
+  const point = (p) => (Array.isArray(p) && p.length === 3 && typeof p[0] === 'string' ? { date: p[0], pnl: num(p[1]), total: num(p[2]) } : null);
+  const series = (arr) => (Array.isArray(arr) ? arr.map(point).filter(Boolean) : []);
+  const models = {};
+  if (t.models && typeof t.models === 'object') Object.keys(t.models).forEach((m) => { models[m] = series(t.models[m]); });
+  return {
+    stake: num(t.stake), feePerLeg: num(t.fee_per_leg), currency: t.currency ? String(t.currency) : '', rule: t.rule ? String(t.rule) : '',
+    dates: Array.isArray(t.dates) ? t.dates.map(String) : [], models, benchmark: series(t.benchmark),
   };
 }
 
@@ -174,7 +190,7 @@ function describeDays(days) {
     })),
     models: (Array.isArray(d.models) ? d.models : []).filter((m) => m && typeof m === 'object' && m.name !== undefined).map((m) => ({
       name: String(m.name), bins: Array.isArray(m.bins) ? m.bins.map((b) => (b === null ? null : num(b))) : [],
-      exact: num(m.exact), adjacent: num(m.adjacent), direction: num(m.direction), positions: num(m.positions), pnl: num(m.pnl), trades: num(m.trades),
+      exact: num(m.exact), adjacent: num(m.adjacent), direction: num(m.direction), positions: num(m.positions), pnl: num(m.pnl), pnlCash: num(m.pnl_cash), trades: num(m.trades),
     })),
     best: d.best || null, exactMean: num(d.exact_mean),
   }));
@@ -244,6 +260,14 @@ var MARKET_REAL = 'rgba(44,62,80,0.75)';
 function marketChartModel(id, view, enabled) {
   var d = window.marketData[id]; var n = d.labels.length; var last = n - 1;   // the last label is 'next'
   var datasets = [];
+  if (d.kind === 'ledger') {   // the paper-trading book: cumulative money per model, the market as the dashed grey line
+    datasets.push({ type: 'line', label: 'market, always long', data: d.benchmark, borderColor: '#7f8c8d', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, order: 1, legendColour: '#7f8c8d' });
+    enabled.forEach(function (model) {
+      var colour = d.colours[model] || '#7f8c8d';
+      datasets.push({ type: 'line', label: model, data: d.series[model] || [], borderColor: colour, backgroundColor: colour, borderWidth: 2, pointRadius: 0, tension: 0, order: 0, legendColour: colour, model: model });
+    });
+    return { datasets: datasets, yTitle: 'cumulative P&L, ' + d.currency + ' (' + d.stake + ' per position)', percent: false, money: true };
+  }
   var call = function (model, i) {   // {base, rep, lo, hi} in return space for label i, or null
     if (i === last) {
       var nx = d.next[model]; if (!nx || nx.price === null || d.lastClose === null) return null;
@@ -306,8 +330,8 @@ function marketChartModel(id, view, enabled) {
 function marketEnabled(id) {
   return Array.prototype.slice.call(document.querySelectorAll('input[data-chart="' + id + '"]')).filter(function (b) { return b.checked; }).map(function (b) { return b.getAttribute('data-model'); });
 }
-function marketTooltip(percent) {
-  var one = function (v) { return percent ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : marketPrice(v); };
+function marketTooltip(percent, money) {
+  var one = function (v) { return percent ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : (money ? (v >= 0 ? '+' : '') + v.toFixed(2) : marketPrice(v)); };
   return { filter: function (item) { return item.raw !== null && item.raw !== undefined && !item.dataset.legendHidden; },
     callbacks: { label: function (item) { var r = item.raw; return item.dataset.label + ': ' + (Array.isArray(r) ? one(r[0]) + ' to ' + one(r[1]) : one(r)); } } };
 }
@@ -342,11 +366,11 @@ function marketRender(id) {
   if (!model.percent) scales.y.beginAtZero = false;   // the bar controller's scale override would otherwise start the price axis at 0
   if (state.min !== undefined) scales.x.min = state.min;
   if (state.max !== undefined) scales.x.max = state.max;
-  if (model.percent) scales.y.grid = { color: function (ctx) { return ctx.tick && ctx.tick.value === 0 ? '#2c3e50' : 'rgba(0,0,0,0.08)'; } };
+  if (model.percent || model.money) scales.y.grid = { color: function (ctx) { return ctx.tick && ctx.tick.value === 0 ? '#2c3e50' : 'rgba(0,0,0,0.08)'; } };
   var zoom = window.ChartZoom ? { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: false }, mode: 'x' }, pan: { enabled: true, mode: 'x' } } : undefined;
   window.marketCharts[id] = new Chart(document.getElementById(id).getContext('2d'), { type: 'line', data: { labels: d.labels, datasets: model.datasets },
     options: { maintainAspectRatio: false, spanGaps: true, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: marketLegend(id), tooltip: marketTooltip(model.percent), zoom: zoom }, scales: scales } });
+      plugins: { legend: marketLegend(id), tooltip: marketTooltip(model.percent, model.money), zoom: zoom }, scales: scales } });
   document.querySelectorAll('button[data-view-for="' + id + '"]').forEach(function (b) {
     var on = b.getAttribute('data-view') === state.view; b.style.background = on ? '#2c3e50' : 'white'; b.style.color = on ? 'white' : '#2c3e50';
   });
@@ -396,8 +420,9 @@ function page(market, view, header, footer, user) {
     Each ${esc(meta.noun)}'s next-day return is cut into ${view.k} equiprobable bins fitted on its own past (see README, roadmap item 4), and every model
     predicts one bin per ${esc(meta.noun)}, ${esc(meta.calendar)}. A bin is a return interval, so it is drawn as a predicted price on the chart, with the price band it stands for in the table beneath.
     Chance is ${pct(c.exact, 0)} for the exact bin, ${pct(c.adjacent, 0)} for the adjacent bin and ${pct(c.direction, 0)} for the direction.
-    <b>Paper P&amp;L</b> is the fixed rule - long when the predicted bin is in the upper half, flat otherwise, minus a fee of ${pct(view.fee, 2)} per position - in
-    units of the ${esc(meta.unit)} price (0.01 = 1%). Results settle the morning after, when the day's bar has closed.</p>`;
+    <b>Paper trading</b> turns every call into money with one fixed rule: when a model's bin says up (the upper half), ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)}
+    is bought at the previous close and sold at the day's close, a ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} fee on each leg; otherwise it sits out.
+    Results settle the morning after, when the day's bar has closed.</p>`;
 
   // how a day becomes a draw - for a newcomer, in three steps, with the newest
   // settled day as the worked example and a strip per instrument showing what
@@ -543,16 +568,54 @@ function page(market, view, header, footer, user) {
     <div class="card-body"><div class="table-wrapper"><table>
     <tr><th style="text-align:left;">Model</th><th>Days</th><th title="predicted bin equals the actual bin; chance ${pct(c.exact, 0)}">Exact</th>
     <th title="within one bin; chance ${pct(c.adjacent, 0)}">Adjacent</th><th title="sign of the predicted return equals the real one; chance ${pct(c.direction, 0)}">Direction</th>
-    <th title="positions taken (predicted bin in the upper half)">Trades</th><th title="sum of real returns of the positions taken, minus the fee">P&amp;L</th><th>P&amp;L / trade</th></tr>`;
-  if (!view.models.length) html += `<tr><td colspan="8" style="color:#aaa;">no settled day yet - the first predictions settle tomorrow morning</td></tr>`;
+    <th title="positions taken (predicted bin in the upper half)">Trades</th><th title="positions that made money after both fees">Win rate</th>
+    <th title="money made by the positions taken: the stake bought at the previous close, sold at the day's close, a fee on each leg">P&amp;L ${esc(meta.unit)}</th><th>per trade</th></tr>`;
+  if (!view.models.length) html += `<tr><td colspan="9" style="color:#aaa;">no settled day yet - the first predictions settle tomorrow morning</td></tr>`;
   view.models.forEach((m) => {
     const mark = (above, text) => `<span style="${above ? 'color:#27ae60; font-weight:bold;' : ''}">${text}</span>`;
     html += `<tr><td style="text-align:left; font-weight:bold;">${esc(m.name)}</td><td>${m.days === null ? '-' : m.days}</td>
       <td>${mark(m.aboveExact, pct(m.exact))}</td><td>${mark(m.aboveAdjacent, pct(m.adjacent))}</td><td>${mark(m.aboveDirection, pct(m.direction))}</td>
-      <td>${m.trades === null ? '-' : m.trades}</td><td style="color:${(m.pnlTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};">${money(m.pnlTotal)}</td><td>${money(m.pnlPerTrade, 5)}</td></tr>`;
+      <td>${m.trades === null ? '-' : m.trades}</td><td>${pct(m.winRate, 0)}</td>
+      <td style="color:${(m.pnlCash || 0) >= 0 ? '#27ae60' : '#c0392b'}; font-weight:bold;">${money(m.pnlCash, 2)}</td><td>${money(m.pnlCashPerTrade, 2)}</td></tr>`;
   });
   html += `</table></div><p style="color:#7f8c8d; font-size:0.85em;">Green: above chance. With ${view.instruments.length} ${esc(meta.noun)}s a day and a
-    handful of days, a rate above chance is noise more often than not; read the rows over months, and against the null band the controls give the lottery rows.</p></div></div>`;
+    handful of days, a rate above chance is noise more often than not; read the rows over months, and against the null band the controls give the lottery rows.
+    P&amp;L is paper money: ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} per position, ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} on each leg - see the book below.</p></div></div>`;
+
+  // the paper-trading book: cumulative money per model against the market
+  if (view.trading && view.trading.dates.length) {
+    const t = view.trading;
+    const bookId = `ledger-${esc(market)}`;
+    const bookModels = view.models.map((m) => m.name).filter((m) => t.models[m]);
+    Object.keys(t.models).forEach((m) => { if (!bookModels.includes(m)) bookModels.push(m); });
+    const bookColours = Object.fromEntries(bookModels.map((m, i) => [m, COLOURS[i % COLOURS.length]]));
+    const bookBest = view.best && bookModels.includes(view.best) ? view.best : (bookModels[0] || null);
+    const byDate = (points) => Object.fromEntries(points.map((p) => [p.date, p.total]));
+    const bookData = {
+      kind: 'ledger', symbol: 'book', quote: t.currency, labels: t.dates, currency: t.currency, stake: t.stake,
+      benchmark: (() => { const m = byDate(t.benchmark); return t.dates.map((d) => (m[d] === undefined ? null : m[d])); })(),
+      series: Object.fromEntries(bookModels.map((m) => { const idx = byDate(t.models[m]); return [m, t.dates.map((d) => (idx[d] === undefined ? null : idx[d]))]; })),
+      colours: bookColours, best: bookBest,
+    };
+    const richest = view.models.filter((m) => m.pnlCash !== null).sort((a, b) => b.pnlCash - a.pnlCash)[0] || null;
+    const marketTotal = t.benchmark.length ? t.benchmark[t.benchmark.length - 1].total : null;
+    const bookSwitches = bookModels.map((m) => `<label><input type="checkbox" data-chart="${bookId}" data-model="${esc(m)}"${m === bookBest ? ' checked' : ''} onchange="marketToggle('${bookId}')">
+      <span class="swatch" style="background:${bookColours[m]};"></span>${esc(m)}</label>`).join('');
+    html += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Paper trading</span>
+      <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body"><p style="margin-top:0; color:#555;">One rule, the same for every model: each morning, for every ${esc(meta.noun)} whose bin a model calls up (5 or higher),
+      <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> is bought at the previous close and sold at that day's close, with ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell;
+      a ${esc(meta.noun)} the model calls flat or down is sat out. The grey dashed line is the <b>market</b>: buying every ${esc(meta.noun)} every day with the same stake and fees -
+      what the ${esc(meta.noun)}s themselves gave over these days, which a model has to beat before its book means anything. A flat day costs a position the two fees, so a model that
+      calls "up" on small moves bleeds fees. Holding a position when the next call is up again (one fee pair saved), and shorts, are the next steps.</p>
+      <div class="chart-tools">${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${bookId}', ${days})">${label}</button>`).join('')}
+        <button type="button" onclick="marketReset('${bookId}')" style="margin-left:6px;">Reset zoom</button><span class="hint">cumulative ${esc(t.currency)} per model; scroll or pinch to zoom, drag to pan</span></div>
+      <div class="chart-models"><span style="color:#7f8c8d;">Models: <a href="#" onclick="marketModels('${bookId}', 'best'); return false;">best</a><a href="#" onclick="marketModels('${bookId}', 'all'); return false;">all</a><a href="#" onclick="marketModels('${bookId}', 'none'); return false;">none</a></span>${bookSwitches}</div>
+      <div style="height:320px;"><canvas id="${bookId}"></canvas></div>
+      <script>window.marketData['${bookId}'] = ${JSON.stringify(bookData)}; marketRender('${bookId}');</script>
+      <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:0;">The models table above has each model's total, win rate and money per trade${view.days.length ? '; the <i>Day by day</i> card shows the money each day' : ''}.
+      Paper money: no slippage, no funding, fills at the close - a yardstick, not a result.</p></div></div>`;
+  }
 
   // daily accuracy
   if (view.daily.length) {
@@ -584,12 +647,12 @@ function page(market, view, header, footer, user) {
           return `<td style="${hit ? 'background:#2ecc71; color:white;' : (near ? 'background:#d5f5e3;' : '')}" title="${inst ? esc(intervalText(b, inst.edges)) : ''}${b === null ? '' : (b >= half ? ' - rule: long' : ' - rule: flat')}">${b === null ? '-' : b} ${arrow}</td>`;
         }).join('');
         return `<tr><td style="text-align:left; font-weight:bold;">${esc(m.name)}</td>${cells}<td>${m.exact === null ? '-' : m.exact}/${m.positions === null ? '-' : m.positions}</td>
-          <td>${m.direction === null ? '-' : m.direction}/${m.positions === null ? '-' : m.positions}</td><td style="color:${(m.pnl || 0) >= 0 ? '#27ae60' : '#c0392b'};">${money(m.pnl)}</td></tr>`;
+          <td>${m.direction === null ? '-' : m.direction}/${m.positions === null ? '-' : m.positions}</td><td style="color:${((m.pnlCash !== null ? m.pnlCash : m.pnl) || 0) >= 0 ? '#27ae60' : '#c0392b'};">${m.pnlCash !== null ? money(m.pnlCash, 2) : money(m.pnl)}</td></tr>`;
       }).join('');
       return `<details style="border-bottom:1px solid #eee; padding:8px 0;"><summary style="cursor:pointer; display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
         <b style="min-width:100px;">${esc(d.date)}</b> ${instrumentCells}
         <span style="margin-left:auto; color:#7f8c8d; font-size:0.9em;">best ${esc(d.best || '-')} · mean exact ${pct(d.exactMean, 0)} · <a href="${gameViewLink(market, d.date)}">game view</a></span></summary>
-        <div class="table-wrapper" style="margin-top:8px;"><table><tr><th style="text-align:left;">Model (ticket made after the previous close)</th>${symbols.map((sym) => `<th>${esc(sym)}</th>`).join('')}<th title="right bin in the right slot">Exact</th><th title="predicted bin on the same side of zero as the real return">Direction</th><th title="fixed rule: long when the bin is in the upper half, minus the fee">P&amp;L</th></tr>${modelRows}</table></div></details>`;
+        <div class="table-wrapper" style="margin-top:8px;"><table><tr><th style="text-align:left;">Model (ticket made after the previous close)</th>${symbols.map((sym) => `<th>${esc(sym)}</th>`).join('')}<th title="right bin in the right slot">Exact</th><th title="predicted bin on the same side of zero as the real return">Direction</th><th title="paper money that day: the stake per long position, a fee on each leg">P&amp;L ${esc(meta.unit)}</th></tr>${modelRows}</table></div></details>`;
     }).join('');
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Day by day</span>
       <span class="card-meta" style="margin-left:10px;">the newest ${view.days.length} settled day(s) as returns and bins; open a day for every model's ticket</span></div><div class="card-icon">▼</div></div>
@@ -718,5 +781,5 @@ function install(app, { header, footer, dataDir, controlsDir }) {
   });
 }
 
-module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, binInterval,
+module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading, binInterval,
   intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };

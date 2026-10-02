@@ -1610,6 +1610,11 @@ function marketSectionLines(game) {
   if (view.models.length) {
     const best = view.models[0];
     lines.push(`${view.models.length} model rows over ${view.scoredDays} day(s); best exact rate ${markets.pct(best.exact)} (${best.name}), chance ${markets.pct(view.chance.exact, 0)}`);
+    const richest = view.models.filter((m) => m.pnlCash !== null).sort((a, b) => b.pnlCash - a.pnlCash)[0];
+    const marketBook = view.trading && view.trading.benchmark.length ? view.trading.benchmark[view.trading.benchmark.length - 1].total : null;
+    if (richest && view.trading) {
+      lines.push(`best paper book ${markets.money(richest.pnlCash, 2)} ${view.trading.currency} (${richest.name})${marketBook === null ? '' : `, the market ${markets.money(marketBook, 2)}`}, ${view.trading.stake} per position`);
+    }
   }
   const reading = view.regimes.find((r) => r.row === 'Regime HMM Model');
   if (reading && reading.label) lines.push(`regime reading: ${reading.label} (${markets.pct(reading.probability, 0)} sure)${reading.date ? `, after ${reading.date}` : ''}`);

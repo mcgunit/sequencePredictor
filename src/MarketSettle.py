@@ -48,6 +48,15 @@ except ImportError:  # imported from within src/
                             predicted_price, price_interval, representative_return)
 
 FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchange; shares are cheaper, this is the conservative one
+# Paper trading in money (2 Oct 2026, the owner's ask: "for each prediction 1 is
+# bought and the next day sold"): a fixed stake per position in the quote
+# currency, bought at the previous game day's close when a model's bin says up
+# (the upper half), sold at the day's close, a fee on each leg; flat otherwise.
+# A fixed stake rather than one coin or one share, because one BTC and one XRP
+# are not comparable positions. Holding across days and shorts are the later
+# extensions the owner named; this is the first, simplest rule.
+STAKE = 100.0          # per position, in USDT (crypto) or USD (shares)
+FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell
 CHART_DAYS = 365       # closes and predicted course the page draws (a year; the chart zooms)
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
 DAY_RECORDS = 30       # settled days the page lists day by day, newest first
@@ -73,6 +82,16 @@ def day_file_date(name):
 
 def chance_levels(k=K_BINS):
     return {"exact": 1.0 / k, "adjacent": (3 * k - 2) / (k * k), "direction": 0.5}
+
+
+def cash_pnl(ret, stake=STAKE, fee=FEE_PER_LEG):
+    """
+    Money made by one position: `stake` bought at the previous close with a
+    fee on it, sold at the close (stake x exp(ret)) with a fee on the
+    proceeds. Negative when the move does not cover the two fees.
+    """
+    proceeds = stake * math.exp(float(ret))
+    return proceeds * (1.0 - fee) - stake * (1.0 + fee)
 
 
 def utc_now():
@@ -165,30 +184,97 @@ def settle_market(conn, path, market, fee=FEE, k=K_BINS, log=print):
 # Reading back
 # ---------------------------------------------------------------------------
 
-def model_summary(conn, market, k=K_BINS):
-    """Per model over every settled result of the market, sorted by exact rate then P&L."""
-    rows = conn.execute(
-        "SELECT r.model, COUNT(*) AS n, COUNT(DISTINCT r.for_date) AS days, SUM(r.hit_exact) AS exact, SUM(r.hit_adjacent) AS adjacent, "
-        "SUM(r.hit_direction) AS direction, SUM(CASE WHEN p.bin >= ? THEN 1 ELSE 0 END) AS trades, SUM(r.pnl) AS pnl, "
-        "MIN(r.for_date) AS first_day, MAX(r.for_date) AS last_day "
+def _result_rows(conn, market):
+    """Every settled result of the market with the bin that was played, oldest first."""
+    return conn.execute(
+        "SELECT r.model, r.for_date, i.symbol, i.position, r.actual_return, r.hit_exact, r.hit_adjacent, r.hit_direction, r.pnl, p.bin "
         "FROM results r JOIN instruments i ON i.id = r.instrument_id "
         "LEFT JOIN predictions p ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
-        "WHERE i.market = ? GROUP BY r.model", (k / 2, market)).fetchall()
+        "WHERE i.market = ? ORDER BY r.for_date, r.model, i.position", (market,)).fetchall()
+
+
+def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
+    """
+    Per model over every settled result of the market, sorted by exact rate
+    then P&L: hit rates, the fixed rule's P&L in return units (pnl_total),
+    and the same positions in money (pnl_cash_total: `stake` per position,
+    a fee on each leg - see cash_pnl), with trades, wins and the win rate.
+    """
+    per = {}
+    for r in _result_rows(conn, market):
+        m = per.setdefault(r["model"], {"n": 0, "days": set(), "exact": 0, "adjacent": 0, "direction": 0, "trades": 0, "pnl": 0.0,
+                                        "cash": 0.0, "wins": 0, "first": r["for_date"], "last": r["for_date"]})
+        m["n"] += 1
+        m["days"].add(r["for_date"])
+        m["exact"] += int(r["hit_exact"] or 0)
+        m["adjacent"] += int(r["hit_adjacent"] or 0)
+        m["direction"] += int(r["hit_direction"] or 0)
+        m["pnl"] += float(r["pnl"] or 0.0)
+        m["last"] = max(m["last"], r["for_date"])
+        m["first"] = min(m["first"], r["for_date"])
+        if r["bin"] is not None and int(r["bin"]) >= k / 2 and r["actual_return"] is not None:
+            m["trades"] += 1
+            made = cash_pnl(r["actual_return"], stake, fee_per_leg)
+            m["cash"] += made
+            m["wins"] += int(made > 0)
     out = []
-    for r in rows:
-        n = r["n"] or 0
-        trades = r["trades"] or 0
+    for name, m in per.items():
+        n, trades = m["n"], m["trades"]
         out.append({
-            "name": r["model"], "days": r["days"], "positions": n,
-            "exact_rate": (r["exact"] or 0) / n if n else None,
-            "adjacent_rate": (r["adjacent"] or 0) / n if n else None,
-            "direction_rate": (r["direction"] or 0) / n if n else None,
-            "trades": trades, "pnl_total": float(r["pnl"] or 0.0),
-            "pnl_per_trade": (float(r["pnl"] or 0.0) / trades) if trades else None,
-            "first_day": r["first_day"], "last_day": r["last_day"],
+            "name": name, "days": len(m["days"]), "positions": n,
+            "exact_rate": m["exact"] / n if n else None,
+            "adjacent_rate": m["adjacent"] / n if n else None,
+            "direction_rate": m["direction"] / n if n else None,
+            "trades": trades, "pnl_total": m["pnl"],
+            "pnl_per_trade": (m["pnl"] / trades) if trades else None,
+            "pnl_cash_total": m["cash"], "pnl_cash_per_trade": (m["cash"] / trades) if trades else None,
+            "wins": m["wins"], "win_rate": (m["wins"] / trades) if trades else None,
+            "first_day": m["first"], "last_day": m["last"],
         })
     out.sort(key=lambda m: (-(m["exact_rate"] or 0), -m["pnl_total"], m["name"]))
     return out
+
+
+def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
+    """
+    The paper-trading book, day by day: per model the money made each
+    settled day (every long position of the day, zero when it sat out) and
+    the running total; and the benchmark that buys every instrument every
+    day with the same stake and fees - what the market itself gave over the
+    same days. Dates are the settled days, oldest first.
+    """
+    rows = _result_rows(conn, market)
+    dates = sorted({r["for_date"] for r in rows})
+    index = {d: i for i, d in enumerate(dates)}
+    daily = {}
+    seen = {}
+    bench = [0.0] * len(dates)
+    bench_seen = set()
+    for r in rows:
+        i = index[r["for_date"]]
+        day = daily.setdefault(r["model"], [0.0] * len(dates))
+        seen.setdefault(r["model"], set()).add(i)
+        if r["bin"] is not None and int(r["bin"]) >= k / 2 and r["actual_return"] is not None:
+            day[i] += cash_pnl(r["actual_return"], stake, fee_per_leg)
+        key = (r["for_date"], r["symbol"])
+        if key not in bench_seen and r["actual_return"] is not None:
+            bench_seen.add(key)
+            bench[i] += cash_pnl(r["actual_return"], stake, fee_per_leg)
+    models = {}
+    for model, day in daily.items():
+        running, series = 0.0, []
+        for i, d in enumerate(dates):
+            if i not in seen[model]:
+                series.append([d, None, None])     # no result that day: the book does not move
+                continue
+            running += day[i]
+            series.append([d, round(day[i], 4), round(running, 4)])
+        models[model] = series
+    running, benchmark = 0.0, []
+    for i, d in enumerate(dates):
+        running += bench[i]
+        benchmark.append([d, round(bench[i], 4), round(running, 4)])
+    return {"dates": dates, "models": models, "benchmark": benchmark}
 
 
 def daily_series(conn, market):
@@ -282,14 +368,16 @@ def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
             if pos is None:
                 continue        # a result for an instrument the day's cut does not hold (retired since): not part of this draw
             entry = per_model.setdefault(r["model"], {"name": r["model"], "bins": [None] * len(game_day["symbols"]),
-                                                      "exact": 0, "adjacent": 0, "direction": 0, "positions": 0, "pnl": 0.0, "trades": 0})
+                                                      "exact": 0, "adjacent": 0, "direction": 0, "positions": 0, "pnl": 0.0, "pnl_cash": 0.0, "trades": 0})
             entry["bins"][pos] = None if r["bin"] is None else int(r["bin"])
             entry["exact"] += int(r["hit_exact"] or 0)
             entry["adjacent"] += int(r["hit_adjacent"] or 0)
             entry["direction"] += int(r["hit_direction"] or 0)
             entry["positions"] += 1
             entry["pnl"] += float(r["pnl"] or 0.0)
-            entry["trades"] += int(r["bin"] is not None and int(r["bin"]) >= k / 2)
+            if r["bin"] is not None and int(r["bin"]) >= k / 2 and r["actual_return"] is not None:
+                entry["trades"] += 1
+                entry["pnl_cash"] += cash_pnl(r["actual_return"])
         models = sorted(per_model.values(), key=lambda m: (-m["exact"], -m["direction"], m["name"]))
         # the same definition as daily_series (the chart): the mean over models of each model's own exact rate
         rates = [m["exact"] / m["positions"] for m in models if m["positions"]]
@@ -383,10 +471,12 @@ def export_results_csv(conn, path, market):
         file = os.path.join(folder, f"results-{year}.csv")
         with open(file, "w", newline="") as handle:
             writer = csv.writer(handle, delimiter=";")
-            writer.writerow(["date", "model", "symbol", "predicted_bin", "actual_bin", "return", "hit_exact", "hit_adjacent", "hit_direction", "pnl"])
+            writer.writerow(["date", "model", "symbol", "predicted_bin", "actual_bin", "return", "hit_exact", "hit_adjacent", "hit_direction", "pnl", "pnl_cash"])
             for r in group:
+                long = r["predicted_bin"] is not None and int(r["predicted_bin"]) >= K_BINS / 2
                 writer.writerow([r["for_date"], r["model"], r["symbol"], r["predicted_bin"], r["actual_bin"], f"{r['actual_return']:.8f}",
-                                 r["hit_exact"], r["hit_adjacent"], r["hit_direction"], f"{r['pnl']:.8f}"])
+                                 r["hit_exact"], r["hit_adjacent"], r["hit_direction"], f"{r['pnl']:.8f}",
+                                 f"{cash_pnl(r['actual_return']) if long else 0.0:.4f}"])
         files.append(file)
     return files
 
@@ -414,6 +504,9 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         "market": market, "generated_at": utc_now(), "k": k, "fee": fee, "chance": chance_levels(k),
         "newest_game_day": newest["date"] if newest else None,
         "instruments": instruments_out, "models": models, "drawn_models": drawn, "best_model": drawn[0] if drawn else None,
+        "trading": {"stake": STAKE, "fee_per_leg": FEE_PER_LEG, "currency": members[0]["quote"] if members else "",
+                    "rule": "long when the predicted bin is in the upper half: the stake bought at the previous close, sold at the day's close, a fee on each leg; flat otherwise",
+                    **ledger(conn, market, k)},
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
         "days": day_records(conn, market, days=DAY_RECORDS, k=k),
@@ -509,6 +602,17 @@ def _self_check():
         assert abs(contrarian["pnl_total"] - expected) < 1e-9, (contrarian["pnl_total"], expected)
         assert contrarian["trades"] == sum(1 for day in game_days[-30:] for p in range(5) if day["bins"][p] < 5)
         assert perfect["direction_rate"] > 0.5, perfect["direction_rate"]
+        # the money: a fixed stake per long position, a fee on each leg; the perfect model is long exactly on the days the bin was in the upper half
+        longs = [day["returns"][p] for day in game_days[-30:] for p in range(5) if day["bins"][p] >= 5]
+        assert perfect["trades"] == len(longs) and abs(perfect["pnl_cash_total"] - sum(cash_pnl(r) for r in longs)) < 1e-9
+        assert perfect["wins"] == sum(1 for r in longs if cash_pnl(r) > 0) and abs(perfect["win_rate"] - perfect["wins"] / perfect["trades"]) < 1e-12
+        assert abs(cash_pnl(0.0) + 2 * STAKE * FEE_PER_LEG) < 1e-9 and cash_pnl(0.01) > 0 > cash_pnl(-0.01), "a flat day costs the two fees"
+        book = ledger(conn, "crypto")
+        assert len(book["dates"]) == 30 and abs(book["models"]["Perfect Model"][-1][2] - perfect["pnl_cash_total"]) < 1e-3
+        assert abs(book["benchmark"][-1][2] - sum(cash_pnl(day["returns"][p]) for day in game_days[-30:] for p in range(5))) < 1e-3, "the benchmark buys everything every day"
+        assert abs(sum(x[1] for x in book["models"]["Contrarian Model"]) - contrarian["pnl_cash_total"]) < 1e-3
+        print(f"money: {STAKE:.0f} per position, {FEE_PER_LEG:.1%} a leg - the perfect model's book {perfect['pnl_cash_total']:+.2f}, "
+              f"the market's {book['benchmark'][-1][2]:+.2f}, win rate {perfect['win_rate']:.0%}")
         # a direction hit needs the representative return and the real return to share a sign
         one = conn.execute("SELECT r.hit_direction, r.actual_return, p.meta FROM results r JOIN predictions p "
                            "ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
@@ -591,6 +695,8 @@ def _self_check():
         top = [p for p in btc_next["predictions"] if p["model"] == "Perfect Model"][0]
         assert top["bin"] == 5 and top["direction"] in (1, -1) and top["low"] < top["price"] < top["high"]
         assert len(record["daily"]) == 30 and record["chance"]["exact"] == 0.1
+        assert record["trading"]["stake"] == STAKE and record["trading"]["currency"] == "USDT" and len(record["trading"]["dates"]) == 30
+        assert record["days"][0]["models"][0]["pnl_cash"] is not None
         json.dumps(record)
         print("export: yearly results CSV, page json with closes, every model's bins with the day's edges and return, next-day prices and the daily series")
 
