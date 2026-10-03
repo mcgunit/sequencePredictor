@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-03-lotto-multipick-top5',
+    date: '2026-10-03',
+    level: 'major',
+    audience: 'all',
+    title: 'Lotto: three extra numbers per row for a system play, and the top five models by default',
+    body: [
+      'Every Lotto row still predicts six numbers, now in the order of the model\'s own probability, highest first - not small to large. Next to them, three shaded numbers: the model\'s next most probable ones, for a system play of 7, 8 or 9 numbers (7 grids = 10.50 EUR, 28 grids = 42 EUR, 84 grids = 126 EUR). The hits column shows the hits of the six and, after the dot, the hits among all nine.',
+      'More numbers win more by arithmetic alone: nine numbers of any kind hit the smallest prize 8.4% of the time, six numbers 2.4%. The History page has a new card that reads each model against exactly those levels - and how often its 7th, 8th and 9th number were drawn, against the 13% any number gets by luck. That is the research question, not the raw hit count.',
+      'The prediction tables now show the top five models of the History ranking by default, with a box to show all; the administrator sees all rows with the box ticked.',
+    ],
+    link: { href: '/lottery', label: 'New predictions' },
+  },
+  {
     id: '2026-10-02-paper-trading',
     date: '2026-10-02',
     level: 'minor',

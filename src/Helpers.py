@@ -7,6 +7,10 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from sklearn.preprocessing import OneHotEncoder
+try:
+    from src.MultiPick import config_for as multi_pick_config, hits as multi_pick_hits, chance_table as multi_pick_chance_table
+except ImportError:  # imported from within src/
+    from MultiPick import config_for as multi_pick_config, hits as multi_pick_hits, chance_table as multi_pick_chance_table
 
 
 # ---------------------------------------------------------------------------
@@ -654,6 +658,29 @@ class Helpers():
                     if realBonus:
                         entry["special_hits_total"] += len(ticketMainSet & realBonus)
 
+                    # Lotto multi-pick (src/MultiPick.py): the row's 7th-9th
+                    # numbers, scored as a system play - hits among all nine
+                    # against the six drawn mains, a "win" being 3 or more of
+                    # them (the smallest prize that needs no bonus number; the
+                    # bonus ranks are not scored), per extra number whether it
+                    # hit - next to the same for the six alone over the SAME
+                    # draws, so the arithmetic rise and the model's share of
+                    # it can be told apart.
+                    multiCfg = multi_pick_config(game)
+                    extras = [int(v) for v in (model.get("multiPick") or [])] if multiCfg else []
+                    if multiCfg and extras:
+                        realMainSet = set(map(int, realResult[:realMainCount]))
+                        allHits = len((ticketMainSet | set(extras)) & realMainSet)
+                        multi = entry.setdefault("multi_pick", {"draws": 0, "hits_total": 0, "base_hits_total": 0, "wins": 0, "base_wins": 0,
+                                                                "extra_hits": [0] * multiCfg["extra"]})
+                        multi["draws"] += 1
+                        multi["hits_total"] += allHits
+                        multi["base_hits_total"] += hits        # the six's main hits on the same draw
+                        multi["wins"] += int(allHits >= multiCfg["min_hits"])
+                        multi["base_wins"] += int(hits >= multiCfg["min_hits"])
+                        for index, number in enumerate(extras[:multiCfg["extra"]]):
+                            multi["extra_hits"][index] += int(number in realMainSet)
+
                     rowProfit, rowBets, playable = 0.0, 0, []
                     if "keno" in game:
                         # Profit exists only for playable 5-10-number subsets,
@@ -709,6 +736,17 @@ class Helpers():
                 hasSupplement = gameSpecialCount > 0 or ("lotto" in game and "vikinglotto" not in game)
                 if hasSupplement and entry["draws"]:
                     avgSpecialHits = round(entry["special_hits_total"] / entry["draws"], 3)
+                multi = entry.get("multi_pick")
+                multiOut = None
+                if multi and multi["draws"]:
+                    multiOut = {
+                        "draws": multi["draws"],
+                        "avg_hits": round(multi["hits_total"] / multi["draws"], 3),
+                        "base_avg_hits": round(multi["base_hits_total"] / multi["draws"], 3),
+                        "win_rate": round(multi["wins"] / multi["draws"], 4),
+                        "base_win_rate": round(multi["base_wins"] / multi["draws"], 4),
+                        "extra_hit_rates": [round(h / multi["draws"], 4) for h in multi["extra_hits"]],
+                    }
                 models.append({
                     "name": name,
                     "draws": entry["draws"],
@@ -718,6 +756,7 @@ class Helpers():
                     "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
                     "profit_per_bet": round(profitPerBet, 3) if profitPerBet is not None else None,
                     "bets": entry["bets"],
+                    "multi_pick": multiOut,
                 })
 
             if not models:
@@ -747,6 +786,17 @@ class Helpers():
                 "bestModel": models[0]["name"],
                 "models": models,
             }
+            multiCfg = multi_pick_config(game)
+            if multiCfg:
+                # the chance levels every multi-pick figure above is read against
+                table = multi_pick_chance_table(multiCfg)
+                report["games"][game]["multi_pick"] = {
+                    "extra": multiCfg["extra"], "draw": multiCfg["draw"], "min_hits": multiCfg["min_hits"],
+                    "grid_price": multiCfg["grid_price"], "per_extra_chance": table["per_extra"],
+                    "chance": {str(size): {"expected_hits": round(c["expected_hits"], 4), "win": round(c["win"], 5), "grids": c["grids"], "price": c["price"]}
+                               for size, c in table["per_size"].items()},
+                    "rows_with_extras": sum(1 for m in models if m.get("multi_pick")),
+                }
 
             # The forward record: the same per-row aggregates over the days
             # on or after the declared date, from the day table just built.

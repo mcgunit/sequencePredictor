@@ -53,6 +53,37 @@ const markets = require('./markets');
 // never pool them.
 const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1, jokerplus: 1 };
 
+// --- Lotto multi-pick (src/MultiPick.py, README "Lotto multi-pick") ---
+// A lotto row carries, besides its six numbers (ordered by the model's own
+// probability, highest first), the next three it did not play - row.multiPick
+// - for a 7-, 8- or 9-number system play. The table shows them as three
+// shaded cells; the hits column adds the hits among all nine.
+const comb = (n, k) => { let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r; };
+// P(at least minHits of the drawn numbers among `picked`): the exact hypergeometric, as src/MultiPick.chance
+const winChance = (picked, pool = 45, draw = 6, minHits = 3) => { let sum = 0; for (let h = minHits; h <= Math.min(draw, picked); h++) sum += comb(draw, h) * comb(pool - draw, picked - h); return sum / comb(pool, picked); };
+const MULTI_PICK = { lotto: { extra: 3, grids: { 7: 7, 8: 28, 9: 84 }, gridPrice: 1.5, chance: { 6: winChance(6), 7: winChance(7), 8: winChance(8), 9: winChance(9) }, perExtra: 6 / 45 } };
+const multiPickFor = (game) => MULTI_PICK[game] || null;
+const multiHits = (ticketMains, extras, realMains) => new Set([...ticketMains, ...extras].map(Number).filter((n) => realMains.includes(n))).size;
+
+// --- Which rows a reader sees by default (3 Oct 2026, owner's decision) ---
+// A user sees the next prediction of the top five rows of the History ranking
+// (modelPerformance.json, the same order as the Best model card) and can
+// switch the rest on; the administrator sees every row, switch on. Nothing
+// is dropped from the day files - it is display only.
+const TOP_MODELS_SHOWN = 5;
+// The whole ranking (names in order) and its metric; generateTable takes the
+// first TOP_MODELS_SHOWN names that are actually in the table it draws.
+function rankingFor(game) {
+  try {
+    const report = JSON.parse(fs.readFileSync(path.join(dataPath, 'modelPerformance.json'), 'utf-8'));
+    const info = report.games && report.games[game];
+    if (!info || !Array.isArray(info.models) || !info.models.length) return null;
+    return { names: info.models.map((m) => String(m.name)), metric: info.metric === 'profit_per_bet' ? 'profit per bet' : 'average hits' };
+  } catch (e) { return null; }
+}
+const seesAllModels = (user) => !user || user.open === true || user.role === 'admin';
+const nextTableOptions = (game, user) => ({ ranking: rankingFor(game), showAll: seesAllModels(user) });
+
 // --- the three sections (decided with the owner on 1 Oct 2026) ---
 // The site is organised by what is predicted: the lottery games, crypto and
 // shares. The lottery pages (new predictions, History) list the lottery
@@ -556,6 +587,13 @@ function generateHeader(title = "Sequence Predictor", user = null) {
         const card = header.parentElement;
         card.classList.toggle('expanded');
       }
+      // "Show all models": the rows beyond the top of the ranking are in the
+      // table, hidden; the box shows them (display only, nothing reloads)
+      function toggleAllModels(box) {
+        const wrap = box.closest('.table-wrapper');
+        if (!wrap) return;
+        wrap.querySelectorAll('tr.extra-model').forEach((row) => { row.style.display = box.checked ? '' : 'none'; });
+      }
     </script>
     ${whatsnew.dialog(user)}
     <div class="container">
@@ -570,11 +608,24 @@ function generateFooter() {
 // realResult is the full drawn row (mains + specials, or mains + lotto bonus);
 // cells are highlighted index-aware so a predicted star only lights up against
 // the drawn stars and a predicted main only against the drawn mains.
-function generateTable(data, title = '', realResult = [], calcProfit = false, game = "") {
+function generateTable(data, title = '', realResult = [], calcProfit = false, game = "", options = {}) {
   const modelRows = data || [];
   if (modelRows.length === 0) return `<p style="padding: 10px; color: #888;">No predictions.</p>`;
 
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
+  // the multi-pick chrome (7th-9th columns, "of 9", legend) only where a row
+  // carries extras, so lotto pages scored before the feature stay six-column
+  const multiCfg = multiPickFor(game);
+  const multi = multiCfg && modelRows.some((m) => Array.isArray(m.multiPick) && m.multiPick.length) ? multiCfg : null;
+  // the reader's default view: the first TOP_MODELS_SHOWN names of the
+  // ranking that are in THIS table (a ranked row may be missing from a day);
+  // with fewer than two present the table shows everything
+  const allNames = [...new Set(modelRows.map((m) => m.name || 'not known'))];
+  const ranking = options.ranking && Array.isArray(options.ranking.names) ? options.ranking : null;
+  const ranked = ranking ? ranking.names.filter((n) => allNames.includes(n)).slice(0, options.limit || TOP_MODELS_SHOWN) : [];
+  const topSet = ranked.length >= 2 && ranked.length < allNames.length ? new Set(ranked) : null;
+  const showAll = options.showAll !== false;
+  const hiddenNames = topSet ? allNames.filter((n) => !topSet.has(n)) : [];
   // Joker+ is positional: hits are leading/trailing runs, not membership, and
   // its 7th value is a zodiac sign code that must be shown as a name. The
   // market games (crypto, shares) are positional too: a return bin in the
@@ -587,6 +638,11 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
 
   let html = `<div class="table-wrapper">`;
   if (title) html += `<div style="padding: 10px; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ddd;">${title}</div>`;
+  if (hiddenNames.length) {
+    html += `<label style="display:block; padding:8px 10px; font-size:0.85em; color:#555; background:#f8f9fa; border-bottom:1px solid #ddd; cursor:pointer;">
+      <input type="checkbox" ${showAll ? 'checked' : ''} onchange="toggleAllModels(this)"> Show all ${allNames.length} models
+      <span style="color:#7f8c8d;">- by default the top ${ranked.length} of the <a href="/database">History</a> ranking by ${ranking.metric} over every scored draw</span></label>`;
+  }
   html += '<table border="1">';
 
   html += '<tr><th style="min-width: 150px;">Model</th><th style="width: 50px;">#</th>';
@@ -596,8 +652,12 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
     const symbols = isMarket ? marketSymbols(game) : [];
     Array.from({ length: modelRows[0].predictions[0].length }).forEach((_, i) => html += (isJoker && i === 6) ? '<th>Sign</th>'
       : (isMarket ? `<th title="the return bin of ${symbols[i] || `slot ${i + 1}`}">${symbols[i] || `Slot ${i + 1}`}</th>` : `<th>Num ${i + 1}</th>`));
+    if (multi) {
+      const base = modelRows[0].predictions[0].length;
+      Array.from({ length: multi.extra }).forEach((_, i) => html += `<th style="background:#fdf2e9; color:#7d3c0f;" title="multi-pick: the model's next most probable number, for a system play of ${base + i + 1} numbers (${multi.grids[base + i + 1]} grids, ${(multi.grids[base + i + 1] * multi.gridPrice).toFixed(2).replace(/\.00$/, '')} EUR)">${base + i + 1}th</th>`);
+    }
   }
-  if(hasReal) html += '<th>Hits</th>';
+  if(hasReal) html += `<th>Hits${multi ? ' <span style="color:#7d3c0f; font-weight:normal;">· of 9</span>' : ''}</th>`;
   if(calcProfit) html += '<th>Profit</th>';
   html += '</tr>';
 
@@ -610,7 +670,8 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
       // trailing run blue, the sign amber - never by digit membership.
       const runs = (isJoker && hasReal) ? jokerplusRuns(ticketMains, realMains) : null;
       const signHit = runs ? jokerplusSignHit(ticketSpecials, realSpecials) : 0;
-      html += `<tr>
+      const hiddenRow = topSet && !topSet.has(modelType);
+      html += `<tr${hiddenRow ? ` class="extra-model"${showAll ? '' : ' style="display:none;"'}` : ''}>
         <td style="font-weight: bold; background: #f9f9f9;">${modelType}</td>
         <td style="font-weight: bold; background: #f9f9f9;">${rowIndex + 1}</td>`;
       row.forEach((cell, cellIndex) => {
@@ -639,6 +700,17 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
         }
         html += `<td style="text-align: center; ${cellStyle}">${cellText}</td>`;
       });
+      // the multi-pick cells: the 7th-9th numbers of the main ticket only
+      // (rowIndex 0); a row without a ranking shows them empty
+      const extras = (multi && rowIndex === 0 && Array.isArray(model.multiPick)) ? model.multiPick.map(Number) : [];
+      if (multi) {
+        Array.from({ length: multi.extra }).forEach((_, i) => {
+          const value = extras[i];
+          if (value === undefined) { html += '<td style="text-align:center; background:#fdf2e9; color:#ccc;">-</td>'; return; }
+          const hit = hasReal && realMains.includes(value);
+          html += `<td style="text-align:center; border:1px dashed #e67e22; ${hit ? 'background:#2ecc71; color:white;' : 'background:#fdf2e9; color:#7d3c0f;'}">${value}</td>`;
+        });
+      }
       if(hasReal) {
         let hitDisplay;
         if (isJoker) {
@@ -653,6 +725,10 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
           // "3 (1)" = 3 main hits, 1 special/bonus hit; games without a
           // special column or bonus just show the main count.
           hitDisplay = (specialCount > 0 || realBonus.length > 0) ? `${mainHits} (${specialHits})` : `${mainHits}`;
+          if (multi && extras.length) {
+            const nine = multiHits(ticketMains, extras, realMains);
+            hitDisplay += ` <span style="color:#7d3c0f; font-weight:normal;" title="hits among all ${ticketMains.length + extras.length} numbers (a ${ticketMains.length + extras.length}-number system play)">· ${nine}</span>`;
+          }
         }
         html += `<td style="font-weight: bold; background: #f9f9f9;">${hitDisplay}</td>`;
       }
@@ -665,6 +741,16 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   });
 
   html += '</table></div>';
+  if (multi) {
+    const price = (size) => `${(multi.grids[size] * multi.gridPrice).toFixed(2).replace(/\.00$/, '')} EUR`;
+    html += `<p style="color:#7d3c0f; font-size:0.85em; margin:8px 0 0; background:#fdf2e9; border:1px dashed #e67e22; border-radius:4px; padding:8px 10px;">
+      <b>Multi-pick.</b> A row with shaded numbers lists its six in the model's own probability order, highest first - not small to large; the three shaded numbers are the model's next most
+      probable ones, for a <b>system play</b>: 7 numbers = ${multi.grids[7]} grids = ${price(7)}, 8 numbers = ${multi.grids[8]} grids = ${price(8)}, 9 numbers = ${multi.grids[9]} grids = ${price(9)}
+      (${multi.gridPrice.toFixed(2)} EUR a grid, against one grid for the six). More numbers win more by arithmetic alone: 6 numbers hit 3 of the six drawn - the smallest prize that needs no bonus number;
+      ranks that use the bonus number are not counted here - ${(multi.chance[6] * 100).toFixed(1)}% of the time, 7 numbers ${(multi.chance[7] * 100).toFixed(1)}%, 8 numbers ${(multi.chance[8] * 100).toFixed(1)}%,
+      9 numbers ${(multi.chance[9] * 100).toFixed(1)}%, and any extra number hits ${(multi.perExtra * 100).toFixed(1)}% of draws by luck. The <a href="/database">History</a> page tracks whether the model's
+      extra numbers do better than that. A row without shaded numbers (a vote, the RL ticket, HybridStatisticalModel, or a row whose ranking failed that run) has no extras and keeps its six small to large.</p>`;
+  }
   return html;
 }
 
@@ -879,6 +965,52 @@ function generatePerformanceSummary() {
 // rows") - which SET of tracked rows is worth playing together, from the
 // "combinations" section Helpers._build_combination_report writes into
 // modelPerformance.json, with its shuffled-history control. ---
+// Lotto multi-pick (README "Lotto multi-pick"): per row, the six numbers
+// against the nine - average hits, the share of draws with the smallest
+// prize (3 or more), and how often each extra number hit - next to the exact
+// chance any set of that size has. Read from the same report; absent until a
+// lotto day has been scored with extras.
+function generateMultiPickSummary() {
+  const reportPath = path.join(dataPath, 'modelPerformance.json');
+  if (!fs.existsSync(reportPath)) return '';
+  let report;
+  try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); }
+  catch (e) { return ''; }
+  const esc = auth.escapeHtml;
+  const pctOf = (x, digits = 1) => (x === null || x === undefined || !Number.isFinite(Number(x)) ? '-' : `${(Number(x) * 100).toFixed(digits)}%`);
+  let html = '';
+  Object.keys(report.games || {}).sort().forEach((game) => {
+    const info = report.games[game];
+    const cfg = info.multi_pick;
+    if (!cfg) return;
+    const rows = (info.models || []).filter((m) => m.multi_pick && m.multi_pick.draws > 0);
+    if (!rows.length) return;
+    const six = cfg.chance[String(cfg.draw)] || {};
+    const nine = cfg.chance[String(cfg.draw + cfg.extra)] || {};
+    const labels = Array.from({ length: cfg.extra }, (_, i) => `${cfg.draw + i + 1}th`);
+    const above = (rate, level) => (Number.isFinite(Number(rate)) && Number(rate) > level ? 'color:#27ae60; font-weight:bold;' : '');
+    const body = rows.map((m) => {
+      const mp = m.multi_pick;
+      return `<tr><td style="text-align:left; font-weight:bold;">${esc(m.name)}</td><td>${mp.draws}</td>
+        <td>${mp.base_avg_hits === undefined || mp.base_avg_hits === null ? '-' : mp.base_avg_hits}</td><td>${mp.avg_hits}</td>
+        <td style="${above(mp.base_win_rate, six.win)}">${pctOf(mp.base_win_rate)}</td><td style="${above(mp.win_rate, nine.win)}">${pctOf(mp.win_rate)}</td>
+        ${mp.extra_hit_rates.map((r) => `<td style="${above(r, cfg.per_extra_chance)}">${pctOf(r)}</td>`).join('')}</tr>`;
+    }).join('');
+    html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${esc(game)} multi-pick: six numbers against nine</span>
+      <span class="card-meta" style="margin-left:10px;">${rows.length} rows with extras; chance of ${cfg.min_hits}+ main hits ${pctOf(six.win)} with ${cfg.draw} numbers, ${pctOf(nine.win)} with ${cfg.draw + cfg.extra}; an extra number hits ${pctOf(cfg.per_extra_chance)} by luck</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em; margin-top:0;">Every lotto row plays six numbers and names three more - its next most probable - for a system play
+      (${cfg.draw + cfg.extra} numbers = ${nine.grids} grids = ${Number(nine.price).toFixed(0)} EUR). More numbers win more by arithmetic: the chance of ${cfg.min_hits} or more of the six drawn numbers - the smallest prize
+      that needs no bonus number; ranks with the bonus are not scored here - rises from ${pctOf(six.win)} to ${pctOf(nine.win)} for any ${cfg.draw + cfg.extra} numbers whatsoever. So the figures to watch are the
+      model's rates <i>against those levels</i> (green when above): the share of draws with ${cfg.min_hits}+ main hits with six and with nine - both over the same draws, the ones with extras - and how often the
+      7th, 8th and 9th number hit, each against ${pctOf(cfg.per_extra_chance)}. One row above a level is noise over a few draws; a row that stays above it
+      for many draws is the finding, and the ground for rethinking the first six (README, roadmap item 10).</p>
+      <div class="table-wrapper"><table><tr><th style="text-align:left;">Model</th><th>Draws</th><th title="average hits of the six over the draws with extras">Avg hits, 6</th><th title="average hits among all nine over the same draws">Avg hits, 9</th>
+      <th title="share of draws with ${cfg.min_hits} or more main hits among the six; chance ${pctOf(six.win)}">${cfg.min_hits}+ hits, 6</th><th title="share of draws with ${cfg.min_hits} or more main hits among the nine; chance ${pctOf(nine.win)}">${cfg.min_hits}+ hits, 9</th>
+      ${labels.map((l) => `<th title="how often this extra number was drawn; chance ${pctOf(cfg.per_extra_chance)}">${l} hit</th>`).join('')}</tr>${body}</table></div></div></div>`;
+  });
+  return html;
+}
+
 function generateCombinationSummary() {
   const reportPath = path.join(dataPath, 'modelPerformance.json');
   if (!fs.existsSync(reportPath)) return '';
@@ -1325,6 +1457,7 @@ app.get('/database', (req, res) => {
       - their own pages are <a href="/markets/crypto">Crypto</a> and <a href="/markets/shares">Shares</a>.</p>`;
   }
   html += generatePerformanceSummary();
+  html += generateMultiPickSummary();
   html += generateCombinationSummary();
   html += generateLagAnalysis();
   html += generateRandomnessWatch();
@@ -1375,6 +1508,7 @@ app.get('/database/:folder', (req, res) => {
         const filePath = path.join(folderPath, file);
         const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         let fileProfit = 0; let fileBest = { mains: 0, specials: 0, left: 0, right: 0 };
+        let fileBestMulti = 0; let anyMulti = false;      // lotto multi-pick: the best hits among nine that day
         const validPredictions = jsonData.currentPrediction || [];
 
         if (validPredictions && validPredictions.length > 0) {
@@ -1394,6 +1528,11 @@ app.get('/database/:folder', (req, res) => {
                 // way.
                 const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(jsonData.realResult, game);
                 validPredictions.forEach(predObj => {
+                    if (multiPickFor(game) && Array.isArray(predObj.multiPick) && predObj.predictions[0]) {
+                        const { mains: mainsOnly } = splitTicket(predObj.predictions[0], realMains, specialCount);
+                        fileBestMulti = Math.max(fileBestMulti, multiHits(mainsOnly, predObj.multiPick, realMains));
+                        anyMulti = true;
+                    }
                     predObj.predictions.forEach(p => {
                         const { mains: ticketMains, specials: ticketSpecials } = splitTicket(p, realMains, specialCount);
                         let candidate;
@@ -1432,9 +1571,9 @@ app.get('/database/:folder', (req, res) => {
         const matchStat = isJoker
           ? `Match: ${fileBest.left}/${fileBest.right} (${fileBest.specials})`
           : `Match: ${fileBest.mains}${showSupplement ? ` (${fileBest.specials})` : ''}`;
-        const displayStat = calcProfit
+        const displayStat = (calcProfit
           ? (isJoker ? `${matchStat} · ${formatProfit(fileProfit, game)} €` : `${fileProfit} €`)
-          : matchStat;
+          : matchStat) + (anyMulti ? ` <span style="color:#7d3c0f; font-weight:normal;" title="best hits among a row's nine numbers (multi-pick)">· of 9: ${fileBestMulti}</span>` : '');
 
         return `<li style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
             <a href="/database/${folder}/${file}" style="text-decoration: none; color: #333;">📄 ${file}</a>
@@ -1553,7 +1692,7 @@ app.get('/database/:folder/:file', (req, res) => {
              <div><span class="card-title">Next Draw Prediction</span>${nextDrawMeta}</div><div class="card-icon">▼</div>
         </div>
         <div class="card-body">
-            ${generateTable(jsonData.newPrediction, '', [], false, game)}
+            ${generateTable(jsonData.newPrediction, '', [], false, game, nextTableOptions(game, req.user))}
 
             ${nextFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -1687,7 +1826,7 @@ app.get('/lottery', (req, res) => {
           </div>
           
           <div class="card-body">
-            ${generateTable(jsonData.newPrediction, '', [], false, game)}
+            ${generateTable(jsonData.newPrediction, '', [], false, game, nextTableOptions(game, req.user))}
 
             ${nextFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">

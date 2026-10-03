@@ -170,11 +170,21 @@ class RLTicketModel():
             if self._mainCount and len(ticket) > self._mainCount:
                 ticket = ticket[:self._mainCount]
             ticketLength = len(ticket)
-            for position, number in enumerate(ticket):
+            # Position in a ticket is only a stable signal when every row and
+            # every stored day use the same order. Lotto rows are in the
+            # model's probability order since the multi-pick change
+            # (Predictor.applyMultiPick) while the stored history, the vote
+            # rows and this row are ascending - so every ticket is read
+            # ascending here: the feature keeps the meaning the persisted
+            # policy was trained on, and is identical for any row order.
+            numbers = []
+            for number in ticket:
                 try:
-                    i = indexOf.get(int(number))
+                    numbers.append(int(number))
                 except (TypeError, ValueError):
                     continue
+            for position, number in enumerate(sorted(numbers)):
+                i = indexOf.get(number)
                 if i is None:
                     continue
                 votes[i] += 1
@@ -573,7 +583,10 @@ class RLTicketModel():
     # Public prediction API                                               #
     # ------------------------------------------------------------------ #
 
+    lastScores = None     # {number: score} of the newest deterministic decode (None after a fallback)
+
     def run(self, name, listOfDecodedPredictions, historyDir, gameConfig):
+        self.lastScores = None
         """
         (Re)trains the policy on the game's stored day JSONs (warm-started
         from the persisted policy) and returns this model's row for today:
@@ -715,6 +728,9 @@ class RLTicketModel():
                 return {"name": "RL Ticket Model", "predictions": [mainTicket]}
 
             scores = todayPhi @ theta
+            # the ranking this ticket came from, for the lotto multi-pick
+            # (Predictor.applyMultiPick reads it after run())
+            self.lastScores = {int(n): float(v) for n, v in zip(candidates, scores)}
             # Stable sort on -scores: equal scores keep candidate (ascending
             # number) order, so ties never depend on rng state.
             ranked = candidates[np.argsort(-scores, kind="stable")]

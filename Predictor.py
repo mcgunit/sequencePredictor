@@ -45,6 +45,7 @@ from src.DataFetcher import DataFetcher
 from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
+from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder
 
 tcn = TCNModel()
 lstm = LSTMModel()
@@ -125,6 +126,28 @@ def positionalEnsembleEnabled(name, bestParams_json_object):
     if Helpers.is_jokerplus(name):
         return bool((bestParams_json_object or {}).get(JOKERPLUS_ENSEMBLE_FLAG, False))
     return True
+
+
+def applyMultiPick(name, row, scores):
+    """
+    Lotto multi-pick (src/MultiPick.py, README): for a multi-pick game, put
+    the row's six numbers in the order of the model's OWN number ranking
+    (highest first - not small to large) and add the next three numbers it
+    did not play as row["multiPick"], for a 7-, 8- or 9-number system play.
+    `scores` is the row's {number: score}; a row without a ranking (a vote,
+    the RL ticket) keeps its ticket as it is and gets no extras. Returns
+    whether extras were added.
+    """
+    cfg = multiPickConfig(name)
+    if not cfg or not scores or not row.get("predictions") or not row["predictions"][0]:
+        return False
+    ticket = list(row["predictions"][0])
+    mains, rest = ticket[:cfg["draw"]], ticket[cfg["draw"]:]
+    ordered, extras = multiPickOrder(mains, scores, cfg["extra"], cfg["pool"])
+    row["predictions"][0] = [int(n) for n in ordered] + list(rest)
+    if extras:
+        row["multiPick"] = [int(n) for n in extras]
+    return bool(extras)
 
 
 def matchingSplitArgs(name, realResult):
@@ -1114,6 +1137,11 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
         rlRow = rlTicket.run(name, listOfDecodedPredictions,
                              os.path.join(path, "data", "database", name), gameConfig)
         if rlRow and rlRow.get("predictions"):
+            if multiPickConfig(name) and getattr(rlTicket, "lastScores", None):
+                try:
+                    applyMultiPick(name, rlRow, rlTicket.lastScores)
+                except Exception as e:
+                    print(f"No multi-pick for RL Ticket Model: {e}")
             listOfDecodedPredictions.append(rlRow)
     except Exception as e:
         print("Failed to perform RL Ticket Model prediction: ", e)
@@ -1163,7 +1191,18 @@ def _appendVoteEnsembleRow(current_json_object, name, rows, rowName, model_score
     if not ensemblePredictions:
         return
 
-    predictions.append({"name": rowName, "predictions": ensemblePredictions})
+    row = {"name": rowName, "predictions": ensemblePredictions}
+    if multiPickConfig(name):
+        # the vote's own ranking - the weighted votes per main number, the
+        # same count the ticket was taken from - orders the six and names
+        # the next three
+        try:
+            counted = helpers.count_number_frequencies_by_position({"newPrediction": rows}, mainCount, model_scores=model_scores)
+            mainVotes = counted[0] if isinstance(counted, (tuple, list)) else counted
+            applyMultiPick(name, row, mainVotes)
+        except Exception as e:
+            print(f"No multi-pick for {rowName}: {e}")
+    predictions.append(row)
 
 
 def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, bestParams_json_object=None):
@@ -1257,6 +1296,15 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
         predicted_digits = [int(unique_labels[i]) for i in predicted_indices]
 
         nthPredictions["predictions"].append(predicted_digits)
+
+        # Lotto multi-pick: the six in probability order plus the next three
+        # (the per-number maximum over the positions' softmax, as the keno
+        # subsets use it)
+        if multiPickConfig(gameName):
+            try:
+                applyMultiPick(gameName, nthPredictions, helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels))
+            except Exception as e:
+                print(f"No multi-pick for {modelDisplayName}: {e}")
 
         # Keno is the only game with playable sub-selections (5-10 numbers
         # out of the full 20-number ticket) - mirrors
@@ -1559,6 +1607,11 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     # skipped. Joker+ additionally models its zodiac sign as a special column
     # (SPECIAL_COLUMN_COUNTS), appended as the 7th value of every row.
     isPositional = Helpers.is_positional_game(name)
+    # Lotto multi-pick: every row's own {number: score} ranking, collected
+    # where it is computed anyway (the meta-learner block scores every base
+    # row, the meta rows rank every number) and completed at the end for the
+    # rows it missed - see applyMultiPick.
+    rowScores = {}
 
     tunedParamsLoaded = False
     try:
@@ -2083,11 +2136,14 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
                 modelInstances[featureName] = featureModel
 
             def scoreNumbersFor(featureNames, skipLast, special):
-                return {
+                scored = {
                     featureName: modelInstances[featureName].score_numbers(
                         skipRows=skipRows, skipLastColumns=skipLast, specialColumnCount=special)
                     for featureName in featureNames if featureName in modelInstances
                 }
+                if special == 0:
+                    rowScores.update(scored)      # the main-number rankings double as the rows' multi-pick rankings
+                return scored
 
             def rankByModel(model, featureNames, perModelScores, numberRange):
                 featureMatrix = [
@@ -2239,6 +2295,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
 
                     predictions = [ticket]
                     mainScoreByNumber = dict(zip(numberRange, probabilities))
+                    rowScores[displayName] = mainScoreByNumber
                     for subsetSize in subsets:
                         predictions.append(helpers.generate_subset_from_scores(
                             mainScoreByNumber, ticket, subsetSize,
@@ -2263,6 +2320,35 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             runMetaLearnerVariant(classicalSvmMetaLearnerPath, "ClassicalSVM Model", "classicalSvmSubsetMode", "classicalSvmSubsetTemperature")
         except Exception as e:
             print("Failed to perform Meta-Learner prediction: ", e)
+
+    if multiPickConfig(name):
+        mainSkip = specialColumnCount if specialColumnCount > 0 else skipLastColumns
+        rankable = {
+            "Markov Model": markov, "MarkovMonteCarlo Model": markovMonteCarlo, "MarkovBayesian Model": markovBayesian,
+            "MarkovBayesianEnhanched Model": markovBayesianEnhanced, "PoissonMonteCarlo Model": poissonMonteCarlo,
+            "PoissonMarkov Model": poissonMarkov, "LaplaceMonteCarlo Model": laplaceMonteCarlo,
+            "OrderStatistics Baseline": orderStatisticsBaseline, "Chronos Model": chronosModel, "TimesFM Model": timesFmModel,
+        }
+        scoredHere = []
+        for row in listOfDecodedPredictions:
+            rowName = row.get("name")
+            if rowName not in rowScores and rowName in rankable and hasattr(rankable[rowName], "score_numbers"):
+                try:
+                    rowScores[rowName] = rankable[rowName].score_numbers(skipRows=skipRows, skipLastColumns=mainSkip)
+                    scoredHere.append(rowName)
+                except Exception as e:
+                    print(f"No number ranking for {rowName}: {e}")
+            try:
+                applyMultiPick(name, row, rowScores.get(rowName))
+            except Exception as e:
+                print(f"No multi-pick for {rowName}: {e}")
+        statistical = [r for r in scoredHere if r in ("Markov Model", "MarkovMonteCarlo Model", "MarkovBayesian Model",
+                                                      "MarkovBayesianEnhanched Model", "PoissonMonteCarlo Model", "PoissonMarkov Model",
+                                                      "LaplaceMonteCarlo Model")]
+        if statistical:
+            # with a meta-learner artifact these rankings come free from its scoring; without one this is the cost
+            print(f"{name}: multi-pick rankings computed here for {len(statistical)} statistical row(s) - no meta-learner artifact "
+                  f"under data/models/{name}/ scored them; about ten seconds a day until TrainMetaLearner.py has run")
 
     return listOfDecodedPredictions
 
@@ -2375,6 +2461,14 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
             prediction = {"name": displayName, "predictions": [sequence]}
             for key in modelSubsets:
                 prediction["predictions"].append(modelSubsets[key])
+
+            if multiPickConfig(name):
+                # the fit is cached, so the ranking costs a prediction pass only
+                try:
+                    applyMultiPick(name, prediction, model.score_numbers(
+                        skipRows=skipRows, skipLastColumns=specialColumnCount if specialColumnCount > 0 else skipLastColumns))
+                except Exception as e:
+                    print(f"No multi-pick for {displayName}: {e}")
 
             listOfDecodedPredictions.append(prediction)
         except Exception as e:
