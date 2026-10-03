@@ -235,46 +235,114 @@ def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     return out
 
 
+def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG):
+    """
+    One instrument under the HOLD rule: a position is opened at the previous
+    close on the first day the call is up and kept while the calls stay up,
+    then sold at the close of the last up day (the morning after, when the
+    next call is not up, the position is gone - we only have closes, so the
+    sale is booked at that close); a position still open at the end is
+    sold at the last close. The buy fee is paid once on entry, the sell fee
+    once on exit, and the stake compounds while held. `calls[i]` is True
+    when the model called day i up, False or None otherwise; `returns[i]` is
+    the day's log return (None when unknown). Returns (daily money per
+    date, number of positions, positions that made money).
+    """
+    daily = [0.0] * len(dates)
+    value = None
+    entry_cost = 0.0
+    trades = wins = 0
+    for i in range(len(dates)):
+        up = bool(calls[i]) and returns[i] is not None
+        if up:
+            if value is None:
+                value = stake
+                entry_cost = stake * (1.0 + fee)
+                daily[i] -= stake * fee
+                trades += 1
+            grown = value * math.exp(float(returns[i]))
+            daily[i] += grown - value
+            value = grown
+            last = i + 1 >= len(dates) or not (bool(calls[i + 1]) and returns[i + 1] is not None)
+            if last:
+                daily[i] -= value * fee
+                wins += int(value * (1.0 - fee) - entry_cost > 0)
+                value = None
+    return daily, trades, wins
+
+
 def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     """
-    The paper-trading book, day by day: per model the money made each
-    settled day (every long position of the day, zero when it sat out) and
-    the running total; and the benchmark that buys every instrument every
-    day with the same stake and fees - what the market itself gave over the
-    same days. Dates are the settled days, oldest first.
+    The paper-trading book, day by day, under two rules. DAILY: every long
+    call is a round trip - the stake bought at the previous close, sold at
+    the day's close, a fee on each leg. HOLD: a position is kept while the
+    calls stay up and sold when they stop, so consecutive up days cost one
+    fee pair and compound (hold_book). Per model the money made each settled
+    day (zero when it sat out, None when it had no result) and the running
+    total; and the market benchmark for each rule - buying every instrument
+    every day with the same stake and fees (daily), or buying everything on
+    the first day and holding to the last (hold): what the instruments
+    themselves gave over the same days. Dates are the settled days, oldest
+    first.
     """
     rows = _result_rows(conn, market)
     dates = sorted({r["for_date"] for r in rows})
     index = {d: i for i, d in enumerate(dates)}
-    daily = {}
-    seen = {}
-    bench = [0.0] * len(dates)
-    bench_seen = set()
+    n = len(dates)
+    # per model and instrument: the call (up or not) and the return per date
+    calls, rets, seen = {}, {}, {}
+    market_ret = {}
     for r in rows:
         i = index[r["for_date"]]
-        day = daily.setdefault(r["model"], [0.0] * len(dates))
+        key = (r["model"], r["symbol"])
+        calls.setdefault(key, [None] * n)[i] = r["bin"] is not None and int(r["bin"]) >= k / 2
+        rets.setdefault(key, [None] * n)[i] = None if r["actual_return"] is None else float(r["actual_return"])
         seen.setdefault(r["model"], set()).add(i)
-        if r["bin"] is not None and int(r["bin"]) >= k / 2 and r["actual_return"] is not None:
-            day[i] += cash_pnl(r["actual_return"], stake, fee_per_leg)
-        key = (r["for_date"], r["symbol"])
-        if key not in bench_seen and r["actual_return"] is not None:
-            bench_seen.add(key)
-            bench[i] += cash_pnl(r["actual_return"], stake, fee_per_leg)
-    models = {}
-    for model, day in daily.items():
-        running, series = 0.0, []
+        if r["actual_return"] is not None:
+            market_ret.setdefault(r["symbol"], [None] * n)[i] = float(r["actual_return"])
+
+    def series(daily, model_seen=None):
+        running, out = 0.0, []
         for i, d in enumerate(dates):
-            if i not in seen[model]:
-                series.append([d, None, None])     # no result that day: the book does not move
+            if model_seen is not None and i not in model_seen:
+                out.append([d, None, None])
                 continue
-            running += day[i]
-            series.append([d, round(day[i], 4), round(running, 4)])
-        models[model] = series
-    running, benchmark = 0.0, []
-    for i, d in enumerate(dates):
-        running += bench[i]
-        benchmark.append([d, round(bench[i], 4), round(running, 4)])
-    return {"dates": dates, "models": models, "benchmark": benchmark}
+            running += daily[i]
+            out.append([d, round(daily[i], 4), round(running, 4)])
+        return out
+
+    daily_models, hold_models, hold_stats = {}, {}, {}
+    for (model, symbol), call in calls.items():
+        ret = rets[(model, symbol)]
+        day = daily_models.setdefault(model, [0.0] * n)
+        for i in range(n):
+            if call[i] and ret[i] is not None:
+                day[i] += cash_pnl(ret[i], stake, fee_per_leg)
+        held, trades, wins = hold_book(dates, call, ret, stake, fee_per_leg)
+        hday = hold_models.setdefault(model, [0.0] * n)
+        for i in range(n):
+            hday[i] += held[i]
+        stat = hold_stats.setdefault(model, {"trades": 0, "wins": 0})
+        stat["trades"] += trades
+        stat["wins"] += wins
+    bench_daily, bench_hold = [0.0] * n, [0.0] * n
+    for symbol, ret in market_ret.items():
+        for i in range(n):
+            if ret[i] is not None:
+                bench_daily[i] += cash_pnl(ret[i], stake, fee_per_leg)
+        held, _, _ = hold_book(dates, [r is not None for r in ret], ret, stake, fee_per_leg)
+        for i in range(n):
+            bench_hold[i] += held[i]
+    return {
+        "dates": dates,
+        "models": {m: series(day, seen[m]) for m, day in daily_models.items()},
+        "benchmark": series(bench_daily),
+        "hold": {"models": {m: series(day, seen[m]) for m, day in hold_models.items()}, "benchmark": series(bench_hold),
+                 "stats": {m: {"trades": st["trades"], "wins": st["wins"], "total": round(sum(hold_models[m]), 4),
+                               "win_rate": (st["wins"] / st["trades"]) if st["trades"] else None,
+                               "per_trade": (sum(hold_models[m]) / st["trades"]) if st["trades"] else None}
+                           for m, st in hold_stats.items()}},
+    }
 
 
 def daily_series(conn, market):
@@ -484,6 +552,14 @@ def export_results_csv(conn, path, market):
 def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_MODELS, fee=FEE, k=K_BINS):
     """data/markets/<market>.json: everything the market page draws."""
     models = model_summary(conn, market, k)
+    book = ledger(conn, market, k)
+    for m in models:
+        st = book["hold"]["stats"].get(m["name"])
+        m["hold_total"] = st["total"] if st else None
+        m["hold_trades"] = st["trades"] if st else None
+        m["hold_wins"] = st["wins"] if st else None
+        m["hold_win_rate"] = st["win_rate"] if st else None
+        m["hold_per_trade"] = st["per_trade"] if st else None
     drawn = [m["name"] for m in models[:top_models]]
     members = instruments(conn, market, active_only=False)
     instruments_out = []
@@ -506,7 +582,8 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         "instruments": instruments_out, "models": models, "drawn_models": drawn, "best_model": drawn[0] if drawn else None,
         "trading": {"stake": STAKE, "fee_per_leg": FEE_PER_LEG, "currency": members[0]["quote"] if members else "",
                     "rule": "long when the predicted bin is in the upper half: the stake bought at the previous close, sold at the day's close, a fee on each leg; flat otherwise",
-                    **ledger(conn, market, k)},
+                    "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
+                    **book},
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
         "days": day_records(conn, market, days=DAY_RECORDS, k=k),
@@ -611,8 +688,31 @@ def _self_check():
         assert len(book["dates"]) == 30 and abs(book["models"]["Perfect Model"][-1][2] - perfect["pnl_cash_total"]) < 1e-3
         assert abs(book["benchmark"][-1][2] - sum(cash_pnl(day["returns"][p]) for day in game_days[-30:] for p in range(5))) < 1e-3, "the benchmark buys everything every day"
         assert abs(sum(x[1] for x in book["models"]["Contrarian Model"]) - contrarian["pnl_cash_total"]) < 1e-3
-        print(f"money: {STAKE:.0f} per position, {FEE_PER_LEG:.1%} a leg - the perfect model's book {perfect['pnl_cash_total']:+.2f}, "
-              f"the market's {book['benchmark'][-1][2]:+.2f}, win rate {perfect['win_rate']:.0%}")
+        # the hold rule: one instrument by hand - up, up, down, up: two positions, the first compounding two days with one fee pair
+        held, trades, wins = hold_book(["a", "b", "c", "d"], [True, True, False, True], [0.01, 0.02, -0.03, 0.005])
+        first = STAKE * math.exp(0.03) * (1 - FEE_PER_LEG) - STAKE * (1 + FEE_PER_LEG)
+        second = STAKE * math.exp(0.005) * (1 - FEE_PER_LEG) - STAKE * (1 + FEE_PER_LEG)
+        assert trades == 2 and wins == 2 and abs(sum(held) - first - second) < 1e-9 and held[2] == 0.0, (held, trades, wins)
+        assert abs(held[0] + held[1] - first) < 1e-9 and held[0] < held[1], "the sell fee lands on the last up day"
+        assert hold_book(["a"], [True], [None]) == ([0.0], 0, 0) and hold_book(["a", "b"], [False, False], [0.01, 0.01])[1] == 0
+        # ...and in the book: the perfect model's hold total is the sum over its runs of up days, per instrument
+        expected_hold = 0.0
+        for p in range(5):
+            run = []
+            for day in game_days[-30:] + [None]:
+                if day is not None and day["bins"][p] >= 5:
+                    run.append(day["returns"][p])
+                elif run:
+                    expected_hold += STAKE * math.exp(sum(run)) * (1 - FEE_PER_LEG) - STAKE * (1 + FEE_PER_LEG)
+                    run = []
+        assert abs(book["hold"]["stats"]["Perfect Model"]["total"] - expected_hold) < 1e-3, (book["hold"]["stats"]["Perfect Model"], expected_hold)
+        assert abs(book["hold"]["models"]["Perfect Model"][-1][2] - expected_hold) < 1e-3
+        # the hold benchmark buys everything on the first settled day and sells on the last: one fee pair per instrument
+        whole = sum(STAKE * math.exp(sum(day["returns"][p] for day in game_days[-30:])) * (1 - FEE_PER_LEG) - STAKE * (1 + FEE_PER_LEG) for p in range(5))
+        assert abs(book["hold"]["benchmark"][-1][2] - whole) < 1e-3, (book["hold"]["benchmark"][-1], whole)
+        print(f"money: {STAKE:.0f} per position, {FEE_PER_LEG:.1%} a leg - the perfect model's book {perfect['pnl_cash_total']:+.2f} daily, "
+              f"{book['hold']['stats']['Perfect Model']['total']:+.2f} holding; the market's {book['benchmark'][-1][2]:+.2f} daily, "
+              f"{book['hold']['benchmark'][-1][2]:+.2f} buy-and-hold; win rate {perfect['win_rate']:.0%}")
         # a direction hit needs the representative return and the real return to share a sign
         one = conn.execute("SELECT r.hit_direction, r.actual_return, p.meta FROM results r JOIN predictions p "
                            "ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
@@ -696,6 +796,7 @@ def _self_check():
         assert top["bin"] == 5 and top["direction"] in (1, -1) and top["low"] < top["price"] < top["high"]
         assert len(record["daily"]) == 30 and record["chance"]["exact"] == 0.1
         assert record["trading"]["stake"] == STAKE and record["trading"]["currency"] == "USDT" and len(record["trading"]["dates"]) == 30
+        assert record["models"][0]["hold_total"] is not None and len(record["trading"]["hold"]["benchmark"]) == 30
         assert record["days"][0]["models"][0]["pnl_cash"] is not None
         json.dumps(record)
         print("export: yearly results CSV, page json with closes, every model's bins with the day's edges and return, next-day prices and the daily series")

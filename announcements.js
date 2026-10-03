@@ -24,7 +24,7 @@ const ANNOUNCEMENTS = [
     title: 'Crypto and Shares: the predictions are paper-traded in money',
     body: [
       'Every call is now turned into money with one fixed rule: when a model says a coin or share will go up, 100 USDT or USD is bought at the previous close and sold at the day\'s close, with a 0.1% fee on each leg; when it says flat or down, nothing is bought. The models table shows each model\'s total, win rate and money per trade, and a new Paper trading card draws every model\'s book against the market - buying everything every day with the same stake, which a model has to beat before its book means anything.',
-      'It is paper money: no slippage, fills at the close, one position per coin per day. Holding a position when the next call is up again, and betting on falls, are the next steps.',
+      'A second rule sits next to it on the same card: hold while up - the position is kept as long as the next day\'s call is up again and sold when it stops, so a run of up days pays one fee pair and compounds; its benchmark is buying everything on the first day and holding. It is paper money: no slippage, fills at the close. Betting on falls is the next step.',
     ],
     link: { href: '/markets/crypto', label: 'Crypto page' },
   },

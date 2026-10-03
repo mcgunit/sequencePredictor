@@ -26,13 +26,15 @@ const record = {
   ],
   models: [
     { name: 'Markov Model', days: 12, positions: 60, exact_rate: 0.15, adjacent_rate: 0.3, direction_rate: 0.45, trades: 25, pnl_total: 0.0123, pnl_per_trade: 0.000492, first_day: '2026-09-20', last_day: '2026-10-01',
-      pnl_cash_total: 12.34, pnl_cash_per_trade: 0.4936, wins: 14, win_rate: 0.56 },
+      pnl_cash_total: 12.34, pnl_cash_per_trade: 0.4936, wins: 14, win_rate: 0.56, hold_total: 15.5, hold_trades: 9, hold_wins: 6, hold_win_rate: 0.6667, hold_per_trade: 1.7222 },
     { name: 'Odd Model', days: 3, positions: 15, exact_rate: null, adjacent_rate: 0.2, direction_rate: 0.6, trades: 0, pnl_total: 0, pnl_per_trade: null },
   ],
   drawn_models: ['Markov Model'], best_model: 'Markov Model',
   trading: { stake: 100, fee_per_leg: 0.001, currency: 'USDT', rule: 'long when up', dates: ['2026-09-30', '2026-10-01'],
     models: { 'Markov Model': [['2026-09-30', 5.5, 5.5], ['2026-10-01', 6.84, 12.34]], 'Odd Model': [['2026-09-30', null, null], ['2026-10-01', 0, 0]] },
-    benchmark: [['2026-09-30', -1.2, -1.2], ['2026-10-01', 3.0, 1.8]] },
+    benchmark: [['2026-09-30', -1.2, -1.2], ['2026-10-01', 3.0, 1.8]],
+    hold_rule: 'kept while up',
+    hold: { models: { 'Markov Model': [['2026-09-30', 5.6, 5.6], ['2026-10-01', 9.9, 15.5]] }, benchmark: [['2026-09-30', -1.1, -1.1], ['2026-10-01', 3.2, 2.1]] } },
   next: { made_on: '2026-10-01', for: 'the next trading day', instruments: {
     BTC: { last_close: 84000, last_date: '2026-10-01', predictions: [
       { model: 'Markov Model', bin: 7, direction: 1, price: 84900, low: 84500, high: 85300 },
@@ -96,7 +98,10 @@ const markov = view.models[0];
 ok(markov.name === 'Markov Model' && markov.aboveExact && markov.aboveAdjacent && !markov.aboveDirection,
   'rates are read against chance: 15% exact and 30% adjacent are above, 45% direction is not');
 ok(view.models[1].exact === null && !view.models[1].aboveExact && view.models[1].pnlPerTrade === null, 'missing rates read as null, never above chance');
-ok(markov.pnlCash === 12.34 && markov.winRate === 0.56 && markov.wins === 14 && view.models[1].pnlCash === null, 'the money fields pass through, missing ones read as null');
+ok(markov.pnlCash === 12.34 && markov.winRate === 0.56 && markov.wins === 14 && view.models[1].pnlCash === null && markov.holdTotal === 15.5 && markov.holdTrades === 9 && view.models[1].holdTotal === null,
+  'the money fields of both rules pass through, missing ones read as null');
+ok(view.trading.hold.models['Markov Model'][1].total === 15.5 && view.trading.hold.benchmark[1].total === 2.1 && markets.describeTrading({ models: {} }).hold.benchmark.length === 0,
+  'the hold book describes next to the daily one');
 ok(view.trading && view.trading.stake === 100 && view.trading.currency === 'USDT' && view.trading.dates.length === 2 && view.trading.models['Markov Model'][1].total === 12.34
   && view.trading.models['Odd Model'][0].total === null && view.trading.benchmark[1].total === 1.8 && markets.describeTrading(null) === null && markets.describeTrading({ models: 7 }).dates.length === 0,
   'the trading book describes per model and for the market, and tolerates a missing or odd record');
@@ -162,14 +167,17 @@ const html = markets.page('crypto', view, header, footer, { name: 'ann' });
 ok(html.includes('<title>Crypto predictor</title>') && html.includes('ann'), 'the page uses the shared header');
 ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+12.34') && html.includes('>56%<') && html.includes('P&amp;L USDT') && !html.includes('+0.0123'),
   'the models table shows rates, the win rate and the money, not the fraction');
+ok(html.includes('P&amp;L holding') && html.includes('>+15.50</td>') && html.includes('9 position(s), win rate 67%'), 'the models table carries the hold total with its details on hover');
+ok(html.includes(`data-view-for="ledger-crypto" data-view="daily"`) && html.includes(`data-view="hold"`) && html.includes('holding: +15.50 (Markov Model), buy-and-hold +2.10'), 'the book card toggles the two rules and names both bests');
 ok(html.includes('card-title">Paper trading') && html.includes('best book +12.34 USDT (Markov Model), the market +1.80') && html.includes("marketRender('ledger-crypto')")
   && html.includes(`data-chart="ledger-crypto" data-model="Markov Model" checked`) && html.includes(`data-chart="ledger-crypto" data-model="Odd Model" onchange`)
   && html.includes('100 USDT</b> is bought at the previous close'),
   'the paper-trading card names the rule, the best book against the market, and switches every model with the best on');
 const bookData = JSON.parse(html.match(/window\.marketData\['ledger-crypto'\] = (\{.*?\}); marketRender/s)[1]);
-ok(bookData.kind === 'ledger' && bookData.labels.join(',') === '2026-09-30,2026-10-01' && bookData.benchmark.join(',') === '-1.2,1.8' && bookData.series['Markov Model'].join(',') === '5.5,12.34'
-  && bookData.series['Odd Model'][0] === null && bookData.best === 'Markov Model',
-  'the book data is aligned to the settled days with the running totals');
+ok(bookData.kind === 'ledger' && bookData.labels.join(',') === '2026-09-30,2026-10-01' && bookData.rules.daily.benchmark.join(',') === '-1.2,1.8' && bookData.rules.daily.series['Markov Model'].join(',') === '5.5,12.34'
+  && bookData.rules.daily.series['Odd Model'][0] === null && bookData.rules.hold.series['Markov Model'].join(',') === '5.6,15.5' && bookData.rules.hold.benchmark.join(',') === '-1.1,2.1'
+  && bookData.rules.hold.series['Odd Model'].join(',') === ',' && bookData.best === 'Markov Model',
+  'the book data is aligned to the settled days with the running totals of both rules');
 ok(!markets.page('crypto', markets.describeMarket({ ...record, trading: undefined }), header, footer, null).includes('card-title">Paper trading'), 'without a book there is no paper-trading card');
 ok(html.includes("marketRender('chart-crypto-BTC')") && html.includes("marketRender('chart-crypto-ETH')") && html.includes('daily-crypto')
   && (html.match(/new Chart\(/g) || []).length === 2, 'one chart per instrument through the client, plus the daily chart');
@@ -243,11 +251,16 @@ const tipPct = sandbox.lastConfig.options.plugins.tooltip;
 ok(tipPct.callbacks.label({ raw: [0.3, 0.8999999], dataset: { label: 'M' } }) === 'M: +0.30% to +0.90%' && sandbox.lastConfig.options.scales.y.beginAtZero === undefined,
   'in the moves view tooltips read in percent and zero stays on the axis');
 w.marketData.book = bookData;
-const bookModel = w.marketChartModel('book', 'lines', ['Markov Model']);
-ok(bookModel.datasets.length === 2 && bookModel.datasets[0].label === 'market, always long' && bookModel.datasets[0].data.join(',') === '-1.2,1.8'
+const bookModel = w.marketChartModel('book', 'daily', ['Markov Model']);
+ok(bookModel.datasets.length === 2 && bookModel.datasets[0].label === 'market, bought every day' && bookModel.datasets[0].data.join(',') === '-1.2,1.8'
   && bookModel.datasets[1].model === 'Markov Model' && bookModel.datasets[1].data.join(',') === '5.5,12.34' && bookModel.money === true && bookModel.yTitle.includes('USDT'),
   'the book chart: the market dashed, each switched-on model\'s running total as a line');
+const holdModel = w.marketChartModel('book', 'hold', ['Markov Model']);
+ok(holdModel.datasets[0].label === 'market, buy and hold' && holdModel.datasets[0].data.join(',') === '-1.1,2.1' && holdModel.datasets[1].data.join(',') === '5.6,15.5' && holdModel.yTitle.includes('held while up')
+  && w.marketChartModel('book', 'lines', ['Markov Model']).datasets[1].data.join(',') === '5.5,12.34',
+  'the hold rule draws its own book and benchmark; an unknown rule falls back to the daily one');
 w.marketRender('book');
+ok(w.marketState.book.view === 'daily', 'a book opens on the daily rule');
 ok(sandbox.lastConfig.options.plugins.tooltip.callbacks.label({ raw: 12.345, dataset: { label: 'M' } }) === 'M: +12.35' && sandbox.lastConfig.options.scales.y.grid !== undefined,
   'book tooltips read as signed money and the zero line is drawn');
 w.marketData.long = Object.assign({}, embedded, { labels: Array.from({ length: 40 }, (_, i) => `d${i}`), closes: Array.from({ length: 40 }, () => 1), edges: Array.from({ length: 40 }, () => null),

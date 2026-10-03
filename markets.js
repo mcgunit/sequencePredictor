@@ -118,6 +118,7 @@ function describeMarket(record, extras) {
       aboveDirection: direction !== null && direction > chance.direction,
       pnlTotal: num(m.pnl_total), pnlPerTrade: num(m.pnl_per_trade),
       pnlCash: num(m.pnl_cash_total), pnlCashPerTrade: num(m.pnl_cash_per_trade), wins: num(m.wins), winRate: num(m.win_rate),
+      holdTotal: num(m.hold_total), holdTrades: num(m.hold_trades), holdWinRate: num(m.hold_win_rate), holdPerTrade: num(m.hold_per_trade),
       firstDay: m.first_day || null, lastDay: m.last_day || null,
     };
   });
@@ -170,11 +171,12 @@ function describeTrading(t) {
   if (!t || typeof t !== 'object') return null;
   const point = (p) => (Array.isArray(p) && p.length === 3 && typeof p[0] === 'string' ? { date: p[0], pnl: num(p[1]), total: num(p[2]) } : null);
   const series = (arr) => (Array.isArray(arr) ? arr.map(point).filter(Boolean) : []);
-  const models = {};
-  if (t.models && typeof t.models === 'object') Object.keys(t.models).forEach((m) => { models[m] = series(t.models[m]); });
+  const seriesMap = (obj) => { const out = {}; if (obj && typeof obj === 'object') Object.keys(obj).forEach((m) => { out[m] = series(obj[m]); }); return out; };
+  const hold = t.hold && typeof t.hold === 'object' ? t.hold : {};
   return {
-    stake: num(t.stake), feePerLeg: num(t.fee_per_leg), currency: t.currency ? String(t.currency) : '', rule: t.rule ? String(t.rule) : '',
-    dates: Array.isArray(t.dates) ? t.dates.map(String) : [], models, benchmark: series(t.benchmark),
+    stake: num(t.stake), feePerLeg: num(t.fee_per_leg), currency: t.currency ? String(t.currency) : '', rule: t.rule ? String(t.rule) : '', holdRule: t.hold_rule ? String(t.hold_rule) : '',
+    dates: Array.isArray(t.dates) ? t.dates.map(String) : [], models: seriesMap(t.models), benchmark: series(t.benchmark),
+    hold: { models: seriesMap(hold.models), benchmark: series(hold.benchmark) },
   };
 }
 
@@ -260,13 +262,14 @@ var MARKET_REAL = 'rgba(44,62,80,0.75)';
 function marketChartModel(id, view, enabled) {
   var d = window.marketData[id]; var n = d.labels.length; var last = n - 1;   // the last label is 'next'
   var datasets = [];
-  if (d.kind === 'ledger') {   // the paper-trading book: cumulative money per model, the market as the dashed grey line
-    datasets.push({ type: 'line', label: 'market, always long', data: d.benchmark, borderColor: '#7f8c8d', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, order: 1, legendColour: '#7f8c8d' });
+  if (d.kind === 'ledger') {   // the paper-trading book under one rule: cumulative money per model, the market as the dashed grey line
+    var rule = d.rules[view] ? view : 'daily'; var book = d.rules[rule];
+    datasets.push({ type: 'line', label: rule === 'hold' ? 'market, buy and hold' : 'market, bought every day', data: book.benchmark, borderColor: '#7f8c8d', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, order: 1, legendColour: '#7f8c8d' });
     enabled.forEach(function (model) {
       var colour = d.colours[model] || '#7f8c8d';
-      datasets.push({ type: 'line', label: model, data: d.series[model] || [], borderColor: colour, backgroundColor: colour, borderWidth: 2, pointRadius: 0, tension: 0, order: 0, legendColour: colour, model: model });
+      datasets.push({ type: 'line', label: model, data: book.series[model] || [], borderColor: colour, backgroundColor: colour, borderWidth: 2, pointRadius: 0, tension: 0, order: 0, legendColour: colour, model: model });
     });
-    return { datasets: datasets, yTitle: 'cumulative P&L, ' + d.currency + ' (' + d.stake + ' per position)', percent: false, money: true };
+    return { datasets: datasets, yTitle: 'cumulative P&L, ' + d.currency + ' (' + d.stake + ' per position, ' + (rule === 'hold' ? 'held while up' : 'daily round trip') + ')', percent: false, money: true };
   }
   var call = function (model, i) {   // {base, rep, lo, hi} in return space for label i, or null
     if (i === last) {
@@ -357,7 +360,7 @@ function marketRender(id) {
   var state = window.marketState[id];
   if (!state) {   // open on the newest month: a year of 1 px bars is the close line alone
     var count = d.labels.length;
-    state = window.marketState[id] = { view: 'lines', min: count > 31 ? d.labels[count - 31] : undefined, max: count > 31 ? d.labels[count - 1] : undefined };
+    state = window.marketState[id] = { view: d.kind === 'ledger' ? 'daily' : 'lines', min: count > 31 ? d.labels[count - 31] : undefined, max: count > 31 ? d.labels[count - 1] : undefined };
   }
   var old = window.marketCharts[id];
   if (old) { try { state.min = old.options.scales.x.min; state.max = old.options.scales.x.max; old.destroy(); } catch (e) { /* a dead chart is replaced anyway */ } }
@@ -569,14 +572,16 @@ function page(market, view, header, footer, user) {
     <tr><th style="text-align:left;">Model</th><th>Days</th><th title="predicted bin equals the actual bin; chance ${pct(c.exact, 0)}">Exact</th>
     <th title="within one bin; chance ${pct(c.adjacent, 0)}">Adjacent</th><th title="sign of the predicted return equals the real one; chance ${pct(c.direction, 0)}">Direction</th>
     <th title="positions taken (predicted bin in the upper half)">Trades</th><th title="positions that made money after both fees">Win rate</th>
-    <th title="money made by the positions taken: the stake bought at the previous close, sold at the day's close, a fee on each leg">P&amp;L ${esc(meta.unit)}</th><th>per trade</th></tr>`;
-  if (!view.models.length) html += `<tr><td colspan="9" style="color:#aaa;">no settled day yet - the first predictions settle tomorrow morning</td></tr>`;
+    <th title="money made by the positions taken: the stake bought at the previous close, sold at the day's close, a fee on each leg">P&amp;L ${esc(meta.unit)}</th><th>per trade</th>
+    <th title="the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run">P&amp;L holding</th></tr>`;
+  if (!view.models.length) html += `<tr><td colspan="10" style="color:#aaa;">no settled day yet - the first predictions settle tomorrow morning</td></tr>`;
   view.models.forEach((m) => {
     const mark = (above, text) => `<span style="${above ? 'color:#27ae60; font-weight:bold;' : ''}">${text}</span>`;
     html += `<tr><td style="text-align:left; font-weight:bold;">${esc(m.name)}</td><td>${m.days === null ? '-' : m.days}</td>
       <td>${mark(m.aboveExact, pct(m.exact))}</td><td>${mark(m.aboveAdjacent, pct(m.adjacent))}</td><td>${mark(m.aboveDirection, pct(m.direction))}</td>
       <td>${m.trades === null ? '-' : m.trades}</td><td>${pct(m.winRate, 0)}</td>
-      <td style="color:${(m.pnlCash || 0) >= 0 ? '#27ae60' : '#c0392b'}; font-weight:bold;">${money(m.pnlCash, 2)}</td><td>${money(m.pnlCashPerTrade, 2)}</td></tr>`;
+      <td style="color:${(m.pnlCash || 0) >= 0 ? '#27ae60' : '#c0392b'}; font-weight:bold;">${money(m.pnlCash, 2)}</td><td>${money(m.pnlCashPerTrade, 2)}</td>
+      <td style="color:${(m.holdTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.holdTrades === null ? '' : `${m.holdTrades} position(s), win rate ${pct(m.holdWinRate, 0)}, ${money(m.holdPerTrade, 2)} per position`}">${money(m.holdTotal, 2)}</td></tr>`;
   });
   html += `</table></div><p style="color:#7f8c8d; font-size:0.85em;">Green: above chance. With ${view.instruments.length} ${esc(meta.noun)}s a day and a
     handful of days, a rate above chance is noise more often than not; read the rows over months, and against the null band the controls give the lottery rows.
@@ -591,24 +596,29 @@ function page(market, view, header, footer, user) {
     const bookColours = Object.fromEntries(bookModels.map((m, i) => [m, COLOURS[i % COLOURS.length]]));
     const bookBest = view.best && bookModels.includes(view.best) ? view.best : (bookModels[0] || null);
     const byDate = (points) => Object.fromEntries(points.map((p) => [p.date, p.total]));
+    const aligned = (points) => { const idx = byDate(points); return t.dates.map((d) => (idx[d] === undefined ? null : idx[d])); };
+    const ruleData = (book) => ({ benchmark: aligned(book.benchmark), series: Object.fromEntries(bookModels.map((m) => [m, aligned(book.models[m] || [])])) });
     const bookData = {
       kind: 'ledger', symbol: 'book', quote: t.currency, labels: t.dates, currency: t.currency, stake: t.stake,
-      benchmark: (() => { const m = byDate(t.benchmark); return t.dates.map((d) => (m[d] === undefined ? null : m[d])); })(),
-      series: Object.fromEntries(bookModels.map((m) => { const idx = byDate(t.models[m]); return [m, t.dates.map((d) => (idx[d] === undefined ? null : idx[d]))]; })),
-      colours: bookColours, best: bookBest,
+      rules: { daily: ruleData(t), hold: ruleData(t.hold) }, colours: bookColours, best: bookBest,
     };
     const richest = view.models.filter((m) => m.pnlCash !== null).sort((a, b) => b.pnlCash - a.pnlCash)[0] || null;
+    const richestHold = view.models.filter((m) => m.holdTotal !== null).sort((a, b) => b.holdTotal - a.holdTotal)[0] || null;
     const marketTotal = t.benchmark.length ? t.benchmark[t.benchmark.length - 1].total : null;
+    const marketHold = t.hold.benchmark.length ? t.hold.benchmark[t.hold.benchmark.length - 1].total : null;
     const bookSwitches = bookModels.map((m) => `<label><input type="checkbox" data-chart="${bookId}" data-model="${esc(m)}"${m === bookBest ? ' checked' : ''} onchange="marketToggle('${bookId}')">
       <span class="swatch" style="background:${bookColours[m]};"></span>${esc(m)}</label>`).join('');
     html += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Paper trading</span>
-      <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="margin-top:0; color:#555;">One rule, the same for every model: each morning, for every ${esc(meta.noun)} whose bin a model calls up (5 or higher),
+      <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}${richestHold ? `; holding: ${money(richestHold.holdTotal, 2)} (${esc(richestHold.name)})` : ''}${marketHold === null ? '' : `, buy-and-hold ${money(marketHold, 2)}`}</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, two ways of trading them. <b>Daily round trip</b>: each morning, for every ${esc(meta.noun)} whose bin a model calls up (5 or higher),
       <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> is bought at the previous close and sold at that day's close, with ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell;
-      a ${esc(meta.noun)} the model calls flat or down is sat out. The grey dashed line is the <b>market</b>: buying every ${esc(meta.noun)} every day with the same stake and fees -
-      what the ${esc(meta.noun)}s themselves gave over these days, which a model has to beat before its book means anything. A flat day costs a position the two fees, so a model that
-      calls "up" on small moves bleeds fees. Holding a position when the next call is up again (one fee pair saved), and shorts, are the next steps.</p>
-      <div class="chart-tools">${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${bookId}', ${days})">${label}</button>`).join('')}
+      a ${esc(meta.noun)} the model calls flat or down is sat out. <b>Hold while up</b>: the position is kept as long as the next day's call is up again and sold at the close of the last up day,
+      so a run of up days costs one fee pair and the stake compounds; a position still open on the newest day is valued at its close. The grey dashed line is the <b>market</b> under the same rule:
+      buying every ${esc(meta.noun)} every day (round trip), or buying everything on the first day and holding to the last (buy-and-hold) - what the ${esc(meta.noun)}s themselves gave over these days,
+      which a model has to beat before its book means anything. A flat day costs a round trip the two fees, so a model that calls "up" on small moves bleeds fees under the daily rule. Shorts are the next step.</p>
+      <div class="chart-tools"><button type="button" data-view-for="${bookId}" data-view="daily" onclick="marketView('${bookId}', 'daily')" title="every up call bought at the previous close and sold at the day's close">Daily round trip</button>
+        <button type="button" data-view-for="${bookId}" data-view="hold" onclick="marketView('${bookId}', 'hold')" title="a position kept while the calls stay up, sold at the close of the last up day">Hold while up</button><span class="sep">|</span>
+        ${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${bookId}', ${days})">${label}</button>`).join('')}
         <button type="button" onclick="marketReset('${bookId}')" style="margin-left:6px;">Reset zoom</button><span class="hint">cumulative ${esc(t.currency)} per model; scroll or pinch to zoom, drag to pan</span></div>
       <div class="chart-models"><span style="color:#7f8c8d;">Models: <a href="#" onclick="marketModels('${bookId}', 'best'); return false;">best</a><a href="#" onclick="marketModels('${bookId}', 'all'); return false;">all</a><a href="#" onclick="marketModels('${bookId}', 'none'); return false;">none</a></span>${bookSwitches}</div>
       <div style="height:320px;"><canvas id="${bookId}"></canvas></div>
