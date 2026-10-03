@@ -23,11 +23,12 @@ from src.PoissonMarkov import PoissonMarkov
 from src.LaplaceMonteCarlo import LaplaceMonteCarlo
 from src.HybridStatisticalModel import HybridStatisticalModel
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, prepare_foundation_scores
+from src.MarketModels import GARCH_NAME, HMM_NAME, LOG_FLOOR, MARKET_DEFAULTS, build_market_models
 from src.TuningScore import score_rows, score_bets_by_day, attrs_for_trial, describe
 from src.TuningGate import challenge, make_defaults
 from src.Lockbox import load as load_lockbox, window_overlap as lockbox_overlap, describe as describe_lockbox
 from src.Command import Command
-from src.Helpers import Helpers
+from src.Helpers import Helpers, MARKET_GAMES
 from src.DataFetcher import DataFetcher
 
 command = Command()
@@ -177,7 +178,8 @@ GATE_ENABLED = True
 GATE_MARGIN = 0.0
 
 
-def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back):
+def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
+                 proper=False):
     """
     Builds a dedicated DataLoader configured with this game's real number
     range (so Backtester's baselines/bookkeeping aren't stuck on Markov's
@@ -187,6 +189,12 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     "subsets": {...}, "errors": {...}} plus "tuning", the objective of
     src/TuningScore.py (a lower confidence bound over the days, jackpots
     capped) that score_from_summary returns.
+
+    proper=True (the market rows): the Backtester also collects the row's
+    per-slot probabilities (collect_scores) and the objective is the lower
+    bound of the per-day mean log-score of the bin that happened - the
+    proper score MarketRows.py judges these rows by - with the same
+    probability floor the rows report under (MarketModels.LOG_FLOOR).
 
     Backtester reseeds numpy/random per backtested day (see Backtester.py),
     so results are deterministic for a given set of hyperparameters; the
@@ -232,7 +240,8 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
             include_baselines=False,
             verbose=False,
             game=game_param,
-            special_column_count=game_cfg["special_column_count"]
+            special_column_count=game_cfg["special_column_count"],
+            collect_scores=bool(proper)
         )
     except BacktestTimeout as e:
         print(f"Trial pruned: {e}")
@@ -240,7 +249,8 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
 
     summary = backtester.summarize(results)
     model_summary = dict(summary.get("models", {}).get(model_name, {}))
-    model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional, game=dataset_name)
+    model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional, game=dataset_name,
+                                         proper=bool(proper), floor=LOG_FLOOR)
     return model_summary
 
 
@@ -445,6 +455,48 @@ def objective_hybrid(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 # calls the objective once per trial in the same process, and none of that
 # precompute depends on the subset mode/temperature being searched, so it only
 # needs to run once per hyperopt invocation instead of once per trial.
+# --- the market rows (README roadmap item 4, M4) ------------------------------
+# The two rows of src/MarketModels.py that model RETURNS rather than bins get
+# their knobs tuned here, for the market games only, by the proper score
+# (TuningScore proper=True: the lower bound of the per-day mean log-score of
+# the bin that happened) - never by hit rate, which a near-one-hot forecast
+# games. The trial's parameters go through build_market_models, the very
+# call Predictor.py, the trainer, the controls and MarketRows.py configure
+# the rows with, so a served set and a trial are built by the same code
+# (what the gate's FixedTrial references rely on). The three Regime HMM rows
+# share the regimeHmm* keys: one study on the full row, the two ablations
+# follow - tuned apart they would stop being ablations. The template knobs
+# (regimeHmmTemplate*) only label regimes and are not searched; the count
+# range keeps its floor at two (the Single ablation is the one-regime model),
+# and restarts/iterations/min_covar stay at their defaults for cost.
+
+def objective_garch(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
+    params = {
+        "garchMean": trial.suggest_categorical("garchMean", ["constant", "zero", "ar1"]),
+        "garchDist": trial.suggest_categorical("garchDist", ["t", "normal"]),
+        "garchWindow": trial.suggest_int("garchWindow", 500, 3000, step=250),
+    }
+    model = build_market_models(dataPath, params)[GARCH_NAME]
+    return finish_trial(trial, run_backtest(GARCH_NAME, model, dataset_name, dataPath, game_cfg, [],
+                                            days_to_rebuild, years_back, proper=True))
+
+
+def objective_regime_hmm(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
+    params = {
+        "regimeHmmMax": trial.suggest_int("regimeHmmMax", 2, 5),
+        "regimeHmmPenalty": trial.suggest_float("regimeHmmPenalty", 0.25, 4.0, log=True),
+        "regimeHmmValidation": trial.suggest_int("regimeHmmValidation", 120, 400, step=10),
+        "regimeHmmWindow": trial.suggest_categorical("regimeHmmWindow", [0, 750, 1000, 1500, 2000]),
+        "regimeHmmFeatures": trial.suggest_categorical("regimeHmmFeatures", ["returns,vol,mom", "returns,vol", "returns,mom", "returns"]),
+        "regimeHmmVolLookback": trial.suggest_int("regimeHmmVolLookback", 20, 120, step=10),
+        "regimeHmmMomLookback": trial.suggest_int("regimeHmmMomLookback", 5, 60, step=5),
+        "regimeHmmShrinkage": trial.suggest_float("regimeHmmShrinkage", 0.0, 0.5),
+    }
+    model = build_market_models(dataPath, params)[HMM_NAME]
+    return finish_trial(trial, run_backtest(HMM_NAME, model, dataset_name, dataPath, game_cfg, [],
+                                            days_to_rebuild, years_back, proper=True))
+
+
 _KENO_SUBSET_TUNING_CACHE = {}
 
 
@@ -711,7 +763,17 @@ SERVED_DEFAULTS = {
     "metaLearnerV2SubsetMode": "softmax",
     "metaLearnerV2SubsetTemperature": 0.5,
 }
+# The market rows' defaults are not copied by hand: build_market_models reads
+# MarketModels.MARKET_DEFAULTS, and so does the gate, from the same table.
+SERVED_DEFAULTS.update(MARKET_DEFAULTS)
 
+# "model_score": False keeps a strategy's served score out of modelScores:
+# the market rows are scored by a log-score (about -2.3 at ten bins), the
+# other rows of the same game by slot hits (about 0.7), and modelScores is
+# min-max mapped to the vote weights of WeightedEnsemble Model
+# (Helpers._build_model_weight_lookup) - one value on another scale would
+# pin itself to weight 1 and squash every other row to the top of the range.
+# Their scores live in the tuningGate record instead.
 STRATEGIES = {
     "Markov": {"objective": objective_markov, "use_key": "useMarkov"},
     "MarkovMonteCarlo": {"objective": objective_markov_mc, "use_key": "useMarkovMonteCarlo"},
@@ -727,6 +789,11 @@ STRATEGIES = {
     # unconditionally whenever it builds a Keno subset. Keno-only: it's the
     # only game with sub-selections, so there is nothing to tune anywhere else.
     "KenoSubsetTuning": {"objective": objective_keno_subset_tuning, "use_key": None, "games": ("keno",)},
+    # The market rows (M4), market games only, judged by the proper score -
+    # see objective_garch / objective_regime_hmm. Predictor.py reads the
+    # tuned garch*/regimeHmm* keys through the same build_market_models call.
+    "Garch": {"objective": objective_garch, "use_key": "useGarch", "games": tuple(sorted(MARKET_GAMES)), "model_score": False},
+    "RegimeHmm": {"objective": objective_regime_hmm, "use_key": "useRegimeHmm", "games": tuple(sorted(MARKET_GAMES)), "model_score": False},
 }
 
 # Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
@@ -742,6 +809,8 @@ STRATEGY_DISPLAY_NAMES = {
     "PoissonMarkov": "PoissonMarkov Model",
     "LaPlaceMonteCarlo": "LaplaceMonteCarlo Model",
     "HybridStatistical": "HybridStatisticalModel",
+    "Garch": GARCH_NAME,
+    "RegimeHmm": HMM_NAME,
 }
 
 
@@ -967,7 +1036,11 @@ if __name__ == "__main__":
                     existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
                     if outcome["params"] is not None:
                         existingData.update(outcome["params"])
-                    if outcome["served_score"] is not None:
+                    if not strategy.get("model_score", True):
+                        # a log-score is not a vote weight (see STRATEGIES);
+                        # the score is in the tuningGate record above
+                        existingData.get("modelScores", {}).pop(display_name, None)
+                    elif outcome["served_score"] is not None:
                         profits[strategy_name] = outcome["served_score"]
                     else:
                         # Kept without a score on this run's objective: drop a

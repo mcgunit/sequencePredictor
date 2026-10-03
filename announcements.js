@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-03-market-rows-tuned',
+    date: '2026-10-03',
+    level: 'minor',
+    audience: 'admin',
+    title: 'Crypto and Shares: the GARCH and Regime HMM rows are tuned weekly, by the proper score',
+    body: [
+      'The Saturday tuning chain now has two strategies for the market games only, Garch and RegimeHmm. Their trials are scored by the log-score of the probability the row gave the bin that happened (uniform is -2.303), not by hit rate, and a new set of parameters is served only when it beats both what is served today and the untuned defaults on the same window - the same gate as every other row. The decision is recorded under tuningGate in bestParams_crypto.json and bestParams_shares.json.',
+      'The three Regime HMM rows share one set of knobs, so the two ablation rows stay ablations. The first run is next Saturday, or by hand: python3 HyperoptStatistics.py -g crypto,shares -s Garch,RegimeHmm.',
+    ],
+    link: { href: '/admin/jobs', label: 'Open Jobs' },
+  },
+  {
     id: '2026-10-03-lotto-multipick-top5',
     date: '2026-10-03',
     level: 'major',

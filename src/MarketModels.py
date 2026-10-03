@@ -924,24 +924,58 @@ class RegimeHmmModel:
 # Building the rows from a game's parameters
 # ---------------------------------------------------------------------------
 
+# The knobs of the market rows as bestParams_<market>.json keys, with the
+# values served when a key is missing - the ONE place they are defined:
+# build_market_models reads them, and HyperoptStatistics.py's SERVED_DEFAULTS
+# imports them, so the champion/challenger gate's "untuned default" reference
+# is this table by construction and cannot drift from what Predictor.py
+# serves. The three Regime HMM rows share the regimeHmm* keys on purpose:
+# the two ablation rows differ from the full row by one constraint each,
+# and would stop being ablations if they were tuned apart. The template
+# knobs only label the regimes (they never touch a probability), so the
+# tuner leaves them alone.
+MARKET_DEFAULTS = {
+    "garchMean": "constant",            # constant | zero | ar1
+    "garchDist": "t",                   # t | normal
+    "garchWindow": 2000,                # newest returns the GARCH is fitted on
+    "regimeHmmMin": 2,                  # regime counts tried, inclusive
+    "regimeHmmMax": 5,
+    "regimeHmmPenalty": 1.0,            # nats per parameter in the count selection
+    "regimeHmmValidation": 250,         # days of the one-step-ahead validation slice
+    "regimeHmmReselectEvery": 20,       # game days between two count selections
+    "regimeHmmWindow": 0,               # 0 = expanding window, else the newest N days
+    "regimeHmmFeatures": "returns,vol,mom",
+    "regimeHmmVolLookback": 60,
+    "regimeHmmMomLookback": 20,
+    "regimeHmmShrinkage": 0.1,          # covariance shrinkage towards the diagonal
+    "regimeHmmMinCovar": 1e-4,
+    "regimeHmmRestarts": 2,
+    "regimeHmmMaxIter": 100,
+    "regimeHmmTemplateRate": 0.1,
+    "regimeHmmTemplateThreshold": 1.0,
+}
+
+
 def build_market_models(dataPath, bestParams=None, state_dir=None, regime_log=None):
     """
     {row name: model} for a market game, configured from bestParams_<game>.json
-    (defaults when a key is missing). state_dir/regime_log make the HMM rows
-    record their reading (Predictor.py's live run); the Backtester leaves them
-    unset. Same call for the trainer, the tuners, the controls and the report.
+    (MARKET_DEFAULTS when a key is missing). state_dir/regime_log make the HMM
+    rows record their reading (Predictor.py's live run); the Backtester leaves
+    them unset. Same call for the trainer, the tuners, the controls and the
+    report.
     """
-    p = bestParams or {}
-    garch = GarchModel(mean=p.get("garchMean", "constant"), dist=p.get("garchDist", "t"), window=p.get("garchWindow", 2000))
+    p = dict(MARKET_DEFAULTS)
+    p.update({k: v for k, v in (bestParams or {}).items() if k in MARKET_DEFAULTS})
+    garch = GarchModel(mean=p["garchMean"], dist=p["garchDist"], window=p["garchWindow"])
     garch.setDataPath(dataPath)
     models = {GARCH_NAME: garch}
-    common = dict(regimes=(p.get("regimeHmmMin", 2), p.get("regimeHmmMax", 5)), penalty=p.get("regimeHmmPenalty", 1.0),
-                  validation=p.get("regimeHmmValidation", 250), reselect_every=p.get("regimeHmmReselectEvery", 20),
-                  window=p.get("regimeHmmWindow", 0), features=p.get("regimeHmmFeatures", "returns,vol,mom"),
-                  vol_lookback=p.get("regimeHmmVolLookback", 60), mom_lookback=p.get("regimeHmmMomLookback", 20),
-                  shrinkage=p.get("regimeHmmShrinkage", 0.1), min_covar=p.get("regimeHmmMinCovar", 1e-4),
-                  restarts=p.get("regimeHmmRestarts", 2), max_iter=p.get("regimeHmmMaxIter", 100),
-                  template_rate=p.get("regimeHmmTemplateRate", 0.1), template_threshold=p.get("regimeHmmTemplateThreshold", 1.0))
+    common = dict(regimes=(p["regimeHmmMin"], p["regimeHmmMax"]), penalty=p["regimeHmmPenalty"],
+                  validation=p["regimeHmmValidation"], reselect_every=p["regimeHmmReselectEvery"],
+                  window=p["regimeHmmWindow"], features=p["regimeHmmFeatures"],
+                  vol_lookback=p["regimeHmmVolLookback"], mom_lookback=p["regimeHmmMomLookback"],
+                  shrinkage=p["regimeHmmShrinkage"], min_covar=p["regimeHmmMinCovar"],
+                  restarts=p["regimeHmmRestarts"], max_iter=p["regimeHmmMaxIter"],
+                  template_rate=p["regimeHmmTemplateRate"], template_threshold=p["regimeHmmTemplateThreshold"])
     for name, variant in HMM_ROWS.items():
         row = RegimeHmmModel(variant=variant, **common)
         row.setDataPath(dataPath)

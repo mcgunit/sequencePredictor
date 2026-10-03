@@ -134,9 +134,11 @@ def applyMultiPick(name, row, scores):
     the row's six numbers in the order of the model's OWN number ranking
     (highest first - not small to large) and add the next three numbers it
     did not play as row["multiPick"], for a 7-, 8- or 9-number system play.
-    `scores` is the row's {number: score}; a row without a ranking (a vote,
-    the RL ticket) keeps its ticket as it is and gets no extras. Returns
-    whether extras were added.
+    `scores` is the row's OWN {number: score} - the statistical and boosting
+    rows' number scores, a deep-learning row's probabilities, a meta-learner
+    row's ranking, a vote row's weighted votes, the RL ticket's decode
+    scores; a row without one (HybridStatisticalModel) keeps its ticket as
+    it is and gets no extras. Returns whether extras were added.
     """
     cfg = multiPickConfig(name)
     if not cfg or not scores or not row.get("predictions") or not row["predictions"][0]:

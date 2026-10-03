@@ -34,6 +34,14 @@ What is scored instead - one number per trial, higher is better:
   games without a payout table (lotto, euromillions, ...)
       the lower confidence bound of the per-day main-ticket hits - the same
       metric as before, now with the bound.
+  the market rows (GARCH, Regime HMM on crypto and shares - proper=True)
+      the lower confidence bound of the per-day mean log-score: the log of
+      the probability the row gave the bin that then happened, averaged
+      over the instruments, floored at LOG_SCORE_FLOOR. The proper score of
+      README item 4 - a row that puts its mass on the right bins scores
+      high, a row that bets one bin per slot is punished when it misses,
+      and hit rates (which a near-one-hot forecast games) are diagnostics
+      only. The uniform forecast scores log(1/K) = -2.303 at ten bins.
 
 The bound is mean - CONFIDENCE_PENALTY x std / sqrt(days), the estimator
 HyperoptEnsemble.py already uses for its subsets: a trial is rewarded for
@@ -63,6 +71,11 @@ CONFIDENCE_PENALTY = 1.0
 # Per-day capped profit per bet spans about -4..+20, slot-hit bounds differ by
 # hundredths, so at 0.001 the profit only ever separates equal hit rates.
 POSITIONAL_PROFIT_WEIGHT = 0.001
+# A bin probability is scored no lower than this (a proper score needs a
+# finite log); the same value as MarketModels.LOG_FLOOR, which the market
+# rows apply when they report their probabilities - the callers pass that
+# constant explicitly so the two cannot drift apart.
+LOG_SCORE_FLOOR = 1e-4
 
 NEG_INF = float("-inf")
 
@@ -104,6 +117,44 @@ def slot_hits(row, model_name):
         return None
 
 
+def log_score(row, model_name, floor=LOG_SCORE_FLOOR):
+    """
+    The proper score of one day: the mean over the slots of the log of the
+    probability the model gave the bin that then happened, from the per-slot
+    scores the Backtester stores with collect_scores=True
+    ("<model>_position_scores": one {bin: score} per slot, any scale - each
+    slot is normalised to sum to one here, as Helpers.normalize_position_
+    scores does for the meta-learners) and the draw in drawn order. A
+    probability under `floor` scores as `floor`. Returns (score, k) with k
+    the number of bins of the widest slot (so the caller can quote the
+    uniform forecast's log(1/k)), or (None, None) when the row does not
+    carry both.
+    """
+    slots = row.get(f"{model_name}_position_scores")
+    actual = row.get("actual_ordered") or row.get("actual")
+    if not isinstance(slots, (list, tuple)) or not isinstance(actual, (list, tuple)) or not slots or not actual:
+        return None, None
+    if len(slots) != len(actual):
+        return None, None
+    logs, k = [], 0
+    for slot, a in zip(slots, actual):
+        if not isinstance(slot, dict) or not slot:
+            continue
+        try:
+            a = int(a)
+            total = float(sum(float(v) for v in slot.values()))
+            p = float(slot.get(a, slot.get(str(a), 0.0)))
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(total) or total <= 0:
+            continue
+        logs.append(math.log(max(p / total, floor)))
+        k = max(k, len(slot))
+    if not logs:
+        return None, None
+    return float(np.mean(logs)), k
+
+
 def counts_slots_itself(game):
     """Pick3 (any positional game but Joker+): slot hits come from slot_hits(), not from "_hits"."""
     return "jokerplus" not in str(game or "").lower()
@@ -124,12 +175,15 @@ def lower_bound(values, penalty=CONFIDENCE_PENALTY):
 
 
 def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=False,
-                      penalty=CONFIDENCE_PENALTY, cap=LUCKY_STRIKE_CAP):
+                      penalty=CONFIDENCE_PENALTY, cap=LUCKY_STRIKE_CAP, logs_by_day=None, proper=False, bins=None):
     """
     The objective from per-day material: `bets_by_day` is a list with, per
     day, the list of that day's bet profits (net EUR); `hits_by_day` the
-    per-day hit count where one exists. Returns the dict documented on
-    score_rows(). Days without bets (and without hits) are not days.
+    per-day hit count where one exists; `logs_by_day` the per-day mean
+    log-score where one exists, which with proper=True IS the objective
+    (its lower bound; `bins` names K for the uniform reference). Returns the
+    dict documented on score_rows(). Days without bets (and without hits or
+    log-scores) are not days.
     """
     profit_days = []
     bets = 0
@@ -144,11 +198,16 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
         strikes += sum(1 for p in profits if p >= cap)
         profit_days.append(sum(min(p, cap) for p in profits) / len(profits))
     hits_days = [float(h) for h in (hits_by_day or []) if _number(h)]
+    log_days = [float(v) for v in (logs_by_day or []) if _number(v)]
 
     capped_bound = lower_bound(profit_days, penalty)
     hits_bound = lower_bound(hits_days, penalty)
+    log_bound = lower_bound(log_days, penalty)
 
-    if positional:
+    if proper:
+        kind = "log_score"
+        score = log_bound if log_bound is not None else NEG_INF
+    elif positional:
         kind = "positional"
         if hits_bound is None:
             score = NEG_INF
@@ -161,10 +220,10 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
         kind = "hits"
         score = hits_bound if hits_bound is not None else NEG_INF
 
-    return {
+    out = {
         "score": float(score),
         "kind": kind,
-        "days": max(len(profit_days), len(hits_days)),
+        "days": max(len(profit_days), len(hits_days), len(log_days)),
         "bets": bets,
         "profit_per_bet": (total / bets) if bets else None,
         "capped_profit_bound": capped_bound,
@@ -172,10 +231,15 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
         "hits_bound": hits_bound,
         "lucky_strikes": strikes,
     }
+    if proper or log_days:
+        out["log_score_mean"] = float(np.mean(log_days)) if log_days else None
+        out["log_score_bound"] = log_bound
+        out["uniform_log_score"] = math.log(1.0 / bins) if bins else None
+    return out
 
 
 def score_rows(rows, model_name, payout=False, positional=False, game=None,
-               penalty=CONFIDENCE_PENALTY, cap=LUCKY_STRIKE_CAP):
+               penalty=CONFIDENCE_PENALTY, cap=LUCKY_STRIKE_CAP, proper=False, floor=LOG_SCORE_FLOOR):
     """
     Score one model over the Backtester's per-day rows - Backtester.backtest()'s
     return value, or the rows finished so far when a trial is being considered
@@ -186,18 +250,25 @@ def score_rows(rows, model_name, payout=False, positional=False, game=None,
     from the row's drawn-order ticket and draw (slot_hits) with "_hits" only
     as a fallback for rows without them; Joker+ reads "_hits" (L + R runs).
 
+    `proper` (the market rows) scores the per-day log-score of the stored
+    slot probabilities instead (log_score(); the rows must have been
+    backtested with collect_scores=True), slot hits staying as diagnostics.
+
     Returns a dict:
       score                the objective (-inf when nothing was scored)
-      kind                 "capped_profit" | "positional" | "hits"
+      kind                 "capped_profit" | "positional" | "hits" | "log_score"
       days                 backtest days with a scored result for this model
       bets                 bets placed (payout games), else 0
       profit_per_bet       raw, uncapped mean profit per bet - the old objective
       capped_profit_bound  lower bound of the per-day capped profit per bet
       hits_mean, hits_bound
       lucky_strikes        bets at or above the cap
+      log_score_mean, log_score_bound, uniform_log_score   (proper rows only)
     """
     bets_by_day = []
     hits_by_day = []
+    logs_by_day = []
+    bins = 0
     by_slot = positional and counts_slots_itself(game)
     for row in rows or []:
         profits = bet_profits(row, model_name)
@@ -208,8 +279,13 @@ def score_rows(rows, model_name, payout=False, positional=False, game=None,
             hits = row.get(f"{model_name}_hits")
         if _number(hits):
             hits_by_day.append(float(hits))
+        if proper:
+            value, k = log_score(row, model_name, floor)
+            if value is not None:
+                logs_by_day.append(value)
+                bins = max(bins, k or 0)
     return score_bets_by_day(bets_by_day, hits_by_day, payout=payout, positional=positional,
-                             penalty=penalty, cap=cap)
+                             penalty=penalty, cap=cap, logs_by_day=logs_by_day, proper=proper, bins=bins or None)
 
 
 def json_safe(value):
@@ -235,8 +311,12 @@ def describe(tuning):
     score = tuning.get("score")
     text = f"score {score:+.4f}" if _number(score) else "score -inf"
     kind = {"capped_profit": "capped profit/bet bound", "positional": "slot-hit bound",
-            "hits": "hits bound"}.get(tuning.get("kind"), str(tuning.get("kind")))
+            "hits": "hits bound", "log_score": "log-score bound"}.get(tuning.get("kind"), str(tuning.get("kind")))
     parts = [f"{text} ({kind}, {tuning.get('days', 0)} days)"]
+    if _number(tuning.get("log_score_mean")):
+        uniform = tuning.get("uniform_log_score")
+        parts.append(f"log-score {tuning['log_score_mean']:+.3f}/day"
+                     + (f" (uniform {uniform:+.3f})" if _number(uniform) else ""))
     if tuning.get("bets"):
         raw = tuning.get("profit_per_bet")
         raw_text = f"{raw:+.2f}" if _number(raw) else "n/a"
@@ -313,6 +393,44 @@ if __name__ == "__main__":
     s_lotto = score_rows(lotto, "m", payout=False)
     check(s_lotto["kind"] == "hits" and s_lotto["hits_mean"] == 1.0 and s_lotto["score"] < 1.0, "lotto hits bound below the mean")
     check(score_rows(lotto[:5], "m")["days"] == 5, "partial rows score the finished days only")
+
+    # the market rows: the log-score of the stored slot probabilities, floored,
+    # with slot hits as diagnostics only
+    def market_rows(slot_probs, draws):
+        return [{"index": i, "m_position_scores": [dict(s) for s in probs], "actual_ordered": list(draw),
+                 "m_prediction": [max(s, key=s.get) for s in probs]} for i, (probs, draw) in enumerate(zip(slot_probs, draws))]
+    uniform = [{b: 0.1 for b in range(10)}] * 2
+    sharp = [{b: (0.91 if b == 3 else 0.01) for b in range(10)}] * 2
+    hedged = [{b: (0.29 if b == 3 else 0.31 if b == 4 else 0.05) for b in range(10)}] * 2   # argmax 4: fewer hits than sharp
+    s_uniform = score_rows(market_rows([uniform] * 10, [(3, 3)] * 10), "m", positional=True, game="crypto", proper=True)
+    check(s_uniform["kind"] == "log_score" and s_uniform["days"] == 10, "market rows are scored by log-score")
+    check(abs(s_uniform["log_score_mean"] - math.log(0.1)) < 1e-12 and abs(s_uniform["score"] - math.log(0.1)) < 1e-12,
+          f"the uniform forecast scores log(1/10): {s_uniform['log_score_mean']}")
+    check(abs(s_uniform["uniform_log_score"] - math.log(0.1)) < 1e-12, "K is read from the slots")
+    # a sharp row that is right every day beats uniform; when it is wrong on four days, the hedged row beats it
+    s_sharp = score_rows(market_rows([sharp] * 10, [(3, 3)] * 10), "m", positional=True, game="crypto", proper=True)
+    check(s_sharp["score"] > s_uniform["score"], "a right sharp forecast beats uniform")
+    check(s_sharp["hits_mean"] == 2.0, "slot hits travel as a diagnostic")
+    s_sharp_wrong = score_rows(market_rows([sharp] * 10, [(3, 3)] * 6 + [(4, 4)] * 4), "m", positional=True, game="crypto", proper=True)
+    s_hedged = score_rows(market_rows([hedged] * 10, [(3, 3)] * 6 + [(4, 4)] * 4), "m", positional=True, game="crypto", proper=True)
+    check(s_hedged["score"] > s_sharp_wrong["score"] and s_sharp_wrong["hits_mean"] > s_hedged["hits_mean"],
+          f"hit rate must not decide: hedged {s_hedged['score']:.3f} vs sharp-but-wrong {s_sharp_wrong['score']:.3f}")
+    # the floor: a zero probability on the realised bin scores log(floor), not -inf
+    one_hot = [{b: (1.0 if b == 3 else 0.0) for b in range(10)}] * 2
+    s_one_hot = score_rows(market_rows([one_hot] * 2, [(3, 3), (5, 5)]), "m", positional=True, game="crypto", proper=True)
+    check(abs(s_one_hot["log_score_mean"] - (0.0 + math.log(LOG_SCORE_FLOOR)) / 2) < 1e-12, f"floor applied: {s_one_hot['log_score_mean']}")
+    # raw counts (any scale) are normalised per slot; string keys are accepted; a row without slots has no score
+    counts = [{str(b): (300 if b == 3 else 100) for b in range(10)}] * 2
+    s_counts = score_rows(market_rows([counts], [(3, 3)]), "m", positional=True, game="crypto", proper=True)
+    check(abs(s_counts["log_score_mean"] - math.log(300 / 1200)) < 1e-12, f"counts normalised per slot: {s_counts['log_score_mean']}")
+    check(score_rows([{"index": 0, "m_prediction": [3, 3], "actual_ordered": [3, 3]}], "m", positional=True, proper=True)["score"] == NEG_INF,
+          "no slot probabilities -> nothing scored")
+    check(log_score({"m_position_scores": [{0: 1.0}], "actual_ordered": [0, 1]}, "m") == (None, None), "slot count must match the draw")
+    # the bound, not the mean; the diagnostics read as a line and survive JSON
+    check(s_sharp_wrong["score"] < s_sharp_wrong["log_score_mean"], "log-score bound below the mean")
+    check("log-score bound" in describe(s_uniform) and "(uniform -2.303)" in describe(s_uniform), describe(s_uniform))
+    import json as _json
+    _json.dumps(attrs_for_trial(s_one_hot))
 
     # nothing scored, errors, wrong model name
     check(score_rows([], "m", payout=True)["score"] == NEG_INF, "no rows -> -inf")
