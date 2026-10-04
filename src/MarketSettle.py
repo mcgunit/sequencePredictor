@@ -101,6 +101,63 @@ def cash_pnl(ret, stake=STAKE, fee=FEE_PER_LEG):
     return proceeds * (1.0 - fee) - stake * (1.0 + fee)
 
 
+def position_of(bin_value, meta, k=K_BINS):
+    """
+    (long, scale) of one stored prediction: a SIZED row (the RL Position
+    Model - meta carries "size", src/RLPositionModel.py) is long when its
+    size is above zero and scales the stake by it; every other row is long
+    when its bin is in the upper half, scale one. Every book and the models
+    table read a position through this, so a size means the same everywhere.
+    """
+    size = size_of(meta)
+    if size is not None:
+        return size > 0, size
+    return (bin_value is not None and int(bin_value) >= k / 2), 1.0
+
+
+def size_of(meta):
+    """The finite size a stored prediction's meta carries, else None - the ONE reading position_of and signed_position share."""
+    if not meta:
+        return None
+    try:
+        data = json.loads(meta) if isinstance(meta, str) else meta
+        size = data.get("size") if isinstance(data, dict) else None
+        size = float(size) if size is not None and not isinstance(size, bool) else None
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return size if size is not None and math.isfinite(size) else None
+
+
+def short_pnl(ret, stake=STAKE, fee=FEE_PER_LEG):
+    """
+    Money made by one SHORT position: `stake` of the instrument sold at the
+    previous close (proceeds stake x (1 - fee)) and bought back at the day's
+    close (stake x exp(ret) x (1 + fee)). Paper only: selling what one does not
+    own needs a margin or derivatives account, which the pages say.
+    """
+    return stake * (1.0 - fee) - stake * math.exp(float(ret)) * (1.0 + fee)
+
+
+def short_open_close_pnl(open_price, close_price, stake=STAKE, fee=FEE_PER_LEG):
+    """One short position sold at the session's open and bought back at its close, a fee on each leg."""
+    return short_pnl(math.log(float(close_price) / float(open_price)), stake, fee)
+
+
+def signed_position(bin_value, meta, k=K_BINS):
+    """
+    (direction, scale) with shorts on: a plain row is +1 (long) on an upper-half
+    bin and -1 (short) on a lower-half bin; a sized row (the RL Position Model)
+    is +size when its size is above zero and 0 otherwise - it sizes longs and
+    never shorts. position_of is the long-only reading of the same prediction.
+    """
+    long, scale = position_of(bin_value, meta, k)
+    if size_of(meta) is not None:
+        return (1 if long else 0), scale
+    if bin_value is None:
+        return 0, 1.0
+    return (1 if long else -1), 1.0
+
+
 def open_close_pnl(open_price, close_price, stake=STAKE, fee=FEE_PER_LEG):
     """Money made by one position bought at the open and sold at the close of the same session, a fee on each leg."""
     return cash_pnl(math.log(float(close_price) / float(open_price)), stake, fee)
@@ -139,6 +196,7 @@ def settle_day(conn, market, day, real_result, rows, symbol_ids, fee=FEE, k=K_BI
         if not model or not tickets or not tickets[0] or model in AGGREGATE_ROWS:
             continue
         ticket = [int(v) for v in tickets[0]]
+        sizes = row.get("positions") if isinstance(row.get("positions"), list) else None   # the RL Position Model's size per slot
         for pos, symbol in enumerate(game_day["symbols"]):
             if pos >= len(ticket) or pos >= len(real_result) or symbol not in symbol_ids:
                 continue
@@ -148,8 +206,14 @@ def settle_day(conn, market, day, real_result, rows, symbol_ids, fee=FEE, k=K_BI
             edges = game_day["edges"][pos]
             direction = direction_of(predicted, edges)
             actual_direction = 1 if ret > 0 else (-1 if ret < 0 else 0)
-            long = predicted >= half
-            pnl = (ret - fee) if long else 0.0
+            size = None
+            if sizes is not None and pos < len(sizes) and sizes[pos] is not None:
+                try:
+                    size = float(sizes[pos])
+                except (TypeError, ValueError):
+                    size = None
+            long, scale = (size > 0, size) if size is not None else (predicted >= half, 1.0)
+            pnl = scale * (ret - fee) if long else 0.0
             conn.execute(
                 "INSERT INTO results (model, instrument_id, for_date, settled_at, actual_bin, actual_return, hit_exact, hit_adjacent, "
                 "hit_direction, pnl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
@@ -163,7 +227,7 @@ def settle_day(conn, market, day, real_result, rows, symbol_ids, fee=FEE, k=K_BI
                 "VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?) "
                 "ON CONFLICT(model, instrument_id, for_date) DO UPDATE SET bin = excluded.bin, direction = excluded.direction, meta = excluded.meta",
                 (model, symbol_ids[symbol], day, "before " + day, predicted, direction,
-                 json.dumps({"representative_return": representative_return(predicted, edges), "long": long})))
+                 json.dumps({"representative_return": representative_return(predicted, edges), "long": long, **({"size": size} if size is not None else {})})))
             written += 1
     conn.commit()
     return written
@@ -205,7 +269,7 @@ def settle_market(conn, path, market, fee=FEE, k=K_BINS, log=print):
 def _result_rows(conn, market):
     """Every settled result of the market with the bin that was played, oldest first."""
     return conn.execute(
-        "SELECT r.model, r.for_date, i.symbol, i.position, r.actual_return, r.hit_exact, r.hit_adjacent, r.hit_direction, r.pnl, p.bin "
+        "SELECT r.model, r.for_date, i.symbol, i.position, r.actual_return, r.hit_exact, r.hit_adjacent, r.hit_direction, r.pnl, p.bin, p.meta "
         "FROM results r JOIN instruments i ON i.id = r.instrument_id "
         "LEFT JOIN predictions p ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
         "WHERE i.market = ? ORDER BY r.for_date, r.model, i.position", (market,)).fetchall()
@@ -230,9 +294,10 @@ def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         m["pnl"] += float(r["pnl"] or 0.0)
         m["last"] = max(m["last"], r["for_date"])
         m["first"] = min(m["first"], r["for_date"])
-        if r["bin"] is not None and int(r["bin"]) >= k / 2 and r["actual_return"] is not None:
+        long, scale = position_of(r["bin"], r["meta"], k)
+        if long and r["actual_return"] is not None:
             m["trades"] += 1
-            made = cash_pnl(r["actual_return"], stake, fee_per_leg)
+            made = scale * cash_pnl(r["actual_return"], stake, fee_per_leg)
             m["cash"] += made
             m["wins"] += int(made > 0)
     out = []
@@ -255,7 +320,7 @@ def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     return out
 
 
-def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG):
+def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None):
     """
     One instrument under the HOLD rule: a position is opened at the previous
     close on the first day the call is up and kept while the calls stay up,
@@ -265,8 +330,9 @@ def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG):
     sold at the last close. The buy fee is paid once on entry, the sell fee
     once on exit, and the stake compounds while held. `calls[i]` is True
     when the model called day i up, False or None otherwise; `returns[i]` is
-    the day's log return (None when unknown). Returns (daily money per
-    date, number of positions, positions that made money).
+    the day's log return (None when unknown); `sizes[i]`, when given, scales
+    the stake of a position opened on day i (a sized row). Returns (daily
+    money per date, number of positions, positions that made money).
     """
     daily = [0.0] * len(dates)
     value = None
@@ -276,9 +342,10 @@ def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG):
         up = bool(calls[i]) and returns[i] is not None
         if up:
             if value is None:
-                value = stake
-                entry_cost = stake * (1.0 + fee)
-                daily[i] -= stake * fee
+                entry = stake * (float(sizes[i]) if sizes is not None and sizes[i] else 1.0)
+                value = entry
+                entry_cost = entry * (1.0 + fee)
+                daily[i] -= entry * fee
                 trades += 1
             grown = value * math.exp(float(returns[i]))
             daily[i] += grown - value
@@ -288,6 +355,45 @@ def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG):
                 daily[i] -= value * fee
                 wins += int(value * (1.0 - fee) - entry_cost > 0)
                 value = None
+    return daily, trades, wins
+
+
+def hold_book_ls(dates, direction, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None):
+    """
+    The HOLD rule with shorts: `direction[i]` is +1 (long), -1 (short) or 0 /
+    None (flat). A position is opened at the previous close on the first day
+    of a run of equal directions and kept while the direction holds; it is
+    closed at the close of the last day of the run (a flip opens the other
+    way the next day). The notional follows the price for both sides - a
+    long's value, a short's buy-back cost - so a day's money is direction x
+    notional x (exp(return) - 1); a fee on the notional at entry and at exit.
+    `sizes[i]` scales the stake of a position opened on day i. Returns (daily
+    money per date, positions, positions that made money).
+    """
+    n = len(dates)
+    daily = [0.0] * n
+    side, notional, net = 0, None, 0.0
+    trades = wins = 0
+    for i in range(n):
+        d = int(direction[i]) if direction[i] and returns[i] is not None else 0
+        if d == 0:
+            continue
+        if notional is None:
+            entry = stake * (float(sizes[i]) if sizes is not None and sizes[i] else 1.0)
+            notional, side, net = entry, d, -entry * fee
+            daily[i] -= entry * fee
+            trades += 1
+        growth = math.exp(float(returns[i]))
+        change = side * notional * (growth - 1.0)
+        notional *= growth
+        daily[i] += change
+        net += change
+        following = int(direction[i + 1]) if i + 1 < n and direction[i + 1] and returns[i + 1] is not None else 0
+        if following != side:
+            daily[i] -= notional * fee
+            net -= notional * fee
+            wins += int(net > 0)
+            notional, side = None, 0
     return daily, trades, wins
 
 
@@ -316,12 +422,15 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         bar = bars.get(symbol, {}).get(dates[i])
         return bar if bar and bar[0] > 0 and bar[1] > 0 else None
     # per model and instrument: the call (up or not) and the return per date
-    calls, rets, seen = {}, {}, {}
+    calls, rets, seen, scales, sides = {}, {}, {}, {}, {}
     market_ret = {}
     for r in rows:
         i = index[r["for_date"]]
         key = (r["model"], r["symbol"])
-        calls.setdefault(key, [None] * n)[i] = r["bin"] is not None and int(r["bin"]) >= k / 2
+        long, scale = position_of(r["bin"], r["meta"], k)
+        calls.setdefault(key, [None] * n)[i] = long
+        scales.setdefault(key, [1.0] * n)[i] = scale
+        sides.setdefault(key, [0] * n)[i] = signed_position(r["bin"], r["meta"], k)[0]   # with shorts on
         rets.setdefault(key, [None] * n)[i] = None if r["actual_return"] is None else float(r["actual_return"])
         seen.setdefault(r["model"], set()).add(i)
         if r["actual_return"] is not None:
@@ -338,38 +447,71 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         return out
 
     daily_models, hold_models, hold_stats, open_models, open_stats = {}, {}, {}, {}, {}
+    # the same rules with shorts on (a lower-half bin is a short): money per model and the position counts
+    ls_daily, ls_daily_stats, ls_hold, ls_hold_stats, ls_open, ls_open_stats = {}, {}, {}, {}, {}, {}
     for (model, symbol), call in calls.items():
         ret = rets[(model, symbol)]
+        size = scales[(model, symbol)]
+        side = sides[(model, symbol)]
         day = daily_models.setdefault(model, [0.0] * n)
         oday = open_models.setdefault(model, [0.0] * n)
         ostat = open_stats.setdefault(model, {"trades": 0, "wins": 0})
+        lday = ls_daily.setdefault(model, [0.0] * n)
+        lstat = ls_daily_stats.setdefault(model, {"trades": 0, "wins": 0})
+        loday = ls_open.setdefault(model, [0.0] * n)
+        lostat = ls_open_stats.setdefault(model, {"trades": 0, "wins": 0})
         for i in range(n):
-            if call[i] and ret[i] is not None:
-                day[i] += cash_pnl(ret[i], stake, fee_per_leg)
-                bar = session(symbol, i)
+            if ret[i] is None:
+                continue
+            bar = session(symbol, i)
+            if call[i]:
+                day[i] += size[i] * cash_pnl(ret[i], stake, fee_per_leg)
                 if bar:
-                    pnl = open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
+                    pnl = size[i] * open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
                     oday[i] += pnl
                     ostat["trades"] += 1
                     ostat["wins"] += int(pnl > 0)
-        held, trades, wins = hold_book(dates, call, ret, stake, fee_per_leg)
+            if side[i]:
+                pnl = size[i] * (cash_pnl(ret[i], stake, fee_per_leg) if side[i] > 0 else short_pnl(ret[i], stake, fee_per_leg))
+                lday[i] += pnl
+                lstat["trades"] += 1
+                lstat["wins"] += int(pnl > 0)
+                if bar:
+                    pnl = size[i] * (open_close_pnl(bar[0], bar[1], stake, fee_per_leg) if side[i] > 0 else short_open_close_pnl(bar[0], bar[1], stake, fee_per_leg))
+                    loday[i] += pnl
+                    lostat["trades"] += 1
+                    lostat["wins"] += int(pnl > 0)
+        held, trades, wins = hold_book(dates, call, ret, stake, fee_per_leg, sizes=size)
         hday = hold_models.setdefault(model, [0.0] * n)
         for i in range(n):
             hday[i] += held[i]
         stat = hold_stats.setdefault(model, {"trades": 0, "wins": 0})
         stat["trades"] += trades
         stat["wins"] += wins
+        held, trades, wins = hold_book_ls(dates, side, ret, stake, fee_per_leg, sizes=size)
+        lhday = ls_hold.setdefault(model, [0.0] * n)
+        for i in range(n):
+            lhday[i] += held[i]
+        lhstat = ls_hold_stats.setdefault(model, {"trades": 0, "wins": 0})
+        lhstat["trades"] += trades
+        lhstat["wins"] += wins
     bench_daily, bench_hold, bench_open = [0.0] * n, [0.0] * n, [0.0] * n
+    # and what SELLING everything gave - the yardstick of the long-and-short views next to the buying line
+    sold_daily, sold_hold, sold_open = [0.0] * n, [0.0] * n, [0.0] * n
     for symbol, ret in market_ret.items():
         for i in range(n):
             if ret[i] is not None:
                 bench_daily[i] += cash_pnl(ret[i], stake, fee_per_leg)
+                sold_daily[i] += short_pnl(ret[i], stake, fee_per_leg)
                 bar = session(symbol, i)
                 if bar:
                     bench_open[i] += open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
+                    sold_open[i] += short_open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
         held, _, _ = hold_book(dates, [r is not None for r in ret], ret, stake, fee_per_leg)
+        sold, _, _ = hold_book_ls(dates, [-1 if r is not None else 0 for r in ret], ret, stake, fee_per_leg)
         for i in range(n):
             bench_hold[i] += held[i]
+            sold_hold[i] += sold[i]
     return {
         "dates": dates,
         "models": {m: series(day, seen[m]) for m, day in daily_models.items()},
@@ -384,6 +526,13 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
                                "win_rate": (st["wins"] / st["trades"]) if st["trades"] else None,
                                "per_trade": (sum(open_models[m]) / st["trades"]) if st["trades"] else None}
                            for m, st in open_stats.items()}},
+        # the same three rules with shorts on; "benchmark" is what SELLING everything gave (the buying lines above stay the other yardstick)
+        "short": {rule: {"models": {m: series(day, seen[m]) for m, day in books.items()}, "benchmark": series(sold),
+                         "stats": {m: {"trades": st["trades"], "wins": st["wins"], "total": round(sum(books[m]), 4),
+                                       "win_rate": (st["wins"] / st["trades"]) if st["trades"] else None,
+                                       "per_trade": (sum(books[m]) / st["trades"]) if st["trades"] else None}
+                                   for m, st in stats.items()}}
+                  for rule, books, stats, sold in (("daily", ls_daily, ls_daily_stats, sold_daily), ("hold", ls_hold, ls_hold_stats, sold_hold), ("open", ls_open, ls_open_stats, sold_open))},
     }
 
 
@@ -559,9 +708,17 @@ def next_day_predictions(conn, market, path):
                 continue
             b = int(tickets[0][pos])
             low, high = price_interval(last_close, b, edges)
+            sizes = row.get("positions") if isinstance(row.get("positions"), list) else None
+            size = None
+            if sizes is not None and pos < len(sizes) and sizes[pos] is not None:
+                try:
+                    size = float(sizes[pos])
+                except (TypeError, ValueError):
+                    size = None
             predictions.append({"model": row["name"], "bin": b, "direction": direction_of(b, edges),
                                 "price": round(predicted_price(last_close, b, edges), 6),
-                                "low": None if low is None else round(low, 6), "high": None if high is None else round(high, 6)})
+                                "low": None if low is None else round(low, 6), "high": None if high is None else round(high, 6),
+                                "size": size})
         out["instruments"][symbol] = {"last_close": last_close, "last_date": last_date, "predictions": predictions,
                                       "traded_since": traded_since[-1] if traded_since else None}
     return out
@@ -604,6 +761,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     book = ledger(conn, market, k)
     if market not in OPEN_RULE_MARKETS:
         book.pop("open", None)
+        book["short"].pop("open", None)
     for m in models:
         st = book["hold"]["stats"].get(m["name"])
         m["hold_total"] = st["total"] if st else None
@@ -617,6 +775,15 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         m["open_wins"] = ost["wins"] if ost else None
         m["open_win_rate"] = ost["win_rate"] if ost else None
         m["open_per_trade"] = ost["per_trade"] if ost else None
+        sst = book["short"]["daily"]["stats"].get(m["name"])
+        m["short_total"] = sst["total"] if sst else None
+        m["short_trades"] = sst["trades"] if sst else None
+        m["short_win_rate"] = sst["win_rate"] if sst else None
+        m["short_per_trade"] = sst["per_trade"] if sst else None
+        shs = book["short"]["hold"]["stats"].get(m["name"])
+        m["short_hold_total"] = shs["total"] if shs else None
+        sos = book["short"]["open"]["stats"].get(m["name"]) if "open" in book["short"] else None
+        m["short_open_total"] = sos["total"] if sos else None
     drawn = [m["name"] for m in models[:top_models]]
     members = instruments(conn, market, active_only=False)
     instruments_out = []
@@ -641,6 +808,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
                     "rule": "long when the predicted bin is in the upper half: the stake bought at the previous close, sold at the day's close, a fee on each leg; flat otherwise",
                     "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
                     **({"open_rule": "the same calls, but the stake is bought at the session's open and sold at its close, a fee on each leg: the rule a reader of the page can follow"} if "open" in book else {}),
+                    "short_rule": "with shorts on, a bin in the lower half is a short: sold at the previous close and bought back at the day's close (daily), kept while the call stays down (hold), sold at the open and bought back at the close (open to close); paper only - selling what one does not own needs a margin or derivatives account",
                     **book},
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
@@ -715,9 +883,13 @@ def _self_check():
             long_wrong = [9 if a < 5 else 0 for a in actual]
             data = {"realResult": actual,
                     "currentPrediction": [{"name": "Perfect Model", "predictions": [perfect]},
-                                          {"name": "Contrarian Model", "predictions": [long_wrong]}],
+                                          {"name": "Contrarian Model", "predictions": [long_wrong]},
+                                          # sized rows (the RL Position Model's shape): the size decides the position, not the bin
+                                          {"name": "Sized Model", "predictions": [perfect], "positions": [2.0] * len(actual)},
+                                          {"name": "Flat Model", "predictions": [perfect], "positions": [0.0] * len(actual)}],
                     "newPrediction": [{"name": "Perfect Model", "predictions": [[5, 6, 7, 8, 9]]},
-                                      {"name": "Contrarian Model", "predictions": [[0, 0, 0, 0, 0]]}]}
+                                      {"name": "Contrarian Model", "predictions": [[0, 0, 0, 0, 0]]},
+                                      {"name": "Sized Model", "predictions": [[5, 6, 7, 8, 9]], "positions": [1.5, 0.0, 1.0, 2.0, 0.5]}]}
             with open(os.path.join(folder, f"{d.year}-{d.month}-{d.day}.json"), "w") as handle:
                 json.dump(data, handle)
         # a day file without a stored game day is skipped
@@ -725,9 +897,9 @@ def _self_check():
             json.dump({"realResult": [1, 2, 3, 4, 5], "currentPrediction": [{"name": "Perfect Model", "predictions": [[1, 2, 3, 4, 5]]}]}, handle)
 
         settled_days, written = settle_market(conn, root, "crypto", log=lambda *_: None)
-        assert settled_days == 30 and written == 30 * 2 * 5, (settled_days, written)
-        assert settle_market(conn, root, "crypto", log=lambda *_: None) == (30, 300), "settling again rewrites the same rows"
-        assert conn.execute("SELECT COUNT(*) FROM results").fetchone()[0] == 300
+        assert settled_days == 30 and written == 30 * 4 * 5, (settled_days, written)
+        assert settle_market(conn, root, "crypto", log=lambda *_: None) == (30, 600), "settling again rewrites the same rows"
+        assert conn.execute("SELECT COUNT(*) FROM results").fetchone()[0] == 600
         summary = {m["name"]: m for m in model_summary(conn, "crypto")}
         perfect, contrarian = summary["Perfect Model"], summary["Contrarian Model"]
         assert perfect["exact_rate"] == 1.0 and perfect["adjacent_rate"] == 1.0 and perfect["days"] == 30 and perfect["positions"] == 150
@@ -786,11 +958,13 @@ def _self_check():
             rep = json.loads(r["meta"])["representative_return"]
             assert r["hit_direction"] == int((rep > 0) == (r["actual_return"] > 0) and rep != 0 and r["actual_return"] != 0) or \
                    r["hit_direction"] == int((rep < 0) == (r["actual_return"] < 0) and rep != 0 and r["actual_return"] != 0)
-        print(f"settlement: 30 days x 2 models x 5 instruments; a perfect model reads 100%/100%, "
+        print(f"settlement: 30 days x 4 models x 5 instruments; a perfect model reads 100%/100%, "
               f"the long-and-wrong model {contrarian['direction_rate']:.0%} direction and its P&L is the real returns minus the fee")
 
         series = daily_series(conn, "crypto")
-        assert len(series) == 30 and series[-1]["best_model"] == "Perfect Model" and series[-1]["best_exact"] == 1.0 and abs(series[-1]["exact_mean"] - 0.5) < 1e-12
+        # three rows are right everywhere (Perfect, Sized, Flat - the sized rows share Perfect's bins), one is always wrong
+        assert len(series) == 30 and series[-1]["best_model"] in ("Perfect Model", "Sized Model", "Flat Model") and series[-1]["best_exact"] == 1.0 \
+            and abs(series[-1]["exact_mean"] - 0.75) < 1e-12, series[-1]
         files = export_results_csv(conn, root, "crypto")
         years = sorted({day["date"][:4] for day in game_days[-30:]})
         assert [os.path.basename(f) for f in files] == [f"results-{y}.csv" for y in years], files
@@ -800,22 +974,24 @@ def _self_check():
                 lines = handle.read().strip().splitlines()
             assert lines[0].startswith("date;model;symbol;predicted_bin")
             total_lines += len(lines) - 1
-        assert total_lines == 300, total_lines
+        assert total_lines == 600, total_lines
         records = day_records(conn, "crypto", days=10)
         assert len(records) == 10 and records[0]["date"] == game_days[-1]["date"] and records[0]["date"] > records[-1]["date"], "newest first"
         first = records[0]
         assert [i["symbol"] for i in first["instruments"]] == symbols and first["instruments"][0]["bin"] == game_days[-1]["bins"][0]
         assert abs(first["instruments"][0]["return"] - game_days[-1]["returns"][0]) < 1e-12 and len(first["instruments"][0]["edges"]) == 9
-        assert first["best"] == "Perfect Model" and first["models"][0]["exact"] == 5 and first["models"][0]["bins"] == game_days[-1]["bins"]
-        assert first["models"][1]["name"] == "Contrarian Model" and first["models"][1]["exact"] == 0 and abs(first["exact_mean"] - 0.5) < 1e-12
+        assert first["best"] in ("Perfect Model", "Sized Model", "Flat Model") and first["models"][0]["exact"] == 5 and first["models"][0]["bins"] == game_days[-1]["bins"]
+        contrarian_day = [m for m in first["models"] if m["name"] == "Contrarian Model"][0]
+        assert contrarian_day["exact"] == 0 and abs(first["exact_mean"] - 0.75) < 1e-12, first["exact_mean"]
         out, record = export_page_json(conn, root, "crypto", chart_days=40)
         assert len(record["days"]) == 30 and record["days"][0]["date"] == game_days[-1]["date"]
         assert os.path.exists(out) and record["market"] == "crypto" and record["k"] == 10
         assert [i["symbol"] for i in record["instruments"]] == symbols and len(record["instruments"][0]["closes"]) == 40
-        assert record["drawn_models"] == ["Perfect Model", "Contrarian Model"] and record["best_model"] == "Perfect Model"
+        perfect_rows = {"Perfect Model", "Sized Model", "Flat Model"}
+        assert len(record["drawn_models"]) == TOP_MODELS and set(record["drawn_models"]) <= perfect_rows and record["best_model"] == record["drawn_models"][0], record["drawn_models"]
         btc = record["instruments"][0]
         last_day = game_days[-1]
-        assert len(btc["edges"]) == 40 and len(btc["moves"]) == 40 and set(btc["course"]) == {"Perfect Model", "Contrarian Model"}
+        assert len(btc["edges"]) == 40 and len(btc["moves"]) == 40 and set(btc["course"]) == perfect_rows | {"Contrarian Model"}
         assert sum(1 for b in btc["course"]["Perfect Model"] if b is not None) == 30, "every settled day carries the model's bin"
         assert btc["closes"][-1][0] == last_day["date"] and btc["course"]["Perfect Model"][-1] == last_day["bins"][0]
         assert all(abs(a - b) < 1e-6 for a, b in zip(btc["edges"][-1], last_day["edges"][0])) and abs(btc["moves"][-1] - last_day["returns"][0]) < 1e-8
@@ -860,8 +1036,68 @@ def _self_check():
         assert "open" not in record["trading"] and "open_rule" not in record["trading"]
         assert all(m["open_total"] is None for m in record["models"])
         print("open to close: a position bought at the open and sold at the close; computed for every market, exported for", OPEN_RULE_MARKETS)
+        # sized rows: Sized Model is long everywhere at twice the stake, so its daily book is twice the market line, its hold
+        # book twice buy-and-hold and its open book twice the open benchmark; Flat Model never takes a position
+        by_name = {m["name"]: m for m in record["models"]}
+        sized, flat = by_name["Sized Model"], by_name["Flat Model"]
+        trading = record["trading"]
+        assert sized["trades"] == 30 * 5 and flat["trades"] == 0 and flat["pnl_cash_total"] == 0.0, (sized["trades"], flat["trades"])
+        # the series are rounded to 4 decimals per day, so the running totals agree to a hundredth over 30 days
+        assert abs(sized["pnl_cash_total"] - 2 * trading["benchmark"][-1][2]) < 1e-2, (sized["pnl_cash_total"], trading["benchmark"][-1])
+        assert abs(sized["hold_total"] - 2 * trading["hold"]["benchmark"][-1][2]) < 1e-2, (sized["hold_total"], trading["hold"]["benchmark"][-1])
+        full_book = ledger(conn, "crypto")
+        assert abs(full_book["open"]["stats"]["Sized Model"]["total"] - 2 * full_book["open"]["benchmark"][-1][2]) < 1e-2
+        assert sized["exact_rate"] == 1.0 and sized["pnl_total"] != by_name["Perfect Model"]["pnl_total"], "the bins score hits; the size decides the position"
+        assert position_of(7, None) == (True, 1.0) and position_of(2, None) == (False, 1.0) and position_of(2, json.dumps({"size": 1.5})) == (True, 1.5) \
+            and position_of(8, json.dumps({"size": 0})) == (False, 0.0) and position_of(8, "garbage") == (True, 1.0)
+        sized_next = [p for p in record["next"]["instruments"]["BTC"]["predictions"] if p["model"] == "Sized Model"][0]
+        plain_next = [p for p in record["next"]["instruments"]["BTC"]["predictions"] if p["model"] == "Perfect Model"][0]
+        assert sized_next["size"] == 1.5 and plain_next["size"] is None
+        print("sized rows: the size decides long and scale in every book and in the models table; the next-day call carries it")
+        # shorts: 100 sold at the previous close and bought back 2% lower, a fee on each leg
+        assert abs(short_pnl(-0.02) - (99.9 - 100.0 * math.exp(-0.02) * 1.001)) < 1e-9 and abs(short_pnl(0.0) - (-0.2)) < 1e-9
+        assert abs(short_open_close_pnl(100.0, 98.0) - short_pnl(math.log(0.98))) < 1e-12
+        assert signed_position(7, None) == (1, 1.0) and signed_position(2, None) == (-1, 1.0) and signed_position(None, None) == (0, 1.0)
+        assert signed_position(2, json.dumps({"size": 1.5})) == (1, 1.5) and signed_position(8, json.dumps({"size": 0})) == (0, 0.0), "a sized row never shorts"
+        # the perfect model shorts the down days and gains; the contrarian model is wrong both ways and loses more; a sized row's books do not change
+        perfect, contrarian = by_name["Perfect Model"], by_name["Contrarian Model"]
+        assert perfect["short_total"] > perfect["pnl_cash_total"] and perfect["short_trades"] == 150, (perfect["short_total"], perfect["pnl_cash_total"])
+        assert contrarian["short_total"] < contrarian["pnl_cash_total"], (contrarian["short_total"], contrarian["pnl_cash_total"])
+        assert abs(sized["short_total"] - sized["pnl_cash_total"]) < 1e-3 and abs(sized["short_hold_total"] - sized["hold_total"]) < 1e-3 and flat["short_trades"] == 0, (sized["short_total"], sized["pnl_cash_total"])
+        assert "short" in trading and set(trading["short"]) == {"daily", "hold"} and trading["short"]["daily"]["models"]["Perfect Model"][-1][2] == round(perfect["short_total"], 4)
+        assert all(m["short_open_total"] is None for m in record["models"])
+        # the hold rule with shorts, by hand: long two days, flip to short for one, flat, long again
+        held, trades, wins = hold_book_ls(["a", "b", "c", "d", "e"], [1, 1, -1, 0, 1], [0.01, 0.02, -0.03, 0.01, 0.005])
+        assert trades == 3, trades
+        first = -100 * 0.001 + 100 * (math.exp(0.01) - 1) + 100 * math.exp(0.01) * (math.exp(0.02) - 1) - 100 * math.exp(0.03) * 0.001
+        assert abs(held[0] + held[1] - first) < 1e-9, (held, first)
+        assert abs(held[2] - (-0.1 - 100 * (math.exp(-0.03) - 1) - 100 * math.exp(-0.03) * 0.001)) < 1e-9 and held[3] == 0.0, held
+        assert hold_book_ls(["a", "b"], [0, 0], [0.01, 0.01]) == ([0.0, 0.0], 0, 0) and hold_book_ls(["a"], [-1], [None]) == ([0.0], 0, 0)
+        # a short held three days is the proceeds minus the final buy-back minus both fees; a None return splits the run
+        r1, r2, r3 = 0.01, -0.03, 0.004
+        held3, trades3, _ = hold_book_ls(["a", "b", "c"], [-1, -1, -1], [r1, r2, r3])
+        assert trades3 == 1 and abs(sum(held3) - (100 * (1 - 0.001) - 100 * math.exp(r1 + r2 + r3) * (1 + 0.001))) < 1e-9, (sum(held3), trades3)
+        split, trades_split, _ = hold_book_ls(["a", "b", "c"], [-1, -1, -1], [r1, None, r3])
+        assert trades_split == 2 and split[1] == 0.0, (split, trades_split)
+        # with every direction up the hold rule with shorts is the hold rule
+        probe = np.random.default_rng(5)
+        for _ in range(200):
+            m = int(probe.integers(1, 12))
+            rr = [None if probe.random() < 0.15 else float(v) for v in probe.normal(0, 0.03, size=m)]
+            cc = [bool(probe.random() < 0.6) for _ in range(m)]
+            a = hold_book(["d%d" % i for i in range(m)], cc, rr)
+            b = hold_book_ls(["d%d" % i for i in range(m)], [1 if c else 0 for c in cc], rr)
+            assert a[1] == b[1] and a[2] == b[2] and all(abs(x - y) < 1e-9 for x, y in zip(a[0], b[0])), (cc, rr, a, b)
+        # the selling lines: the daily one is the short of every instrument-day; the sized row's open book with shorts equals its open book
+        assert len(full_book["short"]["daily"]["benchmark"]) == 30 and all(p[1] < 0 or p[1] > 0 for p in full_book["short"]["daily"]["benchmark"])
+        assert abs(full_book["short"]["daily"]["benchmark"][-1][2] - sum(5 * short_pnl(0.0) + sum(short_pnl(r) - short_pnl(0.0) for r in d["returns"]) for d in game_days[-30:])) < 1e-2
+        assert "open" in full_book["short"] and abs(full_book["short"]["open"]["stats"]["Sized Model"]["total"] - full_book["open"]["stats"]["Sized Model"]["total"]) < 1e-6
+        assert size_of(json.dumps({"size": 1.5})) == 1.5 and size_of(json.dumps({"size": "abc"})) is None and size_of(json.dumps({"size": float("nan")})) is None \
+            and size_of("garbage") is None and size_of(None) is None and size_of({"size": 0}) == 0.0
+        assert signed_position(2, json.dumps({"size": float("nan")})) == (-1, 1.0) and position_of(2, json.dumps({"size": float("nan")})) == (False, 1.0), "an unusable size is no size, in both readings"
+        print("shorts: a lower-half bin sold and bought back; the perfect model gains on its down calls, the contrarian loses twice; sized rows never short")
         btc_next = nxt["instruments"]["BTC"]
-        assert btc_next["last_close"] == btc_closes[-1] and len(btc_next["predictions"]) == 2
+        assert btc_next["last_close"] == btc_closes[-1] and len(btc_next["predictions"]) == 3
         top = [p for p in btc_next["predictions"] if p["model"] == "Perfect Model"][0]
         assert top["bin"] == 5 and top["direction"] in (1, -1) and top["low"] < top["price"] < top["high"]
         assert len(record["daily"]) == 30 and record["chance"]["exact"] == 0.1

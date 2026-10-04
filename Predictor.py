@@ -34,6 +34,7 @@ from src.TransformerModel import TransformerModel
 from src.GNN import GNNModel
 from src.AutoencoderAnomaly import AutoencoderAnomaly
 from src.RLTicketModel import RLTicketModel
+from src.RLPositionModel import RLPositionModel
 from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
 from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
 from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
@@ -55,6 +56,7 @@ transformer = TransformerModel()
 gnn = GNNModel()
 autoencoderAnomaly = AutoencoderAnomaly()
 rlTicket = RLTicketModel()
+rlPosition = RLPositionModel()
 markov = Markov()
 markovMcBase = Markov()
 markovMonteCarlo = MarkovMonteCarlo(markovMcBase)
@@ -1061,6 +1063,34 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         print("Did not found entries")
 
 
+def addRLPositionPrediction(listOfDecodedPredictions, dataPath, path, name, bestParams_json_object, cutoffDate=None):
+    """
+    Appends the RL Position Model row for a market game (README item 4, M4):
+    the per-slot vote as its ticket and a position size per instrument,
+    learned on the market's stored day files against the paper money of the
+    daily rule (src/RLPositionModel.py). The rlPosition* keys of
+    bestParams_<market>.json are its knobs; useRlPosition switches it off.
+    """
+    if not bestParams_json_object.get("useRlPosition", True):
+        print("RL Position Model disabled via useRlPosition - skipping")
+        return listOfDecodedPredictions
+    try:
+        rlPosition.setModelPath(os.path.join(path, "data", "models", "rl_position"))
+        rlPosition.setLearningRate(bestParams_json_object.get("rlPositionLearningRate", 0.05))
+        rlPosition.setEpochs(bestParams_json_object.get("rlPositionEpochs", 30))
+        rlPosition.setSamplesPerDay(bestParams_json_object.get("rlPositionSamplesPerDay", 16))
+        rlPosition.setTrainDays(bestParams_json_object.get("rlPositionTrainDays", 120))
+        rlPosition.setRiskAversion(bestParams_json_object.get("rlPositionRiskAversion", 0.1))
+        rlPosition.setMaxTrainSeconds(bestParams_json_object.get("rlPositionMaxTrainSeconds", 60))
+        row = rlPosition.run(name, listOfDecodedPredictions, os.path.join(path, "data", "database", name), dataPath,
+                             {"cutoffDate": cutoffDate, "modelScores": bestParams_json_object.get("modelScores")})
+        if row and row.get("predictions"):
+            listOfDecodedPredictions.append(row)
+    except Exception as e:
+        print("Failed to perform RL Position Model prediction: ", e)
+    return listOfDecodedPredictions
+
+
 def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
                           specialColumnCount, bestParams_json_object, fallbackDrawSize=None,
                           cutoffDate=None):
@@ -1090,11 +1120,10 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
               "(system-generated, only the zodiac sign is selectable) - nothing to construct")
         return listOfDecodedPredictions
     if Helpers.is_market_game(name):
-        # The RL row learns ticket construction against a payout table; a
-        # market game has bins and, later, position sizing (README item 4,
-        # phase M3/M4) - until that reward exists there is nothing to learn.
-        print(f"RL Ticket Model skipped for {name}: no payout table - position sizing comes with the markets track")
-        return listOfDecodedPredictions
+        # A market game has no payout table to construct a ticket against;
+        # its RL row sizes positions instead (src/RLPositionModel.py, README
+        # item 4 phase M4) - the one lever a lottery player never gets.
+        return addRLPositionPrediction(listOfDecodedPredictions, dataPath, path, name, bestParams_json_object, cutoffDate)
     try:
         rlTicket.setModelPath(os.path.join(path, "data", "models", "rl_model"))
         rlTicket.setLearningRate(bestParams_json_object.get("rlTicketLearningRate", 0.05))

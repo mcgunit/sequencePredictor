@@ -17,6 +17,30 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-04-paper-shorts',
+    date: '2026-10-04',
+    level: 'minor',
+    audience: 'all',
+    title: 'Crypto and Shares: the paper books can short',
+    body: [
+      'The Paper trading card has a switch, Long only / Long and short. With shorts on, a model\'s call in the lower half is a short: sold at the previous close and bought back at the day\'s close, kept while the call stays down, or sold at the open and bought back at the close - the same stake and fees as the long side. The models table shows each model\'s long-and-short total next to the others.',
+      'Paper only: selling what you do not own needs a margin or derivatives account, so Today\'s plan names the paper short on a down call and gives no order for it. The market lines stay what buying the coins and shares gave.',
+    ],
+    link: { href: '/markets/shares', label: 'Shares page' },
+  },
+  {
+    id: '2026-10-04-rl-position-model',
+    date: '2026-10-04',
+    level: 'minor',
+    audience: 'all',
+    title: 'Crypto and Shares: the RL row sizes its positions',
+    body: [
+      'The market games have their RL row back, as the RL Position Model: for every coin or share it chooses how much to put on the day - nothing, half the stake, the stake, one and a half or twice it - from what the other models said about that day, and learns from the paper money its past sizes made. Its bins are the vote of the other rows; the size is its own call, and the paper books, the models table and Today\'s plan apply it (a call reads up ×1.5, a size of 0 is a sit-out).',
+      'The meta-learner rows are on the market pages too since this morning\'s run (crypto first, shares from its next ticket), and the Saturday chain will tune the SubsetEnsemble row for the markets from next week.',
+    ],
+    link: { href: '/markets/crypto', label: 'Crypto page' },
+  },
+  {
     id: '2026-10-04-market-plan-open-close',
     date: '2026-10-04',
     level: 'minor',

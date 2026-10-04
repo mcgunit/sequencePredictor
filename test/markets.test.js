@@ -358,7 +358,7 @@ ok(timed.includes('is the call for 2026-10-02 - the candle after the last one dr
 ok(timed.includes('Right now the UTC day 2026-10-02 is running now, 9 hours in; it closes at 02:00 Belgian time.'), 'the judged line says where the day stands as the page is read');
 ok(timed.includes('a market order at 02:00 Belgian time in the night from Friday to Saturday (00:00 UTC on 2026-10-03), whatever the price then is') && timed.includes('<b>The sell is at the close, whatever the price</b> - it is not a limit order at the band')
    && timed.includes('The call is scored close-to-close: right when the close lands in the band, whatever happened in between'), 'the judged line says when a reader sells to be compared like the model, and that a hit is not a gain');
-ok(timed.includes('Price drawn on the chart (bin middle)') && timed.includes('a hit is the close landing anywhere inside">Band</th>') && timed.includes('the two bins around zero can be "up" here'), 'the next-day table says which column decides a hit');
+ok(timed.includes('Price drawn on the chart (bin middle)') && timed.includes('a hit is the close landing anywhere inside">Band</th>') && timed.includes('The two bins around zero can be "up" here'), 'the next-day table says which column decides a hit');
 ok(timed.includes('the newest ticket went up at 09:15 Belgian time on Fri 02/10') && timed.includes('That ticket is for the UTC day 2026-10-02 and is judged at the close of 2026-10-02, which is 02:00 Belgian time in the night from Friday to Saturday')
    && timed.includes('the day it predicts was already 7.3 hours old'), 'the explainer names the ticket\'s time, its day and its close; the hours are computed');
 ok(timed.includes('a <i>game day</i>, for crypto simply one UTC day') && timed.includes('Results settle the morning after, when the day\'s candle has closed. A crypto day is the UTC day, so'), 'the intro and step 3 put the day on a clock and define a game day');
@@ -382,6 +382,12 @@ const sharesRecord = { ...record, market: 'shares',
   models: [{ ...record.models[0], open_total: 9.5, open_trades: 12, open_wins: 7, open_win_rate: 0.5833, open_per_trade: 0.7917 }, record.models[1]],
   trading: { ...record.trading, currency: 'USD', open_rule: 'open to close',
     open: { models: { 'Markov Model': [['2026-09-30', 3.0, 3.0], ['2026-10-01', 6.5, 9.5]] }, benchmark: [['2026-09-30', 1.0, 1.0], ['2026-10-01', 2.0, 3.0]] } } };
+// with shorts on (MarketSettle.ledger "short"): the same rules, a lower-half bin sold first; the fixture's shares record carries them
+const shortedRecord = { ...sharesRecord,
+  models: [{ ...sharesRecord.models[0], short_total: 4.25, short_trades: 20, short_win_rate: 0.55, short_per_trade: 0.2125, short_hold_total: 3.1, short_open_total: -1.2 }, sharesRecord.models[1]],
+  trading: { ...sharesRecord.trading, short_rule: 'with shorts on',
+    short: { daily: { models: { 'Markov Model': [['2026-09-30', 2.0, 2.0], ['2026-10-01', 2.25, 4.25]] }, benchmark: [['2026-09-30', -1.5, -1.5], ['2026-10-01', -2.6, -4.1]] }, hold: { models: { 'Markov Model': [['2026-09-30', 1.0, 1.0], ['2026-10-01', 2.1, 3.1]] } },
+             open: { models: { 'Markov Model': [['2026-09-30', -0.5, -0.5], ['2026-10-01', -0.7, -1.2]] } } } } };
 const sharesView = markets.describeMarket(sharesRecord);
 ok(sharesView.trading.open && sharesView.trading.open.models['Markov Model'].length === 2 && sharesView.trading.openRule === 'open to close' && sharesView.models[0].openTotal === 9.5
    && view.trading.open === null && view.models[0].openTotal === null, 'the open-to-close book is read when present and absent otherwise');
@@ -405,7 +411,7 @@ ok(after.includes('too late for this ticket - the day closed at 22:00 Belgian ti
 const downRecord = { ...sharesRecord, next: { ...sharesRecord.next, instruments: { ...sharesRecord.next.instruments,
   BTC: { ...sharesRecord.next.instruments.BTC, predictions: sharesRecord.next.instruments.BTC.predictions.map((p) => (p.model === 'Markov Model' ? { ...p, bin: 2, direction: -1 } : p)) } } } };
 const downPlan = markets.page('shares', markets.describeMarket(downRecord), header, footer, null, at);
-ok(downPlan.includes('no new buy - the call is down (bin 2); shorts are not scored yet') && downPlan.includes('if you still hold it from an earlier day, sell at the close, 22:00 Belgian time'), 'a down call gives no buy and tells a holder to sell at the close');
+ok(downPlan.includes('no new buy - the call is down (bin 2)') && !downPlan.includes('shorts it on paper') && downPlan.includes('if you still hold it from an earlier day, sell at the close, 22:00 Belgian time'), 'a down call gives no buy and tells a holder to sell at the close; without short books no short is named');
 ok(sharesPlan.includes('data-view="open"') && sharesPlan.includes('P&amp;L open-close') && sharesPlan.includes('open to close: +9.50 (Markov Model), the market +3.00') && sharesPlan.includes('"open":{"benchmark":[1,3]')
    && sharesPlan.includes('<b>Open to close</b>: bought at the session\'s own open') && sharesPlan.includes('three ways of trading them'), 'the shares book has the third rule, its column, its meta and its toggle');
 ok(timed.includes('Follows <b>Markov Model</b>, the best book under the <b>daily round trip</b> rule over the settled days: +12.34 USDT from 25 position(s), the market under the same rule +1.80') && timed.includes('a market order now - the ticket went up at 09:15 Belgian time on Fri 02/10; the UTC day 2026-10-02 is running now, 9 hours in')
@@ -419,5 +425,51 @@ const summary = (sharesPlan.match(/<span class="card-meta" style="margin-left:10
 ok(summary.startsWith('how a day becomes a draw - models - ') && summary.includes('day by day') && !summary.includes('proper score'), `the Background summary names the sections present and promises none that is absent: ${summary}`);
 const nasty = markets.page('crypto', markets.describeMarket({ ...record, models: [{ ...record.models[0], name: 'Evil</script><img src=x> Model' }] }), header, footer, null, at);
 ok(!nasty.includes('Evil</script>') && nasty.includes('Evil\\u003c/script>'), 'a model name cannot end an inline data script');
+
+// position sizes (the RL Position Model): the plan and the next-day table read the size, not the bin
+const sizedRecord = { ...record, next: { ...record.next, instruments: { ...record.next.instruments,
+  BTC: { ...record.next.instruments.BTC, predictions: record.next.instruments.BTC.predictions.map((p) => (p.model === 'Markov Model' ? { ...p, size: 1.5 } : p))
+    .concat([{ model: 'RL Position Model', bin: 6, direction: 1, price: 84800, low: 84300, high: 85100, size: 0 }]) } } } };
+const sizedPlan = markets.page('crypto', markets.describeMarket(sizedRecord), header, footer, null, at);
+ok(sizedPlan.includes('up &#9650; &times;1.5</span>') && sizedPlan.includes('position size &times;1.5 (150 USDT at the paper stake) - a market order now'), 'a sized up call shows its size and the money it means');
+ok(sizedPlan.includes('<span style="color:#27ae60;">long &times;1.5</span>') && sizedPlan.includes('flat (size 0)'), 'the next-day table shows long with the size, and a size of 0 as flat');
+const zeroRecord = { ...record, next: { ...record.next, instruments: { ...record.next.instruments,
+  BTC: { ...record.next.instruments.BTC, predictions: record.next.instruments.BTC.predictions.map((p) => (p.model === 'Markov Model' ? { ...p, size: 0 } : p)) } } } };
+ok(markets.page('crypto', markets.describeMarket(zeroRecord), header, footer, null, at).includes('no new buy - the model sizes this coin at 0 today (its vote bin is 7)'), 'a sized call of 0 is a sit-out whatever the bin');
+ok(markets.describeMarket(record).instruments[0].next[0].size === null, 'a plain row has no size');
+
+// shorts in the paper books
+const shortedView = markets.describeMarket(shortedRecord);
+ok(shortedView.trading.short && Object.keys(shortedView.trading.short).sort().join() === 'daily,hold,open' && shortedView.trading.short.daily.models['Markov Model'][1].total === 4.25 && shortedView.trading.short.daily.sold[1].total === -4.1 && shortedView.trading.short.hold.sold.length === 0
+   && shortedView.models[0].shortTotal === 4.25 && shortedView.models[0].shortHoldTotal === 3.1 && view.trading.short === null && view.models[0].shortTotal === null, 'the long-and-short books are read when present');
+const shorted = markets.page('shares', shortedView, header, footer, null, at);
+ok(shorted.includes('data-shorts="off"') && shorted.includes('data-shorts="on"') && shorted.includes("marketShorts('ledger-shares', true)") && shorted.includes('"daily_ls":{"benchmark":[-1.2,1.8],"sold":[-1.5,-4.1]') && shorted.includes('"open_ls":{"benchmark":[1,3]'),
+   'the book card has the shorts switch and the long-and-short rules share the market lines');
+ok(shorted.includes('P&amp;L long &amp; short (daily)</th>') && shorted.includes('20 position(s), win rate 55%, +0.21 per position; holding +3.10, open to close -1.20">+4.25</td>')
+   && shorted.includes('long and short (daily): +4.25 (Markov Model), buying everything +1.80, selling everything -4.10') && shorted.includes('<b>Shorts</b> (the switch)') && shorted.includes('selling what you do not own needs a margin or derivatives account')
+   && shorted.includes('the second dashed line is what <b>selling</b> everything gave') && shorted.includes('a paper short (the switch)') && shorted.includes('every down call as a paper short, which is never an order'),
+   'the models table, the card meta and the text carry the shorts');
+ok(!sharesPlan.includes('data-shorts=') && !sharesPlan.includes('P&amp;L long &amp; short'), 'a record without the short books shows no switch and no column');
+const downShorted = markets.page('shares', markets.describeMarket({ ...shortedRecord, next: downRecord.next }), header, footer, null, at);
+ok(downShorted.includes('no new buy - the call is down (bin 2); with shorts on, the open to close book shorts it on paper, which needs a margin or derivatives account - no order here') && !downShorted.includes('shorts are not scored yet'),
+   'a down call names the paper short and gives no order');
+ok(downShorted.includes('flat - short (paper) with shorts on</span>') && /<td>\d+ of \d+<\/td>/.test(downShorted) && downShorted.includes('a paper short with the shorts switch on)'), 'the next-day table and the day-by-day legend say what a lower-half bin is under each switch');
+// the switch and the rule buttons compose the view (marketRender returns early for an unknown chart id)
+sandbox.window.marketState = Object.assign(sandbox.window.marketState || {}, { b: { view: 'hold' } });
+sandbox.window.marketData = sandbox.window.marketData || {};
+w.marketShorts('b', true); ok(sandbox.window.marketState.b.view === 'hold_ls', `the switch keeps the rule: ${sandbox.window.marketState.b.view}`);
+w.marketRule('b', 'open'); ok(sandbox.window.marketState.b.view === 'open_ls', `the rule keeps the switch: ${sandbox.window.marketState.b.view}`);
+w.marketShorts('b', false); ok(sandbox.window.marketState.b.view === 'open', 'and back to long only');
+
+const youngSized = markets.page('shares', markets.describeMarket({ ...shortedRecord,
+  models: [shortedRecord.models[0], { ...shortedRecord.models[1], days: 2, short_total: 99, short_trades: 2, pnl_cash_total: 99, trades: 2 }],
+  next: { ...shortedRecord.next, instruments: { ...shortedRecord.next.instruments, BTC: { ...shortedRecord.next.instruments.BTC,
+    predictions: shortedRecord.next.instruments.BTC.predictions.concat([{ model: 'Odd Model', bin: 6, direction: 1, price: 84800, low: 84300, high: 85100, size: 1 }]) } } } }), header, footer, null, at);
+ok(youngSized.includes('long and short (daily): +4.25 (Markov Model)') && youngSized.includes('best book +12.34 USD (Markov Model)') && !youngSized.includes('+99.00 (Odd Model)'), 'a two-day sized row heads no book line');
+const sizedShort = markets.page('shares', markets.describeMarket({ ...shortedRecord,
+  models: [shortedRecord.models[0], { ...shortedRecord.models[1], days: 12, short_total: 1.0, short_trades: 2, short_win_rate: 1, short_per_trade: 0.5, short_hold_total: 1.0 }],
+  next: { ...shortedRecord.next, instruments: { ...shortedRecord.next.instruments, BTC: { ...shortedRecord.next.instruments.BTC,
+    predictions: shortedRecord.next.instruments.BTC.predictions.concat([{ model: 'Odd Model', bin: 6, direction: 1, price: 84800, low: 84300, high: 85100, size: 1 }]) } } } }), header, footer, null, at);
+ok(sizedShort.includes('a sized row: longs only, never shorts - its long-and-short books are its long-only books; 2 position(s)') && sizedShort.includes('+1.00 <span style="color:#7f8c8d;">(long only)</span>'), 'a sized row\'s long-and-short cell says it never shorts');
 
 console.log(`markets.js: ${passed} checks passed`);

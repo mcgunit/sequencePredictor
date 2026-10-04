@@ -33,7 +33,12 @@ ROW_NAME = "SubsetEnsemble Model"
 # when bestParams_jokerplus.json sets JOKERPLUS_ENSEMBLE_FLAG, like the
 # served rows: its digits are system-generated, the player only picks the
 # sign.
-GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto", "pick3", "jokerplus")
+# The market games (crypto, shares - README roadmap item 4, M4) vote per slot
+# like pick3 and are scored with the fixed rule in bin space
+# (Helpers.market_ticket_profit: long on an upper-half bin, +1/-1 on the
+# actual half, minus a fee, in units) - the "profit" the positional machinery
+# uses wherever it asks for one; the euro books live in the settlement.
+GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto", "pick3", "jokerplus", "crypto", "shares")
 JOKERPLUS_ENSEMBLE_FLAG = "useJokerplusEnsemble"
 
 # Games with a real payout table - their objective is profit per bet (Keno:
@@ -263,6 +268,9 @@ def score_day(predictions, realResult, dataset_name, mainCount):
         return (float(p), 1) if p is not None else (0.0, 0)
     if helpers.is_jokerplus(dataset_name):
         p = helpers.jokerplus_ticket_profit(predictions[0], realResult)
+        return (float(p), 1) if p is not None else (0.0, 0)
+    if helpers.is_market_game(dataset_name):
+        p = helpers.market_ticket_profit(predictions[0], realResult)
         return (float(p), 1) if p is not None else (0.0, 0)
     if dataset_name in PAYOUT_GAMES:
         profit, bets = 0.0, 0
@@ -596,7 +604,7 @@ if __name__ == "__main__":
 
                 value, members, weighted, mean, days = ranking[0]
                 baseline = next((item for item in ranking if len(item[1]) == len(candidates) and item[2]), None)
-                metric = "profit per bet" if dataset_name in PAYOUT_GAMES else "avg main hits"
+                metric = "profit per bet" if dataset_name in PAYOUT_GAMES else ("fixed-rule units per day" if helpers.is_market_game(dataset_name) else "avg main hits")
                 if helpers.is_positional_game(dataset_name):
                     metric += " (per-slot vote)"
                 print(f"Best subset for {dataset_name} ({metric} {mean:.4f}, lower bound {value:.4f} on "

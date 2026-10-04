@@ -120,6 +120,8 @@ function describeMarket(record, extras) {
       pnlCash: num(m.pnl_cash_total), pnlCashPerTrade: num(m.pnl_cash_per_trade), wins: num(m.wins), winRate: num(m.win_rate),
       holdTotal: num(m.hold_total), holdTrades: num(m.hold_trades), holdWinRate: num(m.hold_win_rate), holdPerTrade: num(m.hold_per_trade),
       openTotal: num(m.open_total), openTrades: num(m.open_trades), openWinRate: num(m.open_win_rate), openPerTrade: num(m.open_per_trade),
+      shortTotal: num(m.short_total), shortTrades: num(m.short_trades), shortWinRate: num(m.short_win_rate), shortPerTrade: num(m.short_per_trade),
+      shortHoldTotal: num(m.short_hold_total), shortOpenTotal: num(m.short_open_total),
       firstDay: m.first_day || null, lastDay: m.last_day || null,
     };
   });
@@ -145,6 +147,7 @@ function describeMarket(record, extras) {
       course,
       next: nextFor ? (nextFor.predictions || []).map((p) => ({
         model: String(p.model), bin: num(p.bin), direction: num(p.direction), price: num(p.price), low: num(p.low), high: num(p.high),
+        size: num(p.size),   // a sized row (RL Position Model): the position is its size, not its bin
       })) : [],
       // the close the next-day call stands on: the newest GAME day's, which a
       // newer bar of this instrument alone does not replace (MarketSettle.next_day_predictions)
@@ -179,9 +182,12 @@ function describeTrading(t) {
   return {
     stake: num(t.stake), feePerLeg: num(t.fee_per_leg), currency: t.currency ? String(t.currency) : '', rule: t.rule ? String(t.rule) : '', holdRule: t.hold_rule ? String(t.hold_rule) : '',
     openRule: t.open_rule ? String(t.open_rule) : '',
+    shortRule: t.short_rule ? String(t.short_rule) : '',
     dates: Array.isArray(t.dates) ? t.dates.map(String) : [], models: seriesMap(t.models), benchmark: series(t.benchmark),
     hold: { models: seriesMap(hold.models), benchmark: series(hold.benchmark) },
     open: open ? { models: seriesMap(open.models), benchmark: series(open.benchmark) } : null,
+    // the same rules with shorts on (MarketSettle.ledger "short"): money per model per rule; the market lines above are their benchmark
+    short: t.short && typeof t.short === 'object' ? Object.fromEntries(['daily', 'hold', 'open'].filter((r) => t.short[r] && typeof t.short[r] === 'object').map((r) => [r, { models: seriesMap(t.short[r].models), sold: series(t.short[r].benchmark) }])) : null,
   };
 }
 
@@ -407,9 +413,12 @@ function marketChartModel(id, view, enabled) {
   var d = window.marketData[id]; var n = d.labels.length; var last = n - 1;   // the last label is 'next'
   var datasets = [];
   if (d.kind === 'ledger') {   // the paper-trading book under one rule: cumulative money per model, the market as the dashed grey line
-    var RULE_WORDS = { daily: ['market, bought every day', 'daily round trip'], hold: ['market, buy and hold', 'held while up'], open: ['market, open to close every day', 'open to close'] };
-    var rule = d.rules[view] ? view : 'daily'; var book = d.rules[rule]; var words = RULE_WORDS[rule] || RULE_WORDS.daily;
+    var RULE_WORDS = { daily: ['market, bought every day', 'daily round trip'], hold: ['market, buy and hold', 'held while up'], open: ['market, open to close every day', 'open to close'],
+                       daily_ls: ['market, bought every day', 'daily round trip, long and short', 'market, sold every day'], hold_ls: ['market, buy and hold', 'held while the call holds, long and short', 'market, sold and held'], open_ls: ['market, open to close every day', 'open to close, long and short', 'market, sold at the open every day'] };
+    var base = String(view).replace('_ls', '');
+    var rule = d.rules[view] ? view : (d.rules[base] ? base : 'daily'); var book = d.rules[rule]; var words = RULE_WORDS[rule] || RULE_WORDS.daily;
     datasets.push({ type: 'line', label: words[0], data: book.benchmark, borderColor: '#7f8c8d', borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, order: 1, legendColour: '#7f8c8d' });
+    if (book.sold && words[2]) datasets.push({ type: 'line', label: words[2], data: book.sold, borderColor: '#b0b7bc', borderDash: [2, 4], borderWidth: 1.5, pointRadius: 0, tension: 0, order: 1, legendColour: '#b0b7bc' });
     enabled.forEach(function (model) {
       var colour = d.colours[model] || '#7f8c8d';
       datasets.push({ type: 'line', label: model, data: book.series[model] || [], borderColor: colour, backgroundColor: colour, borderWidth: 2, pointRadius: 0, tension: 0, order: 0, legendColour: colour, model: model });
@@ -520,10 +529,15 @@ function marketRender(id) {
     options: { maintainAspectRatio: false, spanGaps: true, interaction: { mode: 'index', intersect: false },
       plugins: { legend: marketLegend(id), tooltip: marketTooltip(model.percent, model.money), zoom: zoom }, scales: scales } });
   document.querySelectorAll('button[data-view-for="' + id + '"]').forEach(function (b) {
-    var on = b.getAttribute('data-view') === state.view; b.style.background = on ? '#2c3e50' : 'white'; b.style.color = on ? 'white' : '#2c3e50';
+    var current = String(state.view), shorts = current.indexOf('_ls') >= 0, baseView = current.replace('_ls', '');
+    var on = b.hasAttribute('data-shorts') ? ((b.getAttribute('data-shorts') === 'on') === shorts) : b.getAttribute('data-view') === baseView;
+    b.style.background = on ? '#2c3e50' : 'white'; b.style.color = on ? 'white' : '#2c3e50';
   });
 }
 function marketView(id, view) { window.marketState[id] = window.marketState[id] || { view: 'lines' }; window.marketState[id].view = view; marketRender(id); }
+// the book's rule buttons keep the shorts switch, and the switch keeps the rule
+function marketRule(id, rule) { var s = window.marketState[id] || { view: 'daily' }; marketView(id, rule + (String(s.view).indexOf('_ls') >= 0 ? '_ls' : '')); }
+function marketShorts(id, on) { var s = window.marketState[id] || { view: 'daily' }; marketView(id, String(s.view).replace('_ls', '') + (on ? '_ls' : '')); }
 function marketToggle(id) { marketRender(id); }
 function marketModels(id, which) {
   var d = window.marketData[id];
@@ -555,6 +569,7 @@ const CHART_SCRIPTS = `<script src="https://cdnjs.cloudflare.com/ajax/libs/hamme
 ${CHART_CLIENT_JS}
 </script>`;
 const RANGES = [['1M', 30], ['3M', 91], ['6M', 182], ['1Y', 365], ['All', 0]];
+const MIN_RANK_DAYS = 10;   // MarketSettle.MIN_RANK_DAYS: a row with fewer settled days ranks after the others and cannot head a book
 
 function page(market, view, header, footer, user, now = new Date()) {
   const meta = MARKETS[market];
@@ -571,7 +586,7 @@ function page(market, view, header, footer, user, now = new Date()) {
     Each ${esc(meta.noun)}'s next-day return is cut into ${view.k} equiprobable bins fitted on its own past (see README, roadmap item 4), and every model
     predicts one bin per ${esc(meta.noun)}, ${esc(meta.calendar)}. A bin is a return interval, so it is drawn as a predicted price on the chart, with the price band it stands for in the table beneath.
     Chance is ${pct(c.exact, 0)} for the exact bin, ${pct(c.adjacent, 0)} for the adjacent bin and ${pct(c.direction, 0)} for the direction.
-    <b>Paper trading</b> scores every up call (a predicted bin in the upper half) in money, ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} a position and a ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} fee on each leg,
+    <b>Paper trading</b> scores every up call (a predicted bin in the upper half) in money${view.trading && view.trading.short ? ' - and, with the shorts switch, every down call as a paper short, which is never an order' : ''}, ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} a position and a ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} fee on each leg,
     ${view.trading && view.trading.open ? 'three ways (Paper trading card); <b>Today\'s plan</b> turns the one a reader can follow - buy at the open, sell at the close - into orders' : 'two ways (Paper trading card); <b>Today\'s plan</b> turns the calls into orders'}.
     Results settle the morning after, when the day's candle has closed. ${market === 'crypto'
       ? 'A crypto day is the UTC day, so "the day\'s close" is 00:00 UTC - 02:00 Belgian time in the night that follows (01:00 in winter); that close decides every call.'
@@ -741,6 +756,9 @@ function page(market, view, header, footer, user, now = new Date()) {
 
   // models
   const hasOpenCol = view.models.some((m) => m.openTotal !== null);
+  const hasShortCol = view.models.some((m) => m.shortTotal !== null);
+  // the sized rows (the RL Position Model): their next-day calls carry a size; they never short
+  const sizedModels = new Set(view.instruments.flatMap((i) => i.next.filter((p) => p.size !== null).map((p) => p.model)));
   let modelsCard = `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Models over ${view.scoredDays} scored day(s)</span>
     <span class="card-meta" style="margin-left:10px;">accuracy against chance, paper P&amp;L of the fixed rule</span></div><div class="card-icon">▼</div></div>
     <div class="card-body"><div class="table-wrapper"><table>
@@ -749,8 +767,9 @@ function page(market, view, header, footer, user, now = new Date()) {
     <th title="positions taken (predicted bin in the upper half)">Trades</th><th title="positions that made money after both fees">Win rate</th>
     <th title="money made by the positions taken: the stake bought at the previous close, sold at the day's close, a fee on each leg">P&amp;L ${esc(meta.unit)}</th><th>per trade</th>
     <th title="the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run">P&amp;L holding</th>${hasOpenCol
-      ? '<th title="the same calls, but the stake is bought at the session\'s open and sold at its close: the rule a reader can follow">P&amp;L open-close</th>' : ''}</tr>`;
-  if (!view.models.length) modelsCard += `<tr><td colspan="${hasOpenCol ? 11 : 10}" style="color:#aaa;">no settled day yet - the first predictions settle tomorrow morning</td></tr>`;
+      ? '<th title="the same calls, but the stake is bought at the session\'s open and sold at its close: the rule a reader can follow">P&amp;L open-close</th>' : ''}${hasShortCol
+      ? `<th title="the daily rule with shorts on: an upper-half bin bought, a lower-half bin sold first and bought back at the close - paper only; the hold${hasOpenCol ? ' and open-to-close' : ''} variant${hasOpenCol ? 's' : ''} on hover">P&amp;L long &amp; short (daily)</th>` : ''}</tr>`;
+  if (!view.models.length) modelsCard += `<tr><td colspan="${10 + (hasOpenCol ? 1 : 0) + (hasShortCol ? 1 : 0)}" style="color:#aaa;">no settled day yet - the first predictions settle tomorrow morning</td></tr>`;
   view.models.forEach((m) => {
     const mark = (above, text) => `<span style="${above ? 'color:#27ae60; font-weight:bold;' : ''}">${text}</span>`;
     modelsCard += `<tr><td style="text-align:left; font-weight:bold;">${esc(m.name)}</td><td>${m.days === null ? '-' : m.days}</td>
@@ -758,7 +777,8 @@ function page(market, view, header, footer, user, now = new Date()) {
       <td>${m.trades === null ? '-' : m.trades}</td><td>${pct(m.winRate, 0)}</td>
       <td style="color:${(m.pnlCash || 0) >= 0 ? '#27ae60' : '#c0392b'}; font-weight:bold;">${money(m.pnlCash, 2)}</td><td>${money(m.pnlCashPerTrade, 2)}</td>
       <td style="color:${(m.holdTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.holdTrades === null ? '' : `${m.holdTrades} position(s), win rate ${pct(m.holdWinRate, 0)}, ${money(m.holdPerTrade, 2)} per position`}">${money(m.holdTotal, 2)}</td>${hasOpenCol
-        ? `<td style="color:${(m.openTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.openTrades === null ? '' : `${m.openTrades} position(s), win rate ${pct(m.openWinRate, 0)}, ${money(m.openPerTrade, 2)} per position`}">${money(m.openTotal, 2)}</td>` : ''}</tr>`;
+        ? `<td style="color:${(m.openTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.openTrades === null ? '' : `${m.openTrades} position(s), win rate ${pct(m.openWinRate, 0)}, ${money(m.openPerTrade, 2)} per position`}">${money(m.openTotal, 2)}</td>` : ''}${hasShortCol
+        ? `<td style="color:${(m.shortTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.shortTrades === null ? '' : `${sizedModels.has(m.name) ? 'a sized row: longs only, never shorts - its long-and-short books are its long-only books; ' : ''}${m.shortTrades} position(s), win rate ${pct(m.shortWinRate, 0)}, ${money(m.shortPerTrade, 2)} per position; holding ${money(m.shortHoldTotal, 2)}${m.shortOpenTotal !== null ? `, open to close ${money(m.shortOpenTotal, 2)}` : ''}`}">${money(m.shortTotal, 2)}${sizedModels.has(m.name) ? ' <span style="color:#7f8c8d;">(long only)</span>' : ''}</td>` : ''}</tr>`;
   });
   modelsCard += `</table></div><p style="color:#7f8c8d; font-size:0.85em;">Green: above chance. With ${view.instruments.length} ${esc(meta.noun)}s a day and a
     handful of days, a rate above chance is noise more often than not; read the rows over months, and against the null band the controls give the lottery rows.
@@ -777,29 +797,40 @@ function page(market, view, header, footer, user, now = new Date()) {
     const aligned = (points) => { const idx = byDate(points); return t.dates.map((d) => (idx[d] === undefined ? null : idx[d])); };
     const ruleData = (book) => ({ benchmark: aligned(book.benchmark), series: Object.fromEntries(bookModels.map((m) => [m, aligned(book.models[m] || [])])) });
     const hasOpen = !!t.open;
+    const hasShort = !!(t.short && t.short.daily);
+    const shortRule = (rule, bench) => ({ benchmark: aligned(bench.benchmark), sold: aligned(t.short[rule].sold || []), series: Object.fromEntries(bookModels.map((m) => [m, aligned(t.short[rule].models[m] || [])])) });
     const bookData = {
       kind: 'ledger', symbol: 'book', quote: t.currency, labels: t.dates, currency: t.currency, stake: t.stake,
-      rules: { daily: ruleData(t), hold: ruleData(t.hold), ...(hasOpen ? { open: ruleData(t.open) } : {}) }, colours: bookColours, best: bookBest,
+      rules: { daily: ruleData(t), hold: ruleData(t.hold), ...(hasOpen ? { open: ruleData(t.open) } : {}),
+        ...(hasShort ? { daily_ls: shortRule('daily', t), hold_ls: shortRule('hold', t.hold) } : {}), ...(hasShort && hasOpen && t.short.open ? { open_ls: shortRule('open', t.open) } : {}) },
+      colours: bookColours, best: bookBest,
     };
-    const richest = view.models.filter((m) => m.pnlCash !== null).sort((a, b) => b.pnlCash - a.pnlCash)[0] || null;
-    const richestHold = view.models.filter((m) => m.holdTotal !== null).sort((a, b) => b.holdTotal - a.holdTotal)[0] || null;
-    const richestOpen = hasOpen ? (view.models.filter((m) => m.openTotal !== null).sort((a, b) => b.openTotal - a.openTotal)[0] || null) : null;
+    // the headline books: rows with MIN_RANK_DAYS settled days (a one-day row can lead by luck), and no sized row as the long-and-short best (it never shorts)
+    const seasoned = view.models.filter((m) => m.days !== null && m.days >= MIN_RANK_DAYS);
+    const richest = seasoned.filter((m) => m.pnlCash !== null).sort((a, b) => b.pnlCash - a.pnlCash)[0] || null;
+    const richestHold = seasoned.filter((m) => m.holdTotal !== null).sort((a, b) => b.holdTotal - a.holdTotal)[0] || null;
+    const richestOpen = hasOpen ? (seasoned.filter((m) => m.openTotal !== null).sort((a, b) => b.openTotal - a.openTotal)[0] || null) : null;
     const marketTotal = t.benchmark.length ? t.benchmark[t.benchmark.length - 1].total : null;
     const marketHold = t.hold.benchmark.length ? t.hold.benchmark[t.hold.benchmark.length - 1].total : null;
     const marketOpen = hasOpen && t.open.benchmark.length ? t.open.benchmark[t.open.benchmark.length - 1].total : null;
+    const richestShort = hasShort ? (seasoned.filter((m) => m.shortTotal !== null && !sizedModels.has(m.name)).sort((a, b) => b.shortTotal - a.shortTotal)[0] || null) : null;
+    const soldTotal = hasShort && t.short.daily.sold.length ? t.short.daily.sold[t.short.daily.sold.length - 1].total : null;
     const bookSwitches = bookModels.map((m) => `<label><input type="checkbox" data-chart="${bookId}" data-model="${esc(m)}"${m === bookBest ? ' checked' : ''} onchange="marketToggle('${bookId}')">
       <span class="swatch" style="background:${bookColours[m]};"></span>${esc(m)}</label>`).join('');
     paper += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Paper trading</span>
-      <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}${richestHold ? `; holding: ${money(richestHold.holdTotal, 2)} (${esc(richestHold.name)})` : ''}${marketHold === null ? '' : `, buy-and-hold ${money(marketHold, 2)}`}${richestOpen ? `; open to close: ${money(richestOpen.openTotal, 2)} (${esc(richestOpen.name)})` : ''}${marketOpen === null ? '' : `, the market ${money(marketOpen, 2)}`}</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, ${hasOpen ? 'three' : 'two'} ways of trading them, <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> a position and ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell.
-      <b>Daily round trip</b>: every ${esc(meta.noun)} a model calls up (bin 5 or higher) is bought at the previous close (${market === 'crypto' ? '00:00 UTC, in the night before the ticket goes up' : 'the previous session\'s close'}) and sold at the day's own close; a flat or down call sits out.
+      <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}${richestHold ? `; holding: ${money(richestHold.holdTotal, 2)} (${esc(richestHold.name)})` : ''}${marketHold === null ? '' : `, buy-and-hold ${money(marketHold, 2)}`}${richestOpen ? `; open to close: ${money(richestOpen.openTotal, 2)} (${esc(richestOpen.name)})` : ''}${marketOpen === null ? '' : `, the market ${money(marketOpen, 2)}`}${richestShort ? `; long and short (daily): ${richestShort.shortTotal < 0 ? 'best ' : ''}${money(richestShort.shortTotal, 2)} (${esc(richestShort.name)})${richestShort.shortTotal < 0 ? ' - no long-and-short book is in the money' : ''}, buying everything ${money(marketTotal, 2)}${soldTotal === null ? '' : `, selling everything ${money(soldTotal, 2)}`}` : ''}</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, ${hasOpen ? 'three' : 'two'} ways of trading them${hasShort ? ', each long only or long and short (the switch)' : ''}, <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> a position and ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell.
+      <b>Daily round trip</b>: every ${esc(meta.noun)} a model calls up (bin 5 or higher) is bought at the previous close (${market === 'crypto' ? '00:00 UTC, in the night before the ticket goes up' : 'the previous session\'s close'}) and sold at the day's own close; a flat or down call sits out${hasShort ? ' (long only) or is a paper short (the switch)' : ''}.
       <b>Hold while up</b>: the position is kept while the next day's call is up again and sold at the close of the last up day - one fee pair per run, the stake compounds; a position still open on the newest day is valued at its close.${hasOpen
         ? ` <b>Open to close</b>: bought at the session's own open (09:30 New York, 15:30 Belgian time in most weeks) and sold at its close - the one rule a reader of this page can follow, since the ticket is up hours before New York opens; <i>Today's plan</i> turns it into orders.` : ''}
       The grey dashed line is the <b>market</b> under the same rule - every ${esc(meta.noun)} every day, or everything bought on the first day and held - which a model has to beat before its book means anything.
-      The daily and hold books buy at the previous close, ${market === 'crypto' ? 'eight to ten hours before the ticket is on this page' : 'with the gap to the next open still ahead'}, which nobody reading this can do: they score the call on the daily candle, not what a reader could have made from it. Paper money: no slippage, no funding, fills at the open or the close. Shorts are the next step.</p>
-      <div class="chart-tools"><button type="button" data-view-for="${bookId}" data-view="daily" onclick="marketView('${bookId}', 'daily')" title="every up call bought at the previous close and sold at the day's close">Daily round trip</button>
-        <button type="button" data-view-for="${bookId}" data-view="hold" onclick="marketView('${bookId}', 'hold')" title="a position kept while the calls stay up, sold at the close of the last up day">Hold while up</button>${hasOpen
-          ? `<button type="button" data-view-for="${bookId}" data-view="open" onclick="marketView('${bookId}', 'open')" title="every up call bought at the session's open and sold at its close - the rule a reader can follow">Open to close</button>` : ''}<span class="sep">|</span>
+      The daily and hold books buy at the previous close, ${market === 'crypto' ? 'eight to ten hours before the ticket is on this page' : 'with the gap to the next open still ahead'}, which nobody reading this can do: they score the call on the daily candle, not what a reader could have made from it. Paper money: no slippage, no funding, fills at the open or the close.${hasShort
+        ? ` <b>Shorts</b> (the switch): with shorts on, a bin in the lower half is a short - sold at the previous close and bought back at the day's close (daily), kept while the call stays down (hold)${hasOpen ? ', sold at the open and bought back at the close (open to close)' : ''} - with the same stake and fees; the sized RL row never shorts. Paper only: selling what you do not own needs a margin or derivatives account, so <i>Today's plan</i> turns no short into an order. In the long-and-short views the second dashed line is what <b>selling</b> everything gave, next to the buying line: a short pays the market's drift and both fees, and a call in bin 4 - a hair below zero - cannot cover two fee legs by construction, so read a long-and-short book against both lines.` : ''}</p>
+      <div class="chart-tools"><button type="button" data-view-for="${bookId}" data-view="daily" onclick="marketRule('${bookId}', 'daily')" title="every up call bought at the previous close and sold at the day's close">Daily round trip</button>
+        <button type="button" data-view-for="${bookId}" data-view="hold" onclick="marketRule('${bookId}', 'hold')" title="a position kept while the call holds its direction (up; with shorts on also down), closed at the close of the last day of the run">Hold while up</button>${hasOpen
+          ? `<button type="button" data-view-for="${bookId}" data-view="open" onclick="marketRule('${bookId}', 'open')" title="every up call bought at the session's open and sold at its close - the rule a reader can follow">Open to close</button>` : ''}<span class="sep">|</span>${hasShort
+          ? `<button type="button" data-view-for="${bookId}" data-shorts="off" onclick="marketShorts('${bookId}', false)" title="down calls sit out">Long only</button>
+        <button type="button" data-view-for="${bookId}" data-shorts="on" onclick="marketShorts('${bookId}', true)" title="a lower-half bin is a short: sold first, bought back later - paper only">Long and short</button><span class="sep">|</span>` : ''}
         ${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${bookId}', ${days})">${label}</button>`).join('')}
         <button type="button" onclick="marketReset('${bookId}')" style="margin-left:6px;">Reset zoom</button><span class="hint">cumulative ${esc(t.currency)} per model; scroll or pinch to zoom, drag to pan</span></div>
       <div class="chart-models"><span style="color:#7f8c8d;">Models: <a href="#" onclick="marketModels('${bookId}', 'best'); return false;">best</a><a href="#" onclick="marketModels('${bookId}', 'all'); return false;">all</a><a href="#" onclick="marketModels('${bookId}', 'none'); return false;">none</a></span>${bookSwitches}</div>
@@ -848,7 +879,7 @@ function page(market, view, header, footer, user, now = new Date()) {
     bg += asDetail(`<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Day by day</span>
       <span class="card-meta" style="margin-left:10px;">the newest ${view.days.length} settled day(s) as returns and bins; open a day for every model's ticket</span></div><div class="card-icon">▼</div></div>
       <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em; margin-top:0;">Each line is one draw: per ${esc(meta.noun)} the real close-to-close return and the bin it fell in. Inside, every model's bin per ${esc(meta.noun)}
-      with the position the fixed P&amp;L rule takes on it (&#9650; long, bin in the upper half; &#9660; flat, lower half) - the <i>Direction</i> column is scored on the sign of the bin's own return,
+      with the position the fixed P&amp;L rule takes on it (&#9650; long, bin in the upper half; &#9660; lower half - sits out in the long-only books, a paper short with the shorts switch on) - the <i>Direction</i> column is scored on the sign of the bin's own return,
       which is read off the hover interval; green is the right bin, pale green one bin off. Chance is 1 in ${view.k} per ${esc(meta.noun)}.</p>${dayBlocks}</div></div>`);
   }
 
@@ -928,7 +959,7 @@ function page(market, view, header, footer, user, now = new Date()) {
       <p style="color:#7f8c8d; font-size:0.85em; margin:4px 0 10px;"><b>Price lines</b>: the close as a line and, for each model switched on, a dashed line through the prices its bins stood for, day by day
         (the previous game day's close moved by the bin's middle return); the last dashed point, <i>next</i>, is the call for ${nextDayText || 'the next trading day'} - the candle after the last one drawn, not "tomorrow"${nextDay ? `; it was made after the close of ${esc(view.madeOn)}` : ''}${judged ? ` and is judged at ${esc(judged)}` : ''}.
         A model calling "roughly flat" every day draws the close line one day late - that is the call, not a lag (the Background card explains why). <b>Price bars</b>: the same calls as a bar
-        per day from the previous game day's close to the price its bin stood for (green up, red down) over a paler bar for the bin's whole interval, so a flat call reads as a short bar; a hit is the
+        per day from the previous game day's close to the price its bin stood for (green up, red down) over a paler bar for the bin's whole interval, so a flat call reads as a stubby bar; a hit is the
         close landing inside the pale bar on the same date, and the two open-ended bins run to the edge of what the chart shows. <b>Moves</b>: the real move per day as a dark bar, in percent,
         with each model's interval as a paler bar and its middle as a dot - a hit is the dark bar ending inside the model's band. Each chart opens on the newest month; a year of closes is behind it
         (the range buttons, or zoom and pan), and the calls start where the tracking started. The model ticked by default has the best exact rate over the scored days; <i>Today's plan</i> follows the best book instead, so the two can differ.</p></details>`;
@@ -946,7 +977,7 @@ function page(market, view, header, footer, user, now = new Date()) {
     const switches = modelNames.map((m) => `<label><input type="checkbox" data-chart="${id}" data-model="${esc(m)}"${m === bestModel ? ' checked' : ''} onchange="marketToggle('${id}')">
       <span class="swatch" style="background:${colours[m]};"></span>${esc(m)}${m === bestModel ? ' <span style="color:#7f8c8d;">(best exact rate over the scored days)</span>' : ''}</label>`).join('');
     const nextRows = inst.next.map((p) => `<tr><td style="text-align:left;">${esc(p.model)}</td><td>${p.bin === null ? '-' : p.bin}</td>
-      <td>${p.bin !== null && p.bin >= view.k / 2 ? '<span style="color:#27ae60;">long</span>' : 'flat'}</td>
+      <td>${p.size !== null ? (p.size > 0 ? `<span style="color:#27ae60;">long &times;${p.size}</span>` : 'flat (size 0)') : (p.bin !== null && p.bin >= view.k / 2 ? '<span style="color:#27ae60;">long</span>' : (p.bin !== null ? '<span style="color:#7f8c8d;">flat - short (paper) with shorts on</span>' : '-'))}</td>
       <td>${price(p.price)}</td><td>${p.low === null ? 'below ' + price(p.high) : (p.high === null ? 'above ' + price(p.low) : `${price(p.low)} - ${price(p.high)}`)}</td></tr>`).join('');
     charts += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${esc(inst.symbol)} - ${esc(inst.name)}</span>
       <span class="card-meta" style="margin-left:10px;">last close ${price(inst.lastClose)} ${esc(inst.quote)} on ${esc(inst.lastDate || '-')}${inst.active ? '' : ' (inactive)'}</span></div><div class="card-icon">▼</div></div>
@@ -961,7 +992,7 @@ function page(market, view, header, footer, user, now = new Date()) {
       <div style="height:420px;"><canvas id="${id}"></canvas></div>
       <script>window.marketData['${id}'] = ${jsonScript(data)}; marketRender('${id}');</script>
       ${nextRows ? `<details class="all-calls"><summary style="cursor:pointer; color:#2980b9; font-size:0.9em;">Every model's call for ${nextDayText || 'the next day'} (${inst.next.length})</summary>
-      <div class="table-wrapper"><table><tr><th style="text-align:left;">Model</th><th>Bin</th><th title="up when the bin is in the upper half (5 or higher) - the position the books take">Position</th><th title="the bin's middle return applied to the last close">Price drawn on the chart (bin middle)</th><th title="the bin as prices: a hit is the close landing anywhere inside">Band</th></tr>${nextRows}</table></div></details>` : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
+      <div class="table-wrapper"><table><tr><th style="text-align:left;">Model</th><th>Bin</th><th title="long when the bin is in the upper half (5 or higher); a lower-half bin is a short with the shorts switch on - paper only">Position</th><th title="the bin's middle return applied to the last close">Price drawn on the chart (bin middle)</th><th title="the bin as prices: a hit is the close landing anywhere inside">Band</th></tr>${nextRows}</table></div></details>` : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
       ${judged ? `<p style="color:#7f8c8d; font-size:0.85em; margin:6px 0 0;"><b>Judged at</b> ${esc(judged)}.${status ? ` Right now ${esc(status)}.` : ''} The call is scored close-to-close: right when the close lands in the band, whatever happened in between.
         What a reader can do with it is in <i>Today's plan</i> at the top${hasOpenBook ? ' and in the Open to close book' : ''}.</p>` : ''}
       </div></div>`;
@@ -994,7 +1025,9 @@ function page(market, view, header, footer, user, now = new Date()) {
     const rows = view.instruments.filter((i) => i.active).map((inst) => {
       const base = inst.nextBase !== null && inst.nextBase !== undefined ? inst.nextBase : inst.lastClose;
       const call = inst.next.find((p) => p.model === planModel.name) || null;
-      const isUp = (p) => p.bin !== null && p.bin >= view.k / 2;   // the books' definition: a bin in the upper half
+      const isUp = (p) => (p.size !== null && p.size !== undefined ? p.size > 0 : (p.bin !== null && p.bin >= view.k / 2));   // the books' definition: a bin in the upper half, or a sized row's size
+      const sized = call && call.size !== null && call.size !== undefined;
+      const sizeNote = sized && call.size > 0 ? `position size &times;${call.size} (${Math.round(call.size * (t && t.stake !== null ? t.stake : 100))} ${esc(meta.unit)} at the paper stake) - ` : '';
       const up = !!call && isUp(call);
       const ups = inst.next.filter(isUp).length;
       const movePct = (v) => (v === null || base === null || base <= 0 ? null : (v / base - 1) * 100);
@@ -1003,19 +1036,19 @@ function page(market, view, header, footer, user, now = new Date()) {
       const holdNote = `if you still hold it from an earlier day, sell at the close${closeClock ? `, ${esc(closeClock)}` : ''}`;
       let buy, sell;
       if (!call) { buy = `no call from this model for this ${esc(meta.noun)}`; sell = '-'; }
-      else if (!up) { buy = `no new buy - the call is ${call.bin < view.k / 2 - 1 ? 'down' : 'flat to down'} (bin ${call.bin}); shorts are not scored yet`; sell = holdNote; }
+      else if (!up) { buy = sized ? `no new buy - the model sizes this ${esc(meta.noun)} at 0 today (its vote bin is ${call.bin})` : `no new buy - the call is ${call.bin < view.k / 2 - 1 ? 'down' : 'flat to down'} (bin ${call.bin})${view.trading && view.trading.short ? `; with shorts on, the ${planRuleName} book shorts it on paper, which needs a margin or derivatives account - no order here` : ''}`; sell = holdNote; }
       else if (closed) { buy = `too late for this ticket - the day closed at ${esc(closeClock)}; the next ticket is here after the next run, about 10:30`; sell = holdNote; }
       else if (market === 'crypto') {
-        buy = `a market order now - the ticket went up at ${esc(appeared || 'about 10:30')}; ${esc(status || '')}`;
+        buy = `${sizeNote}a market order now - the ticket went up at ${esc(appeared || 'about 10:30')}; ${esc(status || '')}`;
         sell = `a market order at ${esc(judgedShort)}, whatever the price then is`;
       } else if (openAt && now >= openAt) {
-        buy = `a market order now, at the current price - the open (${esc(opens)}) is past; ${esc(status || '')}`;
+        buy = `${sizeNote}a market order now, at the current price - the open (${esc(opens)}) is past; ${esc(status || '')}`;
         sell = `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one on US shares`;
       } else {
-        buy = `a market order placed before ${esc(opens)} - it fills at the open`;
+        buy = `${sizeNote}a market order placed before ${esc(opens)} - it fills at the open`;
         sell = `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one on US shares`;
       }
-      const call_ = !call ? '-' : (up ? '<span style="color:#27ae60; font-weight:bold;">up &#9650;</span>' : `<span style="color:#c0392b;">${call.bin < view.k / 2 - 1 ? 'down' : 'flat'} &#9660;</span>`);
+      const call_ = !call ? '-' : (up ? `<span style="color:#27ae60; font-weight:bold;">up &#9650;${sized ? ` &times;${call.size}` : ''}</span>` : (sized ? '<span style="color:#c0392b;">size 0 &#9660;</span>' : `<span style="color:#c0392b;">${call.bin < view.k / 2 - 1 ? 'down' : 'flat'} &#9660;</span>`));
       return `<tr><td style="text-align:left; font-weight:bold;">${esc(inst.symbol)}<br><span style="color:#7f8c8d; font-weight:normal; font-size:0.85em;">last close ${price(base)}</span></td>
         <td>${call_}</td><td>${band}</td><td class="order">${buy}</td><td class="order">${sell}</td><td>${ups} of ${inst.next.length}</td></tr>`;
     }).join('');
@@ -1031,7 +1064,8 @@ function page(market, view, header, footer, user, now = new Date()) {
         : `; it is the plan for the whole of ${esc(nextDay)} and does not change before that session - the next ticket comes the morning after its close.`}` : ''}</p>
       <div class="table-wrapper"><table class="plan"><tr><th style="text-align:left;">${esc(nounCap)}</th><th title="up = the predicted bin is in the upper half (5 or higher), the position the books take">Call</th><th title="the predicted bin as prices: the call is right when the close lands anywhere inside">Band (the predicted bin as prices)</th>
       <th style="text-align:left;">Buy</th><th style="text-align:left;">Sell</th><th title="how many of the models with a call for this date have a bin in the upper half">Models calling up</th></tr>${rows}</table></div>
-      <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;"><b>Up</b> means the predicted bin is in the upper half (5 to 9), the position every paper book takes; the two bins around zero can be "up" here and a hair negative by their middle.
+      <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;"><b>Up</b> means the predicted bin is in the upper half (5 to 9), the one position the long-only books take${view.trading && view.trading.short ? '; with the shorts switch on, the paper books also short the lower half - paper only, no order' : ''}. The two bins around zero can be "up" here and a hair negative by their middle.
+      The <i>RL Position Model</i> is the one row that sizes its positions - 0 to 2 times the stake, learned from what the other rows said on past days and the money it made - so its call reads &times;0.5 to &times;2, and a size of 0 is a sit-out whatever its vote bin says.
       <b>Stake and fees</b>: the books use ${t && t.stake !== null ? t.stake : 100} ${esc(meta.unit)} a position and ${t && t.feePerLeg !== null ? pct(t.feePerLeg, 2) : '0.10%'} a leg; your broker's commission replaces that fee and decides whether a move as small as the band says can pay.
       <b>Holding instead of selling at the close</b>: keep the position while the next morning's call (here after about 10:30) is up again, and sell at the close of the first day it is not. There is no multi-day forecast yet - the models predict one day ahead - so a hold is decided one morning at a time;
       your result is then open-to-close on the first day and close-to-close after it, for which the <i>Hold while up</i> book is the closest yardstick, not an exact match.
