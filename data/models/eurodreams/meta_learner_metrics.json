@@ -1,0 +1,517 @@
+{
+  "game": "eurodreams",
+  "trained_at": "2026-10-04T04:14:05.846254+00:00",
+  "days": 300,
+  "table_days": 274,
+  "lockbox": {
+    "from": "2025-12-01",
+    "to": "2026-02-28",
+    "declared": "2026-09-27",
+    "note": "declared after the September 2026 objective, gate and cadence changes"
+  },
+  "lockbox_days_withheld": 26,
+  "versions": {
+    "python": "3.10.12",
+    "numpy": "1.26.4",
+    "scikit-learn": "1.6.0",
+    "joblib": "1.5.3"
+  },
+  "variants": {
+    "eurodreams": {
+      "artifact": "meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2200,
+        "base_rate": 0.15,
+        "brier": 0.2506,
+        "brier_base_rate": 0.1275,
+        "log_loss": 0.6944,
+        "log_loss_base_rate": 0.4227,
+        "auc": 0.4966,
+        "reliability": [
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 26,
+            "mean_predicted": 0.3558,
+            "observed": 0.1923
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 1091,
+            "mean_predicted": 0.4876,
+            "observed": 0.1522
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1080,
+            "mean_predicted": 0.5151,
+            "observed": 0.1472
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 3,
+            "mean_predicted": 0.6131,
+            "observed": 0.0
+          }
+        ],
+        "ece": 0.3497,
+        "precision_at_k": 0.1515,
+        "hits_at_k": 0.9091,
+        "chance_precision": 0.15,
+        "chance_hits": 0.9,
+        "days": 55,
+        "k": 6,
+        "train_days": 219,
+        "test_days": 55,
+        "accuracy": 0.5023,
+        "special": {
+          "rows": 275,
+          "base_rate": 0.2,
+          "brier": 0.253,
+          "brier_base_rate": 0.16,
+          "log_loss": 0.6993,
+          "log_loss_base_rate": 0.5004,
+          "auc": 0.4716,
+          "reliability": [
+            {
+              "lo": 0.3,
+              "hi": 0.4,
+              "count": 1,
+              "mean_predicted": 0.3913,
+              "observed": 1.0
+            },
+            {
+              "lo": 0.4,
+              "hi": 0.5,
+              "count": 175,
+              "mean_predicted": 0.4712,
+              "observed": 0.2229
+            },
+            {
+              "lo": 0.5,
+              "hi": 0.6,
+              "count": 90,
+              "mean_predicted": 0.5407,
+              "observed": 0.1667
+            },
+            {
+              "lo": 0.6,
+              "hi": 0.7,
+              "count": 9,
+              "mean_predicted": 0.6153,
+              "observed": 0.0
+            }
+          ],
+          "ece": 0.3028,
+          "precision_at_k": 0.2,
+          "hits_at_k": 0.2,
+          "chance_precision": 0.2,
+          "chance_hits": 0.2,
+          "days": 55,
+          "k": 1,
+          "train_days": 219,
+          "test_days": 55,
+          "accuracy": 0.5491
+        }
+      }
+    },
+    "eurodreams (v2)": {
+      "artifact": "meta_learner_v2.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2200,
+        "base_rate": 0.15,
+        "brier": 0.2392,
+        "brier_base_rate": 0.1275,
+        "log_loss": 0.6708,
+        "log_loss_base_rate": 0.4227,
+        "auc": 0.5324,
+        "reliability": [
+          {
+            "lo": 0.1,
+            "hi": 0.2,
+            "count": 19,
+            "mean_predicted": 0.1792,
+            "observed": 0.2105
+          },
+          {
+            "lo": 0.2,
+            "hi": 0.3,
+            "count": 99,
+            "mean_predicted": 0.2619,
+            "observed": 0.1515
+          },
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 210,
+            "mean_predicted": 0.357,
+            "observed": 0.1
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 908,
+            "mean_predicted": 0.4569,
+            "observed": 0.141
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 888,
+            "mean_predicted": 0.5374,
+            "observed": 0.17
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 65,
+            "mean_predicted": 0.6331,
+            "observed": 0.1538
+          },
+          {
+            "lo": 0.7,
+            "hi": 0.8,
+            "count": 11,
+            "mean_predicted": 0.745,
+            "observed": 0.0909
+          }
+        ],
+        "ece": 0.3259,
+        "precision_at_k": 0.1697,
+        "hits_at_k": 1.0182,
+        "chance_precision": 0.15,
+        "chance_hits": 0.9,
+        "days": 55,
+        "k": 6,
+        "train_days": 219,
+        "test_days": 55,
+        "accuracy": 0.5591,
+        "special": {
+          "rows": 275,
+          "base_rate": 0.2,
+          "brier": 0.2392,
+          "brier_base_rate": 0.16,
+          "log_loss": 0.6702,
+          "log_loss_base_rate": 0.5004,
+          "auc": 0.4799,
+          "reliability": [
+            {
+              "lo": 0.1,
+              "hi": 0.2,
+              "count": 4,
+              "mean_predicted": 0.1661,
+              "observed": 0.0
+            },
+            {
+              "lo": 0.2,
+              "hi": 0.3,
+              "count": 33,
+              "mean_predicted": 0.2697,
+              "observed": 0.2121
+            },
+            {
+              "lo": 0.3,
+              "hi": 0.4,
+              "count": 51,
+              "mean_predicted": 0.3513,
+              "observed": 0.2549
+            },
+            {
+              "lo": 0.4,
+              "hi": 0.5,
+              "count": 79,
+              "mean_predicted": 0.4493,
+              "observed": 0.1899
+            },
+            {
+              "lo": 0.5,
+              "hi": 0.6,
+              "count": 83,
+              "mean_predicted": 0.5403,
+              "observed": 0.2048
+            },
+            {
+              "lo": 0.6,
+              "hi": 0.7,
+              "count": 22,
+              "mean_predicted": 0.6346,
+              "observed": 0.1364
+            },
+            {
+              "lo": 0.7,
+              "hi": 0.8,
+              "count": 3,
+              "mean_predicted": 0.7271,
+              "observed": 0.0
+            }
+          ],
+          "ece": 0.2508,
+          "precision_at_k": 0.2182,
+          "hits_at_k": 0.2182,
+          "chance_precision": 0.2,
+          "chance_hits": 0.2,
+          "days": 55,
+          "k": 1,
+          "train_days": 219,
+          "test_days": 55,
+          "accuracy": 0.5527
+        }
+      }
+    },
+    "eurodreams (quantum kernel)": {
+      "artifact": "quantum_meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2200,
+        "base_rate": 0.15,
+        "brier": 0.2503,
+        "brier_base_rate": 0.1275,
+        "log_loss": 0.6938,
+        "log_loss_base_rate": 0.4227,
+        "auc": 0.5229,
+        "reliability": [
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 1,
+            "mean_predicted": 0.3943,
+            "observed": 0.0
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 865,
+            "mean_predicted": 0.4795,
+            "observed": 0.141
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1333,
+            "mean_predicted": 0.5139,
+            "observed": 0.156
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 1,
+            "mean_predicted": 0.6001,
+            "observed": 0.0
+          }
+        ],
+        "ece": 0.3504,
+        "precision_at_k": 0.1818,
+        "hits_at_k": 1.0909,
+        "chance_precision": 0.15,
+        "chance_hits": 0.9,
+        "days": 55,
+        "k": 6,
+        "train_days": 219,
+        "test_days": 55,
+        "accuracy": 0.5559,
+        "special": {
+          "rows": 275,
+          "base_rate": 0.2,
+          "brier": 0.1607,
+          "brier_base_rate": 0.16,
+          "log_loss": 0.5025,
+          "log_loss_base_rate": 0.5004,
+          "auc": 0.4839,
+          "reliability": [
+            {
+              "lo": 0.1,
+              "hi": 0.2,
+              "count": 6,
+              "mean_predicted": 0.1967,
+              "observed": 0.3333
+            },
+            {
+              "lo": 0.2,
+              "hi": 0.3,
+              "count": 269,
+              "mean_predicted": 0.2204,
+              "observed": 0.197
+            }
+          ],
+          "ece": 0.0258,
+          "precision_at_k": 0.2,
+          "hits_at_k": 0.2,
+          "chance_precision": 0.2,
+          "chance_hits": 0.2,
+          "days": 55,
+          "k": 1,
+          "train_days": 219,
+          "test_days": 55,
+          "accuracy": 0.8
+        }
+      }
+    },
+    "eurodreams (quantum vqc)": {
+      "artifact": "quantum_vqc_meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2200,
+        "base_rate": 0.15,
+        "brier": 0.2483,
+        "brier_base_rate": 0.1275,
+        "log_loss": 0.6898,
+        "log_loss_base_rate": 0.4227,
+        "auc": 0.5343,
+        "reliability": [
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 1179,
+            "mean_predicted": 0.4795,
+            "observed": 0.1374
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1021,
+            "mean_predicted": 0.5188,
+            "observed": 0.1645
+          }
+        ],
+        "ece": 0.3477,
+        "precision_at_k": 0.1545,
+        "hits_at_k": 0.9273,
+        "chance_precision": 0.15,
+        "chance_hits": 0.9,
+        "days": 55,
+        "k": 6,
+        "train_days": 219,
+        "test_days": 55,
+        "accuracy": 0.5386,
+        "special": {
+          "rows": 275,
+          "base_rate": 0.2,
+          "brier": 0.2495,
+          "brier_base_rate": 0.16,
+          "log_loss": 0.6923,
+          "log_loss_base_rate": 0.5004,
+          "auc": 0.5411,
+          "reliability": [
+            {
+              "lo": 0.3,
+              "hi": 0.4,
+              "count": 21,
+              "mean_predicted": 0.3828,
+              "observed": 0.2857
+            },
+            {
+              "lo": 0.4,
+              "hi": 0.5,
+              "count": 120,
+              "mean_predicted": 0.4554,
+              "observed": 0.1583
+            },
+            {
+              "lo": 0.5,
+              "hi": 0.6,
+              "count": 123,
+              "mean_predicted": 0.5439,
+              "observed": 0.2195
+            },
+            {
+              "lo": 0.6,
+              "hi": 0.7,
+              "count": 11,
+              "mean_predicted": 0.6281,
+              "observed": 0.2727
+            }
+          ],
+          "ece": 0.2963,
+          "precision_at_k": 0.1636,
+          "hits_at_k": 0.1636,
+          "chance_precision": 0.2,
+          "chance_hits": 0.2,
+          "days": 55,
+          "k": 1,
+          "train_days": 219,
+          "test_days": 55,
+          "accuracy": 0.5309
+        }
+      }
+    },
+    "eurodreams (classical svm)": {
+      "artifact": "classical_svm_meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2200,
+        "base_rate": 0.15,
+        "brier": 0.1592,
+        "brier_base_rate": 0.1275,
+        "log_loss": 0.505,
+        "log_loss_base_rate": 0.4227,
+        "auc": 0.4635,
+        "reliability": [
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 2188,
+            "mean_predicted": 0.3261,
+            "observed": 0.1504
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 12,
+            "mean_predicted": 0.4205,
+            "observed": 0.0833
+          }
+        ],
+        "ece": 0.1766,
+        "precision_at_k": 0.1394,
+        "hits_at_k": 0.8364,
+        "chance_precision": 0.15,
+        "chance_hits": 0.9,
+        "days": 55,
+        "k": 6,
+        "train_days": 219,
+        "test_days": 55,
+        "accuracy": 0.85,
+        "special": {
+          "rows": 275,
+          "base_rate": 0.2,
+          "brier": 0.1599,
+          "brier_base_rate": 0.16,
+          "log_loss": 0.5001,
+          "log_loss_base_rate": 0.5004,
+          "auc": 0.5164,
+          "reliability": [
+            {
+              "lo": 0.1,
+              "hi": 0.2,
+              "count": 145,
+              "mean_predicted": 0.1919,
+              "observed": 0.1862
+            },
+            {
+              "lo": 0.2,
+              "hi": 0.3,
+              "count": 130,
+              "mean_predicted": 0.2066,
+              "observed": 0.2154
+            }
+          ],
+          "ece": 0.0072,
+          "precision_at_k": 0.1818,
+          "hits_at_k": 0.1818,
+          "chance_precision": 0.2,
+          "chance_hits": 0.2,
+          "days": 55,
+          "k": 1,
+          "train_days": 219,
+          "test_days": 55,
+          "accuracy": 0.8
+        }
+      }
+    }
+  }
+}

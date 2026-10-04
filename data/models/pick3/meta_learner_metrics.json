@@ -1,0 +1,101 @@
+{
+  "game": "pick3",
+  "trained_at": "2026-10-04T04:16:40.534212+00:00",
+  "days": 300,
+  "table_days": 216,
+  "lockbox": {
+    "from": "2025-12-01",
+    "to": "2026-02-28",
+    "declared": "2026-09-27",
+    "note": "declared after the September 2026 objective, gate and cadence changes"
+  },
+  "lockbox_days_withheld": 84,
+  "versions": {
+    "python": "3.10.12",
+    "numpy": "1.26.4",
+    "scikit-learn": "1.6.0",
+    "joblib": "1.5.3"
+  },
+  "variants": {
+    "pick3": {
+      "artifact": "meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.0455,
+          0.1364,
+          0.1136
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.0985,
+        "argmax_profit_per_day": -3.8636,
+        "train_days": 172,
+        "test_days": 44
+      }
+    },
+    "pick3 (v2)": {
+      "artifact": "meta_learner_v2.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.0909,
+          0.0455,
+          0.0909
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.0758,
+        "argmax_profit_per_day": -3.9091,
+        "train_days": 172,
+        "test_days": 44
+      }
+    },
+    "pick3 (quantum kernel)": {
+      "artifact": "quantum_meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.1364,
+          0.0909,
+          0.1136
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.1136,
+        "argmax_profit_per_day": -2.0682,
+        "train_days": 172,
+        "test_days": 44
+      }
+    },
+    "pick3 (quantum vqc)": {
+      "artifact": "quantum_vqc_meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.0455,
+          0.1364,
+          0.0909
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.0909,
+        "argmax_profit_per_day": -3.8864,
+        "train_days": 172,
+        "test_days": 44
+      }
+    },
+    "pick3 (classical svm)": {
+      "artifact": "classical_svm_meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.1818,
+          0.1364,
+          0.1136
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.1439,
+        "argmax_profit_per_day": -0.4545,
+        "train_days": 172,
+        "test_days": 44
+      }
+    }
+  }
+}
