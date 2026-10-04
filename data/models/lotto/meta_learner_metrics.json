@@ -1,0 +1,286 @@
+{
+  "game": "lotto",
+  "trained_at": "2026-10-04T04:12:38.431565+00:00",
+  "days": 300,
+  "table_days": 275,
+  "lockbox": {
+    "from": "2025-12-01",
+    "to": "2026-02-28",
+    "declared": "2026-09-27",
+    "note": "declared after the September 2026 objective, gate and cadence changes"
+  },
+  "lockbox_days_withheld": 25,
+  "versions": {
+    "python": "3.10.12",
+    "numpy": "1.26.4",
+    "scikit-learn": "1.6.0",
+    "joblib": "1.5.3"
+  },
+  "variants": {
+    "lotto": {
+      "artifact": "meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2475,
+        "base_rate": 0.1333,
+        "brier": 0.2497,
+        "brier_base_rate": 0.1156,
+        "log_loss": 0.6926,
+        "log_loss_base_rate": 0.3927,
+        "auc": 0.5175,
+        "reliability": [
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 1418,
+            "mean_predicted": 0.4876,
+            "observed": 0.122
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1050,
+            "mean_predicted": 0.5144,
+            "observed": 0.1486
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 7,
+            "mean_predicted": 0.6207,
+            "observed": 0.1429
+          }
+        ],
+        "ece": 0.366,
+        "precision_at_k": 0.1273,
+        "hits_at_k": 0.7636,
+        "chance_precision": 0.1333,
+        "chance_hits": 0.8,
+        "days": 55,
+        "k": 6,
+        "train_days": 220,
+        "test_days": 55,
+        "accuracy": 0.5665
+      }
+    },
+    "lotto (v2)": {
+      "artifact": "meta_learner_v2.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2475,
+        "base_rate": 0.1333,
+        "brier": 0.2398,
+        "brier_base_rate": 0.1156,
+        "log_loss": 0.672,
+        "log_loss_base_rate": 0.3927,
+        "auc": 0.4894,
+        "reliability": [
+          {
+            "lo": 0.0,
+            "hi": 0.1,
+            "count": 2,
+            "mean_predicted": 0.0744,
+            "observed": 0.5
+          },
+          {
+            "lo": 0.1,
+            "hi": 0.2,
+            "count": 21,
+            "mean_predicted": 0.1666,
+            "observed": 0.2857
+          },
+          {
+            "lo": 0.2,
+            "hi": 0.3,
+            "count": 101,
+            "mean_predicted": 0.2479,
+            "observed": 0.1386
+          },
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 198,
+            "mean_predicted": 0.3619,
+            "observed": 0.1313
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 990,
+            "mean_predicted": 0.4643,
+            "observed": 0.1343
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1135,
+            "mean_predicted": 0.5271,
+            "observed": 0.1295
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 28,
+            "mean_predicted": 0.6293,
+            "observed": 0.1071
+          }
+        ],
+        "ece": 0.3445,
+        "precision_at_k": 0.1333,
+        "hits_at_k": 0.8,
+        "chance_precision": 0.1333,
+        "chance_hits": 0.8,
+        "days": 55,
+        "k": 6,
+        "train_days": 220,
+        "test_days": 55,
+        "accuracy": 0.518
+      }
+    },
+    "lotto (quantum kernel)": {
+      "artifact": "quantum_meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2475,
+        "base_rate": 0.1333,
+        "brier": 0.1539,
+        "brier_base_rate": 0.1156,
+        "log_loss": 0.4939,
+        "log_loss_base_rate": 0.3927,
+        "auc": 0.5523,
+        "reliability": [
+          {
+            "lo": 0.2,
+            "hi": 0.3,
+            "count": 86,
+            "mean_predicted": 0.2939,
+            "observed": 0.1047
+          },
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 2387,
+            "mean_predicted": 0.3316,
+            "observed": 0.1345
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 2,
+            "mean_predicted": 0.4047,
+            "observed": 0.0
+          }
+        ],
+        "ece": 0.197,
+        "precision_at_k": 0.1485,
+        "hits_at_k": 0.8909,
+        "chance_precision": 0.1333,
+        "chance_hits": 0.8,
+        "days": 55,
+        "k": 6,
+        "train_days": 220,
+        "test_days": 55,
+        "accuracy": 0.8667
+      }
+    },
+    "lotto (quantum vqc)": {
+      "artifact": "quantum_vqc_meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2475,
+        "base_rate": 0.1333,
+        "brier": 0.2545,
+        "brier_base_rate": 0.1156,
+        "log_loss": 0.7023,
+        "log_loss_base_rate": 0.3927,
+        "auc": 0.5507,
+        "reliability": [
+          {
+            "lo": 0.2,
+            "hi": 0.3,
+            "count": 1,
+            "mean_predicted": 0.2998,
+            "observed": 1.0
+          },
+          {
+            "lo": 0.3,
+            "hi": 0.4,
+            "count": 51,
+            "mean_predicted": 0.3677,
+            "observed": 0.0588
+          },
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 1127,
+            "mean_predicted": 0.4683,
+            "observed": 0.1171
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1226,
+            "mean_predicted": 0.5389,
+            "observed": 0.1493
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 70,
+            "mean_predicted": 0.6187,
+            "observed": 0.1571
+          }
+        ],
+        "ece": 0.3726,
+        "precision_at_k": 0.1394,
+        "hits_at_k": 0.8364,
+        "chance_precision": 0.1333,
+        "chance_hits": 0.8,
+        "days": 55,
+        "k": 6,
+        "train_days": 220,
+        "test_days": 55,
+        "accuracy": 0.4998
+      }
+    },
+    "lotto (classical svm)": {
+      "artifact": "classical_svm_meta_learner.joblib",
+      "positional": false,
+      "metrics": {
+        "rows": 2475,
+        "base_rate": 0.1333,
+        "brier": 0.2507,
+        "brier_base_rate": 0.1156,
+        "log_loss": 0.6945,
+        "log_loss_base_rate": 0.3927,
+        "auc": 0.4788,
+        "reliability": [
+          {
+            "lo": 0.4,
+            "hi": 0.5,
+            "count": 915,
+            "mean_predicted": 0.4808,
+            "observed": 0.1377
+          },
+          {
+            "lo": 0.5,
+            "hi": 0.6,
+            "count": 1560,
+            "mean_predicted": 0.5113,
+            "observed": 0.1308
+          }
+        ],
+        "ece": 0.3667,
+        "precision_at_k": 0.1091,
+        "hits_at_k": 0.6545,
+        "chance_precision": 0.1333,
+        "chance_hits": 0.8,
+        "days": 55,
+        "k": 6,
+        "train_days": 220,
+        "test_days": 55,
+        "accuracy": 0.5681
+      }
+    }
+  }
+}
