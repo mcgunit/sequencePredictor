@@ -33,14 +33,24 @@ import math
 import os
 
 import numpy as np
+from datetime import date, datetime, timedelta, timezone
 
 try:
-    from src.MarketData import aligned_returns, closes, instruments
+    from src.MarketData import aligned_returns, closes, instruments, base_market, is_week_game, WEEK_MARKETS
 except ImportError:  # imported from within src/
-    from MarketData import aligned_returns, closes, instruments
+    from MarketData import aligned_returns, closes, instruments, base_market, is_week_game, WEEK_MARKETS
 
 K_BINS = 10          # digits 0..9, like pick3
 MIN_HISTORY = 250    # returns an instrument needs before its first day can be binned (about a trading year)
+# The week games (README roadmap item 4, M5): one draw per week - the week's
+# log return (the sum of its aligned daily returns) cut into K bins of the
+# instrument's own past WEEKS, the draw dated on the week's last day. A
+# week counts only once it is over: for crypto when the UTC week has ended
+# (Monday 00:00 UTC), for shares from Saturday on (the Friday session has
+# closed) - so Monday's crypto run and Saturday's shares run make the ticket
+# for the whole coming week. MIN_WEEK_HISTORY weeks (about two years) before
+# the first week can be binned.
+MIN_WEEK_HISTORY = 100
 FILE_PATTERN = "{game}-gamedata-NL-{year}.csv"   # Predictor.py's convention for every game
 # The returns the bins were cut from, next to the yearly files: every aligned
 # day (the warm-up before the first game day included), oldest first, one
@@ -147,9 +157,102 @@ def cut_game(days, matrix, k=K_BINS, min_history=MIN_HISTORY):
     return out
 
 
-def build_game(conn, market, k=K_BINS, min_history=MIN_HISTORY):
-    """The market's game days from the store, with the instrument symbols in position order."""
-    days, matrix, symbols = aligned_returns(conn, market)
+def week_of(day):
+    """The ISO (year, week) a date string belongs to."""
+    iso = date.fromisoformat(str(day)[:10]).isocalendar()
+    return (iso[0], iso[1])
+
+
+# NYSE Group's announced closures (the same table markets.js carries): a shares week whose last
+# aligned day is the day before one of these is a full week, not one still waiting for Friday's bar
+NYSE_CLOSED = {
+    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+    "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
+}
+
+
+def week_closed_by(game, last_day):
+    """
+    Whether `last_day` (the newest aligned day of a week) is the day the
+    game's week ends on, so the week's bars are all in: Sunday for crypto;
+    for shares Friday, or an earlier weekday when every later weekday of
+    that week is an announced closure. A week whose last bar has not arrived
+    yet (a source lagging a day) is not cut until it has - otherwise a
+    six-day "week" would be dated a day early, re-cut the next morning, and
+    the ticket made on it orphaned.
+    """
+    d = date.fromisoformat(str(last_day)[:10])
+    if game == "cryptoweek":
+        return d.weekday() == 6
+    if d.weekday() > 4:
+        return False
+    return all((d + timedelta(days=k)).isoformat() in NYSE_CLOSED for k in range(1, 5 - d.weekday()))
+
+
+def week_complete(game, week, now):
+    """
+    Whether the ISO week `week` is over for the game at date `now` (UTC): a
+    past ISO week always; the current one never for crypto (its week runs to
+    Sunday 24:00 UTC) and from Saturday for shares (its last session, Friday,
+    has closed).
+    """
+    current = (now.isocalendar()[0], now.isocalendar()[1])
+    if current > week:
+        return True
+    if current < week:
+        return False
+    return game == "sharesweek" and now.weekday() >= 5
+
+
+def weekly_returns(days, matrix, game, now=None, log=None):
+    """
+    Aligned daily log returns -> one row per COMPLETE week: (week dates, the
+    date of the week's last aligned day; week matrix, the sum of the week's
+    daily returns per position). A week with no aligned day has no row. The
+    newest week is cut only when the calendar says it is over AND its last
+    bar is in (week_closed_by); until then it waits, and `log` says so.
+    """
+    now = now or datetime.now(timezone.utc).date()
+    matrix = np.asarray(matrix, dtype=float)
+    groups, order = {}, []
+    for day, row in zip(days, matrix):
+        key = week_of(day)
+        if key not in groups:
+            groups[key] = [day, np.zeros(len(row))]
+            order.append(key)
+        groups[key][0] = day
+        groups[key][1] = groups[key][1] + row
+    wdays, wrows = [], []
+    for n, key in enumerate(order):
+        if not week_complete(game, key, now):
+            continue
+        if n == len(order) - 1 and not week_closed_by(game, groups[key][0]):
+            if log:
+                log(f"{game}: the week of {groups[key][0]} is over by the calendar but its last bar is not in the store yet - not cut until it is")
+            continue
+        wdays.append(groups[key][0])
+        wrows.append(groups[key][1])
+    return wdays, (np.asarray(wrows) if wrows else np.zeros((0, matrix.shape[1] if matrix.ndim == 2 else 0)))
+
+
+def game_returns(conn, market, now=None, log=None):
+    """(days, matrix, symbols) a game is cut from: the base market's aligned daily returns, summed per complete week for a week game."""
+    days, matrix, symbols = aligned_returns(conn, base_market(market))
+    if is_week_game(market):
+        days, matrix = weekly_returns(days, matrix, market, now, log=log)
+    return days, matrix, symbols
+
+
+def history_needed(market, min_history=None):
+    if min_history is not None:
+        return int(min_history)
+    return MIN_WEEK_HISTORY if is_week_game(market) else MIN_HISTORY
+
+
+def build_game(conn, market, k=K_BINS, min_history=None, now=None):
+    """The game's days from the store (a week game: its complete weeks), with the instrument symbols in position order."""
+    days, matrix, symbols = game_returns(conn, market, now)
+    min_history = history_needed(market, min_history)
     if len(days) <= min_history:
         return [], symbols
     return cut_game(days, matrix, k, min_history), symbols
@@ -317,19 +420,21 @@ def daily_refresh(path, market, fetch=True, db_path=None, log=print):
         log(f"{market}: universe installed ({', '.join(added)})")
     for conflict in conflicts:
         log(f"{market}: universe CONFLICT: {conflict}")
-    summaries = update_all(conn, market=market, log=log) if fetch else []
+    # a week game is cut from its base market's bars, fetched by the base game's own refresh moments before
+    summaries = update_all(conn, market=market, log=log) if (fetch and not is_week_game(market)) else []
     folder = os.path.join(path, "data", "trainingData", market)
     game_days, _ = refresh(conn, market, folder, log=log)
     conn.close()
     return summaries, game_days
 
 
-def refresh(conn, market, folder, k=K_BINS, min_history=MIN_HISTORY, log=print):
-    """Store + CSV for one market. Returns (game days, files written)."""
-    days, matrix, symbols = aligned_returns(conn, market)
+def refresh(conn, market, folder, k=K_BINS, min_history=None, log=print, now=None):
+    """Store + CSV for one game (a market, or a market's week game). Returns (game days, files written)."""
+    days, matrix, symbols = game_returns(conn, market, now, log=log)
+    min_history = history_needed(market, min_history)
     game_days = cut_game(days, matrix, k, min_history) if len(days) > min_history else []
     if not game_days:
-        log(f"{market}: not enough aligned history to cut a game (need more than {min_history} common days)")
+        log(f"{market}: not enough aligned history to cut a game (need more than {min_history} common {'weeks' if is_week_game(market) else 'days'})")
         return [], []
     conn.executescript(GAME_SCHEMA)
     previous_first = conn.execute("SELECT MIN(date) FROM game_days WHERE market = ?", (market,)).fetchone()[0]
@@ -379,6 +484,42 @@ def _self_check():
     assert lo < p < hi and price_interval(100.0, 0, edges)[0] is None and price_interval(100.0, 9, edges)[1] is None
     print("bins: ten equiprobable quantile bins, monotone edges, intervals tile the line, prices follow")
 
+    # 1b. Weeks: the aligned days of 2026-09-21 (Mon) .. 2026-10-04 (Sun) plus Monday 2026-10-05
+    wk_days = [(date(2026, 9, 21) + timedelta(days=i)).isoformat() for i in range(15)]
+    wk_matrix = np.arange(15 * 2, dtype=float).reshape(15, 2) / 100.0
+    # crypto: at Sunday 2026-10-04 the second week is not over; on Monday 2026-10-05 it is; the lone Monday is never a week yet
+    d1, m1 = weekly_returns(wk_days, wk_matrix, "cryptoweek", now=date(2026, 10, 4))
+    assert d1 == ["2026-09-27"] and np.allclose(m1[0], wk_matrix[:7].sum(axis=0)), (d1, m1)
+    d2, m2 = weekly_returns(wk_days, wk_matrix, "cryptoweek", now=date(2026, 10, 5))
+    assert d2 == ["2026-09-27", "2026-10-04"] and np.allclose(m2[1], wk_matrix[7:14].sum(axis=0)), d2
+    # shares: weekdays only; the week is over from Saturday, and a holiday Friday still closes the week on Saturday
+    sh_days = [d for d in wk_days if date.fromisoformat(d).weekday() < 5 and d != "2026-10-02"]   # the second Friday is a holiday
+    sh_matrix = np.ones((len(sh_days), 2)) * 0.01
+    d3, _ = weekly_returns(sh_days, sh_matrix, "sharesweek", now=date(2026, 10, 2))
+    assert d3 == ["2026-09-25"], d3
+    d4, m4 = weekly_returns(sh_days, sh_matrix, "sharesweek", now=date(2026, 10, 3))
+    # with Monday 2026-10-05 already in the data the Thursday-ended week is a real four-day week (the Friday was a gap for all)
+    assert d4 == ["2026-09-25", "2026-10-01"] and abs(m4[1][0] - 0.04) < 1e-12, (d4, m4)
+    # ... but when the data ENDS on that Thursday and its Friday is no announced closure, the Friday bar may still arrive: not cut yet, said in the log
+    lag_notes = []
+    d4l, _ = weekly_returns([d for d in sh_days if d <= "2026-10-01"], np.ones((len([d for d in sh_days if d <= "2026-10-01"]), 2)) * 0.01, "sharesweek", now=date(2026, 10, 3), log=lag_notes.append)
+    assert d4l == ["2026-09-25"] and lag_notes and "2026-10-01" in lag_notes[0], (d4l, lag_notes)
+    sh_days2 = [d for d in [(date(2026, 12, 21) + timedelta(days=i)).isoformat() for i in range(4)]]   # Mon 21 .. Thu 24 Dec, the data ends there
+    d4b, _ = weekly_returns(sh_days2, np.ones((len(sh_days2), 2)) * 0.01, "sharesweek", now=date(2026, 12, 26))
+    assert d4b == ["2026-12-24"], d4b   # Christmas Friday is an announced closure: the Thursday closes the week
+    assert week_complete("cryptoweek", week_of("2026-10-04"), date(2026, 10, 4)) is False and week_complete("cryptoweek", week_of("2026-10-04"), date(2026, 10, 5)) is True
+    # a lagging last bar: the week is over by the calendar but Sunday is missing - not cut until it arrives; a holiday Friday closes the shares week on Thursday
+    notes = []
+    d5, _ = weekly_returns(wk_days[:13], wk_matrix[:13], "cryptoweek", now=date(2026, 10, 5), log=notes.append)   # ends Saturday 2026-10-03
+    assert d5 == ["2026-09-27"] and notes and "2026-10-03" in notes[0], (d5, notes)
+    assert week_closed_by("cryptoweek", "2026-10-04") and not week_closed_by("cryptoweek", "2026-10-03")
+    assert week_closed_by("sharesweek", "2026-10-09") and not week_closed_by("sharesweek", "2026-10-08") and week_closed_by("sharesweek", "2026-12-24") and week_closed_by("sharesweek", "2026-11-25") is False
+    # the mid-week tail of a history is never a week (whatever `now` says)
+    d6, _ = weekly_returns(wk_days, wk_matrix, "cryptoweek", now=date(2030, 1, 1))
+    assert d6 == ["2026-09-27", "2026-10-04"], d6
+    assert history_needed("cryptoweek") == MIN_WEEK_HISTORY and history_needed("crypto") == MIN_HISTORY and history_needed("cryptoweek", 7) == 7
+    print("weeks: a week is its daily returns summed, dated on its last day, counted once it is over - Monday 00:00 UTC for crypto, Saturday for shares")
+
     # 2. Cutting a game is causal: a later return changes no earlier day.
     days = [f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}" for i in range(400)]
     matrix = rng.normal(0, 0.02, size=(400, 3))
@@ -424,6 +565,29 @@ def _self_check():
     assert conn.execute("SELECT COUNT(*) FROM game_days WHERE position >= 4").fetchone()[0] == 0
     assert store_game_days(conn, "crypto", game_days, symbols) == written
     print("store: game days cut from the aligned returns, a missing bar drops its day for all, edges stored and read back")
+    # the week game: a store with real calendar dates (the fixture above uses 28-day months), 420 days of bars,
+    # the complete weeks cut with a short history for the test and stored apart from the daily game
+    conn_w = connect(":memory:")
+    install_universe(conn_w)
+    real_days = [(date(2025, 1, 1) + timedelta(days=i)).isoformat() for i in range(420)]
+    for member in instruments(conn_w, "crypto"):
+        walk = 100.0 * np.exp(np.cumsum(rng.normal(0.0, 0.03, size=len(real_days))))
+        upsert_bars(conn_w, member["id"], [{"date": d, "open": c, "high": c, "low": c, "close": c, "volume": 1.0} for d, c in zip(real_days, walk)], fetched_at="t")
+    daily_w, symbols_w = build_game(conn_w, "crypto", k=10, min_history=250)
+    store_game_days(conn_w, "crypto", daily_w, symbols_w)
+    week_days, week_symbols = build_game(conn_w, "cryptoweek", k=10, min_history=20, now=date(2026, 2, 24))   # the newest fixture day: its own week is not over
+    assert week_symbols == symbols_w and len(week_days) > 30 and all(date.fromisoformat(d["date"]).weekday() == 6 for d in week_days), \
+        (len(week_days), [d["date"] for d in week_days[:3]])
+    assert all(len(d["bins"]) == len(symbols_w) and len(d["edges"][0]) == 9 for d in week_days)
+    # a week's return is the sum of its days' returns
+    wd, wm, _ = game_returns(conn_w, "cryptoweek", now=date(2026, 2, 24))
+    dd, dm, _ = game_returns(conn_w, "crypto")
+    first_week = [i for i, d in enumerate(dd) if week_of(d) == week_of(wd[5])]
+    assert np.allclose(wm[5], np.asarray(dm, dtype=float)[first_week].sum(axis=0)) and len(first_week) == 7
+    store_game_days(conn_w, "cryptoweek", week_days, week_symbols)
+    assert latest_edges(conn_w, "cryptoweek")["date"] == week_days[-1]["date"] and latest_edges(conn_w, "crypto")["date"] == daily_w[-1]["date"], "the two games keep separate game days"
+    assert build_game(conn_w, "cryptoweek", k=10)[0] == [], "with the real history floor 420 days are too few weeks for a week game"
+    print(f"week game: {len(week_days)} Sunday-dated weeks cut from the same bars, each the sum of its days, stored next to the daily game")
 
     # 4. The yearly CSV files: Predictor's shape, newest first, round trip, stable.
     with tempfile.TemporaryDirectory() as folder:

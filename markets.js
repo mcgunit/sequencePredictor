@@ -24,6 +24,12 @@ const MARKETS = {
   crypto: { title: 'Crypto predictor', noun: 'coin', unit: 'USDT', calendar: 'every day (UTC)' },
   shares: { title: 'Shares predictor', noun: 'share', unit: 'USD', calendar: 'every trading day (New York)' },
 };
+// The week games (README roadmap item 4, M5): one draw per week, cut from the
+// same bars (MarketGame.weekly_returns), settled and exported like a market
+// (data/markets/<week game>.json) and shown on the market's page as the
+// "Week ahead" card - the multi-day forecast a hold can be planned on.
+const WEEK_GAMES = { crypto: 'cryptoweek', shares: 'sharesweek' };
+const MIN_WEEK_TRADES = 5;   // positions a weekly book needs before the week card follows it
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (e) { return null; }
@@ -165,6 +171,7 @@ function describeMarket(record, extras) {
     scoredDays: models.length ? Math.max(...models.map((m) => m.days || 0)) : 0,
     rows: describeRows(extras && extras.rows ? extras.rows : null),
     regimes: describeRegimes(extras && extras.regimes ? extras.regimes : null, instruments.map((i) => i.symbol)),
+    week: extras && extras.week && typeof extras.week === 'object' && extras.week.market ? extras.week : null,   // the week game's own view (describeMarket of its record)
     days: describeDays(record.days),
     trading: describeTrading(record.trading),
   };
@@ -351,6 +358,26 @@ function openText(market, day) {
   return `${brusselsText(moment)} on ${weekdayOf(day)} ${day} (09:30 New York time)`;
 }
 // when the newest ticket was written (the day file's time), in Belgian time
+// the last day of the week a week-game ticket is for: made after `madeOn` (a Sunday for crypto, the week's last session for shares),
+// the ticket covers the following ISO week - its Sunday for crypto, its last session (normally Friday, holidays skipped) for shares
+function weekEnd(market, madeOn) {
+  const start = parseDay(madeOn);
+  if (start === null) return null;
+  let monday = start + DAY_MS;
+  while (new Date(monday).getUTCDay() !== 1) monday += DAY_MS;
+  if (market === 'crypto') return isoDay(monday + 6 * DAY_MS);
+  for (let k = 4; k >= 0; k -= 1) {
+    const day = isoDay(monday + k * DAY_MS);
+    if (!NYSE_CLOSED.has(day)) return day;
+  }
+  return isoDay(monday + 4 * DAY_MS);
+}
+function dayStatusWeek(now, openAt, closeAt) {
+  if (!(now instanceof Date) || Number.isNaN(now.getTime())) return null;
+  if (now < openAt) return `the week has not started yet - it starts at ${brusselsText(openAt, true)}`;
+  if (now < closeAt) return `the week is running, ${Math.round((now - openAt) / DAY_MS * 10) / 10} days in; it closes at ${brusselsText(closeAt, true)}`;
+  return `the week has closed (${brusselsText(closeAt, true)})`;
+}
 function appearedText(madeAt) {
   const date = parseInstant(madeAt);
   return date ? brusselsText(date, true) : null;
@@ -590,7 +617,8 @@ function page(market, view, header, footer, user, now = new Date()) {
     ${view.trading && view.trading.open ? 'three ways (Paper trading card); <b>Today\'s plan</b> turns the one a reader can follow - buy at the open, sell at the close - into orders' : 'two ways (Paper trading card); <b>Today\'s plan</b> turns the calls into orders'}.
     Results settle the morning after, when the day's candle has closed. ${market === 'crypto'
       ? 'A crypto day is the UTC day, so "the day\'s close" is 00:00 UTC - 02:00 Belgian time in the night that follows (01:00 in winter); that close decides every call.'
-      : 'A share\'s day is the New York session, so "the day\'s close" is 16:00 New York time - 22:00 Belgian time in most weeks; that close decides every call.'}</p>`;
+      : 'A share\'s day is the New York session, so "the day\'s close" is 16:00 New York time - 22:00 Belgian time in most weeks; that close decides every call.'}${view.week
+      ? ` The <b>Week ahead</b> card is the second game: the same ${esc(meta.noun)}s, one call for the whole week, scored at the week's close.` : ''}</p>`;
 
   // The page, since 4 Oct 2026 (the owner found seven cards heavy): the plan
   // (the orders that match how a call is scored), the paper book, a chart
@@ -1033,7 +1061,7 @@ function page(market, view, header, footer, user, now = new Date()) {
       const movePct = (v) => (v === null || base === null || base <= 0 ? null : (v / base - 1) * 100);
       const moveText = call ? (call.low === null ? `below ${signedPct(movePct(call.high) / 100, 1)}` : (call.high === null ? `above ${signedPct(movePct(call.low) / 100, 1)}` : `${signedPct(movePct(call.low) / 100, 1)} to ${signedPct(movePct(call.high) / 100, 1)}`)) : '';
       const band = call ? `${call.low === null ? `below ${price(call.high)}` : (call.high === null ? `above ${price(call.low)}` : `${price(call.low)} - ${price(call.high)}`)}<br><span style="color:#7f8c8d; font-size:0.85em;">bin ${call.bin}: ${moveText}</span>` : '-';
-      const holdNote = `if you still hold it from an earlier day, sell at the close${closeClock ? `, ${esc(closeClock)}` : ''}`;
+      const holdNote = `if you still hold it from an earlier day's plan, sell at the close${closeClock ? `, ${esc(closeClock)}` : ''}${view.week ? ' - a position from the Week ahead card is not meant here; that card has its own sell' : ''}`;
       let buy, sell;
       if (!call) { buy = `no call from this model for this ${esc(meta.noun)}`; sell = '-'; }
       else if (!up) { buy = sized ? `no new buy - the model sizes this ${esc(meta.noun)} at 0 today (its vote bin is ${call.bin})` : `no new buy - the call is ${call.bin < view.k / 2 - 1 ? 'down' : 'flat to down'} (bin ${call.bin})${view.trading && view.trading.short ? `; with shorts on, the ${planRuleName} book shorts it on paper, which needs a margin or derivatives account - no order here` : ''}`; sell = holdNote; }
@@ -1067,13 +1095,103 @@ function page(market, view, header, footer, user, now = new Date()) {
       <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;"><b>Up</b> means the predicted bin is in the upper half (5 to 9), the one position the long-only books take${view.trading && view.trading.short ? '; with the shorts switch on, the paper books also short the lower half - paper only, no order' : ''}. The two bins around zero can be "up" here and a hair negative by their middle.
       The <i>RL Position Model</i> is the one row that sizes its positions - 0 to 2 times the stake, learned from what the other rows said on past days and the money it made - so its call reads &times;0.5 to &times;2, and a size of 0 is a sit-out whatever its vote bin says.
       <b>Stake and fees</b>: the books use ${t && t.stake !== null ? t.stake : 100} ${esc(meta.unit)} a position and ${t && t.feePerLeg !== null ? pct(t.feePerLeg, 2) : '0.10%'} a leg; your broker's commission replaces that fee and decides whether a move as small as the band says can pay.
-      <b>Holding instead of selling at the close</b>: keep the position while the next morning's call (here after about 10:30) is up again, and sell at the close of the first day it is not. There is no multi-day forecast yet - the models predict one day ahead - so a hold is decided one morning at a time;
-      your result is then open-to-close on the first day and close-to-close after it, for which the <i>Hold while up</i> book is the closest yardstick, not an exact match.
+      <b>Holding instead of selling at the close</b>: the daily rows predict one day ahead, so a hold built on them is decided one morning at a time - keep the position while the next morning's call (here after about 10:30) is up again, and sell at the close of the first day it is not;
+      your result is then open-to-close on the first day and close-to-close after it, for which the <i>Hold while up</i> book is the closest yardstick, not an exact match.${view.week
+        ? ' A hold planned once for the whole week is the other game, in the <i>Week ahead</i> card below: its call, its orders and its sell on the week\'s last day are separate from this card.' : ''}
       ${market === 'crypto' ? 'The daily book these orders follow buys at 00:00 UTC, which nobody reading this can do: your entry is later and at another price, so your result and the book\'s differ by the day\'s first hours.' : 'These orders follow the <i>Open to close</i> book, the one a reader can follow; the daily and hold books buy at the previous close, which nobody reading this can do.'}
       This describes when the page's condition is checked - it is not advice.</p></div></div>`;
   }
 
-  html += plan + paper + charts;
+  // --- the week ahead: the week game's call per instrument, and the hold it is measured on ---
+  // Reviewed on 4 Oct 2026 by an owner stand-in and a code reviewer: the
+  // orders are nouns (not imperatives), the book's yardstick sits next to
+  // its total, the buy text knows how far the week has gone, the two games
+  // are kept apart in words, and the thinness of a weekly book is said
+  // where the number is.
+  let week = '';
+  const w = view.week;
+  if (w && w.madeOn && parseDay(w.madeOn) !== null) {
+    const firstSession = nextGameDay(market, w.madeOn);                       // Monday (shares: holidays skipped), or the day after the Sunday
+    const endDay = weekEnd(market, w.madeOn);                                 // the week's last day: the next Sunday (crypto) or the week's last session (shares)
+    const judgedShort = endDay ? closeShort(market, endDay) : null;
+    const closeAt = endDay ? closeMoment(market, endDay) : null;
+    const openAt = firstSession ? openMoment(market, firstSession) : null;
+    const opens = firstSession ? openText(market, firstSession) : null;
+    const closed = closeAt && now >= closeAt;
+    const started = openAt && now >= openAt;
+    const known = endDay && calendarKnown(market, endDay);
+    const planKey = market === 'crypto' ? 'pnlCash' : 'openTotal';
+    const tradesKey = market === 'crypto' ? 'trades' : 'openTrades';
+    const ruleName = market === 'crypto' ? 'weekly round trip' : 'Monday open to Friday close';
+    const ranked = w.models.filter((m) => m[planKey] !== null && m[tradesKey] !== null && m[tradesKey] >= MIN_WEEK_TRADES).sort((a, b) => b[planKey] - a[planKey]);
+    const weekModel = ranked[0] || w.models.find((m) => m.name === w.best) || w.models[0] || null;
+    const byBook = ranked.length > 0;
+    const bench = w.trading ? (market === 'crypto' ? w.trading.benchmark : (w.trading.open ? w.trading.open.benchmark : [])) : [];
+    const weekMarket = bench.length ? bench[bench.length - 1].total : null;
+    if (weekModel && endDay && closeAt && openAt) {
+      const daysIn = Math.round((now - openAt) / DAY_MS * 10) / 10;
+      const hoursLeft = Math.round((closeAt - now) / HOUR_MS * 10) / 10;
+      const openClock = brusselsText(openAt, true);
+      const rows = w.instruments.filter((i) => i.active).map((inst) => {
+        const base = inst.nextBase !== null && inst.nextBase !== undefined ? inst.nextBase : inst.lastClose;
+        const call = inst.next.find((p) => p.model === weekModel.name) || null;
+        const isUp = (p) => (p.size !== null && p.size !== undefined ? p.size > 0 : (p.bin !== null && p.bin >= w.k / 2));
+        const up = !!call && isUp(call);
+        const ups = inst.next.filter(isUp).length;
+        const movePct = (v) => (v === null || base === null || base <= 0 ? null : (v / base - 1) * 100);
+        const moveText = call ? (call.low === null ? `below ${signedPct(movePct(call.high) / 100, 1)}` : (call.high === null ? `above ${signedPct(movePct(call.low) / 100, 1)}` : `${signedPct(movePct(call.low) / 100, 1)} to ${signedPct(movePct(call.high) / 100, 1)}`)) : '';
+        const band = call ? `${call.low === null ? `below ${price(call.high)}` : (call.high === null ? `above ${price(call.low)}` : `${price(call.low)} - ${price(call.high)}`)}<br><span style="color:#7f8c8d; font-size:0.85em;">bin ${call.bin}: ${moveText} over the week</span>` : '-';
+        // so far: the base market's closes after the week base
+        const daily = view.instruments.find((i) => i.symbol === inst.symbol);
+        const since = daily ? daily.closes.filter((p) => p[0] > w.madeOn) : [];
+        let soFar = started ? 'no close yet' : 'the week has not started';
+        if (since.length && base) {
+          const last = since[since.length - 1][1];
+          const pctNow = (last / base - 1) * 100;
+          const where = !call ? '' : (call.low !== null && last < call.low ? ' - below the band' : (call.high !== null && last > call.high ? ' - above the band' : ' - inside the band'));
+          soFar = `${signedPct(pctNow / 100, 1)} after ${since.length} ${since.length === 1 ? 'close' : 'closes'} (${price(last)} on ${esc(since[since.length - 1][0])})${esc(where)}${where ? ', which is checked only at the week\'s close' : ''}`;
+        }
+        let buy, sell;
+        if (!call) { buy = 'no call from this model'; sell = '-'; }
+        else if (!up) { buy = `no position in the book for the week - the call is ${call.bin !== null && call.bin < w.k / 2 - 1 ? 'down' : 'flat to down'}`; sell = '-'; }
+        else if (closed) { buy = `the week has closed (${esc(brusselsText(closeAt))}); the next ticket comes after the ${market === 'crypto' ? 'Monday' : 'Saturday'} run`; sell = '-'; }
+        else if (!started) {
+          buy = market === 'crypto' ? `a market order at the week's start, ${esc(openClock)}` : `a market order placed before ${esc(opens)} - it fills at the week's first open, where the book buys`;
+          sell = market === 'crypto' ? `a market order at ${esc(judgedShort)}, whatever the price then is` : `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one`;
+        } else if (daysIn < 1) {
+          buy = `a market order now - the week is ${daysIn} days in; the book's position opened at ${esc(openClock)}`;
+          sell = market === 'crypto' ? `a market order at ${esc(judgedShort)}, whatever the price then is` : `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one`;
+        } else {
+          buy = `the book's position has been open since ${esc(openClock)} - the week is ${daysIn} days in, ${hoursLeft} hours left, and the call was for the whole week; a buy now runs only to the week's close`;
+          sell = market === 'crypto' ? `a market order at ${esc(judgedShort)}, whatever the price then is` : `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one`;
+        }
+        const callText = !call ? '-' : (up ? `<span style="color:#27ae60; font-weight:bold;">up &#9650;${call.size !== null && call.size !== undefined ? ` &times;${call.size}` : ''}</span>` : `<span style="color:#c0392b;">${call.bin !== null && call.bin < w.k / 2 - 1 ? 'down' : 'flat'} &#9660;</span>`);
+        return `<tr><td style="text-align:left; font-weight:bold;">${esc(inst.symbol)}<br><span style="color:#7f8c8d; font-weight:normal; font-size:0.85em;">${market === 'crypto' ? 'Sun' : 'Fri'} close ${price(base)} - the week base</span></td>
+          <td>${callText}</td><td>${band}</td><td style="text-align:left; font-size:0.9em;">${soFar}</td><td class="order">${buy}</td><td class="order">${sell}</td><td>${ups} of ${inst.next.length}</td></tr>`;
+      }).join('');
+      const picked = byBook
+        ? `the best weekly book under the <b>${ruleName}</b> rule: ${money(weekModel[planKey], 2)} ${esc(meta.unit)} from ${weekModel[tradesKey]} position(s) over ${w.scoredDays} settled week(s)${weekMarket === null ? '' : `, the market under the same rule ${money(weekMarket, 2)}`} - a book is followed from ${MIN_WEEK_TRADES} positions on, which is too few to tell it from luck; read a weekly book after months, not weeks`
+        : `the best exact rate over ${w.scoredDays} settled week(s) - no weekly book has ${MIN_WEEK_TRADES} positions yet`;
+      const weekWord = market === 'crypto' ? 'the UTC week' : 'the trading week';
+      const elapsed = dayStatusWeek(now, openAt, closeAt);
+      const madeUp = appearedText(w.madeAt);
+      const title = started ? 'This week' : 'Week ahead';
+      week = `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${title}</span>
+        <span class="card-meta" style="margin-left:10px;">${weekWord} ending ${known ? esc(endDay) : `normally ${esc(endDay)}`}${elapsed ? ` - ${esc(elapsed)}` : ''}; ${w.scoredDays} settled week(s)</span></div><div class="card-icon">▼</div></div>
+        <div class="card-body"><p style="margin-top:0; color:#555;">The multi-day call, the horizon a hold is measured on: a second game with <b>one draw per week</b> - the week's move (${market === 'crypto' ? 'Monday 00:00 UTC to the next Monday 00:00 UTC' : 'the Friday close to the next Friday close'}) cut into ten bins of each ${esc(meta.noun)}'s own past weeks, every model predicting one bin per ${esc(meta.noun)} for the coming week, scored once, at the week's close.
+        The band is measured from the week base, the last close before the week; the book followed buys at the week's first open, so the ${market === 'crypto' ? 'first hours' : 'weekend gap'} ${market === 'crypto' ? 'are' : 'is'} in the call and in the band, not in the book or in your result.
+        The ticket for this week was made after the close of ${esc(w.madeOn)}${madeUp ? ` (it went up at ${esc(madeUp)})` : ''}; it stands for the whole week - the week game makes no call between ${market === 'crypto' ? 'Monday and Sunday' : 'Monday and Friday'} - and the model followed is re-picked when the week settles, after the ${market === 'crypto' ? 'Monday' : 'Saturday'} run, so next week's card may follow another row.
+        Follows <b>${esc(weekModel.name)}</b>, ${picked}. The week's call is judged at ${esc(judgedShort)}, one bin of ten for a week's move.</p>
+        <div class="table-wrapper"><table class="plan"><tr><th style="text-align:left;">${esc(meta.noun[0].toUpperCase() + meta.noun.slice(1))}</th><th title="up = the predicted weekly bin is in the upper half">Call</th><th title="the predicted bin as prices at the week's close">Band at the week's close</th>
+        <th style="text-align:left;">So far (daily closes since the week base)</th><th style="text-align:left;">Buy</th><th style="text-align:left;">Sell</th><th title="the week game is run by its own rows; this counts those whose weekly bin is in the upper half">Models calling up (of the week game's rows)</th></tr>${rows}</table></div>
+        <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;">This is not the daily plan above: the daily rows buy and sell within one session and say nothing about a weekly position, so a daily down call on a ${esc(meta.noun)} is not a sell for a week's hold of it, and a daily up call is not a reason to keep one.
+        <b>Stake and fees</b>: the weekly book uses ${w.trading && w.trading.stake !== null ? w.trading.stake : 100} ${esc(meta.unit)} a position and ${w.trading && w.trading.feePerLeg !== null ? pct(w.trading.feePerLeg, 2) : '0.10%'} a leg, one pair for the week; your broker's commission and any transaction tax per leg replace that fee and decide whether a band as narrow as the table shows can pay.
+        The <i>Hold while up</i> book in Paper trading below is the daily game's - a run of daily up calls, re-decided every morning - not this weekly hold; the weekly books are on the week game's <a href="/database/${esc(WEEK_GAMES[market])}">game view</a>, which ranks rows by exact rate while this card follows the weekly book, so the two can name different rows.
+        This describes when the week game's condition is checked - it is not advice.</p></div></div>`;
+    }
+  }
+
+  html += plan + week + paper + charts;
   if (bg) {
     const sectionTitles = [...bg.matchAll(/<summary><b>([^<]*)<\/b>/g)].map((m) => m[1].replace(/ over \d+ scored day\(s\)$/, ''));
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Background</span>
@@ -1089,12 +1207,14 @@ function install(app, { header, footer, dataDir, controlsDir }) {
   Object.keys(MARKETS).forEach((market) => {
     app.get(`/markets/${market}`, (req, res) => {
       const record = loadMarket(dataDir, market);
-      const extras = { rows: controlsDir ? loadRows(controlsDir, market) : null, regimes: loadRegimes(dataDir, market) };
+      const weekRecord = loadMarket(dataDir, WEEK_GAMES[market]);
+      const extras = { rows: controlsDir ? loadRows(controlsDir, market) : null, regimes: loadRegimes(dataDir, market),
+                       week: weekRecord ? describeMarket(weekRecord) : null };
       res.send(page(market, record ? describeMarket(record, extras) : null, header, footer, req.user));
     });
   });
 }
 
 module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading, binInterval,
-  nextGameDay, closeMoment, openMoment, closeText, closeShort, openText, brusselsText, appearedText, hoursInto, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE,
+  nextGameDay, closeMoment, openMoment, closeText, closeShort, openText, brusselsText, appearedText, hoursInto, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE, WEEK_GAMES, weekEnd,
   intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };

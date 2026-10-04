@@ -90,7 +90,9 @@ const nextTableOptions = (game, user) => ({ ranking: rankingFor(game), showAll: 
 // folders only; the two markets have their own pages (markets.js), and their
 // day files under data/database/ remain reachable as the "game view" - the
 // same digits, scored the same way - from those pages and by URL.
-const MARKET_GAMES = ['crypto', 'shares'];
+const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek'];   // the two markets and their week games (one draw per week)
+const isMarketGame = (game) => MARKET_GAMES.includes(game);
+const marketBase = (game) => String(game).replace(/week$/, '');
 const isMarketFolder = (folder) => MARKET_GAMES.includes(gameFromFolder(folder));
 // A route parameter must be a plain folder or file name. Express decodes %2F
 // to '/', and path.join would normalise 'x/..' away, so an existsSync check
@@ -121,8 +123,16 @@ function lotteryNav(active) {
 }
 // The note on a market's game view: what the digits are, where the prices are.
 function marketGameViewNote(game) {
-  const title = markets.MARKETS[game] ? markets.MARKETS[game].title : game;
+  const base = marketBase(game);
+  const title = markets.MARKETS[base] ? markets.MARKETS[base].title : base;
   const symbols = marketSymbols(game);
+  const noun = base === 'crypto' ? 'coin' : 'share';
+  if (game !== base) {
+    return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
+    <b>This is the game view of the ${base} market's week game.</b> Each week is one draw with one slot per ${noun}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
+    The digit is the <b>bin</b> of the week's move - the close of the week's last ${base === 'crypto' ? 'day (Sunday, UTC)' : 'session (normally Friday)'} against the close of the week before, placed among the ${noun}'s own past weekly moves sorted
+    from worst to best and cut into ten equal piles. A hit is the right bin in the right slot. The <a href="/markets/${base}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the coming week's calls in its <i>Week ahead</i> card.</div>`;
+  }
   return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
     <b>This is the game view of the ${game} market.</b> Each day is one draw with one slot per ${game === 'crypto' ? 'coin' : 'share'}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
     The digit is the <b>bin</b> of that day's move - today's close against yesterday's close, placed among the ${game === 'crypto' ? 'coin' : 'share'}'s own past daily moves sorted
@@ -385,7 +395,7 @@ function drawDateMeta(fileDates, anchor, warnWhenPast) {
 // so keep that tolerance. vikinglotto must be tested before lotto because
 // "vikinglotto".includes("lotto") is true.
 function gameFromFolder(folder) {
-  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus", "crypto", "shares"];
+  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus", "cryptoweek", "sharesweek", "crypto", "shares"];   // the week games before their base: "cryptoweek".includes("crypto")
   for (const g of games) if (folder.includes(g)) return g;
   return folder;
 }
@@ -631,7 +641,7 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   // market games (crypto, shares) are positional too: a return bin in the
   // right instrument's slot, so a cell lights only in its own slot.
   const isJoker = game === 'jokerplus';
-  const isMarket = game === 'crypto' || game === 'shares';
+  const isMarket = isMarketGame(game);
   const { mains: realMains, specials: realSpecials, bonus: realBonus } = splitRealResult(realResult, game);
   // No real result (next-draw / home tables) -> no highlighting and no Hits column.
   const hasReal = realMains.length > 0;
@@ -1543,7 +1553,7 @@ app.get('/database/:folder', (req, res) => {
                             candidate = { mains: runs.left + runs.right, specials: jokerplusSignHit(ticketSpecials, realSpecials), left: runs.left, right: runs.right };
                         } else {
                             // a market game's hit is the bin in its own slot
-                            const mainHits = (game === 'crypto' || game === 'shares')
+                            const mainHits = isMarketGame(game)
                               ? ticketMains.filter((n, i) => realMains[i] === n).length
                               : ticketMains.filter(n => realMains.includes(n)).length;
                             // Lotto: the bonus supplements the tier ("5 (1)"),
@@ -1662,7 +1672,9 @@ app.get('/database/:folder/:file', (req, res) => {
               : (game === 'lotto'
                 ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
                 : (isMarketFolder(folder)
-                  ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. The <a href="/markets/${game}">${game} page</a> shows the newest 30 settled days as returns, with the interval every bin stood for.</p>`
+                  ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. ${game === marketBase(game)
+                    ? `The <a href="/markets/${game}">${game} page</a> shows the newest 30 settled days as returns, every model's money and the next day's calls as prices.`
+                    : `This is the ${marketBase(game)} market's week game - one draw per week; the <a href="/markets/${marketBase(game)}">${marketBase(game)} page</a> shows the coming week's calls in its Week ahead card.`}</p>`
                   : '')))}
 
             ${currentFrequency && Object.keys(currentFrequency).length > 0 ? `

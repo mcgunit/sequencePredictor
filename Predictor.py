@@ -2567,7 +2567,7 @@ if __name__ == "__main__":
         parser.add_argument(
             '-g', '--games',
             type=str,
-            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,shares",
+            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,shares,cryptoweek,sharesweek",
             help='Comma-separated list of games, e.g. "euromillions,lotto,..."'
         )
         args = parser.parse_args()
@@ -2621,6 +2621,11 @@ if __name__ == "__main__":
             # before this run - never fetched here.
             ("crypto", "lstm_model", 0, True, True),
             ("shares", "lstm_model", 0, True, True),
+            # The week games (M5): one draw per week, cut from the base
+            # market's bars right after it - a new draw once a week, so the
+            # heavy rows cost a day's work once a week.
+            ("cryptoweek", "lstm_model", 0, True, True),
+            ("sharesweek", "lstm_model", 0, True, True),
         ]
 
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:

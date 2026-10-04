@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-04-week-ahead',
+    date: '2026-10-04',
+    level: 'minor',
+    audience: 'all',
+    title: 'Crypto and Shares: a Week ahead card - the forecast a hold can be planned on',
+    body: [
+      'Each market has a second game with one draw per week: the week\'s move per coin or share, cut into ten bins of its own past weeks, predicted by every model once a week - Monday morning for crypto (the UTC week), Saturday for shares (Friday close to Friday close). The Week ahead card on each market page shows the best weekly book\'s call per instrument, the price band at the week\'s close, how far the week has gone so far, and the hold plan in Belgian time: for shares a market order before Monday\'s open and one before Friday\'s close; for crypto buy now and sell at the week\'s close.',
+      'The week game is scored once, at the week\'s close, and is not the daily plan: the daily rows may call single days the other way. The weekly books have few positions yet - read them after months. Its own game view lists every model\'s weekly calls like any other game.',
+    ],
+    link: { href: '/markets/shares', label: 'Shares page' },
+  },
+  {
     id: '2026-10-04-paper-shorts',
     date: '2026-10-04',
     level: 'minor',

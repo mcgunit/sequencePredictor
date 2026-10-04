@@ -36,14 +36,15 @@ import json
 import math
 import os
 import re
+import bisect
 from datetime import date, datetime, timedelta, timezone
 
 try:
-    from src.MarketData import closes, instruments
+    from src.MarketData import closes, instruments, base_instrument_id, is_week_game
     from src.MarketGame import (K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                                 predicted_price, price_interval, representative_return)
 except ImportError:  # imported from within src/
-    from MarketData import closes, instruments
+    from MarketData import closes, instruments, base_instrument_id, is_week_game
     from MarketGame import (K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                             predicted_price, price_interval, representative_return)
 
@@ -63,7 +64,7 @@ FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell
 # reader of the page can follow, since the ticket is up hours before New York
 # opens (asked for on 4 Oct 2026). Crypto's UTC day opens at the previous
 # close, so its open book would repeat the daily one and is not exported.
-OPEN_RULE_MARKETS = ("shares",)
+OPEN_RULE_MARKETS = ("shares", "sharesweek")
 CHART_DAYS = 365       # closes and predicted course the page draws (a year; the chart zooms)
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
 DAY_RECORDS = 30       # settled days the page lists day by day, newest first
@@ -417,10 +418,30 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     dates = sorted({r["for_date"] for r in rows})
     index = {d: i for i, d in enumerate(dates)}
     n = len(dates)
-    bars = {i["symbol"]: bars_by_date(conn, i["id"]) for i in instruments(conn, market, active_only=False)}
-    def session(symbol, i):   # (open, close) of the instrument's bar on settled day i, when both are usable
-        bar = bars.get(symbol, {}).get(dates[i])
-        return bar if bar and bar[0] > 0 and bar[1] > 0 else None
+    bars = {i["symbol"]: bars_by_date(conn, base_instrument_id(conn, i)) for i in instruments(conn, market, active_only=False)}
+    bar_dates = {symbol: sorted(b) for symbol, b in bars.items()}
+    # the game's own days from the store: the window a settled day spans starts after the GAME day before it
+    # (not the previous SETTLED day - an unsettled day in between must not stretch a daily position over two sessions)
+    game_dates = [r[0] for r in conn.execute("SELECT DISTINCT date FROM game_days WHERE market = ? ORDER BY date", (market,)).fetchall()]
+
+    def session(symbol, i):
+        """
+        (open, close) of the window settled day i spans: the close of the
+        instrument's bar on the day and the open of its first bar after the
+        game day before it - the day's own bar for a daily game, the week's
+        first session for a week game (a day with no game day before it in
+        the store uses its own bar). None when a price is missing.
+        """
+        b = bars.get(symbol, {})
+        last = b.get(dates[i])
+        if not last or last[1] <= 0:
+            return None
+        ds = bar_dates.get(symbol, [])
+        g = bisect.bisect_left(game_dates, dates[i]) - 1
+        previous = game_dates[g] if g >= 0 else None
+        j = bisect.bisect_right(ds, previous) if previous is not None else bisect.bisect_left(ds, dates[i])
+        first = b.get(ds[j]) if j < len(ds) and ds[j] <= dates[i] else last
+        return (first[0], last[1]) if first and first[0] > 0 else None
     # per model and instrument: the call (up or not) and the return per date
     calls, rets, seen, scales, sides = {}, {}, {}, {}, {}
     market_ret = {}
@@ -685,12 +706,12 @@ def next_day_predictions(conn, market, path):
         made_at = datetime.fromtimestamp(os.path.getmtime(os.path.join(folder, newest_name)), tz=timezone.utc).isoformat(timespec="seconds")
     except OSError:
         made_at = None
-    out = {"made_on": newest_day, "made_at": made_at, "for": "the next trading day", "instruments": {}}
+    out = {"made_on": newest_day, "made_at": made_at, "for": "the next week" if is_week_game(market) else "the next trading day", "instruments": {}}
     for pos, symbol in enumerate(edges_day["symbols"]):
         member = members.get(symbol)
         if member is None:
             continue
-        dates, values = closes(conn, member["id"])
+        dates, values = closes(conn, base_instrument_id(conn, member))
         close_by_date = dict(zip(dates, values))
         # the prediction stood on the newest GAME day's close; an instrument
         # may hold a newer bar already (the others lagging), which is then
@@ -788,7 +809,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     members = instruments(conn, market, active_only=False)
     instruments_out = []
     for member in members:
-        dates, values = closes(conn, member["id"])
+        dates, values = closes(conn, base_instrument_id(conn, member))
         window = dates[-chart_days:]
         series = chart_series(conn, market, member, window)
         instruments_out.append({
@@ -847,10 +868,10 @@ def _self_check():
     import tempfile
     import numpy as np
     try:
-        from src.MarketData import connect, install_universe, upsert_bars
+        from src.MarketData import connect, install_universe, upsert_bars, base_instrument_id, is_week_game
         from src.MarketGame import build_game, store_game_days
     except ImportError:
-        from MarketData import connect, install_universe, upsert_bars
+        from MarketData import connect, install_universe, upsert_bars, base_instrument_id, is_week_game
         from MarketGame import build_game, store_game_days
 
     assert day_file_date("2026-9-9.json") == "2026-09-09" and day_file_date("2026-12-31.json") == "2026-12-31"

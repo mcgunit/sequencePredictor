@@ -28,14 +28,14 @@ import os
 import sys
 
 from HyperoptStatistics import is_running, create_lock, remove_lock
-from src.MarketData import DEFAULT_DB, MARKETS
+from src.MarketData import DEFAULT_DB, MARKETS, WEEK_MARKETS
 from src.MarketGame import daily_refresh
 from src.MarketSettle import settle_and_export
 
 
 def main():
     parser = argparse.ArgumentParser(prog="Markets daily", description="Fetch the bars and rewrite the market games' history")
-    parser.add_argument("--market", choices=MARKETS, default=None, help="One market only (default both)")
+    parser.add_argument("--market", choices=tuple(MARKETS) + tuple(WEEK_MARKETS), default=None, help="One game only (default: both markets, then their week games)")
     parser.add_argument("--no-fetch", action="store_true", help="Do not contact the sources; cut from the stored bars")
     parser.add_argument("--settle", action="store_true", help="Also settle every stored day and rewrite data/markets/<market>.json and the results CSVs")
     parser.add_argument("--db", default=None, help=f"SQLite store (default <root>/{DEFAULT_DB})")
@@ -52,7 +52,7 @@ def main():
     failed_sources = 0
     empty = 0
     try:
-        for market in ([args.market] if args.market else list(MARKETS)):
+        for market in ([args.market] if args.market else list(MARKETS) + list(WEEK_MARKETS)):
             try:
                 summaries, game_days = daily_refresh(args.root, market, fetch=not args.no_fetch, db_path=args.db)
             except Exception as exc:
