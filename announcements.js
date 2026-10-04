@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-04-market-plan-open-close',
+    date: '2026-10-04',
+    level: 'minor',
+    audience: 'all',
+    title: 'Crypto and Shares: a Today\'s plan card, an open-to-close book for shares, one Background card',
+    body: [
+      'Each market page now opens with Today\'s plan: per coin or share the best book\'s call, the price band the close must land in for it to be right, and the two orders that match how the page scores it, with the Belgian hours for that date - for a share an order that fills at the New York open and one that fills at the close; for a coin buy now and sell at the close of the UTC day. It also says when a position would be held instead of sold, and how many models call the day up.',
+      'The shares book has a third rule, open to close: the stake bought at the session\'s open and sold at its close - the one a reader can actually follow, since the ticket is up hours before New York opens. The daily and hold books buy at the previous close, which nobody reading the page can do; the page says so. The six supporting cards now sit inside one collapsed Background card; the charts and the Paper trading card are unchanged.',
+    ],
+    link: { href: '/markets/shares', label: 'Shares page' },
+  },
+  {
     id: '2026-10-03-market-rows-tuned',
     date: '2026-10-03',
     level: 'minor',

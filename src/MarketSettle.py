@@ -56,7 +56,14 @@ FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchan
 # are not comparable positions. Holding across days and shorts are the later
 # extensions the owner named; this is the first, simplest rule.
 STAKE = 100.0          # per position, in USDT (crypto) or USD (shares)
+MIN_RANK_DAYS = 10     # a model with fewer settled days ranks after the others (the page's "best" and the drawn models follow this order)
 FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell
+# The markets whose page carries the OPEN-TO-CLOSE book (ledger: "open"): the
+# stake bought at the session's open and sold at its close - the one rule a
+# reader of the page can follow, since the ticket is up hours before New York
+# opens (asked for on 4 Oct 2026). Crypto's UTC day opens at the previous
+# close, so its open book would repeat the daily one and is not exported.
+OPEN_RULE_MARKETS = ("shares",)
 CHART_DAYS = 365       # closes and predicted course the page draws (a year; the chart zooms)
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
 DAY_RECORDS = 30       # settled days the page lists day by day, newest first
@@ -92,6 +99,17 @@ def cash_pnl(ret, stake=STAKE, fee=FEE_PER_LEG):
     """
     proceeds = stake * math.exp(float(ret))
     return proceeds * (1.0 - fee) - stake * (1.0 + fee)
+
+
+def open_close_pnl(open_price, close_price, stake=STAKE, fee=FEE_PER_LEG):
+    """Money made by one position bought at the open and sold at the close of the same session, a fee on each leg."""
+    return cash_pnl(math.log(float(close_price) / float(open_price)), stake, fee)
+
+
+def bars_by_date(conn, instrument_id):
+    """{date: (open, close)} of every stored bar of the instrument."""
+    rows = conn.execute("SELECT date, open, close FROM bars WHERE instrument_id = ? ORDER BY date", (instrument_id,)).fetchall()
+    return {r["date"]: (float(r["open"]), float(r["close"])) for r in rows}
 
 
 def utc_now():
@@ -231,7 +249,9 @@ def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
             "wins": m["wins"], "win_rate": (m["wins"] / trades) if trades else None,
             "first_day": m["first"], "last_day": m["last"],
         })
-    out.sort(key=lambda m: (-(m["exact_rate"] or 0), -m["pnl_total"], m["name"]))
+    # young rows last: a model with one or two settled days can post 25% exact by luck and
+    # would otherwise head the table, be drawn on every chart and be named "best"
+    out.sort(key=lambda m: ((m["days"] or 0) < MIN_RANK_DAYS, -(m["exact_rate"] or 0), -m["pnl_total"], m["name"]))
     return out
 
 
@@ -273,22 +293,28 @@ def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG):
 
 def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     """
-    The paper-trading book, day by day, under two rules. DAILY: every long
+    The paper-trading book, day by day, under three rules. DAILY: every long
     call is a round trip - the stake bought at the previous close, sold at
     the day's close, a fee on each leg. HOLD: a position is kept while the
     calls stay up and sold when they stop, so consecutive up days cost one
-    fee pair and compound (hold_book). Per model the money made each settled
-    day (zero when it sat out, None when it had no result) and the running
-    total; and the market benchmark for each rule - buying every instrument
-    every day with the same stake and fees (daily), or buying everything on
-    the first day and holding to the last (hold): what the instruments
-    themselves gave over the same days. Dates are the settled days, oldest
-    first.
+    fee pair and compound (hold_book). OPEN: every long call bought at the
+    session's own open and sold at its close (open_close_pnl) - the rule a
+    reader can follow; exported for OPEN_RULE_MARKETS only. Per model the
+    money made each settled day (zero when it sat out, None when it had no
+    result) and the running total; and the market benchmark for each rule -
+    buying every instrument every day with the same stake and fees (daily,
+    and open to close), or buying everything on the first day and holding to
+    the last (hold): what the instruments themselves gave over the same days.
+    Dates are the settled days, oldest first.
     """
     rows = _result_rows(conn, market)
     dates = sorted({r["for_date"] for r in rows})
     index = {d: i for i, d in enumerate(dates)}
     n = len(dates)
+    bars = {i["symbol"]: bars_by_date(conn, i["id"]) for i in instruments(conn, market, active_only=False)}
+    def session(symbol, i):   # (open, close) of the instrument's bar on settled day i, when both are usable
+        bar = bars.get(symbol, {}).get(dates[i])
+        return bar if bar and bar[0] > 0 and bar[1] > 0 else None
     # per model and instrument: the call (up or not) and the return per date
     calls, rets, seen = {}, {}, {}
     market_ret = {}
@@ -311,13 +337,21 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
             out.append([d, round(daily[i], 4), round(running, 4)])
         return out
 
-    daily_models, hold_models, hold_stats = {}, {}, {}
+    daily_models, hold_models, hold_stats, open_models, open_stats = {}, {}, {}, {}, {}
     for (model, symbol), call in calls.items():
         ret = rets[(model, symbol)]
         day = daily_models.setdefault(model, [0.0] * n)
+        oday = open_models.setdefault(model, [0.0] * n)
+        ostat = open_stats.setdefault(model, {"trades": 0, "wins": 0})
         for i in range(n):
             if call[i] and ret[i] is not None:
                 day[i] += cash_pnl(ret[i], stake, fee_per_leg)
+                bar = session(symbol, i)
+                if bar:
+                    pnl = open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
+                    oday[i] += pnl
+                    ostat["trades"] += 1
+                    ostat["wins"] += int(pnl > 0)
         held, trades, wins = hold_book(dates, call, ret, stake, fee_per_leg)
         hday = hold_models.setdefault(model, [0.0] * n)
         for i in range(n):
@@ -325,11 +359,14 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         stat = hold_stats.setdefault(model, {"trades": 0, "wins": 0})
         stat["trades"] += trades
         stat["wins"] += wins
-    bench_daily, bench_hold = [0.0] * n, [0.0] * n
+    bench_daily, bench_hold, bench_open = [0.0] * n, [0.0] * n, [0.0] * n
     for symbol, ret in market_ret.items():
         for i in range(n):
             if ret[i] is not None:
                 bench_daily[i] += cash_pnl(ret[i], stake, fee_per_leg)
+                bar = session(symbol, i)
+                if bar:
+                    bench_open[i] += open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
         held, _, _ = hold_book(dates, [r is not None for r in ret], ret, stake, fee_per_leg)
         for i in range(n):
             bench_hold[i] += held[i]
@@ -342,6 +379,11 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
                                "win_rate": (st["wins"] / st["trades"]) if st["trades"] else None,
                                "per_trade": (sum(hold_models[m]) / st["trades"]) if st["trades"] else None}
                            for m, st in hold_stats.items()}},
+        "open": {"models": {m: series(day, seen[m]) for m, day in open_models.items()}, "benchmark": series(bench_open),
+                 "stats": {m: {"trades": st["trades"], "wins": st["wins"], "total": round(sum(open_models[m]), 4),
+                               "win_rate": (st["wins"] / st["trades"]) if st["trades"] else None,
+                               "per_trade": (sum(open_models[m]) / st["trades"]) if st["trades"] else None}
+                           for m, st in open_stats.items()}},
     }
 
 
@@ -560,6 +602,8 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     """data/markets/<market>.json: everything the market page draws."""
     models = model_summary(conn, market, k)
     book = ledger(conn, market, k)
+    if market not in OPEN_RULE_MARKETS:
+        book.pop("open", None)
     for m in models:
         st = book["hold"]["stats"].get(m["name"])
         m["hold_total"] = st["total"] if st else None
@@ -567,6 +611,12 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         m["hold_wins"] = st["wins"] if st else None
         m["hold_win_rate"] = st["win_rate"] if st else None
         m["hold_per_trade"] = st["per_trade"] if st else None
+        ost = book["open"]["stats"].get(m["name"]) if "open" in book else None
+        m["open_total"] = ost["total"] if ost else None
+        m["open_trades"] = ost["trades"] if ost else None
+        m["open_wins"] = ost["wins"] if ost else None
+        m["open_win_rate"] = ost["win_rate"] if ost else None
+        m["open_per_trade"] = ost["per_trade"] if ost else None
     drawn = [m["name"] for m in models[:top_models]]
     members = instruments(conn, market, active_only=False)
     instruments_out = []
@@ -590,6 +640,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         "trading": {"stake": STAKE, "fee_per_leg": FEE_PER_LEG, "currency": members[0]["quote"] if members else "",
                     "rule": "long when the predicted bin is in the upper half: the stake bought at the previous close, sold at the day's close, a fee on each leg; flat otherwise",
                     "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
+                    **({"open_rule": "the same calls, but the stake is bought at the session's open and sold at its close, a fee on each leg: the rule a reader of the page can follow"} if "open" in book else {}),
                     **book},
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
@@ -702,6 +753,13 @@ def _self_check():
         assert trades == 2 and wins == 2 and abs(sum(held) - first - second) < 1e-9 and held[2] == 0.0, (held, trades, wins)
         assert abs(held[0] + held[1] - first) < 1e-9 and held[0] < held[1], "the sell fee lands on the last up day"
         assert hold_book(["a"], [True], [None]) == ([0.0], 0, 0) and hold_book(["a", "b"], [False, False], [0.01, 0.01])[1] == 0
+        # the open-to-close rule: 100 bought at 100.0, sold at 102.0, a fee on each leg
+        assert abs(open_close_pnl(100.0, 102.0) - (102.0 * 0.999 - 100.1)) < 1e-9
+        # in this fixture every bar opens at its close, so an open-to-close position costs the two fees and nothing else:
+        # the market line (five instruments a day) is exactly five times cash_pnl(0)
+        book = ledger(conn, "crypto")
+        assert book["open"]["benchmark"] and all(abs(p[1] - 5 * cash_pnl(0.0)) < 1e-9 for p in book["open"]["benchmark"]), book["open"]["benchmark"][:3]
+        assert all(st["wins"] == 0 for st in book["open"]["stats"].values())
         # ...and in the book: the perfect model's hold total is the sum over its runs of up days, per instrument
         expected_hold = 0.0
         for p in range(5):
@@ -798,6 +856,10 @@ def _self_check():
         nxt = record["next"]
         assert nxt["made_on"] == last_day["date"] and set(nxt["instruments"]) == set(symbols)
         assert nxt["made_at"] and nxt["made_at"].endswith("+00:00"), nxt["made_at"]
+        # crypto's page does not carry the open-to-close book (its UTC day opens at the previous close); the models carry no open fields
+        assert "open" not in record["trading"] and "open_rule" not in record["trading"]
+        assert all(m["open_total"] is None for m in record["models"])
+        print("open to close: a position bought at the open and sold at the close; computed for every market, exported for", OPEN_RULE_MARKETS)
         btc_next = nxt["instruments"]["BTC"]
         assert btc_next["last_close"] == btc_closes[-1] and len(btc_next["predictions"]) == 2
         top = [p for p in btc_next["predictions"] if p["model"] == "Perfect Model"][0]
