@@ -503,7 +503,7 @@ function generateHeader(title = "Sequence Predictor", user = null) {
       .inline-form .nav-btn { padding: 6px 10px; font-size: 0.9em; }
       
       /* LAYOUT */
-      .container { padding: 20px; max-width: 1000px; margin: auto; }
+      .container { padding: 20px; max-width: 1400px; margin: auto; }   /* wide enough for the lotto rows with their 7th-9th numbers and hits without a horizontal scroll (4 Oct 2026); the market pages used 1400px already */
       
       /* COLLAPSIBLE CARD STYLES */
       .card {
