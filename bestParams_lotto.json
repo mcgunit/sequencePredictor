@@ -197,15 +197,15 @@
     "useCatBoostMultiLabel": true,
     "quantumKernel_nQubits": 4,
     "quantumKernel_encodingLayers": 2,
-    "quantumKernel_encodingScale": 0.75,
-    "quantumKernel_C": 2.444181901254601,
+    "quantumKernel_encodingScale": 0.6,
+    "quantumKernel_C": 8.318707985074045,
     "quantumKernel_maxTrainSamples": 4000,
     "quantumVqc_nQubits": 4,
-    "quantumVqc_numLayers": 4,
-    "quantumVqc_encodingScale": 1.25,
-    "quantumVqc_learningRate": 0.012897474705810453,
-    "quantumVqc_epochs": 60,
-    "quantumVqc_batchSize": 64,
+    "quantumVqc_numLayers": 3,
+    "quantumVqc_encodingScale": 0.85,
+    "quantumVqc_learningRate": 0.012356102461393275,
+    "quantumVqc_epochs": 90,
+    "quantumVqc_batchSize": 128,
     "catBoostBorderCount": 254,
     "catBoostMlBorderCount": 254,
     "rlTicketLearningRate": 0.040174703391742485,
@@ -874,5 +874,9 @@
                 "lucky_strikes": 0
             }
         }
-    }
+    },
+    "classicalSvm_nFeatures": 4,
+    "classicalSvm_gamma": 2.108857521693316,
+    "classicalSvm_C": 26.016282833184402,
+    "classicalSvm_maxTrainSamples": 2000
 }

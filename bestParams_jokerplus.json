@@ -75,15 +75,15 @@
     "laplaceMonteCarloNumberOfSimulations": 200,
     "quantumKernel_nQubits": 4,
     "quantumKernel_encodingLayers": 2,
-    "quantumKernel_encodingScale": 0.5,
-    "quantumKernel_C": 28.561256077853926,
+    "quantumKernel_encodingScale": 0.4,
+    "quantumKernel_C": 98.83678925845444,
     "quantumKernel_maxTrainSamples": 1000,
     "quantumVqc_nQubits": 4,
-    "quantumVqc_numLayers": 2,
-    "quantumVqc_encodingScale": 1.0,
-    "quantumVqc_learningRate": 0.055946703209602704,
-    "quantumVqc_epochs": 60,
-    "quantumVqc_batchSize": 128,
+    "quantumVqc_numLayers": 1,
+    "quantumVqc_encodingScale": 0.35,
+    "quantumVqc_learningRate": 0.013977866406417967,
+    "quantumVqc_epochs": 90,
+    "quantumVqc_batchSize": 256,
     "yearsOfHistory": 10,
     "epochs": 1000,
     "batchSize": 4,
@@ -426,5 +426,9 @@
                 "lucky_strikes": 0
             }
         }
-    }
+    },
+    "classicalSvm_nFeatures": 4,
+    "classicalSvm_gamma": 0.30098479772157544,
+    "classicalSvm_C": 4.881576733344407,
+    "classicalSvm_maxTrainSamples": 2000
 }

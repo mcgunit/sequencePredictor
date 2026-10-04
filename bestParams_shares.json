@@ -215,5 +215,20 @@
         "MarkovMonteCarlo Model": 0.5438846611317885,
         "PoissonMonteCarlo Model": 0.6022806277000622,
         "LaplaceMonteCarlo Model": 0.35159496698059656
-    }
+    },
+    "quantumKernel_nQubits": 4,
+    "quantumKernel_encodingLayers": 3,
+    "quantumKernel_encodingScale": 1.2000000000000002,
+    "quantumKernel_C": 0.4934002532413362,
+    "quantumKernel_maxTrainSamples": 2000,
+    "quantumVqc_nQubits": 4,
+    "quantumVqc_numLayers": 1,
+    "quantumVqc_encodingScale": 1.5500000000000003,
+    "quantumVqc_learningRate": 0.03142735166539398,
+    "quantumVqc_epochs": 90,
+    "quantumVqc_batchSize": 128,
+    "classicalSvm_nFeatures": 4,
+    "classicalSvm_gamma": 0.19638328538328217,
+    "classicalSvm_C": 7.1621110674963475,
+    "classicalSvm_maxTrainSamples": 2000
 }

@@ -132,14 +132,14 @@
     "xgBoostSubsetTemperature": 0.5382238870085401,
     "quantumKernel_nQubits": 4,
     "quantumKernel_encodingLayers": 3,
-    "quantumKernel_encodingScale": 1.75,
-    "quantumKernel_C": 2.377823532163065,
+    "quantumKernel_encodingScale": 1.6500000000000001,
+    "quantumKernel_C": 1.5605783793480539,
     "quantumKernel_maxTrainSamples": 1000,
     "quantumVqc_nQubits": 4,
     "quantumVqc_numLayers": 3,
-    "quantumVqc_encodingScale": 1.25,
-    "quantumVqc_learningRate": 0.02860622763780693,
-    "quantumVqc_epochs": 30,
+    "quantumVqc_encodingScale": 1.1500000000000001,
+    "quantumVqc_learningRate": 0.008588012188465461,
+    "quantumVqc_epochs": 60,
     "quantumVqc_batchSize": 256,
     "xgBoostMlEstimators": 160,
     "xgBoostMlLearningRate": 0.7560472333779208,
@@ -875,5 +875,9 @@
                 "lucky_strikes": 0
             }
         }
-    }
+    },
+    "classicalSvm_nFeatures": 4,
+    "classicalSvm_gamma": 0.06598507200691503,
+    "classicalSvm_C": 0.3110183920268449,
+    "classicalSvm_maxTrainSamples": 2000
 }
