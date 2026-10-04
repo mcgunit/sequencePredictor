@@ -154,6 +154,7 @@ function describeMarket(record, extras) {
     market: record.market, generatedAt: record.generated_at || null, k: num(record.k) || 10, fee: num(record.fee),
     chance, newestGameDay: record.newest_game_day || null,
     madeOn: next ? next.made_on || null : null,
+    madeAt: next ? next.made_at || null : null,      // the ticket's write time (MarketSettle.next_day_predictions)
     models, drawn: Array.isArray(record.drawn_models) ? record.drawn_models.map(String) : [],
     best: record.best_model ? String(record.best_model) : (Array.isArray(record.drawn_models) && record.drawn_models.length ? String(record.drawn_models[0]) : (models.length ? models[0].name : null)),
     instruments, daily: Array.isArray(record.daily) ? record.daily : [],
@@ -227,6 +228,142 @@ function gameViewLink(market, date) {
 
 // --- page -------------------------------------------------------------------
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// --- when a call is judged ------------------------------------------------
+// A ticket is made by the daily run (09:00 Belgian time) after the newest
+// candle has closed, for the game day after that candle; the day file carries
+// the newest candle's date (made_on) and its write time (made_at), so the day
+// a ticket is for is the next game day, and the moment it is judged is that
+// day's close. The reader asked (4 Oct 2026) when a position has to be closed
+// to meet the chart's "next" point: these helpers put that moment on the page
+// in Belgian time. Crypto's day is the UTC day (close at 00:00 UTC, which is
+// the next calendar day in Belgium); a share's day is the New York session
+// (09:30-16:00 there - the Belgian hours differ in the few weeks a year when
+// only one side of the Atlantic has changed its clocks, so every hour on the
+// page is computed for its date, never hard-coded). Reviewed by three
+// readers on 4 Oct 2026.
+const BRUSSELS = 'Europe/Brussels';
+const NEW_YORK = 'America/New_York';
+const HOUR_MS = 3600 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+const parseDay = (text) => {
+  const m = ISO_DAY.exec(String(text || ''));
+  if (!m) return null;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isoDay(ms) === m[0] ? ms : null;        // Date.UTC rolls 2026-02-30 over to March; refuse it instead
+};
+const parseInstant = (text) => {
+  if (!ISO_INSTANT.test(String(text || ''))) return null;   // an offset-less or date-only string would be read in the server's zone
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const zoneParts = (date, zone) => {
+  const parts = {};
+  new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+                                     weekday: 'long', hour12: false, timeZoneName: 'short' }).formatToParts(date).forEach((p) => { parts[p.type] = p.value; });
+  parts.hour = parts.hour === '24' ? '00' : parts.hour;
+  return parts;
+};
+// NYSE Group's published calendar (ir.theice.com, "Holiday and Early Closings
+// Calendar"): the days the exchange is closed and the days it closes at 13:00
+// New York time, for the years it has announced. A year outside the table
+// gets the weekday rule and the word "normally" on the page.
+const NYSE_CLOSED = new Set([
+  '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+  '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24',
+]);
+const NYSE_EARLY_CLOSE = new Set(['2026-11-27', '2026-12-24', '2027-11-26']);
+const NYSE_YEARS = new Set([...NYSE_CLOSED].map((d) => d.slice(0, 4)));
+const calendarKnown = (market, day) => market === 'crypto' || (typeof day === 'string' && NYSE_YEARS.has(day.slice(0, 4)));
+function nextGameDay(market, madeOn) {
+  const start = parseDay(madeOn);
+  if (start === null) return null;
+  if (market === 'crypto') return isoDay(start + DAY_MS);
+  let next = start + DAY_MS;
+  while ([0, 6].includes(new Date(next).getUTCDay()) || NYSE_CLOSED.has(isoDay(next))) next += DAY_MS;   // the next session
+  return isoDay(next);
+}
+function closeMoment(market, day) {
+  const start = parseDay(day);
+  if (start === null) return null;
+  if (market === 'crypto') return new Date(start + DAY_MS);              // 00:00 UTC of the following day
+  // 16:00 New York on that date (13:00 on an early-close day): the UTC hour depends on New York's clocks
+  const closeHour = NYSE_EARLY_CLOSE.has(day) ? '13' : '16';
+  for (const hour of [20, 21, 17, 18, 19, 22]) {
+    const candidate = new Date(start + hour * HOUR_MS);
+    if (zoneParts(candidate, NEW_YORK).hour === closeHour) return candidate;
+  }
+  return null;
+}
+// when the game day begins: 00:00 UTC for crypto, the 09:30 New York open for shares (6.5 h before the close, 3.5 h on an early-close day)
+function openMoment(market, day) {
+  const start = parseDay(day);
+  if (start === null) return null;
+  if (market === 'crypto') return new Date(start);
+  const close = closeMoment(market, day);
+  return close ? new Date(close.getTime() - (NYSE_EARLY_CLOSE.has(day) ? 3.5 : 6.5) * HOUR_MS) : null;
+}
+function brusselsText(date, withDate = false) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const b = zoneParts(date, BRUSSELS);
+  const time = `${b.hour}:${b.minute} Belgian time`;
+  return withDate ? `${time} on ${b.weekday.slice(0, 3)} ${b.day}/${b.month}` : time;
+}
+const weekdayOf = (day) => {
+  const start = parseDay(day);
+  return start === null ? null : zoneParts(new Date(start + 12 * HOUR_MS), 'UTC').weekday;
+};
+// the moment a call is judged, as a short clause and as a full sentence part
+function closeShort(market, day) {
+  const moment = closeMoment(market, day);
+  if (!moment) return null;
+  if (market === 'crypto') {
+    const b = zoneParts(moment, BRUSSELS);
+    return `${b.hour}:${b.minute} Belgian time in the night from ${weekdayOf(day)} to ${b.weekday} (00:00 UTC on ${isoDay(moment.getTime())})`;
+  }
+  const early = NYSE_EARLY_CLOSE.has(day);
+  return `${brusselsText(moment)} on ${weekdayOf(day)} ${day} (${early ? '13:00 New York time, an early close' : '16:00 New York time'})`;
+}
+function closeText(market, day) {
+  const short = closeShort(market, day);
+  if (!short) return null;
+  return market === 'crypto' ? `the close of ${day}, which is ${short}` : `the New York close of ${day}, which is ${short}`;
+}
+function openText(market, day) {
+  const moment = openMoment(market, day);
+  if (!moment || market === 'crypto') return null;
+  return `${brusselsText(moment)} on ${weekdayOf(day)} ${day} (09:30 New York time)`;
+}
+// when the newest ticket was written (the day file's time), in Belgian time
+function appearedText(madeAt) {
+  const date = parseInstant(madeAt);
+  return date ? brusselsText(date, true) : null;
+}
+// hours from the start of the predicted day to the ticket, one decimal; null when unknown or negative
+function hoursInto(madeAt, market, day) {
+  const made = parseInstant(madeAt);
+  const start = openMoment(market, day);
+  if (!made || !start || made < start) return null;
+  return Math.round((made - start) / HOUR_MS * 10) / 10;
+}
+// where the predicted day stands at the moment the page is rendered
+function dayStatus(market, day, now) {
+  const open = openMoment(market, day);
+  const close = closeMoment(market, day);
+  if (!open || !close || !(now instanceof Date) || Number.isNaN(now.getTime())) return null;
+  const what = market === 'crypto' ? `the UTC day ${day}` : `the New York session of ${weekdayOf(day)} ${day}`;
+  if (now < open) {
+    return market === 'crypto' ? `${what} has not started yet` : `${what} has not opened yet - it opens at ${brusselsText(open)} and closes at ${brusselsText(close)}`;
+  }
+  if (now < close) {
+    const hours = Math.round((now - open) / HOUR_MS * 10) / 10;
+    return `${what} is running now, ${hours} hours in; it closes at ${brusselsText(close)}`;
+  }
+  return `${what} has already closed (${brusselsText(close)}); the verdict appears here after the next morning's run`;
+}
 const COLOURS = ['#e67e22', '#8e44ad', '#16a085', '#2980b9', '#d35400', '#27ae60', '#7f8c8d', '#f39c12', '#1abc9c', '#9b59b6',
   '#34495e', '#e84393', '#00a8ff', '#44bd32', '#8c7ae6', '#e1b12c'];
 
@@ -408,7 +545,7 @@ ${CHART_CLIENT_JS}
 </script>`;
 const RANGES = [['1M', 30], ['3M', 91], ['6M', 182], ['1Y', 365], ['All', 0]];
 
-function page(market, view, header, footer, user) {
+function page(market, view, header, footer, user, now = new Date()) {
   const meta = MARKETS[market];
   let html = header(meta.title, user);
   html += CHART_SCRIPTS;
@@ -425,7 +562,9 @@ function page(market, view, header, footer, user) {
     Chance is ${pct(c.exact, 0)} for the exact bin, ${pct(c.adjacent, 0)} for the adjacent bin and ${pct(c.direction, 0)} for the direction.
     <b>Paper trading</b> turns every call into money with one fixed rule: when a model's bin says up (the upper half), ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)}
     is bought at the previous close and sold at the day's close, a ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} fee on each leg; otherwise it sits out.
-    Results settle the morning after, when the day's bar has closed.</p>`;
+    Results settle the morning after, when the day's candle has closed. ${market === 'crypto'
+      ? 'A crypto day is the UTC day, so "the day\'s close" is 00:00 UTC - 02:00 Belgian time in the night that follows (01:00 in winter); that close decides every call.'
+      : 'A share\'s day is the New York session, so "the day\'s close" is 16:00 New York time - 22:00 Belgian time in most weeks; that close decides every call.'}</p>`;
 
   // how a day becomes a draw - for a newcomer, in three steps, with the newest
   // settled day as the worked example and a strip per instrument showing what
@@ -448,9 +587,13 @@ function page(market, view, header, footer, user) {
   const best = example ? (example.models.find((m) => m.name === example.best) || example.models[0] || null) : null;
   const dayWord = meta.calendar.replace(/ \(.*\)$/, '').replace(/^every /, '');      // "day" / "trading day"
   const nouns = `${esc(meta.noun)}s`;
+  const appeared = appearedText(view.madeAt);
+  const forDay = nextGameDay(market, view.madeOn);
+  const forJudged = forDay ? closeText(market, forDay) : null;
+  const hoursOld = forDay ? hoursInto(view.madeAt, 'crypto', forDay) : null;
   const closeNote = market === 'crypto'
-    ? 'a crypto day runs midnight to midnight UTC, 02:00 Belgian time in summer and 01:00 in winter, so the ticket is placed seven to eight hours into the day it predicts; none of those hours is used, because the models read closed daily candles only, and the day\'s close is still unknown'
-    : 'the New York session closes at 22:00 Belgian time in summer and 21:00 in winter, so a trading day\'s ticket is placed on its own morning, before New York opens, and a Monday\'s ticket is made on the Saturday';
+    ? `A crypto day runs midnight to midnight UTC - 02:00 Belgian time in summer, 01:00 in winter - so when the ticket went up the day it predicts was already ${hoursOld !== null ? `${hoursOld} hours` : 'eight to ten hours'} old${hoursOld !== null ? '' : ', depending on the season and on how long the run took'}; none of those hours is used, because the models read closed daily candles only, and the day's close is still unknown`
+    : `The New York session runs 09:30-16:00 there, 15:30-22:00 Belgian time in most weeks (an hour earlier in the few weeks a year when only one side of the Atlantic has changed its clocks), so a trading day's ticket is on this page hours before New York's regular session opens, and a Monday's ticket is made on the Saturday, from Friday's close`;
 
   // step 1: two closes, one number
   let step1 = `<p><b>1. Two closes, one number.</b> On a price chart each ${esc(dayWord)} is drawn as one candle, and a candle is four prices: where the price opened, the highest
@@ -492,7 +635,8 @@ function page(market, view, header, footer, user) {
       const cells = Array.from({ length: view.k }, (_, b) => {
         const actual = inst.bin === b;
         const played = predicted === b;
-        const style = actual ? 'background:#2c3e50; color:white; font-weight:bold;' : (played ? 'background:#d5f5e3;' : 'background:white;');
+        const near = played && inst.bin !== null && Math.abs(b - inst.bin) === 1;   // pale green means one bin off, as in the ticket cells below
+        const style = actual ? 'background:#2c3e50; color:white; font-weight:bold;' : (near ? 'background:#d5f5e3;' : 'background:white;');
         const border = played ? 'border:2px solid #27ae60;' : 'border:1px solid #ccd1d6;';
         const title = `bin ${b}: ${intervalText(b, inst.edges, 2)}${actual ? ' - the day fell here' : ''}${played ? ` - ${best.name} predicted this` : ''}`;
         return `<div style="flex:1; min-width:0; text-align:center; padding:3px 0; font-size:0.8em; ${style} ${border}" title="${esc(title)}">${b}</div>`;
@@ -507,19 +651,24 @@ function page(market, view, header, footer, user) {
       : '';
     strips = `<p style="margin:14px 0 2px;"><b>Worked example - ${esc(example.date)}, the newest settled day</b> (settled: its closes are in and every model's prediction for it has been scored against them).
       Each strip is one ${esc(meta.noun)}'s ${view.k} bins, with the cut point between two bins written under their boundary. The boxes are drawn the same width because each holds a tenth of
-      the ${esc(meta.noun)}'s past days, not because the ranges are equal${ends}. The dark box is the bin the day's move fell in${best ? `; the green outline is the bin that ${esc(best.name)} - one of the
-      models, the one with the most exact hits that day - had predicted beforehand. That prediction is its ticket, explained in step 3` : ''}.</p>${rows}`;
+      the ${esc(meta.noun)}'s past days, not because the ranges are equal${ends}. <b>Dark box</b>: where the day actually landed${best ? `. <b>Green outline</b>: what ${esc(best.name)} - one of the
+      models, the one with the most exact hits that day - had predicted beforehand. When both are the same box it is a hit and the dark box carries the green outline; a predicted box next to the dark one is filled pale green (one off); further away it stays white.
+      That prediction is its ticket, explained in step 3, where the same hit is shown as a solid green digit (green outlines mark the prediction only in these strips; elsewhere a solid green cell is a hit, and the charts draw each model in its own colour, the actual close in dark navy)` : ''}.</p>${rows}`;
   } else {
     strips = `<p style="color:#7f8c8d; font-size:0.9em;">The worked example - the newest day's moves on the ${view.k} bins, one strip per ${esc(meta.noun)} - appears here after the first settled day.</p>`;
   }
 
   // step 3: the draw, the ticket, the hit
-  let step3 = `<p><b>3. The bins side by side are the draw.</b> Every ${esc(dayWord)} is one draw with one slot per ${esc(meta.noun)}`;
+  let step3 = `<p><b>3. The bins side by side are the draw.</b> Every ${esc(dayWord)} is one draw - a <i>game day</i>, for ${market === 'crypto' ? 'crypto simply one UTC day' : 'shares one New York session'} - with one slot per ${esc(meta.noun)}`;
   if (example) {
     const drawText = example.instruments.map((i) => (i.bin === null ? '?' : i.bin)).join(' ');
     step3 += `: the draw of ${esc(example.date)} reads <b style="letter-spacing:2px;">${esc(drawText)}</b>, which is what the <a href="${gameViewLink(market, example.date)}">game view</a> shows as digits`;
   }
-  step3 += `. A model's <b>ticket</b> is one bin per ${esc(meta.noun)}, made at 09:00 Belgian time after the previous candle has closed (${closeNote})`;
+  step3 += `. A model's <b>ticket</b> is one bin per ${esc(meta.noun)}, made by the daily run, which starts at 09:00 Belgian time after the previous candle has closed and puts the ticket on this page when it finishes${appeared ? ` (the newest ticket went up at ${esc(appeared)})` : ''}`;
+  if (forDay && forJudged) {
+    step3 += `. That ticket is for ${market === 'crypto' ? `the UTC day ${esc(forDay)}` : `the New York session of ${esc(weekdayOf(forDay))} ${esc(forDay)}`} and is judged at ${esc(forJudged)} - that close is the number every call on it is scored against`;
+  }
+  step3 += `. ${closeNote}`;
   if (best) {
     const cells = best.bins.map((b, i) => {
       const actual = example.instruments[i] ? example.instruments[i].bin : null;
@@ -610,12 +759,17 @@ function page(market, view, header, footer, user) {
       <span class="swatch" style="background:${bookColours[m]};"></span>${esc(m)}</label>`).join('');
     html += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Paper trading</span>
       <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}${richestHold ? `; holding: ${money(richestHold.holdTotal, 2)} (${esc(richestHold.name)})` : ''}${marketHold === null ? '' : `, buy-and-hold ${money(marketHold, 2)}`}</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, two ways of trading them. <b>Daily round trip</b>: each morning, for every ${esc(meta.noun)} whose bin a model calls up (5 or higher),
-      <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> is bought at the previous close and sold at that day's close, with ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell;
+      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, two ways of trading them. <b>Daily round trip</b>: for every ${esc(meta.noun)} whose bin a model calls up (5 or higher), the book counts
+      <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> as bought at the previous close (${market === 'crypto' ? '00:00 UTC - 02:00 Belgian time in summer, 01:00 in winter - in the night before the ticket goes up' : 'the previous session\'s close, 16:00 New York time'})
+      and sold at the day's own close (${market === 'crypto' ? '24 hours later, at the same hour' : '16:00 New York time that day, 22:00 Belgian time in most weeks'}), with ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell;
       a ${esc(meta.noun)} the model calls flat or down is sat out. <b>Hold while up</b>: the position is kept as long as the next day's call is up again and sold at the close of the last up day,
       so a run of up days costs one fee pair and the stake compounds; a position still open on the newest day is valued at its close. The grey dashed line is the <b>market</b> under the same rule:
       buying every ${esc(meta.noun)} every day (round trip), or buying everything on the first day and holding to the last (buy-and-hold) - what the ${esc(meta.noun)}s themselves gave over these days,
-      which a model has to beat before its book means anything. A flat day costs a round trip the two fees, so a model that calls "up" on small moves bleeds fees under the daily rule. Shorts are the next step.</p>
+      which a model has to beat before its book means anything. A flat day costs a round trip the two fees, so a model that calls "up" on small moves bleeds fees under the daily rule. Shorts are the next step.
+      <b>The fill is the paper part</b>: the book buys at the previous close, ${market === 'crypto'
+        ? 'the price at 00:00 UTC - eight to ten hours before the ticket is on this page, depending on the season and on how long the run took, by which time the day has moved on'
+        : 'the previous session\'s close - the gap from that close to the next open (overnight, or a weekend for a Monday ticket) is still ahead and falls inside the book\'s trade; a reader can only buy after it has happened'}.
+      A reader acting on the page enters later and at another price, so the book is the model's call scored on the daily candle, not what a reader could have made from it.</p>
       <div class="chart-tools"><button type="button" data-view-for="${bookId}" data-view="daily" onclick="marketView('${bookId}', 'daily')" title="every up call bought at the previous close and sold at the day's close">Daily round trip</button>
         <button type="button" data-view-for="${bookId}" data-view="hold" onclick="marketView('${bookId}', 'hold')" title="a position kept while the calls stay up, sold at the close of the last up day">Hold while up</button><span class="sep">|</span>
         ${RANGES.map(([label, days]) => `<button type="button" onclick="marketRange('${bookId}', ${days})">${label}</button>`).join('')}
@@ -736,6 +890,12 @@ function page(market, view, header, footer, user) {
   };
   const colours = Object.fromEntries(modelNames.map((m, i) => [m, colourFor(i)]));
   const bestModel = view.best && modelNames.includes(view.best) ? view.best : (modelNames[0] || null);
+  const nextDay = nextGameDay(market, view.madeOn);                 // the game day the newest ticket is for
+  const judged = nextDay ? closeText(market, nextDay) : null;      // and the moment it is judged, in Belgian time
+  const judgedShort = nextDay ? closeShort(market, nextDay) : null;
+  const opens = nextDay ? openText(market, nextDay) : null;        // shares: the regular session's open that day
+  const status = nextDay ? dayStatus(market, nextDay, now) : null; // where that day stands as the page is rendered
+  const nextDayText = nextDay ? (calendarKnown(market, nextDay) ? esc(nextDay) : `the next session, normally ${esc(nextDay)}`) : null;
   view.instruments.forEach((inst) => {
     const id = `chart-${esc(market)}-${esc(inst.symbol)}`;
     const labels = inst.closes.map((p) => p[0]).concat(['next']);
@@ -765,18 +925,23 @@ function page(market, view, header, footer, user) {
       <div style="height:420px;"><canvas id="${id}"></canvas></div>
       <script>window.marketData['${id}'] = ${JSON.stringify(data)}; marketRender('${id}');</script>
       <p style="color:#7f8c8d; font-size:0.85em;"><b>Price lines</b>: the close as a line and, for each model switched on, a dashed line through the prices its bins stood for, day by day
-        (the previous game day's close moved by the bin's middle return); the last dashed point is the call for the next trading day${view.madeOn ? `, made after ${esc(view.madeOn)}` : ''}.
+        (the previous game day's close moved by the bin's middle return); the last dashed point, <i>next</i>, is the call for ${nextDayText || 'the next trading day'} - the candle after the last one drawn, not "tomorrow"${nextDay ? `; it was made after the close of ${esc(view.madeOn)}` : ''}${judged ? ` and is judged at ${esc(judged)}` : ''}.
         A model calling "roughly flat" every day draws the close line one day late - that is the call, not a lag (the card at the top explains why). <b>Price bars</b>: the same calls as a bar
         per day from the previous game day's close to the price its bin stood for (green up, red down) over a paler bar for the bin's whole interval, so a flat call reads as a short bar; a hit is the
         close landing inside the pale bar on the same date, and the two open-ended bins run to the edge of what the chart shows. <b>Moves</b>: the real move per day as a dark bar, in percent,
         with each model's interval as a paler bar and its middle as a dot - a hit is the dark bar ending inside the model's band. The chart opens on the newest month; a year of closes is behind it
         (the range buttons, or zoom and pan), and the calls start where the tracking started.</p>
-      ${nextRows ? `<div class="table-wrapper"><table><tr><th style="text-align:left;">Next day, per model</th><th>Bin</th><th>Direction</th><th>Price it stands for</th><th>Interval</th></tr>${nextRows}</table></div>`
+      ${nextRows ? `<div class="table-wrapper"><table><tr><th style="text-align:left;">The day being predicted${nextDayText ? ` - ${nextDayText}` : ''}, per model</th><th>Bin</th><th>Direction</th><th title="the bin's middle return applied to the last close">Price drawn on the chart (bin middle)</th><th title="the bin as prices: a hit is the close landing anywhere inside">Right if the close lands in</th></tr>${nextRows}</table></div>
+      ${judged ? `<p style="color:#7f8c8d; font-size:0.85em; margin:6px 0 0;"><b>When it is judged:</b> ${esc(judged)}.${status ? ` Right now ${esc(status)}.` : ''}
+        The price drawn on the chart is the bin's middle; the call is right when the close lands anywhere inside the interval, whatever happened in between, and <i>direction</i> is the sign of that middle, so an interval can start a little below the last close and still count as up.
+        A reader who buys after reading this and wants to be compared like the model sells at ${esc(judgedShort)}: the model is right if ${esc(inst.symbol)} then closes inside its interval, whatever was paid; whether money was made is a separate question, because the entry came later and at another price than the ${price(data.lastClose)} ${esc(inst.quote)} the paper book starts from${opens
+          ? ` (a reader can buy from ${esc(opens)}, when New York's regular session opens; pre-market trading exists before it)`
+          : ''}. The condition is close-to-close, so no position opened after reading this page matches it exactly, whenever it is sold; the score appears here after the next morning's run.</p>` : ''}`
         : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
       </div></div>`;
   });
 
-  html += `<p style="color:#7f8c8d; font-size:0.85em; margin-top:20px;">Record generated ${esc(view.generatedAt || '-')}; newest game day ${esc(view.newestGameDay || '-')}.
+  html += `<p style="color:#7f8c8d; font-size:0.85em; margin-top:20px;">Record generated ${esc(view.generatedAt || '-')}${appearedText(view.generatedAt) ? ` (${esc(appearedText(view.generatedAt))})` : ''}; newest game day ${esc(view.newestGameDay || '-')}.
     The same rows are tracked, slot by slot, on the <a href="/database/${esc(market)}">game view</a> like every lottery game.</p>`;
   return html + footer();
 }
@@ -792,4 +957,5 @@ function install(app, { header, footer, dataDir, controlsDir }) {
 }
 
 module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading, binInterval,
+  nextGameDay, closeMoment, openMoment, closeText, closeShort, openText, brusselsText, appearedText, hoursInto, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE,
   intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };

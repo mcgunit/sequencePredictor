@@ -35,7 +35,7 @@ const record = {
     benchmark: [['2026-09-30', -1.2, -1.2], ['2026-10-01', 3.0, 1.8]],
     hold_rule: 'kept while up',
     hold: { models: { 'Markov Model': [['2026-09-30', 5.6, 5.6], ['2026-10-01', 9.9, 15.5]] }, benchmark: [['2026-09-30', -1.1, -1.1], ['2026-10-01', 3.2, 2.1]] } },
-  next: { made_on: '2026-10-01', for: 'the next trading day', instruments: {
+  next: { made_on: '2026-10-01', made_at: '2026-10-02T07:15:00+00:00', for: 'the next trading day', instruments: {
     BTC: { last_close: 84000, last_date: '2026-10-01', predictions: [
       { model: 'Markov Model', bin: 7, direction: 1, price: 84900, low: 84500, high: 85300 },
       { model: 'Odd Model', bin: 0, direction: -1, price: 80000, low: null, high: 81000 } ] } } },
@@ -171,7 +171,7 @@ ok(html.includes('P&amp;L holding') && html.includes('>+15.50</td>') && html.inc
 ok(html.includes(`data-view-for="ledger-crypto" data-view="daily"`) && html.includes(`data-view="hold"`) && html.includes('holding: +15.50 (Markov Model), buy-and-hold +2.10'), 'the book card toggles the two rules and names both bests');
 ok(html.includes('card-title">Paper trading') && html.includes('best book +12.34 USDT (Markov Model), the market +1.80') && html.includes("marketRender('ledger-crypto')")
   && html.includes(`data-chart="ledger-crypto" data-model="Markov Model" checked`) && html.includes(`data-chart="ledger-crypto" data-model="Odd Model" onchange`)
-  && html.includes('100 USDT</b> is bought at the previous close'),
+  && html.includes('100 USDT</b> as bought at the previous close ('),
   'the paper-trading card names the rule, the best book against the market, and switches every model with the best on');
 const bookData = JSON.parse(html.match(/window\.marketData\['ledger-crypto'\] = (\{.*?\}); marketRender/s)[1]);
 ok(bookData.kind === 'ledger' && bookData.labels.join(',') === '2026-09-30,2026-10-01' && bookData.rules.daily.benchmark.join(',') === '-1.2,1.8' && bookData.rules.daily.series['Markov Model'].join(',') === '5.5,12.34'
@@ -277,7 +277,7 @@ ok(html.includes('How a day becomes a draw') && html.includes('1. Two closes, on
   && html.includes('Every day is one draw') && !html.includes('Every every') && html.includes('a 7 played on BTC is judged against BTC\'s own bin, and ETH landing in 7')
   && html.includes("bin 6 on 2026-10-01 ran from +0.30% to +0.90%, which from the close of 83663 means a close\n      between about 83914 and 84419"),
   'the explainer walks through closes, bins and draw with the newest day, the best ticket and a price range');
-ok((html.match(/the day fell here/g) || []).length === 2 && html.includes('Markov Model predicted this') && html.includes('the green outline is the bin that Markov Model')
+ok((html.match(/the day fell here/g) || []).length === 2 && html.includes('Markov Model predicted this') && html.includes('<b>Green outline</b>: what Markov Model')
   && html.includes('transform:translateX(50%)') && html.includes('>+0.3%</div>') && html.includes("BTC's bin 4 runs from -0.4% to 0.0%, while bin 0 is everything below -3.0%")
   && html.includes('an inner bin is within one by luck 30% of the time, an end bin 20%') && html.includes('log return'),
   'each instrument gets a strip of ten bins with its edges, the real move dark and the predicted bin outlined, and the caveats are stated');
@@ -318,4 +318,63 @@ ok(sent.includes('Crypto predictor') && sent.includes('chart-crypto-BTC') && sen
 
 fs.rmSync(dir, { recursive: true, force: true });
 fs.rmSync(controls, { recursive: true, force: true });
+// when a call is judged (4 Oct 2026): the day a ticket is for and its close in Belgian time
+ok(markets.nextGameDay('crypto', '2026-10-02') === '2026-10-03' && markets.nextGameDay('crypto', '2026-10-31') === '2026-11-01' && markets.nextGameDay('crypto', '2026-12-31') === '2027-01-01', 'a crypto ticket is for the next calendar day');
+ok(markets.nextGameDay('shares', '2026-10-02') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-03') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-04') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-05') === '2026-10-06',
+   'a shares ticket is for the next weekday - Friday, Saturday and Sunday all point at Monday');
+ok(markets.nextGameDay('shares', '2026-11-25') === '2026-11-27' && markets.nextGameDay('shares', '2026-12-24') === '2026-12-28' && markets.nextGameDay('shares', '2027-12-23') === '2027-12-27'
+   && markets.nextGameDay('shares', '2026-07-02') === '2026-07-06', 'New York holidays are skipped: Thanksgiving, Christmas, the observed days');
+const perYear = (year) => [...markets.NYSE_CLOSED].filter((d) => d.startsWith(year)).length;
+ok(perYear('2026') === 10 && perYear('2027') === 10 && markets.NYSE_CLOSED.size === 20 && [...markets.NYSE_CLOSED].every((d) => ![0, 6].includes(new Date(d).getUTCDay())), 'the closure table has ten weekdays in each announced year');
+ok(markets.nextGameDay('crypto', 'soon') === null && markets.nextGameDay('crypto', '2026-02-30') === null && markets.nextGameDay('crypto', '2026-13-01') === null && markets.closeText('shares', null) === null, 'malformed and impossible dates give null, not a roll-over');
+ok(markets.appearedText('2026-10-03T08:29:00+00:00') === '10:29 Belgian time on Sat 03/10' && markets.appearedText('2026-10-03T08:29:00Z') === '10:29 Belgian time on Sat 03/10', `the ticket time in Belgian time: ${markets.appearedText('2026-10-03T08:29:00+00:00')}`);
+ok(markets.appearedText('2026-10-03T08:29:00') === null && markets.appearedText('2026-10-03') === null && markets.appearedText('garbage 2026') === null && markets.appearedText(null) === null, 'an offset-less, date-only or malformed time is not shown');
+ok(markets.closeText('crypto', '2026-10-03') === 'the close of 2026-10-03, which is 02:00 Belgian time in the night from Saturday to Sunday (00:00 UTC on 2026-10-04)', `crypto summer close: ${markets.closeText('crypto', '2026-10-03')}`);
+ok(markets.closeText('crypto', '2026-12-10') === 'the close of 2026-12-10, which is 01:00 Belgian time in the night from Thursday to Friday (00:00 UTC on 2026-12-11)', `crypto winter close: ${markets.closeText('crypto', '2026-12-10')}`);
+ok(markets.closeShort('crypto', '2026-10-24').startsWith('02:00 Belgian time in the night from Saturday to Sunday') && markets.closeShort('crypto', '2026-10-25').startsWith('01:00 Belgian time in the night from Sunday to Monday')
+   && markets.closeShort('crypto', '2027-03-27').startsWith('01:00 Belgian time in the night from Saturday to Sunday'), 'the Belgian clock-change nights are computed, not assumed');
+ok(markets.closeText('shares', '2026-10-05') === 'the New York close of 2026-10-05, which is 22:00 Belgian time on Monday 2026-10-05 (16:00 New York time)' && markets.closeShort('shares', '2026-12-10').startsWith('22:00 Belgian time on Thursday'),
+   `New York closes at 22:00 Belgian time in summer and in winter: ${markets.closeText('shares', '2026-10-05')}`);
+ok(markets.closeShort('shares', '2026-10-28').startsWith('21:00 Belgian time') && markets.closeShort('shares', '2027-03-16').startsWith('21:00 Belgian time') && markets.closeShort('shares', '2026-03-09').startsWith('21:00 Belgian time'),
+   `between the two clock changes New York closes at 21:00 Belgian time: ${markets.closeShort('shares', '2026-10-28')}`);
+ok(markets.closeMoment('shares', '2026-10-05').toISOString() === '2026-10-05T20:00:00.000Z' && markets.closeMoment('shares', '2026-12-10').toISOString() === '2026-12-10T21:00:00.000Z'
+   && markets.closeMoment('shares', '2026-03-09').toISOString() === '2026-03-09T20:00:00.000Z', 'the New York close as an instant, also in the US-only summer-time week');
+ok(markets.closeText('shares', '2026-11-27') === 'the New York close of 2026-11-27, which is 19:00 Belgian time on Friday 2026-11-27 (13:00 New York time, an early close)'
+   && markets.closeShort('shares', '2026-12-24').startsWith('19:00 Belgian time'), `an early close is said: ${markets.closeText('shares', '2026-11-27')}`);
+ok(markets.openText('shares', '2026-10-05') === '15:30 Belgian time on Monday 2026-10-05 (09:30 New York time)' && markets.openText('shares', '2026-10-28').startsWith('14:30 Belgian time')
+   && markets.openText('shares', '2026-11-27').startsWith('15:30 Belgian time') && markets.openText('crypto', '2026-10-05') === null, `the New York open is computed per date: ${markets.openText('shares', '2026-10-28')}`);
+ok(markets.openMoment('crypto', '2026-10-03').toISOString() === '2026-10-03T00:00:00.000Z' && markets.hoursInto('2026-10-03T08:29:00+00:00', 'crypto', '2026-10-03') === 8.5
+   && markets.hoursInto('2026-12-10T09:38:00+00:00', 'crypto', '2026-12-10') === 9.6 && markets.hoursInto('2026-10-02T23:00:00+00:00', 'crypto', '2026-10-03') === null && markets.hoursInto('bad', 'crypto', '2026-10-03') === null,
+   'hours into the predicted day, from the ticket time');
+ok(markets.dayStatus('crypto', '2026-10-03', new Date('2026-10-03T09:00:00Z')) === 'the UTC day 2026-10-03 is running now, 9 hours in; it closes at 02:00 Belgian time'
+   && markets.dayStatus('crypto', '2026-10-03', new Date('2026-10-04T05:00:00Z')).startsWith('the UTC day 2026-10-03 has already closed (02:00 Belgian time)')
+   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-03T09:00:00Z')) === 'the New York session of Monday 2026-10-05 has not opened yet - it opens at 15:30 Belgian time and closes at 22:00 Belgian time'
+   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T15:00:00Z')).includes('is running now, 1.5 hours in')
+   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T21:00:00Z')).includes('has already closed') && markets.dayStatus('crypto', 'bad', new Date()) === null, 'the day status follows the clock');
+const at = new Date('2026-10-02T09:00:00Z');   // 11:00 Belgian time on the day the fixture's ticket is for
+const timed = markets.page('crypto', view, header, footer, null, at);
+ok(timed.includes('is the call for 2026-10-02 - the candle after the last one drawn, not "tomorrow"; it was made after the close of 2026-10-01 and is judged at the close of 2026-10-02, which is 02:00 Belgian time in the night from Friday to Saturday (00:00 UTC on 2026-10-03)')
+   && timed.includes('The day being predicted - 2026-10-02, per model') && timed.includes('<b>When it is judged:</b> the close of 2026-10-02, which is 02:00 Belgian time'), 'the chart names the day the next call is for and when it is judged');
+ok(timed.includes('Right now the UTC day 2026-10-02 is running now, 9 hours in; it closes at 02:00 Belgian time.'), 'the judged line says where the day stands as the page is read');
+ok(timed.includes('sells at 02:00 Belgian time in the night from Friday to Saturday (00:00 UTC on 2026-10-03): the model is right if BTC then closes inside its interval, whatever was paid')
+   && timed.includes('another price than the 84000 USDT the paper book starts from') && timed.includes('no position opened after reading this page matches it exactly'), 'the judged line says when a reader sells to be compared like the model, and that a hit is not a gain');
+ok(timed.includes('Price drawn on the chart (bin middle)') && timed.includes('Right if the close lands in') && timed.includes('so an interval can start a little below the last close and still count as up'), 'the next-day table says which column decides a hit');
+ok(timed.includes('the newest ticket went up at 09:15 Belgian time on Fri 02/10') && timed.includes('That ticket is for the UTC day 2026-10-02 and is judged at the close of 2026-10-02, which is 02:00 Belgian time in the night from Friday to Saturday')
+   && timed.includes('the day it predicts was already 7.3 hours old'), 'the explainer names the ticket\'s time, its day and its close; the hours are computed');
+ok(timed.includes('a <i>game day</i>, for crypto simply one UTC day') && timed.includes('Results settle the morning after, when the day\'s candle has closed. A crypto day is the UTC day, so'), 'the intro and step 3 put the day on a clock and define a game day');
+ok(timed.includes('<b>Dark box</b>: where the day actually landed') && timed.includes('a predicted box next to the dark one is filled pale green (one off); further away it stays white') && timed.includes('green outlines mark the prediction only in these strips'), 'the strips say what their colours mean');
+ok(timed.includes('the book counts\n      <b>100 USDT</b> as bought at the previous close (00:00 UTC') && timed.includes('eight to ten hours before the ticket is on this page') && !timed.includes('ten hours into'), 'the paper card puts both legs on the clock and does not overstate the hours');
+ok(timed.includes('Record generated 2026-10-02T07:15:00+00:00 (09:15 Belgian time on Fri 02/10)'), 'the footer gives the export time in Belgian time too');
+const sharesHtml = markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }), header, footer, null, at);
+ok(sharesHtml.includes('is the call for 2026-10-02 - the candle after the last one drawn, not "tomorrow"; it was made after the close of 2026-10-01 and is judged at the New York close of 2026-10-02, which is 22:00 Belgian time on Friday 2026-10-02 (16:00 New York time)')
+   && sharesHtml.includes('a reader can buy from 15:30 Belgian time on Friday 2026-10-02 (09:30 New York time), when New York\'s regular session opens; pre-market trading exists before it')
+   && sharesHtml.includes('the New York session of Friday 2026-10-02 has not opened yet - it opens at 15:30 Belgian time'), 'the shares page names the New York close and the computed open');
+ok(sharesHtml.includes('15:30-22:00 Belgian time in most weeks (an hour earlier in the few weeks a year') && !sharesHtml.includes('21:00 in winter') && !sharesHtml.includes('at the earliest')
+   && sharesHtml.includes('the previous session\'s close - the gap from that close to the next open (overnight, or a weekend for a Monday ticket)'), 'the shares explainer and fill note are right about the hours and the gap');
+ok(markets.page('shares', markets.describeMarket({ ...record, market: 'shares', next: { ...record.next, made_on: '2028-01-03' } }), header, footer, null, at).includes('is the call for the next session, normally 2028-01-04'),
+   'a year the exchange has not announced is said to be normal, not certain');
+const badMade = markets.page('crypto', markets.describeMarket({ ...record, next: { ...record.next, made_on: 'bad', made_at: 'bad' } }), header, footer, null, at);
+ok(!badMade.includes('made after the close of bad') && !badMade.includes('When it is judged') && !badMade.includes('went up at'), 'a made_on or made_at that does not parse is dropped, not echoed');
+ok(!markets.page('crypto', markets.describeMarket({ ...record, next: undefined }), header, footer, null, at).includes('When it is judged'), 'without a next-day call there is no judged-at line');
+
 console.log(`markets.js: ${passed} checks passed`);

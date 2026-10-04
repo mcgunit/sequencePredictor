@@ -487,7 +487,14 @@ def next_day_predictions(conn, market, path):
     # by symbol: game slots are dense over the cut's active instruments, the
     # table's position need not be (a retired instrument keeps its column)
     members = {i["symbol"]: i for i in instruments(conn, market, active_only=False)}
-    out = {"made_on": newest_day, "for": "the next trading day", "instruments": {}}
+    # made_at: when the ticket was written - the day file's modification time
+    # (settlement never rewrites a day file; the export's generated_at is
+    # rewritten by every run, also one that made no new ticket)
+    try:
+        made_at = datetime.fromtimestamp(os.path.getmtime(os.path.join(folder, newest_name)), tz=timezone.utc).isoformat(timespec="seconds")
+    except OSError:
+        made_at = None
+    out = {"made_on": newest_day, "made_at": made_at, "for": "the next trading day", "instruments": {}}
     for pos, symbol in enumerate(edges_day["symbols"]):
         member = members.get(symbol)
         if member is None:
@@ -790,6 +797,7 @@ def _self_check():
         conn.commit()
         nxt = record["next"]
         assert nxt["made_on"] == last_day["date"] and set(nxt["instruments"]) == set(symbols)
+        assert nxt["made_at"] and nxt["made_at"].endswith("+00:00"), nxt["made_at"]
         btc_next = nxt["instruments"]["BTC"]
         assert btc_next["last_close"] == btc_closes[-1] and len(btc_next["predictions"]) == 2
         top = [p for p in btc_next["predictions"] if p["model"] == "Perfect Model"][0]
