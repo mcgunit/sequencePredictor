@@ -46,7 +46,8 @@ GAME_CONFIG = {
     "euromillions": {"min": 1, "max": 50, "draw_size": 5, "skip_last_columns": 0, "special_column_count": 2},
     "lotto":        {"min": 1, "max": 45, "draw_size": 6, "skip_last_columns": 1, "special_column_count": 0},
     "eurodreams":   {"min": 1, "max": 40, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
-    "keno":         {"min": 1, "max": 80, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
+    # Keno: 20 of 1-70 since March 2008 - the same entry as HyperoptStatistics.GAME_CONFIG (corrected from 1-80 on 5 Oct 2026).
+    "keno":         {"min": 1, "max": 70, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
     "pick3":        {"min": 0, "max": 9, "draw_size": 3, "skip_last_columns": 0, "special_column_count": 0},
     "vikinglotto":  {"min": 1, "max": 48, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
     # Joker+: six digits 0-9 in drawn order (positional like pick3, see

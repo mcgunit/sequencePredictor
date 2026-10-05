@@ -598,6 +598,18 @@ ${CHART_CLIENT_JS}
 const RANGES = [['1M', 30], ['3M', 91], ['6M', 182], ['1Y', 365], ['All', 0]];
 const MIN_RANK_DAYS = 10;   // MarketSettle.MIN_RANK_DAYS: a row with fewer settled days ranks after the others and cannot head a book
 
+// The rows report's errors: a count means the row raised on that many days
+// (the Backtester's <row>_error); a string means the row scored no day at all
+// and says why (MarketRows.py, 5 Oct 2026 - the Chronos row was missing that
+// way for a week without a word). The two are told apart here.
+function failedRowsNote(errors) {
+  const names = Object.keys(errors || {});
+  const none = names.filter((k) => typeof errors[k] === 'string');
+  const some = names.filter((k) => typeof errors[k] !== 'string');
+  return `${none.length ? ` Rows that scored no day at all: ${esc(none.map((k) => `${k} (${errors[k]})`).join('; '))}.` : ''}`
+    + `${some.length ? ` Rows that failed on some days: ${esc(some.join(', '))}.` : ''}`;
+}
+
 function page(market, view, header, footer, user, now = new Date()) {
   const meta = MARKETS[market];
   let html = header(meta.title, user);
@@ -944,7 +956,7 @@ function page(market, view, header, footer, user, now = new Date()) {
       <div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th title="mean over days of the mean over instruments of log p(actual bin); higher is better">Log-score</th>
       <th title="difference to the GARCH row, 95% paired bootstrap interval over days">vs GARCH</th><th title="difference to the uniform forecast">vs uniform</th><th>Exact</th><th>Adjacent</th><th>Direction</th><th>Trades</th><th title="fixed rule with the real returns and the fee, in units of price (0.01 = 1%)">P&amp;L</th></tr>${table}</table></div>
       <p style="color:#7f8c8d; font-size:0.85em;">Walk-forward, every day refitted on the past only (MarketRows.py, Sundays). "Better" and "worse" are read off the interval, not the point estimate. The two ablation rows
-      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.${Object.keys(rep.errors).length ? ` Rows that failed on some days: ${esc(Object.keys(rep.errors).join(', '))}.` : ''}
+      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.${failedRowsNote(rep.errors)}
       Generated ${esc(rep.generatedAt || '-')}.</p></div></div>`);
   }
 

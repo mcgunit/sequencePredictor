@@ -60,7 +60,8 @@ fs.mkdirSync(path.join(controls, 'markets'));
 const interval = (mean, lo, hi, verdict) => ({ mean, lo, hi, verdict, days: 40 });
 const rowsRecord = {
   market: 'crypto', generated_at: '2026-10-04T12:00:00+00:00', days_requested: 40, days_scored: 40, first_day: '2026-08-21', last_day: '2026-09-29',
-  k: 10, uniform_log_score: -2.302585, probability_floor: 0.0001, reference: 'GARCH Model', lockbox_days_withheld: 0, errors: {},
+  k: 10, uniform_log_score: -2.302585, probability_floor: 0.0001, reference: 'GARCH Model', lockbox_days_withheld: 0,
+  errors: { 'Chronos Model': 'no forecast succeeded before the backtest', 'XGBoost Model': 2 },
   rows: [
     { name: 'Regime HMM Model', kind: 'market', days: 40, scored_days: 40, log_score: -2.45, log_score_se: 0.03,
       vs_reference: interval(-0.24, -0.4, -0.1, 'worse'), vs_uniform: interval(-0.15, -0.3, -0.02, 'worse'),
@@ -295,6 +296,8 @@ const noDays = markets.page('crypto', markets.describeMarket({ ...record, days: 
 ok(noDays.includes('How a day becomes a draw') && !noDays.includes('Worked example -') && noDays.includes('appears here after the first settled day') && !noDays.includes('card-title">Day by day') && !noDays.includes('<i>Day by day</i>'),
   'without settled days the explainer is generic and there is no day-by-day card');
 const fullHtml = markets.page('crypto', full, header, footer, null);
+ok(fullHtml.includes('Rows that scored no day at all: Chronos Model (no forecast succeeded before the backtest).') && fullHtml.includes('Rows that failed on some days: XGBoost Model.')
+   && !fullHtml.includes('failed on some days: Chronos'), 'the rows card tells a row that scored no day apart from a row that failed on some days');
 ok(fullHtml.includes('Rows under a proper score') && fullHtml.includes('No row carries information beyond GARCH') && fullHtml.includes('(reference)')
   && fullHtml.includes('no probabilities') && fullHtml.includes('-0.240 [-0.400, -0.100] worse') && fullHtml.includes('GARCH itself is above the uniform forecast'),
   'the score card names the reference, the verdicts and the intervals');

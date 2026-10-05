@@ -39,14 +39,20 @@ LOCK_FILE = os.path.join(os.getcwd(), "process.lock")
 
 # Real per-game number ranges (see test data inspection) - needed so the
 # Backtester's data-loader Markov instance and baselines use the actual game
-# range instead of Markov's default (1-80, which only happens to match Keno).
+# range instead of Markov's default (1-80). Keno has drawn 20 of 1-70 since
+# 9 March 2008 (the 58 draws of 2 January-8 March 2008 are the earlier 1-80
+# game, 56 of them with numbers above 70; src/ControlHistories drops them
+# from the control histories; HyperoptBoost.py mirrors this table); until 5 Oct 2026
+# it stood here as 1-80, Markov's default, which gave the synthetic control,
+# the Q2 window features and the meta-learner tables ten numbers the real
+# game never draws (README "Null controls", 5 Oct 2026).
 GAME_CONFIG = {
     # Euromillions has 2 trailing star columns; EuroDreams/VikingLotto have 1
     # (dream number / super viking) - see Helpers.run_model_with_special_column.
     "euromillions": {"min": 1, "max": 50, "draw_size": 5, "skip_last_columns": 0, "special_column_count": 2},
     "lotto":        {"min": 1, "max": 45, "draw_size": 6, "skip_last_columns": 1, "special_column_count": 0},
     "eurodreams":   {"min": 1, "max": 40, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
-    "keno":         {"min": 1, "max": 80, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
+    "keno":         {"min": 1, "max": 70, "draw_size": 20, "skip_last_columns": 0, "special_column_count": 0},
     "pick3":        {"min": 0, "max": 9, "draw_size": 3, "skip_last_columns": 0, "special_column_count": 0},
     # The market games (README roadmap item 4, src/MarketGame.py): one slot per
     # instrument of the frozen universe (5 coins, 4 shares), the digit is the

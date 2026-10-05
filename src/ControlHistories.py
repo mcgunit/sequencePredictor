@@ -97,7 +97,56 @@ def read_real_rows(game):
                 continue
             rows.append((parts[0], parts[1:]))
     rows.sort(key=lambda row: parse_date(row[0]))
-    return header, rows
+    return header, current_era(game, rows)
+
+
+_ERA_NOTED = set()      # games whose dropped era this process has already reported
+
+# The first draw under today's rules, for a game that once had other rules
+# which the number range alone does not always betray: a 20-of-80 keno draw
+# lies wholly inside 1-70 about one time in twenty, and two of the 58 old
+# draws do. Rows dated before this are dropped together with the ones whose
+# numbers fall outside the configured range.
+ERA_START = {"keno": "2008-03-09"}
+
+
+def current_era(game, rows):
+    """
+    The rows of today's game only. A draw dated before the game's ERA_START,
+    or whose main numbers fall outside the configured range, belongs to an
+    earlier version of the game and is dropped. Keno drew 20 of 1-80 until
+    8 March 2008 and 20 of 1-70 since: 58 draws in the 2008 file, 56 of them
+    with numbers above 70. Carried into a control, the old draws would get
+    synthetic replacements generated under today's rules on their dates, and
+    the shuffled control would scatter 1-80 draws across the window the rows
+    are scored on. Says what it dropped, once per game and process; the other
+    games lose nothing (checked 5 Oct 2026).
+    """
+    cfg = GAME_CONFIG.get(game)
+    if not cfg:
+        return rows
+    low, high, size = cfg["min"], cfg["max"], cfg["draw_size"]
+    since = parse_date(ERA_START[game]) if game in ERA_START else None
+    kept, dropped = [], []
+    for date, columns in rows:
+        if since is not None and parse_date(date) < since:
+            dropped.append(date)
+            continue
+        try:
+            main = [_as_int(value) for value in columns[:size]]
+        except Exception:
+            kept.append((date, columns))      # not this function's business
+            continue
+        if main and all(low <= value <= high for value in main):
+            kept.append((date, columns))
+        else:
+            dropped.append(date)
+    if dropped and game not in _ERA_NOTED:
+        _ERA_NOTED.add(game)
+        rule = f"before {ERA_START[game]} or " if game in ERA_START else ""
+        print(f"{game}: {len(dropped)} draw(s) {rule}with numbers outside {low}-{high} dropped as an earlier version "
+              f"of the game ({dropped[0]} .. {dropped[-1]})")
+    return kept
 
 
 def column_ranges(rows, first, count):

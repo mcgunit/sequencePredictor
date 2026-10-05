@@ -402,7 +402,7 @@ class Markov():
                 
             # Random fallback if still empty
             while len(ranked_prediction) < nSubset:
-                r = np.random.randint(1, 81) # Assuming Keno max is 80
+                r = np.random.randint(self.min_number, self.max_number + 1)   # the game's range (a 1-80 literal until 5 Oct 2026)
                 if r not in ranked_prediction:
                     ranked_prediction.append(r)
         

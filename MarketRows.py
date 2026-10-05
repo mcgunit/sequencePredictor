@@ -60,7 +60,7 @@ from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, descr
 from src.MarketGame import K_BINS, direction_of, quantile_edges
 from src.MarketModels import GARCH_NAME, LOG_FLOOR, MARKET_MODEL_NAMES, MarketHistory, build_market_models
 from src.MarketSettle import FEE
-from src.ModelFactory import build_models
+from src.ModelFactory import build_models, prepare_foundation_scores
 from HyperoptStatistics import GAME_CONFIG, is_running, create_lock, remove_lock
 
 helpers = Helpers()
@@ -232,6 +232,17 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
         models = build_models(dataPath, bestParams, is_positional=True, game=market)
     model_names = list(models)
 
+    # The foundation rows (Chronos by default, TimesFM when enabled) forecast
+    # here, in the parent, before the Backtester forks: a foundation model
+    # carried into a forked worker refuses to start a worker of its own and
+    # the row then scores nothing. Until 5 Oct 2026 this call was missing
+    # and every Sunday report lacked the Chronos row - thirty "unavailable"
+    # lines in the log, no row, no error (see errors below).
+    foundation = prepare_foundation_scores(models, start_index, total_rows,
+                                           skipLastColumns=cfg["skip_last_columns"],
+                                           specialColumnCount=cfg["special_column_count"],
+                                           label=f"{market}: ")
+
     backtester = Backtester(loader)
     for name, model in models.items():
         backtester.add_model(name, model)
@@ -260,13 +271,23 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
     rng = np.random.default_rng(seed)
     per_row = score_rows(results, dates, history, day_index, model_names)
     rows = summarise(per_row, GARCH_NAME, rng)
+    # A row that scored no day at all is a defect, not a quiet absence: it
+    # goes into errors (the page lists those names) and into the log.
+    reported = {r["name"] for r in rows}
+    for name in model_names:
+        if name not in reported:
+            why = "no forecast succeeded before the backtest" if foundation.get(name) == 0 else "no scored day"
+            if isinstance(errors.get(name), int):      # it raised on every day: keep that count
+                why = f"failed on {errors[name]} day(s), {why}"
+            errors[name] = why
+            print(f"{market}: {name} scored no day - {why}")
     scored_dates = sorted({str(dates[r['index']])[:10] for r in results if isinstance(r.get('index'), int)})
     record = {
         "market": market, "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "days_requested": days, "days_scored": len(results), "first_day": scored_dates[0] if scored_dates else None,
         "last_day": scored_dates[-1] if scored_dates else None, "k": K_BINS, "uniform_log_score": math.log(1.0 / K_BINS),
         "probability_floor": LOG_FLOOR, "reference": GARCH_NAME, "fee": FEE, "bootstrap_resamples": BOOTSTRAP,
-        "market_only": bool(market_only), "rows": rows, "errors": errors,
+        "market_only": bool(market_only), "rows": rows, "errors": errors, "foundation_days": foundation,
         "lockbox": lockbox_json(lockbox), "lockbox_days_withheld": len(locked),
         "backtest_seconds": round(elapsed, 1), "instruments": history_source.symbols,
     }

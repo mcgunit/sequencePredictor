@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-05-controls-keno-range-chronos',
+    date: '2026-10-05',
+    level: 'minor',
+    audience: 'all',
+    title: 'Two control fixes: keno plays its real game, the Chronos row is back in the Sunday market report',
+    body: [
+      'The keno controls drew 20 numbers of 1-80, the game as it was until 8 March 2008; the real game has drawn 20 of 1-70 since. So the synthetic fair history was the wrong game, and the Randomness watch card\'s Controlled test column read "above the band, but no better than the shuffled control" for keno on 4 October (the job\'s log calls that verdict "not temporal"): the classifier suite told the synthetic draws apart by ten numbers the real game never draws, not by anything in the real draws. The range is now 1-70, the 58 draws of the old game stay out of every control, and the column re-reads under the real game on Sunday 11 October. Keno\'s null band moves a little with it.',
+      'The Sunday market report - the "under a proper score" table in the Background card of the Crypto and Shares pages - had silently lost the Chronos row since it started: the row was never prepared before the backtest forked. It is prepared now, and a row that scores no day at all is named as such in that table\'s footnote instead of disappearing.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-10-04-week-ahead',
     date: '2026-10-04',
     level: 'minor',
