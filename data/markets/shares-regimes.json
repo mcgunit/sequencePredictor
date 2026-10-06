@@ -1048,9 +1048,42 @@
     2,
     3
    ]
+  },
+  {
+   "date": "2026-10-05",
+   "row": "Regime HMM Model",
+   "regimes": 3,
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 0.9999527026665951,
+   "weights": [
+    0.9999527026665951,
+    2.7824267939147447e-06,
+    4.4514906610965786e-05
+   ],
+   "expected_return": [
+    0.0027328936868655875,
+    0.0005133966749533309,
+    0.0005876847399855296,
+    -0.0003681719080695001
+   ],
+   "volatility": [
+    0.022886463951620476,
+    0.014398697534901517,
+    0.014317214178036122,
+    0.021336412131640205
+   ],
+   "template": 3,
+   "template_distance": 0.7700624676176029,
+   "templates": [
+    3,
+    1,
+    2
+   ]
   }
  ],
- "updated": "2026-10-02",
+ "updated": "2026-10-05",
  "Regime HMM ZeroMean Model": [
   {
    "date": "2026-08-17",
@@ -2074,6 +2107,37 @@
     1,
     2
    ]
+  },
+  {
+   "date": "2026-10-05",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 0.9996954779084752,
+   "weights": [
+    0.9996954779084752,
+    0.000304522091524807
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.033657726025256816,
+    0.02321441113348787,
+    0.02235468753455466,
+    0.03088872515321323
+   ],
+   "template": 1,
+   "template_distance": 0.14672111559979514,
+   "templates": [
+    1,
+    2
+   ]
   }
  ],
  "Regime HMM Single Model": [
@@ -3030,6 +3094,35 @@
    ],
    "template": 1,
    "template_distance": 0.0029242026252143615,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-10-05",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.0022702221586161646,
+    0.0010718660463764572,
+    0.0006933849801312389,
+    0.0016828583935980903
+   ],
+   "volatility": [
+    0.031003595989699956,
+    0.01847437334980592,
+    0.01752767488813644,
+    0.025001748859850462
+   ],
+   "template": 1,
+   "template_distance": 0.0027323584881027677,
    "templates": [
     1
    ]
