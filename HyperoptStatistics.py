@@ -318,6 +318,10 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
     model.setSortedPrediction(not is_positional)
     model.setUsePairScoring(is_positional)
+    # Which transition the chain learns (README, 5 Oct 2026): the set games
+    # choose between the column definition and the 2025 within-draw one; a
+    # positional game has only the column path.
+    model.setTransitionMode(trial.suggest_categorical('markovTransitionMode', ["column", "within"]) if not is_positional else "column")
     model.setPairScoringWeight(trial.suggest_float('markovPairScoringWeight', 0.1, 2.0) if is_positional else 0.0)
 
     subsets = []
@@ -738,6 +742,7 @@ SERVED_DEFAULTS = {
     "markovBlendMode": "log",
     "markovOrder": 1,
     "markovPairScoringWeight": 0.0,
+    "markovTransitionMode": "column",
     "markovMcSoftMaxTemperature": 0.1,
     "markovMcMinOccurences": 9,
     "markovMcAlpha": 0.2,

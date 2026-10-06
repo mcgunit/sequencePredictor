@@ -930,6 +930,7 @@ if __name__ == "__main__":
     markov.setSubsetSelectionMode(bestParams.get("markovSubsetSelectionMode", "softmax"))
     markov.setBlendMode(bestParams.get("markovBlendMode", "linear"))
     markov.setMarkovOrder(bestParams.get("markovOrder", 2))
+    markov.setTransitionMode(bestParams.get("markovTransitionMode", "column"))
     markov.setSortedPrediction(bestParams.get("markovSortedPrediction", True))
     markov.setUsePairScoring(bestParams.get("markovUsePairScoring", False))
     markov.setPairScoringWeight(bestParams.get("markovPairScoringWeight", 0.0))

@@ -108,6 +108,7 @@ def build_models(dataPath, bestParams, is_positional=False, is_pick3=None, game=
     markov.setSubsetSelectionMode(bestParams.get("markovSubsetSelectionMode", "softmax"))
     markov.setBlendMode(bestParams.get("markovBlendMode", "log"))
     markov.setMarkovOrder(bestParams.get("markovOrder", 1))
+    markov.setTransitionMode(bestParams.get("markovTransitionMode", "column"))
     markov.setSortedPrediction(not is_positional)
     markov.setUsePairScoring(is_positional)
     markov.setPairScoringWeight(bestParams.get("markovPairScoringWeight", 0.0))

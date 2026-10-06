@@ -1709,6 +1709,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
             markov.setBlendMode(bestParams_json_object["markovBlendMode"])
             markov.setMarkovOrder(bestParams_json_object["markovOrder"])
+            markov.setTransitionMode(bestParams_json_object.get("markovTransitionMode", "column"))
             # A positional game can never be served a sorted ticket (drawn
             # order is what it pays on), whatever a tuned flag says; the
             # other games keep reading their tuned value.
@@ -2060,6 +2061,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
             markov.setSubsetSelectionMode(bestParams_json_object["markovSubsetSelectionMode"])
             markov.setBlendMode(bestParams_json_object["markovBlendMode"])
             markov.setMarkovOrder(bestParams_json_object["markovOrder"])
+            markov.setTransitionMode(bestParams_json_object.get("markovTransitionMode", "column"))
             # Positional games pin these two exactly like
             # ModelFactory.build_models (is_positional=True) does for
             # TrainMetaLearner.py - unsorted and pair-scored - so the

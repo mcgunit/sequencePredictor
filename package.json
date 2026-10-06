@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "nodemon server.js",
-    "test": "node test/announcements.test.js && node test/jobs.test.js && node test/council.test.js && node test/controls.test.js && python3 -m src.TuningScore && python3 -m src.TuningGate && python3 -m src.Calibration && python3 -m src.Lockbox && python3 -m src.Since && python3 -m src.QuantumModels && python3 -m src.FeatureControl && python3 -m src.MarketData && python3 -m src.MarketGame && python3 -m src.MarketSettle && python3 -m src.MarketModels && python3 -m src.ControlHistories && python3 -m src.ModelFactory && python3 -m src.MultiPick && python3 -m src.RLPositionModel && node test/markets.test.js"
+    "test": "node test/announcements.test.js && node test/jobs.test.js && node test/council.test.js && node test/controls.test.js && python3 -m src.TuningScore && python3 -m src.TuningGate && python3 -m src.Calibration && python3 -m src.Lockbox && python3 -m src.Since && python3 -m src.QuantumModels && python3 -m src.FeatureControl && python3 -m src.MarketData && python3 -m src.MarketGame && python3 -m src.MarketSettle && python3 -m src.MarketModels && python3 -m src.ControlHistories && python3 -m src.Markov && python3 -m src.ModelFactory && python3 -m src.MultiPick && python3 -m src.RLPositionModel && node test/markets.test.js"
   },
   "nodemonConfig": {
     "ignore": [

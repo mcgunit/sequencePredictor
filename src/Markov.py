@@ -40,6 +40,20 @@ class Markov():
         self.use_pair_scoring = False
         self.pair_scoring_weight = 1.0
         self.sorted_prediction = False # NEW: Replaces Deltas. Enforces X > Prev_X.
+        # Which transition the chain learns (markovTransitionMode, 5 Oct 2026):
+        #   "column": per column, the number in that column in the previous
+        #             draw(s) -> the number in the same column in the next
+        #             draw (the definition since 3 Feb 2026);
+        #   "within": from each number to the next number inside the same
+        #             sorted draw, one table for the whole game (the original
+        #             Markov row of 13 Feb 2025 - the gap structure of a
+        #             ticket, not time).
+        # Both tables are always built; the mode picks the prediction path.
+        # Set games only: a positional game (pair scoring on) always takes
+        # the column path and says so once.
+        self.transition_mode = "column"
+        self.within_matrix = {}
+        self._within_note_printed = False
         
         # Data Structures
         self.transition_matrices = [] 
@@ -64,6 +78,7 @@ class Markov():
     
     def clear(self):
         self.transition_matrices = []
+        self.within_matrix = {}
         self.col_frequencies = []
         self.global_frequencies = defaultdict(int)
         self.pair_counts = defaultdict(lambda: defaultdict(int))
@@ -81,6 +96,11 @@ class Markov():
     def setSubsetSelectionMode(self, m): self.subset_selection_mode = m
     def setBlendMode(self, m): self.blend_mode = m
     def setMarkovOrder(self, order): self.markov_order = max(1, int(order))
+    def setTransitionMode(self, mode):
+        mode = str(mode)
+        if mode not in ("column", "within"):
+            raise ValueError(f"markovTransitionMode must be 'column' or 'within', not {mode!r}")
+        self.transition_mode = mode
     def setUsePairScoring(self, use): self.use_pair_scoring = bool(use)
     def setPairScoringWeight(self, w): self.pair_scoring_weight = float(w)
     def setGameRange(self, min_number, max_number):
@@ -201,21 +221,38 @@ class Markov():
             for num in target_draw:
                 self.global_frequencies[int(num)] += weight
 
+        # 4. Within-draw transitions (the 2025 definition): number -> the next
+        #    number of the same draw, every draw, the same recency weight.
+        within_raw = defaultdict(lambda: defaultdict(float))
+        for t, draw in enumerate(numbers):
+            if self.recency_mode == "linear":
+                weight = 1 + (self.recency_weight * t / total_draws)
+            elif self.recency_mode == "log":
+                weight = 1 + np.log1p(t) * self.recency_weight
+            else:
+                weight = 1.0
+            for i in range(len(draw) - 1):
+                within_raw[int(draw[i])][int(draw[i + 1])] += weight
+        self.within_matrix = self._normalize_table(within_raw)
+
         self._normalize_matrices()
+
+    def _normalize_table(self, raw):
+        """Prune transitions seen fewer than min_occurrences times, smooth, normalise - one table."""
+        cleaned = {}
+        for ctx, transitions in raw.items():
+            filtered = {k: v for k, v in transitions.items() if v >= self.min_occurrences}
+            if not filtered: continue
+            total = sum(filtered.values()) + self.smoothing_factor * len(filtered)
+            cleaned[ctx] = {
+                int(k): (v + self.smoothing_factor) / total
+                for k, v in filtered.items()
+            }
+        return cleaned
 
     def _normalize_matrices(self):
         for col_idx in range(len(self.transition_matrices)):
-            raw_matrix = self.transition_matrices[col_idx]
-            cleaned = {}
-            for ctx, transitions in raw_matrix.items():
-                filtered = {k: v for k, v in transitions.items() if v >= self.min_occurrences}
-                if not filtered: continue
-                total = sum(filtered.values()) + self.smoothing_factor * len(filtered)
-                cleaned[ctx] = {
-                    int(k): (v + self.smoothing_factor) / total
-                    for k, v in filtered.items()
-                }
-            self.transition_matrices[col_idx] = cleaned
+            self.transition_matrices[col_idx] = self._normalize_table(self.transition_matrices[col_idx])
             
         total_pair_weight = sum(sum(d.values()) for d in self.pair_counts.values()) or 1
         for n1, d in self.pair_counts.items():
@@ -337,6 +374,14 @@ class Markov():
         relevant_history = history_draws[-self.markov_order:]
         num_columns = len(relevant_history[0])
 
+        if self.transition_mode == "within":
+            if self.use_pair_scoring:
+                if not self._within_note_printed:
+                    print("Markov: transition mode 'within' is for the sorted set games - a positional game takes the column path")
+                    self._within_note_printed = True
+            else:
+                return self._within_prediction(relevant_history[-1], temperature)
+
         # --- SAFETY SWITCH FOR PAIR SCORING ---
         local_use_pair_scoring = self.use_pair_scoring
         if local_use_pair_scoring and num_columns > 6:
@@ -384,6 +429,55 @@ class Markov():
             prediction = list(all_combinations[idx])
 
         return prediction
+
+    def _within_prediction(self, last_draw, temperature):
+        """
+        The 2025 Markov row's ticket: for every number of the last draw, a
+        successor sampled (tempered) from that number's within-draw table;
+        short tickets are filled, as then, from the last number's successors
+        blended with the game's frequencies, best first, then from pair
+        affinity (both directions of the stored pair table), then from the
+        range. A sorted set of the draw's size.
+        """
+        n = len(last_draw)
+        picks = []
+        for num in map(int, last_draw):
+            successors = self.within_matrix.get(num)
+            if not successors:
+                continue
+            cands = list(successors.keys())
+            probs = np.asarray(self.softmax_with_temperature(list(successors.values()), temperature), dtype=float)
+            probs = probs / probs.sum()
+            pick = int(np.random.choice(cands, p=probs))
+            if pick not in picks:
+                picks.append(pick)
+        if len(picks) < n:
+            blended = self.blended_probability(self.within_matrix.get(int(last_draw[-1]), {}), self.global_frequencies)
+            for cand in sorted(blended, key=blended.get, reverse=True):
+                if len(picks) >= n:
+                    break
+                cand = int(cand)
+                if cand not in picks:
+                    picks.append(cand)
+        while len(picks) < n:
+            partner = None
+            if picks:
+                # pair_counts keeps each pair once, under its smaller number;
+                # the 2025 table was symmetric, so look both ways
+                last = picks[-1]
+                affinity = dict(self.pair_counts.get(last) or {})
+                for lower, partners in self.pair_counts.items():
+                    if last in partners:
+                        affinity[lower] = affinity.get(lower, 0) + partners[last]
+                if affinity:
+                    partner = int(max(affinity, key=affinity.get))
+            if partner is None or partner in picks:
+                pool = [v for v in range(self.min_number, self.max_number + 1) if v not in picks]
+                if not pool:
+                    break
+                partner = int(np.random.choice(pool))
+            picks.append(partner)
+        return sorted(picks[:n])
 
     def generate_best_subset(self, predicted_numbers, nSubset):
         unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
@@ -551,7 +645,9 @@ class Markov():
             that chains on the previous slot's *sampled* value, which has no
             meaning when every slot is scored at once.
         Every digit of the game's label range is present so the consumer can
-        build fixed-width feature vectors without guarding keys; a slot with
+        build fixed-width feature vectors without guarding keys (the column
+        view in either transition mode - this is the positional games' call,
+        and they have only that path); a slot with
         nothing to choose from (chain too short) scores uniform rather than an
         all-zero row the consumer could not normalise - it is also what
         predict_next_numbers' own random fallback amounts to there. Empty
@@ -613,112 +709,47 @@ class Markov():
         return position_scores
 
 if __name__ == "__main__":
-    print("Trying Markov")
+    # Self-check (python3 -m src.Markov, in npm test): the two transition
+    # definitions on synthetic draws, no files touched.
+    rng = np.random.default_rng(3)
+    # 400 sorted draws of 5 from 1-30 that all contain the pair (7, 8): the
+    # within-draw chain must learn 7 -> 8, which no column chain can express.
+    others = [v for v in range(1, 31) if v not in (7, 8)]
+    draws = [sorted([int(v) for v in rng.choice(others, size=3, replace=False)] + [7, 8]) for _ in range(400)]
 
-    markov = Markov()
-    name = 'lotto' 
-    generateSubsets = []
-    
-    path = os.getcwd()
-    dataPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "trainingData", name)
-    markov.setDataPath(dataPath)
+    w = Markov(); w.setGameRange(1, 30); w.setDrawSize(5); w.setSortedPrediction(True); w.setMinOccurrences(2); w.setRandomSeed(1)
+    w.setTransitionMode("within"); w.build_markov_chain(draws)
+    assert w.within_matrix[7] and max(w.within_matrix[7], key=w.within_matrix[7].get) == 8, w.within_matrix.get(7)
+    assert abs(sum(w.within_matrix[7].values()) - 1.0) < 1e-9
+    ticket = w.predict_next_numbers(draws[-1:], temperature=0.5)
+    assert len(ticket) == 5 and ticket == sorted(set(ticket)) and all(1 <= v <= 30 for v in ticket), ticket
+    with_eight = sum(1 for _ in range(50) if 8 in w.predict_next_numbers(draws[-1:], temperature=0.5))
+    assert with_eight >= 45, with_eight          # 7 is in every draw, so 8 follows nearly every time
+    voted, votes = w.generate_voted_ticket(draws[-1:], n_tickets=200, ticket_size=5)
+    assert len(voted) == 5 and votes.get(8, 0) >= 180, (voted, votes.get(8))
 
-    markov.setSoftMAxTemperature(0.45)
-    markov.setAlpha(0.6)
-    markov.setMinOccurrences(2) 
-    markov.setRecencyWeight(1.7)
-    markov.setRecencyMode("constant")
-    markov.setPairDecayFactor(1)
+    # hand count on a tiny history: constant weights, no smoothing, no pruning
+    t = Markov(); t.setMinOccurrences(1); t.setSmoothingFactor(0.0); t.setRecencyMode("constant"); t.setTransitionMode("within")
+    t.build_markov_chain([[1, 2, 5], [1, 3, 5], [2, 3, 5]])
+    assert t.within_matrix[1] == {2: 0.5, 3: 0.5} and t.within_matrix[2] == {3: 0.5, 5: 0.5} and t.within_matrix[3] == {5: 1.0}, t.within_matrix
 
-    # --- GAME CONFIGURATION ---
-    if "keno" in name.lower() or "lotto" in name.lower() or "euro" in name.lower():
-        # Sorted Games: Use Sorted Prediction + Absolute Numbers
-        markov.setSortedPrediction(True)
-        markov.setUsePairScoring(False)
-        markov.setMarkovOrder(2)
-    else:
-        # Positional Games (Pick3): Use Unsorted + Pair Scoring
-        markov.setSortedPrediction(False)
-        markov.setUsePairScoring(True)
-        markov.setPairScoringWeight(0.1)
-        markov.setMarkovOrder(2)
+    # the column path is the default and untouched; the within table exists in both modes
+    c = Markov(); c.setGameRange(1, 30); c.setDrawSize(5); c.setSortedPrediction(True); c.setMinOccurrences(2); c.setRandomSeed(1)
+    c.build_markov_chain(draws)
+    assert c.transition_mode == "column" and c.within_matrix[7] and len(c.transition_matrices) == 5
+    col_ticket = c.predict_next_numbers(draws[-1:], temperature=0.5)
+    assert len(col_ticket) == 5 and all(1 <= v <= 30 for v in col_ticket), col_ticket
 
-    jsonDirPath = os.path.join(os.path.abspath(os.path.join(path, os.pardir)), "test", "database", name)
-    sequenceToPredictFile = os.path.join(jsonDirPath, "2025-6-15.json")
+    # a positional game (pair scoring on) takes the column path whatever the knob says, and says so once
+    p = Markov(); p.setGameRange(0, 9); p.setDrawSize(3); p.setUsePairScoring(True); p.setMinOccurrences(1); p.setTransitionMode("within")
+    p.build_markov_chain([[int(v) for v in rng.integers(0, 10, size=3)] for _ in range(300)])
+    pt = p.predict_next_numbers([[1, 2, 3]], temperature=0.5)
+    assert len(pt) == 3 and all(0 <= v <= 9 for v in pt) and p._within_note_printed, pt
 
-    sequenceToPredict = None
     try:
-        with open(sequenceToPredictFile, 'r') as openfile:
-            sequenceToPredict = json.load(openfile)
-        print("Real result: ", sequenceToPredict["realResult"])
-    except:
+        Markov().setTransitionMode("sideways")
+        raise AssertionError("an unknown mode must be refused")
+    except ValueError:
         pass
-
-    skipLastColumn = 0
-    if "keno" in name.lower():
-        markov.setGameRange(1, 80)
-        markov.setDrawSize(20)
-        generateSubsets = [6, 7]
-
-    elif "lotto" in name.lower():
-        markov.setGameRange(1, 45)
-        markov.setDrawSize(6)
-        skipLastColumn = 1
-
-    elif "vikinglotto" in name.lower():
-        markov.setGameRange(1, 48)
-        markov.setDrawSize(6)
-
-    elif "euro" in name.lower():
-        markov.setGameRange(1, 50)
-        markov.setDrawSize(5)
-
-    elif "pick3" in name.lower():
-        markov.setGameRange(0, 9)
-        markov.setDrawSize(3)
-
-    #####################
-    # Single prediction #
-    #####################
-    predicted_numbers, subsets = markov.run(
-        generateSubsets=generateSubsets,
-        skipLastColumns=skipLastColumn
-    )
-
-    print("Predicted Numbers: ", predicted_numbers)
-    if subsets:
-        print("Subsets: ", subsets)
-
-    if sequenceToPredict is not None:
-        matches = set(predicted_numbers) & set(sequenceToPredict["realResult"])
-        print("Real result: ", sequenceToPredict["realResult"])
-        print("Numbers that matches: ", matches)
-
-    ########################
-    # Generate top tickets #
-    ########################
-    numbers, _, _ = markov.load_numbers(skipLastColumns=skipLastColumn)
-    markov.build_markov_chain(numbers)
-
-    history = numbers[-markov.markov_order:]
-
-    ranked = markov.rank_candidate_tickets(
-        history,
-        n_tickets=10000,
-        top_n=10
-    )
-
-    print("\nTop generated tickets:")
-    print(json.dumps(ranked, indent=4))
-
-    #####################
-    # Top voted numbers #
-    #####################
-
-    voted_ticket, votes = markov.generate_voted_ticket(
-        history,
-        n_tickets=10000,
-        ticket_size=markov.draw_size
-    )
-
-    print("Voted ticket:", voted_ticket)
+    print(f"Markov self-check OK: within-draw chain learns 7 -> 8 (ticket carries 8 in {with_eight} of 50 draws, "
+          f"{votes.get(8)} of 200 votes), hand-counted table matches, column path unchanged, positional games keep the column path")

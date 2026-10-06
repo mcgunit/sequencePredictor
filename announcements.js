@@ -17,6 +17,17 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-05-markov-transition-mode',
+    date: '2026-10-05',
+    level: 'minor',
+    audience: 'all',
+    title: 'The Markov row can learn either transition; the Saturday tuner decides',
+    body: [
+      'Until February 2026 the Markov Model learned how one number is followed by the next inside a sorted draw - the shape of a ticket; since then it learns how each column moves from one draw to the next. Both definitions are now a tuning knob for the set games (markovTransitionMode: column or within), scored on the same days by the Saturday statistical tuner and held to its gate, so which one predicts better is settled by the backtest rather than by memory. The positional games keep the column definition.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-10-05-controls-keno-range-chronos',
     date: '2026-10-05',
     level: 'minor',
