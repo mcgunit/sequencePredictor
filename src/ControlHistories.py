@@ -106,8 +106,9 @@ _ERA_NOTED = set()      # games whose dropped era this process has already repor
 # which the number range alone does not always betray: a 20-of-80 keno draw
 # lies wholly inside 1-70 about one time in twenty, and two of the 58 old
 # draws do. Rows dated before this are dropped together with the ones whose
-# numbers fall outside the configured range.
-ERA_START = {"keno": "2008-03-09"}
+# numbers fall outside the configured range. One table for the models and
+# the controls: Helpers.GAME_ERA_START (Helpers.load_data applies it too).
+ERA_START = Helpers.GAME_ERA_START
 
 
 def current_era(game, rows):

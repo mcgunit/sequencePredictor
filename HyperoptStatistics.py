@@ -312,7 +312,8 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
     model.setRecencyMode(trial.suggest_categorical('markovRecencyMode', ["linear", "log", "constant"]))
     model.setPairDecayFactor(trial.suggest_float('markovPairDecayFactor', 0.1, 1.0))
     model.setSmoothingFactor(trial.suggest_float('markovSmoothingFactor', 0.01, 1.0))
-    model.setSubsetSelectionMode(trial.suggest_categorical('markovSubsetSelectionMode', ["top", "softmax"]))
+    # markovSubsetSelectionMode is no longer searched (7 Oct 2026): Markov.generate_best_subset was never
+    # reading it, and the stored 'softmax' would have sampled the keno subset almost uniformly; the subset is the top k.
     model.setBlendMode(trial.suggest_categorical('markovBlendMode', ["linear", "harmonic", "log"]))
     model.setMarkovOrder(trial.suggest_int('markovOrder', 1, 3))
 
@@ -687,7 +688,7 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
                 mode=weighted_mode, temperature=weighted_temperature)
             profit = helpers.keno_ticket_profit(subset, day["actual"])
             if profit is not None:
-                day_bets.append(profit)
+                day_bets.append((profit, subset_size))
 
             if day["meta_ticket"] is not None:
                 subset = helpers.generate_subset_from_scores(
@@ -695,7 +696,7 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
                     mode=meta_mode, temperature=meta_temperature)
                 profit = helpers.keno_ticket_profit(subset, day["actual"])
                 if profit is not None:
-                    day_bets.append(profit)
+                    day_bets.append((profit, subset_size))
 
             if day["meta_v2_ticket"] is not None:
                 subset = helpers.generate_subset_from_scores(
@@ -703,7 +704,7 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
                     mode=meta_v2_mode, temperature=meta_v2_temperature)
                 profit = helpers.keno_ticket_profit(subset, day["actual"])
                 if profit is not None:
-                    day_bets.append(profit)
+                    day_bets.append((profit, subset_size))
 
         bets_by_day.append(day_bets)
 

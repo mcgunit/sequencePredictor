@@ -54,6 +54,8 @@ class Markov():
         self.transition_mode = "column"
         self.within_matrix = {}
         self._within_note_printed = False
+        # {number: mass} of the last run() - the ranking its keno subsets are cut by
+        self._last_number_scores = None
         
         # Data Structures
         self.transition_matrices = [] 
@@ -79,6 +81,7 @@ class Markov():
     def clear(self):
         self.transition_matrices = []
         self.within_matrix = {}
+        self._last_number_scores = None
         self.col_frequencies = []
         self.global_frequencies = defaultdict(int)
         self.pair_counts = defaultdict(lambda: defaultdict(int))
@@ -93,7 +96,7 @@ class Markov():
     def setRecencyMode(self, m): self.recency_mode = m
     def setPairDecayFactor(self, d): self.pair_decay_factor = d
     def setSmoothingFactor(self, s): self.smoothing_factor = s
-    def setSubsetSelectionMode(self, m): self.subset_selection_mode = m
+    def setSubsetSelectionMode(self, m): self.subset_selection_mode = m   # accepted, not read since 7 Oct 2026 (see generate_best_subset)
     def setBlendMode(self, m): self.blend_mode = m
     def setMarkovOrder(self, order): self.markov_order = max(1, int(order))
     def setTransitionMode(self, mode):
@@ -430,6 +433,44 @@ class Markov():
 
         return prediction
 
+    def number_scores_from_chain(self, history_draws, temperature):
+        """
+        {number: mass} the chain puts on every number for the next draw, in
+        the mode in use - the ranking the keno subsets are cut by. Column
+        mode sums each column's blended distribution (_column_distribution,
+        no sorted constraint): over sorted positions that sum is the chain's
+        probability that the number is drawn at all. Within mode sums the
+        successor tables of the last draw's numbers and adds the blended
+        frequency fill, as _within_prediction does. Untempered on purpose:
+        the temperature shapes the sampled ticket, and a sharpened first
+        column would put all its mass on 1 and rank 1 and 70 into every
+        subset; `temperature` is accepted for the call sites and ignored.
+        """
+        if history_draws is None or len(history_draws) == 0 or len(history_draws[0]) == 0:   # a numpy slice, not a list
+            return {}
+        temperature = 1.0
+        scores = defaultdict(float)
+        if self.transition_mode == "within" and not self.use_pair_scoring:
+            last = [int(v) for v in history_draws[-1]]
+            for num in last:
+                successors = self.within_matrix.get(num)
+                if not successors:
+                    continue
+                probs = np.asarray(self.softmax_with_temperature(list(successors.values()), temperature), dtype=float)
+                for cand, p in zip(successors.keys(), probs):
+                    scores[int(cand)] += float(p)
+            blended = self.blended_probability(self.within_matrix.get(last[-1], {}), self.global_frequencies)
+            total = sum(blended.values()) or 1.0
+            for cand, value in blended.items():
+                scores[int(cand)] += float(value) / total
+            return dict(scores)
+        relevant = history_draws[-self.markov_order:]
+        for col in range(len(relevant[0])):
+            cands, probs = self._column_distribution(relevant, col, temperature)
+            for cand, p in zip(cands, probs):
+                scores[int(cand)] += float(p)
+        return dict(scores)
+
     def _within_prediction(self, last_draw, temperature):
         """
         The 2025 Markov row's ticket: for every number of the last draw, a
@@ -480,10 +521,25 @@ class Markov():
         return sorted(picks[:n])
 
     def generate_best_subset(self, predicted_numbers, nSubset):
+        """
+        The keno subset: the ticket's numbers ranked by the chain's own mass
+        on them (number_scores_from_chain, set by run()), the top nSubset.
+        Until 7 Oct 2026 the ranking was the global frequency; the frequency
+        stays as the fallback when no masses exist (a caller that built the
+        chain without run()). The markovSubsetSelectionMode knob was tuned
+        for a year and a half without ever being read; honouring its stored
+        "softmax" would have made the served keno subset a near-uniform
+        sample of the ticket (the chain's masses span 0.27-0.30 on the real
+        history), so the subset is the top k and the tuner no longer searches
+        the knob - the setter stays for the files that carry the key.
+        """
         unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
-        
-        # Rank the predicted numbers by their global historical frequency (highest first)
-        ranked_prediction = sorted(unique_numbers, key=lambda x: self.global_frequencies.get(x, 0), reverse=True)
+        scores = self._last_number_scores or {}
+        if scores:
+            ranked_prediction = sorted(unique_numbers, key=lambda n: (-scores.get(n, 0.0), n))
+        else:
+            # Rank the predicted numbers by their global historical frequency (highest first)
+            ranked_prediction = sorted(unique_numbers, key=lambda x: self.global_frequencies.get(x, 0), reverse=True)
         
         if len(ranked_prediction) < nSubset:
             # Fallback to global frequent numbers
@@ -588,6 +644,7 @@ class Markov():
         self.build_markov_chain(numbers)
 
         history_context = numbers[-self.markov_order:]
+        self._last_number_scores = self.number_scores_from_chain(history_context, self.softMaxTemperature)
         predicted_numbers = self.predict_next_numbers(
             history_context,
             temperature=self.softMaxTemperature
@@ -727,6 +784,10 @@ if __name__ == "__main__":
     assert with_eight >= 45, with_eight          # 7 is in every draw, so 8 follows nearly every time
     voted, votes = w.generate_voted_ticket(draws[-1:], n_tickets=200, ticket_size=5)
     assert len(voted) == 5 and votes.get(8, 0) >= 180, (voted, votes.get(8))
+    w._last_number_scores = w.number_scores_from_chain(draws[-1:], 0.5)
+    assert w._last_number_scores.get(8, 0) > 0 and 8 in w.generate_best_subset(ticket if 8 in ticket else ticket[:4] + [8], 2), "the subset must follow the chain's masses"
+    w.setSubsetSelectionMode("softmax")      # the retired knob changes nothing: the subset stays the top k
+    assert w.generate_best_subset(ticket if 8 in ticket else ticket[:4] + [8], 2) == sorted(sorted(ticket if 8 in ticket else ticket[:4] + [8], key=lambda n: (-w._last_number_scores.get(n, 0.0), n))[:2])
 
     # hand count on a tiny history: constant weights, no smoothing, no pruning
     t = Markov(); t.setMinOccurrences(1); t.setSmoothingFactor(0.0); t.setRecencyMode("constant"); t.setTransitionMode("within")

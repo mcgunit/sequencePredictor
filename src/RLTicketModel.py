@@ -614,7 +614,7 @@ class RLTicketModel():
             positions = drawSize
             candidates = np.arange(classes)
         else:
-            numberRange = gameConfig.get("numberRange") or (1, 80)
+            numberRange = gameConfig.get("numberRange") or (1, 70)   # keno's real range; the caller always passes one
             if isinstance(numberRange, (list, tuple)):
                 low, high = int(numberRange[0]), int(numberRange[-1])
             else:

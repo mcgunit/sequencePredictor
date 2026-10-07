@@ -1353,7 +1353,8 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
             try:
                 number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels)
                 for subset_size in (kenoSubsetSizes if kenoSubsetSizes is not None else range(5, 11)):
-                    subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size)
+                    # top-k by the row's own probabilities (EV-optimal for every size; a softmax sample at 0.5 until 7 Oct 2026)
+                    subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size, mode="top")
                     nthPredictions["predictions"].append(subset)
             except Exception as e:
                 print("Failed to generate keno subsets: ", e)

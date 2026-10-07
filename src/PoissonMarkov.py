@@ -22,6 +22,8 @@ class PoissonMarkov:
         self.poisson_weight = 0.5  # Weight assigned to Poisson predictions
         self.markov_weight = 0.5   # Weight assigned to Markov predictions
         self.sorted_prediction = True  # Set False for positional games like Pick3
+        self._last_number_scores = {}   # the blend's weight per number from the last run()
+        self._last_tie_break = {}       # the sub-models' own scores, the second sort key of a subset
 
     def setSortedPrediction(self, use):
         """
@@ -59,6 +61,19 @@ class PoissonMarkov:
         for num in markov_numbers:
             combined_counts[int(num)] += self.markov_weight
 
+        # The blend's weights take at most three values (one model's weight,
+        # the other's, their sum), so a subset would be completed by number
+        # order; the sub-models' own scores (the Poisson counts, the chain's
+        # masses, each normalised) break the ties inside a weight class
+        # instead - as a second sort key, so they can never outrank a
+        # heavier class whatever the weights are (7 Oct 2026).
+        poisson_scores = dict(getattr(self.poisson_model, "_last_number_scores", {}) or {})
+        markov_scores = dict(getattr(self.markov_model, "_last_number_scores", {}) or {})
+        p_max = max(poisson_scores.values(), default=0) or 1.0
+        m_max = max(markov_scores.values(), default=0) or 1.0
+        self._last_number_scores = {int(num): float(weight) for num, weight in combined_counts.items()}
+        self._last_tie_break = {int(num): (poisson_scores.get(int(num), 0) / p_max + markov_scores.get(int(num), 0) / m_max) / 2
+                                for num in combined_counts}
         # Random tie-breaking with consistent ordering
         unique_numbers = list(combined_counts.keys())
         random.shuffle(unique_numbers)
@@ -69,18 +84,19 @@ class PoissonMarkov:
         return sorted_numbers[:n_predictions]
 
     def generate_best_subset(self, predicted_numbers, nSubset):
-        """Generate a subset using probability-based selection."""
-        unique_numbers = list(set(int(num) for num in predicted_numbers))
-
-        if len(unique_numbers) < nSubset:
-            return sorted(unique_numbers)  # Already native ints
-
-        probabilities = np.linspace(1.0, 0.5, len(unique_numbers))
-        probabilities /= probabilities.sum()
-
-        best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
-
-        return sorted(int(num) for num in best_subset)
+        """
+        The keno subset: the ticket's numbers ranked by the blend's weight on
+        them (both sub-models' votes), ties inside a weight class broken by
+        the sub-models' own scores, the top nSubset. Until 7 Oct 2026 the
+        weights were a linspace over set(ticket) - numeric order.
+        """
+        unique_numbers = list(dict.fromkeys(int(num) for num in predicted_numbers))
+        if len(unique_numbers) <= nSubset:
+            return sorted(unique_numbers)
+        scores = self._last_number_scores
+        ties = self._last_tie_break
+        ranked = sorted(unique_numbers, key=lambda num: (-scores.get(num, 0.0), -ties.get(num, 0.0), num))
+        return sorted(ranked[:nSubset])
 
     def run(self, generateSubsets=[], skipRows=0, skipLastColumns=0, specialColumnCount=0):
         """Runs both models, blends predictions, and generates subsets if needed."""

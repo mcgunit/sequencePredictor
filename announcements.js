@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-07-keno-real-game-honest-subsets',
+    date: '2026-10-07',
+    level: 'minor',
+    audience: 'all',
+    title: 'Keno: the real game, honest subsets, and a fair yardstick per ticket size',
+    body: [
+      'Keno is now a 1-70 game in every model, as it has been since March 2008; the deep-learning rows for keno retrain once in the next daily run because their class count changed, and the 58 draws of the old 1-80 game stay out of every window. Every row\'s playable subsets (the 5- to 10-number tickets) are now its most likely numbers by its own probabilities: two Markov rows had been serving their coldest numbers, three statistical rows drew theirs at random with a tilt towards their lowest numbers, two more ranked by overall frequency, and the deep-learning rows drew a probability-weighted sample instead of their most likely numbers. Subset results before today came from that slicing; judge the rows\' subsets from today on as new.',
+      'The History page\'s keno ranking shows profit per bet and bets for each ticket size a row played, and the Saturday tuner now subtracts from every keno bet what a fair ticket of that size is worth under its cap, so a fair ticket scores zero at every size and the stored scores can be read across sizes. Today only the 10-number ticket is served (use_10 in bestParams_keno.json); serving more sizes means setting use_5 to use_9 to true in that file - the tuners do not overwrite them.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-10-05-markov-transition-mode',
     date: '2026-10-05',
     level: 'minor',

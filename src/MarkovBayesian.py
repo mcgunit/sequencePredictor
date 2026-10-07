@@ -29,12 +29,14 @@ class MarkovBayesian():
         self.number_frequencies = defaultdict(int)
         self.bayesian_priors = defaultdict(lambda: 1)  # Prior counts for Bayesian model
         self.sorted_prediction = True  # Set False for positional games like Pick3
+        self._last_draw = None   # the draw the last run() predicted from - generate_best_subset reads the chain from it
 
     def clear(self):
         self.transition_matrix = defaultdict(lambda: defaultdict(int))
         self.pair_counts = defaultdict(lambda: defaultdict(int))
         self.number_frequencies = defaultdict(int)
         self.bayesian_priors = defaultdict(lambda: 1)  # Reset Bayesian priors
+        self._last_draw = None
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -56,22 +58,23 @@ class MarkovBayesian():
         self.sorted_prediction = bool(use)
 
     def generate_best_subset(self, predicted_numbers, nSubset):
-        """Generate a subset of numbers using weighted selection based on Markov probabilities and frequencies."""
-        unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure unique standard integers
-
-        if len(unique_numbers) < nSubset:
-            return unique_numbers  # Fallback if not enough numbers
-
-        # Compute blended probabilities using Markov and frequency data
-        blended_probs = self.blended_probability({num: 1 for num in unique_numbers}, self.number_frequencies)
-
-        # Sort numbers based on probability values
-        sorted_numbers = sorted(unique_numbers, key=lambda x: blended_probs.get(x, 0), reverse=False)
-
-        # Select the top `nSubset` numbers
-        best_subset = sorted_numbers[:nSubset]
-
-        return sorted(map(int, best_subset))
+        """
+        The keno subset: the ticket's numbers ranked by the chain's mass on
+        them from the last draw (the transition rows of its numbers), blended
+        with the frequencies the row ranks by, hottest first. Until 7 Oct
+        2026 the Markov term was a constant 1 and the sort ran ascending, so
+        the served subset was the ticket's coldest numbers.
+        """
+        unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
+        if len(unique_numbers) <= nSubset:
+            return sorted(unique_numbers)
+        markov_mass = defaultdict(float)
+        for previous in (self._last_draw or []):
+            for num, probability in (self.transition_matrix.get(int(previous)) or {}).items():
+                markov_mass[int(num)] += float(probability)
+        blended_probs = self.blended_probability({num: markov_mass.get(num, 0.0) for num in unique_numbers}, self.number_frequencies)
+        ranked = sorted(unique_numbers, key=lambda num: (-blended_probs.get(num, 0.0), num))
+        return sorted(ranked[:nSubset])
 
     def softmax_with_temperature(self, probabilities, temperature=1.0):
         """Applies temperature scaling to control randomness."""
@@ -185,6 +188,7 @@ class MarkovBayesian():
 
         # Get the last drawn numbers
         last_draw = numbers[-1]
+        self._last_draw = [int(v) for v in last_draw]
 
         # Update Bayesian model with the last drawn numbers
         self.update_bayesian_model(last_draw)

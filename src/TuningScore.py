@@ -21,6 +21,18 @@ What is scored instead - one number per trial, higher is better:
       single bet's profit is capped at LUCKY_STRIKE_CAP (Metrics'
       LUCKY_STRIKE_THRESHOLD, 20 EUR net). A jackpot counts as one good bet,
       not as the whole window; the 1-10 EUR tiers keep their full value.
+      Since 7 Oct 2026 each keno bet's capped profit has the fair capped
+      value of its ticket size subtracted (fair_capped_ev): the cap leaves a
+      fair 6-ticket at -0.52 and a fair 10-ticket at -0.70 of its stake,
+      because a 6-ticket's prizes mostly sit under the 20 EUR cap and a
+      10-ticket's mostly above it. A fair ticket now scores 0 in mean at
+      every size, so stored keno scores read alike across sizes and across
+      changes of the served sizes; within one run every candidate bets the
+      same sizes, so the baseline is a constant there and changes no
+      decision. The bound still differs between sizes under the null (its
+      penalty term scales with the capped payoff's spread: about -0.17 for
+      a fair 6-ticket over 90 days, -0.10 for a 10-ticket), and the recorded
+      raw profit per bet stays what it was.
   positional games (pick3, Joker+)
       the lower confidence bound of the per-day slot hits, which every draw
       informs, plus POSITIONAL_PROFIT_WEIGHT x the capped profit bound as a
@@ -84,20 +96,64 @@ def _number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+_FAIR_CAPPED = {}
+
+
+def fair_capped_ev(size, cap=LUCKY_STRIKE_CAP, drawn=20, pool=70):
+    """
+    What a `size`-number keno ticket is worth per 1 EUR under a fair draw,
+    with every bet capped the way the objective caps it - the baseline a
+    keno bet's capped profit is measured against (7 Oct 2026), so that
+    ticket sizes compare. The cap is not size-neutral: on a fair 20-of-70
+    draw a 6-ticket keeps -0.52 of its stake under it and a 10-ticket -0.70,
+    while the raw expectation is -0.46 to -0.48 for every size; without the
+    baseline a tuner offered several sizes would favour the 6-ticket for the
+    cap, not for skill. Hypergeometric matches against
+    Helpers.PAYOUT_TABLE_KENO; None for a size the table does not pay.
+    """
+    if size is None or not 5 <= int(size) <= 10:       # the playable sizes, as keno_ticket_profit tracks them
+        return None
+    key = (int(size), float(cap), drawn, pool)
+    if key in _FAIR_CAPPED:
+        return _FAIR_CAPPED[key]
+    try:
+        from src.Helpers import Helpers      # lazy: this module stays light for the tuners' children
+    except ImportError:                      # imported from inside src/ (the Backtester's style)
+        from Helpers import Helpers
+    table = Helpers.PAYOUT_TABLE_KENO.get(int(size))
+    if not table:
+        _FAIR_CAPPED[key] = None
+        return None
+    stake = -Helpers.PAYOUT_TABLE_KENO["lost"]
+    total = math.comb(pool, int(size))
+    value = 0.0
+    for matches in range(0, int(size) + 1):
+        probability = math.comb(drawn, matches) * math.comb(pool - drawn, int(size) - matches) / total
+        payout = table.get(matches)
+        net = (payout - stake) if payout is not None else Helpers.PAYOUT_TABLE_KENO["lost"]
+        value += probability * min(net, cap)
+    _FAIR_CAPPED[key] = value
+    return value
+
+
 def bet_profits(row, model_name):
     """
     Every bet this model placed on one backtest day: the main ticket's profit
     (pick3, Joker+ - "<model>_profit") and each Keno subset's
     ("<model>_subset_<size>_profit"), as the Backtester wrote them.
+    Each bet is a (profit, size) pair: the size is the subset's number count
+    (the fair baseline of fair_capped_ev applies to it), None for a main
+    ticket.
     """
     profits = []
     main = row.get(f"{model_name}_profit")
     if _number(main):
-        profits.append(float(main))
+        profits.append((float(main), None))
     prefix = f"{model_name}_subset_"
     for key, value in row.items():
         if key.startswith(prefix) and key.endswith("_profit") and _number(value):
-            profits.append(float(value))
+            size = key[len(prefix):-len("_profit")]
+            profits.append((float(value), int(size) if size.isdigit() else None))
     return profits
 
 
@@ -189,14 +245,30 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
     bets = 0
     total = 0.0
     strikes = 0
+    fair_total = 0.0
+    fair_bets = 0
     for profits in bets_by_day or []:
-        profits = [float(p) for p in profits if _number(p)]
-        if not profits:
+        # a bet is a profit or a (profit, size) pair - the size names the keno
+        # ticket whose fair capped value (fair_capped_ev) is subtracted, so a
+        # day's number is "capped profit above a fair ticket" and sizes compare
+        today = []
+        for item in profits or []:
+            profit, size = (item if isinstance(item, (tuple, list)) and len(item) == 2 else (item, None))
+            if _number(profit):
+                today.append((float(profit), size))
+        if not today:
             continue
-        bets += len(profits)
-        total += sum(profits)
-        strikes += sum(1 for p in profits if p >= cap)
-        profit_days.append(sum(min(p, cap) for p in profits) / len(profits))
+        bets += len(today)
+        total += sum(p for p, _ in today)
+        strikes += sum(1 for p, _ in today if p >= cap)
+        adjusted = []
+        for p, size in today:
+            fair = fair_capped_ev(size, cap) if size is not None else None
+            if fair is not None:
+                fair_total += fair
+                fair_bets += 1
+            adjusted.append(min(p, cap) - (fair or 0.0))
+        profit_days.append(sum(adjusted) / len(adjusted))
     hits_days = [float(h) for h in (hits_by_day or []) if _number(h)]
     log_days = [float(v) for v in (logs_by_day or []) if _number(v)]
 
@@ -227,6 +299,8 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
         "bets": bets,
         "profit_per_bet": (total / bets) if bets else None,
         "capped_profit_bound": capped_bound,
+        # the mean fair capped value of the keno bets that were measured against one (None elsewhere)
+        "fair_capped_per_bet": (fair_total / fair_bets) if fair_bets else None,
         "hits_mean": float(np.mean(hits_days)) if hits_days else None,
         "hits_bound": hits_bound,
         "lucky_strikes": strikes,
@@ -312,6 +386,8 @@ def describe(tuning):
     text = f"score {score:+.4f}" if _number(score) else "score -inf"
     kind = {"capped_profit": "capped profit/bet bound", "positional": "slot-hit bound",
             "hits": "hits bound", "log_score": "log-score bound"}.get(tuning.get("kind"), str(tuning.get("kind")))
+    if _number(tuning.get("fair_capped_per_bet")):
+        kind = f"{kind} above a fair ticket ({tuning['fair_capped_per_bet']:+.2f}/bet)"
     parts = [f"{text} ({kind}, {tuning.get('days', 0)} days)"]
     if _number(tuning.get("log_score_mean")):
         uniform = tuning.get("uniform_log_score")
@@ -353,6 +429,16 @@ if __name__ == "__main__":
     check(s_steady["score"] > s_jackpot["score"],
           f"steady small wins ({s_steady['score']:.3f}) must outrank the jackpot window ({s_jackpot['score']:.3f})")
     check(s_jackpot["kind"] == "capped_profit" and s_jackpot["days"] == 31 and s_jackpot["bets"] == 62, "keno bookkeeping")
+    # the fair capped baseline: a fair 6-ticket keeps more of its stake under the cap than a fair 10-ticket
+    check(abs(fair_capped_ev(6) - (-0.524)) < 0.01 and abs(fair_capped_ev(10) - (-0.703)) < 0.01 and fair_capped_ev(4) is None,
+          f"fair capped values: {fair_capped_ev(6)}, {fair_capped_ev(10)}, {fair_capped_ev(4)}")
+    # a bet exactly at its size's fair capped value scores 0, whatever the size
+    even = score_bets_by_day([[(fair_capped_ev(6), 6), (fair_capped_ev(10), 10)]] * 10)
+    check(abs(even["score"]) < 1e-9 and abs(even["fair_capped_per_bet"] - (fair_capped_ev(6) + fair_capped_ev(10)) / 2) < 1e-9,
+          f"fair bets must score 0 at every size: {even['score']}")
+    check(s_jackpot["fair_capped_per_bet"] is not None and s_jackpot["profit_per_bet"] == (348 - 60) / 62, "raw profit per bet is not adjusted")
+    # plain floats still work (pick3's main ticket carries no size)
+    check(score_bets_by_day([[-1.0, 3.0]])["bets"] == 2, "float bets")
 
     # pick3: one straight (+756) among 30 losses versus three pairs (+46 each).
     # Rows carry the drawn-order ticket and draw, as the Backtester writes them;
@@ -436,8 +522,9 @@ if __name__ == "__main__":
     check(score_rows([], "m", payout=True)["score"] == NEG_INF, "no rows -> -inf")
     check(score_rows([{"index": 0, "m_error": "boom"}], "m", payout=True)["score"] == NEG_INF, "error rows are not results")
     check(score_rows(jackpot, "other", payout=True)["score"] == NEG_INF, "another model's rows do not count")
-    check(score_rows(jackpot, "m", payout=True, penalty=0)["capped_profit_bound"] == np.mean(
-        [(min(a, 20) + min(b, 20)) / 2 for a, b in [(-1, -1)] * 22 + [(149, 199)] + [(-1, -1)] * 8]), "penalty 0 is the capped mean")
+    check(abs(score_rows(jackpot, "m", payout=True, penalty=0)["capped_profit_bound"] - np.mean(
+        [(min(a, 20) - fair_capped_ev(5) + min(b, 20) - fair_capped_ev(6)) / 2
+         for a, b in [(-1, -1)] * 22 + [(149, 199)] + [(-1, -1)] * 8])) < 1e-9, "penalty 0 is the capped mean above the fair baseline")
 
     # bound arithmetic
     check(lower_bound([]) is None and lower_bound([2.0]) == 2.0, "empty/single bounds")

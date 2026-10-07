@@ -79,6 +79,11 @@ class MarkovMonteCarlo:
                 temperature=self.model.softMaxTemperature
             )
 
+        # The row's own votes rank its subsets: the base chain's run() did
+        # not run here, so its masses are empty and generate_best_subset
+        # would fall back to the global frequency (found in review, 7 Oct 2026).
+        self.model._last_number_scores = ({int(n): float(v) for n, v in votes.items()}
+                                          if self.model.sorted_prediction else None)
         subsets = {}
 
         for subset_size in generateSubsets:

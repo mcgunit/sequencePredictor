@@ -82,6 +82,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
         self.build_markov_chain(numbers)
 
         last_draw = numbers[-1]
+        self._last_draw = [int(v) for v in last_draw]
         self.update_bayesian_model(last_draw)
 
         predicted_numbers = self.ensemble_prediction(last_draw, n_predictions=len(last_draw))
@@ -116,6 +117,7 @@ class MarkovBayesianEnhanced(MarkovBayesian):
         self.build_markov_chain(numbers)
 
         last_draw = numbers[-1]
+        self._last_draw = [int(v) for v in last_draw]
         self.update_bayesian_model(last_draw)
 
         n_predictions = len(last_draw)

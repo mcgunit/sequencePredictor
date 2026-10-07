@@ -25,9 +25,11 @@ class LaplaceMonteCarlo():
         self.recent_draws = 100  # Look-back window
         self.position_stats = defaultdict(lambda: [])
         self.sorted_prediction = True  # Set False for positional games like Pick3
+        self._last_number_scores = defaultdict(int)   # simulated counts per number, summed over the positions of the last run()
 
     def clear(self):
         self.position_stats = defaultdict(lambda: [])
+        self._last_number_scores = defaultdict(int)
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -46,20 +48,18 @@ class LaplaceMonteCarlo():
         self.sorted_prediction = bool(use)
 
     def generate_best_subset(self, predicted_numbers, nSubset):
-        """Generate a unique subset using weighted probability selection."""
-        unique_numbers = list(set(map(int, predicted_numbers)))  # Ensure standard integers
-
-        if len(unique_numbers) < nSubset:
-            return unique_numbers  # Fallback if not enough numbers
-
-        # Assign probabilities (higher for top-ranked numbers)
-        probabilities = np.linspace(1.0, 0.5, len(unique_numbers))
-        probabilities /= probabilities.sum()  # Normalize
-
-        # Randomly select numbers based on weighted probability
-        best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
-
-        return sorted(map(int, best_subset))
+        """
+        The keno subset: the ticket's numbers ranked by the simulation's own
+        counts for them (summed over the positions), the top nSubset. Until
+        7 Oct 2026 the weights were a linspace over set(ticket) - numeric
+        order, no model information.
+        """
+        unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
+        if len(unique_numbers) <= nSubset:
+            return sorted(unique_numbers)
+        scores = self._last_number_scores
+        ranked = sorted(unique_numbers, key=lambda num: (-scores.get(num, 0), num))
+        return sorted(ranked[:nSubset])
 
     def ensure_unique_prediction(self, predicted_numbers, n_predictions):
         unique_numbers = list(dict.fromkeys(map(int, predicted_numbers)))
@@ -112,6 +112,8 @@ class LaplaceMonteCarlo():
                     sampled_value = max(self.min_number, min(self.max_number, sampled_value))
                     simulated_counts[sampled_value] += 1
             
+            for num, count in simulated_counts.items():
+                self._last_number_scores[int(num)] += count
             # Normalize and apply softmax filtering
             if simulated_counts:
                 raw_values = np.array([simulated_counts[num] for num in simulated_counts])

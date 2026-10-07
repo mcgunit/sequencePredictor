@@ -918,7 +918,7 @@ if __name__ == "__main__":
     # -------------------------
     markov = Markov()
     markov.setDataPath(dataPath)
-    markov.setGameRange(1, 80)
+    markov.setGameRange(1, 70)
     markov.setDrawSize(20)
     markov.setSoftMAxTemperature(bestParams.get("markovSoftMaxTemperature", 0.45))
     markov.setAlpha(bestParams.get("markovAlpha", 0.6))
@@ -940,7 +940,7 @@ if __name__ == "__main__":
     # -------------------------
     markov_mc_base = Markov()
     markov_mc_base.setDataPath(dataPath)
-    markov_mc_base.setGameRange(1, 80)
+    markov_mc_base.setGameRange(1, 70)
     markov_mc_base.setDrawSize(20)
     markov_mc_base.setSoftMAxTemperature(bestParams.get("markovMcSoftMaxTemperature", 0.45))
     markov_mc_base.setAlpha(bestParams.get("markovMcAlpha", 0.6))

@@ -918,7 +918,7 @@ function generatePerformanceSummary() {
       const sm = sinceByName[m.name];
       const sinceYoung = sm && since && sm.draws < since.minDrawsForRanking;
       const sinceCells = !since ? '' : `<td${sinceYoung ? ' style="color:#aaa;" title="Too few scored draws since the date to rank"' : ''}>${sm ? sinceDisplay(sm[info.metric]) : '-'}</td><td${sinceYoung ? ' style="color:#aaa;"' : ''}>${sm ? sm.draws : '-'}</td>`;
-      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td>${sinceCells}</tr>`;
+      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td>${game === 'keno' ? `<td style="font-size:0.85em; white-space:nowrap;">${m.profit_by_size ? Object.keys(m.profit_by_size).map((k) => `${k}: ${m.profit_by_size[k].profit_per_bet} € (${m.profit_by_size[k].bets})`).join(' · ') : '-'}</td>` : ''}${sinceCells}</tr>`;
     }).join('');
 
     const bestNote = inBand(best) ? ' <span style="color: #999; font-weight: normal; font-size: 0.85em;" title="The best row is within the null band">∅ within band</span>' : '';
@@ -936,7 +936,7 @@ function generatePerformanceSummary() {
       <tr id="rank-${game}" style="display: none;">
         <td colspan="7" style="padding: 0;">
           <table style="width: 100%; min-width: 0; margin: 0;">
-            <tr><th>#</th><th style="text-align: left;">Model</th><th>${metricLabel[info.metric] || info.metric}</th><th>Avg hits</th><th>Best day</th><th>Scored draws</th>${since ? `<th title="${auth.escapeHtml(since.label)} - the null band is measured over long control histories and is not applied to this column">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
+            <tr><th>#</th><th style="text-align: left;">Model</th><th>${metricLabel[info.metric] || info.metric}</th><th>Avg hits</th><th>Best day</th><th>Scored draws</th>${game === 'keno' ? '<th title="profit per bet and bets for each playable ticket size the row played, so the sizes can be read apart">Per ticket size</th>' : ''}${since ? `<th title="${auth.escapeHtml(since.label)} - the null band is measured over long control histories and is not applied to this column">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
             ${ranking}
           </table>
         </td>

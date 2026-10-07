@@ -814,7 +814,7 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, labels, nOfPr
         try:
             number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, labels)
             for subset_size in tuned_keno_subset_sizes(name):
-                subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size)
+                subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size, mode="top")
                 nthPredictions["predictions"].append(subset)
         except Exception as e:
             print("Failed to generate keno subsets: ", e)

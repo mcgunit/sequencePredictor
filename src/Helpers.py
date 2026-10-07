@@ -160,6 +160,11 @@ class Helpers():
     is_market_game = staticmethod(is_market_game)
     market_ticket_profit = staticmethod(market_ticket_profit)
 
+    # The first draw under today's rules, per game whose rules once differed:
+    # Keno drew 20 of 1-80 until 8 March 2008 and 20 of 1-70 since. Read by
+    # load_data (every model) and by src/ControlHistories (every control).
+    GAME_ERA_START = {"keno": "2008-03-09"}
+
     PAYOUT_TABLE_KENO = {
         10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
         9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
@@ -306,7 +311,12 @@ class Helpers():
         if "lotto" in dataPath:
             unique_labels = np.arange(1, 46)  # This should create an array [1, 2, ..., 45]
         if "keno" in dataPath:
-            unique_labels = np.arange(1, 81)  # This should create an array [1, 2, ..., 80]
+            # 20 of 1-70 since 9 March 2008 (the 58 earlier draws of the 1-80
+            # game never reach a model: load_data drops them, GAME_ERA_START).
+            # Until 7 Oct 2026 this said 1-80, Markov's old default: ten dead
+            # softmax classes in the deep-learning and boosting rows (the
+            # meta-learner tables read GAME_CONFIG, fixed 5 Oct 2026).
+            unique_labels = np.arange(1, 71)
         if "vikinglotto" in dataPath:
             unique_labels = np.arange(1, 49)  # This should create an array [1, 2, ..., 49]
         if "pick3" in dataPath:
@@ -623,6 +633,7 @@ class Helpers():
                         "draws": 0, "hits_total": 0, "best_hits": 0,
                         "special_hits_total": 0,
                         "profit_total": 0.0, "bets": 0,
+                        "by_size": {},          # keno: {ticket size: {"bets", "profit_total"}}
                     })
 
                     mainTicket = predictions[0]
@@ -693,6 +704,9 @@ class Helpers():
                                 rowProfit += profit
                                 rowBets += 1
                                 playable.append([int(n) for n in ticket])
+                                bySize = entry["by_size"].setdefault(len(ticket), {"bets": 0, "profit_total": 0.0})
+                                bySize["bets"] += 1
+                                bySize["profit_total"] += profit
                     elif "pick3" in game:
                         profit = self.pick3_ticket_profit(mainTicket, realResult)
                         if profit is not None:
@@ -756,6 +770,10 @@ class Helpers():
                     "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
                     "profit_per_bet": round(profitPerBet, 3) if profitPerBet is not None else None,
                     "bets": entry["bets"],
+                    # keno: the same two numbers per ticket size the row played, so the sizes can be read apart (7 Oct 2026)
+                    "profit_by_size": ({str(size): {"bets": v["bets"], "profit_total": round(v["profit_total"], 2),
+                                                    "profit_per_bet": round(v["profit_total"] / v["bets"], 3)}
+                                        for size, v in sorted(entry["by_size"].items())} if entry.get("by_size") else None),
                     "multi_pick": multiOut,
                 })
 
@@ -2161,6 +2179,13 @@ class Helpers():
 
         
         
+    def era_start(self, dataPath):
+        """The first date of today's rules for the game behind dataPath (GAME_ERA_START), or None."""
+        for game, first in self.GAME_ERA_START.items():
+            if game in str(dataPath):
+                return parse(first)
+        return None
+
     def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None, specialColumnCount=0):
         # Initialize an empty list to hold the data
         data = []
@@ -2212,6 +2237,15 @@ class Helpers():
 
         # Sort the data by date
         data.sort(key=lambda x: x[0], reverse=False)  # Oldest to newest
+
+        # An earlier version of the game stays out of every window, whatever
+        # years_back says (GAME_ERA_START: Keno drew 20 of 1-80 until 8 March
+        # 2008; its rows would hand a 1-80 range to every data-derived model
+        # and a value the one-hot encoder refuses). The controls apply the
+        # same rule (src/ControlHistories.current_era).
+        era = self.era_start(dataPath)
+        if era is not None:
+            data = [entry for entry in data if entry[0] >= era]
 
         # Convert to NumPy array
         sorted_data = np.array(data)
@@ -2944,9 +2978,11 @@ class Helpers():
             sorted list of subset_size ints, or the full ticket_numbers list
             if there aren't enough numbers to form a subset.
         """
-        candidates = [int(n) for n in ticket_numbers if n in number_scores]
+        # dict.fromkeys: a ticket with a repeated number (the DL rows' per-slot
+        # argmax is not de-duplicated) must not weight that number twice
+        candidates = list(dict.fromkeys(int(n) for n in ticket_numbers if n in number_scores))
         if len(candidates) < subset_size:
-            candidates = [int(n) for n in ticket_numbers]
+            candidates = list(dict.fromkeys(int(n) for n in ticket_numbers))
         if len(candidates) <= subset_size:
             return sorted(candidates)
 

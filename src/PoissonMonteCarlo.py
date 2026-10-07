@@ -27,9 +27,11 @@ class PoissonMonteCarlo():
         self.recent_draws = 100 # look back
         self.position_frequencies = defaultdict(lambda: defaultdict(int))
         self.sorted_prediction = True  # Set False for positional games like Pick3
+        self._last_number_scores = defaultdict(int)   # simulated counts per number, summed over the positions of the last run()
 
     def clear(self):
         self.position_frequencies = defaultdict(lambda: defaultdict(int))
+        self._last_number_scores = defaultdict(int)
 
     def setDataPath(self, dataPath):
         self.dataPath = dataPath
@@ -51,20 +53,18 @@ class PoissonMonteCarlo():
         self.sorted_prediction = bool(use)
 
     def generate_best_subset(self, predicted_numbers, nSubset):
-        """Generate a unique subset using weighted probability selection."""
-        unique_numbers = list(set(int(x) for x in predicted_numbers))
-
-        if len(unique_numbers) < nSubset:
-            return unique_numbers  # Fallback if not enough numbers
-
-        # Assign probabilities (higher for top-ranked numbers)
-        probabilities = np.linspace(1.0, 0.5, len(unique_numbers))
-        probabilities /= probabilities.sum()  # Normalize
-
-        # Randomly select numbers based on weighted probability
-        best_subset = np.random.choice(unique_numbers, size=nSubset, replace=False, p=probabilities)
-
-        return sorted(map(int, best_subset))
+        """
+        The keno subset: the ticket's numbers ranked by the simulation's own
+        counts for them (summed over the positions, as score_numbers merges
+        them), the top nSubset. Until 7 Oct 2026 the weights were a linspace
+        over set(ticket) - numeric order, no model information.
+        """
+        unique_numbers = list(dict.fromkeys(int(x) for x in predicted_numbers))
+        if len(unique_numbers) <= nSubset:
+            return sorted(unique_numbers)
+        scores = self._last_number_scores
+        ranked = sorted(unique_numbers, key=lambda num: (-scores.get(num, 0), num))
+        return sorted(ranked[:nSubset])
     
     def build_poisson_model(self, numbers):
         """Computes the Poisson distribution parameters for each position."""
@@ -117,18 +117,28 @@ class PoissonMonteCarlo():
             raw_values = np.array([simulated_counts[num] for num in simulated_counts])
             probabilities = softmax(raw_values)
             sorted_predictions = [num for _, num in sorted(zip(probabilities, simulated_counts.keys()), reverse=True)]
-
             # Positional games (pick3/jokerplus) draw each slot with
             # replacement - 86% of Joker+ draws repeat a digit - so the top
             # digit is taken as-is; the distinct-digit constraint is a set-game
             # rule (kept for sorted tickets).
+            placed = False
             if not self.sorted_prediction:
                 predicted_numbers.append(sorted_predictions[0])
+                placed = True
+            else:
+                for num in sorted_predictions:
+                    if num not in predicted_numbers:
+                        predicted_numbers.append(num)
+                        placed = True
+                        break
+            # The subset ranking counts a position's simulation once, on the
+            # attempt that places a number - a re-simulated position (every
+            # candidate already in the ticket) must not weigh more.
+            if placed:
+                for num, count in simulated_counts.items():
+                    self._last_number_scores[int(num)] += count
+            if not self.sorted_prediction:
                 continue
-            for num in sorted_predictions:
-                if num not in predicted_numbers:
-                    predicted_numbers.append(num)
-                    break
 
         final_predictions = [int(num) for num in predicted_numbers]
         return sorted(final_predictions) if self.sorted_prediction else final_predictions
