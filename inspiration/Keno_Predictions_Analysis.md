@@ -16,7 +16,7 @@ Single model trains on 70-class output, then post-hoc slices into subsets.
 - **`score_numbers_from_prediction()`** (Helpers.py:2124): Collapses position-wise softmax to per-number scores via max-aggregation across positions
 - **`generate_subset_from_scores()`** (Helpers.py:2911): Selects N numbers using either "top" mode or temperature-scaled softmax sampling
 
-## The Problem You Identified
+## The Problem Identified
 
 Currently, **one model learns to optimize for 70-class output**, regardless of whether actual payout depends on hitting 5 matches vs 10 matches.
 
@@ -83,7 +83,7 @@ With separate models, each subset size becomes first-class citizen for hyperopt 
 
 #### 4. **Better Ensemble Voting**
 
-Your vote-ensemble rows already use softmax temperature as tie-breaker (line 1289):
+vote-ensemble rows already use softmax temperature as tie-breaker (line 1289):
 ```python
 # Current: Both main tickets and subsets come from same model → deterministic slicing
 for subset_size in range(5, 11):
@@ -235,7 +235,7 @@ class PoissonMCForKenoSubset:
         self.simPerConfig = hyperopt_tuned_sims_by_subset[self.target_size]
         # Example mapping (tunable!):
         self.base_sim_map = {5: 500,   # Fewer sims for harder-to-hit configs
-                             7: 600,   # Sweet spot where you bet most
+                             7: 600,   # Sweet spot where bet most
                              10: 200}  # More sims for easier subset
 
 ```
@@ -357,7 +357,7 @@ class TestPerSizeOptimization:
 
 ## Alternative: Keep Current for Now, Add Loss Weighting Future-Proofing
 
-If you want to ship quickly and iterate later, minimum viable change is to add loss-weighted scoring in the existing models:
+If to ship quickly and iterate later, minimum viable change is to add loss-weighted scoring in the existing models:
 
 ### Quick Patch (Insert in StatisticalMethod or each Model's predict method):
 
@@ -376,7 +376,7 @@ def compute_profit_aligned_scores(number_scores_dict, real_draw, use_per_size_we
     weighted_aggregations = {}  # size: float
     
     for model_prediction in predictions:
-        # Keep your existing extraction (great!)
+        # Keep existing extraction (great!)
         number_scores = helpers.score_numbers_from_prediction(
             model_prediction['raw'], unique_labels
         )
@@ -426,21 +426,7 @@ def compute_profit_aligned_scores(number_scores_dict, real_draw, use_per_size_we
 
 2. **For Poisson Monte Carlo specifically**: Can we configure different Monte Carlo simulation counts per subset size without breaking the base model?
 
-3. **Ensemble coordination**: Do you want each subselection (5/6/7/8/9/10) to have its own dedicated ensemble row, or do you prefer a single weighted vote that varies by target size?
+3. **Ensemble coordination**: Want each subselection (5/6/7/8/9/10) to have its own dedicated ensemble row, or do prefeingr a single weighted vote that varies by target size?
 
 4. **Immediate need vs experimental**: Is this for production use right now (pick option 2) or exploring research directions (any of the three)?
 
----
-
-## Summary Recommendation
-
-Given your codebase already has:
-- ✅ Robust profit scoring (`keno_ticket_profit`)
-- ✅ Correct subset extraction (`generate_subset_from_scores`)  
-- ⚠️ Misaligned training objectives (core weakness)
-
-**I recommend Option 2: Add per-subset loss weighting with optional softmax temperature tuning.**
-
-This bridges the current architecture toward the ideal without requiring massive refactoring, while still providing meaningful hyperopt signals for `markov_mcSubsetSelectionMode` and similar flags.
-
-Would you like me to implement any one of these approaches? (I can write full code blocks - choose based on your risk tolerance.)
