@@ -38,7 +38,7 @@ ROW_NAME = "SubsetEnsemble Model"
 # (Helpers.market_ticket_profit: long on an upper-half bin, +1/-1 on the
 # actual half, minus a fee, in units) - the "profit" the positional machinery
 # uses wherever it asks for one; the euro books live in the settlement.
-GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto", "pick3", "jokerplus", "crypto", "shares")
+GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto", "pick3", "jokerplus", "crypto", "shares", "cryptoweek", "sharesweek")
 JOKERPLUS_ENSEMBLE_FLAG = "useJokerplusEnsemble"
 
 # Games with a real payout table - their objective is profit per bet (Keno:
@@ -54,7 +54,7 @@ SLOT_ACCURACY_WEIGHT = 0.01
 # Rows that can never be members: the two vote rows themselves (a vote over a
 # vote), and the RL row, which Predictor.py appends AFTER the ensembles so it
 # is never present when the vote is taken.
-EXCLUDED_ROWS = ("WeightedEnsemble Model", ROW_NAME, "RL Ticket Model")
+EXCLUDED_ROWS = ("WeightedEnsemble Model", ROW_NAME, "RL Ticket Model", "RL Position Model")   # the position row too: appended after the vote, and its ticket IS the vote (8 Oct 2026)
 
 # A game needs at least this many scoreable days before tuning on it means
 # anything, and a subset is scored only on days where all of its members

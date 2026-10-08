@@ -60,6 +60,11 @@ GAME_CONFIG = {
     # hits, no payout table (the euro P&L is settled by the markets track).
     "crypto":       {"min": 0, "max": 9, "draw_size": 5, "skip_last_columns": 0, "special_column_count": 0},
     "shares":       {"min": 0, "max": 9, "draw_size": 4, "skip_last_columns": 0, "special_column_count": 0},
+    # The week games (README item 4, M5): the same slots, one draw per ISO week;
+    # in the tuners and the controls since 8 Oct 2026 (the quantum tuner skips
+    # them by default - see HyperoptQuantum.py).
+    "cryptoweek":   {"min": 0, "max": 9, "draw_size": 5, "skip_last_columns": 0, "special_column_count": 0},
+    "sharesweek":   {"min": 0, "max": 9, "draw_size": 4, "skip_last_columns": 0, "special_column_count": 0},
     "vikinglotto":  {"min": 1, "max": 48, "draw_size": 6, "skip_last_columns": 0, "special_column_count": 1},
     # Joker+: six digits 0-9 drawn WITH replacement in a fixed order (a
     # positional game like pick3, see Helpers.is_positional_game) plus one

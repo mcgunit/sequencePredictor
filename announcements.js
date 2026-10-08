@@ -17,6 +17,17 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-08-position-tuner-week-games',
+    date: '2026-10-08',
+    level: 'minor',
+    audience: 'all',
+    title: 'Markets: the position model is tuned, and the week games are tuned and controlled',
+    body: [
+      'The RL Position Model of the four market games - crypto, shares and their week games - the row that decides how much to put on the vote\'s call, gets a Saturday tuning study of its own, scored as paper money over the newest forty days and held to the same gate as the other rows (it must beat the served knobs and the untuned ones); its record also carries the plain rule, the full stake wherever the vote is up, scored on the same days, so you can see what the sizing added. The week games join the Saturday tuners (statistical rows, GARCH and the Regime HMM, the ensemble, the meta-learners) and the Sunday controls (null band, controlled test, feature control, the proper-score report), so their rows stop running untuned and unmeasured. The first records come from the chain of Saturday 10 October.',
+    ],
+    link: { href: '/markets/crypto', label: 'Crypto page' },
+  },
+  {
     id: '2026-10-07-keno-real-game-honest-subsets',
     date: '2026-10-07',
     level: 'minor',

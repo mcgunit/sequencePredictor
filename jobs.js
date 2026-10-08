@@ -129,7 +129,8 @@ const JOBS = [
   {
     key: 'hyperoptRLTicket',
     name: 'Weekly tuning: RL ticket model',
-    description: 'Tunes RL Ticket Model - pure numpy, minutes not hours (HyperoptRLTicket.py).',
+    description: 'Tunes the RL Ticket Model of the lottery games and, through the gate, the RL Position Model of the four market games '
+               + '(how much to put on the vote\'s call, scored as paper money) - pure numpy, minutes not hours (HyperoptRLTicket.py).',
     script: 'HyperoptRLTicket.py', args: [], log: 'hyperoptRLTicket.log', plan: CHAIN_PLAN,
   },
   {
@@ -157,9 +158,9 @@ const JOBS = [
     name: 'Weekly controls: randomness discrimination (Q2)',
     description: 'Can a classifier suite tell windows of real draws from fair simulated ones better than it tells two fair '
                + 'histories apart? Held to a null band and a shuffled control; the verdict on the Randomness watch card '
-               + '(RandomnessDiscrimination.py, about an hour for every game; for the two markets the fair history is a matched '
+               + '(RandomnessDiscrimination.py, about an hour for every game; for the market games (crypto, shares and their week games) the fair history is a matched '
                + 'geometric random walk).',
-    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares', '-w', '10', '-n', '3'],
+    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-w', '10', '-n', '3'],
     log: 'randomnessDiscrimination.log', plan: CONTROLS_PLAN,
   },
   {
@@ -169,20 +170,20 @@ const JOBS = [
                + 'columns appended: does any meta-learner give a provably irrelevant column stable importance, and which base '
                + 'models matter more than noise does? Verdicts per game and variant on the History page '
                + '(IrrelevantFeatureControl.py, refits only - no backtest - about an hour for the seven lottery games together, '
-               + 'almost all of it the VQC refits: one keno-sized VQC fit takes two to three minutes and each game gets four; the two '
-               + 'markets join once the Saturday chain has cached their table).',
-    script: 'IrrelevantFeatureControl.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares', '-r', '3', '-k', '3'],
+               + 'almost all of it the VQC refits: one keno-sized VQC fit takes two to three minutes and each game gets four; the four market games (crypto, shares and their week games) '
+               + 'join once the Saturday chain has cached their table - the week games from the chain of 10 Oct 2026).',
+    script: 'IrrelevantFeatureControl.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-r', '3', '-k', '3'],
     log: 'featureControl.log', plan: CONTROLS_PLAN,
   },
   {
     key: 'marketRows',
     name: 'Weekly controls: market rows under a proper score',
     description: 'Backtests the market rows - GARCH, the Regime HMM and its two ablations - with the positional base rows over the '
-               + 'newest 250 game days of crypto and shares, and scores every row by the mean log-score of the probability it gave '
+               + 'newest 250 game days of crypto, shares and their week games, and scores every row by the mean log-score of the probability it gave '
                + 'the bin that then happened, with a paired bootstrap interval against GARCH: the reading that decides whether regimes '
                + 'add anything beyond volatility, before any hit rate or paper P&L is read (MarketRows.py, about ten minutes per '
                + 'market; the verdicts on the Crypto and Shares pages).',
-    script: 'MarketRows.py', args: ['-g', 'crypto,shares', '-d', '250'], log: 'marketRows.log', plan: CONTROLS_PLAN,
+    script: 'MarketRows.py', args: ['-g', 'crypto,shares,cryptoweek,sharesweek', '-d', '250'], log: 'marketRows.log', plan: CONTROLS_PLAN,
   },
   {
     key: 'nullControls',
@@ -190,7 +191,7 @@ const JOBS = [
     description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each, so the Best-model card can show '
                + 'what the best row scores on nothing - the null band its rows are greyed under (NullControls.py, hours: a full '
                + 'backtest per history, which is why the controls have their own Sunday plan).',
-    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares', '-m', 'both', '-n', '3', '-d', '120'],
+    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '-d', '120'],
     log: 'nullControls.log', plan: CONTROLS_PLAN,
   },
 ];

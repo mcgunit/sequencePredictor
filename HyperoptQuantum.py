@@ -30,6 +30,7 @@ from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, descr
 # per-position fit and argmax-ticket scoring: the trial classifier must be
 # fitted and played exactly the way the persisted artifact will be.
 from HyperoptStatistics import GAME_CONFIG
+from src.MarketData import WEEK_MARKETS
 from TrainMetaLearner import (
     build_training_table, load_meta_score_table, save_meta_score_table, meta_table_kind,
     build_positional_training_table, fit_position_models, evaluate_positional_holdout,
@@ -494,7 +495,10 @@ if __name__ == "__main__":
         parser.add_argument(
             '-g', '--games',
             type=str,
-            default=",".join(GAME_CONFIG.keys()),
+            # The week games (cryptoweek, sharesweek) are left out by default: three
+            # studies per game on a chain step that already takes seven hours, for
+            # rows with a few hundred weeks of history. Name them with -g to tune them.
+            default=",".join(g for g in GAME_CONFIG if g not in WEEK_MARKETS),
             help='Comma-separated list of games, e.g. "keno,lotto"'
         )
 

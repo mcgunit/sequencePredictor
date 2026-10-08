@@ -220,7 +220,10 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
         print(f"{market}: no game history, skipping")
         return None
     dates = list(getattr(loader, "dates", []))
-    start_index = max(0, total_rows - days)
+    # A game shorter than the window (a week game: 221 weeks against 250 days)
+    # keeps a history floor rather than starting at week 0, where every row
+    # fails for want of history (8 Oct 2026).
+    start_index = max(min(100, total_rows // 2), total_rows - days)
 
     history_source = MarketHistory(dataPath)
     history_days, history = history_source.visible(0)

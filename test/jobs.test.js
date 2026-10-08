@@ -35,9 +35,9 @@ ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'
 ok(CHAIN_KEYS[CHAIN_KEYS.length - 1] === 'trainMetaLearner', 'the meta-learner retrain stays last');
 ok(byKey.nullControls.args.includes('-d') && byKey.nullControls.args.includes('both') && byKey.randomnessDiscrimination.args.includes('-w'),
   'the controls run with an explicit window, both control kinds and every game');
-ok(['nullControls', 'randomnessDiscrimination', 'featureControl'].every((k) => byKey[k].args[1].split(',').length === 9
-  && byKey[k].args[1].endsWith('crypto,shares')), 'every control covers the seven lottery games and the two markets');
-ok(byKey.marketRows.args.join(' ') === '-g crypto,shares -d 250', 'the market rows report scores both markets over an explicit window');
+ok(['nullControls', 'randomnessDiscrimination', 'featureControl'].every((k) => byKey[k].args[1].split(',').length === 11
+  && byKey[k].args[1].endsWith('crypto,shares,cryptoweek,sharesweek')), 'every control covers the seven lottery games and the four market games');
+ok(byKey.marketRows.args.join(' ') === '-g crypto,shares,cryptoweek,sharesweek -d 250', 'the market rows report scores the four market games over an explicit window');
 ok(byKey.featureControl.args.includes('-r') && byKey.featureControl.args.includes('-k'), 'the feature control runs with explicit repeats and noise columns');
 
 // The shell scripts stay as the hand-run path, so they must not drift from

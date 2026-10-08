@@ -590,7 +590,8 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
         return
     dates = list(getattr(loader, "dates", []))
 
-    start_index = max(0, total_rows - days_back)
+    # a game shorter than the window (a week game) keeps a history floor rather than starting at row 0 (8 Oct 2026)
+    start_index = max(min(100, total_rows // 2), total_rows - days_back)
 
     cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind,
                                    model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional, game=dataset_name))

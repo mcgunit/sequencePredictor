@@ -11,6 +11,10 @@ from art import text2art
 from datetime import datetime
 
 from src.RLTicketModel import RLTicketModel
+from src.RLPositionModel import RLPositionModel, ROW_NAME as POSITION_ROW
+from src.MarketSettle import cash_pnl
+from src.TuningScore import score_bets_by_day, attrs_for_trial, describe
+from src.TuningGate import challenge, make_defaults
 from src.Helpers import Helpers
 from src.HyperoptRunner import (open_study, fail_stale_running_trials, has_completed_trials, optimize_study,
                                 install_sigterm_handler)
@@ -34,11 +38,33 @@ GAME_CONFIG = {
     "keno":         {"draw_size": 20, "special_column_count": 0},
     "pick3":        {"draw_size": 3, "special_column_count": 0},
     "vikinglotto":  {"draw_size": 6, "special_column_count": 1},
+    # The market games tune the RL POSITION model instead (README item 4, M4,
+    # since 8 Oct 2026): the RL Ticket row is not served there; the position
+    # row learns how much to put on the vote's call. draw_size = instruments.
+    "crypto":       {"draw_size": 5, "special_column_count": 0, "position": True},
+    "shares":       {"draw_size": 4, "special_column_count": 0, "position": True},
+    "cryptoweek":   {"draw_size": 5, "special_column_count": 0, "position": True},
+    "sharesweek":   {"draw_size": 4, "special_column_count": 0, "position": True},
 }
 
 # A game needs at least this many scoreable days before tuning on it means
 # anything - below that the mean-per-day objective is mostly draw luck.
 MIN_EVALUATION_DAYS = 10
+
+# What Predictor.addRLPositionPrediction serves for a key bestParams_<market>.json
+# does not have - the gate's untuned reference (src/TuningGate.make_defaults).
+RL_POSITION_DEFAULTS = {
+    "rlPositionLearningRate": 0.05,
+    "rlPositionEpochs": 30,
+    "rlPositionSamplesPerDay": 16,
+    "rlPositionTrainDays": 120,
+    "rlPositionRiskAversion": 0.1,
+}
+# The chain's champion/challenger gate (src/TuningGate.py), set from the CLI:
+# the position studies write this run's best trial only when it beats the
+# served parameters and the untuned defaults, re-scored on the same days.
+GATE_ENABLED = True
+GATE_MARGIN = 0.0
 
 
 def is_running():
@@ -205,6 +231,133 @@ def score_rl_row(rlRow, realResult, drawSize, is_pick3, is_keno):
     return float(len(set(int(n) for n in mainTicket) & realMains))
 
 
+def position_bets(sizes, returns_of_day):
+    """One day's paper money per instrument: the size times the daily rule's cash P&L (MarketSettle.cash_pnl)."""
+    return [float(size) * cash_pnl(float(ret)) for size, ret in zip(sizes, returns_of_day)]
+
+
+def plain_rule_score(dataset_name, evaluation_days, returns, modelScores):
+    """
+    The reference every position study is read against: size 1 where the
+    vote's call is up, 0 where it is not - the row's own fallback without a
+    policy. Same days, same money, same objective.
+    """
+    model = RLPositionModel()
+    bets_by_day = []
+    for fileDate, rows, _ in evaluation_days:
+        ret = returns.get(fileDate.strftime("%Y-%m-%d"))
+        rows = [r for r in rows if r.get("predictions") and r["predictions"][0]]
+        if ret is None or not rows:
+            continue
+        slots = len(rows[0]["predictions"][0])
+        ticket = model._voteTicket(rows, slots, modelScores)
+        if ticket is None:
+            continue
+        bets_by_day.append(position_bets([1.0 if b >= model.k / 2 else 0.0 for b in ticket], ret))
+    return score_bets_by_day(bets_by_day, payout=True)
+
+
+def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, dataPath, policyDir,
+                          modelScores, maxTrainSeconds, returns):
+    """
+    The position model's walk-forward (README item 4, M4): for each evaluation
+    day D the policy is retrained with cutoffDate=D on the market's day JSONs
+    (warm-started day over day inside the trial, as production does), sizes
+    the rows made FOR D, and is paid the daily rule's paper money times the
+    size on D's real returns. Trial value: the lower confidence bound of the
+    per-day capped money per position (src/TuningScore, the same objective
+    as the other tuners; the 20 cap, in the market's own currency, touches a
+    daily position only at double size on a ten-percent day but bites often
+    on a week game, where ten-percent weeks are routine). The utility the policy trains on is
+    not the objective: rlPositionRiskAversion is a knob here, the money is
+    what is scored.
+    """
+    policyDir = os.path.join(policyDir, f"trial_{os.getpid()}")
+    clear_folder(policyDir)
+    model = RLPositionModel()
+    model.setModelPath(policyDir)
+    model.setLearningRate(trial.suggest_float('rlPositionLearningRate', 0.005, 0.2, log=True))
+    model.setEpochs(trial.suggest_int('rlPositionEpochs', 10, 60, step=10))
+    model.setSamplesPerDay(trial.suggest_categorical('rlPositionSamplesPerDay', [8, 16, 32]))
+    model.setTrainDays(trial.suggest_categorical('rlPositionTrainDays', [60, 120, 240]))
+    model.setRiskAversion(trial.suggest_float('rlPositionRiskAversion', 0.0, 0.5))
+    # untuned, the production cap: a trial is scored as production would run it
+    model.setMaxTrainSeconds(maxTrainSeconds)
+    model.setSeed(42)
+    bets_by_day = []
+    sizes_taken = []
+    for fileDate, rows, _ in evaluation_days:
+        ret = returns.get(fileDate.strftime("%Y-%m-%d"))
+        if ret is None:
+            continue
+        row = model.run(dataset_name, rows, historyDir, dataPath,
+                        {"cutoffDate": fileDate, "modelScores": modelScores, "returns": returns})
+        if not row or not row.get("positions"):
+            continue
+        bets_by_day.append(position_bets(row["positions"], ret))
+        sizes_taken.extend(float(s) for s in row["positions"])
+    shutil.rmtree(policyDir, ignore_errors=True)
+    tuning = score_bets_by_day(bets_by_day, payout=True)
+    # A policy that sits out everywhere scores exactly 0 - no money, no spread -
+    # and under the bound that is the ceiling of a market whose calls lose
+    # money net of fees; a sizing is written only when it beats that, which
+    # is what sizing is for. The mean size travels with the record so a
+    # reader can tell a sizing from a sit-out.
+    tuning["mean_size"] = float(sum(sizes_taken) / len(sizes_taken)) if sizes_taken else None
+    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+    print(f"Trial {trial.number}: {describe(tuning)}")
+    return tuning["score"]
+
+
+def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase):
+    """One market game's position study, gated, written to bestParams_<market>.json."""
+    historyDir = os.path.join(path, "data", "database", dataset_name)
+    dataPath = os.path.join(path, "data", "trainingData", dataset_name)
+    returns = RLPositionModel()._loadReturns(dataPath)
+    evaluation_days = [e for e in load_evaluation_days(historyDir, evaluationDayCount)
+                       if e[0].strftime("%Y-%m-%d") in returns]
+    if len(evaluation_days) < MIN_EVALUATION_DAYS:
+        print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with rows, a result and a return "
+              f"(need at least {MIN_EVALUATION_DAYS})")
+        return
+    print(f"Evaluating the position model on {len(evaluation_days)} days "
+          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
+    jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
+    existingData = {}
+    if os.path.exists(jsonBestParamsFilePath):
+        with open(jsonBestParamsFilePath, "r") as infile:
+            existingData = json.load(infile)
+    modelScores = existingData.get("modelScores")
+    maxTrainSeconds = existingData.get("rlPositionMaxTrainSeconds", 60)
+    plain = plain_rule_score(dataset_name, evaluation_days, returns, modelScores)
+    print(f"  plain rule (size 1 where the vote is up): {describe(plain)}")
+    shutil.rmtree(policyDir, ignore_errors=True)
+    studyName = f"{dataset_name}-rl_position"
+    study = open_study(studyName, optunaDatabase, parallel=parallel)
+    fail_stale_running_trials(study)
+    known_trials = {t.number for t in study.get_trials(deepcopy=False)}
+    objective = lambda trial: objective_rl_position(trial, dataset_name, evaluation_days, historyDir, dataPath,
+                                                    policyDir, modelScores, maxTrainSeconds, returns)
+    studyStart = time.time()
+    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
+    print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
+    study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
+    outcome = challenge(study, known_trials, objective, existingData, make_defaults(RL_POSITION_DEFAULTS, existingData),
+                        timeout_seconds=len(evaluation_days) * (maxTrainSeconds + 5) + 120, label=studyName,
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days))
+    print(outcome["summary"])
+    record = outcome["record"]
+    record["plain_rule"] = attrs_for_trial(plain)
+    existingData.setdefault("tuningGate", {})[POSITION_ROW] = record
+    if outcome["params"] is not None:
+        existingData.update(outcome["params"])
+    # paper money is not a slot-hit vote weight: never in modelScores (the market rows' rule)
+    existingData.get("modelScores", {}).pop(POSITION_ROW, None)
+    with open(jsonBestParamsFilePath, "w+") as outfile:
+        json.dump(existingData, outfile, indent=4)
+    shutil.rmtree(policyDir, ignore_errors=True)
+
+
 def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyDir,
                         policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds):
     """
@@ -316,7 +469,15 @@ if __name__ == "__main__":
             help='Comma-separated list of games, e.g. "keno,pick3"'
         )
 
+        parser.add_argument(
+            '--gate-margin', type=float, default=0.0,
+            help='Position studies (the market games): the challenger must beat the served parameters and the '
+                 'untuned defaults by this much to be written (src/TuningGate.py). The ticket studies write '
+                 'their best trial as before.')
+        parser.add_argument('--no-gate', action='store_true', help="Position studies: write this run's best trial without the comparison")
         args = parser.parse_args()
+        GATE_ENABLED = not args.no_gate
+        GATE_MARGIN = float(args.gate_margin)
 
         print_intro()
 
@@ -346,6 +507,9 @@ if __name__ == "__main__":
                 continue
             try:
                 print(f"\n{dataset_name.capitalize()}")
+                if game_cfg.get("position"):
+                    tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase)
+                    continue
                 historyDir = os.path.join(path, "data", "database", dataset_name)
 
                 evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)

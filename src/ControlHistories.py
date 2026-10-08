@@ -52,7 +52,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
 
 from src.Helpers import Helpers
-from src.MarketGame import MIN_HISTORY, K_BINS, cut_game, read_returns_file, write_returns_file
+from src.MarketGame import MIN_HISTORY, K_BINS, cut_game, read_returns_file, write_returns_file, history_needed
 from HyperoptStatistics import GAME_CONFIG
 
 helpers = Helpers()
@@ -222,7 +222,8 @@ def control_market(game, mode, seed, recent=None, source=None):
     if mode == "synthetic":
         mean, sd = matrix.mean(axis=0), matrix.std(axis=0)
         synthetic = rng.normal(0.0, 1.0, size=matrix.shape) * sd + mean
-        cut = {day["date"]: day["bins"] for day in cut_game(days, synthetic, k=K_BINS, min_history=MIN_HISTORY)}
+        # a week game is cut after MIN_WEEK_HISTORY weeks, a daily market after MIN_HISTORY days (history_needed)
+        cut = {day["date"]: day["bins"] for day in cut_game(days, synthetic, k=K_BINS, min_history=history_needed(game))}
         missing = [d for d in kept_dates if d not in cut]
         if missing:
             raise ValueError(f"{game}: {len(missing)} game day(s) have no cut under the returns file (first {missing[0]}) - "
