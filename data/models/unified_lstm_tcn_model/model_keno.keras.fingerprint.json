@@ -1,6 +1,6 @@
 {
   "max_value": 70,
-  "num_classes": 80,
+  "num_classes": 70,
   "digitsPerDraw": 20,
   "specialColumnCount": 0,
   "specialNumClasses": 0,
