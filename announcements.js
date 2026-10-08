@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-08-keno-subsets-edge-fix',
+    date: '2026-10-08',
+    level: 'minor',
+    audience: 'all',
+    title: 'Keno: the deep-learning and boosting rows\' sub-selections no longer start at the edges of the range',
+    body: [
+      'The first morning with all six keno ticket sizes served showed four of the seven deep-learning rows with the same 5-number selection, 1, 4, 63, 66 and 70, the other three one or two numbers away from it, and the boosting rows close by. In a row that takes its sizes as the top of its own ranking the sizes nest - the 6-number ticket is the 5-number ticket plus the next number - but the edge numbers were a defect: those rows predict the twenty sorted positions of the draw, and a number was scored by its best probability at any one position, which always favours the first and last positions (number 1 and number 70 are each the most likely value of their position by a wide margin). A number is now scored by its probability summed over the positions, the chance the row gives it of being drawn at all; the same change puts the lotto multi-pick of the deep-learning rows in that order too. Two rows still carry 1 and 70 for other reasons and are not changed today: the WeightedEnsemble Model, which counts every row\'s twenty-number ticket, and the Chronos and TimesFM rows, whose forecasts pile their out-of-range mass on the first and last number.',
+      'Where a row cuts its sizes from one ranking the six tickets stay nested on purpose, so the per-size profits on the History page compare the payout table on the same numbers; the meta-learner, quantum, ClassicalSVM and CatBoostMultiLabel rows keep sampling their sub-selections at their tuned temperature. The keno draws themselves (6202 since the game became 20 of 70 in March 2008) show no structure between numbers, between pairs of numbers or from one draw to the next beyond what simulated fair histories produce, so a separate model per ticket size would learn six copies of the same noise, and none is planned.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-10-08-position-tuner-week-games',
     date: '2026-10-08',
     level: 'minor',

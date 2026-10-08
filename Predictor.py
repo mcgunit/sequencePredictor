@@ -1329,8 +1329,10 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
         nthPredictions["predictions"].append(predicted_digits)
 
         # Lotto multi-pick: the six in probability order plus the next three
-        # (the per-number maximum over the positions' softmax, as the keno
-        # subsets use it)
+        # (the per-number probability summed over the positions' softmax -
+        # the inclusion probability - as the keno subsets use it; the
+        # maximum over the positions until 8 Oct 2026 led most DL rows'
+        # ranking with the edge numbers 44 and 1 and put 45 among the extras)
         if multiPickConfig(gameName):
             try:
                 applyMultiPick(gameName, nthPredictions, helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels))
@@ -1353,7 +1355,8 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
             try:
                 number_scores = helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels)
                 for subset_size in (kenoSubsetSizes if kenoSubsetSizes is not None else range(5, 11)):
-                    # top-k by the row's own probabilities (EV-optimal for every size; a softmax sample at 0.5 until 7 Oct 2026)
+                    # top-k by the row's own inclusion probabilities (EV-optimal for every size; a softmax sample at 0.5
+                    # until 7 Oct 2026, the per-position maximum - which is edge-biased - until 8 Oct 2026)
                     subset = helpers.generate_subset_from_scores(number_scores, predicted_digits, subset_size, mode="top")
                     nthPredictions["predictions"].append(subset)
             except Exception as e:

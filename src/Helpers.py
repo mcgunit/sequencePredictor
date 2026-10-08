@@ -2144,22 +2144,40 @@ class Helpers():
     def score_numbers_from_prediction(self, raw_predictions, unique_labels):
         """
         Turns a DL model's per-position softmax prediction (shape
-        (digitsPerDraw, num_classes)) into a single {number: score} dict, by
-        taking - for each number - the highest probability it received across
-        every draw position that could produce it. Mirrors what the
-        statistical models' own score_numbers() provides, so Keno subset
-        generation (generate_subset_from_scores) works the same way for both:
-        no DL model tracks per-position "which slot is this" meaning (Keno's
-        20 positions are unordered), so max-across-positions is the right
-        aggregation rather than e.g. summing (which would double-count a
-        number the model is confident about in multiple positions).
+        (digitsPerDraw, num_classes)) into a single {number: score} dict: the
+        probability that the number is drawn at all, i.e. its probability
+        SUMMED over the positions. The draw is sorted, so a number can sit in
+        only one position and the per-position events are disjoint - the sum
+        is the model's inclusion probability (expected number of positions
+        showing the number), which is what a keno subset or a lotto
+        multi-pick ranks by. Mirrors the statistical models' own
+        score_numbers(), so generate_subset_from_scores works the same for
+        both.
+
+        Until 8 Oct 2026 this took the MAXIMUM over the positions instead.
+        That measures how peaked a position is, not how likely a number is:
+        the sorted positions of a 20-of-70 draw are order statistics, the
+        first and last of them are far more concentrated (number 1 at
+        position 1 and 70 at position 20 each carry 2/7 of their slot's
+        mass, position 2's best value 0.13, a middle slot's best about
+        1/16), and a deep-learning row that has learned the marginals
+        ranked 1, 70, 4, 66 and 63 first within its ticket (1, 70, 2, 69,
+        3, 68, 4, 67 over the whole range) - on 8 Oct 2026 four of the
+        seven DL rows served the keno 5-subset [1, 4, 63, 66, 70] and the
+        other three [1, 5, 10, 66, 70], [1, 4, 62, 66, 70] and
+        [1, 5, 62, 66, 70], and the lotto multi-pick order led with the
+        edge numbers 44 and 1 (4 or 45 in three rows) and put 45 among the
+        extras. Under a fair draw the sum is flat (20/70 for every number);
+        whatever the row believes beyond that is what the ranking now
+        shows. See the self-check at the end of this
+        module.
         """
-        raw_predictions = np.asarray(raw_predictions)
+        raw_predictions = np.asarray(raw_predictions, dtype=float)
         scores = {}
         for position_probs in raw_predictions:
             for class_index, probability in enumerate(position_probs):
                 number = int(unique_labels[class_index])
-                scores[number] = max(scores.get(number, 0.0), float(probability))
+                scores[number] = scores.get(number, 0.0) + float(probability)
         return scores
 
     # Function to print the predicted numbers
@@ -3082,3 +3100,44 @@ class Helpers():
             return False
         else:
             raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def _self_check():
+    """
+    python3 -m src.Helpers - the one property of score_numbers_from_prediction
+    that must not regress: on the exact order-statistic table of a fair
+    20-of-70 draw (P(i-th smallest = n)) every number scores the same 20/70,
+    so no edge number is preferred; the maximum over the positions - the
+    read-out until 8 Oct 2026 - would put 1 and 70 first at 2/7 each.
+    """
+    from math import comb
+    N, K = 70, 20
+    table = np.array([[comb(n - 1, i - 1) * comb(N - n, K - i) / comb(N, K) for n in range(1, N + 1)]
+                      for i in range(1, K + 1)])
+    assert np.allclose(table.sum(axis=1), 1.0), "each position's row must be a distribution"
+    labels = list(range(1, N + 1))
+    helpers = Helpers()
+    scores = helpers.score_numbers_from_prediction(table, labels)
+    values = np.array([scores[n] for n in labels])
+    assert np.allclose(values, K / N, atol=1e-9), f"a fair draw must score every number {K/N:.4f}: {values.min():.4f}-{values.max():.4f}"
+    top5_max = sorted(labels, key=lambda n: -table[:, n - 1].max())[:5]
+    assert all(n <= 3 or n >= 68 for n in top5_max), f"the old maximum read-out should prefer the edges: {top5_max}"
+    # a row that believes in one number more than the fair table ranks it first
+    tilted = table.copy()
+    tilted[:, 34] *= 1.05
+    tilted /= tilted.sum(axis=1, keepdims=True)
+    ranked = sorted(labels, key=lambda n: -helpers.score_numbers_from_prediction(tilted, labels)[n])
+    assert ranked[0] == 35, ranked[:5]
+    # top-k subsets from the inclusion score are nested and never weigh a repeated ticket number twice
+    ticket = [1, 4, 10, 10, 15, 35, 42, 56, 63, 70]
+    subsets = [helpers.generate_subset_from_scores(helpers.score_numbers_from_prediction(tilted, labels), ticket, k, mode="top")
+               for k in (5, 6, 7)]
+    assert all(set(a) <= set(b) for a, b in zip(subsets, subsets[1:])), subsets
+    assert all(len(set(s)) == len(s) for s in subsets), subsets
+    assert 35 in subsets[0], subsets[0]
+    print("Helpers self-check passed: inclusion score is flat on a fair order-statistic table;"
+          " a tilted number ranks first; top-k subsets nested and de-duplicated")
+
+
+if __name__ == "__main__":
+    _self_check()

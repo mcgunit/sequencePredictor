@@ -515,11 +515,45 @@ class PerPositionBoostingPredictor(BoostingPredictorBase):
 
         return sorted(ticket)
 
+    def _inclusion_probabilities(self, position_probabilities):
+        """
+        {number: probability summed over the draw positions} - the chance the
+        row gives a number of being drawn at all (the positions of a sorted
+        draw are disjoint events for one number). Every position's classifier
+        covers the whole class range, so this is _average_confidence without
+        top_k times the position count: the same ranking, on the 0-1 scale
+        the subset temperature was tuned against (the averaged score is one
+        twentieth of it on keno, which would make the tuned softmax read-out
+        a near-uniform sample at every temperature in its 0.05-2.0 range).
+        """
+        totals = defaultdict(float)
+        for probs in position_probabilities:
+            for index, probability in enumerate(probs):
+                totals[self._decode(index)] += float(probability)
+        return dict(totals)
+
     def _predict(self, draws, window):
+        """
+        (ticket, number_scores). The ticket is the per-position argmax,
+        collisions refilled by the tuned top_k average confidence (see
+        _build_ticket). The returned scores - what run() slices the keno
+        subsets from - are the inclusion probabilities
+        (_inclusion_probabilities). The top_k average measures how peaked
+        the positions that like a number are, and on a sorted draw the
+        first and last positions are always the most peaked (order
+        statistics), so until 8 Oct 2026 the keno subsets of these rows
+        were led by 1, 70 and their neighbours on most days ([1, 3, 4, 67,
+        70] for XGBoost, [2, 3, 68, 69, 70] for CatBoost on 8 Oct 2026).
+        For keno the stored TopK values were tuned when that average was
+        also the subset read-out (the keno objective scores the subsets
+        alone); after this change they only refill argmax collisions, and
+        the Saturday gate re-scores them like for like. See
+        Helpers.score_numbers_from_prediction.
+        """
         position_probabilities = self._position_probabilities(draws, window)
         number_scores = self._average_confidence(position_probabilities, top_k=self.top_k)
         ranked = sorted(number_scores, key=number_scores.get, reverse=True)
-        return self._build_ticket(position_probabilities, ranked), number_scores
+        return self._build_ticket(position_probabilities, ranked), self._inclusion_probabilities(position_probabilities)
 
     def _score(self, draws, window):
         return self._average_confidence(self._position_probabilities(draws, window))
