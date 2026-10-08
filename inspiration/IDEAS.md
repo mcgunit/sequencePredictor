@@ -14,6 +14,7 @@ This document outlines potential research directions to expand the scope of the 
 
 * **Mamba / SSMs (State Space Models):** Utilize linear-scaling architectures (like S6) to capture significantly longer historical dependencies than the quadratic-complexity Transformers or vanishing-gradient risks of LSTMs.
 * **Hypergraph Neural Networks:** Model draws as "hyperedges" connecting multiple nodes (numbers), which is more mathematically natural for set-based games (Euromillions, Lotto) than traditional pairwise GNNs.
+* **Kats** https://github.com/facebookresearch/kats
 
 ## 3. Probabilistic & Uncertainty Frameworks
 *Goal: Quantify the difference between model error and true randomness.*
