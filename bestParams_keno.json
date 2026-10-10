@@ -311,16 +311,15 @@
     "subsetEnsembleModels": [
         "HybridStatisticalModel",
         "LaplaceMonteCarlo Model",
-        "MarkovBayesian Model",
-        "PoissonMarkov Model"
+        "MarkovBayesianEnhanched Model"
     ],
-    "subsetEnsembleWeighted": false,
-    "subsetEnsembleObjective": -0.6065,
-    "subsetEnsembleMean": -0.5,
+    "subsetEnsembleWeighted": true,
+    "subsetEnsembleObjective": -0.2992,
+    "subsetEnsembleMean": 0.3667,
     "subsetEnsembleTunedOn": {
         "days": 120,
-        "from": "2026-06-05",
-        "to": "2026-10-02",
+        "from": "2026-06-12",
+        "to": "2026-10-09",
         "candidates": 7,
         "evaluated": 256,
         "search": "exhaustive",

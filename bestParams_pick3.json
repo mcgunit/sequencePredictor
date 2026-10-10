@@ -215,12 +215,12 @@
         "Markov Model"
     ],
     "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": -2.0414,
-    "subsetEnsembleMean": -0.8,
+    "subsetEnsembleObjective": -2.0329,
+    "subsetEnsembleMean": -0.7917,
     "subsetEnsembleTunedOn": {
         "days": 120,
-        "from": "2026-06-05",
-        "to": "2026-10-02",
+        "from": "2026-06-12",
+        "to": "2026-10-09",
         "candidates": 3,
         "evaluated": 16,
         "search": "exhaustive",

@@ -419,5 +419,21 @@
     "rlPositionEpochs": 60,
     "rlPositionSamplesPerDay": 32,
     "rlPositionTrainDays": 120,
-    "rlPositionRiskAversion": 0.0073808142083912065
+    "rlPositionRiskAversion": 0.0073808142083912065,
+    "subsetEnsembleModels": [
+        "CatBoost Model",
+        "PoissonMonteCarlo Model"
+    ],
+    "subsetEnsembleWeighted": true,
+    "subsetEnsembleObjective": 0.0488,
+    "subsetEnsembleMean": 0.1258,
+    "subsetEnsembleTunedOn": {
+        "days": 31,
+        "from": "2026-03-13",
+        "to": "2026-10-09",
+        "candidates": 15,
+        "evaluated": 397,
+        "search": "local search",
+        "confidencePenalty": 1.0
+    }
 }

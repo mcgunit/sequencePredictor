@@ -218,12 +218,12 @@
         "MarkovBayesian Model"
     ],
     "subsetEnsembleWeighted": false,
-    "subsetEnsembleObjective": 0.9046,
-    "subsetEnsembleMean": 1.0,
+    "subsetEnsembleObjective": 0.9178,
+    "subsetEnsembleMean": 1.0118,
     "subsetEnsembleTunedOn": {
-        "days": 83,
+        "days": 85,
         "from": "2025-11-12",
-        "to": "2026-09-30",
+        "to": "2026-10-07",
         "candidates": 8,
         "evaluated": 512,
         "search": "exhaustive",

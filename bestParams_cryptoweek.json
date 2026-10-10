@@ -419,5 +419,21 @@
     "rlPositionEpochs": 60,
     "rlPositionSamplesPerDay": 8,
     "rlPositionTrainDays": 240,
-    "rlPositionRiskAversion": 0.1309215287727994
+    "rlPositionRiskAversion": 0.1309215287727994,
+    "subsetEnsembleModels": [
+        "PoissonMonteCarlo Model",
+        "Transformer Model"
+    ],
+    "subsetEnsembleWeighted": false,
+    "subsetEnsembleObjective": 0.0112,
+    "subsetEnsembleMean": 0.2433,
+    "subsetEnsembleTunedOn": {
+        "days": 30,
+        "from": "2026-03-15",
+        "to": "2026-10-04",
+        "candidates": 15,
+        "evaluated": 341,
+        "search": "local search",
+        "confidencePenalty": 1.0
+    }
 }

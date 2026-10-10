@@ -217,12 +217,12 @@
         "LaplaceMonteCarlo Model"
     ],
     "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": 1.0325,
-    "subsetEnsembleMean": 1.131,
+    "subsetEnsembleObjective": 1.0429,
+    "subsetEnsembleMean": 1.1395,
     "subsetEnsembleTunedOn": {
-        "days": 84,
+        "days": 86,
         "from": "2025-11-13",
-        "to": "2026-10-01",
+        "to": "2026-10-08",
         "candidates": 7,
         "evaluated": 256,
         "search": "exhaustive",
