@@ -311,6 +311,70 @@
                 "log_score_bound": -2.3036910218128996,
                 "uniform_log_score": -2.3025850929940455
             }
+        },
+        "RL Position Model": {
+            "date": "2026-10-10T23:08:15+00:00",
+            "window_days": 30,
+            "study_best": 0.19920996458744472,
+            "decision": "replaced",
+            "run_trials": 20,
+            "study_trials": 20,
+            "reason": "challenger +0.1992 beats incumbent -0.1501 and default -0.1501 (untuned so far - the incumbent is the default)",
+            "trial": 16,
+            "challenger": 0.19920996458744472,
+            "incumbent": -0.15007967924400323,
+            "default": -0.15007967924400323,
+            "challenger_tuning": {
+                "score": 0.19920996458744472,
+                "kind": "capped_profit",
+                "days": 30,
+                "bets": 150,
+                "profit_per_bet": 0.6106621401238431,
+                "capped_profit_bound": 0.19920996458744472,
+                "fair_capped_per_bet": null,
+                "hits_mean": null,
+                "hits_bound": null,
+                "lucky_strikes": 1,
+                "mean_size": 0.23666666666666666
+            },
+            "incumbent_tuning": {
+                "score": -0.15007967924400323,
+                "kind": "capped_profit",
+                "days": 30,
+                "bets": 150,
+                "profit_per_bet": 0.5064975262278818,
+                "capped_profit_bound": -0.15007967924400323,
+                "fair_capped_per_bet": null,
+                "hits_mean": null,
+                "hits_bound": null,
+                "lucky_strikes": 1,
+                "mean_size": 0.32
+            },
+            "default_tuning": {
+                "score": -0.15007967924400323,
+                "kind": "capped_profit",
+                "days": 30,
+                "bets": 150,
+                "profit_per_bet": 0.5064975262278818,
+                "capped_profit_bound": -0.15007967924400323,
+                "fair_capped_per_bet": null,
+                "hits_mean": null,
+                "hits_bound": null,
+                "lucky_strikes": 1,
+                "mean_size": 0.32
+            },
+            "plain_rule": {
+                "score": -0.33925300943384784,
+                "kind": "capped_profit",
+                "days": 30,
+                "bets": 150,
+                "profit_per_bet": 0.3190874057053297,
+                "capped_profit_bound": -0.33925300943384784,
+                "fair_capped_per_bet": null,
+                "hits_mean": null,
+                "hits_bound": null,
+                "lucky_strikes": 2
+            }
         }
     },
     "markovSoftMaxTemperature": 0.8278181793130434,
@@ -350,5 +414,10 @@
         "MarkovMonteCarlo Model": 0.6666666666666667,
         "PoissonMonteCarlo Model": 0.7320319977037297,
         "LaplaceMonteCarlo Model": 0.6287564258058348
-    }
+    },
+    "rlPositionLearningRate": 0.01322813984658668,
+    "rlPositionEpochs": 60,
+    "rlPositionSamplesPerDay": 8,
+    "rlPositionTrainDays": 240,
+    "rlPositionRiskAversion": 0.1309215287727994
 }
