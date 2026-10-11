@@ -201,14 +201,14 @@
     "rlTicketTrainDays": 240,
     "quantumKernel_nQubits": 4,
     "quantumKernel_encodingLayers": 1,
-    "quantumKernel_encodingScale": 0.2,
-    "quantumKernel_C": 49.06463713813561,
-    "quantumKernel_maxTrainSamples": 1000,
+    "quantumKernel_encodingScale": 0.30000000000000004,
+    "quantumKernel_C": 2.5409316196413045,
+    "quantumKernel_maxTrainSamples": 4000,
     "quantumVqc_nQubits": 4,
-    "quantumVqc_numLayers": 3,
-    "quantumVqc_encodingScale": 0.85,
-    "quantumVqc_learningRate": 0.01070326464223604,
-    "quantumVqc_epochs": 90,
+    "quantumVqc_numLayers": 2,
+    "quantumVqc_encodingScale": 1.6,
+    "quantumVqc_learningRate": 0.005634212463834491,
+    "quantumVqc_epochs": 120,
     "quantumVqc_batchSize": 256,
     "subsetEnsembleModels": [
         "LaplaceMonteCarlo Model",
@@ -572,7 +572,7 @@
         }
     },
     "classicalSvm_nFeatures": 4,
-    "classicalSvm_gamma": 0.045211269566374966,
-    "classicalSvm_C": 1.6981138754512715,
+    "classicalSvm_gamma": 0.010751839473116356,
+    "classicalSvm_C": 0.3251389595193181,
     "classicalSvm_maxTrainSamples": 1000
 }
