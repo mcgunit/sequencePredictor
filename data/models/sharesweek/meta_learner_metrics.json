@@ -1,0 +1,106 @@
+{
+  "game": "sharesweek",
+  "trained_at": "2026-10-11T03:02:01.295248+00:00",
+  "days": 300,
+  "table_days": 287,
+  "lockbox": {
+    "from": "2025-12-01",
+    "to": "2026-02-28",
+    "declared": "2026-09-27",
+    "note": "declared after the September 2026 objective, gate and cadence changes"
+  },
+  "lockbox_days_withheld": 13,
+  "versions": {
+    "python": "3.10.12",
+    "numpy": "1.26.4",
+    "scikit-learn": "1.6.0",
+    "joblib": "1.5.3"
+  },
+  "variants": {
+    "sharesweek": {
+      "artifact": "meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.1379,
+          0.0862,
+          0.1034,
+          0.1379
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.1164,
+        "argmax_profit_per_day": -0.1448,
+        "train_days": 229,
+        "test_days": 58
+      }
+    },
+    "sharesweek (v2)": {
+      "artifact": "meta_learner_v2.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.1552,
+          0.069,
+          0.1207,
+          0.1379
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.1207,
+        "argmax_profit_per_day": -0.1879,
+        "train_days": 229,
+        "test_days": 58
+      }
+    },
+    "sharesweek (quantum kernel)": {
+      "artifact": "quantum_meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.1034,
+          0.069,
+          0.069,
+          0.1379
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.0948,
+        "argmax_profit_per_day": -0.3345,
+        "train_days": 229,
+        "test_days": 58
+      }
+    },
+    "sharesweek (quantum vqc)": {
+      "artifact": "quantum_vqc_meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.0517,
+          0.1034,
+          0.069,
+          0.1379
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.0905,
+        "argmax_profit_per_day": -0.3897,
+        "train_days": 229,
+        "test_days": 58
+      }
+    },
+    "sharesweek (classical svm)": {
+      "artifact": "classical_svm_meta_learner.joblib",
+      "positional": true,
+      "metrics": {
+        "per_position_top1": [
+          0.1379,
+          0.069,
+          0.1034,
+          0.1034
+        ],
+        "chance_top1": 0.1,
+        "mean_top1": 0.1034,
+        "argmax_profit_per_day": -0.1966,
+        "train_days": 229,
+        "test_days": 58
+      }
+    }
+  }
+}
