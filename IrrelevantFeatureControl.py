@@ -54,7 +54,7 @@ import numpy as np
 
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
-from src.ControlHistories import CONTROL_ROOT
+from src.ControlHistories import CONTROL_ROOT, control_seed
 from src.FeatureControl import (append_noise, noise_names, permutation_importance, flat_predict,
                                 positional_predict, summarise, describe)
 from src.HyperoptRunner import install_sigterm_handler
@@ -229,7 +229,9 @@ def main():
     parser.add_argument("-k", "--noise-columns", type=int, default=3, help="Noise columns appended per fit")
     parser.add_argument("-d", "--days", type=int, default=DEFAULT_DAYS, help="Table days to read (the cache must hold at least this many)")
     parser.add_argument("--variants", default="", help=f"Comma-separated subset of {','.join(VARIANT_KEYS)}; default all")
-    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--seed", default="1",
+                        help='Seed of the noise columns and their sources. "weekly" = a fresh one every ISO week (the Sunday plan, '
+                             'since 13 Oct 2026: with a fixed seed the same rows were drawn as noise sources every week); a number reproduces a run')
     parser.add_argument("--tolerate-rows", type=int, default=7,
                         help="Accept a cached table at most this many draws behind the data file (default 7: Sunday after a Saturday chain)")
     parser.add_argument("--max-rows", type=int, default=DEFAULT_MAX_ROWS,
@@ -268,9 +270,10 @@ def main():
             sys.exit(1)
         if lockbox:
             print(f"Under the {describe_lockbox(lockbox)}: its days are withheld from every table")
+        seed = control_seed(args.seed)      # once per run: a run past midnight keeps one week's seeds for every game
         for game in games:
             try:
-                run_game(game, GAME_CONFIG[game], path, args.days, args.repeats, args.noise_columns, args.seed,
+                run_game(game, GAME_CONFIG[game], path, args.days, args.repeats, args.noise_columns, seed,
                          variant_keys, args.tolerate_rows, args.max_rows, lockbox=lockbox)
             except Exception as e:
                 print(f"{game}: control failed - {e}")

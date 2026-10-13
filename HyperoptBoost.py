@@ -330,6 +330,12 @@ BUDGET_TAG = ""
 # and the untuned defaults, re-scored on the same window, by GATE_MARGIN.
 GATE_ENABLED = True
 GATE_MARGIN = 0.0
+# The challenger must also win by GATE_SE_MARGIN standard errors of its own score (src/TuningGate.challenge
+# se_margin, 13 Oct 2026): outside keno (whose scores moved to the fair-ticket scale on 7 Oct) the boosting rows replaced
+# on 3 Oct lost 0.07 on average when re-scored a week later -
+# their fits move with every new draw through the refit blocks - and 11 of the 20 replacements outside keno on
+# 10 Oct had won by less than that. A win inside one standard error is not a win.
+GATE_SE_MARGIN = 1.0
 
 
 def fit_cost(prefix, params):
@@ -584,7 +590,12 @@ if __name__ == "__main__":
             '--gate-margin', type=float, default=0.0,
             help='How much this run\'s best trial must beat the served parameters AND the untuned '
                  'defaults by - both re-scored on the same window - before it replaces them '
-                 '(src/TuningGate.py). 0 = any improvement.')
+                 '(src/TuningGate.py). 0 = any improvement beyond --gate-se-margin standard errors (the larger of the two margins '
+                 'applies; both 0 = any improvement).')
+        parser.add_argument(
+            '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
+            help='The challenger must also win by this many standard errors of its own score (its trial\'s '
+                 'score_se); the larger of the two margins applies. Default 1 (13 Oct 2026); 0 = off.')
         parser.add_argument(
             '--no-gate', action='store_true',
             help='Write this run\'s best trial without comparing it to what is served. Never the '
@@ -669,6 +680,7 @@ if __name__ == "__main__":
         MEMORY_RESERVE_GB = max(0.0, float(args.memory_reserve_gb))
         GATE_ENABLED = not args.no_gate
         GATE_MARGIN = float(args.gate_margin)
+        GATE_SE_MARGIN = float(args.gate_se_margin)
         BUDGET_TAG = (f"{cpu_count()}c-{total_memory_gb():.0f}g-d{daysToRebuild}"
                       f"-r{REFIT_EVERY}-t{TRIAL_TIMEOUT_SECONDS}")
         try:
@@ -818,7 +830,8 @@ if __name__ == "__main__":
                     outcome = challenge(
                         study, known_trials, objective, existingData, make_defaults(code_defaults, existingData),
                         timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
-                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild)
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild,
+                        se_margin=GATE_SE_MARGIN)
                     print(outcome["summary"])
                     existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
                     if outcome["params"] is not None:

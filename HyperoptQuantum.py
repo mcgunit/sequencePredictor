@@ -32,7 +32,7 @@ from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, descr
 from HyperoptStatistics import GAME_CONFIG
 from src.MarketData import WEEK_MARKETS
 from TrainMetaLearner import (
-    build_training_table, load_meta_score_table, save_meta_score_table, meta_table_kind,
+    build_training_table, load_meta_score_table, save_meta_score_table, meta_table_kind, meta_table_start_index,
     build_positional_training_table, fit_position_models, evaluate_positional_holdout,
     positional_positions, POSITIONAL_CLASSES,
 )
@@ -223,7 +223,8 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
         print(f"No data found for {dataset_name}, skipping.")
         return None
 
-    start_index = max(0, total_rows - days_back)
+    # the trainer's history floor (13 Oct 2026): without it a 300-day table of a 306-draw game started at row 6
+    start_index = meta_table_start_index(total_rows, days_back)
 
     # Shared with TrainMetaLearner.py (same cache helpers): whichever script
     # collects first persists the table, the other reuses it - see the cache

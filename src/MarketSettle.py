@@ -68,6 +68,8 @@ OPEN_RULE_MARKETS = ("shares", "sharesweek")
 CHART_DAYS = 365       # closes and predicted course the page draws (a year; the chart zooms)
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
 DAY_RECORDS = 30       # settled days the page lists day by day, newest first
+PLAN_MIN_TRADES = 10   # positions a book needs before Today's plan follows it (markets.js MIN_PLAN_TRADES)
+WEEK_PLAN_MIN_TRADES = 5   # the same for the Week ahead card (markets.js MIN_WEEK_TRADES)
 DAY_FILE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})\.json$")
 
 # Rows that do not predict on their own: aggregates of the others, never
@@ -468,6 +470,7 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         return out
 
     daily_models, hold_models, hold_stats, open_models, open_stats = {}, {}, {}, {}, {}
+    daily_counts, open_counts = {}, {}   # positions per model per day under the daily and the open rule (followed_plan's thresholds)
     # the same rules with shorts on (a lower-half bin is a short): money per model and the position counts
     ls_daily, ls_daily_stats, ls_hold, ls_hold_stats, ls_open, ls_open_stats = {}, {}, {}, {}, {}, {}
     for (model, symbol), call in calls.items():
@@ -481,15 +484,19 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         lstat = ls_daily_stats.setdefault(model, {"trades": 0, "wins": 0})
         loday = ls_open.setdefault(model, [0.0] * n)
         lostat = ls_open_stats.setdefault(model, {"trades": 0, "wins": 0})
+        dcount = daily_counts.setdefault(model, [0] * n)
+        ocount = open_counts.setdefault(model, [0] * n)
         for i in range(n):
             if ret[i] is None:
                 continue
             bar = session(symbol, i)
             if call[i]:
                 day[i] += size[i] * cash_pnl(ret[i], stake, fee_per_leg)
+                dcount[i] += 1
                 if bar:
                     pnl = size[i] * open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
                     oday[i] += pnl
+                    ocount[i] += 1
                     ostat["trades"] += 1
                     ostat["wins"] += int(pnl > 0)
             if side[i]:
@@ -535,6 +542,8 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
             sold_hold[i] += sold[i]
     return {
         "dates": dates,
+        # internal: positions per model per day; export_page_json reads it for followed_plan and drops it from the page record
+        "_counts": {"daily": daily_counts, "open": open_counts, "seen": {m: sorted(v) for m, v in seen.items()}},
         "models": {m: series(day, seen[m]) for m, day in daily_models.items()},
         "benchmark": series(bench_daily),
         "hold": {"models": {m: series(day, seen[m]) for m, day in hold_models.items()}, "benchmark": series(bench_hold),
@@ -614,6 +623,199 @@ def chart_series(conn, market, member, dates):
     return {"edges": edges, "moves": moves, "course": course}
 
 
+def plan_rule(market):
+    """The rule the page's plan follows a book under: open to close for the markets that have it (a reader can follow it), else the daily round trip."""
+    return "open" if market in OPEN_RULE_MARKETS else "daily"
+
+
+def close_instant(market, day):
+    """
+    The moment a game day's call is judged, as a UTC datetime: a crypto day
+    (and a crypto week, dated by its Sunday) closes at the next 00:00 UTC; a
+    share session (and a share week, dated by its Friday) at 16:00 New York,
+    taken as 20:00 UTC - the earlier of the two clock seasons, so a ticket made
+    in the last hour of a winter session is never counted as made before it.
+    """
+    d = date.fromisoformat(day)
+    if str(market).startswith("shares"):
+        return datetime(d.year, d.month, d.day, 20, 0, tzinfo=timezone.utc)
+    nxt = d + timedelta(days=1)
+    return datetime(nxt.year, nxt.month, nxt.day, 0, 0, tzinfo=timezone.utc)
+
+
+def ticket_written(file_path):
+    """
+    When a day file's ticket (its newPrediction) was made, as a UTC datetime:
+    the file's "madeAt" (Predictor.stampTicket, since 13 Oct 2026), else - a
+    file written before that - its modification time, which
+    Predictor.update_matching_numbers keeps when it re-links the files.
+    None when neither can be read.
+    """
+    try:
+        with open(file_path) as handle:
+            made = json.load(handle).get("madeAt")
+        if made:
+            stamp = datetime.fromisoformat(str(made))
+            return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+    except (OSError, ValueError, TypeError, AttributeError, json.JSONDecodeError):
+        pass
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc)
+    except OSError:
+        return None
+
+
+def ticket_times(path, market):
+    """
+    {game day: when its ticket was made}. A day's ticket is the newPrediction
+    of the day file before it, so it was made when that file was written
+    (ticket_written: its "madeAt", else its modification time - the same
+    reading as next_day_predictions' made_at). A day whose ticket was made
+    too late to be followed (entry_instant) was back-built - the history the
+    market games were started with on 1 and 5 Oct 2026, or a missed run's day
+    rebuilt the morning after.
+    """
+    folder = os.path.join(path, "data", "database", market) if path else None
+    if not folder or not os.path.isdir(folder):
+        return {}
+    dated = sorted((d, n) for d, n in ((day_file_date(n), n) for n in os.listdir(folder)) if d)
+    out = {}
+    for (prev_day, prev_name), (day, _name) in zip(dated, dated[1:]):
+        stamp = ticket_written(os.path.join(folder, prev_name))
+        if stamp is not None:
+            out[day] = stamp
+    return out
+
+
+def entry_instant(market, day, previous_game_day=None):
+    """
+    The last moment a day's ticket can be up for the plan's book to be
+    followable as it is booked, as a UTC datetime (followed_plan's live test).
+    Open-to-close markets: the window's first open (ledger.session) - the
+    day's own session for shares; for a share week the first weekday after
+    the previous game day (Monday; a holiday Monday only makes this stricter)
+    - taken as 13:30 UTC, 09:30 New York in summer time, the earlier of the
+    two seasons. A crypto week: the end of the week's first UTC day (the
+    Week ahead card still says "a market order now" until then). A crypto
+    day: its close (close_instant) - its daily book buys at 00:00 UTC, before
+    any ticket can be up, which the page says. Without a game day before it
+    a share week uses its own date, as ledger.session does.
+    """
+    d = date.fromisoformat(day)
+    prev = date.fromisoformat(previous_game_day) if previous_game_day else None
+    if plan_rule(market) == "open":
+        first = d
+        if is_week_game(market) and prev is not None:
+            first = prev + timedelta(days=1)
+            while first.weekday() >= 5:
+                first += timedelta(days=1)
+            first = min(first, d)
+        return datetime(first.year, first.month, first.day, 13, 30, tzinfo=timezone.utc)
+    if is_week_game(market):
+        start = prev + timedelta(days=1) if prev is not None else d - timedelta(days=6)
+        end = start + timedelta(days=1)
+        return datetime(end.year, end.month, end.day, 0, 0, tzinfo=timezone.utc)
+    return close_instant(market, day)
+
+
+def followed_plan(conn, market, book, path=None, k=K_BINS):
+    """
+    What following the page's own plan would have made, settled day by settled
+    day (Today's plan for a daily market, the Week ahead card for a week game).
+
+    On every settled day the row is picked the way the page picks it, from the
+    record as it stood after the PREVIOUS settled day - nothing of the day
+    itself is used: the best book under the plan's rule (open to close where
+    the market has it, else the daily round trip) among the rows with at
+    least PLAN_MIN_TRADES positions (WEEK_PLAN_MIN_TRADES for a week game),
+    ties to the page's model order; while no book has that many positions the
+    page fell back to the best exact rate (rows with fewer than MIN_RANK_DAYS
+    days last), and so does this. That row's money on the day under the same
+    rule is what a follower made; a picked row without a call that day made
+    nothing. The market under the same rule - every instrument, the same stake
+    and fees - is the yardstick.
+
+    Each point says whether the day's ticket was made before the plan's
+    entry (ticket_times against entry_instant: the open for shares, the end
+    of the week's first day for a crypto week, the close for a crypto day):
+    only those days could have been followed as booked; the others show what
+    the rule would have done, not a record.
+
+    Returns {rule, min_trades, points: [[date, model, picked_by, positions,
+    pnl, total, live, market_pnl]], first_live, totals} or None without
+    settled days.
+    """
+    dates = book.get("dates") or []
+    if not dates:
+        return None
+    rule = plan_rule(market)
+    min_trades = WEEK_PLAN_MIN_TRADES if is_week_game(market) else PLAN_MIN_TRADES
+    series = book["open"]["models"] if rule == "open" else book["models"]
+    bench = book["open"]["benchmark"] if rule == "open" else book["benchmark"]
+    counts = book["_counts"]["open" if rule == "open" else "daily"]
+    pnl_by = {m: {p[0]: p[1] for p in pts} for m, pts in series.items()}
+    bench_by = {p[0]: p[1] for p in bench}
+    # the exact-rate fallback, per model and day: hits, positions, days, P&L in return units (model_summary's order)
+    per_day = {}
+    for r in _result_rows(conn, market):
+        e = per_day.setdefault(r["for_date"], {}).setdefault(r["model"], [0, 0, 0.0])
+        e[0] += int(r["hit_exact"] or 0)
+        e[1] += 1
+        e[2] += float(r["pnl"] or 0.0)
+    made = ticket_times(path, market)
+    game_dates = [r[0] for r in conn.execute("SELECT DISTINCT date FROM game_days WHERE market = ? ORDER BY date", (market,)).fetchall()]
+    cum_money, cum_trades, cum_exact, cum_pos, cum_days, cum_ret = {}, {}, {}, {}, {}, {}
+    points, total, first_live = [], 0.0, None
+    live_total = live_market = 0.0
+    live_days = live_positions = 0
+    for i, d in enumerate(dates):
+        known = list(cum_days)
+
+        def summary_key(m):
+            rate = cum_exact[m] / cum_pos[m] if cum_pos.get(m) else 0.0
+            return (cum_days[m] < MIN_RANK_DAYS, -rate, -cum_ret[m], m)
+        order = sorted(known, key=summary_key)
+        rank = {m: j for j, m in enumerate(order)}
+        books = sorted((m for m in known if cum_trades.get(m, 0) >= min_trades), key=lambda m: (-cum_money.get(m, 0.0), rank[m]))
+        if books:
+            model, picked_by = books[0], "book"
+        elif order:
+            model, picked_by = order[0], "exact"
+        else:
+            model, picked_by = None, None
+        pnl = pnl_by.get(model, {}).get(d) if model else None
+        positions = counts.get(model, [0] * len(dates))[i] if model else 0
+        if pnl is None:
+            pnl, positions = 0.0, 0          # no call from the picked row that day: nothing bought
+        total += pnl
+        stamp = made.get(d)
+        g = bisect.bisect_left(game_dates, d) - 1
+        live = stamp is not None and stamp < entry_instant(market, d, game_dates[g] if g >= 0 else None)
+        market_pnl = bench_by.get(d)
+        if live:
+            first_live = first_live or d
+            live_total += pnl
+            live_market += market_pnl or 0.0
+            live_days += 1
+            live_positions += positions
+        points.append([d, model, picked_by, positions, round(pnl, 4), round(total, 4), live, None if market_pnl is None else round(market_pnl, 4)])
+        # the day settles: it enters the record the NEXT day's pick reads
+        for m, pts in pnl_by.items():
+            v = pts.get(d)
+            if v is not None:
+                cum_money[m] = cum_money.get(m, 0.0) + v
+                cum_trades[m] = cum_trades.get(m, 0) + counts.get(m, [0] * len(dates))[i]
+        for m, (hits, pos, ret) in per_day.get(d, {}).items():
+            cum_exact[m] = cum_exact.get(m, 0) + hits
+            cum_pos[m] = cum_pos.get(m, 0) + pos
+            cum_days[m] = cum_days.get(m, 0) + 1
+            cum_ret[m] = cum_ret.get(m, 0.0) + ret
+    market_total = sum(v or 0.0 for v in bench_by.values())
+    return {"rule": rule, "min_trades": min_trades, "points": points, "first_live": first_live,
+            "total": round(total, 4), "market_total": round(market_total, 4),
+            "live_total": round(live_total, 4), "live_market": round(live_market, 4), "live_days": live_days, "live_positions": live_positions}
+
+
 def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
     """
     The newest settled game days, newest first, in market terms - what the
@@ -638,7 +840,7 @@ def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
         # instruments.position is the table's column and need not be dense
         slot_of = {symbol: pos for pos, symbol in enumerate(game_day["symbols"])}
         rows = conn.execute(
-            "SELECT r.model, i.position, i.symbol, r.actual_bin, r.actual_return, r.hit_exact, r.hit_adjacent, r.hit_direction, r.pnl, p.bin "
+            "SELECT r.model, i.position, i.symbol, r.actual_bin, r.actual_return, r.hit_exact, r.hit_adjacent, r.hit_direction, r.pnl, p.bin, p.meta "
             "FROM results r JOIN instruments i ON i.id = r.instrument_id "
             "LEFT JOIN predictions p ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
             "WHERE i.market = ? AND r.for_date = ? ORDER BY r.model, i.position", (market, day)).fetchall()
@@ -648,16 +850,25 @@ def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
             if pos is None:
                 continue        # a result for an instrument the day's cut does not hold (retired since): not part of this draw
             entry = per_model.setdefault(r["model"], {"name": r["model"], "bins": [None] * len(game_day["symbols"]),
+                                                      "sizes": [None] * len(game_day["symbols"]),
                                                       "exact": 0, "adjacent": 0, "direction": 0, "positions": 0, "pnl": 0.0, "pnl_cash": 0.0, "trades": 0})
             entry["bins"][pos] = None if r["bin"] is None else int(r["bin"])
+            entry["sizes"][pos] = size_of(r["meta"])     # a sized row's (RL Position Model) size per slot, None for every other row
             entry["exact"] += int(r["hit_exact"] or 0)
             entry["adjacent"] += int(r["hit_adjacent"] or 0)
             entry["direction"] += int(r["hit_direction"] or 0)
             entry["positions"] += 1
             entry["pnl"] += float(r["pnl"] or 0.0)
-            if r["bin"] is not None and int(r["bin"]) >= k / 2 and r["actual_return"] is not None:
+            # the position through position_of, like every book and the models table: a sized row is long when its
+            # size is above zero and scales the stake by it (until 13 Oct 2026 this used the bin rule at full stake,
+            # so the Day by day table showed the RL Position Model trading on days it sat out)
+            long, scale = position_of(r["bin"], r["meta"], k)
+            if long and r["actual_return"] is not None:
                 entry["trades"] += 1
-                entry["pnl_cash"] += cash_pnl(r["actual_return"])
+                entry["pnl_cash"] += scale * cash_pnl(r["actual_return"])
+        for entry in per_model.values():
+            if all(v is None for v in entry["sizes"]):
+                del entry["sizes"]
         models = sorted(per_model.values(), key=lambda m: (-m["exact"], -m["direction"], m["name"]))
         # the same definition as daily_series (the chart): the mean over models of each model's own exact rate
         rates = [m["exact"] / m["positions"] for m in models if m["positions"]]
@@ -699,13 +910,11 @@ def next_day_predictions(conn, market, path):
     # by symbol: game slots are dense over the cut's active instruments, the
     # table's position need not be (a retired instrument keeps its column)
     members = {i["symbol"]: i for i in instruments(conn, market, active_only=False)}
-    # made_at: when the ticket was written - the day file's modification time
-    # (settlement never rewrites a day file; the export's generated_at is
+    # made_at: when the ticket was made - the day file's "madeAt", else its
+    # modification time (ticket_written; the export's generated_at is
     # rewritten by every run, also one that made no new ticket)
-    try:
-        made_at = datetime.fromtimestamp(os.path.getmtime(os.path.join(folder, newest_name)), tz=timezone.utc).isoformat(timespec="seconds")
-    except OSError:
-        made_at = None
+    made = ticket_written(os.path.join(folder, newest_name))
+    made_at = made.isoformat(timespec="seconds") if made is not None else None
     out = {"made_on": newest_day, "made_at": made_at, "for": "the next week" if is_week_game(market) else "the next trading day", "instruments": {}}
     for pos, symbol in enumerate(edges_day["symbols"]):
         member = members.get(symbol)
@@ -753,7 +962,7 @@ def export_results_csv(conn, path, market):
     """data/markets/<market>/results-<year>.csv, rewritten from the store (the tracked text record)."""
     rows = conn.execute(
         "SELECT r.for_date, r.model, i.symbol, p.bin AS predicted_bin, r.actual_bin, r.actual_return, r.hit_exact, r.hit_adjacent, "
-        "r.hit_direction, r.pnl FROM results r JOIN instruments i ON i.id = r.instrument_id "
+        "r.hit_direction, r.pnl, p.meta FROM results r JOIN instruments i ON i.id = r.instrument_id "
         "LEFT JOIN predictions p ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
         "WHERE i.market = ? ORDER BY r.for_date, r.model, i.position", (market,)).fetchall()
     folder = os.path.join(path, "data", "markets", market)
@@ -768,10 +977,12 @@ def export_results_csv(conn, path, market):
             writer = csv.writer(handle, delimiter=";")
             writer.writerow(["date", "model", "symbol", "predicted_bin", "actual_bin", "return", "hit_exact", "hit_adjacent", "hit_direction", "pnl", "pnl_cash"])
             for r in group:
-                long = r["predicted_bin"] is not None and int(r["predicted_bin"]) >= K_BINS / 2
+                # pnl_cash through position_of, as every book reads it: a sized row's size decides long and scales the stake
+                # (the bin rule at full stake until 13 Oct 2026, which contradicted the sized "pnl" column next to it)
+                long, scale = position_of(r["predicted_bin"], r["meta"])
                 writer.writerow([r["for_date"], r["model"], r["symbol"], r["predicted_bin"], r["actual_bin"], f"{r['actual_return']:.8f}",
                                  r["hit_exact"], r["hit_adjacent"], r["hit_direction"], f"{r['pnl']:.8f}",
-                                 f"{cash_pnl(r['actual_return']) if long else 0.0:.4f}"])
+                                 f"{scale * cash_pnl(r['actual_return']) if long else 0.0:.4f}"])
         files.append(file)
     return files
 
@@ -780,6 +991,10 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     """data/markets/<market>.json: everything the market page draws."""
     models = model_summary(conn, market, k)
     book = ledger(conn, market, k)
+    # what following the page's own plan made, picked day by day from the record before each day (before the
+    # open book is dropped for the markets without one: followed_plan reads the rule's own book)
+    followed = followed_plan(conn, market, book, path=path, k=k)
+    book.pop("_counts", None)
     if market not in OPEN_RULE_MARKETS:
         book.pop("open", None)
         book["short"].pop("open", None)
@@ -830,7 +1045,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
                     "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
                     **({"open_rule": "the same calls, but the stake is bought at the session's open and sold at its close, a fee on each leg: the rule a reader of the page can follow"} if "open" in book else {}),
                     "short_rule": "with shorts on, a bin in the lower half is a short: sold at the previous close and bought back at the day's close (daily), kept while the call stays down (hold), sold at the open and bought back at the close (open to close); paper only - selling what one does not own needs a margin or derivatives account",
-                    **book},
+                    **book, "followed": followed},
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
         "days": day_records(conn, market, days=DAY_RECORDS, k=k),
@@ -1004,7 +1219,69 @@ def _self_check():
         assert first["best"] in ("Perfect Model", "Sized Model", "Flat Model") and first["models"][0]["exact"] == 5 and first["models"][0]["bins"] == game_days[-1]["bins"]
         contrarian_day = [m for m in first["models"] if m["name"] == "Contrarian Model"][0]
         assert contrarian_day["exact"] == 0 and abs(first["exact_mean"] - 0.75) < 1e-12, first["exact_mean"]
+        # the followed plan: the first 20 tickets back-built (their day files written after the day they predict had
+        # closed), the last ten made in time (each file written the morning after its own day closed)
+        names = sorted(n for n in os.listdir(folder) if day_file_date(n) and day_file_date(n) >= game_days[-30]["date"])
+        names.sort(key=day_file_date)
+        late = close_instant("crypto", game_days[-1]["date"]) + timedelta(days=3)
+        for j, name in enumerate(names):
+            stamp = late if j < 20 else close_instant("crypto", day_file_date(name)) + timedelta(hours=8)
+            os.utime(os.path.join(folder, name), (stamp.timestamp(), stamp.timestamp()))
         out, record = export_page_json(conn, root, "crypto", chart_days=40)
+        assert "_counts" not in record["trading"], "the internal position counts stay out of the page record"
+        fol = record["trading"]["followed"]
+        perfect_rows_names = {"Perfect Model", "Sized Model", "Flat Model"}
+        pts = fol["points"]
+        tdates = record["trading"]["dates"]
+        assert [p[0] for p in pts] == tdates and fol["rule"] == "daily" and fol["min_trades"] == PLAN_MIN_TRADES
+        # day one: no settled record yet, so the page had no plan to follow; day two falls back to the best exact rate
+        assert pts[0][1] is None and pts[0][2] is None and pts[0][3] == 0 and pts[0][4] == 0.0, pts[0]
+        assert pts[1][2] == "exact" and pts[1][1] in perfect_rows_names, pts[1]
+        # no lookahead: every pick is the best book over the days BEFORE it among rows with PLAN_MIN_TRADES positions
+        book_series = {m: {p_[0]: p_[1] for p_ in v} for m, v in record["trading"]["models"].items()}
+        trades_before = {m: 0 for m in book_series}
+        for i, pt in enumerate(pts):
+            before = {m: sum(v for d_, v in book_series[m].items() if d_ < pt[0] and v is not None) for m in book_series}
+            eligible = [m for m in book_series if trades_before[m] >= PLAN_MIN_TRADES]
+            if eligible:
+                best_total = max(before[m] for m in eligible)
+                assert pt[2] == "book" and abs(before[pt[1]] - best_total) < 1e-6, (i, pt, before)
+            assert abs(pt[4] - (book_series.get(pt[1], {}).get(pt[0]) or 0.0)) < 1e-4, "the follower makes the picked row's money that day"
+            day_rec = [m for m in day_records(conn, "crypto", days=60) if m["date"] == pt[0]]
+            for m in book_series:
+                rec_m = [x for x in day_rec[0]["models"] if x["name"] == m] if day_rec else []
+                trades_before[m] += rec_m[0]["trades"] if rec_m else 0
+        assert pts[-1][1] == "Perfect Model" and pts[-1][2] == "book", "the perfect model's book leads once it has its positions"
+        assert abs(fol["total"] - sum(p_[4] for p_ in pts)) < 1e-3 and abs(fol["market_total"] - record["trading"]["benchmark"][-1][2]) < 1e-2
+        # live: the 21st day on (its ticket is the 20th file, written in time); the twenty before are back-built
+        assert [p_[6] for p_ in pts] == [False] * 21 + [True] * 9, [p_[6] for p_ in pts]
+        assert fol["first_live"] == tdates[21] and fol["live_days"] == 9
+        assert abs(fol["live_total"] - sum(p_[4] for p_ in pts[21:])) < 1e-3 and abs(fol["live_market"] - sum(p_[7] for p_ in pts[21:])) < 1e-3
+        assert close_instant("shares", "2026-10-09") == datetime(2026, 10, 9, 20, 0, tzinfo=timezone.utc)
+        assert close_instant("cryptoweek", "2026-10-11") == datetime(2026, 10, 12, 0, 0, tzinfo=timezone.utc)
+        # the plan's entry: the open for shares (13:30 UTC), the week's first open for a share week (Monday after the
+        # previous Friday), the end of the week's first day for a crypto week, the close for a crypto day
+        assert entry_instant("shares", "2026-10-09") == datetime(2026, 10, 9, 13, 30, tzinfo=timezone.utc)
+        assert entry_instant("sharesweek", "2026-10-09", "2026-10-02") == datetime(2026, 10, 5, 13, 30, tzinfo=timezone.utc)
+        assert entry_instant("cryptoweek", "2026-10-11", "2026-10-04") == datetime(2026, 10, 6, 0, 0, tzinfo=timezone.utc)
+        assert entry_instant("crypto", "2026-10-11") == close_instant("crypto", "2026-10-11")
+        # "madeAt" in the file wins over its modification time; a file without it falls back to the time
+        late_name = names[25]
+        late_path = os.path.join(folder, late_name)
+        with open(late_path) as handle:
+            late_data = json.load(handle)
+        late_data["madeAt"] = (close_instant("crypto", day_file_date(names[26])) + timedelta(hours=2)).isoformat(timespec="seconds")
+        keep = os.stat(late_path)
+        with open(late_path, "w") as handle:
+            json.dump(late_data, handle)
+        os.utime(late_path, ns=(keep.st_atime_ns, keep.st_mtime_ns))
+        assert ticket_written(late_path) == datetime.fromisoformat(late_data["madeAt"])
+        relived = followed_plan(conn, "crypto", ledger(conn, "crypto"), path=root)
+        flags = [p_[6] for p_ in relived["points"]]
+        assert flags[26] is False and flags[21:26] == [True] * 5 and flags[27:] == [True] * 3, flags
+        assert relived["first_live"] == tdates[21] and relived["live_days"] == 8, "a late ticket after the live start is left out of the live total"
+        print("followed plan: picked from the record before each day (book from", PLAN_MIN_TRADES, "positions, else the exact rate),",
+              "the picked row's money that day, live only when the ticket was written before the day closed")
         assert len(record["days"]) == 30 and record["days"][0]["date"] == game_days[-1]["date"]
         assert os.path.exists(out) and record["market"] == "crypto" and record["k"] == 10
         assert [i["symbol"] for i in record["instruments"]] == symbols and len(record["instruments"][0]["closes"]) == 40
@@ -1074,7 +1351,21 @@ def _self_check():
         sized_next = [p for p in record["next"]["instruments"]["BTC"]["predictions"] if p["model"] == "Sized Model"][0]
         plain_next = [p for p in record["next"]["instruments"]["BTC"]["predictions"] if p["model"] == "Perfect Model"][0]
         assert sized_next["size"] == 1.5 and plain_next["size"] is None
-        print("sized rows: the size decides long and scale in every book and in the models table; the next-day call carries it")
+        # the Day by day records and the results CSV read the same position: Sized Model trades every slot at twice the
+        # stake, Flat Model (size 0, upper-half bins on the up days) never trades, and the sizes ride along for the page
+        for rec in record["days"]:
+            day_sized = [m for m in rec["models"] if m["name"] == "Sized Model"][0]
+            day_flat = [m for m in rec["models"] if m["name"] == "Flat Model"][0]
+            day_market = sum(cash_pnl(i["return"]) for i in rec["instruments"])
+            assert day_sized["trades"] == len(rec["instruments"]) and abs(day_sized["pnl_cash"] - 2 * day_market) < 1e-9, (rec["date"], day_sized)
+            assert day_flat["trades"] == 0 and day_flat["pnl_cash"] == 0.0 and day_flat["sizes"] == [0.0] * len(rec["instruments"]), day_flat
+            assert day_sized["sizes"] == [2.0] * len(rec["instruments"]) and "sizes" not in [m for m in rec["models"] if m["name"] == "Perfect Model"][0]
+        csv_rows = list(csv.reader(open(export_results_csv(conn, root, "crypto")[-1]), delimiter=";"))[1:]
+        csv_flat = [float(r[10]) for r in csv_rows if r[1] == "Flat Model"]
+        csv_sized = {(r[0], r[2]): float(r[10]) for r in csv_rows if r[1] == "Sized Model"}
+        assert csv_flat and all(v == 0.0 for v in csv_flat), "a size-0 row books nothing in the CSV"
+        assert all(abs(v - 2 * cash_pnl(float(r[5]))) < 1e-3 for r in csv_rows if r[1] == "Sized Model" for v in [csv_sized[(r[0], r[2])]])
+        print("sized rows: the size decides long and scale in every book, the models table, the day records and the results CSV; the next-day call carries it")
         # shorts: 100 sold at the previous close and bought back 2% lower, a fee on each leg
         assert abs(short_pnl(-0.02) - (99.9 - 100.0 * math.exp(-0.02) * 1.001)) < 1e-9 and abs(short_pnl(0.0) - (-0.2)) < 1e-9
         assert abs(short_open_close_pnl(100.0, 98.0) - short_pnl(math.log(0.98))) < 1e-12

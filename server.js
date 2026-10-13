@@ -8,6 +8,7 @@ const council = require("./council");
 const services = require("./services");
 const jobs = require("./jobs");
 const whatsnew = require("./whatsnew");
+const { help, HELP_CSS, autoReload } = require("./help");   // the "?" every page keeps its explanations behind (13 Oct 2026)
 
 const app = express();
 
@@ -78,7 +79,7 @@ function rankingFor(game) {
     const report = JSON.parse(fs.readFileSync(path.join(dataPath, 'modelPerformance.json'), 'utf-8'));
     const info = report.games && report.games[game];
     if (!info || !Array.isArray(info.models) || !info.models.length) return null;
-    return { names: info.models.map((m) => String(m.name)), metric: info.metric === 'profit_per_bet' ? 'profit per bet' : 'average hits' };
+    return { names: info.models.map((m) => String(m.name)), metric: info.metric === 'profit_bound' ? 'capped profit per bet (lower bound)' : (info.metric === 'profit_per_bet' ? 'profit per bet' : 'average hits') };
   } catch (e) { return null; }
 }
 const seesAllModels = (user) => !user || user.open === true || user.role === 'admin';
@@ -127,17 +128,20 @@ function marketGameViewNote(game) {
   const title = markets.MARKETS[base] ? markets.MARKETS[base].title : base;
   const symbols = marketSymbols(game);
   const noun = base === 'crypto' ? 'coin' : 'share';
+  // 13 Oct 2026: what the game is and where its page is stay visible; what
+  // the digit means opens behind the "?" (help.js).
   if (game !== base) {
     return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
     <b>This is the game view of the ${base} market's week game.</b> Each week is one draw with one slot per ${noun}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
-    The digit is the <b>bin</b> of the week's move - the close of the week's last ${base === 'crypto' ? 'day (Sunday, UTC)' : 'session (normally Friday)'} against the close of the week before, placed among the ${noun}'s own past weekly moves sorted
-    from worst to best and cut into ten equal piles. A hit is the right bin in the right slot. The <a href="/markets/${base}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the coming week's calls in its <i>Week ahead</i> card.</div>`;
+    The <a href="/markets/${base}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the coming week's calls in its <i>Week ahead</i> card.
+    ${help(`The digit is the <b>bin</b> of the week's move - the close of the week's last ${base === 'crypto' ? 'day (Sunday, UTC)' : 'session (normally Friday)'} against the close of the week before, placed among the ${noun}'s own past weekly moves sorted
+    from worst to best and cut into ten equal piles. A hit is the right bin in the right slot.`, 'what the digit means')}</div>`;
   }
   return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
     <b>This is the game view of the ${game} market.</b> Each day is one draw with one slot per ${game === 'crypto' ? 'coin' : 'share'}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
-    The digit is the <b>bin</b> of that day's move - today's close against yesterday's close, placed among the ${game === 'crypto' ? 'coin' : 'share'}'s own past daily moves sorted
-    from worst to best and cut into ten equal piles: 0 is a day among its worst tenth, 9 among its best, 4 and 5 barely moved. A hit is the right bin in the right slot.
-    The <a href="/markets/${game}" style="color:#7d6608; font-weight:bold;">${title} page</a> explains this in three steps with the newest day as the example, and shows the same days as prices and moves.</div>`;
+    The <a href="/markets/${game}" style="color:#7d6608; font-weight:bold;">${title} page</a> explains this in three steps with the newest day as the example, and shows the same days as prices and moves.
+    ${help(`The digit is the <b>bin</b> of that day's move - today's close against yesterday's close, placed among the ${game === 'crypto' ? 'coin' : 'share'}'s own past daily moves sorted
+    from worst to best and cut into ten equal piles: 0 is a day among its worst tenth, 9 among its best, 4 and 5 barely moved. A hit is the right bin in the right slot.`, 'what the digit means')}</div>`;
 }
 
 // --- JOKER+ ---
@@ -322,7 +326,7 @@ function pipelineBanner() {
       <span><b>${status.what}.</b> ${running} - this page updates when it finishes.</span>
     </div>
     <style>@keyframes sp-spin { to { transform: rotate(360deg); } }</style>
-    <script>setTimeout(function () { location.reload(); }, 60000);</script>`;
+    ${autoReload(60000)}`;
 }
 
 // --- LOGIC: which draw a "new prediction" is for ---
@@ -484,6 +488,8 @@ function generateHeader(title = "Sequence Predictor", user = null) {
         font-size: 1em; transition: background 0.2s;
       }
       .nav-btn:hover { background-color: #2c3e50; }
+
+      ${HELP_CSS}
 
       /* FIRST-LOGIN INTRODUCTION AND WHAT'S NEW (whatsnew.js) */
       ${whatsnew.DIALOG_CSS}
@@ -752,14 +758,15 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
 
   html += '</table></div>';
   if (multi) {
+    // the legend of the shaded 7th-9th columns, behind the "?" (13 Oct 2026)
     const price = (size) => `${(multi.grids[size] * multi.gridPrice).toFixed(2).replace(/\.00$/, '')} EUR`;
-    html += `<p style="color:#7d3c0f; font-size:0.85em; margin:8px 0 0; background:#fdf2e9; border:1px dashed #e67e22; border-radius:4px; padding:8px 10px;">
+    html += help(`<p style="color:#7d3c0f;">
       <b>Multi-pick.</b> A row with shaded numbers lists its six in the model's own probability order, highest first - not small to large; the three shaded numbers are the model's next most
       probable ones, for a <b>system play</b>: 7 numbers = ${multi.grids[7]} grids = ${price(7)}, 8 numbers = ${multi.grids[8]} grids = ${price(8)}, 9 numbers = ${multi.grids[9]} grids = ${price(9)}
       (${multi.gridPrice.toFixed(2)} EUR a grid, against one grid for the six). More numbers win more by arithmetic alone: 6 numbers hit 3 of the six drawn - the smallest prize that needs no bonus number;
       ranks that use the bonus number are not counted here - ${(multi.chance[6] * 100).toFixed(1)}% of the time, 7 numbers ${(multi.chance[7] * 100).toFixed(1)}%, 8 numbers ${(multi.chance[8] * 100).toFixed(1)}%,
       9 numbers ${(multi.chance[9] * 100).toFixed(1)}%, and any extra number hits ${(multi.perExtra * 100).toFixed(1)}% of draws by luck. The <a href="/database">History</a> page tracks whether the model's
-      extra numbers do better than that. A row without shaded numbers (a vote, the RL ticket, HybridStatisticalModel, or a row whose ranking failed that run) has no extras and keeps its six small to large.</p>`;
+      extra numbers do better than that. A row without shaded numbers (a vote, the RL ticket, HybridStatisticalModel, or a row whose ranking failed that run) has no extras and keeps its six small to large.</p>`, 'multi-pick: why the six are not sorted');
   }
   return html;
 }
@@ -860,7 +867,9 @@ function generatePerformanceSummary() {
   try { report = JSON.parse(fs.readFileSync(reportPath, 'utf-8')); }
   catch (e) { return ''; }
 
-  const metricLabel = { profit_per_bet: 'Profit / bet', avg_hits: 'Avg hits' };
+  const metricLabel = { profit_bound: 'Profit bound', profit_per_bet: 'Profit / bet', avg_hits: 'Avg hits' };
+  // the payout games rank by profit_bound since 13 Oct 2026 (src/Helpers._profit_bound); both read as money
+  const isMoney = (metric) => metric === 'profit_bound' || metric === 'profit_per_bet';
 
   let rows = '';
   let anyBand = false;
@@ -872,8 +881,8 @@ function generatePerformanceSummary() {
     const info = report.games[game];
     const best = info.models[0];
     const value = best[info.metric];
-    const valueColor = info.metric === 'profit_per_bet' ? (value > 0 ? '#27ae60' : '#c0392b') : '#2c3e50';
-    const display = info.metric === 'profit_per_bet' ? `${value} €` : value;
+    const valueColor = isMoney(info.metric) ? (value > 0 ? '#27ae60' : '#c0392b') : '#2c3e50';
+    const display = isMoney(info.metric) ? `${value} €` : value;
 
     // Q0 (README "Null controls"): what the best of the rows scores on a
     // history with nothing in it. A hits-ranked row at or under that band
@@ -898,7 +907,7 @@ function generatePerformanceSummary() {
     const since = info.since || null;
     const sinceByName = {};
     (since ? since.models : []).forEach((m) => { sinceByName[m.name] = m; });
-    const sinceDisplay = (v) => (v === null || v === undefined ? '-' : (info.metric === 'profit_per_bet' ? `${v} €` : v));
+    const sinceDisplay = (v) => (v === null || v === undefined ? '-' : (isMoney(info.metric) ? `${v} €` : v));
     const sinceBest = since ? sinceByName[since.bestModel] : null;
     // The null band is not applied here: it is measured over long control
     // histories, and the best of thirty rows over a handful of draws clears
@@ -912,13 +921,15 @@ function generatePerformanceSummary() {
     // Expandable full ranking per game
     const ranking = info.models.map((m, i) => {
       const v = m[info.metric];
-      const mDisplay = v === null || v === undefined ? '-' : (info.metric === 'profit_per_bet' ? `${v} €` : v);
+      const mDisplay = v === null || v === undefined ? '-' : (isMoney(info.metric) ? `${v} €` : v);
+      // ranked by the bound, the raw profit per bet next to it
+      const rawCell = info.metric === 'profit_bound' ? `<td>${m.profit_per_bet === null || m.profit_per_bet === undefined ? '-' : `${m.profit_per_bet} €`}${m.bets ? ` <span style="color:#aaa;">(${m.bets})</span>` : ''}</td>` : '';
       const young = m.draws < info.minDrawsForRanking ? ' style="color: #aaa;" title="Too few scored draws to rank"'
         : (inBand(m) ? ` style="color: #999; font-style: italic;" title="Within the null band: the best of ${band.modes[band.from].rows} rows scores up to ${band.ceiling.toFixed(3)} on a ${band.from} history with nothing in it"` : '');
       const sm = sinceByName[m.name];
       const sinceYoung = sm && since && sm.draws < since.minDrawsForRanking;
       const sinceCells = !since ? '' : `<td${sinceYoung ? ' style="color:#aaa;" title="Too few scored draws since the date to rank"' : ''}>${sm ? sinceDisplay(sm[info.metric]) : '-'}</td><td${sinceYoung ? ' style="color:#aaa;"' : ''}>${sm ? sm.draws : '-'}</td>`;
-      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td><td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td>${game === 'keno' ? `<td style="font-size:0.85em; white-space:nowrap;">${m.profit_by_size ? Object.keys(m.profit_by_size).map((k) => `${k}: ${m.profit_by_size[k].profit_per_bet} € (${m.profit_by_size[k].bets})`).join(' · ') : '-'}</td>` : ''}${sinceCells}</tr>`;
+      return `<tr${young}><td>${i + 1}</td><td style="text-align: left;">${m.name}</td><td>${mDisplay}</td>${rawCell}<td>${m.avg_hits}${inBand(m) ? ' <span title="within the null band">∅</span>' : ''}</td><td>${m.best_hits}</td><td>${m.draws}</td>${game === 'keno' ? `<td style="font-size:0.85em; white-space:nowrap;">${m.profit_by_size ? Object.keys(m.profit_by_size).map((k) => `${k}: ${m.profit_by_size[k].profit_per_bet} € (${m.profit_by_size[k].bets})`).join(' · ') : '-'}</td>` : ''}${sinceCells}</tr>`;
     }).join('');
 
     const bestNote = inBand(best) ? ' <span style="color: #999; font-weight: normal; font-size: 0.85em;" title="The best row is within the null band">∅ within band</span>' : '';
@@ -936,7 +947,7 @@ function generatePerformanceSummary() {
       <tr id="rank-${game}" style="display: none;">
         <td colspan="7" style="padding: 0;">
           <table style="width: 100%; min-width: 0; margin: 0;">
-            <tr><th>#</th><th style="text-align: left;">Model</th><th>${metricLabel[info.metric] || info.metric}</th><th>Avg hits</th><th>Best day</th><th>Scored draws</th>${game === 'keno' ? '<th title="profit per bet and bets for each playable ticket size the row played, so the sizes can be read apart">Per ticket size</th>' : ''}${since ? `<th title="${auth.escapeHtml(since.label)} - the null band is measured over long control histories and is not applied to this column">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
+            <tr><th>#</th><th style="text-align: left;">Model</th><th${info.metric === 'profit_bound' ? ' title="what the ranking reads: per draw the profit per bet with every bet capped at 20 EUR (a keno bet against a fair ticket of its size), its mean minus one standard error over the draws - the bound keno is tuned by; pick3 and Joker+ are tuned by slot hits, with this bound only as a tie-breaker"' : ''}>${metricLabel[info.metric] || info.metric}</th>${info.metric === 'profit_bound' ? '<th title="raw profit per bet over every scored draw, and the bets">Profit / bet</th>' : ''}<th>Avg hits</th><th>Best day</th><th>Scored draws</th>${game === 'keno' ? '<th title="profit per bet and bets for each playable ticket size the row played, so the sizes can be read apart">Per ticket size</th>' : ''}${since ? `<th title="${auth.escapeHtml(since.label)} - the null band is measured over long control histories and is not applied to this column">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
             ${ranking}
           </table>
         </td>
@@ -955,18 +966,18 @@ function generatePerformanceSummary() {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
+        ${help(`<p>
+          Keno/Pick3/Joker+ rank by the <b>profit bound</b> (real payout tables): per draw the profit per bet with every bet capped at 20 EUR - a keno bet measured against a fair ticket of its size, so 0 is a fair ticket - and its mean minus one standard error over the draws - the bound the weekly tuners score Keno by (Pick3 and Joker+ are tuned by slot hits, with this bound only as a tie-breaker). One winning ticket cannot crown a row on it, as it could on the raw profit per bet (ranked by until 13 Oct 2026), which stays in its own column. Other games rank by average hits of the main ticket.
+          Click a game row for the full model ranking. Greyed models have fewer scored draws than the ranking minimum.
+          ${anySince ? `<b>Best since the freeze</b> (${auth.escapeHtml(declared.label)}, from ${declared.date}): the same ranking counted only over the stored days on or after the declared date - the frozen design\'s own track record, every day of it predicted before its draw. Nothing is rebuilt; the date is a filter. A game reads "no scored draw since ... yet" until its first draw on or after the date is scored; rows with fewer than the ranking minimum of draws since the date are shown grey in that column until they have them. The null band is not applied to this column: it is measured over long control histories, and the best of thirty rows over a handful of draws clears it by luck almost always.` : 'The <b>Best since the freeze</b> column fills in once a date is declared in <code>since.json</code>: the same ranking counted only over the days from that date on.'}
+          ${anyBand ? '<b>Null band</b> (weekly <code>NullControls.py</code>): the best of the tracked rows, run on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - scores this much by selection alone (mean over the control histories plus two standard deviations). Rows marked ∅ sit within it: they have shown nothing a leaderboard over noise would not show. For the payout games the band is on average hits, not on the profit they rank by, so it is information only.' : 'The <b>null band</b> column fills in once the weekly <code>NullControls.py</code> job has run: what the best row scores on a history with nothing in it.'}
+        </p>`, 'how rows are ranked')}
         <div class="table-wrapper">
           <table style="min-width: 0;">
             <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th><th title="Q0: what the best of the rows scores on a history with nothing in it">Null band</th><th style="text-align: left;" title="The forward record: the same ranking over the days since the declared date (since.json)">Best since the freeze</th></tr>
             ${rows}
           </table>
         </div>
-        <p style="color: #7f8c8d; font-size: 0.85em; margin-bottom: 0;">
-          Keno/Pick3/Joker+ rank by average profit per bet (real payout tables); other games by average hits of the main ticket.
-          Click a game row for the full model ranking. Greyed models have fewer scored draws than the ranking minimum.
-          ${anySince ? `<b>Best since the freeze</b> (${auth.escapeHtml(declared.label)}, from ${declared.date}): the same ranking counted only over the stored days on or after the declared date - the frozen design\'s own track record, every day of it predicted before its draw. Nothing is rebuilt; the date is a filter. A game reads "no scored draw since ... yet" until its first draw on or after the date is scored; rows with fewer than the ranking minimum of draws since the date are shown grey in that column until they have them. The null band is not applied to this column: it is measured over long control histories, and the best of thirty rows over a handful of draws clears it by luck almost always.` : 'The <b>Best since the freeze</b> column fills in once a date is declared in <code>since.json</code>: the same ranking counted only over the days from that date on.'}
-          ${anyBand ? '<b>Null band</b> (weekly <code>NullControls.py</code>): the best of the tracked rows, run on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - scores this much by selection alone (mean over the control histories plus two standard deviations). Rows marked ∅ sit within it: they have shown nothing a leaderboard over noise would not show. For the payout games the band is on average hits, not on the profit they rank by, so it is information only.' : 'The <b>null band</b> column fills in once the weekly <code>NullControls.py</code> job has run: what the best row scores on a history with nothing in it.'}
-        </p>
       </div>
     </div>`;
 }
@@ -1008,12 +1019,12 @@ function generateMultiPickSummary() {
     }).join('');
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${esc(game)} multi-pick: six numbers against nine</span>
       <span class="card-meta" style="margin-left:10px;">${rows.length} rows with extras; chance of ${cfg.min_hits}+ main hits ${pctOf(six.win)} with ${cfg.draw} numbers, ${pctOf(nine.win)} with ${cfg.draw + cfg.extra}; an extra number hits ${pctOf(cfg.per_extra_chance)} by luck</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em; margin-top:0;">Every lotto row plays six numbers and names three more - its next most probable - for a system play
+      <div class="card-body">${help(`<p>Every lotto row plays six numbers and names three more - its next most probable - for a system play
       (${cfg.draw + cfg.extra} numbers = ${nine.grids} grids = ${Number(nine.price).toFixed(0)} EUR). More numbers win more by arithmetic: the chance of ${cfg.min_hits} or more of the six drawn numbers - the smallest prize
       that needs no bonus number; ranks with the bonus are not scored here - rises from ${pctOf(six.win)} to ${pctOf(nine.win)} for any ${cfg.draw + cfg.extra} numbers whatsoever. So the figures to watch are the
       model's rates <i>against those levels</i> (green when above): the share of draws with ${cfg.min_hits}+ main hits with six and with nine - both over the same draws, the ones with extras - and how often the
       7th, 8th and 9th number hit, each against ${pctOf(cfg.per_extra_chance)}. One row above a level is noise over a few draws; a row that stays above it
-      for many draws is the finding, and the ground for rethinking the first six (README, roadmap item 10).</p>
+      for many draws is the finding, and the ground for rethinking the first six (README, roadmap item 10).</p>`, 'the levels to beat')}
       <div class="table-wrapper"><table><tr><th style="text-align:left;">Model</th><th>Draws</th><th title="average hits of the six over the draws with extras">Avg hits, 6</th><th title="average hits among all nine over the same draws">Avg hits, 9</th>
       <th title="share of draws with ${cfg.min_hits} or more main hits among the six; chance ${pctOf(six.win)}">${cfg.min_hits}+ hits, 6</th><th title="share of draws with ${cfg.min_hits} or more main hits among the nine; chance ${pctOf(nine.win)}">${cfg.min_hits}+ hits, 9</th>
       ${labels.map((l) => `<th title="how often this extra number was drawn; chance ${pctOf(cfg.per_extra_chance)}">${l} hit</th>`).join('')}</tr>${body}</table></div></div></div>`;
@@ -1117,13 +1128,7 @@ function generateCombinationSummary() {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <div class="table-wrapper">
-          <table style="min-width: 0;">
-            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Rows played together</th><th>Metric</th><th>Value</th><th>Shared draws</th><th style="text-align: left;">Best single row on the same draws</th></tr>
-            ${rows}
-          </table>
-        </div>
-        <p style="color: #7f8c8d; font-size: 0.85em; margin-bottom: 0;">
+        ${help(`<p>
           Every pair and triple of the ranked rows is scored on the draws all of its members were scored on.
           Keno/Pick3/Joker+ rank by <b>net profit per draw</b> of playing every member's tickets (profit adds up, so a set
           only beats its best row when at least two rows are positive on those draws; a greedy build-up beyond the best
@@ -1134,7 +1139,13 @@ function generateCombinationSummary() {
           scored against is moved to another day). With hundreds of combinations a "best" one always exists by luck;
           <b>p</b> is the share of shuffles whose best combination did at least as well - read a combination as an edge
           only when p is small and stays small as draws accumulate.
-        </p>
+        </p>`, 'how sets are scored')}
+        <div class="table-wrapper">
+          <table style="min-width: 0;">
+            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Rows played together</th><th>Metric</th><th>Value</th><th>Shared draws</th><th style="text-align: left;">Best single row on the same draws</th></tr>
+            ${rows}
+          </table>
+        </div>
       </div>
     </div>`;
 }
@@ -1233,7 +1244,7 @@ function generateLagAnalysis() {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <p style="color: #7f8c8d; font-size: 0.85em; margin-top: 0;">
+        ${help(`<p>
           Each run scores every prediction against draws +1 .. +30 and keeps only its best lag (+1 is the draw the
           prediction was made for). <b>z</b> is how far that peak sticks out of the model's own lag profile - near 1
           means a flat profile, so the hits come from number-frequency structure rather than timing. The highlighted
@@ -1243,7 +1254,7 @@ function generateLagAnalysis() {
           means it is drifting. Pick3 is scored positionally (digit in the right place), Joker+ as its left + right
           positional runs. One peak is recorded per run
           date, keeping the last 60 runs.
-        </p>
+        </p>`, 'how to read the peaks')}
         ${gameCards}
       </div>
     </div>`;
@@ -1305,13 +1316,7 @@ function generateFeatureControl() {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <div class="table-wrapper">
-          <table>
-            <tr><th style="text-align:left;">Game</th><th style="text-align:left;">Meta-learner</th><th>Noise</th><th title="how much of the model's attribution went to the noise columns">Noise share</th><th title="held-out AUC without → with the noise columns">Held-out AUC</th><th style="text-align:left;" title="base models whose held-out importance clears the noise columns' band">Base models above the noise band</th></tr>
-            ${rows}
-          </table>
-        </div>
-        <p style="color: #7f8c8d; font-size: 0.85em;">
+        ${help(`<p>
           Weekly <code>IrrelevantFeatureControl.py</code> (README "Null controls"): every meta-learner variant is refitted on its
           own training table with three <b>noise columns</b> appended - shuffled copies of real base-model scores, so they look
           exactly like a base model and mean nothing. <b>Noise share</b> is how much of the model's attribution (permutation
@@ -1325,8 +1330,14 @@ function generateFeatureControl() {
           model whose probabilities came out inverted still shows what it leans on. With eight base models tested against a
           two-sigma band, one clears it by chance about one week in five: a column counts when it stays above the band week after
           week, not when it appears once. The lockbox days leave the table first, exactly as in the trainer.
-          ${newest ? `Newest record ${esc(newest.slice(0, 16).replace('T', ' '))}.` : ''}
-        </p>
+        </p>`, 'how the control works')}
+        <div class="table-wrapper">
+          <table>
+            <tr><th style="text-align:left;">Game</th><th style="text-align:left;">Meta-learner</th><th>Noise</th><th title="how much of the model's attribution went to the noise columns">Noise share</th><th title="held-out AUC without → with the noise columns">Held-out AUC</th><th style="text-align:left;" title="base models whose held-out importance clears the noise columns' band">Base models above the noise band</th></tr>
+            ${rows}
+          </table>
+        </div>
+        ${newest ? `<p style="color: #7f8c8d; font-size: 0.85em;">Newest record ${esc(newest.slice(0, 16).replace('T', ' '))}.</p>` : ''}
       </div>
     </div>`;
 }
@@ -1426,13 +1437,7 @@ function generateRandomnessWatch() {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <div class="table-wrapper">
-          <table>
-            <tr><th style="text-align:left;">Game</th><th>Status</th><th>Entropy (norm.)</th><th>KL vs history</th><th>KL vs uniform</th><th>AE anomaly</th><th title="Q2: real draw windows against fair simulated ones, held to the null band of the same pipeline">Controlled test (Q2)</th><th>Draws</th><th style="text-align:left;">Entropy trend (oldest → newest)</th></tr>
-            ${gameRows}
-          </table>
-        </div>
-        <p style="color: #7f8c8d; font-size: 0.85em;">
+        ${help(`<p>
           Computed over the last 60 scored draws (pick3 and Joker+ per digit position, averaged). Normalized entropy near 1 and
           KL near 0 mean the process looks fair and stationary; a sustained entropy drop or KL rise is a
           predictability signal worth investigating - <b>not</b> proof of manipulation (rule changes, data artifacts
@@ -1441,7 +1446,13 @@ function generateRandomnessWatch() {
           rolling z of its reconstruction NLL over the last 30 real draws - a strongly negative value (⚠ below -3)
           means real draws suddenly became easy to reconstruct, i.e. a predictability spike.
           ${anyQ2 ? '<b>Controlled test</b> (weekly <code>RandomnessDiscrimination.py</code>, README "Null controls"): the verdict the tripwires cannot give. A suite of classifiers - logistic, SVM, random forest, gradient boosting, a small network, a quantum kernel and a VQC - is asked to tell windows of real draws from fair simulated ones, and its best AUC is held against the same suite\'s best on two fair histories (the null band, mean + 2 sd) and on the real draws shuffled (which keeps every frequency and kills only the order). Only above the band <i>and</i> above the shuffled control does the real process differ from a fair one in a way that uses time; and even then the README lists the boring causes to rule out first.' : 'The <b>controlled test</b> column fills in once the weekly <code>RandomnessDiscrimination.py</code> job has run.'}
-        </p>
+        </p>`, 'not proof of manipulation - how to read')}
+        <div class="table-wrapper">
+          <table>
+            <tr><th style="text-align:left;">Game</th><th>Status</th><th>Entropy (norm.)</th><th>KL vs history</th><th>KL vs uniform</th><th>AE anomaly</th><th title="Q2: real draw windows against fair simulated ones, held to the null band of the same pipeline">Controlled test (Q2)</th><th>Draws</th><th style="text-align:left;">Entropy trend (oldest → newest)</th></tr>
+            ${gameRows}
+          </table>
+        </div>
         ${modelCards}
       </div>
     </div>`;
@@ -1453,8 +1464,8 @@ app.get('/database', (req, res) => {
   const marketFolders = databaseFolders().filter(isMarketFolder);
   let html = generateHeader("Lottery games - History", req.user);
   html += '<h1>History</h1>' + lotteryNav('history');
-  html += `<p style="color: #7f8c8d; margin-top: -8px;">Every past draw of every lottery game with what each model predicted and what it hit; below, the cards that rank the
-    rows and watch the draws (they include the two markets, which are tracked as games too).</p>`;
+  html += help(`Every past draw of every lottery game with what each model predicted and what it hit; below, the cards that rank the
+    rows and watch the draws (they include the two markets, which are tracked as games too).`, 'about this page');
   html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
   folders.forEach((folder) => {
     html += `<form action="/database/${folder}" method="get">
@@ -1664,18 +1675,18 @@ app.get('/database/:folder/:file', (req, res) => {
              <span class="card-title">Analysis of Prediction</span><div class="card-icon">▼</div>
         </div>
         <div class="card-body">
-            ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
-            ${game === 'jokerplus'
-              ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>L/R (Z)</b>: L = leading digits matching consecutively from the left (green cells), R = trailing digits matching consecutively from the right (blue cells); a full match reads 6/0. Z = 1 (amber cell) when the zodiac sign matches. Joker+ pays per run length from either end, so a right digit in the wrong position is worth nothing. Only the sign is player-selectable - the six digits are system-generated.</p>`
+            ${help(game === 'jokerplus'
+              ? `<p>Hits are shown as <b>L/R (Z)</b>: L = leading digits matching consecutively from the left (green cells), R = trailing digits matching consecutively from the right (blue cells); a full match reads 6/0. Z = 1 (amber cell) when the zodiac sign matches. Joker+ pays per run length from either end, so a right digit in the wrong position is worth nothing. Only the sign is player-selectable - the six digits are system-generated.</p>`
               : (specialCount > 0
-              ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N hits among the main numbers, M among the special numbers (euromillions stars / eurodreams dream / vikinglotto viking). Cells highlight green only within their own group.</p>`
+              ? `<p>Hits are shown as <b>N (M)</b>: N hits among the main numbers, M among the special numbers (euromillions stars / eurodreams dream / vikinglotto viking). Cells highlight green only within their own group.</p>`
               : (game === 'lotto'
-                ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
+                ? `<p>Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
                 : (isMarketFolder(folder)
-                  ? `<p style="color: #7f8c8d; font-size: 0.85em; margin: 10px 0 0;">Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. ${game === marketBase(game)
+                  ? `<p>Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. ${game === marketBase(game)
                     ? `The <a href="/markets/${game}">${game} page</a> shows the newest 30 settled days as returns, every model's money and the next day's calls as prices.`
                     : `This is the ${marketBase(game)} market's week game - one draw per week; the <a href="/markets/${marketBase(game)}">${marketBase(game)} page</a> shows the coming week's calls in its Week ahead card.`}</p>`
-                  : '')))}
+                  : ''))), 'how hits are counted')}
+            ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
 
             ${currentFrequency && Object.keys(currentFrequency).length > 0 ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -1729,9 +1740,11 @@ app.get('/database/:folder/:file', (req, res) => {
 });
 
 // 4. Home: the three sections
-function sectionCard(title, text, lines, links) {
+// text: the section in a sentence, visible; more (optional): how it works,
+// behind the "?" (13 Oct 2026, help.js).
+function sectionCard(title, text, lines, links, more = '') {
   return `<div class="card" style="display:flex; flex-direction:column;">
-    <div style="padding: 18px 20px 6px;"><div class="card-title">${title}</div><p style="color:#555; margin:8px 0 0;">${text}</p></div>
+    <div style="padding: 18px 20px 6px;"><div class="card-title">${title}</div><p style="color:#555; margin:8px 0 0;">${text}</p>${help(more, 'how it works')}</div>
     <div style="padding: 6px 20px 10px; flex:1;">${lines.length ? `<ul style="margin:0; padding-left:18px; color:#2c3e50; font-size:0.95em; line-height:1.6;">${lines.map((l) => `<li>${l}</li>`).join('')}</ul>` : ''}</div>
     <div style="padding: 0 20px 18px; display:flex; gap:8px; flex-wrap:wrap;">${links.map((l, i) => `<a href="${l.href}" class="nav-btn" style="text-decoration:none; ${i ? 'background:#7f8c8d;' : ''}">${l.label}</a>`).join('')}</div>
   </div>`;
@@ -1775,8 +1788,8 @@ function marketSectionLines(game) {
 app.get('/', (req, res) => {
   let html = generateHeader("Sequence Predictor", req.user);
   html += `<h1 style="margin-bottom: 8px;">Sequence Predictor</h1>
-    <p style="color: #7f8c8d; margin-top: 0;">A research project that runs the same prediction models against three kinds of sequence and tracks, honestly, how each one does.
-    Pick a section.</p>`;
+    <p style="color: #7f8c8d; margin-top: 0;">Pick a section.</p>
+    ${help(`A research project that runs the same prediction models against three kinds of sequence and tracks, honestly, how each one does.`, 'about this project')}`;
   // Visible to every visitor: a run in progress explains why today's
   // predictions are not here yet, and is the one thing a reader cannot
   // otherwise tell.
@@ -1786,14 +1799,18 @@ app.get('/', (req, res) => {
     'Lotto, EuroMillions, EuroDreams, VikingLotto, Keno, Pick3 and Joker+: every model\'s ticket for the next draw, and the record of every past draw.',
     lotterySectionLines(), [{ href: '/lottery', label: 'New predictions' }, { href: '/database', label: 'History' }]);
   html += sectionCard('Crypto',
-    'Five coins against USDT, every day. Each coin\'s next-day return is cut into ten equally likely bins and every model predicts one bin per coin - drawn as a price on the chart, with the price band it stands for in the table beneath.',
-    marketSectionLines('crypto'), [{ href: '/markets/crypto', label: 'Crypto page' }]);
+    'Five coins against USDT, every day.',
+    marketSectionLines('crypto'), [{ href: '/markets/crypto', label: 'Crypto page' }],
+    'Each coin\'s next-day return is cut into ten equally likely bins and every model predicts one bin per coin - drawn as a price on the chart, with the price band it stands for in the table beneath.');
   html += sectionCard('Shares',
     'Four shares on Nasdaq, every trading day, the same way: a bin per share per day, settled the morning after the close.',
     marketSectionLines('shares'), [{ href: '/markets/shares', label: 'Shares page' }]);
   html += '</div>';
-  html += `<p style="color: #7f8c8d; font-size: 0.9em; margin-top: 10px;">Not advice. The models are not expected to beat any of the three; measuring whether they do, against controls that are known to carry nothing, is the point.
-    The <a href="/council">Council</a> puts a question to several local language models at once.</p>`;
+  // "Not advice." stays visible - the one line a reader must see before
+  // acting on anything here; the reason opens behind the "?".
+  html += `<p style="color: #7f8c8d; font-size: 0.9em; margin-top: 10px; margin-bottom: 0;">Not advice.
+    The <a href="/council">Council</a> puts a question to several local language models at once.</p>
+    ${help(`The models are not expected to beat any of the three; measuring whether they do, against controls that are known to carry nothing, is the point.`, 'why it is measured')}`;
   html += generateFooter();
   res.send(html);
 });
@@ -1803,9 +1820,9 @@ app.get('/lottery', (req, res) => {
   const folders = lotteryFolders();
   let html = generateHeader("Lottery games - New predictions", req.user);
   html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>` + lotteryNav('predictions');
-  html += `<p style="color: #7f8c8d; margin-top: -8px;">One card per game. Open a card for every model's ticket for the next draw -
+  html += help(`One card per game. Open a card for every model's ticket for the next draw -
        each row is one method, kept separate on purpose so its real-life record can be followed on the
-       <a href="/database">History</a> page.</p>`;
+       <a href="/database">History</a> page.`, 'how to read this page');
   // Visible to every visitor: a run in progress explains why today's draw is
   // not here yet, and is the one thing a reader cannot otherwise tell.
   html += pipelineBanner();

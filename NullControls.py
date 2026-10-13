@@ -42,6 +42,7 @@ default (--foundation turns them on): they cost a precompute per seed.
 import argparse
 import json
 import os
+import shutil
 import statistics
 import sys
 import time
@@ -53,7 +54,7 @@ from dateutil.parser import parse as parse_date
 from src.Backtester import Backtester
 from src.DataLoader import DataLoader
 from src.Helpers import Helpers
-from src.ControlHistories import build_control_dataset, CONTROL_ROOT
+from src.ControlHistories import build_control_dataset, CONTROL_ROOT, control_seed, repetitions_for
 from src.ModelFactory import build_models, prepare_foundation_scores
 from HyperoptStatistics import GAME_CONFIG, is_running, create_lock, remove_lock
 
@@ -151,7 +152,27 @@ def selection_report(per_seed):
     return report
 
 
+def prune_control_folders(game, mode, seeds, root=None):
+    """
+    Removes this game's <mode>-seed<N> control folders of other seeds: with the
+    weekly seeds of the Sunday plan (13 Oct 2026) every week writes new
+    folders, a few MB a week that nothing reads again. Returns what was removed.
+    """
+    folder = os.path.join(root or CONTROL_ROOT, game)
+    keep = {f"{mode}-seed{seed}" for seed in seeds}
+    removed = []
+    if os.path.isdir(folder):
+        for name in sorted(os.listdir(folder)):
+            if name.startswith(f"{mode}-seed") and name not in keep and os.path.isdir(os.path.join(folder, name)):
+                shutil.rmtree(os.path.join(folder, name), ignore_errors=True)
+                removed.append(name)
+    return removed
+
+
 def run(game, mode, seeds, days, foundation, recent=None):
+    removed = prune_control_folders(game, mode, seeds)
+    if removed:
+        print(f"  {game} {mode}: removed {len(removed)} control folder(s) of earlier seeds")
     per_seed, winners = [], []
     for seed in seeds:
         started = time.time()
@@ -186,7 +207,11 @@ def main():
     parser.add_argument("-m", "--mode", default="both", choices=["synthetic", "shuffled", "both"])
     parser.add_argument("-n", "--repetitions", type=int, default=3, help="How many control histories per game/mode")
     parser.add_argument("-d", "--days", type=int, default=120, help="Days to backtest in each control history")
-    parser.add_argument("--seed", type=int, default=1, help="First seed; repetitions count up from it")
+    parser.add_argument("--seed", default="1",
+                        help='First seed; repetitions count up from it. "weekly" = a fresh block of seeds every ISO week '
+                             '(the Sunday plan, since 13 Oct 2026); a number reproduces a run')
+    parser.add_argument("--market-repetitions", type=int, default=0,
+                        help="Control histories per game/mode for the market games (crypto, shares and their week games); 0 = -n")
     parser.add_argument("--recent", type=int, default=0,
                         help="Build the control from the newest N draws only, where the game's rules have "
                              "not changed (0 = the whole history). Matters most for the shuffled control: "
@@ -201,10 +226,11 @@ def main():
         print(f"Unknown games: {', '.join(unknown)} (known: {', '.join(GAME_CONFIG)})")
         return 1
     modes = ["synthetic", "shuffled"] if args.mode == "both" else [args.mode]
-    seeds = list(range(args.seed, args.seed + max(1, args.repetitions)))
+    first_seed = control_seed(args.seed)
 
     reports = []
     for game in games:
+        seeds = list(range(first_seed, first_seed + repetitions_for(game, args.repetitions, args.market_repetitions)))
         for mode in modes:
             print(f"\n{game} / {mode}: {len(seeds)} control histories, {args.days} days each")
             reports.append(run(game, mode, seeds, args.days, args.foundation, args.recent))

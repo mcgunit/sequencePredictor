@@ -178,6 +178,7 @@ def served_keno_subsets(model_name):
 # is seconds, so this only catches a runaway configuration - the Backtester
 # terminates its pool and the trial is recorded as PRUNED (see run_backtest).
 TRIAL_TIMEOUT_SECONDS = 1200
+KENO_DAY_TABLE_REFIT_EVERY = 7   # the keno day table's boosting refit cadence (build_keno_ensemble_day_data)
 # The weekly run's shape, shared with TuningControls.py so its control band is
 # measured with the same number of trials on the same window.
 DEFAULT_TRIALS = 15
@@ -558,6 +559,16 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
 
     models = build_models(dataPath, bestParams, is_pick3=False)
     model_names = [name for name in BASE_MODEL_NAMES if name in models]
+    # The boosting row refits once per block of KENO_DAY_TABLE_REFIT_EVERY days (BoostingBase.setRefitEvery:
+    # block-aligned, never leaky - the boosting tuner's own cadence), and a block's days run on one worker so
+    # they share the fit. Until 13 Oct 2026 it refitted every day: with the XGBoost the 3 Oct boosting gate
+    # served (200 trees, depth 3, 11 previous draws - one keno fit measured at 430 s, against 91 s for the
+    # 10 Oct one and a few seconds per day for every statistical row) the table hit its budget after 61 of 90
+    # days on 10 Oct and KenoSubsetTuning was skipped. The table is a tuning input; Predictor.py still refits
+    # daily, so the boosting row's scores here can trail a served day's by up to a week of draws.
+    for model in models.values():
+        if hasattr(model, "setRefitEvery"):
+            model.setRefitEvery(KENO_DAY_TABLE_REFIT_EVERY)
 
     # Foundation models cannot run inside the Backtester's forked pool (see
     # ModelFactory.prepare_foundation_scores). This precompute happens in the
@@ -587,7 +598,8 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
             years_back=years_back,
             include_baselines=False,
             collect_scores=True,
-            verbose=False
+            verbose=False,
+            chunksize=KENO_DAY_TABLE_REFIT_EVERY,
         )
     except BacktestTimeout as e:
         print(f"Keno ensemble day table not built ({e}) - KenoSubsetTuning is skipped this run")

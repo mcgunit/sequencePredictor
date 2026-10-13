@@ -172,7 +172,7 @@ def _scored(result):
 
 
 def challenge(study, known_numbers, objective, served, defaults, timeout_seconds, label,
-              margin=0.0, enabled=True, window_days=None, evaluate=None):
+              margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0):
     """
     Runs the gate for one strategy after its study was optimised.
 
@@ -184,6 +184,14 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
       evaluate       (params, role) -> (float|None, diagnostics|None), or a
                      bare float; tests inject one, the tuners use
                      evaluate_reference through run_isolated
+      se_margin      a margin in standard errors of the challenger's own
+                     score (its trial's "score_se", src/TuningScore): the
+                     margin used is the larger of `margin` and se_margin x
+                     score_se. The boosting tuner sets 1 since 13 Oct 2026 -
+                     outside keno (whose scores moved to the fair-ticket scale
+                     on 7 Oct) its winners of 3 Oct lost 0.07 on average when
+                     re-scored a week later, more than 11 of its 20 winning
+                     margins outside keno on 10 Oct.
 
     Returns a dict: decision ("replaced" | "reverted" | "kept"), replace and
     reverted (bools), reason, params (the dict to write - the challenger's
@@ -218,6 +226,13 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     param_names = list(best.params)
     tuning = best.user_attrs.get("tuning")
     notes = []
+    # the margin in the challenger's own standard errors, when asked for and known
+    score_se = (tuning or {}).get("score_se")
+    if se_margin and _finite(score_se):
+        if se_margin * score_se > margin:
+            notes.append(f"margin {se_margin:g} x the challenger's standard error {score_se:.4f}")
+        margin = max(margin, se_margin * score_se)
+    record["margin"] = json_safe(float(margin))
 
     incumbent_tuning = default_tuning = None
     default_params = None
@@ -251,17 +266,38 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
             default, default_tuning = _scored(evaluate(default_params, "default"))
         replace, reason = decide(challenger, incumbent, default, margin)
 
-    # The third outcome: the untuned defaults beat everything scored, so they
-    # are served. Only when something of this strategy IS tuned (otherwise the
-    # incumbent already is the default) and the default's parameters are
-    # known; an unscored incumbent cannot block here either.
+    # The third outcome: the untuned defaults beat the incumbent and the
+    # challenger did not beat them, so they are served. Only when something
+    # of this strategy IS tuned (otherwise the incumbent already is the
+    # default) and the default's parameters are known; an unscored incumbent
+    # cannot block here either. Served too when the challenger clears the
+    # incumbent by the margin but not the default (then the default, at most a
+    # margin below the challenger, also beats the incumbent): with the boosting
+    # tuner's margin of one standard error that state is reachable, and
+    # keeping the incumbent there served the lowest of the three (euromillions
+    # XGBoost and LightGBMMultiLabel, pick3 LightGBM on the 10 Oct scores).
+    # "Did not beat" includes an exact tie: until
+    # 13 Oct 2026 the default had to beat the challenger too, so a run whose
+    # best trial scored exactly the default's score (mostly other parameters
+    # scoring exactly the same - a flat objective; once TPE re-drawing a
+    # default value) kept an incumbent worse than both - three rows a week
+    # on 3 and 10 Oct 2026. On a tie the default is served: the challenger
+    # did not earn its replacement, and both beat what was served.
     revert = False
     if not replace and enabled and default_params is not None and is_tuned(param_names, served) \
-            and _finite(default) and default > challenger + margin \
-            and (incumbent is None or default > incumbent + margin):
+            and _finite(default) and not challenger > default + margin \
+            and (incumbent is None or default > incumbent + margin or challenger > incumbent + margin):
         revert = True
-        reason = (f"default {_fmt(default)} beats challenger {_fmt(challenger)}"
-                  + (f" and incumbent {_fmt(incumbent)}" if incumbent is not None else " (incumbent unscored)")
+        by = f" by {margin:g}" if margin else ""
+        if default > challenger + margin:
+            versus = f"beats challenger {_fmt(challenger)}"
+        elif default == challenger:
+            versus = f"ties challenger {_fmt(challenger)}"
+        else:
+            versus = f"is not beaten by challenger {_fmt(challenger)}{by}"
+        reason = (f"default {_fmt(default)} {versus}"
+                  + ((f" and beats incumbent {_fmt(incumbent)}{by}" if default > incumbent + margin
+                      else f" - the challenger beats incumbent {_fmt(incumbent)}{by}") if incumbent is not None else " (incumbent unscored)")
                   + " - reverted to the untuned defaults")
 
     served_score = challenger if replace else (default if revert else incumbent)
@@ -343,6 +379,25 @@ if __name__ == "__main__":
             return scores.get(role)
         return evaluate
 
+    # 0. the margin in standard errors: trial 3 (-0.4) carries score_se 0.05 - against an incumbent at -0.43 it
+    #    wins by 0.03 < 1 x 0.05 and is kept; at -0.5 it wins by 0.10 and replaces; se_margin 0 leaves it to `margin`
+    se_study = FakeStudy(old + [new[0], FakeTrial(3, -0.4, new[1].params, attrs={"tuning": dict(new[1].user_attrs["tuning"], score_se=0.05)}), new[2]])
+    out = challenge(se_study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -0.43, "default": -0.9}), se_margin=1.0)
+    check(not out["replace"] and out["record"]["margin"] == 0.05 and "standard error" in out["reason"], f"inside one SE -> kept: {out['reason']}")
+    out = challenge(se_study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -0.5, "default": -0.9}), se_margin=1.0)
+    check(out["replace"], f"beyond one SE -> replaced: {out['reason']}")
+    out = challenge(se_study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -0.43, "default": -0.9}))
+    check(out["replace"] and out["record"]["margin"] == 0.0, "no se_margin: any improvement")
+    # the challenger clears the incumbent by one SE but not the default, which itself is within one SE of the
+    # incumbent: the default is served, not the incumbent - the lowest of the three
+    out = challenge(se_study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -0.47, "default": -0.43}), se_margin=1.0)
+    check(out["decision"] == "reverted" and out["served_score"] == -0.43 and "the challenger beats incumbent" in out["reason"], out["reason"])
+    calls.clear()
+
     # 1. the challenger is this run's best COMPLETED trial, not the study's all-time best
     out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
                     evaluate=scorer({"incumbent": -1.0, "default": -0.9}))
@@ -376,10 +431,16 @@ if __name__ == "__main__":
     check(out["decision"] == "reverted" and out["reverted"] and not out["replace"], f"default wins -> reverted: {out['decision']}")
     check(out["params"] == {"xEstimators": 100, "xDepth": 3, "m_use_5": True, "m_use_6": False}, f"defaults written: {out['params']}")
     check(out["served_score"] == -0.2 and out["record"]["decision"] == "reverted" and "REVERTED" in out["summary"], out["summary"])
-    # a tie with the challenger is not a win for the default; an untuned row cannot revert
+    # a tie with the challenger, both above the incumbent: the default is served (until 13 Oct 2026 the weaker
+    # incumbent was kept); a tie that does not beat the incumbent keeps it; an untuned row cannot revert
     out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
                     evaluate=scorer({"incumbent": -1.0, "default": -0.4}))
-    check(out["decision"] == "kept" and out["params"] is None, "default tying the challenger keeps")
+    check(out["decision"] == "reverted" and out["params"] == {"xEstimators": 100, "xDepth": 3, "m_use_5": True, "m_use_6": False}
+          and out["served_score"] == -0.4, f"default tying the challenger above the incumbent -> reverted: {out['decision']}")
+    check("ties challenger" in out["reason"] and "beats incumbent" in out["reason"], out["reason"])
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -0.4, "default": -0.4}))
+    check(out["decision"] == "kept" and out["params"] is None, f"a three-way tie keeps the incumbent: {out['decision']}")
     out = challenge(study, known, None, {"use_5": True}, make_defaults(table, {"use_5": True}), 10, "t",
                     evaluate=scorer({"incumbent": -0.1}))
     check(out["decision"] == "kept", f"untuned row: incumbent is the default, nothing to revert to: {out['decision']}")

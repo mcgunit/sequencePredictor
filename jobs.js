@@ -35,6 +35,7 @@ const path = require('path');
 
 const config = require('./config');
 const auth = require('./auth');
+const { help } = require('./help');   // the "?" explanations (13 Oct 2026)
 
 const ROOT = __dirname;
 const LOG_DIR = path.join(ROOT, 'log');
@@ -129,7 +130,7 @@ const JOBS = [
   {
     key: 'hyperoptRLTicket',
     name: 'Weekly tuning: RL ticket model',
-    description: 'Tunes the RL Ticket Model of the lottery games and, through the gate, the RL Position Model of the four market games '
+    description: 'Tunes, through the champion/challenger gate, the RL Ticket Model of the lottery games and the RL Position Model of the four market games '
                + '(how much to put on the vote\'s call, scored as paper money) - pure numpy, minutes not hours (HyperoptRLTicket.py).',
     script: 'HyperoptRLTicket.py', args: [], log: 'hyperoptRLTicket.log', plan: CHAIN_PLAN,
   },
@@ -159,8 +160,8 @@ const JOBS = [
     description: 'Can a classifier suite tell windows of real draws from fair simulated ones better than it tells two fair '
                + 'histories apart? Held to a null band and a shuffled control; the verdict on the Randomness watch card '
                + '(RandomnessDiscrimination.py, about an hour for every game; for the market games (crypto, shares and their week games) the fair history is a matched '
-               + 'geometric random walk).',
-    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-w', '10', '-n', '3'],
+               + 'geometric random walk; three repetitions per game, five for the market games, on a fresh block of seeds every week).',
+    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-w', '10', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly'],
     log: 'randomnessDiscrimination.log', plan: CONTROLS_PLAN,
   },
   {
@@ -171,8 +172,8 @@ const JOBS = [
                + 'models matter more than noise does? Verdicts per game and variant on the History page '
                + '(IrrelevantFeatureControl.py, refits only - no backtest - about an hour for the seven lottery games together, '
                + 'almost all of it the VQC refits: one keno-sized VQC fit takes two to three minutes and each game gets four; the four market games (crypto, shares and their week games) '
-               + 'join once the Saturday chain has cached their table - the week games from the chain of 10 Oct 2026).',
-    script: 'IrrelevantFeatureControl.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-r', '3', '-k', '3'],
+               + 'join once the Saturday chain has cached their table - the week games from the chain of 10 Oct 2026; the noise columns are drawn from a fresh seed every week).',
+    script: 'IrrelevantFeatureControl.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-r', '3', '-k', '3', '--seed', 'weekly'],
     log: 'featureControl.log', plan: CONTROLS_PLAN,
   },
   {
@@ -188,10 +189,10 @@ const JOBS = [
   {
     key: 'nullControls',
     name: 'Weekly controls: null histories (Q0)',
-    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each, so the Best-model card can show '
+    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each (five for the market games, a fresh block of seeds every week), so the Best-model card can show '
                + 'what the best row scores on nothing - the null band its rows are greyed under (NullControls.py, hours: a full '
                + 'backtest per history, which is why the controls have their own Sunday plan).',
-    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '-d', '120'],
+    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly', '-d', '120'],
     log: 'nullControls.log', plan: CONTROLS_PLAN,
   },
 ];
@@ -915,7 +916,7 @@ function section(req) {
 
   const rows = s.jobs.map((job) => `
     <tr>
-      <td style="text-align:left;"><b>${esc(job.name)}</b><br><span style="color:#7f8c8d; font-size:0.9em;">${esc(job.description)}</span></td>
+      <td style="text-align:left;"><b>${esc(job.name)}</b>${help(esc(job.description), 'what this job does', { inline: true })}</td>
       <td style="text-align:left;"><code>${esc(job.command)}</code></td>
       <td style="text-align:left;">${esc(job.next)}</td>
       <td style="text-align:left;">${job.last
@@ -953,11 +954,11 @@ function section(req) {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <p style="color:#7f8c8d; margin-top:0;">The daily predictor, the weekly tuning chain and the weekly control experiments, owned by this
+        ${help(`The daily predictor, the weekly tuning chain and the weekly control experiments, owned by this
            server instead of crontab (README roadmap item 8). One job runs at a time, behind the same <code>process.lock</code> every Python
            entry point takes; the chain starts when Saturday's predictor finishes and the controls when Sunday's does; a job launched here survives a deploy because it is reparented with
            <code>setsid --fork</code>. Mode comes from ${esc(s.modeReason)} - create <code>config/scheduler.disabled</code> to stop the
-           schedule without a restart.</p>
+           schedule without a restart.`, 'how the schedule works')}
         ${s.mode === 'dry' ? '<p style="color:#f39c12;"><b>Dry run.</b> The schedule only records what it would have started, so it is safe next to the crontab entries. Set <code>SCHEDULER=on</code> in .env and remove them to cut over. <i>Run now</i> still really runs a job.</p>' : ''}
         ${running}
         ${queue}

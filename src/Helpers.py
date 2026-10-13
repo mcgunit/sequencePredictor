@@ -162,10 +162,14 @@ class Helpers():
     is_market_game = staticmethod(is_market_game)
     market_ticket_profit = staticmethod(market_ticket_profit)
 
-    # The first draw under today's rules, per game whose rules once differed:
-    # Keno drew 20 of 1-80 until 8 March 2008 and 20 of 1-70 since. Read by
-    # load_data (every model) and by src/ControlHistories (every control).
-    GAME_ERA_START = {"keno": "2008-03-09"}
+    # The first draw under today's rules, per game whose rules once differed;
+    # the draws before it reach no model (load_data) and no control
+    # (src/ControlHistories.current_era). Keno drew 20 of 1-80 until 8 March
+    # 2008 and 20 of 1-70 since. Lotto drew 6 of 42 until 1 October 2011 and
+    # 6 of 45 since (added 13 Oct 2026: 1747 of its 3315 draws, half the
+    # history the whole-history lotto rows read, came from a game in which
+    # 43, 44 and 45 could not be drawn).
+    GAME_ERA_START = {"keno": "2008-03-09", "lotto": "2011-10-01"}
 
     PAYOUT_TABLE_KENO = {
         10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
@@ -535,6 +539,25 @@ class Helpers():
                 values[-1] = encode_zodiac(last)
         return list(map(int, values))
 
+    @staticmethod
+    def _profit_bound(bets_by_day):
+        """
+        The payout games' ranking value: src/TuningScore.score_bets_by_day's
+        capped profit bound over a row's draws (each bet capped at the 20 EUR
+        lucky-strike threshold; a keno (profit, size) bet against a fair ticket
+        of its size; mean minus one standard error over the draws), rounded -
+        None without a bet or with a single draw.
+        """
+        try:
+            from src.TuningScore import score_bets_by_day
+        except ImportError:  # imported from within src/
+            from TuningScore import score_bets_by_day
+        days = [d for d in (bets_by_day or []) if d]
+        if len(days) < 2:
+            return None
+        score = score_bets_by_day(days, payout=True).get("score")
+        return round(float(score), 3) if score is not None and math.isfinite(score) else None
+
     def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json",
                                           combinationShuffles=100, since=None):
         """
@@ -555,11 +578,19 @@ class Helpers():
         combinationShuffles times (0 disables the control).
 
         Ranking metric per game:
-        - keno/pick3/jokerplus (real payout tables exist): average profit per
-          bet - per-bet rather than total, because models joined at different
-          times (the boosting rows are weeks old, the statistical rows months)
-          and bet different numbers of Keno subsets, so totals aren't
-          comparable. Joker+ bets its 7-value main ticket once per draw.
+        - keno/pick3/jokerplus (real payout tables exist): the profit bound
+          ("profit_bound", since 13 Oct 2026, _profit_bound -
+          src/TuningScore.score_bets_by_day's capped bound): per draw the
+          profit per bet with every bet capped at the 20 EUR lucky-strike
+          threshold (a keno bet measured against a fair ticket of its size),
+          then the mean minus one standard error over the draws with bets;
+          None (ranked last) for a row with fewer than two such draws. Until
+          13 Oct 2026 the ranking was the raw profit per bet, which one
+          winning ticket decides; "profit_per_bet" stays in the record.
+          Per-bet rather than total, because models joined at different times
+          (the boosting rows are weeks old, the statistical rows months) and
+          bet different numbers of Keno subsets, so totals aren't comparable.
+          Joker+ bets its 7-value main ticket once per draw.
         - every other game: average MAIN-number hits of the model's main
           ticket. avg_hits/best_hits/hits_total count main hits only - the
           special columns (stars/dream/viking) live in their own smaller range
@@ -636,6 +667,7 @@ class Helpers():
                         "special_hits_total": 0,
                         "profit_total": 0.0, "bets": 0,
                         "by_size": {},          # keno: {ticket size: {"bets", "profit_total"}}
+                        "bets_by_day": [],      # payout games: per scored draw the row's bets, for the ranking bound
                     })
 
                     mainTicket = predictions[0]
@@ -694,7 +726,7 @@ class Helpers():
                         for index, number in enumerate(extras[:multiCfg["extra"]]):
                             multi["extra_hits"][index] += int(number in realMainSet)
 
-                    rowProfit, rowBets, playable = 0.0, 0, []
+                    rowProfit, rowBets, playable, betList = 0.0, 0, [], []
                     if "keno" in game:
                         # Profit exists only for playable 5-10-number subsets,
                         # not the full 20-number ticket.
@@ -705,6 +737,7 @@ class Helpers():
                                 entry["bets"] += 1
                                 rowProfit += profit
                                 rowBets += 1
+                                betList.append((float(profit), len(ticket)))
                                 playable.append([int(n) for n in ticket])
                                 bySize = entry["by_size"].setdefault(len(ticket), {"bets": 0, "profit_total": 0.0})
                                 bySize["bets"] += 1
@@ -716,6 +749,7 @@ class Helpers():
                             entry["bets"] += 1
                             rowProfit += profit
                             rowBets += 1
+                            betList.append(float(profit))
                     elif is_jokerplus(game):
                         # One 1.50 EUR ticket per draw on the 7-value row
                         # (digits + sign); a 6-digit row scores sign-unknown.
@@ -725,6 +759,9 @@ class Helpers():
                             entry["bets"] += 1
                             rowProfit += profit
                             rowBets += 1
+                            betList.append(float(profit))
+                    if betList:
+                        entry["bets_by_day"].append(betList)
 
                     # Same numbers again, per (row, day) for the portfolio
                     # search. Two rows sharing a name on one day (should not
@@ -739,6 +776,7 @@ class Helpers():
                         "hits": hits,
                         "profit": rowProfit if rowBets else None,
                         "bets": rowBets,
+                        "bet_list": betList,
                         "playable": playable,
                     }
 
@@ -767,6 +805,8 @@ class Helpers():
                     "name": name,
                     "draws": entry["draws"],
                     "avg_hits": round(avgHits, 3),
+                    # payout games: what the ranking reads (profit_bound, 13 Oct 2026)
+                    "profit_bound": self._profit_bound(entry["bets_by_day"]) if hasPayout else None,
                     "avg_special_hits": avgSpecialHits,
                     "best_hits": entry["best_hits"],
                     "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
@@ -783,8 +823,14 @@ class Helpers():
                 continue
 
             if hasPayout:
-                sortKey = lambda m: (m["profit_per_bet"] if m["profit_per_bet"] is not None else float("-inf"))
-                metric = "profit_per_bet"
+                # The capped-profit bound of src/TuningScore.score_bets_by_day (keno's tuning objective; pick3's and Joker+'s
+                # tuning scores slot hits first and uses it as a tie-breaker): per draw the capped profit
+                # per bet - each bet capped at the 20 EUR lucky-strike threshold, a keno bet against a fair ticket of
+                # its size - and its mean minus one standard error over the draws. Until 13 Oct 2026 the ranking was
+                # the raw profit per bet, which one winning ticket decides: a 65-bet keno row (one 9-ticket at 7 of 9)
+                # ranked above a 513-bet one, a pick3 row on one straight above all. Profit per bet stays in the record.
+                sortKey = lambda m: (m["profit_bound"] if m.get("profit_bound") is not None else float("-inf"))
+                metric = "profit_bound"
             else:
                 sortKey = lambda m: m["avg_hits"]
                 metric = "avg_hits"
@@ -827,13 +873,14 @@ class Helpers():
                         continue
                     for name, row in day["rows"].items():
                         entry = sinceStats.setdefault(name, {"draws": 0, "hits_total": 0, "best_hits": 0,
-                                                             "profit_total": 0.0, "bets": 0})
+                                                             "profit_total": 0.0, "bets": 0, "bets_by_day": []})
                         entry["draws"] += 1
                         entry["hits_total"] += row["hits"]
                         entry["best_hits"] = max(entry["best_hits"], row["hits"])
                         if row["bets"]:
                             entry["profit_total"] += row["profit"]
                             entry["bets"] += row["bets"]
+                            entry["bets_by_day"].append(row.get("bet_list") or [])
                 if sinceStats:
                     sinceModels = [{
                         "name": name,
@@ -842,6 +889,7 @@ class Helpers():
                         "best_hits": entry["best_hits"],
                         "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
                         "profit_per_bet": round(entry["profit_total"] / entry["bets"], 3) if entry["bets"] else None,
+                        "profit_bound": self._profit_bound(entry["bets_by_day"]) if hasPayout else None,
                         "bets": entry["bets"],
                     } for name, entry in sinceStats.items()]
                     sinceMinDraws = min(10, max(m["draws"] for m in sinceModels))
@@ -2199,10 +2247,28 @@ class Helpers():
 
         
         
+    # Main-number ranges get_unique_labels has no branch for. It cannot get one: the deep-learning
+    # rows' weight fingerprints carry its class count (Predictor.py's RL row overrides eurodreams the same way).
+    MAIN_NUMBER_RANGES = {"eurodreams": (1, 40)}
+
+    def main_number_labels(self, dataPath, unique_labels):
+        """The game's main-number labels: MAIN_NUMBER_RANGES for the game behind dataPath (a whole folder name), else unique_labels."""
+        parts = set(os.path.normpath(str(dataPath)).split(os.sep))
+        for game, (low, high) in self.MAIN_NUMBER_RANGES.items():
+            if game in parts:
+                return np.arange(low, high + 1)
+        return unique_labels
+
     def era_start(self, dataPath):
-        """The first date of today's rules for the game behind dataPath (GAME_ERA_START), or None."""
+        """
+        The first date of today's rules for the game behind dataPath
+        (GAME_ERA_START), or None. Matched on a whole folder name of the path,
+        never a substring: "vikinglotto" contains "lotto", and lotto's 2011
+        cut would otherwise land on Viking Lotto's history.
+        """
+        parts = set(os.path.normpath(str(dataPath)).split(os.sep))
         for game, first in self.GAME_ERA_START.items():
-            if game in str(dataPath):
+            if game in parts:
                 return parse(first)
         return None
 
@@ -3135,6 +3201,13 @@ def _self_check():
     assert all(set(a) <= set(b) for a, b in zip(subsets, subsets[1:])), subsets
     assert all(len(set(s)) == len(s) for s in subsets), subsets
     assert 35 in subsets[0], subsets[0]
+    # eurodreams' boosting labels are its 1-40 main range; every other game keeps what load_data gave
+    assert list(helpers.main_number_labels("data/trainingData/eurodreams", np.arange(1, 51))) == list(range(1, 41))
+    assert list(helpers.main_number_labels("data/trainingData/lotto", np.arange(1, 46))) == list(range(1, 46))
+    # the era of a game is found by its folder, not by a substring of the path
+    assert str(helpers.era_start("data/trainingData/lotto").date()) == "2011-10-01"
+    assert helpers.era_start("data/trainingData/vikinglotto") is None, "vikinglotto must not inherit lotto's era"
+    assert str(helpers.era_start("/x/data/trainingData/keno/").date()) == "2008-03-09" and helpers.era_start("data/trainingData/pick3") is None
     print("Helpers self-check passed: inclusion score is flat on a fair order-statistic table;"
           " a tilted number ranks first; top-k subsets nested and de-duplicated")
 

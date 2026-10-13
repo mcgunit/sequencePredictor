@@ -19,6 +19,18 @@ from Helpers import Helpers
 
 helpers = Helpers()
 
+# The within-draw chain's start state (13 Oct 2026): every sorted draw is read as
+# START -> its smallest number -> the next -> ... so the smallest number of a
+# draw is a successor too. Without it no number could ever follow into the
+# lowest value of the range - 1 is the smallest number of every draw it is in
+# - so a within-mode row never played number 1 (lotto and euromillions, served
+# in this mode since 10 Oct 2026), its vote scores (score_numbers) never held
+# it, and number_scores_from_chain scored it only through the frequency fill
+# (about a tenth of its share under the served 'log' blend). Negative, so it
+# can never collide with a drawn number (the positional games draw 0).
+WITHIN_START = -1
+
+
 class Markov():
     def __init__(self):
         self.dataPath = ""
@@ -234,6 +246,8 @@ class Markov():
                 weight = 1 + np.log1p(t) * self.recency_weight
             else:
                 weight = 1.0
+            if len(draw):
+                within_raw[WITHIN_START][int(draw[0])] += weight
             for i in range(len(draw) - 1):
                 within_raw[int(draw[i])][int(draw[i + 1])] += weight
         self.within_matrix = self._normalize_table(within_raw)
@@ -452,7 +466,7 @@ class Markov():
         scores = defaultdict(float)
         if self.transition_mode == "within" and not self.use_pair_scoring:
             last = [int(v) for v in history_draws[-1]]
-            for num in last:
+            for num in [WITHIN_START] + last:     # the start state first: the next draw's smallest number
                 successors = self.within_matrix.get(num)
                 if not successors:
                     continue
@@ -473,8 +487,10 @@ class Markov():
 
     def _within_prediction(self, last_draw, temperature):
         """
-        The 2025 Markov row's ticket: for every number of the last draw, a
-        successor sampled (tempered) from that number's within-draw table;
+        The 2025 Markov row's ticket: for the start state (WITHIN_START - the
+        next draw's smallest number, since 13 Oct 2026) and every number of
+        the last draw, a successor sampled (tempered) from that state's
+        within-draw table, up to the draw's size;
         short tickets are filled, as then, from the last number's successors
         blended with the game's frequencies, best first, then from pair
         affinity (both directions of the stored pair table), then from the
@@ -482,7 +498,11 @@ class Markov():
         """
         n = len(last_draw)
         picks = []
-        for num in map(int, last_draw):
+        # the start state first (the smallest number of the next draw), then a successor per number of the
+        # last draw - n + 1 sources for n slots, so the ticket stops at n
+        for num in [WITHIN_START] + [int(v) for v in last_draw]:
+            if len(picks) >= n:
+                break
             successors = self.within_matrix.get(num)
             if not successors:
                 continue
@@ -789,10 +809,25 @@ if __name__ == "__main__":
     w.setSubsetSelectionMode("softmax")      # the retired knob changes nothing: the subset stays the top k
     assert w.generate_best_subset(ticket if 8 in ticket else ticket[:4] + [8], 2) == sorted(sorted(ticket if 8 in ticket else ticket[:4] + [8], key=lambda n: (-w._last_number_scores.get(n, 0.0), n))[:2])
 
-    # hand count on a tiny history: constant weights, no smoothing, no pruning
+    # hand count on a tiny history: constant weights, no smoothing, no pruning; the start state counts the smallest numbers
     t = Markov(); t.setMinOccurrences(1); t.setSmoothingFactor(0.0); t.setRecencyMode("constant"); t.setTransitionMode("within")
     t.build_markov_chain([[1, 2, 5], [1, 3, 5], [2, 3, 5]])
     assert t.within_matrix[1] == {2: 0.5, 3: 0.5} and t.within_matrix[2] == {3: 0.5, 5: 0.5} and t.within_matrix[3] == {5: 1.0}, t.within_matrix
+    assert abs(t.within_matrix[WITHIN_START][1] - 2 / 3) < 1e-12 and abs(t.within_matrix[WITHIN_START][2] - 1 / 3) < 1e-12, t.within_matrix[WITHIN_START]
+
+    # number 1 is reachable (13 Oct 2026): 6-of-45 draws, 1 in about one draw in seven. Before the start state the
+    # within row never played 1 (0 votes) and the chain mass held it only through the frequency fill (rank 42 of 45
+    # here); the start state gives it real mass, and the votes reach at least its share (tempering at 0.5 sharpens
+    # the start state toward 1)
+    lot = [sorted(int(v) for v in rng.choice(np.arange(1, 46), size=6, replace=False)) for _ in range(600)]
+    lw = Markov(); lw.setGameRange(1, 45); lw.setDrawSize(6); lw.setSortedPrediction(True); lw.setMinOccurrences(1); lw.setRandomSeed(2)
+    lw.setTransitionMode("within"); lw.build_markov_chain(lot)
+    one_scores = lw.number_scores_from_chain(lot[-1:], 1.0)
+    assert lw.within_matrix[WITHIN_START].get(1, 0.0) > 0.0 and sorted(one_scores, key=one_scores.get, reverse=True).index(1) < 30, \
+        "the start state must give number 1 real mass"
+    _, lot_votes = lw.generate_voted_ticket(lot[-1:], n_tickets=400, ticket_size=6)
+    assert lot_votes.get(1, 0) >= 20, lot_votes.get(1, 0)      # at least its share (about 53 of 400); 0 before the fix
+    assert all(len(lw.predict_next_numbers(lot[-1:], temperature=0.5)) == 6 for _ in range(20)), "the ticket keeps the draw's size"
 
     # the column path is the default and untouched; the within table exists in both modes
     c = Markov(); c.setGameRange(1, 30); c.setDrawSize(5); c.setSortedPrediction(True); c.setMinOccurrences(2); c.setRandomSeed(1)
@@ -813,4 +848,5 @@ if __name__ == "__main__":
     except ValueError:
         pass
     print(f"Markov self-check OK: within-draw chain learns 7 -> 8 (ticket carries 8 in {with_eight} of 50 draws, "
-          f"{votes.get(8)} of 200 votes), hand-counted table matches, column path unchanged, positional games keep the column path")
+          f"{votes.get(8)} of 200 votes), hand-counted table matches, number 1 reachable ({lot_votes.get(1, 0)} of 400 within tickets), "
+          f"column path unchanged, positional games keep the column path")

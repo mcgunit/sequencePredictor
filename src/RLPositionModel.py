@@ -98,6 +98,9 @@ class RLPositionModel:
         self.seed = None
         self.k = MARKET_BINS
         self.lastReport = None
+        # the gate's floor (HyperoptRLTicket.tune_position): when no sizing it scored beats a policy that never
+        # bets - exactly 0 under the bound - the row is served sitting out, size 0 everywhere (13 Oct 2026)
+        self.sitOut = False
 
     # --- setters (the Predictor configures the row from bestParams_<market>.json) ---
     def setModelPath(self, modelPath): self.modelPath = modelPath
@@ -108,6 +111,7 @@ class RLPositionModel:
     def setRiskAversion(self, value): self.riskAversion = max(0.0, float(value))
     def setMaxTrainSeconds(self, seconds): self.maxTrainSeconds = float(seconds)
     def setSeed(self, seed): self.seed = seed
+    def setSitOut(self, sitOut): self.sitOut = bool(sitOut)
 
     # --- history ---------------------------------------------------------------
     def _loadHistory(self, historyDir, cutoffDate=None):
@@ -297,6 +301,12 @@ class RLPositionModel:
             print(f"RLPositionModel: the rows cannot vote a ticket for {name} - no row")
             return None
         plain = [1.0 if b >= self.k / 2 else 0.0 for b in ticket]
+        if self.sitOut:
+            # the Saturday gate found no sizing that beats not betting: the row still shows the vote's ticket (its
+            # bins are scored like every row's), but takes no position; the stored policy is left as it is
+            print(f"RLPositionModel [{name}]: sitting out - the tuning gate found no sizing above the 0 of never betting (rlPositionSitOut)")
+            self.lastReport = {"sitOut": True}
+            return {"name": ROW_NAME, "predictions": [ticket], "positions": [0.0] * len(ticket)}
         try:
             rng = np.random.default_rng(self.seed)
             entries = self._loadHistory(historyDir, cutoffDate=config.get("cutoffDate"))
@@ -431,6 +441,13 @@ def _self_check():
         # 5. decode is deterministic and the second run warm-starts
         again = model.run("crypto", today, historyDir, root, {"returns": returns, "cutoffDate": cutoff})
         assert model.lastReport["warmStart"] is True and len(again["positions"]) == slots
+        # 5b. the gate's floor: a sit-out row keeps the vote's ticket and takes no position, and leaves the policy alone
+        stamp = os.path.getmtime(os.path.join(model.modelPath, os.listdir(model.modelPath)[0]))
+        model.setSitOut(True)
+        idle = model.run("crypto", today, historyDir, root, {"returns": returns, "cutoffDate": cutoff})
+        assert idle["positions"] == [0.0] * slots and idle["predictions"] == again["predictions"] and model.lastReport == {"sitOut": True}, idle
+        assert os.path.getmtime(os.path.join(model.modelPath, os.listdir(model.modelPath)[0])) == stamp, "a sit-out run does not retrain"
+        model.setSitOut(False)
         # 6. the utility is concave in the size: for an uncertain call a middle size can win
         model.setRiskAversion(0.5)
         assert model._utility(2.0, 0.02) < 2 * model._utility(1.0, 0.02), "the quadratic term must bite"

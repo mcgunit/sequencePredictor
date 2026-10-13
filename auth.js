@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const audit = require('./audit');
+const { help } = require('./help');   // the "?" the pages keep their explanations behind (13 Oct 2026)
 
 const COOKIE_NAME = 'sp_session';
 const SESSION_HOURS = 24;                 // renewed while in use ...
@@ -317,7 +318,8 @@ function usersPage(render, req, message, isError) {
       </tr>`).join('');
   const notice = !writable
     ? '<p style="background: #fdf2e9; border: 1px solid #f5cba7; padding: 10px; border-radius: 6px;">Authentication is <b>off</b>: set <code>WEB_USER</code> and <code>WEB_PASSWORD</code> in the server\'s environment to require a login. Accounts can only be managed while it is on.</p>'
-    : `<p style="color: #7f8c8d;">Administrator: <b>${escapeHtml(config.ADMIN_USER)}</b> (from the environment). Users below sign in with their own password and see the predictions and the History pages only. Changing a user's password ends that user's open sessions.</p>`;
+    : `<p style="color: #7f8c8d; margin-bottom: 0;">Administrator: <b>${escapeHtml(config.ADMIN_USER)}</b> (from the environment). Changing a user's password ends that user's open sessions.</p>
+      ${help('Users below sign in with their own password and see the predictions and the History pages only.', 'about accounts')}`;
   return render.header('Users', req.user) + `
     <h1>Users</h1>
     <p><a href="/admin/activity" class="nav-btn" style="text-decoration:none;">Recent activity →</a></p>
@@ -376,7 +378,8 @@ function accountPage(render, req, message, isError) {
   const form = user.open
     ? '<p style="background:#fdf2e9; border:1px solid #f5cba7; padding:10px; border-radius:6px;">Authentication is <b>off</b> on this server, so there is no password to change.</p>'
     : isAdmin
-      ? `<p>The administrator signs in with <code>WEB_USER</code> and <code>WEB_PASSWORD</code> from the server's <code>.env</code> file, which is deliberately not editable from a web page: it is the credential that could change everyone else's. To change it, edit <code>.env</code> and restart the server (<code>pm2 restart sequencePredictor</code>). Every administrator session ends the moment the password changes.</p>`
+      ? `<p style="margin-top: 0;">The administrator signs in with <code>WEB_USER</code> and <code>WEB_PASSWORD</code> from the server's <code>.env</code> file, which is deliberately not editable from a web page: it is the credential that could change everyone else's.</p>
+        ${help('To change it, edit <code>.env</code> and restart the server (<code>pm2 restart sequencePredictor</code>). Every administrator session ends the moment the password changes.', 'how to change it')}`
       : `<form method="post" action="/account/password" class="auth-form">${csrf}
           <label>Current password<input type="password" name="current" autocomplete="current-password" required></label>
           <label>New password <span style="color:#7f8c8d; font-weight:normal;">(at least ${MIN_PASSWORD_LENGTH} characters)</span><input type="password" name="password" minlength="${MIN_PASSWORD_LENGTH}" autocomplete="new-password" required></label>
@@ -406,9 +409,10 @@ function accountPage(render, req, message, isError) {
 function activityPage(render, req) {
   return render.header('Activity', req.user) + `
     <h1>Activity</h1>
-    <p style="color:#7f8c8d;">Sign-ins, failed attempts and account changes, newest first. Recorded in
+    <p style="color:#7f8c8d; margin-bottom:0;">Sign-ins, failed attempts and account changes, newest first.</p>
+    ${help(`Recorded in
       <code>${escapeHtml(audit.FILE)}</code>, which is rotated at 2 MB with one older file kept, so it cannot grow without bound.
-      Addresses are the caller's as seen through the reverse proxy.</p>
+      Addresses are the caller's as seen through the reverse proxy.`, 'where this is kept')}
     <div class="card expanded">
       <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Last 200 events</span><div class="card-icon">▼</div></div>
       <div class="card-body">${activityTable(audit.recent(200), true)}</div>

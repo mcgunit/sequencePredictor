@@ -59,7 +59,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
-from src.ControlHistories import control_draws, main_numbers, CONTROL_ROOT
+from src.ControlHistories import control_draws, main_numbers, CONTROL_ROOT, control_seed, repetitions_for
 from src.Helpers import Helpers
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc
 from HyperoptStatistics import GAME_CONFIG, is_running, create_lock, remove_lock
@@ -295,6 +295,11 @@ def main():
     parser.add_argument("-g", "--games", default="lotto", help='Comma-separated games (default lotto)')
     parser.add_argument("-w", "--window", type=int, default=10, help="Draws per window (default 10)")
     parser.add_argument("-n", "--repetitions", type=int, default=3, help="Independent synthetic histories")
+    parser.add_argument("--seed", default="1",
+                        help='First seed; repetitions count up from it. "weekly" = a fresh block of seeds every ISO week '
+                             '(the Sunday plan, since 13 Oct 2026); a number reproduces a run')
+    parser.add_argument("--market-repetitions", type=int, default=0,
+                        help="Repetitions for the market games (crypto, shares and their week games); 0 = -n")
     parser.add_argument("--draws", type=int, default=1000,
                         help="Use only the most recent N draws, where the rules have not changed (0 = all)")
     parser.add_argument("--skip-quantum", action="store_true", help="Classical suite only (much faster)")
@@ -312,15 +317,18 @@ def main():
         return 1
 
     os.makedirs(RESULT_DIR, exist_ok=True)
+    first_seed = control_seed(args.seed)
     for game in games:
+        repetitions = repetitions_for(game, args.repetitions, args.market_repetitions)
+        seeds = list(range(first_seed, first_seed + repetitions))
         print(f"\n{game}: window {args.window} draws, newest {args.draws or 'all'} draws, "
-              f"{args.repetitions} repetitions")
+              f"{repetitions} repetitions (seeds {seeds[0]}..{seeds[-1]})")
         record = {"game": game, "window": args.window, "draws": args.draws,
-                  "repetitions": args.repetitions, "quantum": not args.skip_quantum,
+                  "repetitions": repetitions, "seeds": seeds, "quantum": not args.skip_quantum,
                   "generated_at": datetime.now().isoformat(timespec="seconds"), "runs": {}}
         for name in COMPARISONS:
             per_seed = []
-            for seed in range(1, args.repetitions + 1):
+            for seed in seeds:
                 results, shape = run_comparison(game, name, args.window, seed, args.draws, args.skip_quantum)
                 per_seed.append(results)
                 record.setdefault("shape", shape)

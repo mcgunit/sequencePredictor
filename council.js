@@ -12,6 +12,7 @@ const http = require('http');
 
 const auth = require('./auth');
 const sessions = require('./councilSessions');
+const { help } = require('./help');   // the "?" the page keeps its explanations behind (13 Oct 2026)
 
 // Where api.py listens. Override with COUNCIL_API_HOST / COUNCIL_API_PORT.
 const API_HOST = process.env.COUNCIL_API_HOST || '127.0.0.1';
@@ -397,7 +398,7 @@ function page(req, header, footer, escapeHtml) {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body" style="padding: 12px;">
-        <p style="color:#7f8c8d; font-size:0.85em; margin:0;">Kept for your account. A session starts with its first question.</p>
+        ${help('Kept for your account. A session starts with its first question.', 'about sessions')}
         <ul class="sessions" id="council-sessions"><li style="color:#95a5a6; cursor:default;">Loading…</li></ul>
       </div>
     </div>

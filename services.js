@@ -15,6 +15,7 @@
 // checked.
 
 const { spawn } = require('child_process');
+const { help, autoReload } = require('./help');   // the "?" explanations; the reload waits while one is open
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -367,7 +368,7 @@ function page(req, render, services, message, extra) {
         <div class="card-icon">▼</div>
       </div>
       <div class="card-body">
-        <p style="color: #7f8c8d; margin-top: 0;">${esc(s.description)}</p>
+        ${help(esc(s.description), 'what this service does')}
         <table style="min-width: 0; margin-bottom: 15px;">
           <tr><th style="text-align:left;">Command</th><td style="text-align:left;"><code>${esc(s.command)}</code></td></tr>
           <tr><th style="text-align:left;">Working directory</th><td style="text-align:left;"><code>${esc(s.cwd)}</code></td></tr>
@@ -392,12 +393,12 @@ function page(req, render, services, message, extra) {
   return render.header('Jobs', req.user) + `
     <h1>Jobs</h1>
     ${message ? `<p style="color:#27ae60; font-weight:bold;">${esc(message)}</p>` : ''}
-    <p style="color:#7f8c8d;">What this server runs for you: the scheduled pipeline jobs (jobs.js) and the services it keeps up (below).
-       This page refreshes every 15 seconds.</p>
+    <p style="color:#7f8c8d;">This page refreshes every 15 seconds, and waits while a "?" is open.</p>
+    ${help('What this server runs for you: the scheduled pipeline jobs (jobs.js) and the services it keeps up (below).', 'about this page')}
     ${extra || ''}
     <h2>Services</h2>
     ${cards}
-    <script>setTimeout(function () { location.reload(); }, 15000);</script>` + render.footer();
+    ${autoReload(15000)}` + render.footer();
 }
 
 // `extraSection` is an optional (req) => html callback rendered above the

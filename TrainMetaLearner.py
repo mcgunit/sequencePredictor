@@ -398,6 +398,22 @@ def positional_metrics(mean_profit, accuracies, train_days, test_days):
 #   the foundation models are shown and therefore what their column holds).
 BASE_PARAM_PREFIXES = ("markov", "poisson", "laplace", "xgBoost", "foundation", "garch", "regimeHmm")
 
+# The cached tables' format: a table written under another one is recollected, whatever else matches. 2 (13 Oct
+# 2026): HyperoptQuantum's builder gained the history floor below (it started at row 6 of eurodreams' and
+# vikinglotto's 306 draws, where the XGBoost column was a constant 1/K), the XGBoost min_child_weight cap and
+# eurodreams' 1-40 boosting labels. The cache otherwise checks only rows, days, model names and served params.
+META_TABLE_FORMAT = 2
+
+
+def meta_table_history_floor(total_rows):
+    """The oldest row a table may start at: 100 draws of history, or half the history of a game shorter than 200."""
+    return min(100, total_rows // 2)
+
+
+def meta_table_start_index(total_rows, days_back):
+    """Where a table of the newest days_back days starts, never below the history floor (the trainer and the quantum tuner alike)."""
+    return max(meta_table_history_floor(total_rows), total_rows - days_back)
+
 
 def base_param_subset(bestParams):
     return {k: v for k, v in (bestParams or {}).items() if k.startswith(BASE_PARAM_PREFIXES)}
@@ -428,6 +444,7 @@ def save_meta_score_table(path, dataset_name, results, model_names, days_back, t
             "days": days_back,
             "total_rows": total_rows,
             "base_params": base_param_subset(bestParams),
+            "format": META_TABLE_FORMAT,
         }, meta_table_cache_path(path, dataset_name, table_kind))
     except Exception as e:
         print(f"Could not persist the {dataset_name} {table_kind}-table cache (continuing): {e}")
@@ -467,7 +484,16 @@ def load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams,
         return None
     if cache.get("base_params") != base_param_subset(bestParams):
         return None
+    if cache.get("format") != META_TABLE_FORMAT:
+        return None
     results = cache["results"]
+    # a table that starts below the history floor (an old builder's) is recollected; the floor, not the full start
+    # index, so a reader asking for fewer days than the table holds still reuses it
+    try:
+        if int(results[0].get("index", 0)) < meta_table_history_floor(int(cache.get("total_rows") or 0)):
+            return None
+    except (AttributeError, TypeError, ValueError):
+        return None
     sliced = results[-min(len(results), days_back):] if days_back else results
     print(f"{dataset_name}: reusing the cached base-model score table "
           f"({len(sliced)} of {len(results)} cached days) - skipping the backtest")
@@ -591,7 +617,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     dates = list(getattr(loader, "dates", []))
 
     # a game shorter than the window (a week game) keeps a history floor rather than starting at row 0 (8 Oct 2026)
-    start_index = max(min(100, total_rows // 2), total_rows - days_back)
+    start_index = meta_table_start_index(total_rows, days_back)
 
     cached = load_meta_score_table(path, dataset_name, days_back, total_rows, bestParams, table_kind,
                                    model_names=expected_model_names(dataPath, bestParams, is_positional=is_positional, game=dataset_name))

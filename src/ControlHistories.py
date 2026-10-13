@@ -111,6 +111,39 @@ _ERA_NOTED = set()      # games whose dropped era this process has already repor
 ERA_START = Helpers.GAME_ERA_START
 
 
+def control_seed(value, today=None):
+    """
+    The first seed of a control run, from the scripts' --seed: an integer, or
+    "weekly" - (ISO year x 100 + ISO week of the weekend's Saturday) x 10000
+    + 1, a fresh block of seeds every week that no other week shares (13 Oct
+    2026). The week is the Saturday on or before the day, so the Sunday plan's
+    catch-up (jobs.js, to Tuesday 09:00) and a run past midnight keep their
+    weekend's block; a midweek hand run given "weekly" shares that weekend's
+    block, so give a hand run a number. A block is 10,000 seeds wide: Q2's
+    +1000 null side and the feature control's +1000 x (repeat + 1) noise
+    seeds stay inside it (up to 9 repeats). With a fixed first
+    seed the Sunday plan rebuilt the same synthetic histories every week and
+    only appended the newest draws, so "watch it next week" re-ran one test
+    instead of drawing a new one, and the Q2 null band of the long games came
+    out byte-identical week after week. A hand run keeps the reproducible
+    default (1); the seeds used are in every record.
+    """
+    if str(value).strip().lower() == "weekly":
+        from datetime import date as _date, timedelta as _timedelta
+        day = today or _date.today()
+        saturday = day - _timedelta(days=(day.weekday() - 5) % 7)
+        year, week, _ = saturday.isocalendar()
+        return (year * 100 + week) * 10000 + 1
+    return int(value)
+
+
+def repetitions_for(game, repetitions, market_repetitions=0):
+    """How many control histories a game gets: --market-repetitions for the market games when set (their histories cost minutes, and three seeds left the shuffled band to the luck of one seed), else -n."""
+    if market_repetitions and helpers.is_market_game(game):
+        return max(1, int(market_repetitions))
+    return max(1, int(repetitions))
+
+
 def current_era(game, rows):
     """
     The rows of today's game only. A draw dated before the game's ERA_START,
@@ -120,8 +153,11 @@ def current_era(game, rows):
     with numbers above 70. Carried into a control, the old draws would get
     synthetic replacements generated under today's rules on their dates, and
     the shuffled control would scatter 1-80 draws across the window the rows
-    are scored on. Says what it dropped, once per game and process; the other
-    games lose nothing (checked 5 Oct 2026).
+    are scored on. Lotto drew 6 of 1-42 until 1 October 2011 and 6 of 1-45
+    since: its 1747 earlier draws are dropped by date (13 Oct 2026; their
+    numbers all lie inside 1-42, so the range check alone would keep them).
+    Says what it dropped, once per game and process; the other games lose
+    nothing (checked 5 Oct 2026, again 13 Oct 2026).
     """
     cfg = GAME_CONFIG.get(game)
     if not cfg:
@@ -400,5 +436,21 @@ if __name__ == "__main__":
         back = read_game_csv(directory)
         assert [b for _, b in back] == s_draws and read_returns_file(directory)[2] == symbols
         assert sorted(os.listdir(directory)) == ["shares-control.csv", "shares-returns.tsv"]
+    # the era of today's game: lotto's 6-of-42 draws before 1 Oct 2011 are dropped by date (their numbers all lie
+    # inside today's 1-45, so only the date can tell them apart); vikinglotto keeps its rows
+    era_rows = [("2011-09-28", ["1", "2", "3", "4", "5", "42", "7"]), ("2011-10-01", ["1", "2", "3", "4", "5", "42", "7"]),
+                ("2011-10-15", ["25", "27", "29", "31", "42", "44", "3"])]
+    assert [d for d, _ in current_era("lotto", era_rows)] == ["2011-10-01", "2011-10-15"], current_era("lotto", era_rows)
+    assert ERA_START.get("vikinglotto") is None
+    # the weekly seeds: a fresh block per ISO week, never shared; an integer stays itself
+    from datetime import date as _d
+    assert control_seed("weekly", _d(2026, 10, 17)) == 2026420001 and control_seed("weekly", _d(2026, 10, 18)) == 2026420001
+    assert control_seed("weekly", _d(2026, 10, 19)) == 2026420001 and control_seed("weekly", _d(2026, 10, 20)) == 2026420001, "a catch-up keeps its weekend"
+    assert control_seed("weekly", _d(2026, 10, 24)) == 2026430001 and control_seed("weekly", _d(2026, 10, 25)) == 2026430001
+    assert control_seed("weekly", _d(2027, 1, 4)) == 2026530001, "a Monday catch-up across the new year keeps 2026-W53"
+    assert control_seed("weekly", _d(2026, 10, 18)) + 1000 < control_seed("weekly", _d(2026, 10, 25)), "the +1000 offsets stay inside the week's block"
+    assert control_seed("7") == 7 and control_seed(3) == 3
+    assert repetitions_for("crypto", 3, 5) == 5 and repetitions_for("cryptoweek", 3, 5) == 5 and repetitions_for("lotto", 3, 5) == 3 and repetitions_for("crypto", 3) == 3
     print("ControlHistories self-check OK: a market's synthetic control is a matched random walk with equiprobable bins and no "
-          "volatility clustering, its shuffled control moves bins and returns together, both carry their returns file")
+          "volatility clustering, its shuffled control moves bins and returns together, both carry their returns file; "
+          "lotto's controls start at the 6-of-45 game")

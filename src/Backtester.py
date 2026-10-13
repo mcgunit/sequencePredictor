@@ -642,8 +642,9 @@ class Backtester:
         }
 
         # num_workers/chunksize are tuning knobs: with a refit cadence of k
-        # days (BoostingBase.setRefitEvery) a chunk of k consecutive days on
-        # one worker shares a single fit, and fewer workers each get more
+        # days (BoostingBase.setRefitEvery) blocks are cut on the fit slices
+        # (skipRows multiples of k), so the days of a block share a single fit
+        # on one worker, and fewer workers each get more
         # library threads (HyperoptBoost sizes both so workers x threads stays
         # within the machine). Defaults reproduce the historical behavior.
         workerCap = cpu_count() - 1 if num_workers is None else int(num_workers)
@@ -661,7 +662,22 @@ class Backtester:
             # between completed days would let a 15-worker batch run for
             # hours before the first result arrives); terminate() then kills
             # the in-flight workers.
-            blocks = [list(range(i, min(i + chunksize, end_index))) for i in range(start_index, end_index, chunksize)]
+            # Blocks are cut on the refit slices, not from start_index: BoostingBase fits skipRows (total_rows - i)
+            # in slices ((m-1)k, mk], so a block starts where (total_rows - i) % k == 0 and its days share one fit
+            # (the first block may be shorter than k). Cut from start_index, a window that is not a multiple of k
+            # straddled a slice boundary in every block and fitted twice per block (the keno day table at 90/7,
+            # 13 Oct 2026); at chunksize 1 nothing changes.
+            blocks, current = [], []
+            for i in range(start_index, end_index):
+                if current and chunksize > 1 and (total_rows - i) % chunksize == 0:
+                    blocks.append(current)
+                    current = []
+                current.append(i)
+                if chunksize == 1:
+                    blocks.append(current)
+                    current = []
+            if current:
+                blocks.append(current)
             blockResults = pool.imap(_backtest_block, blocks)  # IMapIterator: .next(timeout=) works
             iteration = 0
             while True:

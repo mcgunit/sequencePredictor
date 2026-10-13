@@ -216,6 +216,10 @@ class BoostingPredictorBase:
             years_back=years_back,
             specialColumnCount=specialColumnCount
         )
+        if specialColumnCount == 0:
+            # the game's own main range where Helpers.get_unique_labels has no branch for it (eurodreams: 1-40, not
+            # the 1-50 default - ten classes that are never drawn, and a fallback ticket full of 41-50; 13 Oct 2026)
+            unique_labels = helpers.main_number_labels(self.dataPath, unique_labels)
         return numbers, unique_labels
 
     def _effective_window(self, draws):
@@ -552,8 +556,13 @@ class PerPositionBoostingPredictor(BoostingPredictorBase):
         """
         position_probabilities = self._position_probabilities(draws, window)
         number_scores = self._average_confidence(position_probabilities, top_k=self.top_k)
+        inclusion = self._inclusion_probabilities(position_probabilities)
         ranked = sorted(number_scores, key=number_scores.get, reverse=True)
-        return self._build_ticket(position_probabilities, ranked), self._inclusion_probabilities(position_probabilities)
+        # The refill pool is the top_k candidates first, then every other number by inclusion: with a small top_k
+        # (1 for keno and eurodreams LightGBM, 4 for vikinglotto XGBoost) the top_k pool alone could hold fewer
+        # distinct numbers than the ticket needs, and the ticket came out short (17-19 of keno's 20; 5 of 6) - 13 Oct 2026
+        ranked += [n for n in sorted(inclusion, key=inclusion.get, reverse=True) if n not in number_scores]
+        return self._build_ticket(position_probabilities, ranked), inclusion
 
     def _score(self, draws, window):
         return self._average_confidence(self._position_probabilities(draws, window))

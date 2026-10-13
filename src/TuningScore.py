@@ -276,21 +276,28 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
     hits_bound = lower_bound(hits_days, penalty)
     log_bound = lower_bound(log_days, penalty)
 
+    def standard_error(values):
+        return float(np.std(values, ddof=1)) / math.sqrt(len(values)) if len(values) > 1 else None
+
     if proper:
         kind = "log_score"
         score = log_bound if log_bound is not None else NEG_INF
+        se = standard_error(log_days)
     elif positional:
         kind = "positional"
         if hits_bound is None:
             score = NEG_INF
         else:
             score = hits_bound + (POSITIONAL_PROFIT_WEIGHT * capped_bound if capped_bound is not None else 0.0)
+        se = standard_error(hits_days)
     elif payout:
         kind = "capped_profit"
         score = capped_bound if capped_bound is not None else NEG_INF
+        se = standard_error(profit_days)
     else:
         kind = "hits"
         score = hits_bound if hits_bound is not None else NEG_INF
+        se = standard_error(hits_days)
 
     out = {
         "score": float(score),
@@ -304,6 +311,9 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
         "hits_mean": float(np.mean(hits_days)) if hits_days else None,
         "hits_bound": hits_bound,
         "lucky_strikes": strikes,
+        # the standard error over the days of the series the score bounds (sample std / sqrt(days)) - the unit a
+        # gate margin can be given in (TuningGate.challenge se_margin, the boosting tuner's since 13 Oct 2026)
+        "score_se": se,
     }
     if proper or log_days:
         out["log_score_mean"] = float(np.mean(log_days)) if log_days else None
@@ -538,6 +548,13 @@ if __name__ == "__main__":
     stored = attrs_for_trial(score_rows([{"index": 0, "m_error": "boom"}], "m", payout=True))
     check(stored["score"] is None and describe(stored).startswith("score -inf"), f"describe on the stored form: {describe(stored)}")
     check(describe(json.loads(json.dumps(stored))) == describe(stored), "describe after a JSON round trip")
+
+    # score_se: the standard error of the series the score bounds - bound = mean - se at the default penalty
+    se_case = score_bets_by_day([[1.0], [3.0], [2.0], [6.0]], payout=True)
+    se_expected = float(np.std([1.0, 3.0, 2.0, 6.0], ddof=1)) / 2.0
+    check(abs(se_case["score_se"] - se_expected) < 1e-12 and abs(se_case["score"] - (3.0 - CONFIDENCE_PENALTY * se_expected)) < 1e-12, se_case)
+    check(score_bets_by_day([[1.0]], payout=True)["score_se"] is None, "one day has no standard error")
+    check(abs(score_bets_by_day([], hits_by_day=[1, 2, 3], payout=False)["score_se"] - 1.0 / math.sqrt(3)) < 1e-12, "hits: the hits series")
 
     for message in failures:
         print("FAIL:", message)

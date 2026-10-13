@@ -11,7 +11,7 @@ import subprocess
 import joblib
 
 from art import text2art
-from datetime import datetime
+from datetime import datetime, timezone
 from multiprocessing import Pool, cpu_count, get_context
 from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
 
@@ -249,6 +249,18 @@ def remove_lock():
     except FileNotFoundError:
         pass  # It's okay if the lock file doesn't exist
 
+def stampTicket(current_json_object):
+    """
+    Records in the day file when its ticket (newPrediction) was made, as UTC
+    ISO time: MarketSettle.ticket_times reads it to tell a ticket that was out
+    before its day could be followed from a back-built one, and
+    next_day_predictions shows it as the ticket's time. A file's modification
+    time was the only record until 13 Oct 2026, and update_matching_numbers'
+    re-linking (a missed-day recovery) rewrites every day file.
+    """
+    current_json_object["madeAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def update_matching_numbers(name, path):
     json_dir = os.path.join(path, "data", "database", name)
     if not os.path.exists(json_dir):
@@ -291,9 +303,12 @@ def update_matching_numbers(name, path):
         )
         curr_json["matchingNumbers"] = best_match
 
-        # Save updated JSON
+        # Save updated JSON - re-linking never changes the file's own ticket (newPrediction), so its write time is
+        # kept: MarketSettle reads it as when the ticket was made for the files written before "madeAt" existed
+        stamp = os.stat(curr_file)
         with open(curr_file, "w") as f_curr_out:
             json.dump(curr_json, f_curr_out, indent=2)
+        os.utime(curr_file, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
 
     print(f"Updated matching numbers in {len(sorted_files) - 1} files.")
 
@@ -354,6 +369,7 @@ def process_single_history_entry_first_step(args):
         )
 
         current_json_object["newPrediction"] = listOfDecodedPredictions
+        stampTicket(current_json_object)
     except Exception as e:
         print("Failed to perform statistical method: ", e)
 
@@ -669,6 +685,7 @@ def process_single_history_entry_second_step(args):
 
     
     current_json_object["newPrediction"] = listOfDecodedPredictions
+    stampTicket(current_json_object)
     current_json_object["labels"] = unique_labels
 
     # Calculate the frequent numbers in prediction in last step
@@ -866,6 +883,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                             listOfDecodedPredictions, dataPath, path, name, skipLastColumns=skipLastColumns)
 
                     current_json_object["newPrediction"] = listOfDecodedPredictions
+                    stampTicket(current_json_object)
 
                     # Calculate the frequent numbers in prediction
                     try:
@@ -1082,6 +1100,8 @@ def addRLPositionPrediction(listOfDecodedPredictions, dataPath, path, name, best
         rlPosition.setTrainDays(bestParams_json_object.get("rlPositionTrainDays", 120))
         rlPosition.setRiskAversion(bestParams_json_object.get("rlPositionRiskAversion", 0.1))
         rlPosition.setMaxTrainSeconds(bestParams_json_object.get("rlPositionMaxTrainSeconds", 60))
+        # the tuning gate's floor: no sizing beat never betting (HyperoptRLTicket.tune_position) - serve the row at size 0
+        rlPosition.setSitOut(bestParams_json_object.get("rlPositionSitOut", False))
         row = rlPosition.run(name, listOfDecodedPredictions, os.path.join(path, "data", "database", name), dataPath,
                              {"cutoffDate": cutoffDate, "modelScores": bestParams_json_object.get("modelScores")})
         if row and row.get("predictions"):

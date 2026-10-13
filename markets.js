@@ -19,6 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { help } = require('./help');   // the "?" the explanations sit behind (13 Oct 2026)
 
 const MARKETS = {
   crypto: { title: 'Crypto predictor', noun: 'coin', unit: 'USDT', calendar: 'every day (UTC)' },
@@ -193,8 +194,27 @@ function describeTrading(t) {
     dates: Array.isArray(t.dates) ? t.dates.map(String) : [], models: seriesMap(t.models), benchmark: series(t.benchmark),
     hold: { models: seriesMap(hold.models), benchmark: series(hold.benchmark) },
     open: open ? { models: seriesMap(open.models), benchmark: series(open.benchmark) } : null,
+    // what following the page's own plan made (MarketSettle.followed_plan): per settled day the row the plan followed, picked from the
+    // record before that day, its positions and money that day, and whether the day's ticket was out before the day closed (live)
+    followed: describeFollowed(t.followed),
     // the same rules with shorts on (MarketSettle.ledger "short"): money per model per rule; the market lines above are their benchmark
     short: t.short && typeof t.short === 'object' ? Object.fromEntries(['daily', 'hold', 'open'].filter((r) => t.short[r] && typeof t.short[r] === 'object').map((r) => [r, { models: seriesMap(t.short[r].models), sold: series(t.short[r].benchmark) }])) : null,
+  };
+}
+
+// The followed-plan record (MarketSettle.followed_plan). Points are
+// [date, model, picked_by, positions, pnl, total, live, market_pnl]; a
+// malformed point is dropped, never thrown.
+function describeFollowed(f) {
+  if (!f || typeof f !== 'object' || !Array.isArray(f.points)) return null;
+  const points = f.points.filter((p) => Array.isArray(p) && p.length >= 8 && typeof p[0] === 'string').map((p) => ({
+    date: p[0], model: p[1] === null || p[1] === undefined ? null : String(p[1]), pickedBy: p[2] === null || p[2] === undefined ? null : String(p[2]),
+    positions: num(p[3]) || 0, pnl: num(p[4]) || 0, total: num(p[5]), live: p[6] === true, market: num(p[7]),
+  }));
+  return {
+    rule: f.rule === 'open' ? 'open' : 'daily', minTrades: num(f.min_trades), firstLive: typeof f.first_live === 'string' ? f.first_live : null,
+    total: num(f.total), marketTotal: num(f.market_total), liveTotal: num(f.live_total), liveMarket: num(f.live_market),
+    liveDays: num(f.live_days) || 0, livePositions: num(f.live_positions) || 0, points,
   };
 }
 
@@ -210,6 +230,7 @@ function describeDays(days) {
     })),
     models: (Array.isArray(d.models) ? d.models : []).filter((m) => m && typeof m === 'object' && m.name !== undefined).map((m) => ({
       name: String(m.name), bins: Array.isArray(m.bins) ? m.bins.map((b) => (b === null ? null : num(b))) : [],
+      sizes: Array.isArray(m.sizes) ? m.sizes.map((v) => (v === null || v === undefined ? null : num(v))) : null,   // a sized row's size per slot (RL Position Model)
       exact: num(m.exact), adjacent: num(m.adjacent), direction: num(m.direction), positions: num(m.positions), pnl: num(m.pnl), pnlCash: num(m.pnl_cash), trades: num(m.trades),
     })),
     best: d.best || null, exactMean: num(d.exact_mean),
@@ -590,6 +611,7 @@ const CHART_SCRIPTS = `<script src="https://cdnjs.cloudflare.com/ajax/libs/hamme
 .chart-models .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; } .chart-models a { color:#2980b9; margin-right:8px; }
 .bg-section { border-top:1px solid #eee; padding:4px 0; } .bg-section:first-child { border-top:none; } .bg-section summary { cursor:pointer; padding:8px 0; list-style-position:inside; }
 .bg-section summary b { font-size:1.05em; } .bg-section summary .card-meta { margin-left:10px; } .bg-body { padding:2px 0 12px; }
+.bg-section details.help > summary { padding:0; }
 .plan td, .plan th { vertical-align:top; } .plan td.order { text-align:left; font-size:0.92em; }</style>
 <script>
   try { if (window.ChartZoom) Chart.register(window.ChartZoom); } catch (e) { /* zoom stays off, the chart still draws */ }
@@ -610,6 +632,66 @@ function failedRowsNote(errors) {
     + `${some.length ? ` Rows that failed on some days: ${esc(some.join(', '))}.` : ''}`;
 }
 
+// "Following the plan": what a reader who had followed the page's plan made,
+// day by day (Today's plan) and week by week (the Week ahead card) - built on
+// 13 Oct 2026 at the owner's request ("this is the result now if you had
+// followed the buy and sell suggestions"). One section per game: the live
+// result since the first ticket that was out before its day closed, against
+// buying everything under the same rule; a chart of the two running totals
+// over the live days; the days themselves newest first; the back-built days
+// before the live start behind their own toggle (what the rule would have
+// done, not a record anyone could have followed).
+function followedSection(f, { unit, noun, ruleName, unitWord, unitWords, chartId, week }) {
+  if (!f || !f.points.length) return '';
+  const live = f.points.filter((p) => p.live);
+  // not live: the back-built start (before the first live day), and any later day whose ticket came too late to follow
+  // (a missed or late run) - both kept out of the live total and the chart, each under its own toggle
+  const before = f.points.filter((p) => !p.live && (!f.firstLive || p.date < f.firstLive));
+  const late = f.points.filter((p) => !p.live && f.firstLive && p.date > f.firstLive);
+  const colour = (x) => ((x || 0) >= 0 ? '#27ae60' : '#c0392b');
+  const signed = (x) => money(x, 2);
+  let runFollowed = 0, runMarket = 0;
+  const liveRun = live.map((p) => { runFollowed += p.pnl; runMarket += p.market || 0; return { ...p, runFollowed, runMarket }; });
+  const pickedText = (p) => (p.model === null ? '<span style="color:#aaa;">no plan yet</span>'
+    : `${esc(p.model)}${p.pickedBy === 'exact' ? ' <span style="color:#7f8c8d; font-size:0.85em;" title="no book had enough positions yet: the plan followed the best exact rate">(by exact rate)</span>' : ''}`);
+  const row = (p, running) => `<tr><td>${esc(p.date)}</td><td style="text-align:left;">${pickedText(p)}</td><td>${p.positions}</td>
+    <td style="color:${colour(p.pnl)}; font-weight:bold;">${signed(p.pnl)}</td>${running ? `<td style="color:${colour(p.runFollowed)};">${signed(p.runFollowed)}</td>` : ''}
+    <td style="color:${colour(p.market)};">${signed(p.market)}</td>${running ? `<td style="color:${colour(p.runMarket)};">${signed(p.runMarket)}</td>` : ''}</tr>`;
+  const head = (running) => `<tr><th>${week ? 'Week ending' : 'Day'}</th><th style="text-align:left;" title="the row the plan followed that ${unitWord}, picked from the record before it">Row followed</th>
+    <th title="${esc(noun)}s bought that ${unitWord} (a call in the upper half, or a sized row's size above 0)">Positions</th><th>Result ${esc(unit)}</th>${running ? `<th>Running total</th>` : ''}
+    <th title="every ${esc(noun)} bought under the same rule, the same stake and fees">Buying everything</th>${running ? '<th>Its running total</th>' : ''}</tr>`;
+  let html = '';
+  if (live.length) {
+    const ahead = (f.liveTotal || 0) - (f.liveMarket || 0);
+    html += `<p style="margin:0 0 6px;">Followed since <b>${esc(f.firstLive)}</b> (${live.length} ${live.length === 1 ? unitWord : unitWords}, ${f.livePositions} position(s)):
+      <b style="color:${colour(f.liveTotal)}; font-size:1.15em;">${signed(f.liveTotal)} ${esc(unit)}</b> - buying every ${esc(noun)} under the same rule: <b style="color:${colour(f.liveMarket)};">${signed(f.liveMarket)} ${esc(unit)}</b>
+      (${ahead >= 0 ? `${signed(ahead)} ahead of it` : `${(-ahead).toFixed(2)} behind it`}).</p>`;
+    html += `<div style="height:220px;"><canvas id="${chartId}"></canvas></div>
+      <script>new Chart(document.getElementById('${chartId}').getContext('2d'), { type: 'line', data: {
+        labels: ${jsonScript(liveRun.map((p) => p.date))},
+        datasets: [
+          { label: 'following the plan', data: ${JSON.stringify(liveRun.map((p) => Math.round(p.runFollowed * 100) / 100))}, borderColor: '#27ae60', backgroundColor: '#27ae60', tension: 0.15, pointRadius: 3 },
+          { label: 'buying everything', data: ${JSON.stringify(liveRun.map((p) => Math.round(p.runMarket * 100) / 100))}, borderColor: '#95a5a6', borderDash: [5, 4], tension: 0.15, pointRadius: 2 }
+        ] }, options: { maintainAspectRatio: false, plugins: { tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(2) + ' ${esc(unit)}' } } } } });</script>`;
+    html += `<div class="table-wrapper"><table>${head(true)}${liveRun.slice().reverse().map((p) => row(p, true)).join('')}</table></div>`;
+  } else {
+    html += `<p style="color:#7f8c8d; margin:0 0 6px;">No live ${esc(unitWord)} yet: every settled ${esc(unitWord)} so far was back-built.</p>`;
+  }
+  const offRecord = (pts, summary) => {
+    const t = pts.reduce((a, p) => a + p.pnl, 0);
+    const mk = pts.reduce((a, p) => a + (p.market || 0), 0);
+    return `<details style="margin-top:8px;"><summary style="cursor:pointer; color:#2980b9; font-size:0.9em;">${summary(t, mk)}</summary>
+      <div class="table-wrapper"><table>${head(false)}${pts.slice().reverse().map((p) => row(p, false)).join('')}</table></div></details>`;
+  };
+  if (late.length) {
+    html += offRecord(late, (t, mk) => `${esc(unitWords.charAt(0).toUpperCase() + unitWords.slice(1))} since ${esc(f.firstLive)} whose ticket came too late to follow (${late.length}): the rule would have made ${signed(t)} ${esc(unit)}, buying everything ${signed(mk)} - left out of the live total and the chart`);
+  }
+  if (before.length) {
+    html += offRecord(before, (t, mk) => `Back-built ${esc(unitWords)} before ${esc(f.firstLive || 'the live start')} (${before.length}): the rule would have made ${signed(t)} ${esc(unit)}, buying everything ${signed(mk)} - not a record anyone could have followed`);
+  }
+  return html;
+}
+
 function page(market, view, header, footer, user, now = new Date()) {
   const meta = MARKETS[market];
   let html = header(meta.title, user);
@@ -621,8 +703,9 @@ function page(market, view, header, footer, user, now = new Date()) {
     return html + footer();
   }
   const c = view.chance;
-  html += `<p style="color:#7f8c8d; margin-top:-12px;">Same models as the lottery games, same daily tracking, same controls - a predictor, not a trading bot.
-    Each ${esc(meta.noun)}'s next-day return is cut into ${view.k} equiprobable bins fitted on its own past (see README, roadmap item 4), and every model
+  // the intro's first sentence stays visible; the rest opens behind the "?" (13 Oct 2026)
+  html += `<p style="color:#7f8c8d; margin-top:-12px;">Same models as the lottery games, same daily tracking, same controls - a predictor, not a trading bot.</p>`;
+  html += help(`<p>Each ${esc(meta.noun)}'s next-day return is cut into ${view.k} equiprobable bins fitted on its own past (see README, roadmap item 4), and every model
     predicts one bin per ${esc(meta.noun)}, ${esc(meta.calendar)}. A bin is a return interval, so it is drawn as a predicted price on the chart, with the price band it stands for in the table beneath.
     Chance is ${pct(c.exact, 0)} for the exact bin, ${pct(c.adjacent, 0)} for the adjacent bin and ${pct(c.direction, 0)} for the direction.
     <b>Paper trading</b> scores every up call (a predicted bin in the upper half) in money${view.trading && view.trading.short ? ' - and, with the shorts switch, every down call as a paper short, which is never an order' : ''}, ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} a position and a ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} fee on each leg,
@@ -630,7 +713,7 @@ function page(market, view, header, footer, user, now = new Date()) {
     Results settle the morning after, when the day's candle has closed. ${market === 'crypto'
       ? 'A crypto day is the UTC day, so "the day\'s close" is 00:00 UTC - 02:00 Belgian time in the night that follows (01:00 in winter); that close decides every call.'
       : 'A share\'s day is the New York session, so "the day\'s close" is 16:00 New York time - 22:00 Belgian time in most weeks; that close decides every call.'}${view.week
-      ? ` The <b>Week ahead</b> card is the second game: the same ${esc(meta.noun)}s, one call for the whole week, scored at the week's close.` : ''}</p>`;
+      ? ` The <b>Week ahead</b> card is the second game: the same ${esc(meta.noun)}s, one call for the whole week, scored at the week's close.` : ''}</p>`, 'about this page');
 
   // The page, since 4 Oct 2026 (the owner found seven cards heavy): the plan
   // (the orders that match how a call is scored), the paper book, a chart
@@ -820,9 +903,9 @@ function page(market, view, header, footer, user, now = new Date()) {
         ? `<td style="color:${(m.openTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.openTrades === null ? '' : `${m.openTrades} position(s), win rate ${pct(m.openWinRate, 0)}, ${money(m.openPerTrade, 2)} per position`}">${money(m.openTotal, 2)}</td>` : ''}${hasShortCol
         ? `<td style="color:${(m.shortTotal || 0) >= 0 ? '#27ae60' : '#c0392b'};" title="${m.shortTrades === null ? '' : `${sizedModels.has(m.name) ? 'a sized row: longs only, never shorts - its long-and-short books are its long-only books; ' : ''}${m.shortTrades} position(s), win rate ${pct(m.shortWinRate, 0)}, ${money(m.shortPerTrade, 2)} per position; holding ${money(m.shortHoldTotal, 2)}${m.shortOpenTotal !== null ? `, open to close ${money(m.shortOpenTotal, 2)}` : ''}`}">${money(m.shortTotal, 2)}${sizedModels.has(m.name) ? ' <span style="color:#7f8c8d;">(long only)</span>' : ''}</td>` : ''}</tr>`;
   });
-  modelsCard += `</table></div><p style="color:#7f8c8d; font-size:0.85em;">Green: above chance. With ${view.instruments.length} ${esc(meta.noun)}s a day and a
+  modelsCard += `</table></div>${help(`<p>Green: above chance. With ${view.instruments.length} ${esc(meta.noun)}s a day and a
     handful of days, a rate above chance is noise more often than not; read the rows over months, and against the null band the controls give the lottery rows.
-    P&amp;L is paper money: ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} per position, ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} on each leg - see the Paper trading card.</p></div></div>`;
+    P&amp;L is paper money: ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} per position, ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} on each leg - see the Paper trading card.</p>`, 'how to read the table')}</div></div>`;
   bg += asDetail(modelsCard, true);
 
   // the paper-trading book: cumulative money per model against the market
@@ -859,13 +942,14 @@ function page(market, view, header, footer, user, now = new Date()) {
       <span class="swatch" style="background:${bookColours[m]};"></span>${esc(m)}</label>`).join('');
     paper += `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Paper trading</span>
       <span class="card-meta" style="margin-left:10px;">${t.stake === null ? '' : `${t.stake} ${esc(t.currency)} per position, `}${t.feePerLeg === null ? '' : `${pct(t.feePerLeg, 2)} a leg, `}${t.dates.length} settled day(s)${richest ? ` - best book ${money(richest.pnlCash, 2)} ${esc(t.currency)} (${esc(richest.name)})` : ''}${marketTotal === null ? '' : `, the market ${money(marketTotal, 2)}`}${richestHold ? `; holding: ${money(richestHold.holdTotal, 2)} (${esc(richestHold.name)})` : ''}${marketHold === null ? '' : `, buy-and-hold ${money(marketHold, 2)}`}${richestOpen ? `; open to close: ${money(richestOpen.openTotal, 2)} (${esc(richestOpen.name)})` : ''}${marketOpen === null ? '' : `, the market ${money(marketOpen, 2)}`}${richestShort ? `; long and short (daily): ${richestShort.shortTotal < 0 ? 'best ' : ''}${money(richestShort.shortTotal, 2)} (${esc(richestShort.name)})${richestShort.shortTotal < 0 ? ' - no long-and-short book is in the money' : ''}, buying everything ${money(marketTotal, 2)}${soldTotal === null ? '' : `, selling everything ${money(soldTotal, 2)}`}` : ''}</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, ${hasOpen ? 'three' : 'two'} ways of trading them${hasShort ? ', each long only or long and short (the switch)' : ''}, <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> a position and ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell.
-      <b>Daily round trip</b>: every ${esc(meta.noun)} a model calls up (bin 5 or higher) is bought at the previous close (${market === 'crypto' ? '00:00 UTC, in the night before the ticket goes up' : 'the previous session\'s close'}) and sold at the day's own close; a flat or down call sits out${hasShort ? ' (long only) or is a paper short (the switch)' : ''}.
+      <div class="card-body"><p style="margin-top:0; color:#555;">The same calls, ${hasOpen ? 'three' : 'two'} ways of trading them${hasShort ? ', each long only or long and short (the switch)' : ''}, <b>${t.stake === null ? '-' : t.stake} ${esc(t.currency)}</b> a position and ${t.feePerLeg === null ? '-' : pct(t.feePerLeg, 2)} fee on the buy and on the sell.</p>
+      ${help(`<p><b>Daily round trip</b>: every ${esc(meta.noun)} a model calls up (bin 5 or higher) is bought at the previous close (${market === 'crypto' ? '00:00 UTC, in the night before the ticket goes up' : 'the previous session\'s close'}) and sold at the day's own close; a flat or down call sits out${hasShort ? ' (long only) or is a paper short (the switch)' : ''}.
       <b>Hold while up</b>: the position is kept while the next day's call is up again and sold at the close of the last up day - one fee pair per run, the stake compounds; a position still open on the newest day is valued at its close.${hasOpen
         ? ` <b>Open to close</b>: bought at the session's own open (09:30 New York, 15:30 Belgian time in most weeks) and sold at its close - the one rule a reader of this page can follow, since the ticket is up hours before New York opens; <i>Today's plan</i> turns it into orders.` : ''}
       The grey dashed line is the <b>market</b> under the same rule - every ${esc(meta.noun)} every day, or everything bought on the first day and held - which a model has to beat before its book means anything.
       The daily and hold books buy at the previous close, ${market === 'crypto' ? 'eight to ten hours before the ticket is on this page' : 'with the gap to the next open still ahead'}, which nobody reading this can do: they score the call on the daily candle, not what a reader could have made from it. Paper money: no slippage, no funding, fills at the open or the close.${hasShort
         ? ` <b>Shorts</b> (the switch): with shorts on, a bin in the lower half is a short - sold at the previous close and bought back at the day's close (daily), kept while the call stays down (hold)${hasOpen ? ', sold at the open and bought back at the close (open to close)' : ''} - with the same stake and fees; the sized RL row never shorts. Paper only: selling what you do not own needs a margin or derivatives account, so <i>Today's plan</i> turns no short into an order. In the long-and-short views the second dashed line is what <b>selling</b> everything gave, next to the buying line: a short pays the market's drift and both fees, and a call in bin 4 - a hair below zero - cannot cover two fee legs by construction, so read a long-and-short book against both lines.` : ''}</p>
+      <p>The models table in the Background card has each model's total, win rate and money per position under every rule${view.days.length ? '; its <i>Day by day</i> section shows the money each day' : ''}. A yardstick, not a result.</p>`, 'how the books trade')}
       <div class="chart-tools"><button type="button" data-view-for="${bookId}" data-view="daily" onclick="marketRule('${bookId}', 'daily')" title="every up call bought at the previous close and sold at the day's close">Daily round trip</button>
         <button type="button" data-view-for="${bookId}" data-view="hold" onclick="marketRule('${bookId}', 'hold')" title="a position kept while the call holds its direction (up; with shorts on also down), closed at the close of the last day of the run">Hold while up</button>${hasOpen
           ? `<button type="button" data-view-for="${bookId}" data-view="open" onclick="marketRule('${bookId}', 'open')" title="every up call bought at the session's open and sold at its close - the rule a reader can follow">Open to close</button>` : ''}<span class="sep">|</span>${hasShort
@@ -875,8 +959,7 @@ function page(market, view, header, footer, user, now = new Date()) {
         <button type="button" onclick="marketReset('${bookId}')" style="margin-left:6px;">Reset zoom</button><span class="hint">cumulative ${esc(t.currency)} per model; scroll or pinch to zoom, drag to pan</span></div>
       <div class="chart-models"><span style="color:#7f8c8d;">Models: <a href="#" onclick="marketModels('${bookId}', 'best'); return false;">best</a><a href="#" onclick="marketModels('${bookId}', 'all'); return false;">all</a><a href="#" onclick="marketModels('${bookId}', 'none'); return false;">none</a></span>${bookSwitches}</div>
       <div style="height:320px;"><canvas id="${bookId}"></canvas></div>
-      <script>window.marketData['${bookId}'] = ${jsonScript(bookData)}; marketRender('${bookId}');</script>
-      <p style="color:#7f8c8d; font-size:0.85em; margin-bottom:0;">The models table in the Background card has each model's total, win rate and money per position under every rule${view.days.length ? '; its <i>Day by day</i> section shows the money each day' : ''}. A yardstick, not a result.</p></div></div>`;
+      <script>window.marketData['${bookId}'] = ${jsonScript(bookData)}; marketRender('${bookId}');</script></div></div>`;
   }
 
   // daily accuracy
@@ -905,8 +988,13 @@ function page(market, view, header, footer, user, now = new Date()) {
           const actual = inst ? inst.bin : null;
           const hit = b !== null && actual !== null && b === actual;
           const near = !hit && b !== null && actual !== null && Math.abs(b - actual) === 1;
-          const arrow = b === null ? '' : (b >= half ? '<span style="color:#27ae60;">&#9650;</span>' : '<span style="color:#c0392b;">&#9660;</span>');
-          return `<td style="${hit ? 'background:#2ecc71; color:white;' : (near ? 'background:#d5f5e3;' : '')}" title="${inst ? esc(intervalText(b, inst.edges)) : ''}${b === null ? '' : (b >= half ? ' - rule: long' : ' - rule: flat')}">${b === null ? '-' : b} ${arrow}</td>`;
+          // a sized row (the RL Position Model) is long by its size, not by its bin - the same reading as its books
+          const size = m.sizes && m.sizes[i] !== null && m.sizes[i] !== undefined ? m.sizes[i] : null;
+          const arrow = b === null ? '' : (size !== null
+            ? (size > 0 ? `<span style="color:#27ae60;">&#9650;&times;${size}</span>` : '<span style="color:#7f8c8d;">sits out</span>')
+            : (b >= half ? '<span style="color:#27ae60;">&#9650;</span>' : '<span style="color:#c0392b;">&#9660;</span>'));
+          const ruleText = b === null ? '' : (size !== null ? (size > 0 ? ` - long, size ${size}` : ' - size 0: sits out') : (b >= half ? ' - rule: long' : ' - rule: flat'));
+          return `<td style="${hit ? 'background:#2ecc71; color:white;' : (near ? 'background:#d5f5e3;' : '')}" title="${inst ? esc(intervalText(b, inst.edges)) : ''}${ruleText}">${b === null ? '-' : b} ${arrow}</td>`;
         }).join('');
         return `<tr><td style="text-align:left; font-weight:bold;">${esc(m.name)}</td>${cells}<td>${m.exact === null ? '-' : m.exact}/${m.positions === null ? '-' : m.positions}</td>
           <td>${m.direction === null ? '-' : m.direction}/${m.positions === null ? '-' : m.positions}</td><td style="color:${((m.pnlCash !== null ? m.pnlCash : m.pnl) || 0) >= 0 ? '#27ae60' : '#c0392b'};">${m.pnlCash !== null ? money(m.pnlCash, 2) : money(m.pnl)}</td></tr>`;
@@ -918,9 +1006,9 @@ function page(market, view, header, footer, user, now = new Date()) {
     }).join('');
     bg += asDetail(`<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Day by day</span>
       <span class="card-meta" style="margin-left:10px;">the newest ${view.days.length} settled day(s) as returns and bins; open a day for every model's ticket</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em; margin-top:0;">Each line is one draw: per ${esc(meta.noun)} the real close-to-close return and the bin it fell in. Inside, every model's bin per ${esc(meta.noun)}
-      with the position the fixed P&amp;L rule takes on it (&#9650; long, bin in the upper half; &#9660; lower half - sits out in the long-only books, a paper short with the shorts switch on) - the <i>Direction</i> column is scored on the sign of the bin's own return,
-      which is read off the hover interval; green is the right bin, pale green one bin off. Chance is 1 in ${view.k} per ${esc(meta.noun)}.</p>${dayBlocks}</div></div>`);
+      <div class="card-body">${help(`<p>Each line is one draw: per ${esc(meta.noun)} the real close-to-close return and the bin it fell in. Inside, every model's bin per ${esc(meta.noun)}
+      with the position the fixed P&amp;L rule takes on it (&#9650; long, bin in the upper half; &#9660; lower half - sits out in the long-only books, a paper short with the shorts switch on); the <i>RL Position Model</i> is read by its size, not its bin: &#9650;&times;size is a long at that multiple of the stake and <i>sits out</i> a size of 0, whichever half its bin is in, it never shorts, and its P&amp;L is scaled by the size - the <i>Direction</i> column is scored on the sign of the bin's own return,
+      which is read off the hover interval; green is the right bin, pale green one bin off. Chance is 1 in ${view.k} per ${esc(meta.noun)}.</p>`, 'how to read a day')}${dayBlocks}</div></div>`);
   }
 
   // the rows under a proper score (the weekly MarketRows.py report)
@@ -950,13 +1038,15 @@ function page(market, view, header, footer, user, now = new Date()) {
       : '';
     bg += asDetail(`<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Rows under a proper score</span>
       <span class="card-meta" style="margin-left:10px;">mean log-score of the probability each row gave the bin that happened, ${rep.days === null ? '?' : rep.days} game days${rep.firstDay ? ` ${esc(rep.firstDay)} to ${esc(rep.lastDay || '')}` : ''}, against GARCH</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em;">${headline} ${garchLine} A row is judged here before its hit rates or paper P&amp;L are read: the log-score rewards honest
+      <div class="card-body"><p style="color:#7f8c8d; font-size:0.9em;">${headline} ${garchLine}</p>
+      ${help(`<p>A row is judged here before its hit rates or paper P&amp;L are read: the log-score rewards honest
       probabilities and punishes overconfidence, so a row cannot win it by betting on the same bin every day. The uniform forecast scores ${rep.uniform === null ? '-' : rep.uniform.toFixed(3)}
       (log of 1/${view.k}); a probability under ${rep.floor === null ? '-' : rep.floor} is scored as ${rep.floor === null ? '-' : rep.floor}.${rep.lockboxWithheld ? ` ${rep.lockboxWithheld} lockbox day(s) withheld.` : ''}</p>
+      <p>Walk-forward, every day refitted on the past only (MarketRows.py, Sundays). "Better" and "worse" are read off the interval, not the point estimate. The two ablation rows
+      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.</p>`, 'how rows are judged')}
       <div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th title="mean over days of the mean over instruments of log p(actual bin); higher is better">Log-score</th>
       <th title="difference to the GARCH row, 95% paired bootstrap interval over days">vs GARCH</th><th title="difference to the uniform forecast">vs uniform</th><th>Exact</th><th>Adjacent</th><th>Direction</th><th>Trades</th><th title="fixed rule with the real returns and the fee, in units of price (0.01 = 1%)">P&amp;L</th></tr>${table}</table></div>
-      <p style="color:#7f8c8d; font-size:0.85em;">Walk-forward, every day refitted on the past only (MarketRows.py, Sundays). "Better" and "worse" are read off the interval, not the point estimate. The two ablation rows
-      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.${failedRowsNote(rep.errors)}
+      <p style="color:#7f8c8d; font-size:0.85em;">${failedRowsNote(rep.errors)}
       Generated ${esc(rep.generatedAt || '-')}.</p></div></div>`);
   }
 
@@ -971,8 +1061,8 @@ function page(market, view, header, footer, user, now = new Date()) {
     bg += asDetail(`<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Regime reading</span>
       <span class="card-meta" style="margin-left:10px;">which regime the Regime HMM rows believe the market is in, after the newest game day</span></div><div class="card-icon">▼</div></div>
       <div class="card-body"><div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th>After</th><th>Regimes</th><th title="a persistent template matched across the daily refits by the Wasserstein distance between the regime Gaussians; calm / normal / turbulent by the regime's volatility against the market's">Template</th><th>Probability</th><th style="text-align:left;">Expected next-day return</th></tr>${table}</table></div>
-      <p style="color:#7f8c8d; font-size:0.85em;">A regime is a Gaussian over the ${esc(meta.noun)}s' returns and their recent volatility and momentum; the label is the volatility of the dominant regime against the market's, the template number keeps its identity across refits.
-      The expected return is the mixture's mean per ${esc(meta.noun)} - a reading, not a recommendation.</p></div></div>`);
+      ${help(`<p>A regime is a Gaussian over the ${esc(meta.noun)}s' returns and their recent volatility and momentum; the label is the volatility of the dominant regime against the market's, the template number keeps its identity across refits.</p>`, 'what a regime is')}
+      <p style="color:#7f8c8d; font-size:0.85em;">The expected return is the mixture's mean per ${esc(meta.noun)} - a reading, not a recommendation.</p></div></div>`);
   }
 
   // instruments: the data object per chart, the switches, the canvas
@@ -995,14 +1085,13 @@ function page(market, view, header, footer, user, now = new Date()) {
   const status = nextDay ? dayStatus(market, nextDay, now) : null; // where that day stands as the page is rendered
   const nextDayText = nextDay ? (calendarKnown(market, nextDay) ? esc(nextDay) : `the next session, normally ${esc(nextDay)}`) : null;
   const hasOpenBook = !!(view.trading && view.trading.open);
-  charts += `<details class="chart-help"><summary style="cursor:pointer; font-weight:bold; padding:6px 0;">How to read the charts</summary>
-      <p style="color:#7f8c8d; font-size:0.85em; margin:4px 0 10px;"><b>Price lines</b>: the close as a line and, for each model switched on, a dashed line through the prices its bins stood for, day by day
+  charts += help(`<p><b>Price lines</b>: the close as a line and, for each model switched on, a dashed line through the prices its bins stood for, day by day
         (the previous game day's close moved by the bin's middle return); the last dashed point, <i>next</i>, is the call for ${nextDayText || 'the next trading day'} - the candle after the last one drawn, not "tomorrow"${nextDay ? `; it was made after the close of ${esc(view.madeOn)}` : ''}${judged ? ` and is judged at ${esc(judged)}` : ''}.
         A model calling "roughly flat" every day draws the close line one day late - that is the call, not a lag (the Background card explains why). <b>Price bars</b>: the same calls as a bar
         per day from the previous game day's close to the price its bin stood for (green up, red down) over a paler bar for the bin's whole interval, so a flat call reads as a stubby bar; a hit is the
         close landing inside the pale bar on the same date, and the two open-ended bins run to the edge of what the chart shows. <b>Moves</b>: the real move per day as a dark bar, in percent,
         with each model's interval as a paler bar and its middle as a dot - a hit is the dark bar ending inside the model's band. Each chart opens on the newest month; a year of closes is behind it
-        (the range buttons, or zoom and pan), and the calls start where the tracking started. The model ticked by default has the best exact rate over the scored days; <i>Today's plan</i> follows the best book instead, so the two can differ.</p></details>`;
+        (the range buttons, or zoom and pan), and the calls start where the tracking started. The model ticked by default has the best exact rate over the scored days; <i>Today's plan</i> follows the best book instead, so the two can differ.</p>`, 'how to read the charts');
   view.instruments.forEach((inst) => {
     const id = `chart-${esc(market)}-${esc(inst.symbol)}`;
     const labels = inst.closes.map((p) => p[0]).concat(['next']);
@@ -1033,8 +1122,9 @@ function page(market, view, header, footer, user, now = new Date()) {
       <script>window.marketData['${id}'] = ${jsonScript(data)}; marketRender('${id}');</script>
       ${nextRows ? `<details class="all-calls"><summary style="cursor:pointer; color:#2980b9; font-size:0.9em;">Every model's call for ${nextDayText || 'the next day'} (${inst.next.length})</summary>
       <div class="table-wrapper"><table><tr><th style="text-align:left;">Model</th><th>Bin</th><th title="long when the bin is in the upper half (5 or higher); a lower-half bin is a short with the shorts switch on - paper only">Position</th><th title="the bin's middle return applied to the last close">Price drawn on the chart (bin middle)</th><th title="the bin as prices: a hit is the close landing anywhere inside">Band</th></tr>${nextRows}</table></div></details>` : '<p style="color:#aaa;">no prediction for the next day yet</p>'}
-      ${judged ? `<p style="color:#7f8c8d; font-size:0.85em; margin:6px 0 0;"><b>Judged at</b> ${esc(judged)}.${status ? ` Right now ${esc(status)}.` : ''} The call is scored close-to-close: right when the close lands in the band, whatever happened in between.
-        What a reader can do with it is in <i>Today's plan</i> at the top${hasOpenBook ? ' and in the Open to close book' : ''}.</p>` : ''}
+      ${judged ? `<p style="color:#7f8c8d; font-size:0.85em; margin:6px 0 0;"><b>Judged at</b> ${esc(judged)}.${status ? ` Right now ${esc(status)}.` : ''}</p>
+        ${help(`<p>The call is scored close-to-close: right when the close lands in the band, whatever happened in between.
+        What a reader can do with it is in <i>Today's plan</i> at the top${hasOpenBook ? ' and in the Open to close book' : ''}.</p>`, 'how it is scored')}` : ''}
       </div></div>`;
   });
 
@@ -1098,20 +1188,22 @@ function page(market, view, header, footer, user, now = new Date()) {
     plan = `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Today's plan</span>
       <span class="card-meta" style="margin-left:10px;">for ${nextDayText}${status ? ` - ${esc(status)}` : ''}</span></div><div class="card-icon">▼</div></div>
       <div class="card-body"><p style="margin-top:0; color:#555;">Follows <b>${esc(planModel.name)}</b>, ${picked}; the other models' books are in the Background card's models table${planByBook && market !== 'crypto' ? ' (column <i>P&amp;L open-close</i>)' : ''}.
-      Picked on ${view.scoredDays} settled day(s) of paper money; the pick can change tomorrow. Per ${esc(meta.noun)}: its call, the band the close must land in for the call to be right, and the two orders that match how this page scores it, in Belgian time for this date.
-      <b>The sell is at the close, whatever the price</b> - it is not a limit order at the band; the band only says when the model counts as right.${appeared ? ` This plan is from the ticket of ${esc(appeared)}${market === 'crypto'
-        ? '; every morning\'s run (about 10:30, sometimes later) replaces it.'
-        : `; it is the plan for the whole of ${esc(nextDay)} and does not change before that session - the next ticket comes the morning after its close.`}` : ''}</p>
+      Picked on ${view.scoredDays} settled day(s) of paper money; the pick can change tomorrow.
+      <b>The sell is at the close, whatever the price</b> - it is not a limit order at the band; the band only says when the model counts as right.</p>
       <div class="table-wrapper"><table class="plan"><tr><th style="text-align:left;">${esc(nounCap)}</th><th title="up = the predicted bin is in the upper half (5 or higher), the position the books take">Call</th><th title="the predicted bin as prices: the call is right when the close lands anywhere inside">Band (the predicted bin as prices)</th>
       <th style="text-align:left;">Buy</th><th style="text-align:left;">Sell</th><th title="how many of the models with a call for this date have a bin in the upper half">Models calling up</th></tr>${rows}</table></div>
-      <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;"><b>Up</b> means the predicted bin is in the upper half (5 to 9), the one position the long-only books take${view.trading && view.trading.short ? '; with the shorts switch on, the paper books also short the lower half - paper only, no order' : ''}. The two bins around zero can be "up" here and a hair negative by their middle.
+      <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;"><b>Up</b> means the predicted bin is in the upper half (5 to 9), the one position the long-only books take${view.trading && view.trading.short ? '; with the shorts switch on, the paper books also short the lower half - paper only, no order' : ''}.${market === 'crypto' ? ' The book this follows buys at 00:00 UTC, before the ticket is up - your entry is later and at another price, so your result differs from the book\'s.' : ''}
+      This describes when the page's condition is checked - it is not advice.</p>
+      ${help(`<p>Per ${esc(meta.noun)}: its call, the band the close must land in for the call to be right, and the two orders that match how this page scores it, in Belgian time for this date.${appeared ? ` This plan is from the ticket of ${esc(appeared)}${market === 'crypto'
+        ? '; every morning\'s run (about 10:30, sometimes later) replaces it.'
+        : `; it is the plan for the whole of ${esc(nextDay)} and does not change before that session - the next ticket comes the morning after its close.`}` : ''}</p>
+      <p>The two bins around zero can be "up" here and a hair negative by their middle.
       The <i>RL Position Model</i> is the one row that sizes its positions - 0 to 2 times the stake, learned from what the other rows said on past days and the money it made - so its call reads &times;0.5 to &times;2, and a size of 0 is a sit-out whatever its vote bin says.
       <b>Stake and fees</b>: the books use ${t && t.stake !== null ? t.stake : 100} ${esc(meta.unit)} a position and ${t && t.feePerLeg !== null ? pct(t.feePerLeg, 2) : '0.10%'} a leg; your broker's commission replaces that fee and decides whether a move as small as the band says can pay.
       <b>Holding instead of selling at the close</b>: the daily rows predict one day ahead, so a hold built on them is decided one morning at a time - keep the position while the next morning's call (here after about 10:30) is up again, and sell at the close of the first day it is not;
       your result is then open-to-close on the first day and close-to-close after it, for which the <i>Hold while up</i> book is the closest yardstick, not an exact match.${view.week
         ? ' A hold planned once for the whole week is the other game, in the <i>Week ahead</i> card below: its call, its orders and its sell on the week\'s last day are separate from this card.' : ''}
-      ${market === 'crypto' ? 'The daily book these orders follow buys at 00:00 UTC, which nobody reading this can do: your entry is later and at another price, so your result and the book\'s differ by the day\'s first hours.' : 'These orders follow the <i>Open to close</i> book, the one a reader can follow; the daily and hold books buy at the previous close, which nobody reading this can do.'}
-      This describes when the page's condition is checked - it is not advice.</p></div></div>`;
+      ${market === 'crypto' ? 'The daily book these orders follow buys at 00:00 UTC, which nobody reading this can do: your entry is later and at another price, so your result and the book\'s differ by the day\'s first hours.' : 'These orders follow the <i>Open to close</i> book, the one a reader can follow; the daily and hold books buy at the previous close, which nobody reading this can do.'}</p>`, 'how to read the plan')}</div></div>`;
   }
 
   // --- the week ahead: the week game's call per instrument, and the hold it is measured on ---
@@ -1190,20 +1282,47 @@ function page(market, view, header, footer, user, now = new Date()) {
       const title = started ? 'This week' : 'Week ahead';
       week = `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">${title}</span>
         <span class="card-meta" style="margin-left:10px;">${weekWord} ending ${known ? esc(endDay) : `normally ${esc(endDay)}`}${elapsed ? ` - ${esc(elapsed)}` : ''}; ${w.scoredDays} settled week(s)</span></div><div class="card-icon">▼</div></div>
-        <div class="card-body"><p style="margin-top:0; color:#555;">The multi-day call, the horizon a hold is measured on: a second game with <b>one draw per week</b> - the week's move (${market === 'crypto' ? 'Monday 00:00 UTC to the next Monday 00:00 UTC' : 'the Friday close to the next Friday close'}) cut into ten bins of each ${esc(meta.noun)}'s own past weeks, every model predicting one bin per ${esc(meta.noun)} for the coming week, scored once, at the week's close.
+        <div class="card-body"><p style="margin-top:0; color:#555;">Follows <b>${esc(weekModel.name)}</b>, ${picked}. The week's call is judged at ${esc(judgedShort)}, one bin of ten for a week's move.</p>
+        ${help(`<p>The multi-day call, the horizon a hold is measured on: a second game with <b>one draw per week</b> - the week's move (${market === 'crypto' ? 'Monday 00:00 UTC to the next Monday 00:00 UTC' : 'the Friday close to the next Friday close'}) cut into ten bins of each ${esc(meta.noun)}'s own past weeks, every model predicting one bin per ${esc(meta.noun)} for the coming week, scored once, at the week's close.
         The band is measured from the week base, the last close before the week; the book followed buys at the week's first open, so the ${market === 'crypto' ? 'first hours' : 'weekend gap'} ${market === 'crypto' ? 'are' : 'is'} in the call and in the band, not in the book or in your result.
-        The ticket for this week was made after the close of ${esc(w.madeOn)}${madeUp ? ` (it went up at ${esc(madeUp)})` : ''}; it stands for the whole week - the week game makes no call between ${market === 'crypto' ? 'Monday and Sunday' : 'Monday and Friday'} - and the model followed is re-picked when the week settles, after the ${market === 'crypto' ? 'Monday' : 'Saturday'} run, so next week's card may follow another row.
-        Follows <b>${esc(weekModel.name)}</b>, ${picked}. The week's call is judged at ${esc(judgedShort)}, one bin of ten for a week's move.</p>
+        The ticket for this week was made after the close of ${esc(w.madeOn)}${madeUp ? ` (it went up at ${esc(madeUp)})` : ''}; it stands for the whole week - the week game makes no call between ${market === 'crypto' ? 'Monday and Sunday' : 'Monday and Friday'} - and the model followed is re-picked when the week settles, after the ${market === 'crypto' ? 'Monday' : 'Saturday'} run, so next week's card may follow another row.</p>
+        <p>This is not the daily plan above: the daily rows buy and sell within one session and say nothing about a weekly position, so a daily down call on a ${esc(meta.noun)} is not a sell for a week's hold of it, and a daily up call is not a reason to keep one.
+        <b>Stake and fees</b>: the weekly book uses ${w.trading && w.trading.stake !== null ? w.trading.stake : 100} ${esc(meta.unit)} a position and ${w.trading && w.trading.feePerLeg !== null ? pct(w.trading.feePerLeg, 2) : '0.10%'} a leg, one pair for the week; your broker's commission and any transaction tax per leg replace that fee and decide whether a band as narrow as the table shows can pay.
+        The <i>Hold while up</i> book in Paper trading below is the daily game's - a run of daily up calls, re-decided every morning - not this weekly hold; the weekly books are on the week game's <a href="/database/${esc(WEEK_GAMES[market])}">game view</a>, which ranks rows by exact rate while this card follows the weekly book, so the two can name different rows.</p>`, 'how the week game works')}
         <div class="table-wrapper"><table class="plan"><tr><th style="text-align:left;">${esc(meta.noun[0].toUpperCase() + meta.noun.slice(1))}</th><th title="up = the predicted weekly bin is in the upper half">Call</th><th title="the predicted bin as prices at the week's close">Band at the week's close</th>
         <th style="text-align:left;">So far (daily closes since the week base)</th><th style="text-align:left;">Buy</th><th style="text-align:left;">Sell</th><th title="the week game is run by its own rows; this counts those whose weekly bin is in the upper half">Models calling up (of the week game's rows)</th></tr>${rows}</table></div>
-        <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;">This is not the daily plan above: the daily rows buy and sell within one session and say nothing about a weekly position, so a daily down call on a ${esc(meta.noun)} is not a sell for a week's hold of it, and a daily up call is not a reason to keep one.
-        <b>Stake and fees</b>: the weekly book uses ${w.trading && w.trading.stake !== null ? w.trading.stake : 100} ${esc(meta.unit)} a position and ${w.trading && w.trading.feePerLeg !== null ? pct(w.trading.feePerLeg, 2) : '0.10%'} a leg, one pair for the week; your broker's commission and any transaction tax per leg replace that fee and decide whether a band as narrow as the table shows can pay.
-        The <i>Hold while up</i> book in Paper trading below is the daily game's - a run of daily up calls, re-decided every morning - not this weekly hold; the weekly books are on the week game's <a href="/database/${esc(WEEK_GAMES[market])}">game view</a>, which ranks rows by exact rate while this card follows the weekly book, so the two can name different rows.
-        This describes when the week game's condition is checked - it is not advice.</p></div></div>`;
+        <p style="color:#7f8c8d; font-size:0.85em; margin:8px 0 0;">This describes when the week game's condition is checked - it is not advice.</p></div></div>`;
     }
   }
 
-  html += plan + week + paper + charts;
+  // --- following the plan: what the plan's own suggestions made, day by day and week by week ---
+  let followed = '';
+  const dayFollowed = view.trading ? view.trading.followed : null;
+  const weekFollowed = view.week && view.week.trading ? view.week.trading.followed : null;
+  if ((dayFollowed && dayFollowed.points.length) || (weekFollowed && weekFollowed.points.length)) {
+    const dayRule = market === 'crypto' ? 'daily round trip' : 'open to close';
+    const weekRule = market === 'crypto' ? 'weekly round trip' : 'Monday open to Friday close';
+    const metaParts = [];
+    if (dayFollowed && dayFollowed.liveDays) metaParts.push(`day to day since ${dayFollowed.firstLive}: ${money(dayFollowed.liveTotal, 2)} ${meta.unit} (buying everything ${money(dayFollowed.liveMarket, 2)})`);
+    if (weekFollowed && weekFollowed.liveDays) metaParts.push(`week to week since ${weekFollowed.firstLive}: ${money(weekFollowed.liveTotal, 2)} ${meta.unit} (buying everything ${money(weekFollowed.liveMarket, 2)})`);
+    const explain = `<p><b>What this is.</b> The result a reader would have now after doing exactly what this page suggested: on every ${market === 'crypto' ? 'UTC day' : 'trading day'} the orders of <i>Today's plan</i>, and every week those of the <i>Week ahead</i> card.
+      Each day's row is picked the way the plan picks it, from the record as it stood before that day - the best book under the plan's rule (${esc(dayRule)} for the daily plan, ${esc(weekRule)} for the week) among the rows with at least ${dayFollowed && dayFollowed.minTrades !== null ? dayFollowed.minTrades : 10} positions (${weekFollowed && weekFollowed.minTrades !== null ? weekFollowed.minTrades : 5} for the week),
+      else the best exact rate - so the row followed can change from one day to the next, as the plan's can. Nothing of the day itself is used to pick it. The result of a day is that row's money that day under the same rule: ${view.trading && view.trading.stake !== null ? view.trading.stake : 100} ${esc(meta.unit)} per ${esc(meta.noun)} bought, ${view.trading && view.trading.feePerLeg !== null ? pct(view.trading.feePerLeg, 2) : '0.10%'} fee on the buy and on the sell, a sized row (the RL Position Model) scaled by its size; a down or flat call buys nothing and shorts are not included, since the plan places no short.</p>
+      <p><b>Live and back-built.</b> A day counts as live when its ticket was made before the plan's entry - before the open for shares (09:30 New York, the open-to-close book's buy), before the end of the week's first day for the crypto week, before the close for a crypto day (whose book buys at 00:00 UTC, before any ticket: see below) - so it could have been followed as it is booked. A day whose ticket came later (a missed or late run) is shown apart and left out of the live total. The market games started with a back-built history (written on 1 Oct 2026 for the daily games and on 5 Oct for the week games), whose tickets were made after the days they predict had closed: those days show what the rule would have done, and sit apart under their own toggle, not in the live total.</p>
+      <p><b>Read it as.</b> Paper money, with no slippage and fills exactly at the open or the close. ${market === 'crypto'
+        ? 'The crypto plans are scored on the round trip from the previous close: the daily book buys at 00:00 UTC, eight to ten hours before the day\'s ticket is on this page, and the weekly book at Monday 00:00 UTC, before the Monday run puts the week\'s ticket up - a reader enters later and at another price, so a real result differs from this one by those first hours.'
+        : 'The shares plan is scored open to close, the rule a reader can follow: the ticket is up hours before New York opens.'}
+      A handful of live ${market === 'crypto' ? 'days' : 'sessions'} or one week says nothing about skill; the comparison that matters is the running total against buying everything, over months. This is a record of the page's own suggestions, not advice.</p>`;
+    followed = `<div class="card expanded"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Following the plan</span>
+      <span class="card-meta" style="margin-left:10px;">${esc(metaParts.length ? metaParts.join('; ') : 'no live day yet')}</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body">${help(explain, 'how this is counted')}
+      <p style="color:#7f8c8d; font-size:0.85em; margin:0 0 6px;">Paper money, no slippage${market === 'crypto' ? ': the crypto books buy at 00:00 UTC (the day\'s start, and Monday\'s for the week), hours before the ticket is on this page, so a reader enters later and at another price' : ', filled exactly at the open and the close'} - a record of the page's own suggestions, not advice.</p>
+      ${dayFollowed && dayFollowed.points.length ? `<h3 style="margin:8px 0 6px; font-size:1.05em;">Day to day - <i>Today's plan</i>, ${esc(dayRule)}</h3>${followedSection(dayFollowed, { unit: meta.unit, noun: meta.noun, ruleName: dayRule, unitWord: market === 'crypto' ? 'day' : 'session', unitWords: market === 'crypto' ? 'days' : 'sessions', chartId: `followed-${esc(market)}`, week: false })}` : ''}
+      ${weekFollowed && weekFollowed.points.length ? `<h3 style="margin:18px 0 6px; font-size:1.05em;">Week to week - the <i>Week ahead</i> card, ${esc(weekRule)}</h3>${followedSection(weekFollowed, { unit: meta.unit, noun: meta.noun, ruleName: weekRule, unitWord: 'week', unitWords: 'weeks', chartId: `followed-${esc(WEEK_GAMES[market])}`, week: true })}` : ''}
+      </div></div>`;
+  }
+
+  html += plan + week + followed + paper + charts;
   if (bg) {
     const sectionTitles = [...bg.matchAll(/<summary><b>([^<]*)<\/b>/g)].map((m) => m[1].replace(/ over \d+ scored day\(s\)$/, ''));
     html += `<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Background</span>

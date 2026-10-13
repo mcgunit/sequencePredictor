@@ -51,6 +51,15 @@ GAME_CONFIG = {
 # anything - below that the mean-per-day objective is mostly draw luck.
 MIN_EVALUATION_DAYS = 10
 
+# The untuned knobs the gate compares a ticket study's challenger with: what Predictor.addRLTicketPrediction
+# serves when a key is missing (rlTicketMaxTrainSeconds is not searched - it stays at the production cap).
+RL_TICKET_DEFAULTS = {"rlTicketLearningRate": 0.05, "rlTicketEpochs": 30, "rlTicketSamplesPerDay": 32, "rlTicketTrainDays": 120}
+TICKET_ROW = "RL Ticket Model"
+# The ticket studies were renamed when they came under the gate (13 Oct 2026): their earlier trials were scored on
+# an uncapped mean per day (pick3's 2026 best was one 500 EUR straight; keno's a 13 Sep trial on the 1-80 game with
+# one ticket size), a scale the capped bound below does not share - a fresh study keeps the sampler off them.
+TICKET_STUDY_SUFFIX = "rl_ticket_gated"
+
 # What Predictor.addRLPositionPrediction serves for a key bestParams_<market>.json
 # does not have - the gate's untuned reference (src/TuningGate.make_defaults).
 RL_POSITION_DEFAULTS = {
@@ -61,8 +70,9 @@ RL_POSITION_DEFAULTS = {
     "rlPositionRiskAversion": 0.1,
 }
 # The chain's champion/challenger gate (src/TuningGate.py), set from the CLI:
-# the position studies write this run's best trial only when it beats the
-# served parameters and the untuned defaults, re-scored on the same days.
+# every study (the lottery ticket studies since 13 Oct 2026, the market
+# position studies since 8 Oct) writes this run's best trial only when it
+# beats the served parameters and the untuned defaults, re-scored on the same days.
 GATE_ENABLED = True
 GATE_MARGIN = 0.0
 
@@ -195,40 +205,38 @@ def derive_draw_size(rows, special_column_count, fallback_draw_size):
     return fallback_draw_size
 
 
-def score_rl_row(rlRow, realResult, drawSize, is_pick3, is_keno):
+def rl_row_material(rlRow, realResult, drawSize, is_pick3, is_keno):
     """
-    One day's objective contribution, in the same currency the other tuners'
-    score_from_summary uses: euro profit where a real payout table exists
-    (Pick3 straight/box/pair, Keno subsets), main-ticket hit count elsewhere.
-    realResult is sliced to drawSize first - stored realResults carry the
-    trailing special columns (stars/dream/viking) and lotto's bonus, and
-    counting those as scoreable mains would reward numbers the RL row never
-    even constructs.
+    One day of the RL ticket row as the shared objective's material
+    (src/TuningScore.score_bets_by_day), so a ticket study is scored like the
+    statistical and boosting rows (13 Oct 2026; until then the mean of
+    a per-day profit or hit count, uncapped): (bets, hits). Keno: one (profit, size)
+    bet per served subset - capped, the fair ticket of its size subtracted;
+    pick3: the ticket's profit as one bet and its digits in the right slot
+    as the hits (scored positional, like the pick3 rows); the other games:
+    the main hits, no bets. An empty row is a day with 0 hits for pick3 and
+    the hits games; a keno row without a playable (5-10-number) subset places
+    no bet and, as in TuningScore, is not a day.
     """
     predictions = (rlRow or {}).get("predictions") or []
     mainTicket = predictions[0] if predictions else []
-    if not mainTicket:
-        # run() is documented never to raise and to always emit a ticket, so
-        # an empty row is a hard "this day earned nothing" rather than a skip.
-        return 0.0
-
-    if is_pick3:
-        profit = helpers.pick3_ticket_profit(mainTicket, realResult[:3])
-        return float(profit) if profit is not None else 0.0
-
     if is_keno:
-        # The 20-number Keno main ticket has no payout of its own - only the
-        # 5-10-number subset rows (predictions[1:]) are playable bets, so the
-        # day's profit is the sum over those.
-        dayProfit = 0.0
+        bets = []
         for subset in predictions[1:]:
             profit = helpers.keno_ticket_profit(subset, realResult)
             if profit is not None:
-                dayProfit += float(profit)
-        return dayProfit
-
+                bets.append((float(profit), len(subset)))
+        return bets, None
+    if is_pick3:
+        if not mainTicket:
+            return [], 0
+        profit = helpers.pick3_ticket_profit(mainTicket, realResult[:3])
+        slots = sum(1 for a, b in zip(mainTicket[:3], realResult[:3]) if int(a) == int(b))
+        return ([float(profit)] if profit is not None else []), slots
+    if not mainTicket:
+        return [], 0
     realMains = set(int(n) for n in realResult[:drawSize])
-    return float(len(set(int(n) for n in mainTicket) & realMains))
+    return [], len(set(int(n) for n in mainTicket) & realMains)
 
 
 def position_bets(sizes, returns_of_day):
@@ -300,9 +308,10 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
     tuning = score_bets_by_day(bets_by_day, payout=True)
     # A policy that sits out everywhere scores exactly 0 - no money, no spread -
     # and under the bound that is the ceiling of a market whose calls lose
-    # money net of fees; a sizing is written only when it beats that, which
-    # is what sizing is for. The mean size travels with the record so a
-    # reader can tell a sizing from a sit-out.
+    # money net of fees; a sizing is served only when it beats that, which
+    # is what sizing is for (tune_position's floor: rlPositionSitOut). The
+    # mean size travels with the record so a reader can tell a sizing from a
+    # near sit-out.
     tuning["mean_size"] = float(sum(sizes_taken) / len(sizes_taken)) if sizes_taken else None
     trial.set_user_attr("tuning", attrs_for_trial(tuning))
     print(f"Trial {trial.number}: {describe(tuning)}")
@@ -348,13 +357,118 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
     print(outcome["summary"])
     record = outcome["record"]
     record["plain_rule"] = attrs_for_trial(plain)
-    existingData.setdefault("tuningGate", {})[POSITION_ROW] = record
     if outcome["params"] is not None:
         existingData.update(outcome["params"])
+    # The floor the gate itself does not know: a policy that never bets scores exactly 0, so the sit-out is a
+    # fourth reference. When what the gate serves (the challenger, the default or the incumbent) does not beat
+    # it by the gate's margin, the row is served sitting out - the tuned knobs are still written, so the policy
+    # they describe is what the next run compares - and the record says so. Until 13 Oct 2026 the comment above
+    # promised this floor but nothing applied it: the 10 Oct gate served sizings below 0 on crypto and shares.
+    served_score = outcome["served_score"]
+    if not GATE_ENABLED:
+        sit_out, reason = False, "gate disabled - the written sizing is served"
+    elif served_score is None:
+        # nothing was scored this run (no finite trial, an unscorable reference): the last decision stands
+        sit_out = bool(existingData.get("rlPositionSitOut", False))
+        reason = f"no scored sizing this run - the sit-out setting stays {'on' if sit_out else 'off'}"
+    elif served_score > 0.0 + GATE_MARGIN:
+        sit_out, reason = False, f"served sizing {served_score:+.4f} beats the 0 of never betting"
+    else:
+        sit_out, reason = True, f"served sizing {served_score:+.4f} does not beat the 0 of never betting - the row sits out"
+    record["sit_out"] = bool(sit_out)
+    record["sit_out_reason"] = reason
+    existingData["rlPositionSitOut"] = bool(sit_out)
+    print(f"  {dataset_name}-rl_position: {record['sit_out_reason']}")
+    existingData.setdefault("tuningGate", {})[POSITION_ROW] = record
     # paper money is not a slot-hit vote weight: never in modelScores (the market rows' rule)
     existingData.get("modelScores", {}).pop(POSITION_ROW, None)
     with open(jsonBestParamsFilePath, "w+") as outfile:
         json.dump(existingData, outfile, indent=4)
+    shutil.rmtree(policyDir, ignore_errors=True)
+
+
+def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase):
+    """One lottery game's RL ticket study, gated, written to bestParams_<game>.json (a function since 13 Oct 2026)."""
+    historyDir = os.path.join(path, "data", "database", dataset_name)
+
+    evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
+    if len(evaluation_days) < MIN_EVALUATION_DAYS:
+        print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
+              f"a currentPrediction and a realResult (need at least {MIN_EVALUATION_DAYS})")
+        return
+    print(f"Evaluating on {len(evaluation_days)} days "
+          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
+
+    jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
+    existingData = {}
+    if os.path.exists(jsonBestParamsFilePath):
+        with open(jsonBestParamsFilePath, "r") as infile:
+            existingData = json.load(infile)
+
+    kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
+    if "keno" in dataset_name and not kenoSubsetSizes:
+        # Without playable subset sizes every Keno day scores a
+        # constant 0 (the 20-number main ticket has no payout), so
+        # the study would just pick noise.
+        print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
+              f"bestParams_{dataset_name}.json, nothing to score profit on")
+        return
+
+    # Same numberRange derivation as addRLTicketPrediction:
+    # get_unique_labels only pattern-matches on the path string, and
+    # eurodreams gets the 1-40 override because get_unique_labels
+    # has no branch for it (changing it there would invalidate the
+    # saved DL weight fingerprints for the game).
+    dataPath = os.path.join(path, "data", "trainingData", dataset_name)
+    mainLabels = helpers.get_unique_labels(dataPath)
+    numberRange = (int(min(mainLabels)), int(max(mainLabels)))
+    if "eurodreams" in dataset_name:
+        numberRange = (1, 40)
+
+    maxTrainSeconds = existingData.get("rlTicketMaxTrainSeconds", 60)
+
+    # Scratch policy dirs of trials a killed run left behind.
+    shutil.rmtree(policyDir, ignore_errors=True)
+
+    studyName = f"{dataset_name}-{TICKET_STUDY_SUFFIX}"
+    study = open_study(studyName, optunaDatabase, parallel=parallel)
+    fail_stale_running_trials(study)
+    known_trials = {t.number for t in study.get_trials(deepcopy=False)}
+
+    objective = lambda trial, dataset_name=dataset_name, game_cfg=game_cfg, evaluation_days=evaluation_days, \
+                       historyDir=historyDir, numberRange=numberRange, kenoSubsetSizes=kenoSubsetSizes, \
+                       maxTrainSeconds=maxTrainSeconds: objective_rl_ticket(
+        trial, dataset_name, game_cfg, evaluation_days, historyDir,
+        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds)
+
+    studyStart = time.time()
+    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
+    print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
+
+    study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
+    if not has_completed_trials(study):
+        print(f"No completed trials for {studyName} (all pruned/failed) - keeping existing params")
+        return
+
+    # The champion/challenger gate (src/TuningGate.py, since 13 Oct 2026 for the ticket studies too):
+    # this run's best trial replaces the served knobs only if it beats them and the untuned ones,
+    # both re-scored on this run's days with this objective; the untuned ones are served back when
+    # they beat both. Until then the study's all-time best was written, ungated.
+    outcome = challenge(study, known_trials, objective, existingData,
+                        make_defaults(RL_TICKET_DEFAULTS, existingData),
+                        timeout_seconds=len(evaluation_days) * (maxTrainSeconds + 5) + 120, label=studyName,
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days))
+    print(outcome["summary"])
+    existingData.setdefault("tuningGate", {})[TICKET_ROW] = outcome["record"]
+    if outcome["params"] is not None:
+        existingData.update(outcome["params"])
+
+    with open(jsonBestParamsFilePath, "w+") as outfile:
+        json.dump(existingData, outfile, indent=4)
+
+    # Leave no half-trained trial policy behind (per-trial subdirs
+    # included) - the next tool in runHyperopt.sh shares the
+    # hyperOptCache tree.
     shutil.rmtree(policyDir, ignore_errors=True)
 
 
@@ -365,8 +479,8 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     day D the model is trained with cutoffDate=D (so it only ever sees days
     strictly before D - the same look-ahead guard the history rebuild uses)
     and its emitted ticket is scored against D's realResult. Trial value is
-    the mean score per day: profit/day for the payout games, avg hits
-    otherwise - same spirit as score_from_summary in the other tuners.
+    the tuners' common lower-bound objective (rl_row_material, 13 Oct 2026;
+    the plain mean per day before, which one straight or keno tier decided).
     """
     is_pick3 = "pick3" in dataset_name
     is_keno = "keno" in dataset_name
@@ -398,7 +512,7 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     # tuners).
     rlTicket.setSeed(42)
 
-    scores = []
+    bets_by_day, hits_by_day = [], []
     for fileDate, rows, realResult in evaluation_days:
         drawSize = derive_draw_size(rows, game_cfg["special_column_count"], game_cfg["draw_size"])
         gameConfig = {
@@ -418,12 +532,19 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
         # purpose, since that is exactly production's online behavior: each
         # day retrains on top of yesterday's theta.
         rlRow = rlTicket.run(dataset_name, rows, historyDir, gameConfig)
-        scores.append(score_rl_row(rlRow, realResult, drawSize, is_pick3, is_keno))
+        bets, hits = rl_row_material(rlRow, realResult, drawSize, is_pick3, is_keno)
+        bets_by_day.append(bets)
+        if hits is not None:
+            hits_by_day.append(hits)
 
     shutil.rmtree(policyDir, ignore_errors=True)
-    if not scores:
-        return float("-inf")
-    return sum(scores) / len(scores)
+    # the tuners' common objective: the lower confidence bound over the days of the capped profit per bet (keno,
+    # above a fair ticket of each size), of the slot hits with the capped profit as a tie-breaker (pick3), or of
+    # the hits (the other games) - one lucky payout counts as one good bet, not as the study's best trial
+    tuning = score_bets_by_day(bets_by_day, hits_by_day, payout=is_keno, positional=is_pick3)
+    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+    print(f"Trial {trial.number}: {describe(tuning)}")
+    return tuning["score"]
 
 
 if __name__ == "__main__":
@@ -471,10 +592,9 @@ if __name__ == "__main__":
 
         parser.add_argument(
             '--gate-margin', type=float, default=0.0,
-            help='Position studies (the market games): the challenger must beat the served parameters and the '
-                 'untuned defaults by this much to be written (src/TuningGate.py). The ticket studies write '
-                 'their best trial as before.')
-        parser.add_argument('--no-gate', action='store_true', help="Position studies: write this run's best trial without the comparison")
+            help='Every study (the lottery ticket studies and the market position studies): the challenger must '
+                 'beat the served parameters and the untuned defaults by this much to be written (src/TuningGate.py).')
+        parser.add_argument('--no-gate', action='store_true', help="Write each study's best trial of this run without the comparison")
         args = parser.parse_args()
         GATE_ENABLED = not args.no_gate
         GATE_MARGIN = float(args.gate_margin)
@@ -510,78 +630,7 @@ if __name__ == "__main__":
                 if game_cfg.get("position"):
                     tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase)
                     continue
-                historyDir = os.path.join(path, "data", "database", dataset_name)
-
-                evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
-                if len(evaluation_days) < MIN_EVALUATION_DAYS:
-                    print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
-                          f"a currentPrediction and a realResult (need at least {MIN_EVALUATION_DAYS})")
-                    continue
-                print(f"Evaluating on {len(evaluation_days)} days "
-                      f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
-
-                jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
-                existingData = {}
-                if os.path.exists(jsonBestParamsFilePath):
-                    with open(jsonBestParamsFilePath, "r") as infile:
-                        existingData = json.load(infile)
-
-                kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
-                if "keno" in dataset_name and not kenoSubsetSizes:
-                    # Without playable subset sizes every Keno day scores a
-                    # constant 0 (the 20-number main ticket has no payout), so
-                    # the study would just pick noise.
-                    print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
-                          f"bestParams_{dataset_name}.json, nothing to score profit on")
-                    continue
-
-                # Same numberRange derivation as addRLTicketPrediction:
-                # get_unique_labels only pattern-matches on the path string, and
-                # eurodreams gets the 1-40 override because get_unique_labels
-                # has no branch for it (changing it there would invalidate the
-                # saved DL weight fingerprints for the game).
-                dataPath = os.path.join(path, "data", "trainingData", dataset_name)
-                mainLabels = helpers.get_unique_labels(dataPath)
-                numberRange = (int(min(mainLabels)), int(max(mainLabels)))
-                if "eurodreams" in dataset_name:
-                    numberRange = (1, 40)
-
-                maxTrainSeconds = existingData.get("rlTicketMaxTrainSeconds", 60)
-
-                # Scratch policy dirs of trials a killed run left behind.
-                shutil.rmtree(policyDir, ignore_errors=True)
-
-                studyName = f"{dataset_name}-rl_ticket"
-                study = open_study(studyName, optunaDatabase, parallel=parallel)
-                fail_stale_running_trials(study)
-
-                objective = lambda trial, dataset_name=dataset_name, game_cfg=game_cfg, evaluation_days=evaluation_days, \
-                                   historyDir=historyDir, numberRange=numberRange, kenoSubsetSizes=kenoSubsetSizes, \
-                                   maxTrainSeconds=maxTrainSeconds: objective_rl_ticket(
-                    trial, dataset_name, game_cfg, evaluation_days, historyDir,
-                    policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds)
-
-                studyStart = time.time()
-                optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
-                print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
-
-                study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
-                if not has_completed_trials(study):
-                    print(f"No completed trials for {studyName} (all pruned/failed) - keeping existing params")
-                    continue
-
-                print(f"Best Parameters for {studyName}: ", study.best_params)
-                print(f"Best Score for {studyName}: ", study.best_value)
-
-                existingData.update(study.best_params)
-
-                with open(jsonBestParamsFilePath, "w+") as outfile:
-                    json.dump(existingData, outfile, indent=4)
-
-                # Leave no half-trained trial policy behind (per-trial subdirs
-                # included) - the next tool in runHyperopt.sh shares the
-                # hyperOptCache tree.
-                shutil.rmtree(policyDir, ignore_errors=True)
+                tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase)
 
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")

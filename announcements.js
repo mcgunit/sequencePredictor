@@ -17,6 +17,33 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-13-honest-rankings-and-lotto-era',
+    date: '2026-10-13',
+    level: 'minor',
+    audience: 'all',
+    title: 'Keno, Pick3 and Joker+ ranked with no ticket counting over 20 EUR; Lotto reads only today\'s game',
+    body: [
+      'The History page ranks Keno, Pick3 and Joker+ by the profit bound: per draw the profit per bet with every bet capped at 20 EUR - a Keno bet measured against a fair ticket of its size - and its average minus one standard error over the draws, the measure the weekly tuning scores Keno by. A single winning ticket now counts as a 20 EUR win at most, so it can no longer carry a row to the top on its own; the plain profit per bet stays in its own column.',
+      'Lotto changed from 6 of 42 to 6 of 45 balls on 1 October 2011, and half of the stored history came from the old game, in which 43, 44 and 45 could not be drawn. The Lotto models and the weekly controls now read only today\'s game.',
+      'Behind the scenes, the weekly tuning now holds the RL Ticket Model of the lottery games to the same before-and-after comparison as the other rows, new settings for a boosting row must beat both the served and the untuned ones by more than one standard error of their own score before they replace them, and the weekly control experiments draw fresh random histories every week instead of repeating the same ones.',
+      'The XGBoost row of Viking Lotto had played the same ticket, 1 and 45 to 48, on most days since August: on a game with about 300 draws one of its tuned settings left it with nothing to learn from. That is fixed, together with Eurodreams\' boosting rows, which also considered the numbers 41 to 50, and a few boosting tickets that came out one to three numbers short.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
+    id: '2026-10-13-follow-the-plan-and-help',
+    date: '2026-10-13',
+    level: 'minor',
+    audience: 'all',
+    title: 'What following the plan made, and the explanations behind a "?"',
+    body: [
+      'The Crypto and Shares pages have a new card, Following the plan: what a reader who did exactly what the page suggested would have now - every day the orders of Today\'s plan, every week those of the Week ahead card - against buying everything under the same rule. Each day\'s row is picked the way the plan picks it, from the record before that day, so the row can change from one day to the next. Only days whose ticket was on the page in time to be followed count as live (before the open for shares); the history the markets started with sits apart under its own toggle.',
+      'Every page now shows its data first and keeps the explanations - how to read a table, what a term means, the method and the caveats - behind a small round ? that opens them in place. The text itself is unchanged, apart from a few one-line caveats kept in view. Pages that refresh themselves wait while a ? is open.',
+      'Two corrections on the market pages: the Day by day table now books the RL Position Model by its size, and shows "sits out" on the days it took no position (it used to show it trading at full stake); and once next Saturday\'s tuning has run (17 October), the tickets made after it sit that row out entirely when no sizing the tuner finds beats not betting at all - on crypto from Sunday 18 October, on shares from Tuesday 20 October (Monday\'s share ticket is made on Saturday morning, before the tuning), and on the Week ahead cards from each game\'s next week ticket.',
+    ],
+    link: { href: '/markets/crypto', label: 'Crypto page' },
+  },
+  {
     id: '2026-10-08-keno-subsets-edge-fix',
     date: '2026-10-08',
     level: 'minor',

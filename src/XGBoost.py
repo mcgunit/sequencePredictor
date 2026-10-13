@@ -1,4 +1,5 @@
 import os, sys
+import numpy as np
 import xgboost as xgb
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -45,6 +46,31 @@ class XGBoostBackend(BoostingPredictorBase):
             params.update(objective="binary:logistic", eval_metric="logloss")
 
         return xgb.XGBClassifier(**params)
+
+    def _fit_classifier(self, model, X, y, sample_weight=None):
+        """
+        Fits, with min_child_weight capped at what the history can carry (13
+        Oct 2026). Under multi:softprob every class starts at p = 1/K, so each
+        training row adds 2 x (1/K) x (1 - 1/K) to a node's Hessian sum, and a
+        leaf whose sum stays under min_child_weight gets weight 0: with fewer
+        rows than min_child_weight / (subsample x that) every tree is a single
+        zero leaf and predict_proba is exactly 1/K. Vikinglotto's served 8.49
+        needed about 396 rows of its 262 (306 draws): its XGBoost row scored
+        every number 1/48 and played [1, 45, 46, 47, 48] for weeks, and short
+        histories (the meta-learner tables' oldest days) hit the same wall.
+        The cap is half the root's expected Hessian sum, so a first split is
+        always possible; it never binds on the long games (lotto, keno,
+        euromillions, eurodreams live). Padding rows carry a tiny sample
+        weight, so the weight sum - not the row count - is what counts.
+        """
+        num_class = int(model.get_params().get("num_class") or 0)
+        if num_class > 2:
+            rows = float(np.sum(sample_weight)) if sample_weight is not None else float(len(y))
+            cap = 0.5 * rows * float(self.subsample) * 2.0 * (1.0 / num_class) * (1.0 - 1.0 / num_class)
+            if self.min_child_weight > cap:
+                model.set_params(min_child_weight=cap)
+        model.fit(X, y, sample_weight=sample_weight)
+        return model
 
 
 class XGBoostPredictor(XGBoostBackend, PerPositionBoostingPredictor):
