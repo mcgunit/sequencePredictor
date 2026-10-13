@@ -1,15 +1,15 @@
 {
   "game": "pick3",
-  "trained_at": "2026-10-04T04:16:40.534212+00:00",
+  "trained_at": "2026-10-11T02:51:20.951975+00:00",
   "days": 300,
-  "table_days": 216,
+  "table_days": 223,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
     "declared": "2026-09-27",
     "note": "declared after the September 2026 objective, gate and cadence changes"
   },
-  "lockbox_days_withheld": 84,
+  "lockbox_days_withheld": 77,
   "versions": {
     "python": "3.10.12",
     "numpy": "1.26.4",
@@ -22,15 +22,15 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0455,
-          0.1364,
-          0.1136
+          0.0889,
+          0.1111,
+          0.0889
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.0985,
-        "argmax_profit_per_day": -3.8636,
-        "train_days": 172,
-        "test_days": 44
+        "mean_top1": 0.0963,
+        "argmax_profit_per_day": -3.9111,
+        "train_days": 178,
+        "test_days": 45
       }
     },
     "pick3 (v2)": {
@@ -38,15 +38,15 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0909,
-          0.0455,
-          0.0909
+          0.1556,
+          0.0444,
+          0.0889
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.0758,
-        "argmax_profit_per_day": -3.9091,
-        "train_days": 172,
-        "test_days": 44
+        "mean_top1": 0.0963,
+        "argmax_profit_per_day": -2.8,
+        "train_days": 178,
+        "test_days": 45
       }
     },
     "pick3 (quantum kernel)": {
@@ -54,15 +54,15 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1364,
-          0.0909,
-          0.1136
+          0.1333,
+          0.0889,
+          0.0667
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1136,
-        "argmax_profit_per_day": -2.0682,
-        "train_days": 172,
-        "test_days": 44
+        "mean_top1": 0.0963,
+        "argmax_profit_per_day": -2.8222,
+        "train_days": 178,
+        "test_days": 45
       }
     },
     "pick3 (quantum vqc)": {
@@ -70,15 +70,15 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0455,
-          0.1364,
-          0.0909
+          0.1333,
+          0.0222,
+          0.1111
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.0909,
-        "argmax_profit_per_day": -3.8864,
-        "train_days": 172,
-        "test_days": 44
+        "mean_top1": 0.0889,
+        "argmax_profit_per_day": -2.7778,
+        "train_days": 178,
+        "test_days": 45
       }
     },
     "pick3 (classical svm)": {
@@ -86,15 +86,15 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1818,
-          0.1364,
-          0.1136
+          0.1556,
+          0.0444,
+          0.1333
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1439,
-        "argmax_profit_per_day": -0.4545,
-        "train_days": 172,
-        "test_days": 44
+        "mean_top1": 0.1111,
+        "argmax_profit_per_day": -3.8667,
+        "train_days": 178,
+        "test_days": 45
       }
     }
   }
