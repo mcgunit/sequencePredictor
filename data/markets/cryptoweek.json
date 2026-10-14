@@ -1,6 +1,6 @@
 {
  "market": "cryptoweek",
- "generated_at": "2026-10-13T08:46:44+00:00",
+ "generated_at": "2026-10-14T08:52:05+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -16,13 +16,9 @@
    "position": 0,
    "quote": "USDT",
    "active": true,
-   "last_close": 81850.0,
-   "last_date": "2026-10-12",
+   "last_close": 83169.0,
+   "last_date": "2026-10-13",
    "closes": [
-    [
-     "2025-10-13",
-     115166.0
-    ],
     [
      "2025-10-14",
      113028.14
@@ -1478,10 +1474,13 @@
     [
      "2026-10-12",
      81850.0
+    ],
+    [
+     "2026-10-13",
+     83169.0
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -2365,10 +2364,10 @@
      0.063721,
      0.099281
     ],
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -2732,6 +2731,7 @@
     null,
     null,
     -0.03237898,
+    null,
     null
    ],
    "course": {
@@ -2888,7 +2888,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -3100,6 +3099,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "MarkovMonteCarlo Model": [
@@ -3255,7 +3255,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -3467,6 +3466,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "PoissonMonteCarlo Model": [
@@ -3622,7 +3622,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -3834,6 +3833,7 @@
      null,
      null,
      1,
+     null,
      null
     ],
     "LaplaceMonteCarlo Model": [
@@ -3989,7 +3989,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -4201,6 +4200,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "OrderStatistics Baseline": [
@@ -4356,7 +4356,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -4568,6 +4567,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "GARCH Model": [
@@ -4723,7 +4723,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -4935,6 +4934,7 @@
      null,
      null,
      6,
+     null,
      null
     ],
     "Regime HMM Model": [
@@ -5090,7 +5090,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -5302,6 +5301,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "Regime HMM ZeroMean Model": [
@@ -5457,7 +5457,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -5669,6 +5668,7 @@
      null,
      null,
      1,
+     null,
      null
     ],
     "Regime HMM Single Model": [
@@ -5824,7 +5824,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -6036,6 +6035,7 @@
      null,
      null,
      1,
+     null,
      null
     ],
     "Transformer Model": [
@@ -6191,7 +6191,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -6403,6 +6402,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "GNN Model": [
@@ -6558,7 +6558,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -6770,6 +6769,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "Autoencoder Model": [
@@ -6925,7 +6925,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7137,6 +7136,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "XGBoost Model": [
@@ -7292,7 +7292,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7504,6 +7503,7 @@
      null,
      null,
      2,
+     null,
      null
     ],
     "LightGBM Model": [
@@ -7659,7 +7659,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7871,6 +7870,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "CatBoost Model": [
@@ -8026,7 +8026,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -8238,10 +8237,10 @@
      null,
      null,
      2,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -8605,10 +8604,10 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -8972,6 +8971,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "LSTM Base Model": [
@@ -9337,8 +9337,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "TCN Base Model": [
@@ -9704,8 +9704,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -10071,8 +10071,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
@@ -10438,8 +10438,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ]
    }
@@ -10450,13 +10450,9 @@
    "position": 1,
    "quote": "USDT",
    "active": true,
-   "last_close": 2447.17,
-   "last_date": "2026-10-12",
+   "last_close": 2497.95,
+   "last_date": "2026-10-13",
    "closes": [
-    [
-     "2025-10-13",
-     4240.85
-    ],
     [
      "2025-10-14",
      4125.02
@@ -11912,10 +11908,13 @@
     [
      "2026-10-12",
      2447.17
+    ],
+    [
+     "2026-10-13",
+     2497.95
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -12799,10 +12798,10 @@
      0.077312,
      0.128773
     ],
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -13166,6 +13165,7 @@
     null,
     null,
     -0.07222147,
+    null,
     null
    ],
    "course": {
@@ -13322,7 +13322,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -13534,6 +13533,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "MarkovMonteCarlo Model": [
@@ -13689,7 +13689,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -13901,6 +13900,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "PoissonMonteCarlo Model": [
@@ -14056,7 +14056,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -14268,6 +14267,7 @@
      null,
      null,
      1,
+     null,
      null
     ],
     "LaplaceMonteCarlo Model": [
@@ -14423,7 +14423,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -14635,6 +14634,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "OrderStatistics Baseline": [
@@ -14790,7 +14790,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -15002,6 +15001,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "GARCH Model": [
@@ -15157,7 +15157,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -15369,6 +15368,7 @@
      null,
      null,
      2,
+     null,
      null
     ],
     "Regime HMM Model": [
@@ -15524,7 +15524,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -15736,6 +15735,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "Regime HMM ZeroMean Model": [
@@ -15891,7 +15891,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -16103,6 +16102,7 @@
      null,
      null,
      0,
+     null,
      null
     ],
     "Regime HMM Single Model": [
@@ -16258,7 +16258,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -16470,6 +16469,7 @@
      null,
      null,
      2,
+     null,
      null
     ],
     "Transformer Model": [
@@ -16625,7 +16625,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -16837,6 +16836,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "GNN Model": [
@@ -16992,7 +16992,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -17204,6 +17203,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "Autoencoder Model": [
@@ -17359,7 +17359,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -17571,10 +17570,10 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -17938,10 +17937,10 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -18305,6 +18304,7 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "CatBoost Model": [
@@ -18460,7 +18460,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18672,6 +18671,7 @@
      null,
      null,
      2,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
@@ -18827,7 +18827,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -19039,6 +19038,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "RL Position Model": [
@@ -19194,7 +19194,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -19406,6 +19405,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "LSTM Base Model": [
@@ -19771,8 +19771,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "TCN Base Model": [
@@ -20138,8 +20138,8 @@
      null,
      null,
      null,
-     null,
      5,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -20505,8 +20505,8 @@
      null,
      null,
      null,
-     null,
      5,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
@@ -20872,8 +20872,8 @@
      null,
      null,
      null,
-     null,
      1,
+     null,
      null
     ]
    }
@@ -20884,13 +20884,9 @@
    "position": 2,
    "quote": "USDT",
    "active": true,
-   "last_close": 732.91,
-   "last_date": "2026-10-12",
+   "last_close": 741.72,
+   "last_date": "2026-10-13",
    "closes": [
-    [
-     "2025-10-13",
-     1294.55
-    ],
     [
      "2025-10-14",
      1208.52
@@ -22346,10 +22342,13 @@
     [
      "2026-10-12",
      732.91
+    ],
+    [
+     "2026-10-13",
+     741.72
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -23233,10 +23232,10 @@
      0.074951,
      0.107241
     ],
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -23600,6 +23599,7 @@
     null,
     null,
     -0.05317223,
+    null,
     null
    ],
    "course": {
@@ -23756,7 +23756,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -23968,6 +23967,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "MarkovMonteCarlo Model": [
@@ -24123,7 +24123,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -24335,6 +24334,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "PoissonMonteCarlo Model": [
@@ -24490,7 +24490,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -24702,6 +24701,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "LaplaceMonteCarlo Model": [
@@ -24857,7 +24857,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -25069,6 +25068,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "OrderStatistics Baseline": [
@@ -25224,7 +25224,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -25436,6 +25435,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "GARCH Model": [
@@ -25591,7 +25591,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -25803,6 +25802,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "Regime HMM Model": [
@@ -25958,7 +25958,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -26170,6 +26169,7 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "Regime HMM ZeroMean Model": [
@@ -26325,7 +26325,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -26537,6 +26536,7 @@
      null,
      null,
      0,
+     null,
      null
     ],
     "Regime HMM Single Model": [
@@ -26692,7 +26692,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -26904,6 +26903,7 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "Transformer Model": [
@@ -27059,7 +27059,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -27271,6 +27270,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "GNN Model": [
@@ -27426,7 +27426,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -27638,6 +27637,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "Autoencoder Model": [
@@ -27793,7 +27793,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -28005,6 +28004,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "XGBoost Model": [
@@ -28160,7 +28160,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -28372,6 +28371,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "LightGBM Model": [
@@ -28527,7 +28527,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -28739,6 +28738,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "CatBoost Model": [
@@ -28894,7 +28894,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -29106,10 +29105,10 @@
      null,
      null,
      2,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -29473,10 +29472,10 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -29840,6 +29839,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "LSTM Base Model": [
@@ -30205,8 +30205,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "TCN Base Model": [
@@ -30572,8 +30572,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -30939,8 +30939,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
@@ -31306,8 +31306,8 @@
      null,
      null,
      null,
-     null,
      2,
+     null,
      null
     ]
    }
@@ -31318,13 +31318,9 @@
    "position": 3,
    "quote": "USDT",
    "active": true,
-   "last_close": 1.3422,
-   "last_date": "2026-10-12",
+   "last_close": 1.3661,
+   "last_date": "2026-10-13",
    "closes": [
-    [
-     "2025-10-13",
-     2.6052
-    ],
     [
      "2025-10-14",
      2.5033
@@ -32780,10 +32776,13 @@
     [
      "2026-10-12",
      1.3422
+    ],
+    [
+     "2026-10-13",
+     1.3661
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -33667,10 +33666,10 @@
      0.06845,
      0.131919
     ],
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -34034,6 +34033,7 @@
     null,
     null,
     -0.07530255,
+    null,
     null
    ],
    "course": {
@@ -34190,7 +34190,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -34402,6 +34401,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "MarkovMonteCarlo Model": [
@@ -34557,7 +34557,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -34769,6 +34768,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "PoissonMonteCarlo Model": [
@@ -34924,7 +34924,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -35136,6 +35135,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "LaplaceMonteCarlo Model": [
@@ -35291,7 +35291,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -35503,6 +35502,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "OrderStatistics Baseline": [
@@ -35658,7 +35658,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -35870,6 +35869,7 @@
      null,
      null,
      6,
+     null,
      null
     ],
     "GARCH Model": [
@@ -36025,7 +36025,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -36237,6 +36236,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "Regime HMM Model": [
@@ -36392,7 +36392,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -36604,6 +36603,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "Regime HMM ZeroMean Model": [
@@ -36759,7 +36759,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -36971,6 +36970,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "Regime HMM Single Model": [
@@ -37126,7 +37126,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -37338,6 +37337,7 @@
      null,
      null,
      8,
+     null,
      null
     ],
     "Transformer Model": [
@@ -37493,7 +37493,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -37705,6 +37704,7 @@
      null,
      null,
      6,
+     null,
      null
     ],
     "GNN Model": [
@@ -37860,7 +37860,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -38072,6 +38071,7 @@
      null,
      null,
      6,
+     null,
      null
     ],
     "Autoencoder Model": [
@@ -38227,7 +38227,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -38439,10 +38438,10 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -38806,10 +38805,10 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -39173,10 +39172,10 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -39540,10 +39539,10 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -39907,10 +39906,10 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -40274,6 +40273,7 @@
      null,
      null,
      3,
+     null,
      null
     ],
     "LSTM Base Model": [
@@ -40639,8 +40639,8 @@
      null,
      null,
      null,
-     null,
      3,
+     null,
      null
     ],
     "TCN Base Model": [
@@ -41006,8 +41006,8 @@
      null,
      null,
      null,
-     null,
      3,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -41373,8 +41373,8 @@
      null,
      null,
      null,
-     null,
      3,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
@@ -41740,8 +41740,8 @@
      null,
      null,
      null,
-     null,
      3,
+     null,
      null
     ]
    }
@@ -41752,13 +41752,9 @@
    "position": 4,
    "quote": "USDT",
    "active": true,
-   "last_close": 105.76,
-   "last_date": "2026-10-12",
+   "last_close": 106.83,
+   "last_date": "2026-10-13",
    "closes": [
-    [
-     "2025-10-13",
-     208.69
-    ],
     [
      "2025-10-14",
      202.44
@@ -43214,10 +43210,13 @@
     [
      "2026-10-12",
      105.76
+    ],
+    [
+     "2026-10-13",
+     106.83
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -44101,10 +44100,10 @@
      0.117783,
      0.211651
     ],
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -44468,6 +44467,7 @@
     null,
     null,
     -0.08805858,
+    null,
     null
    ],
    "course": {
@@ -44624,7 +44624,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -44836,6 +44835,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "MarkovMonteCarlo Model": [
@@ -44991,7 +44991,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -45203,6 +45202,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "PoissonMonteCarlo Model": [
@@ -45358,7 +45358,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -45570,6 +45569,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "LaplaceMonteCarlo Model": [
@@ -45725,7 +45725,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -45937,6 +45936,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "OrderStatistics Baseline": [
@@ -46092,7 +46092,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -46304,6 +46303,7 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "GARCH Model": [
@@ -46459,7 +46459,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -46671,6 +46670,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "Regime HMM Model": [
@@ -46826,7 +46826,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -47038,6 +47037,7 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "Regime HMM ZeroMean Model": [
@@ -47193,7 +47193,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -47405,6 +47404,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "Regime HMM Single Model": [
@@ -47560,7 +47560,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -47772,6 +47771,7 @@
      null,
      null,
      0,
+     null,
      null
     ],
     "Transformer Model": [
@@ -47927,7 +47927,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -48139,6 +48138,7 @@
      null,
      null,
      6,
+     null,
      null
     ],
     "GNN Model": [
@@ -48294,7 +48294,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -48506,6 +48505,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "Autoencoder Model": [
@@ -48661,7 +48661,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -48873,6 +48872,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "XGBoost Model": [
@@ -49028,7 +49028,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -49240,6 +49239,7 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "LightGBM Model": [
@@ -49395,7 +49395,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -49607,10 +49606,10 @@
      null,
      null,
      7,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -49974,10 +49973,10 @@
      null,
      null,
      6,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -50341,6 +50340,7 @@
      null,
      null,
      4,
+     null,
      null
     ],
     "RL Position Model": [
@@ -50496,7 +50496,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -50708,6 +50707,7 @@
      null,
      null,
      5,
+     null,
      null
     ],
     "LSTM Base Model": [
@@ -51073,8 +51073,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null
     ],
     "TCN Base Model": [
@@ -51440,8 +51440,8 @@
      null,
      null,
      null,
-     null,
      5,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -51807,8 +51807,8 @@
      null,
      null,
      null,
-     null,
      5,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
@@ -52174,8 +52174,8 @@
      null,
      null,
      null,
-     null,
      5,
+     null,
      null
     ]
    }
@@ -67200,6 +67200,329 @@
      }
     }
    }
+  },
+  "followed": {
+   "rule": "daily",
+   "min_trades": 5,
+   "points": [
+    [
+     "2026-03-15",
+     null,
+     null,
+     0,
+     0.0,
+     0.0,
+     false,
+     53.107
+    ],
+    [
+     "2026-03-22",
+     "GARCH Model",
+     "book",
+     5,
+     -31.5362,
+     -31.5362,
+     false,
+     -31.5362
+    ],
+    [
+     "2026-03-29",
+     "Regime HMM Model",
+     "book",
+     0,
+     0.0,
+     -31.5362,
+     false,
+     -19.9581
+    ],
+    [
+     "2026-04-05",
+     "Regime HMM Model",
+     "book",
+     1,
+     0.352,
+     -31.1842,
+     false,
+     9.5767
+    ],
+    [
+     "2026-04-12",
+     "Regime HMM Model",
+     "book",
+     2,
+     -0.9597,
+     -32.1439,
+     false,
+     3.2214
+    ],
+    [
+     "2026-04-19",
+     "Regime HMM Model",
+     "book",
+     0,
+     0.0,
+     -32.1439,
+     false,
+     18.2322
+    ],
+    [
+     "2026-04-26",
+     "GARCH Model",
+     "book",
+     5,
+     20.2102,
+     -11.9337,
+     false,
+     20.2102
+    ],
+    [
+     "2026-05-03",
+     "GARCH Model",
+     "book",
+     5,
+     -12.4433,
+     -24.377,
+     false,
+     -12.4433
+    ],
+    [
+     "2026-05-10",
+     "GARCH Model",
+     "book",
+     5,
+     34.3114,
+     9.9344,
+     false,
+     34.3114
+    ],
+    [
+     "2026-05-17",
+     "GARCH Model",
+     "book",
+     5,
+     -35.5132,
+     -25.5788,
+     false,
+     -35.5132
+    ],
+    [
+     "2026-05-24",
+     "CatBoost Model",
+     "book",
+     2,
+     -1.8251,
+     -27.4039,
+     false,
+     -5.4476
+    ],
+    [
+     "2026-05-31",
+     "CatBoost Model",
+     "book",
+     3,
+     -0.1191,
+     -27.523,
+     false,
+     -6.2453
+    ],
+    [
+     "2026-06-07",
+     "CatBoost Model",
+     "book",
+     3,
+     -47.2349,
+     -74.7579,
+     false,
+     -78.3074
+    ],
+    [
+     "2026-06-14",
+     "LaplaceMonteCarlo Model",
+     "book",
+     1,
+     1.8412,
+     -72.9167,
+     false,
+     16.742
+    ],
+    [
+     "2026-06-21",
+     "CatBoost Model",
+     "book",
+     2,
+     -10.8367,
+     -83.7534,
+     false,
+     -14.5634
+    ],
+    [
+     "2026-06-28",
+     "LaplaceMonteCarlo Model",
+     "book",
+     0,
+     0.0,
+     -83.7534,
+     false,
+     -28.729
+    ],
+    [
+     "2026-07-05",
+     "LaplaceMonteCarlo Model",
+     "book",
+     1,
+     14.0894,
+     -69.664,
+     false,
+     51.09
+    ],
+    [
+     "2026-07-12",
+     "PoissonMonteCarlo Model",
+     "book",
+     3,
+     -7.8377,
+     -77.5017,
+     false,
+     -14.1976
+    ],
+    [
+     "2026-07-19",
+     "LaplaceMonteCarlo Model",
+     "book",
+     3,
+     1.4843,
+     -76.0174,
+     false,
+     4.0007
+    ],
+    [
+     "2026-07-26",
+     "LaplaceMonteCarlo Model",
+     "book",
+     1,
+     4.2016,
+     -71.8158,
+     false,
+     7.0818
+    ],
+    [
+     "2026-08-02",
+     "LaplaceMonteCarlo Model",
+     "book",
+     0,
+     0.0,
+     -71.8158,
+     false,
+     -11.4835
+    ],
+    [
+     "2026-08-09",
+     "LaplaceMonteCarlo Model",
+     "book",
+     1,
+     1.8926,
+     -69.9232,
+     false,
+     3.1132
+    ],
+    [
+     "2026-08-16",
+     "LaplaceMonteCarlo Model",
+     "book",
+     1,
+     -3.281,
+     -73.2042,
+     false,
+     -11.4636
+    ],
+    [
+     "2026-08-23",
+     "LaplaceMonteCarlo Model",
+     "book",
+     2,
+     39.6265,
+     -33.5777,
+     false,
+     151.1506
+    ],
+    [
+     "2026-08-30",
+     "GARCH Model",
+     "book",
+     5,
+     -9.5489,
+     -43.1266,
+     false,
+     -9.5489
+    ],
+    [
+     "2026-09-06",
+     "GARCH Model",
+     "book",
+     1,
+     4.5127,
+     -38.6139,
+     false,
+     25.9833
+    ],
+    [
+     "2026-09-13",
+     "GARCH Model",
+     "book",
+     2,
+     -12.0519,
+     -50.6658,
+     false,
+     -24.2645
+    ],
+    [
+     "2026-09-20",
+     "GARCH Model",
+     "book",
+     2,
+     19.3716,
+     -31.2942,
+     false,
+     36.3503
+    ],
+    [
+     "2026-09-27",
+     "GARCH Model",
+     "book",
+     3,
+     13.9966,
+     -17.2976,
+     false,
+     22.7589
+    ],
+    [
+     "2026-10-04",
+     "GARCH Model",
+     "book",
+     3,
+     1.4576,
+     -15.84,
+     false,
+     4.9142
+    ],
+    [
+     "2026-10-11",
+     "GARCH Model",
+     "book",
+     4,
+     -24.8233,
+     -40.6633,
+     true,
+     -31.9839
+    ]
+   ],
+   "first_live": "2026-10-11",
+   "total": -40.6633,
+   "market_total": 126.1584,
+   "live_total": -24.8233,
+   "live_market": -31.9839,
+   "live_days": 1,
+   "live_positions": 4
   }
  },
  "next": {
@@ -67473,7 +67796,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-10-12"
+    "traded_since": "2026-10-13"
    },
    "ETH": {
     "last_close": 2536.94,
@@ -67741,7 +68064,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-10-12"
+    "traded_since": "2026-10-13"
    },
    "BNB": {
     "last_close": 754.24,
@@ -68009,7 +68332,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-10-12"
+    "traded_since": "2026-10-13"
    },
    "XRP": {
     "last_close": 1.4103,
@@ -68277,7 +68600,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-10-12"
+    "traded_since": "2026-10-13"
    },
    "SOL": {
     "last_close": 111.35,
@@ -68545,7 +68868,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-10-12"
+    "traded_since": "2026-10-13"
    }
   }
  },
@@ -69078,13 +69401,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 0,
      "direction": 3,
      "positions": 5,
      "pnl": -0.16306690224242243,
-     "pnl_cash": -15.781396226474499,
-     "trades": 2
+     "pnl_cash": -15.991932259800393,
+     "trades": 5
     },
     {
      "name": "Regime HMM Single Model",
@@ -69456,13 +69786,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.5,
+      0.0
+     ],
      "exact": 2,
      "adjacent": 3,
      "direction": 1,
      "positions": 5,
      "pnl": 0.01735457263107933,
-     "pnl_cash": 0.7033320164524781,
-     "trades": 2
+     "pnl_cash": 1.599846073851154,
+     "trades": 3
     },
     {
      "name": "LightGBM Model",
@@ -69970,12 +70307,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 1,
      "direction": 1,
      "positions": 5,
      "pnl": 0.04593925645756125,
-     "pnl_cash": 9.523108752361253,
+     "pnl_cash": 4.7615543761806265,
      "trades": 1
     },
     {
@@ -70263,12 +70607,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.0,
+      0.5,
+      0.0
+     ],
      "exact": 0,
      "adjacent": 0,
      "direction": 2,
      "positions": 5,
      "pnl": 0.05702072599216393,
-     "pnl_cash": 18.321500424248654,
+     "pnl_cash": 5.770812984516461,
      "trades": 2
     },
     {
@@ -70624,13 +70975,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 2,
      "direction": 3,
      "positions": 5,
      "pnl": -0.03573439374674965,
-     "pnl_cash": -8.682615987683164,
-     "trades": 2
+     "pnl_cash": -3.4987564523697827,
+     "trades": 1
     },
     {
      "name": "Autoencoder Model",
@@ -71036,13 +71394,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 2,
      "direction": 2,
      "positions": 5,
      "pnl": 0.022547767110960886,
-     "pnl_cash": 8.346953216919786,
-     "trades": 2
+     "pnl_cash": 2.2563636363636306,
+     "trades": 1
     },
     {
      "name": "Regime HMM ZeroMean Model",
@@ -71380,12 +71745,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 1,
      "direction": 3,
      "positions": 5,
      "pnl": 0.008317793287416275,
-     "pnl_cash": 1.6215134364387183,
+     "pnl_cash": 0.8107567182193591,
      "trades": 3
     },
     {
@@ -71809,12 +72181,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 0,
      "direction": 2,
      "positions": 5,
      "pnl": 0.25826158315438497,
-     "pnl_cash": 58.757723302537826,
+     "pnl_cash": 29.378861651268913,
      "trades": 2
     },
     {
@@ -72085,13 +72464,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.5,
+      0.5,
+      0.0,
+      0.5,
+      0.5
+     ],
      "exact": 2,
      "adjacent": 3,
      "direction": 1,
      "positions": 5,
      "pnl": -0.05575750714765395,
-     "pnl_cash": -7.666961689569874,
-     "trades": 3
+     "pnl_cash": -5.694025557863881,
+     "trades": 4
     },
     {
      "name": "WeightedEnsemble Model",
@@ -72531,13 +72917,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.5,
+      0.5,
+      0.0,
+      0.5,
+      0.5
+     ],
      "exact": 2,
      "adjacent": 3,
      "direction": 3,
      "positions": 5,
      "pnl": 0.005707201626293432,
-     "pnl_cash": 4.521956541416344,
-     "trades": 2
+     "pnl_cash": 0.48775822774814515,
+     "trades": 4
     },
     {
      "name": "LightGBM Model",
@@ -72943,12 +73336,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.0,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 2,
      "direction": 3,
      "positions": 5,
      "pnl": -0.029088374546964932,
-     "pnl_cash": -5.93669053676021,
+     "pnl_cash": -2.968345268380105,
      "trades": 3
     },
     {
@@ -73321,13 +73721,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 3,
      "direction": 2,
      "positions": 5,
      "pnl": 0.001981394671064622,
-     "pnl_cash": 4.498584711136701,
-     "trades": 2
+     "pnl_cash": 0.1485074626865881,
+     "trades": 1
     },
     {
      "name": "Autoencoder Model",
@@ -73699,13 +74106,20 @@
       2,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 3,
      "direction": 2,
      "positions": 5,
      "pnl": -0.004022519461604493,
-     "pnl_cash": 2.516372087316512,
-     "trades": 2
+     "pnl_cash": -0.45066302652106316,
+     "trades": 1
     },
     {
      "name": "Regime HMM ZeroMean Model",
@@ -74009,12 +74423,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 4,
      "direction": 3,
      "positions": 5,
      "pnl": -0.024582977263372222,
-     "pnl_cash": -4.934758716542376,
+     "pnl_cash": -2.467379358271188,
      "trades": 2
     },
     {
@@ -74489,12 +74910,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 0,
      "direction": 1,
      "positions": 5,
      "pnl": 0.0663444936893474,
-     "pnl_cash": 14.089422807509123,
+     "pnl_cash": 7.044711403754562,
      "trades": 1
     },
     {
@@ -74901,12 +75329,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.5,
+      0.5,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 1,
      "direction": 2,
      "positions": 5,
      "pnl": -0.07334726810251756,
-     "pnl_cash": -15.658968208275368,
+     "pnl_cash": -7.267901379233827,
      "trades": 3
     },
     {
@@ -75041,13 +75476,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.5,
+      0.5,
+      0.0
+     ],
      "exact": 2,
      "adjacent": 4,
      "direction": 5,
      "positions": 5,
      "pnl": -0.05464962023699074,
-     "pnl_cash": 1.4537878787878498,
-     "trades": 1
+     "pnl_cash": -5.418347682794597,
+     "trades": 2
     },
     {
      "name": "Autoencoder Model",
@@ -75640,13 +76082,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.5,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 1,
      "direction": 1,
      "positions": 5,
      "pnl": 0.04673237997194776,
-     "pnl_cash": 6.9807819548872345,
-     "trades": 1
+     "pnl_cash": 4.7087320989389525,
+     "trades": 2
     },
     {
      "name": "Regime HMM Single Model",
@@ -75899,13 +76348,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.5,
+      0.5,
+      0.0,
+      0.5,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 0,
      "direction": 3,
      "positions": 5,
      "pnl": -0.34228065709890976,
-     "pnl_cash": -35.469896244014066,
-     "trades": 2
+     "pnl_cash": -31.594417571229783,
+     "trades": 4
     },
     {
      "name": "Regime HMM Single Model",
@@ -76413,13 +76869,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.5,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 1,
      "direction": 2,
      "positions": 5,
      "pnl": -0.008687405912609924,
-     "pnl_cash": -8.132397521600836,
-     "trades": 2
+     "pnl_cash": -0.8250591289066094,
+     "trades": 4
     },
     {
      "name": "OrderStatistics Baseline",
@@ -76621,13 +77084,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.5,
+      0.5
+     ],
      "exact": 3,
      "adjacent": 4,
      "direction": 3,
      "positions": 5,
      "pnl": -0.022142832410527367,
-     "pnl_cash": -1.8251337400281216,
-     "trades": 2
+     "pnl_cash": -2.370566247651034,
+     "trades": 4
     },
     {
      "name": "Regime HMM Model",
@@ -77152,13 +77622,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.0,
+      0.5,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 2,
      "direction": 3,
      "positions": 5,
      "pnl": -0.14177690475186377,
-     "pnl_cash": -22.15169617766469,
-     "trades": 2
+     "pnl_cash": -13.609952880470715,
+     "trades": 3
     },
     {
      "name": "Transformer Model",
@@ -77445,13 +77922,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 1,
      "direction": 2,
      "positions": 5,
      "pnl": 0.11475093205333575,
-     "pnl_cash": 16.644655429420098,
-     "trades": 2
+     "pnl_cash": 11.967343672070704,
+     "trades": 3
     },
     {
      "name": "Regime HMM Single Model",
@@ -77806,12 +78290,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.5,
+      0.5
+     ],
      "exact": 2,
      "adjacent": 2,
      "direction": 3,
      "positions": 5,
      "pnl": -0.03382918705726661,
-     "pnl_cash": -5.843339006201177,
+     "pnl_cash": -3.426076995788158,
      "trades": 2
     },
     {
@@ -78218,13 +78709,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.5
+     ],
      "exact": 0,
      "adjacent": 2,
      "direction": 2,
      "positions": 5,
      "pnl": 0.019807955614163816,
-     "pnl_cash": 8.427365856866643,
-     "trades": 2
+     "pnl_cash": 1.9705283335330108,
+     "trades": 1
     },
     {
      "name": "Regime HMM ZeroMean Model",
@@ -78630,13 +79128,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.0,
+      0.5,
+      0.5,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 2,
      "direction": 2,
      "positions": 5,
      "pnl": 0.05558391129984333,
-     "pnl_cash": 5.241702411941688,
-     "trades": 2
+     "pnl_cash": 5.522553635935061,
+     "trades": 3
     },
     {
      "name": "Regime HMM ZeroMean Model",
@@ -78906,13 +79411,20 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.5,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 3,
      "direction": 3,
      "positions": 5,
      "pnl": 0.006337120673456443,
-     "pnl_cash": 3.018264471729836,
-     "trades": 2
+     "pnl_cash": 0.4757496873729963,
+     "trades": 4
     },
     {
      "name": "CatBoost Model",
@@ -79335,12 +79847,19 @@
       3,
       5
      ],
+     "sizes": [
+      0.0,
+      0.5,
+      0.5,
+      0.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 2,
      "direction": 3,
      "positions": 5,
      "pnl": 0.028119675737017073,
-     "pnl_cash": 5.514197028050532,
+     "pnl_cash": 2.757098514025266,
      "trades": 3
     },
     {
@@ -79730,13 +80249,20 @@
       3,
       5
      ],
+     "sizes": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.5
+     ],
      "exact": 1,
      "adjacent": 2,
      "direction": 3,
      "positions": 5,
      "pnl": -0.16982042609788553,
-     "pnl_cash": -9.284798938088798,
-     "trades": 2
+     "pnl_cash": -17.09985237807927,
+     "trades": 5
     },
     {
      "name": "Transformer Model",
@@ -80005,6 +80531,13 @@
       5,
       3,
       5
+     ],
+     "sizes": [
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      1.0
      ],
      "exact": 2,
      "adjacent": 2,
