@@ -17,6 +17,20 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-14-quantum-gate-and-control-readings',
+    date: '2026-10-14',
+    level: 'minor',
+    audience: 'all',
+    title: 'Quantum tuning through the gate; the controls say "too few draws" and "inconclusive" where they could not tell',
+    body: [
+      'The quantum meta-learners and their classical control are now tuned through the same champion/challenger gate as the statistical, boosting and RL rows: a week\'s best trial replaces the served settings only if it beats them and the untuned defaults on the same held-out days. Until now the week\'s best trial was written as it was. The Pick3 and Joker+ quantum studies are scored by the hit bound the statistical tuner uses (right-slot digits for Pick3, the paid runs for Joker+), so one lucky pair no longer decides them, and every quantum challenger must win by one standard error.',
+      'Two control cards stop overstating what they can see. The Randomness watch card reads "too few draws" for a game whose null band - what fair draws alone score on the test - already reaches 0.8 (the week games, EuroDreams and Viking Lotto): such a record cannot show evidence either way. The feature-control card has a third verdict, "inconclusive", for a meta-learner whose noise columns matter but whose repeats disagree; it used to show as "noise ignored" in green.',
+      'Two counts corrected: the null band\'s "best of N rows" no longer counts the bonus-number rows (16 becomes 8 on EuroMillions, EuroDreams and Viking Lotto, 10 becomes 5 on Joker+; the band itself does not move), and the "Best since the freeze" column no longer counts the market games\' back-built history - only days whose ticket was out before the close.',
+      'The Regime HMM rows\' feature set (one tuned set shared by the three rows) is now recorded with their results; the Crypto and Shares pages show it from the next daily run (the regime card) and the next Sunday report (how rows are judged) on, with what it means for the comparison: on returns alone, the Single row is a random walk with drift.',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-10-13-honest-rankings-and-lotto-era',
     date: '2026-10-13',
     level: 'minor',

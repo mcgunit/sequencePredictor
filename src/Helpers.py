@@ -5,7 +5,7 @@ import asciichartpy
 
 from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
-from datetime import datetime
+from datetime import date, datetime
 from sklearn.preprocessing import OneHotEncoder
 try:
     from src.MultiPick import config_for as multi_pick_config, hits as multi_pick_hits, chance_table as multi_pick_chance_table
@@ -540,6 +540,41 @@ class Helpers():
         return list(map(int, values))
 
     @staticmethod
+    def _day_key(value):
+        """A stored day's date as 'YYYY-MM-DD' from a date, a datetime or a day-file name ('2026-10-9')."""
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        parts = str(value).replace(".json", "").split("-")
+        try:
+            return date(int(parts[0]), int(parts[1]), int(parts[2])).isoformat()
+        except (ValueError, IndexError):
+            return str(value)
+
+    @staticmethod
+    def _days_predicted_before_draw(game, root):
+        """
+        For a market game, the stored days whose ticket was made before the
+        day's close (MarketSettle.ticket_times against close_instant), as
+        'YYYY-MM-DD' strings - the days that belong in the forward record.
+        The back-built history the market games started with (1 and 5 Oct
+        2026) and a missed run's day rebuilt the morning after were predicted
+        after their draw: a since.json date before them would count them as
+        the frozen design's record, which they are not (14 Oct 2026). None
+        for a lottery game, whose stored days are all predicted before their
+        draw. `root` is the data/database folder.
+        """
+        if not is_market_game(game):
+            return None
+        try:
+            from src.MarketSettle import ticket_times, close_instant
+        except ImportError:
+            from MarketSettle import ticket_times, close_instant
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(root)))
+        return {day for day, stamp in ticket_times(repo, game).items() if stamp < close_instant(game, day)}
+
+    @staticmethod
     def _profit_bound(bets_by_day):
         """
         The payout games' ranking value: src/TuningScore.score_bets_by_day's
@@ -866,10 +901,16 @@ class Helpers():
 
             # The forward record: the same per-row aggregates over the days
             # on or after the declared date, from the day table just built.
+            # A market game's day counts only if it was predicted before its
+            # draw (_days_predicted_before_draw): the back-built history the
+            # market games started with sits after the declared date.
             if since:
                 sinceStats = {}
+                forward_days = self._days_predicted_before_draw(game, databaseDir)
                 for day in dayTable:
                     if not since_on_or_after(since, day["date"]):
+                        continue
+                    if forward_days is not None and self._day_key(day["date"]) not in forward_days:
                         continue
                     for name, row in day["rows"].items():
                         entry = sinceStats.setdefault(name, {"draws": 0, "hits_total": 0, "best_hits": 0,

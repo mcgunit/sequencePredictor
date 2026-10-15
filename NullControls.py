@@ -64,6 +64,16 @@ RESULT_DIR = os.path.join(CONTROL_ROOT, "results")
 BASELINE_ROWS = ("random", "global_frequency", "column_frequency")
 
 
+def leaderboard_row(name):
+    """
+    Whether a scored row is one the History page ranks: not a baseline, and
+    not a special-number row ("<row>_special": the bonus, the stars, the
+    dream number - scored on another column and another scale). The report
+    and the per-seed winner use the same test (14 Oct 2026).
+    """
+    return name not in BASELINE_ROWS and not name.endswith("_special")
+
+
 # --- scoring it exactly like production --------------------------------------
 def evaluate(game, dataPath, days, foundation=False):
     cfg = GAME_CONFIG[game]
@@ -127,7 +137,12 @@ def selection_report(per_seed):
     The headline is the gap between the best row and the average row on data
     with nothing in it. That gap is what a leaderboard buys you for free.
     """
-    model_rows = sorted({name for seed in per_seed for name in seed if name not in BASELINE_ROWS})
+    # The special-number rows ("<row>_special": the bonus, stars, dream number - scored on another column and
+    # another scale) are not leaderboard rows: the History page ranks main tickets. Until 14 Oct 2026 they were
+    # counted (16 rows instead of 8 on euromillions, eurodreams and vikinglotto, 10 instead of 5 on Joker+), which
+    # halved the row mean and inflated the selection gain; per_row_mean still lists them.
+    special_rows = sorted({name for seed in per_seed for name in seed if name.endswith("_special")})
+    model_rows = sorted({name for seed in per_seed for name in seed if leaderboard_row(name)})
     winners, means, spreads = [], [], []
     for seed in per_seed:
         values = [seed[name] for name in model_rows if name in seed]
@@ -139,13 +154,14 @@ def selection_report(per_seed):
     baseline = [seed["random"] for seed in per_seed if "random" in seed]
     report = {
         "rows_compared": len(model_rows),
+        "special_rows_excluded": len(special_rows),
         "row_mean": round(statistics.fmean(means), 4) if means else None,
         "best_row_mean": round(statistics.fmean(winners), 4) if winners else None,
         "selection_gain": round(statistics.fmean(winners) - statistics.fmean(means), 4) if winners else None,
         "best_to_worst_spread": round(statistics.fmean(spreads), 4) if spreads else None,
         "random_baseline": round(statistics.fmean(baseline), 4) if baseline else None,
         "per_row_mean": {name: round(statistics.fmean([s[name] for s in per_seed if name in s]), 4)
-                         for name in model_rows + [b for b in BASELINE_ROWS if any(b in s for s in per_seed)]},
+                         for name in model_rows + special_rows + [b for b in BASELINE_ROWS if any(b in s for s in per_seed)]},
     }
     if winners and len(winners) > 1:
         report["best_row_sd_across_seeds"] = round(statistics.stdev(winners), 4)
@@ -179,9 +195,9 @@ def run(game, mode, seeds, days, foundation, recent=None):
         directory, rows_written = build_control_dataset(game, mode, seed, recent=recent)
         scores, scored_days = evaluate(game, directory, days, foundation)
         per_seed.append(scores)
-        best = max(((v, k) for k, v in scores.items() if k not in BASELINE_ROWS), default=(0, "-"))
+        best = max(((v, k) for k, v in scores.items() if leaderboard_row(k)), default=(0, "-"))
         winners.append(best[1])
-        print(f"  {game} {mode} seed {seed}: {scored_days} days, {len(scores)} rows, "
+        print(f"  {game} {mode} seed {seed}: {scored_days} days, {sum(1 for k in scores if leaderboard_row(k))} rows, "
               f"best {best[1]} at {best[0]:.3f} hits/draw, random baseline "
               f"{scores.get('random', float('nan')):.3f} ({time.time() - started:.0f}s)")
 
@@ -196,6 +212,24 @@ def run(game, mode, seeds, days, foundation, recent=None):
     with open(os.path.join(RESULT_DIR, f"{game}-{mode}.json"), "w") as handle:
         json.dump({"report": report, "per_seed": per_seed}, handle, indent=2)
     return report
+
+
+def _self_check():
+    """selection_report on a hand-made per_seed: python3 -c 'import NullControls; NullControls._self_check()' (npm test)."""
+    per_seed = [{"A Model": 1.0, "A Model_special": 0.2, "B Model": 0.8, "B Model_special": 0.1,
+                 "random": 0.7, "global_frequency": 0.72, "column_frequency": 0.71},
+                {"A Model": 0.9, "A Model_special": 1.5, "B Model": 1.1, "B Model_special": 0.3,
+                 "random": 0.75, "global_frequency": 0.7, "column_frequency": 0.7}]
+    report = selection_report(per_seed)
+    assert report["rows_compared"] == 2 and report["special_rows_excluded"] == 2, report
+    assert abs(report["row_mean"] - 0.95) < 1e-9 and abs(report["best_row_mean"] - 1.05) < 1e-9, report
+    assert abs(report["selection_gain"] - 0.1) < 1e-9 and abs(report["best_to_worst_spread"] - 0.2) < 1e-9, report
+    assert abs(report["random_baseline"] - 0.725) < 1e-9
+    # a special row that outscores every main row (1.5) is neither the best row nor in the spread
+    assert set(report["per_row_mean"]) == {"A Model", "B Model", "A Model_special", "B Model_special",
+                                           "random", "global_frequency", "column_frequency"}, sorted(report["per_row_mean"])
+    assert leaderboard_row("A Model") and not leaderboard_row("A Model_special") and not leaderboard_row("random")
+    print("NullControls self-check OK: the selection report ranks the main rows only, the special rows stay listed")
 
 
 def main():

@@ -1065,6 +1065,13 @@ if __name__ == "__main__":
                     existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
                     if outcome["params"] is not None:
                         existingData.update(outcome["params"])
+                    if strategy_name == "RegimeHmm":
+                        # The feature set the three Regime HMM rows run on after this decision (one tuned set,
+                        # shared on purpose - the ablations stay ablations). The comparison's meaning depends on
+                        # it: on "returns" alone the Single row is a Gaussian with a constant mean and variance
+                        # per instrument - a random walk with drift - so the record says which set it is
+                        # (14 Oct 2026; the 10 Oct studies chose "returns" in all four markets unannounced).
+                        outcome["record"]["features"] = existingData.get("regimeHmmFeatures", MARKET_DEFAULTS["regimeHmmFeatures"])
                     if not strategy.get("model_score", True):
                         # a log-score is not a vote weight (see STRATEGIES);
                         # the score is in the tuningGate record above

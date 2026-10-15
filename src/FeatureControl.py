@@ -199,6 +199,10 @@ def summarise(feature_names, noise_count, runs, without=None):
     else:
         ratio = math.inf if mean > 0 else 0.0
     fits_noise = bool(ratio > NOISE_RATIO_LIMIT and t > T_LIMIT)
+    # Noise matters as much as the rule asks but the repeats do not agree (t at or under T_LIMIT): the model may
+    # be fitting noise or not - too few repeats to say. Until 14 Oct 2026 this read "noise ignored", in green.
+    inconclusive = bool(not fits_noise and ratio > NOISE_RATIO_LIMIT)
+    verdict = "fits noise" if fits_noise else ("inconclusive" if inconclusive else "noise ignored")
 
     pooled_held = noise_held[np.isfinite(noise_held)]
     held_mean = float(pooled_held.mean()) if len(pooled_held) else 0.0
@@ -241,17 +245,20 @@ def summarise(feature_names, noise_count, runs, without=None):
         "heldout_auc_with_noise_mean": heldout_with,
         "heldout_cost_of_noise": cost,
         "fits_noise": fits_noise,
+        "inconclusive": inconclusive,
+        "verdict": verdict,
         "rule": (f"fits_noise when a noise column's training-side permutation importance is more than "
                  f"{NOISE_RATIO_LIMIT:g} times an average real column's and the pooled noise importance lies more "
-                 f"than {T_LIMIT:g} standard errors above zero; a real column is above the noise band when its "
-                 f"held-out importance exceeds the noise columns' mean + {BAND_SD:g} sd"),
+                 f"than {T_LIMIT:g} standard errors above zero; inconclusive when the ratio is exceeded but not the "
+                 f"{T_LIMIT:g} standard errors (the repeats disagree); noise ignored otherwise; a real column is above "
+                 f"the noise band when its held-out importance exceeds the noise columns' mean + {BAND_SD:g} sd"),
     }
 
 
 def describe(name, summary):
     """One line per variant for the log."""
     noise = summary["noise"]
-    verdict = "FITS NOISE" if summary["fits_noise"] else "noise ignored"
+    verdict = "FITS NOISE" if summary["fits_noise"] else summary.get("verdict", "noise ignored")
     above = ", ".join(summary["real_above_noise_band"]) or "none"
     without = summary.get("heldout_auc_without_noise")
     with_noise = summary.get("heldout_auc_with_noise_mean")
@@ -387,5 +394,24 @@ def _self_check():
     print("FeatureControl self-check OK")
 
 
+def _verdict_check():
+    """The three verdicts of summarise on hand-made importances (14 Oct 2026)."""
+    names = ["a", "b", "c"]
+    def runs(noise_rows):
+        return [{"train": [0.10, 0.08, 0.06] + list(row), "heldout": [0.05, 0.04, 0.03, 0.0, 0.0, 0.0],
+                 "train_auc": 0.7, "heldout_auc": 0.6} for row in noise_rows]
+    ignored = summarise(names, 3, runs([[0.0, 0.0, 0.0]] * 3))
+    assert ignored["verdict"] == "noise ignored" and not ignored["inconclusive"] and not ignored["fits_noise"], ignored["verdict"]
+    # noise worth half a real column in every repeat: a t far above the limit
+    fits = summarise(names, 3, runs([[0.04, 0.04, 0.04]] * 3))
+    assert fits["verdict"] == "fits noise" and fits["fits_noise"], fits["verdict"]
+    # noise worth a real column on average, but the repeats disagree (one positive, one negative, one zero)
+    mixed = summarise(names, 3, runs([[0.30, 0.0, 0.0], [-0.20, 0.0, 0.0], [0.05, 0.0, 0.0]]))
+    assert mixed["verdict"] == "inconclusive" and mixed["inconclusive"] and not mixed["fits_noise"], (mixed["verdict"], mixed["noise"])
+    assert "inconclusive" in mixed["rule"] and "inconclusive" in describe("x", mixed)
+    print("verdicts: noise ignored / fits noise / inconclusive from hand-made importances")
+
+
 if __name__ == "__main__":
     _self_check()
+    _verdict_check()

@@ -58,7 +58,7 @@ from src.Helpers import Helpers
 from src.HyperoptRunner import install_sigterm_handler
 from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox, as_json as lockbox_json
 from src.MarketGame import K_BINS, direction_of, quantile_edges
-from src.MarketModels import GARCH_NAME, LOG_FLOOR, MARKET_MODEL_NAMES, MarketHistory, build_market_models
+from src.MarketModels import GARCH_NAME, LOG_FLOOR, MARKET_DEFAULTS, MARKET_MODEL_NAMES, MarketHistory, build_market_models
 from src.MarketSettle import FEE
 from src.ModelFactory import build_models, prepare_foundation_scores
 from HyperoptStatistics import GAME_CONFIG, is_running, create_lock, remove_lock
@@ -293,6 +293,8 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
         "market_only": bool(market_only), "rows": rows, "errors": errors, "foundation_days": foundation,
         "lockbox": lockbox_json(lockbox), "lockbox_days_withheld": len(locked),
         "backtest_seconds": round(elapsed, 1), "instruments": history_source.symbols,
+        # the feature set the three Regime HMM rows ran on (one tuned set, shared): what the ablations compare depends on it
+        "hmm_features": str((bestParams or {}).get("regimeHmmFeatures", MARKET_DEFAULTS["regimeHmmFeatures"])),
     }
     os.makedirs(os.path.dirname(result_path(root, market)), exist_ok=True)
     with open(result_path(root, market), "w") as handle:

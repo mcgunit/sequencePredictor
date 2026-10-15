@@ -85,6 +85,14 @@ ok(!dpick3.evidence && !dpick3.survivesMarginals && dpick3.label === 'within the
 const dMarginals = controls.describeDiscrimination({ game: 'x', verdict: verdict({ above_null_band: true, survives_marginals_control: false }) });
 ok(!dMarginals.evidence && dMarginals.aboveBand && dMarginals.label.includes('shuffled control'),
   'above the band but not the shuffled history is marginals, not time - said so');
+// too few draws (14 Oct 2026): the flag from RandomnessDiscrimination.compute_verdict, else the same rule on the band
+const dTooFew = controls.describeDiscrimination({ game: 'x', verdict: verdict({ above_null_band: true, survives_marginals_control: true, real_max_of_suite_mean: 0.93, null_threshold_2sd: 0.9724, too_few_draws: true, windows_test: 106 }) });
+ok(!dTooFew.evidence && dTooFew.tooFew && dTooFew.windowsTest === 106 && dTooFew.label === 'too few draws',
+  'an underpowered record is no evidence even above both controls, and says why');
+const dOldTooFew = controls.describeDiscrimination({ game: 'x', shape: { windows_test: 148 }, verdict: verdict({ above_null_band: false, null_threshold_2sd: 0.8934 }) });
+ok(dOldTooFew.tooFew && dOldTooFew.label === 'too few draws' && dOldTooFew.windowsTest === 148, 'an older record without the flag is read by the band rule (0.8 or more), its window count from its shape');
+ok(controls.describeDiscrimination({ game: 'x', verdict: verdict({ null_threshold_2sd: 0.8934 }) }).windowsTest === null, 'no shape, no window count');
+ok(!controls.describeDiscrimination({ game: 'x', verdict: verdict({ null_threshold_2sd: 0.7515 }) }).tooFew, 'a band under 0.8 is powered');
 
 // --- irrelevant-feature control ---------------------------------------------
 fs.mkdirSync(path.join(dir, 'features'));
@@ -113,6 +121,14 @@ ok(controls.loadFeatureControl(dir, 'keno') === null && controls.loadFeatureCont
   && controls.loadFeatureControl(dir, 'jokerplus') === null && controls.loadFeatureControl(path.join(dir, 'nowhere'), 'lotto') === null,
   'a record naming another game, a broken file, no file or no folder is no record');
 const fd = controls.describeFeatureControl(fc);
+const fdv = (over) => controls.describeFeatureControl({ game: 'x', variants: { logistic: variant(over) } }).variants[0];
+ok(fdv({ inconclusive: true, verdict: 'inconclusive', noise: { noise_to_real_ratio: 0.6, train_t: 1.1 } }).verdict === 'inconclusive'
+   && fdv({ inconclusive: true, verdict: 'inconclusive' }).inconclusive && !fdv({ inconclusive: true }).fitsNoise,
+  'a variant the script marks inconclusive reads inconclusive');
+ok(fdv({ noise: { noise_to_real_ratio: 0.6, train_t: 1.1 }, rule: 'old rule' }).rule.includes('Inconclusive: the noise ratio is exceeded') && !fdv({ rule: 'old rule' }).rule.includes('Inconclusive')
+   && fdv({ noise: { noise_to_real_ratio: 0.6, train_t: 1.1 } }).verdict === 'inconclusive' && fdv({}).verdict === 'noise ignored'
+   && fdv({ fits_noise: true, inconclusive: false }).verdict === 'fits noise' && !fdv({ fits_noise: true }).inconclusive,
+  'an older record without the field is read by the ratio rule; fits noise wins over inconclusive');
 ok(fd.variants.length === 3 && fd.tableDays === 275 && fd.behind === 1 && fd.lockboxDays === 25 && fd.generatedAt === '2026-10-04T12:00:00' && fd.repeats === 3,
   'the description carries the table, the lockbox count and every variant');
 const lg = fd.variants.find((v) => v.key === 'logistic');

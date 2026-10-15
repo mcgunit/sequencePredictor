@@ -149,6 +149,22 @@ ok(markets.describeRows(null) === null && markets.describeRows({ market: 'shares
 const better = markets.describeRows({ ...rowsRecord, rows: rowsRecord.rows.map((r) => (r.name === 'Markov Model' ? { ...r, vs_reference: interval(0.1, 0.02, 0.2, 'better') } : r)) });
 ok(better.betterThanReference.join(',') === 'Markov Model', 'a row whose interval against GARCH lies above zero is named');
 const regimes = markets.describeRegimes(regimeRecord, ['BTC', 'ETH']);
+// the HMM rows' feature set travels with the results (14 Oct 2026): the report's hmm_features, the regime log's features, the page's note
+ok(rep.hmmFeatures === null && markets.describeRows({ ...rowsRecord, hmm_features: 'returns' }).hmmFeatures === 'returns' && regimes[0].features === null
+   && markets.describeRegimes({ 'Regime HMM Model': [{ date: '2026-10-01', row: 'Regime HMM Model', regimes: 2, features: ['returns', 'vol'] }] }, ['BTC'])[0].features.join() === 'returns,vol',
+   'the feature set is read from the report and the regime log when present');
+const plainHeader = (title) => `<html><title>${title}</title><body>`, plainFooter = () => '</body></html>';   // header/footer are defined further down
+const withFeatures = (set) => markets.page('crypto', markets.describeMarket(record, { rows: { ...rowsRecord, hmm_features: set },
+  regimes: { ...regimeRecord, 'Regime HMM Model': regimeRecord['Regime HMM Model'].map((e) => ({ ...e, features: set.split(',') })) } }), plainHeader, plainFooter, null);
+const returnsOnly = withFeatures('returns');
+ok(returnsOnly.includes('one tuned feature set, <b>returns</b>, shared on purpose') && returnsOnly.includes('a random walk with drift') && returnsOnly.includes('<td>returns</td>')
+   && returnsOnly.includes('<th title="the columns the row') && (returnsOnly.match(/a random walk with drift/g) || []).length === 2,
+   'on returns alone the page says what the Single row is, in the judging help and the regime card');
+const fullSet = withFeatures('returns,vol,mom');
+ok(fullSet.includes('<b>returns, vol, mom</b>') && fullSet.includes('linear regression of the returns') && !fullSet.includes('random walk with drift') && fullSet.includes('<td>returns, vol, mom</td>'),
+   'with volatility and momentum in the set the note says what Single is then');
+ok(!markets.page('crypto', markets.describeMarket(record, { rows: rowsRecord, regimes: regimeRecord }), plainHeader, plainFooter, null).includes('one tuned feature set'),
+   'without a recorded feature set the page says nothing about it');
 ok(regimes.length === 2 && regimes[0].row === 'Regime HMM Model' && regimes[0].date === '2026-10-01' && regimes[0].template === 3 && regimes[0].label === 'turbulent'
   && regimes[0].expected[0].symbol === 'BTC' && regimes[0].expected[1].value === -0.002 && regimes[0].history === 2,
   'the newest reading per row, with the instruments named');

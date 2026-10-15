@@ -844,7 +844,7 @@ class RegimeHmmModel:
         rank = {int(k): int(i) + 1 for i, k in enumerate(order)}
         dominant = int(np.argmax(forecast["weights"]))
         labels = {k: volatility_label(np.sqrt(np.diag(forecast["regimes"][k][1])), forecast["market_sd"]) for k in range(K)}
-        record = {"date": date, "row": self.name, "regimes": K, "dominant": dominant, "volatility_rank": rank[dominant],
+        record = {"date": date, "row": self.name, "regimes": K, "features": list(self.features), "dominant": dominant, "volatility_rank": rank[dominant],
                   "label": labels[dominant], "probability": float(forecast["weights"][dominant]),
                   "weights": [float(w) for w in forecast["weights"]],
                   "expected_return": [float(v) for v in (forecast["weights"] @ forecast["locs"])],

@@ -1,4 +1,4 @@
-import os, argparse, json, sys, time, functools
+import os, argparse, json, sys, time, functools, math
 # Pin the BLAS pools before numpy is imported: with trials running in parallel
 # processes (HyperoptRunner) each would otherwise spin up a 16-thread OpenBLAS
 # pool; the statevector batches are small, one thread per trial is the fast
@@ -6,9 +6,7 @@ import os, argparse, json, sys, time, functools
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
-from datetime import datetime
 from multiprocessing import cpu_count
-import optuna
 import numpy as np
 from art import text2art
 
@@ -21,6 +19,8 @@ from src.HyperoptRunner import open_study, fail_stale_running_trials, optimize_s
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc, fit_classical_svm
 from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox
+from src.TuningGate import challenge, make_defaults
+from src.TuningScore import score_bets_by_day, attrs_for_trial
 
 # Reuse the per-game min/max/draw_size/skip_last_columns/special_column_count
 # table and the (day, number) -> [scores, label] table builder instead of
@@ -33,7 +33,7 @@ from HyperoptStatistics import GAME_CONFIG
 from src.MarketData import WEEK_MARKETS
 from TrainMetaLearner import (
     build_training_table, load_meta_score_table, save_meta_score_table, meta_table_kind, meta_table_start_index,
-    build_positional_training_table, fit_position_models, evaluate_positional_holdout,
+    build_positional_training_table, fit_position_models, evaluate_positional_holdout, positional_profit,
     positional_positions, POSITIONAL_CLASSES,
 )
 
@@ -173,6 +173,40 @@ def suggest_classical_svm(trial):
         "classicalSvm_maxTrainSamples": trial.suggest_categorical("classicalSvm_maxTrainSamples", [1000, 2000, 4000]),
     }
 
+
+# The champion/challenger gate (src/TuningGate.py, since 14 Oct 2026 for these
+# studies too - the last tuner that wrote its run's best trial ungated): a
+# run's best trial is written only if it beats the served parameters AND the
+# untuned defaults, both re-scored on this run's holdout with this objective;
+# the defaults are served back when they beat both. QUANTUM_DEFAULTS is what
+# fit_quantum_kernel / fit_quantum_vqc / fit_classical_svm serve when
+# bestParams_<game>.json has none of their keys (src/QuantumModels.py), the
+# "default" reference. classicalSvm_gamma's code default is sklearn's "scale"
+# (1 / (n_features x the features' variance)), which a FixedTrial cannot hold
+# for a float parameter, so 0.25 - "scale" on four standardised components of
+# unit variance - stands in for it; the two differ by the PCA components'
+# variance, a reference, not the served value. quantumVqc_epochs 80 is off
+# the study's 30-step grid; FixedTrial uses it as it is.
+QUANTUM_DEFAULTS = {
+    "quantum_kernel": {"quantumKernel_nQubits": 4, "quantumKernel_encodingLayers": 2, "quantumKernel_encodingScale": 1.0,
+                       "quantumKernel_C": 1.0, "quantumKernel_maxTrainSamples": 2000},
+    "quantum_vqc": {"quantumVqc_nQubits": 4, "quantumVqc_numLayers": 2, "quantumVqc_encodingScale": 1.0,
+                    "quantumVqc_learningRate": 0.05, "quantumVqc_epochs": 80, "quantumVqc_batchSize": 128},
+    "classical_svm": {"classicalSvm_nFeatures": 4, "classicalSvm_gamma": 0.25, "classicalSvm_C": 1.0,
+                      "classicalSvm_maxTrainSamples": 2000},
+}
+# the served rows the gate's records are written under (bestParams["tuningGate"][row])
+VARIANT_ROWS = {"quantum_kernel": "QuantumMetaLearner Model", "quantum_vqc": "QuantumVQC Model",
+                "classical_svm": "ClassicalSVM Model"}
+GATE_ENABLED = True
+GATE_MARGIN = 0.0
+# The challenger must also win by GATE_SE_MARGIN standard errors of its own
+# score (TuningGate.challenge se_margin, as the boosting tuner since 13 Oct
+# 2026): a run's best of n trials sits above a single reference by selection
+# alone. Both objectives carry a standard error since 14 Oct 2026 - the
+# positional score through TuningScore, the hits score as the standard
+# error of the per-day hits.
+GATE_SE_MARGIN = 1.0
 
 # (study suffix, factory bound to that variant's bestParams keys, search space)
 VARIANTS = [
@@ -379,7 +413,14 @@ def score_holdout(model, X_test, y_test, n_test_days, draw_size):
     # neutral instead of erroring the whole trial
     auc = roc_auc_score(y_test, proba) if len(set(y_test.tolist())) > 1 else 0.5
 
-    return mean_hits + 0.01 * auc, mean_hits, auc
+    return mean_hits + 0.01 * auc, mean_hits, auc, [float(h) for h in hits]
+
+
+def hits_standard_error(hits):
+    """The standard error of the per-day hits (sample std / sqrt(days)), as TuningScore reports score_se; None under two days."""
+    if len(hits) < 2:
+        return None
+    return float(np.std(np.asarray(hits, dtype=float), ddof=1) / math.sqrt(len(hits)))
 
 
 def objective_quantum(trial, suggest_func, fit_func, study_label,
@@ -398,7 +439,11 @@ def objective_quantum(trial, suggest_func, fit_func, study_label,
 
     params = suggest_func(trial)
     model = fit_func(X_train, y_train, params=params)
-    value, mean_hits, auc = score_holdout(model, X_test, y_test, n_test_days, draw_size)
+    value, mean_hits, auc, hits = score_holdout(model, X_test, y_test, n_test_days, draw_size)
+    # what the score was made of, for the gate's record (TuningGate.challenge reads "tuning"), and the standard
+    # error of the per-day hits - the unit of the gate's margin (GATE_SE_MARGIN)
+    trial.set_user_attr("tuning", {"score": float(value), "kind": "holdout_hits", "days": int(n_test_days),
+                                   "hits_mean": float(mean_hits), "auc": float(auc), "score_se": hits_standard_error(hits)})
 
     print(f"{study_label} trial {trial.number}: hits/day={mean_hits:.3f} "
           f"auc={auc:.4f} value={value:.4f} ({time.time() - trialStart:.1f}s)")
@@ -406,23 +451,35 @@ def objective_quantum(trial, suggest_func, fit_func, study_label,
 
 
 def objective_quantum_positional(trial, suggest_func, fit_func, study_label,
-                                 X_train, y_train, X_test, test_actual_ordered, positions, game):
+                                 X_train, y_train, X_test, test_actual_ordered, positions, game, slot_bound=True):
     """
-    Positional-game trial (Pick3, Joker+): fit one classifier per position on
-    the early days (the suggested params bound with functools.partial, the
-    same way TrainMetaLearner binds them for the persisted artifact), play
-    the argmax ticket on every holdout day and score it with the game's real
-    payout table against the drawn-order result (TrainMetaLearner.
-    positional_profit: Helpers.pick3_ticket_profit for Pick3,
-    Helpers.jokerplus_ticket_profit for Joker+) - profit is the research
-    metric for the payout games, and unlike hits it rewards the slot-exact
-    structure (straight/pair, leading/trailing runs) the positional model
-    exists for. Mean per-position top-1 accuracy enters as a +0.01
-    tie-breaker: the daily profit sits at -stake on almost every day (-4 for
-    Pick3, -1.50 for Joker+) with rare spikes (+46 for a Pick3 pair, +18.50
-    for a Joker+ 3-digit run, thousands for a full match), so the profit mean
-    alone ties most trials, while 0.01 * accuracy <= 0.01 can never outweigh
-    a single real payout.
+    Positional-game trial: fit one classifier per position on the early days
+    (the suggested params bound with functools.partial, the same way
+    TrainMetaLearner binds them for the persisted artifact) and play the
+    argmax ticket on every holdout day.
+
+    Pick3 and Joker+ (slot_bound=True, since 14 Oct 2026) are scored with
+    the statistical tuner's positional objective (src/TuningScore.
+    score_bets_by_day, positional=True): the lower confidence bound over the
+    holdout days of the ticket's hits - Pick3's digits in the right slot,
+    Joker+'s paid runs (Helpers.jokerplus_runs, L + R, the Backtester's own
+    count for the game) - plus POSITIONAL_PROFIT_WEIGHT x the bound of the
+    ticket's capped real payout (TrainMetaLearner.positional_profit:
+    Helpers.pick3_ticket_profit, Helpers.jokerplus_ticket_profit) as the
+    tie-breaker. Until then the objective was the mean raw payout per day
+    (+0.01 x top-1 accuracy): the payout sits at -stake on almost every day
+    with rare spikes (+46 for a Pick3 pair, +676 or +756 for a straight -
+    every bet of the ticket pays), so one lucky ticket in a 15-75 day
+    holdout decided a study - and, once gated, the gate. The raw payout per
+    day and the top-1 accuracy stay on the record; the score's standard
+    error is the gate's margin unit.
+
+    The market games (crypto, shares; slot_bound=False) keep their
+    objective: the mean per day of the fixed rule's P&L in bin space
+    (Helpers.market_ticket_profit, bounded by a day's move - no lucky-strike
+    problem) + 0.01 x top-1 accuracy, now with the standard error of the
+    per-day P&L on the record for the gate's margin. Their studies keep
+    their names.
 
     Joker+ is scored DIGITS-ONLY here: the positional table has the 6 digit
     slots and no sign, so the argmax ticket is a 6-int ticket and
@@ -437,16 +494,143 @@ def objective_quantum_positional(trial, suggest_func, fit_func, study_label,
     params = suggest_func(trial)
     position_models = fit_position_models(
         X_train, y_train, functools.partial(fit_func, params=params), positions, POSITIONAL_CLASSES)
-    mean_profit, accuracies, _ = evaluate_positional_holdout(
+    mean_profit, accuracies, tickets = evaluate_positional_holdout(
         position_models, X_test, test_actual_ordered, positions, POSITIONAL_CLASSES, game)
     mean_accuracy = float(np.mean(accuracies))
-    value = mean_profit + 0.01 * mean_accuracy
 
+    actual = [[int(digit) for digit in day[:positions]] for day in test_actual_ordered]
+    played = [[int(digit) for digit in ticket] for ticket in tickets]
+    profits = [positional_profit(game, ticket, day) for ticket, day in zip(played, actual)]
     accuracy_text = "/".join(f"{accuracy:.3f}" for accuracy in accuracies)
-    print(f"{study_label} trial {trial.number}: profit/day={mean_profit:.3f} "
-          f"top1 acc per pos={accuracy_text} (mean {mean_accuracy:.4f}) value={value:.4f} "
+    if not slot_bound:
+        value = float(mean_profit) + 0.01 * mean_accuracy
+        trial.set_user_attr("tuning", {"score": value, "kind": "holdout_profit", "days": len(profits),
+                                       "profit_per_day": float(mean_profit), "top1_accuracy": mean_accuracy,
+                                       "score_se": hits_standard_error(profits)})
+        print(f"{study_label} trial {trial.number}: profit/day={mean_profit:.3f} "
+              f"top1 acc per pos={accuracy_text} (mean {mean_accuracy:.4f}) value={value:.4f} "
+              f"({time.time() - trialStart:.1f}s)")
+        return value
+    if helpers.is_jokerplus(game):
+        hits_by_day = [sum(helpers.jokerplus_runs(ticket, day)) for ticket, day in zip(played, actual)]
+    else:
+        hits_by_day = [sum(1 for t, a in zip(ticket, day) if t == a) for ticket, day in zip(played, actual)]
+    tuning = score_bets_by_day([[profit] for profit in profits], hits_by_day, payout=False, positional=True)
+    tuning.update({"profit_per_day": float(mean_profit), "top1_accuracy": mean_accuracy})
+    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+    value = tuning["score"]
+
+    hits_text = f"{tuning['hits_mean']:.3f}" if tuning.get("hits_mean") is not None else "-"
+    print(f"{study_label} trial {trial.number}: {'paid runs' if helpers.is_jokerplus(game) else 'slot hits'}/day={hits_text} "
+          f"(bound {value:.4f}) profit/day={mean_profit:.3f} top1 acc per pos={accuracy_text} (mean {mean_accuracy:.4f}) "
           f"({time.time() - trialStart:.1f}s)")
     return value
+
+
+def tune_game(dataset_name, game_cfg, path, days_back, n_trials, parallel, trialTimeout, optunaDatabase, lockbox=None):
+    """
+    One game: collect (or reuse) its score table, split it by day, run the
+    three studies and put each through the gate. Extracted from __main__ on
+    14 Oct 2026 so a scratch root can exercise it; __main__ only parses the
+    arguments and loops over the games.
+    """
+    print(f"\n{dataset_name.capitalize()}")
+    # Positional games (Pick3, Joker+) are tuned on the positional
+    # table (one classifier per slot = draw_size slots,
+    # argmax-ticket profit objective) instead of the per-number
+    # ranking every other game uses.
+    is_positional = helpers.is_positional_game(dataset_name)
+    positions = positional_positions(game_cfg) if is_positional else None
+    # Pick3 and Joker+ are scored by the hit bound (objective_quantum_positional); the market games, positional
+    # too (an instrument per slot), keep their P&L objective - the switch of 14 Oct 2026 was about lucky payouts
+    slot_bound = is_positional and not helpers.is_market_game(dataset_name)
+
+    collected = collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=lockbox)
+    if collected is None:
+        return
+    results, model_names, main_actual_key = collected
+
+    if len(results) < MIN_EVALUATION_DAYS:
+        print(f"Skipping {dataset_name}: only {len(results)} backtest days collected "
+              f"(need at least {MIN_EVALUATION_DAYS} for a meaningful 75/25 day split)")
+        return
+
+    test_actual_ordered = None
+    if is_positional:
+        X_train, y_train, X_test, y_test, test_actual_ordered = build_positional_day_split(
+            results, model_names, positions)
+        n_test_days = len(test_actual_ordered)
+    else:
+        X_train, y_train, X_test, y_test, n_test_days = build_day_split(
+            results, model_names, game_cfg, main_actual_key)
+
+    if len(set(y_train.tolist())) < 2 or len(set(y_test.tolist())) < 2:
+        # can't fit (or rank) a binary classifier on one class -
+        # only plausible with a degenerate/truncated data file
+        print(f"Skipping {dataset_name}: train or holdout labels contain a single class")
+        return
+
+    print(f"Tuning on {len(results) - n_test_days} train days / {n_test_days} holdout days "
+          f"({len(X_train)} / {len(X_test)} table rows)")
+
+    jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
+    existingData = {}
+    if os.path.exists(jsonBestParamsFilePath):
+        with open(jsonBestParamsFilePath, "r") as infile:
+            existingData = json.load(infile)
+
+    for variant_name, fit_func, suggest_func in VARIANTS:
+        # the Pick3 and Joker+ studies started afresh on 14 Oct 2026: their earlier trials are raw payouts,
+        # which would guide the sampler on another scale than the hit bound
+        studyName = f"{dataset_name}-{variant_name}{'_slot_bound' if slot_bound else ''}"
+        study = open_study(studyName, optunaDatabase, parallel=parallel)
+        fail_stale_running_trials(study)
+        # the trials that existed before this run: the gate judges only this run's (TuningGate.run_trials)
+        known_trials = {t.number for t in study.get_trials(deepcopy=False)}
+
+        if is_positional:
+            objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
+                objective_quantum_positional(
+                    trial, suggest_func, fit_func, studyName,
+                    X_train, y_train, X_test, test_actual_ordered, positions, dataset_name, slot_bound=slot_bound
+                )
+        else:
+            objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
+                objective_quantum(
+                    trial, suggest_func, fit_func, studyName,
+                    X_train, y_train, X_test, y_test, n_test_days, game_cfg["draw_size"]
+                )
+
+        studyStart = time.time()
+        # The score table above is inherited by every trial
+        # process through the fork - collected once, fitted many
+        # times in parallel.
+        optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel,
+                       expected_trial_gb=0.5, trial_timeout_seconds=trialTimeout)
+        print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
+        study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
+
+        # The gate (src/TuningGate.py): this run's best trial - never
+        # study.best_params, whose trials were scored on other weeks'
+        # holdout windows - against the served parameters and the untuned
+        # defaults, both re-scored on this run's holdout by this objective.
+        # Until 14 Oct 2026 this run's best trial was written as it was.
+        outcome = challenge(study, known_trials, objective, existingData,
+                            make_defaults(QUANTUM_DEFAULTS[variant_name], existingData),
+                            timeout_seconds=trialTimeout + 60, label=studyName,
+                            margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=n_test_days, se_margin=GATE_SE_MARGIN)
+        print(outcome["summary"])
+        if variant_name == "classical_svm":
+            # what the "default" reference was scored with, since it is not what an untuned row serves (see QUANTUM_DEFAULTS)
+            outcome["record"]["default_note"] = "classicalSvm_gamma 0.25 stands in for sklearn's \"scale\" in the default reference, and is served on a revert"
+        existingData.setdefault("tuningGate", {})[VARIANT_ROWS[variant_name]] = outcome["record"]
+        if outcome["params"] is not None:
+            existingData.update(outcome["params"])
+
+        # Written after EACH study (not once per game) so a crash
+        # in the second study can't throw away the first's result.
+        with open(jsonBestParamsFilePath, "w+") as outfile:
+            json.dump(existingData, outfile, indent=4)
 
 
 if __name__ == "__main__":
@@ -494,6 +678,14 @@ if __name__ == "__main__":
                  'as pruned. Fits are seconds to minutes, this catches a runaway qubit/sample count.')
         parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
         parser.add_argument(
+            '--gate-margin', type=float, default=0.0,
+            help="How much a run's best trial must beat the served parameters and the untuned defaults by, "
+                 "re-scored on this run's holdout, before it is written (src/TuningGate.py)")
+        parser.add_argument('--no-gate', action='store_true', help="Write each study's best trial of this run without the comparison")
+        parser.add_argument(
+            '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
+            help="The margin in standard errors of the challenger's own score; the larger of this and --gate-margin applies")
+        parser.add_argument(
             '-g', '--games',
             type=str,
             # The week games (cryptoweek, sharesweek) are left out by default: three
@@ -513,6 +705,9 @@ if __name__ == "__main__":
         cores = max(1, cpu_count() - 1)
         parallel = cores if int(args.parallel_trials) <= 0 else max(1, min(int(args.parallel_trials), cores))
         trialTimeout = int(args.trial_timeout)
+        GATE_ENABLED = not args.no_gate
+        GATE_MARGIN = float(args.gate_margin)
+        GATE_SE_MARGIN = float(args.gate_se_margin)
 
         print("Push to git: ", pushToGit)
         print("Running ", n_trials, "trials")
@@ -539,101 +734,7 @@ if __name__ == "__main__":
             if dataset_name not in games:
                 continue
             try:
-                print(f"\n{dataset_name.capitalize()}")
-                # Positional games (Pick3, Joker+) are tuned on the positional
-                # table (one classifier per slot = draw_size slots,
-                # argmax-ticket profit objective) instead of the per-number
-                # ranking every other game uses.
-                is_positional = helpers.is_positional_game(dataset_name)
-                positions = positional_positions(game_cfg) if is_positional else None
-
-                collected = collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=lockbox)
-                if collected is None:
-                    continue
-                results, model_names, main_actual_key = collected
-
-                if len(results) < MIN_EVALUATION_DAYS:
-                    print(f"Skipping {dataset_name}: only {len(results)} backtest days collected "
-                          f"(need at least {MIN_EVALUATION_DAYS} for a meaningful 75/25 day split)")
-                    continue
-
-                test_actual_ordered = None
-                if is_positional:
-                    X_train, y_train, X_test, y_test, test_actual_ordered = build_positional_day_split(
-                        results, model_names, positions)
-                    n_test_days = len(test_actual_ordered)
-                else:
-                    X_train, y_train, X_test, y_test, n_test_days = build_day_split(
-                        results, model_names, game_cfg, main_actual_key)
-
-                if len(set(y_train.tolist())) < 2 or len(set(y_test.tolist())) < 2:
-                    # can't fit (or rank) a binary classifier on one class -
-                    # only plausible with a degenerate/truncated data file
-                    print(f"Skipping {dataset_name}: train or holdout labels contain a single class")
-                    continue
-
-                print(f"Tuning on {len(results) - n_test_days} train days / {n_test_days} holdout days "
-                      f"({len(X_train)} / {len(X_test)} table rows)")
-
-                jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
-                existingData = {}
-                if os.path.exists(jsonBestParamsFilePath):
-                    with open(jsonBestParamsFilePath, "r") as infile:
-                        existingData = json.load(infile)
-
-                for variant_name, fit_func, suggest_func in VARIANTS:
-                    studyName = f"{dataset_name}-{variant_name}"
-                    study = open_study(studyName, optunaDatabase, parallel=parallel)
-                    fail_stale_running_trials(study)
-
-                    if is_positional:
-                        objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
-                            objective_quantum_positional(
-                                trial, suggest_func, fit_func, studyName,
-                                X_train, y_train, X_test, test_actual_ordered, positions, dataset_name
-                            )
-                    else:
-                        objective = lambda trial, suggest_func=suggest_func, fit_func=fit_func, studyName=studyName: \
-                            objective_quantum(
-                                trial, suggest_func, fit_func, studyName,
-                                X_train, y_train, X_test, y_test, n_test_days, game_cfg["draw_size"]
-                            )
-
-                    runStart = datetime.now()
-                    studyStart = time.time()
-                    # The score table above is inherited by every trial
-                    # process through the fork - collected once, fitted many
-                    # times in parallel.
-                    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel,
-                                   expected_trial_gb=0.5, trial_timeout_seconds=trialTimeout)
-                    print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
-                    study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
-
-                    # Best of THIS RUN's trials only - study.best_params would
-                    # compare across weeks whose trials were scored on
-                    # different data windows and holdout draws (the objective
-                    # is quantized at 1/n_test_days hits), so one lucky old
-                    # trial could pin best_params indefinitely and silently
-                    # defeat the run-Quantum-before-TrainMetaLearner ordering.
-                    # The study itself stays cumulative for the dashboard.
-                    runTrials = [t for t in study.trials
-                                 if t.state == optuna.trial.TrialState.COMPLETE
-                                 and t.datetime_start is not None and t.datetime_start >= runStart]
-                    if not runTrials:
-                        print(f"No completed trials this run for {studyName} - keeping existing params")
-                        continue
-                    bestTrial = max(runTrials, key=lambda t: t.value)
-                    print(f"Best Parameters for {studyName} (this run): ", bestTrial.params)
-                    print(f"Best Score for {studyName} (this run): ", bestTrial.value,
-                          f"(all-time study best: {study.best_value})")
-
-                    existingData.update(bestTrial.params)
-
-                    # Written after EACH study (not once per game) so a crash
-                    # in the second study can't throw away the first's result.
-                    with open(jsonBestParamsFilePath, "w+") as outfile:
-                        json.dump(existingData, outfile, indent=4)
-
+                tune_game(dataset_name, game_cfg, path, days_back, n_trials, parallel, trialTimeout, optunaDatabase, lockbox)
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 

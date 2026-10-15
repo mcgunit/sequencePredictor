@@ -99,16 +99,21 @@ function describeDiscrimination(record) {
   // Evidence needs both: clearing the null band AND beating the shuffled
   // history, otherwise the classifier is reading marginals a fair process
   // reproduces anyway.
-  const evidence = aboveBand && survivesMarginals;
+  // An underpowered record (RandomnessDiscrimination.POWER_CEILING: the null band's ceiling at 0.8 or more)
+  // can show nothing either way; older records without the flag are read by the same rule.
+  const threshold = num(v.null_threshold_2sd);
+  const tooFew = v.too_few_draws === undefined ? (threshold !== null && threshold >= 0.8) : Boolean(v.too_few_draws);
+  const evidence = aboveBand && survivesMarginals && !tooFew;
   return {
-    evidence, aboveBand, survivesMarginals,
+    evidence, aboveBand, survivesMarginals, tooFew,
+    windowsTest: num(v.windows_test !== undefined ? v.windows_test : (record.shape || {}).windows_test),   // older records carry it in shape only
     real: v.real_max_of_suite_mean, realSd: v.real_max_of_suite_sd,
     nullMean: v.null_max_of_suite_mean, nullSd: v.null_max_of_suite_sd,
     threshold: v.null_threshold_2sd, shuffled: v.shuffled_max_of_suite_mean,
     window: record.window, repetitions: record.repetitions, draws: record.draws,
     quantum: Boolean(record.quantum), generatedAt: record.generated_at || null,
-    label: evidence ? 'ABOVE the null band'
-      : (aboveBand ? 'above the band, but no better than the shuffled control' : 'within the null band'),
+    label: tooFew ? 'too few draws' : (evidence ? 'ABOVE the null band'
+      : (aboveBand ? 'above the band, but no better than the shuffled control' : 'within the null band')),
   };
 }
 
@@ -140,15 +145,21 @@ function describeFeatureControl(record) {
     const v = record.variants[key] || {};
     const noise = v.noise || {};
     const fitsNoise = Boolean(v.fits_noise);
+    // "inconclusive" (FeatureControl.summarise, 14 Oct 2026): the noise ratio is exceeded but not the t limit;
+    // an older record without the field is read by the same rule
+    const ratio = num(noise.noise_to_real_ratio);
+    const inconclusive = !fitsNoise && (v.inconclusive === undefined ? (ratio !== null && ratio > 0.1) : Boolean(v.inconclusive));
     return {
       key, label: VARIANT_LABELS[key] || key,
       error: v.error || null,
-      fitsNoise, verdict: v.error ? 'failed' : (fitsNoise ? 'fits noise' : 'noise ignored'),
+      fitsNoise, inconclusive, verdict: v.error ? 'failed' : (fitsNoise ? 'fits noise' : (inconclusive ? 'inconclusive' : 'noise ignored')),
       noiseShare: num(noise.share_of_train_importance), noiseRatio: num(noise.noise_to_real_ratio),
       noiseT: num(noise.train_t), band: num(noise.heldout_band),
       above: Array.isArray(v.real_above_noise_band) ? v.real_above_noise_band.map(String) : [],
       heldoutWithout: num(v.heldout_auc_without_noise), heldoutWith: num(v.heldout_auc_with_noise_mean),
-      cost: num(v.heldout_cost_of_noise), seconds: num(v.seconds), rule: v.rule || '',
+      cost: num(v.heldout_cost_of_noise), seconds: num(v.seconds),
+      // a record written before the third verdict existed carries a rule without it; the tooltip gets the clause anyway
+      rule: (v.rule || '') + (inconclusive && !/inconclusive/.test(v.rule || '') ? ' Inconclusive: the noise ratio is exceeded but the pooled noise importance is not two standard errors above zero - the repeats disagree, too few to say.' : ''),
     };
   });
   const table = record.table || {};

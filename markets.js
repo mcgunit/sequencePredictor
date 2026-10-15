@@ -89,6 +89,7 @@ function describeRows(record) {
     market: record.market, generatedAt: record.generated_at || null, days: num(record.days_scored), requested: num(record.days_requested),
     firstDay: record.first_day || null, lastDay: record.last_day || null, uniform, reference: String(record.reference || ''),
     referenceRow: reference, floor: num(record.probability_floor), rows, lockboxWithheld: num(record.lockbox_days_withheld) || 0,
+    hmmFeatures: record.hmm_features ? String(record.hmm_features) : null,   // the feature set the three Regime HMM rows ran on (MarketRows, 14 Oct 2026)
     betterThanReference: rows.filter((r) => r.vsReference && r.vsReference.verdict === 'better').map((r) => r.name),
     referenceAboveUniform: !!(reference && reference.vsUniform && reference.vsUniform.verdict === 'better'),
     errors: record.errors && typeof record.errors === 'object' ? record.errors : {},
@@ -103,6 +104,7 @@ function describeRegimes(record, symbols) {
     return {
       row, date: latest.date || null, regimes: num(latest.regimes), label: String(latest.label || ''), template: latest.template === null || latest.template === undefined ? null : num(latest.template),
       probability: num(latest.probability), volatilityRank: num(latest.volatility_rank),
+      features: Array.isArray(latest.features) ? latest.features.map(String) : null,   // the row's feature set (MarketModels' regime log, 14 Oct 2026)
       expected: Array.isArray(latest.expected_return) ? latest.expected_return.map((v, i) => ({ symbol: symbols && symbols[i] ? symbols[i] : `#${i + 1}`, value: num(v) })) : [],
       volatility: Array.isArray(latest.volatility) ? latest.volatility.map((v) => num(v)) : [],
       history: record[row].length,
@@ -700,6 +702,17 @@ function followedSection(f, { unit, noun, ruleName, unitWord, unitWords, chartId
   return html;
 }
 
+// What the Regime HMM rows' feature set means for the ablation reading (14 Oct 2026: the 10 Oct studies chose
+// "returns" alone in all four markets, which changed what the Single row is without the page saying so).
+function hmmFeaturesNote(features) {
+  if (!features) return '';
+  const set = String(features).split(',').map((f) => f.trim()).filter(Boolean);
+  const returnsOnly = set.length === 1 && set[0] === 'returns';
+  return `The three Regime HMM rows run on one tuned feature set, <b>${esc(set.join(', '))}</b>, shared on purpose so the ablations stay ablations.${returnsOnly
+    ? ' On returns alone, <i>Single</i> is a Gaussian with a constant mean and variance per instrument - a random walk with drift - so "not better than <i>Single</i>" says the returns hold no regimes in mean or variance; the volatility and momentum columns are not in play.'
+    : ' With volatility and momentum in the set, <i>Single</i> is a linear regression of the returns on those columns, so "not better than <i>Single</i>" says the regimes add nothing to that regression.'}`;
+}
+
 function page(market, view, header, footer, user, now = new Date()) {
   const meta = MARKETS[market];
   let html = header(meta.title, user);
@@ -1051,7 +1064,8 @@ function page(market, view, header, footer, user, now = new Date()) {
       probabilities and punishes overconfidence, so a row cannot win it by betting on the same bin every day. The uniform forecast scores ${rep.uniform === null ? '-' : rep.uniform.toFixed(3)}
       (log of 1/${view.k}); a probability under ${rep.floor === null ? '-' : rep.floor} is scored as ${rep.floor === null ? '-' : rep.floor}.${rep.lockboxWithheld ? ` ${rep.lockboxWithheld} lockbox day(s) withheld.` : ''}</p>
       <p>Walk-forward, every day refitted on the past only (MarketRows.py, Sundays). "Better" and "worse" are read off the interval, not the point estimate. The two ablation rows
-      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.</p>`, 'how rows are judged')}
+      say what the Regime HMM's regimes are made of: if the full row is not better than <i>ZeroMean</i>, the regimes carry variance only; if it is not better than <i>Single</i>, there are no regimes worth the name.
+      ${hmmFeaturesNote(rep.hmmFeatures)}</p>`, 'how rows are judged')}
       <div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th title="mean over days of the mean over instruments of log p(actual bin); higher is better">Log-score</th>
       <th title="difference to the GARCH row, 95% paired bootstrap interval over days">vs GARCH</th><th title="difference to the uniform forecast">vs uniform</th><th>Exact</th><th>Adjacent</th><th>Direction</th><th>Trades</th><th title="fixed rule with the real returns and the fee, in units of price (0.01 = 1%)">P&amp;L</th></tr>${table}</table></div>
       <p style="color:#7f8c8d; font-size:0.85em;">${failedRowsNote(rep.errors)}
@@ -1060,16 +1074,18 @@ function page(market, view, header, footer, user, now = new Date()) {
 
   // the regime reading (the Regime HMM rows' templates)
   if (view.regimes.length) {
+    const featureSets = [...new Set(view.regimes.map((r) => (r.features ? r.features.join(',') : null)).filter(Boolean))];
     let table = '';
     view.regimes.forEach((r) => {
-      table += `<tr><td style="text-align:left; font-weight:bold;">${esc(r.row)}</td><td>${esc(r.date || '-')}</td><td>${r.regimes === null ? '-' : r.regimes}</td>
+      table += `<tr><td style="text-align:left; font-weight:bold;">${esc(r.row)}</td><td>${esc(r.date || '-')}</td><td>${r.regimes === null ? '-' : r.regimes}</td><td>${r.features ? esc(r.features.join(', ')) : '-'}</td>
         <td>${r.template === null ? '-' : `T${r.template}`}${r.label ? ` <span style="color:#7f8c8d;">(${esc(r.label)}${r.volatilityRank !== null && r.regimes !== null && r.regimes > 1 ? `, ${r.volatilityRank} of ${r.regimes} by volatility` : ''})</span>` : ''}</td>
         <td>${pct(r.probability, 0)}</td><td style="text-align:left; font-size:0.85em;">${r.expected.map((e) => `${esc(e.symbol)} ${e.value === null ? '-' : (e.value * 100).toFixed(2) + '%'}`).join(', ')}</td></tr>`;
     });
     bg += asDetail(`<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">Regime reading</span>
       <span class="card-meta" style="margin-left:10px;">which regime the Regime HMM rows believe the market is in, after the newest game day</span></div><div class="card-icon">▼</div></div>
-      <div class="card-body"><div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th>After</th><th>Regimes</th><th title="a persistent template matched across the daily refits by the Wasserstein distance between the regime Gaussians; calm / normal / turbulent by the regime's volatility against the market's">Template</th><th>Probability</th><th style="text-align:left;">Expected next-day return</th></tr>${table}</table></div>
-      ${help(`<p>A regime is a Gaussian over the ${esc(meta.noun)}s' returns and their recent volatility and momentum; the label is the volatility of the dominant regime against the market's, the template number keeps its identity across refits.</p>`, 'what a regime is')}
+      <div class="card-body"><div class="table-wrapper"><table><tr><th style="text-align:left;">Row</th><th>After</th><th>Regimes</th><th title="the columns the row's Gaussians are fitted on: returns, and with vol / mom the instruments' recent volatility and momentum - one tuned set shared by the three rows">Features</th><th title="a persistent template matched across the daily refits by the Wasserstein distance between the regime Gaussians; calm / normal / turbulent by the regime's volatility against the market's">Template</th><th>Probability</th><th style="text-align:left;">Expected next-day return</th></tr>${table}</table></div>
+      ${help(`${featureSets.length === 1 ? `<p>${hmmFeaturesNote(featureSets[0])}</p>` : (featureSets.length > 1
+        ? `<p>The rows' newest readings are on different feature sets - ${view.regimes.filter((r) => r.features).map((r) => `${esc(r.row)}: ${esc(r.features.join(', '))}`).join('; ')} - a row whose newest entry is older than the others' (the Features column shows each row's).</p>` : '')}<p>A regime is a Gaussian over the ${esc(meta.noun)}s' returns${featureSets.some((f) => /vol|mom/.test(f)) || !featureSets.length ? ' and their recent volatility and momentum' : ''}; the label is the volatility of the dominant regime against the market's, the template number keeps its identity across refits.</p>`, 'what a regime is')}
       <p style="color:#7f8c8d; font-size:0.85em;">The expected return is the mixture's mean per ${esc(meta.noun)} - a reading, not a recommendation.</p></div></div>`);
   }
 

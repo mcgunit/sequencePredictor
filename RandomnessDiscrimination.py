@@ -213,10 +213,23 @@ def run_comparison(game, name, window, seed, draws_kept, skip_quantum):
                      "features": int(X.shape[1])}
 
 
+# A null band whose ceiling (mean + 2 sd of the best-of-suite AUC on FAIR
+# draws) reaches this is a test that cannot see anything: fair draws alone
+# score that high because the held-out windows are few, so nothing short of
+# near-perfect separation could clear it. On the 11 Oct 2026 records the
+# games with 496 held-out windows had ceilings of 0.60-0.75, the shares week
+# (208) 0.83, eurodreams and vikinglotto (148) 0.89 and 1.00, the crypto week
+# (106) 0.97. Such a record reads "too few draws", not "no evidence".
+POWER_CEILING = 0.80
+
+
 def compute_verdict(record):
     """
     The verdict has to compare LIKE WITH LIKE, and getting that wrong is the
     error this whole experiment exists to expose.
+
+    A record whose null band's ceiling reaches POWER_CEILING is underpowered:
+    "too_few_draws" is set and the page reads it as such (14 Oct 2026).
 
     Each repetition runs a suite of seven classifiers and the interesting
     number is the best of them - but the best of seven is biased upwards even
@@ -249,6 +262,8 @@ def compute_verdict(record):
     null_mean, null_sd = stats(null_values)
     shuffled_mean, shuffled_sd = stats(shuffled_values)
     threshold = null_mean + 2 * null_sd
+    too_few = bool(threshold == threshold and threshold >= POWER_CEILING)
+    windows_test = (record.get("shape") or {}).get("windows_test")
 
     def number(value):
         # A comparison whose whole suite failed has no mean: None, not NaN -
@@ -266,6 +281,11 @@ def compute_verdict(record):
         "per_seed_shuffled": [round(v, 4) for v in shuffled_values],
         "above_null_band": bool(real_mean > threshold),
         "survives_marginals_control": bool(real_mean > shuffled_mean),
+        "too_few_draws": too_few,
+        "windows_test": int(windows_test) if isinstance(windows_test, int) else None,
+        "power_rule": (f"too few draws when the null band's ceiling (mean + 2 sd of the best-of-suite AUC on fair draws) "
+                       f"is {POWER_CEILING:g} or more: fair draws alone reach it, so nothing short of near-perfect "
+                       f"separation could clear it - the case below about 250 held-out windows, both classes together"),
     }
 
 
@@ -284,7 +304,7 @@ def reanalyze():
         print(f"{record['game']:<14} real {v['real_max_of_suite_mean']:.3f} +/- {v['real_max_of_suite_sd']:.3f} | "
               f"null {v['null_max_of_suite_mean']:.3f} +/- {v['null_max_of_suite_sd']:.3f} | "
               f"shuffled {v['shuffled_max_of_suite_mean']:.3f} | "
-              f"{'ABOVE the null band' if v['above_null_band'] else 'within the null band - no evidence'}")
+              f"{'too few draws' if v.get('too_few_draws') else ('ABOVE the null band' if v['above_null_band'] else 'within the null band - no evidence')}")
     return 0
 
 
@@ -353,7 +373,10 @@ def main():
 
         print(f"  best-of-suite per repetition: real {real:.3f} +/- {verdict['real_max_of_suite_sd']:.3f} | "
               f"shuffled {shuffled:.3f} | null {null_mean:.3f} +/- {null_sd:.3f} (threshold {threshold:.3f})")
-        if real <= null:
+        if verdict["too_few_draws"]:
+            print(f"  -> too few draws: the null band's ceiling is {threshold:.3f} (fair draws alone reach it with "
+                  f"{verdict['windows_test'] or '?'} held-out windows), so this record cannot show evidence either way")
+        elif real <= null:
             print("  -> no evidence: the real comparison does not clear what this pipeline scores on "
                   "two histories known to be identical in law.")
         elif real <= shuffled:
