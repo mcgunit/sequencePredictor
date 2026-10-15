@@ -22,7 +22,7 @@ from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
 from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
 from src.BoostingBase import apply_boosting_params, BOOSTING_PARAM_SUFFIXES
 from src.TuningScore import score_rows, attrs_for_trial, describe
-from src.TuningGate import challenge, make_defaults
+from src.TuningGate import challenge, make_defaults, prune_keno_flags
 from src.Lockbox import load as load_lockbox, window_overlap as lockbox_overlap, describe as describe_lockbox
 from src.Command import Command
 from src.Helpers import Helpers
@@ -867,6 +867,9 @@ if __name__ == "__main__":
                     })
                     existingData["modelScores"] = modelScores
 
+                pruned = prune_keno_flags(existingData)
+                if pruned:
+                    print(f"Dropped {pruned} stale per-model Keno subset flag(s) from bestParams_{dataset_name}.json")
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)
 

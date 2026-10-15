@@ -158,6 +158,7 @@ function describeFeatureControl(record) {
       above: Array.isArray(v.real_above_noise_band) ? v.real_above_noise_band.map(String) : [],
       heldoutWithout: num(v.heldout_auc_without_noise), heldoutWith: num(v.heldout_auc_with_noise_mean),
       cost: num(v.heldout_cost_of_noise), seconds: num(v.seconds),
+      realColumns: v.columns && typeof v.columns === 'object' ? Object.keys(v.columns).length : null,   // the base-model columns tested
       // a record written before the third verdict existed carries a rule without it; the tooltip gets the clause anyway
       rule: (v.rule || '') + (inconclusive && !/inconclusive/.test(v.rule || '') ? ' Inconclusive: the noise ratio is exceeded but the pooled noise importance is not two standard errors above zero - the repeats disagree, too few to say.' : ''),
     };

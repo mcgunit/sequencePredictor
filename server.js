@@ -1274,6 +1274,8 @@ function generateFeatureControl() {
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (x, digits) => (x === null || x === undefined || !Number.isFinite(Number(x))) ? '-' : Number(x).toFixed(digits);
+  let columnMin = Infinity, columnMax = 0;   // the base-model columns the tested variants had (per game), for the help's chance figure
+  const weeksFor = (n) => Math.max(2, Math.round(1 / (1 - Math.pow(1 - 0.0228, n))));   // 1 - 0.9772^n: at least one of n columns clears a one-sided two-sigma band
   let rows = '';
   let anyFits = false;
   let newest = '';
@@ -1284,13 +1286,14 @@ function generateFeatureControl() {
     if (d.anyFitsNoise) anyFits = true;
     if (d.generatedAt && String(d.generatedAt) > newest) newest = String(d.generatedAt);
     const gameCell = `<td rowspan="${d.variants.length || 1}" style="text-align:left; font-weight:bold; vertical-align:top;">${esc(game)}<br>`
-      + `<small style="color:#7f8c8d; font-weight:normal;">${d.tableDays === null ? '?' : d.tableDays} table days${d.positional ? ' (positional)' : ''}`
+      + `<small style="color:#7f8c8d; font-weight:normal;">${d.tableDays === null ? '?' : d.tableDays} table days${d.positional ? ' (positional)' : ''}${(() => { const n = Math.max(0, ...d.variants.map((v) => v.realColumns || 0)); return n ? `, ${n} base-model columns` : ''; })()}`
       + `${d.lockboxDays ? `, ${d.lockboxDays} lockbox day(s) withheld` : ''}${d.behind ? `, ${d.behind} draw(s) behind the file` : ''} · ${d.repeats === null ? '?' : d.repeats} × ${d.noiseColumns === null ? '?' : d.noiseColumns} noise columns</small></td>`;
     if (!d.variants.length) {
       rows += `<tr>${gameCell}<td colspan="5" style="color:#aaa;">no variant was scored</td></tr>`;
       return;
     }
     d.variants.forEach((v, i) => {
+      if (v.realColumns) { columnMin = Math.min(columnMin, v.realColumns); columnMax = Math.max(columnMax, v.realColumns); }
       const verdict = v.error
         ? `<span style="color:#aaa;" title="${esc(v.error)}">failed</span>`
         : `<span style="${v.fitsNoise ? 'color:#e74c3c; font-weight:bold;' : (v.inconclusive ? 'color:#e67e22;' : 'color:#27ae60;')}" title="${esc(v.rule)}">${v.verdict}${v.fitsNoise ? ' ⚠' : ''}</span>`;
@@ -1330,8 +1333,8 @@ function generateFeatureControl() {
           <b>Held-out AUC</b> without → with noise is what the extra columns cost. The <b>base models above the noise band</b>
           are the columns whose held-out importance exceeds what the noise columns score (their mean + 2 sd): the ones that carry
           more than noise does. Importance is the ranking power lost when a column is scrambled (the drop in |AUC − 0.5|), so a
-          model whose probabilities came out inverted still shows what it leans on. With eight base models tested against a
-          two-sigma band, one clears it by chance about one week in five: a column counts when it stays above the band week after
+          model whose probabilities came out inverted still shows what it leans on. With ${(() => { const lo = Number.isFinite(columnMin) ? columnMin : 8, hi = columnMax || 8; return lo === hi ? `${lo} base-model columns` : `${lo} to ${hi} base-model columns (the count is in each game's cell)`; })()} tested against a
+          two-sigma band, per meta-learner row, one clears it by chance about one week in ${(() => { const lo = Number.isFinite(columnMin) ? columnMin : 8, hi = columnMax || 8; return lo === hi ? weeksFor(lo) : `${weeksFor(hi)} to ${weeksFor(lo)}`; })()}: a column counts when it stays above the band week after
           week, not when it appears once. The lockbox days leave the table first, exactly as in the trainer.
         </p>`, 'how the control works')}
         <div class="table-wrapper">

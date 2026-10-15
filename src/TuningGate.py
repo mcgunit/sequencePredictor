@@ -56,6 +56,23 @@ except ImportError:  # imported from inside src/
 KENO_USE_KEY = re.compile(r"^(?P<model>.+)_use_(?P<size>\d+)$")
 
 
+def prune_keno_flags(served):
+    """
+    Removes the per-model Keno flags from a bestParams dict and returns how
+    many went. No tuner has suggested them since September 2026 (the
+    statistical and boosting tuners score every row on the game's global
+    use_<n> sizes, served_keno_subsets) and Predictor never read them
+    (getKenoSubsetSizes reads the global flags only), so the 84 of them in
+    production's bestParams_keno.json were inert; the tuners drop them when
+    they write the file (15 Oct 2026). make_defaults keeps understanding the
+    name for the old studies' trials.
+    """
+    stale = [name for name in list(served) if KENO_USE_KEY.match(name)]
+    for name in stale:
+        del served[name]
+    return len(stale)
+
+
 def make_defaults(table, served):
     """
     What Predictor.py serves for a tuned key that bestParams_<game>.json does
@@ -368,6 +385,8 @@ if __name__ == "__main__":
     known = {0, 1}
     table = {"xEstimators": 100, "xDepth": 3}
     served = {"xEstimators": 10, "xDepth": 2, "m_use_5": True, "m_use_6": True, "use_5": True, "use_6": False}
+    pruned = dict(served)
+    check(prune_keno_flags(pruned) == 2 and pruned == {"xEstimators": 10, "xDepth": 2, "use_5": True, "use_6": False}, f"prune_keno_flags drops the per-model flags only: {pruned}")
 
     calls = []
 

@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-15-ensemble-gate-and-quantum-keno-subsets',
+    date: '2026-10-15',
+    level: 'minor',
+    audience: 'all',
+    title: 'The last tuner goes through the gate; the quantum rows\' Keno subsets are tuned too',
+    body: [
+      'The SubsetEnsemble Model\'s row selection is now written only if it beats the served selection and the plain vote of every candidate row on the same days, by one standard error of its own score - the champion/challenger gate every other weekly tuner uses, with the one-standard-error margin the boosting and quantum tuners have. It was the last one of the Saturday chain without a gate; the decision is recorded under tuningGate in the game\'s bestParams file, like the others. A selection whose rows the pipeline no longer emits is scored as nothing, so the row is revived rather than kept.',
+      'The two quantum meta-learners and their classical control now take part in the Keno subset tuning: how their ranked numbers are cut into the 5- to 10-number plays is searched the way it already was for the MetaLearner and MetaLearnerV2 rows, instead of the untuned default.',
+      'Housekeeping: 84 leftover per-model Keno flags that nothing has read since September are dropped from the Keno settings at the next tuning run, and the feature-control card shows each game\'s base-model column count instead of saying "eight base models".',
+    ],
+    link: { href: '/database', label: 'History page' },
+  },
+  {
     id: '2026-10-14-quantum-gate-and-control-readings',
     date: '2026-10-14',
     level: 'minor',

@@ -137,7 +137,7 @@ const JOBS = [
   {
     key: 'hyperoptEnsemble',
     name: 'Weekly tuning: ensemble subsets',
-    description: 'Selects the rows SubsetEnsemble Model votes over, from the stored day JSONs (HyperoptEnsemble.py).',
+    description: 'Selects the rows SubsetEnsemble Model votes over, from the stored day JSONs, through the champion/challenger gate since 15 Oct 2026 (HyperoptEnsemble.py).',
     script: 'HyperoptEnsemble.py', args: [], log: 'hyperoptEnsemble.log', plan: CHAIN_PLAN,
   },
   {

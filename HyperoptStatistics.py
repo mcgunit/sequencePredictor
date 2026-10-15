@@ -25,7 +25,7 @@ from src.HybridStatisticalModel import HybridStatisticalModel
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, prepare_foundation_scores
 from src.MarketModels import GARCH_NAME, HMM_NAME, LOG_FLOOR, MARKET_DEFAULTS, build_market_models
 from src.TuningScore import score_rows, score_bets_by_day, attrs_for_trial, describe
-from src.TuningGate import challenge, make_defaults
+from src.TuningGate import challenge, make_defaults, prune_keno_flags
 from src.Lockbox import load as load_lockbox, window_overlap as lockbox_overlap, describe as describe_lockbox
 from src.Command import Command
 from src.Helpers import Helpers, MARKET_GAMES
@@ -516,6 +516,18 @@ def objective_regime_hmm(trial, dataset_name, dataPath, game_cfg, days_to_rebuil
 
 _KENO_SUBSET_TUNING_CACHE = {}
 
+# The meta rows whose Keno sub-selection mode/temperature the subset tuning searches, with their artifact
+# (data/models/keno/) and the bestParams keys Predictor.runMetaLearnerVariant reads for them. The quantum
+# rows and the classical control joined on 15 Oct 2026 (the owner's item 3): until then they played the
+# untuned softmax / 0.5 defaults while the classical meta rows were tuned.
+KENO_SUBSET_META_ROWS = {
+    "meta": ("meta_learner.joblib", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature"),
+    "meta_v2": ("meta_learner_v2.joblib", "metaLearnerV2SubsetMode", "metaLearnerV2SubsetTemperature"),
+    "quantum_kernel": ("quantum_meta_learner.joblib", "quantumMetaLearnerSubsetMode", "quantumMetaLearnerSubsetTemperature"),
+    "quantum_vqc": ("quantum_vqc_meta_learner.joblib", "quantumVqcSubsetMode", "quantumVqcSubsetTemperature"),
+    "classical_svm": ("classical_svm_meta_learner.joblib", "classicalSvmSubsetMode", "classicalSvmSubsetTemperature"),
+}
+
 
 def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
     """
@@ -528,7 +540,10 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
     mode/temperature objective_keno_subset_tuning searches over.
 
     Returns {"subset_sizes": [...], "days": [{"actual", "weighted_ticket",
-    "weighted_scores", "meta_ticket"|None, "meta_scores"|None}, ...]}.
+    "weighted_scores", and per meta row "<row>_ticket"|None, "<row>_scores"|None
+    for the rows of KENO_SUBSET_META_ROWS}, ...]}. Since 15 Oct 2026 the two
+    quantum meta-learners and their classical control are in the table too:
+    their rows played Keno subsets with the untuned softmax/0.5 defaults.
     """
     bestParamsPath = os.path.join(os.getcwd(), f"bestParams_{dataset_name}.json")
     bestParams = {}
@@ -617,8 +632,7 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
             print(f"Failed to load {filename} for {dataset_name}, skipping its subset tuning: {e}")
             return None
 
-    meta_artifact = load_meta_artifact("meta_learner.joblib")
-    meta_v2_artifact = load_meta_artifact("meta_learner_v2.joblib")
+    artifacts = {row: load_meta_artifact(filename) for row, (filename, _mode, _temperature) in KENO_SUBSET_META_ROWS.items()}
 
     def rank_by_meta_artifact(artifact, row):
         feature_names = artifact["feature_names"]
@@ -650,17 +664,20 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
             "actual": actual,
             "weighted_ticket": weighted_ticket_entry["predictions"][0],
             "weighted_scores": weighted_scores,
-            "meta_ticket": None,
-            "meta_scores": None,
-            "meta_v2_ticket": None,
-            "meta_v2_scores": None,
         }
-
-        if meta_artifact is not None:
-            day["meta_ticket"], day["meta_scores"] = rank_by_meta_artifact(meta_artifact, row)
-
-        if meta_v2_artifact is not None:
-            day["meta_v2_ticket"], day["meta_v2_scores"] = rank_by_meta_artifact(meta_v2_artifact, row)
+        for meta_row, artifact in artifacts.items():
+            if artifact is None:
+                day[f"{meta_row}_ticket"], day[f"{meta_row}_scores"] = None, None
+                continue
+            try:
+                day[f"{meta_row}_ticket"], day[f"{meta_row}_scores"] = rank_by_meta_artifact(artifact, row)
+            except Exception as e:
+                # one artifact's inference failing (a class attribute renamed between the Saturday training and this
+                # run, a non-finite column) drops its own row from the table, not the game's write - as Predictor's
+                # runMetaLearnerVariant isolates each row (review of 15 Oct 2026)
+                print(f"{dataset_name} keno subsets: {meta_row} artifact failed to score a day ({e}) - its row is left out")
+                artifacts[meta_row] = None
+                day[f"{meta_row}_ticket"], day[f"{meta_row}_scores"] = None, None
 
         days.append(day)
 
@@ -670,8 +687,10 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
 def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
     """
     Tunes Helpers.generate_subset_from_scores' mode/temperature for
-    WeightedEnsemble Model, MetaLearner Model, and MetaLearnerV2 Model - Keno
-    only (the only game with sub-selections). Unlike every other objective
+    WeightedEnsemble Model and the meta rows of KENO_SUBSET_META_ROWS
+    (MetaLearner, MetaLearnerV2, and since 15 Oct 2026 QuantumMetaLearner,
+    QuantumVQC and ClassicalSVM) - Keno only (the only game with
+    sub-selections). Unlike every other objective
     above, this doesn't re-tune any base model or subset size choice; it
     reuses the (cached, one-time) backtest from build_keno_ensemble_day_data
     and only searches over how each ensemble's already-ranked ticket gets
@@ -688,37 +707,23 @@ def objective_keno_subset_tuning(trial, dataset_name, dataPath, game_cfg, days_t
     if not cached["days"]:
         return float("-inf")
 
-    weighted_mode = trial.suggest_categorical("weightedEnsembleSubsetMode", ["top", "softmax"])
-    weighted_temperature = trial.suggest_float("weightedEnsembleSubsetTemperature", 0.05, 2.0)
-    meta_mode = trial.suggest_categorical("metaLearnerSubsetMode", ["top", "softmax"])
-    meta_temperature = trial.suggest_float("metaLearnerSubsetTemperature", 0.05, 2.0)
-    meta_v2_mode = trial.suggest_categorical("metaLearnerV2SubsetMode", ["top", "softmax"])
-    meta_v2_temperature = trial.suggest_float("metaLearnerV2SubsetTemperature", 0.05, 2.0)
+    # one (mode, temperature) pair per row - the weighted vote and every meta row the table holds
+    settings = {"weighted": (trial.suggest_categorical("weightedEnsembleSubsetMode", ["top", "softmax"]),
+                             trial.suggest_float("weightedEnsembleSubsetTemperature", 0.05, 2.0))}
+    for meta_row, (_filename, mode_key, temperature_key) in KENO_SUBSET_META_ROWS.items():
+        settings[meta_row] = (trial.suggest_categorical(mode_key, ["top", "softmax"]),
+                              trial.suggest_float(temperature_key, 0.05, 2.0))
 
     bets_by_day = []
 
     for day in cached["days"]:
         day_bets = []
         for subset_size in cached["subset_sizes"]:
-            subset = helpers.generate_subset_from_scores(
-                day["weighted_scores"], day["weighted_ticket"], subset_size,
-                mode=weighted_mode, temperature=weighted_temperature)
-            profit = helpers.keno_ticket_profit(subset, day["actual"])
-            if profit is not None:
-                day_bets.append((profit, subset_size))
-
-            if day["meta_ticket"] is not None:
-                subset = helpers.generate_subset_from_scores(
-                    day["meta_scores"], day["meta_ticket"], subset_size,
-                    mode=meta_mode, temperature=meta_temperature)
-                profit = helpers.keno_ticket_profit(subset, day["actual"])
-                if profit is not None:
-                    day_bets.append((profit, subset_size))
-
-            if day["meta_v2_ticket"] is not None:
-                subset = helpers.generate_subset_from_scores(
-                    day["meta_v2_scores"], day["meta_v2_ticket"], subset_size,
-                    mode=meta_v2_mode, temperature=meta_v2_temperature)
+            for meta_row, (mode, temperature) in settings.items():
+                ticket, scores = day.get(f"{meta_row}_ticket"), day.get(f"{meta_row}_scores")
+                if ticket is None:
+                    continue
+                subset = helpers.generate_subset_from_scores(scores, ticket, subset_size, mode=mode, temperature=temperature)
                 profit = helpers.keno_ticket_profit(subset, day["actual"])
                 if profit is not None:
                     day_bets.append((profit, subset_size))
@@ -791,6 +796,12 @@ SERVED_DEFAULTS = {
     "metaLearnerSubsetTemperature": 0.5,
     "metaLearnerV2SubsetMode": "softmax",
     "metaLearnerV2SubsetTemperature": 0.5,
+    "quantumMetaLearnerSubsetMode": "softmax",
+    "quantumMetaLearnerSubsetTemperature": 0.5,
+    "quantumVqcSubsetMode": "softmax",
+    "quantumVqcSubsetTemperature": 0.5,
+    "classicalSvmSubsetMode": "softmax",
+    "classicalSvmSubsetTemperature": 0.5,
 }
 # The market rows' defaults are not copied by hand: build_market_models reads
 # MarketModels.MARKET_DEFAULTS, and so does the gate, from the same table.
@@ -1111,6 +1122,9 @@ if __name__ == "__main__":
                     })
                     existingData["modelScores"] = modelScores
 
+                pruned = prune_keno_flags(existingData)
+                if pruned:
+                    print(f"Dropped {pruned} stale per-model Keno subset flag(s) from bestParams_{dataset_name}.json")
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)
 

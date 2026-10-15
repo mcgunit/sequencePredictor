@@ -12,6 +12,7 @@ from datetime import datetime
 
 from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, install_sigterm_handler
+from src.TuningGate import challenge, make_defaults
 
 helpers = Helpers()
 
@@ -103,6 +104,16 @@ DEFAULT_MAX_EVALUATIONS = 16384
 # search evaluated at most this many, otherwise the top ones - so the study
 # is the ranking of this run, without duplicates.
 DEFAULT_RECORD_TRIALS = 256
+
+# The champion/challenger gate (src/TuningGate.py, since 15 Oct 2026 - the last tuner of the Saturday chain that
+# wrote its result without one): this run's best combination is written only if it beats the served selection
+# and the plain vote (every candidate row, weighted - the WeightedEnsemble Model over the same rows), both
+# re-scored on this run's days by this objective, and by GATE_SE_MARGIN standard errors of its own score; the
+# plain vote is served back when it beats both. The record is bestParams["tuningGate"]["SubsetEnsemble Model"].
+GATE_ENABLED = True
+GATE_MARGIN = 0.0
+GATE_SE_MARGIN = 1.0
+GATE_TIMEOUT_SECONDS = 300    # one subset scores in milliseconds; the reference evaluations run in a forked child
 
 
 def is_running():
@@ -295,10 +306,11 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     will serve them (Helpers.build_vote_ensemble_predictions) on every
     evaluation day where all of them exist, and scored per day like the
     report scores the served rows - profit per bet for Keno, main-ticket hits
-    otherwise. Returns {"value", "mean", "days"} with value the lower
+    otherwise. Returns {"value", "mean", "days", "se"} with value the lower
     confidence bound mean - confidencePenalty * std / sqrt(days) of that
     per-day series (positional games add SLOT_ACCURACY_WEIGHT x the mean
-    share of slots the ticket got right), or None when the subset is
+    share of slots the ticket got right) and se that standard error
+    std / sqrt(days), the unit of the gate's margin, or None when the subset is
     infeasible: fewer than two
     members, or members that coexist on less than MIN_TRIAL_COVERAGE of the
     window (and at least MIN_EVALUATION_DAYS).
@@ -345,10 +357,11 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     daily = np.array(daily, dtype=float)
     mean = float(daily.mean())
     std = float(daily.std(ddof=1)) if len(daily) > 1 else 0.0
-    value = mean - float(confidencePenalty) * std / np.sqrt(len(daily))
+    se = float(std / np.sqrt(len(daily)))
+    value = mean - float(confidencePenalty) * se
     if slotAccuracy:
         value += SLOT_ACCURACY_WEIGHT * float(np.mean(slotAccuracy))
-    return {"value": value, "mean": mean, "days": len(daily)}
+    return {"value": value, "mean": mean, "days": len(daily), "se": se}
 
 
 def search_subsets(candidates, evaluate, max_evaluations):
@@ -360,7 +373,7 @@ def search_subsets(candidates, evaluate, max_evaluations):
     until no neighbour improves or the budget is spent. Every combination is
     evaluated at most once (memoized), so the returned ranking has no
     duplicates. Returns (ranking best-first as [(value, members, weighted,
-    mean, days)], evaluated combinations, infeasible combinations, how).
+    mean, days, se)], evaluated combinations, infeasible combinations, how).
     """
     k = len(candidates)
     cache = {}
@@ -418,7 +431,7 @@ def search_subsets(candidates, evaluate, max_evaluations):
                 current, mask, weighted = bestMove
 
     ranking = sorted(
-        ((result["value"], [name for name, on in zip(candidates, mask) if on], weighted, result["mean"], result["days"])
+        ((result["value"], [name for name, on in zip(candidates, mask) if on], weighted, result["mean"], result["days"], result.get("se"))
          for (mask, weighted), result in cache.items() if result),
         key=lambda item: (item[0], -len(item[1])), reverse=True)
     infeasible = sum(1 for result in cache.values() if result is None)
@@ -436,14 +449,279 @@ def record_results(study, candidates, ranking, limit, runTag):
                      for name in candidates}
     distributions["subsetEnsembleWeighted"] = optuna.distributions.CategoricalDistribution([True, False])
     recorded = 0
-    for value, members, weighted, mean, days in ranking[:limit]:
+    for value, members, weighted, mean, days, se in ranking[:limit]:
         params = {include_param(name): (name in members) for name in candidates}
         params["subsetEnsembleWeighted"] = bool(weighted)
         study.add_trial(optuna.trial.create_trial(
             params=params, distributions=distributions, value=float(value),
-            user_attrs={"members": list(members), "mean": float(mean), "scored_days": int(days), "run": runTag}))
+            user_attrs={"members": list(members), "mean": float(mean), "scored_days": int(days), "run": runTag,
+                        "tuning": subset_tuning(value, mean, days, se)}))
         recorded += 1
     return recorded
+
+
+def subset_tuning(value, mean, days, se):
+    """The gate's diagnostics for a scored combination (TuningGate.challenge reads a trial's "tuning" attr)."""
+    return {"score": float(value), "kind": "subset_bound", "days": int(days), "mean": float(mean),
+            "score_se": (float(se) if se is not None else None)}
+
+
+def reference_flags(existingData, candidates):
+    """
+    The gate's two references as include-flag dicts over this run's
+    candidates, and a note when the served selection is not what the gate
+    scores: (served, defaults, note).
+
+    The served selection is bestParams "subsetEnsembleModels" /
+    "subsetEnsembleWeighted" (weighted by default, as Predictor.
+    addSubsetEnsemblePrediction reads it). When nothing was ever written, or
+    a served member is no longer a candidate (a row the pipeline stopped
+    emitting: live, Predictor skips the row on every day that member is
+    absent, so the selection serves nothing), the served flags are all False:
+    the incumbent then scores -inf (evaluate_subset needs two members), so
+    the run writes the challenger when it clears the plain vote by the
+    margin and the plain vote otherwise, and the row is served again. The
+    review of 15 Oct 2026 caught the first draft scoring "served minus the
+    missing member" instead - a proxy the challenger could never beat by the
+    margin, which would have kept a dead selection for good.
+
+    The plain vote - every candidate, weighted - is the all-in vote over this
+    run's candidates: what the WeightedEnsemble Model restricts to those rows.
+    """
+    defaults = {include_param(name): True for name in candidates}
+    defaults["subsetEnsembleWeighted"] = True
+    nothing = {include_param(name): False for name in candidates}
+    nothing["subsetEnsembleWeighted"] = bool(existingData.get("subsetEnsembleWeighted", True))
+    members = [name for name in (existingData.get("subsetEnsembleModels") or [])]
+    if not members:
+        return nothing, defaults, "nothing served before this run - the incumbent is scored as nothing"
+    missing = [name for name in members if name not in candidates]
+    if missing:
+        return nothing, defaults, (f"served member(s) not among this run's candidates: {', '.join(missing)} - "
+                                   f"the served selection cannot be served and is scored as nothing")
+    served = {include_param(name): (name in set(members)) for name in candidates}
+    served["subsetEnsembleWeighted"] = bool(existingData.get("subsetEnsembleWeighted", True))
+    return served, defaults, None
+
+
+def gate_objective(trial, candidates, evaluate):
+    """The search's evaluation as a trial objective, for the gate's reference scoring (a FixedTrial of flags)."""
+    members = [name for name in candidates if trial.suggest_categorical(include_param(name), [True, False])]
+    weighted = bool(trial.suggest_categorical("subsetEnsembleWeighted", [True, False]))
+    result = evaluate(members, weighted)
+    if not result:
+        return float("-inf")
+    trial.set_user_attr("tuning", subset_tuning(result["value"], result["mean"], result["days"], result.get("se")))
+    return float(result["value"])
+
+
+def members_of(params, candidates):
+    """(members, weighted) from a dict of include flags."""
+    return [name for name in candidates if params.get(include_param(name))], bool(params.get("subsetEnsembleWeighted", True))
+
+
+def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty, optunaDatabase, runTag):
+    """
+    One game: the candidate rows, the search, this run's ranking into the
+    study, the gate, the write. Extracted from __main__ on 15 Oct 2026 so a
+    scratch root can exercise it.
+    """
+    print(f"\n{dataset_name.capitalize()}")
+    historyDir = os.path.join(path, "data", "database", dataset_name)
+
+    evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
+    if len(evaluation_days) < MIN_EVALUATION_DAYS:
+        print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
+              f"a currentPrediction and a realResult (need at least {MIN_EVALUATION_DAYS})")
+        return
+    print(f"Evaluating on {len(evaluation_days)} days "
+          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
+
+    candidates, stale = candidate_rows(evaluation_days)
+    if stale:
+        print(f"Not candidates (history but absent from {RECENT_DAYS - RECENT_MIN_DAYS + 1}+ of the "
+              f"last {RECENT_DAYS} days - no longer emitted?): {', '.join(stale)}")
+    if len(candidates) < 2:
+        print(f"Skipping {dataset_name}: only {len(candidates)} candidate row(s) present on "
+              f"at least {MIN_ROW_COVERAGE:.0%} of those days")
+        return
+    print(f"Candidate rows ({len(candidates)}): {', '.join(candidates)}")
+    paramNames = [include_param(name) for name in candidates]
+    if len(set(paramNames)) != len(paramNames):
+        print(f"Skipping {dataset_name}: two candidate rows map to the same parameter name")
+        return
+
+    jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
+    existingData = {}
+    if os.path.exists(jsonBestParamsFilePath):
+        with open(jsonBestParamsFilePath, "r") as infile:
+            existingData = json.load(infile)
+
+    if helpers.is_jokerplus(dataset_name) and not existingData.get(JOKERPLUS_ENSEMBLE_FLAG, False):
+        print(f"Skipping {dataset_name}: the vote rows are switched off for Joker+ "
+              f"(set \"{JOKERPLUS_ENSEMBLE_FLAG}\": true in bestParams_{dataset_name}.json to tune and serve them)")
+        return
+
+    kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
+    if "keno" in dataset_name and not kenoSubsetSizes:
+        print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
+              f"bestParams_{dataset_name}.json, nothing to score profit on")
+        return
+
+    specialColumnCount = next(
+        (count for game, count in Helpers.SPECIAL_COLUMN_COUNTS.items() if game in dataset_name), 0)
+    fallbackMainCount = main_count_of(evaluation_days[-1][1], specialColumnCount, 0)
+    modelScores = existingData.get("modelScores", {})
+    # The served row slices its Keno subsets with the tuned
+    # WeightedEnsemble mode/temperature unless it has its own.
+    subsetMode = existingData.get("subsetEnsembleSubsetMode",
+                                  existingData.get("weightedEnsembleSubsetMode", "softmax"))
+    subsetTemperature = existingData.get("subsetEnsembleSubsetTemperature",
+                                         existingData.get("weightedEnsembleSubsetTemperature", 0.5))
+
+    evaluate = lambda members, weighted, dataset_name=dataset_name, evaluation_days=evaluation_days, \
+                      modelScores=modelScores, specialColumnCount=specialColumnCount, \
+                      fallbackMainCount=fallbackMainCount, kenoSubsetSizes=kenoSubsetSizes, \
+                      subsetMode=subsetMode, subsetTemperature=subsetTemperature: \
+        evaluate_subset(members, weighted, dataset_name, evaluation_days, modelScores,
+                        specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode,
+                        subsetTemperature, confidencePenalty)
+
+    searchStart = time.time()
+    ranking, evaluated, infeasible, how = search_subsets(candidates, evaluate, maxEvaluations)
+    print(f"{how}: {evaluated} combinations evaluated ({infeasible} infeasible) "
+          f"in {time.time() - searchStart:.1f}s")
+    if not ranking:
+        print(f"No feasible subset for {dataset_name} (members never coexist on "
+              f"{MIN_TRIAL_COVERAGE:.0%} of the window) - keeping existing params")
+        return
+
+    # The study is the record of this run's ranking (best first,
+    # no duplicates); older runs' trials stay as history and
+    # RUNNING leftovers of a killed run are marked failed.
+    studyName = f"{dataset_name}-subset_ensemble"
+    study = open_study(studyName, optunaDatabase, quiet=True)
+    fail_stale_running_trials(study)
+    known_trials = {t.number for t in study.get_trials(deepcopy=False)}   # before this run's ranking is added
+    recordStart = time.time()
+    recorded = record_results(study, candidates, ranking, recordLimit, runTag)
+    print(f"Recorded the best {recorded} combinations into study {studyName} "
+          f"in {time.time() - recordStart:.1f}s")
+
+    value, members, weighted, mean, days, _se = ranking[0]
+    baseline = next((item for item in ranking if len(item[1]) == len(candidates) and item[2]), None)
+    metric = "profit per bet" if dataset_name in PAYOUT_GAMES else ("fixed-rule units per day" if helpers.is_market_game(dataset_name) else "avg main hits")
+    if helpers.is_positional_game(dataset_name):
+        metric += " (per-slot vote)"
+    print(f"Best subset for {dataset_name} ({metric} {mean:.4f}, lower bound {value:.4f} on "
+          f"{days} days, {'weighted' if weighted else 'flat'} vote): {', '.join(members)}")
+    if baseline:
+        print(f"  all-in weighted vote (the WeightedEnsemble Model over the same rows): "
+              f"{metric} {baseline[3]:.4f}, lower bound {baseline[0]:.4f} on {baseline[4]} days")
+
+    # The gate: this run's best combination against the served selection and the plain vote, re-scored by
+    # the same evaluation (reference_flags, gate_objective). Until 15 Oct 2026 the best combination was
+    # written as it was - the last tuner of the chain to do so.
+    served, defaults, note = reference_flags(existingData, candidates)
+    if note:
+        print(f"  {studyName}: {note}")
+    study = open_study(studyName, optunaDatabase, quiet=True)
+    objective = lambda trial, candidates=candidates, evaluate=evaluate: gate_objective(trial, candidates, evaluate)
+    outcome = challenge(study, known_trials, objective, served, make_defaults(defaults, existingData),
+                        timeout_seconds=GATE_TIMEOUT_SECONDS, label=studyName, margin=GATE_MARGIN,
+                        enabled=GATE_ENABLED, window_days=len(evaluation_days), se_margin=GATE_SE_MARGIN)
+    print(outcome["summary"])
+    record = outcome["record"]
+    record["candidates"] = list(candidates)
+    if note:
+        record["incumbent_note"] = note
+    existingData.setdefault("tuningGate", {})[ROW_NAME] = record
+
+    if outcome["params"] is not None:
+        members, weighted = members_of(outcome["params"], candidates)
+        chosen = next((item for item in ranking if set(item[1]) == set(members) and item[2] == weighted), None)
+        if chosen is None:   # the plain vote was not among the evaluated combinations (a local search can miss it)
+            result = evaluate(members, weighted) or {"value": float("nan"), "mean": float("nan"), "days": 0}
+            chosen = (result["value"], members, weighted, result["mean"], result["days"], result.get("se"))
+        value, _members, _weighted, mean, days, _se = chosen
+        # Only the derived selection is written - never the row's own
+        # score into modelScores (it would feed back into its own
+        # weights), and not the include flags.
+        existingData["subsetEnsembleModels"] = list(members)
+        existingData["subsetEnsembleWeighted"] = bool(weighted)
+        existingData["subsetEnsembleObjective"] = round(float(value), 4)
+        existingData["subsetEnsembleMean"] = round(float(mean), 4)
+        existingData["subsetEnsembleTunedOn"] = {
+            "days": int(days),
+            "from": evaluation_days[0][0].strftime("%Y-%m-%d"),
+            "to": evaluation_days[-1][0].strftime("%Y-%m-%d"),
+            "candidates": len(candidates),
+            "evaluated": int(evaluated),
+            "search": how,
+            "confidencePenalty": confidencePenalty,
+            "decision": outcome["decision"],
+        }
+
+    with open(jsonBestParamsFilePath, "w+") as outfile:
+        json.dump(existingData, outfile, indent=4)
+
+
+def _self_check():
+    """The gate's wiring on hand-made data: python3 -c 'import HyperoptEnsemble; HyperoptEnsemble._self_check()'."""
+    candidates = ["A Model", "B Model", "C Model"]
+    nothing = {**{include_param(n): False for n in candidates}, "subsetEnsembleWeighted": True}
+    served, defaults, note = reference_flags({}, candidates)
+    assert served == nothing and "nothing served" in note and defaults == {**{include_param(n): True for n in candidates}, "subsetEnsembleWeighted": True}
+    # a served member the pipeline no longer emits: the selection serves nothing live, so it is scored as nothing
+    served, _, note = reference_flags({"subsetEnsembleModels": ["A Model", "C Model", "Gone Model"], "subsetEnsembleWeighted": False}, candidates)
+    assert served == {**nothing, "subsetEnsembleWeighted": False} and "Gone Model" in note, (served, note)
+    assert members_of(served, candidates) == ([], False)
+    served, _, note = reference_flags({"subsetEnsembleModels": ["A Model", "C Model"], "subsetEnsembleWeighted": False}, candidates)
+    assert note is None and served == {include_param("A Model"): True, include_param("B Model"): False, include_param("C Model"): True, "subsetEnsembleWeighted": False}, served
+    assert members_of(served, candidates) == (["A Model", "C Model"], False)
+    def evaluate(members, weighted):
+        if len(members) < 2:
+            return None
+        return {"value": 0.1 * len(members) - (0.05 if weighted else 0.0), "mean": 0.1 * len(members), "days": 20, "se": 0.02}
+    trial = optuna.trial.FixedTrial(served)
+    value = gate_objective(trial, candidates, evaluate)
+    assert abs(value - 0.2) < 1e-9 and trial.user_attrs["tuning"]["score_se"] == 0.02 and trial.user_attrs["tuning"]["kind"] == "subset_bound", (value, trial.user_attrs)
+    assert gate_objective(optuna.trial.FixedTrial({include_param("A Model"): True, include_param("B Model"): False, include_param("C Model"): False, "subsetEnsembleWeighted": True}), candidates, evaluate) == float("-inf")
+    # the gate on a fake study whose one new trial is this run's best: the served selection loses to it
+    class FakeTrial:
+        def __init__(self, number, value, params):
+            self.number, self.value, self.params = number, value, params
+            self.user_attrs = {"tuning": subset_tuning(value, value, 20, 0.0)}
+            self.state = optuna.trial.TrialState.COMPLETE
+    class FakeStudy:
+        def __init__(self, trials):
+            self._trials = trials
+            self.best_value = max(t.value for t in trials)
+        def get_trials(self, deepcopy=False):
+            return self._trials
+    best = {include_param("A Model"): True, include_param("B Model"): True, include_param("C Model"): True, "subsetEnsembleWeighted": False}
+    study = FakeStudy([FakeTrial(0, 0.0, served), FakeTrial(1, 0.3, best)])
+    outcome = challenge(study, {0}, lambda trial: gate_objective(trial, candidates, evaluate), served, make_defaults(defaults, {}),
+                        timeout_seconds=60, label="self-check", margin=0.0, enabled=True, window_days=20, se_margin=0.0)
+    assert outcome["decision"] == "replaced" and members_of(outcome["params"], candidates) == (candidates, False), outcome["reason"]
+    # the plain vote beats a weak challenger and a weaker served selection: reverted to the defaults
+    study = FakeStudy([FakeTrial(0, 0.0, served), FakeTrial(1, 0.21, {**best, "subsetEnsembleWeighted": True})])
+    weak = lambda members, weighted: ({"value": 0.25 if (len(members) == 3 and weighted) else 0.1, "mean": 0.2, "days": 20, "se": 0.01} if len(members) >= 2 else None)
+    outcome = challenge(study, {0}, lambda trial: gate_objective(trial, candidates, weak), served, make_defaults(defaults, {}),
+                        timeout_seconds=60, label="self-check", margin=0.0, enabled=True, window_days=20, se_margin=0.0)
+    assert outcome["decision"] == "reverted" and members_of(outcome["params"], candidates) == (candidates, True), outcome["reason"]
+    # a dead served selection (a member no longer a candidate) is scored -inf: the run revives the row - here the
+    # challenger does not clear the plain vote by the margin, so the plain vote is served
+    dead, _, _ = reference_flags({"subsetEnsembleModels": ["A Model", "Gone Model"]}, candidates)
+    study = FakeStudy([FakeTrial(0, 0.0, dead), FakeTrial(1, 0.21, {**best, "subsetEnsembleWeighted": True})])
+    outcome = challenge(study, {0}, lambda trial: gate_objective(trial, candidates, weak), dead, make_defaults(defaults, {}),
+                        timeout_seconds=60, label="self-check", margin=0.0, enabled=True, window_days=20, se_margin=0.0)
+    assert outcome["decision"] == "reverted" and members_of(outcome["params"], candidates) == (candidates, True) and outcome["incumbent"] is None or outcome["incumbent"] == float("-inf"), (outcome["reason"], outcome["incumbent"])
+    study = FakeStudy([FakeTrial(0, 0.0, dead), FakeTrial(1, 0.3, best)])
+    outcome = challenge(study, {0}, lambda trial: gate_objective(trial, candidates, evaluate), dead, make_defaults(defaults, {}),
+                        timeout_seconds=60, label="self-check", margin=0.0, enabled=True, window_days=20, se_margin=0.0)
+    assert outcome["decision"] == "replaced" and members_of(outcome["params"], candidates) == (candidates, False), outcome["reason"]
+    print("HyperoptEnsemble self-check OK: the gate's references, objective and decisions on hand-made data")
 
 
 if __name__ == "__main__":
@@ -488,6 +766,14 @@ if __name__ == "__main__":
                  'on fewer days of the window does not outrank one scored on more. 0 = plain mean.')
         parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
         parser.add_argument(
+            '--gate-margin', type=float, default=0.0,
+            help="How much this run's best combination must beat the served selection and the plain vote by, "
+                 "re-scored on this run's days, before it is written (src/TuningGate.py)")
+        parser.add_argument(
+            '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
+            help="The margin in standard errors of the challenger's own score; the larger of this and --gate-margin applies")
+        parser.add_argument('--no-gate', action='store_true', help="Write this run's best combination without the comparison")
+        parser.add_argument(
             '-g', '--games',
             type=str,
             default=",".join(GAMES),
@@ -503,6 +789,9 @@ if __name__ == "__main__":
         recordLimit = max(1, int(args.record))
         pushToGit = bool(args.save)
         confidencePenalty = max(0.0, float(args.confidence_penalty))
+        GATE_ENABLED = not args.no_gate
+        GATE_MARGIN = float(args.gate_margin)
+        GATE_SE_MARGIN = float(args.gate_se_margin)
 
         print("Push to git: ", pushToGit)
         print("Evaluation budget per game: ", maxEvaluations)
@@ -521,118 +810,8 @@ if __name__ == "__main__":
             if dataset_name not in games:
                 continue
             try:
-                print(f"\n{dataset_name.capitalize()}")
-                historyDir = os.path.join(path, "data", "database", dataset_name)
-
-                evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
-                if len(evaluation_days) < MIN_EVALUATION_DAYS:
-                    print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
-                          f"a currentPrediction and a realResult (need at least {MIN_EVALUATION_DAYS})")
-                    continue
-                print(f"Evaluating on {len(evaluation_days)} days "
-                      f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
-
-                candidates, stale = candidate_rows(evaluation_days)
-                if stale:
-                    print(f"Not candidates (history but absent from {RECENT_DAYS - RECENT_MIN_DAYS + 1}+ of the "
-                          f"last {RECENT_DAYS} days - no longer emitted?): {', '.join(stale)}")
-                if len(candidates) < 2:
-                    print(f"Skipping {dataset_name}: only {len(candidates)} candidate row(s) present on "
-                          f"at least {MIN_ROW_COVERAGE:.0%} of those days")
-                    continue
-                print(f"Candidate rows ({len(candidates)}): {', '.join(candidates)}")
-                paramNames = [include_param(name) for name in candidates]
-                if len(set(paramNames)) != len(paramNames):
-                    print(f"Skipping {dataset_name}: two candidate rows map to the same parameter name")
-                    continue
-
-                jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
-                existingData = {}
-                if os.path.exists(jsonBestParamsFilePath):
-                    with open(jsonBestParamsFilePath, "r") as infile:
-                        existingData = json.load(infile)
-
-                if helpers.is_jokerplus(dataset_name) and not existingData.get(JOKERPLUS_ENSEMBLE_FLAG, False):
-                    print(f"Skipping {dataset_name}: the vote rows are switched off for Joker+ "
-                          f"(set \"{JOKERPLUS_ENSEMBLE_FLAG}\": true in bestParams_{dataset_name}.json to tune and serve them)")
-                    continue
-
-                kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
-                if "keno" in dataset_name and not kenoSubsetSizes:
-                    print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
-                          f"bestParams_{dataset_name}.json, nothing to score profit on")
-                    continue
-
-                specialColumnCount = next(
-                    (count for game, count in Helpers.SPECIAL_COLUMN_COUNTS.items() if game in dataset_name), 0)
-                fallbackMainCount = main_count_of(evaluation_days[-1][1], specialColumnCount, 0)
-                modelScores = existingData.get("modelScores", {})
-                # The served row slices its Keno subsets with the tuned
-                # WeightedEnsemble mode/temperature unless it has its own.
-                subsetMode = existingData.get("subsetEnsembleSubsetMode",
-                                              existingData.get("weightedEnsembleSubsetMode", "softmax"))
-                subsetTemperature = existingData.get("subsetEnsembleSubsetTemperature",
-                                                     existingData.get("weightedEnsembleSubsetTemperature", 0.5))
-
-                evaluate = lambda members, weighted, dataset_name=dataset_name, evaluation_days=evaluation_days, \
-                                  modelScores=modelScores, specialColumnCount=specialColumnCount, \
-                                  fallbackMainCount=fallbackMainCount, kenoSubsetSizes=kenoSubsetSizes, \
-                                  subsetMode=subsetMode, subsetTemperature=subsetTemperature: \
-                    evaluate_subset(members, weighted, dataset_name, evaluation_days, modelScores,
-                                    specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode,
-                                    subsetTemperature, confidencePenalty)
-
-                searchStart = time.time()
-                ranking, evaluated, infeasible, how = search_subsets(candidates, evaluate, maxEvaluations)
-                print(f"{how}: {evaluated} combinations evaluated ({infeasible} infeasible) "
-                      f"in {time.time() - searchStart:.1f}s")
-                if not ranking:
-                    print(f"No feasible subset for {dataset_name} (members never coexist on "
-                          f"{MIN_TRIAL_COVERAGE:.0%} of the window) - keeping existing params")
-                    continue
-
-                # The study is the record of this run's ranking (best first,
-                # no duplicates); older runs' trials stay as history and
-                # RUNNING leftovers of a killed run are marked failed.
-                studyName = f"{dataset_name}-subset_ensemble"
-                study = open_study(studyName, optunaDatabase, quiet=True)
-                fail_stale_running_trials(study)
-                recordStart = time.time()
-                recorded = record_results(study, candidates, ranking, recordLimit, runTag)
-                print(f"Recorded the best {recorded} combinations into study {studyName} "
-                      f"in {time.time() - recordStart:.1f}s")
-
-                value, members, weighted, mean, days = ranking[0]
-                baseline = next((item for item in ranking if len(item[1]) == len(candidates) and item[2]), None)
-                metric = "profit per bet" if dataset_name in PAYOUT_GAMES else ("fixed-rule units per day" if helpers.is_market_game(dataset_name) else "avg main hits")
-                if helpers.is_positional_game(dataset_name):
-                    metric += " (per-slot vote)"
-                print(f"Best subset for {dataset_name} ({metric} {mean:.4f}, lower bound {value:.4f} on "
-                      f"{days} days, {'weighted' if weighted else 'flat'} vote): {', '.join(members)}")
-                if baseline:
-                    print(f"  all-in weighted vote (the WeightedEnsemble Model over the same rows): "
-                          f"{metric} {baseline[3]:.4f}, lower bound {baseline[0]:.4f} on {baseline[4]} days")
-
-                # Only the derived selection is written - never the row's own
-                # score into modelScores (it would feed back into its own
-                # weights), and not the include flags.
-                existingData["subsetEnsembleModels"] = list(members)
-                existingData["subsetEnsembleWeighted"] = bool(weighted)
-                existingData["subsetEnsembleObjective"] = round(float(value), 4)
-                existingData["subsetEnsembleMean"] = round(float(mean), 4)
-                existingData["subsetEnsembleTunedOn"] = {
-                    "days": int(days),
-                    "from": evaluation_days[0][0].strftime("%Y-%m-%d"),
-                    "to": evaluation_days[-1][0].strftime("%Y-%m-%d"),
-                    "candidates": len(candidates),
-                    "evaluated": int(evaluated),
-                    "search": how,
-                    "confidencePenalty": confidencePenalty,
-                }
-
-                with open(jsonBestParamsFilePath, "w+") as outfile:
-                    json.dump(existingData, outfile, indent=4)
-
+                tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty,
+                          optunaDatabase, runTag)
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 
