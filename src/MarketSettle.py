@@ -471,6 +471,7 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
 
     daily_models, hold_models, hold_stats, open_models, open_stats = {}, {}, {}, {}, {}
     daily_counts, open_counts = {}, {}   # positions per model per day under the daily and the open rule (followed_plan's thresholds)
+    daily_by, open_by = {}, {}           # per model, per day, the money per instrument under each rule (followed_plan's positions, 15 Oct 2026)
     # the same rules with shorts on (a lower-half bin is a short): money per model and the position counts
     ls_daily, ls_daily_stats, ls_hold, ls_hold_stats, ls_open, ls_open_stats = {}, {}, {}, {}, {}, {}
     for (model, symbol), call in calls.items():
@@ -486,16 +487,21 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         lostat = ls_open_stats.setdefault(model, {"trades": 0, "wins": 0})
         dcount = daily_counts.setdefault(model, [0] * n)
         ocount = open_counts.setdefault(model, [0] * n)
+        dby = daily_by.setdefault(model, {})
+        oby = open_by.setdefault(model, {})
         for i in range(n):
             if ret[i] is None:
                 continue
             bar = session(symbol, i)
             if call[i]:
-                day[i] += size[i] * cash_pnl(ret[i], stake, fee_per_leg)
+                pnl = size[i] * cash_pnl(ret[i], stake, fee_per_leg)
+                day[i] += pnl
+                dby.setdefault(dates[i], {})[symbol] = round(pnl, 4)
                 dcount[i] += 1
                 if bar:
                     pnl = size[i] * open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
                     oday[i] += pnl
+                    oby.setdefault(dates[i], {})[symbol] = round(pnl, 4)
                     ocount[i] += 1
                     ostat["trades"] += 1
                     ostat["wins"] += int(pnl > 0)
@@ -543,7 +549,8 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     return {
         "dates": dates,
         # internal: positions per model per day; export_page_json reads it for followed_plan and drops it from the page record
-        "_counts": {"daily": daily_counts, "open": open_counts, "seen": {m: sorted(v) for m, v in seen.items()}},
+        "_counts": {"daily": daily_counts, "open": open_counts, "seen": {m: sorted(v) for m, v in seen.items()},
+                    "by_instrument": {"daily": daily_by, "open": open_by}},
         "models": {m: series(day, seen[m]) for m, day in daily_models.items()},
         "benchmark": series(bench_daily),
         "hold": {"models": {m: series(day, seen[m]) for m, day in hold_models.items()}, "benchmark": series(bench_hold),
@@ -742,8 +749,10 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
     the rule would have done, not a record.
 
     Returns {rule, min_trades, points: [[date, model, picked_by, positions,
-    pnl, total, live, market_pnl]], first_live, totals} or None without
-    settled days.
+    pnl, total, live, market_pnl, by_symbol]], first_live, totals} or None
+    without settled days. by_symbol (15 Oct 2026) is {symbol: money} of the
+    followed row's positions that day under the rule - the user page's
+    positions, per coin or share.
     """
     dates = book.get("dates") or []
     if not dates:
@@ -753,6 +762,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
     series = book["open"]["models"] if rule == "open" else book["models"]
     bench = book["open"]["benchmark"] if rule == "open" else book["benchmark"]
     counts = book["_counts"]["open" if rule == "open" else "daily"]
+    by_symbol = (book["_counts"].get("by_instrument") or {}).get("open" if rule == "open" else "daily", {})
     pnl_by = {m: {p[0]: p[1] for p in pts} for m, pts in series.items()}
     bench_by = {p[0]: p[1] for p in bench}
     # the exact-rate fallback, per model and day: hits, positions, days, P&L in return units (model_summary's order)
@@ -785,6 +795,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
             model, picked_by = None, None
         pnl = pnl_by.get(model, {}).get(d) if model else None
         positions = counts.get(model, [0] * len(dates))[i] if model else 0
+        per_symbol = dict(by_symbol.get(model, {}).get(d, {})) if model and pnl is not None else {}
         if pnl is None:
             pnl, positions = 0.0, 0          # no call from the picked row that day: nothing bought
         total += pnl
@@ -798,7 +809,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
             live_market += market_pnl or 0.0
             live_days += 1
             live_positions += positions
-        points.append([d, model, picked_by, positions, round(pnl, 4), round(total, 4), live, None if market_pnl is None else round(market_pnl, 4)])
+        points.append([d, model, picked_by, positions, round(pnl, 4), round(total, 4), live, None if market_pnl is None else round(market_pnl, 4), per_symbol])
         # the day settles: it enters the record the NEXT day's pick reads
         for m, pts in pnl_by.items():
             v = pts.get(d)
@@ -1277,6 +1288,9 @@ def _self_check():
         os.utime(late_path, ns=(keep.st_atime_ns, keep.st_mtime_ns))
         assert ticket_written(late_path) == datetime.fromisoformat(late_data["madeAt"])
         relived = followed_plan(conn, "crypto", ledger(conn, "crypto"), path=root)
+        for _p in relived["points"]:   # the per-symbol money of a point adds up to its day, one entry per position
+            assert len(_p) == 9 and isinstance(_p[8], dict) and abs(sum(_p[8].values()) - _p[4]) < 1e-3, ("per-symbol money", _p)
+            assert len(_p[8]) == _p[3], ("one entry per position", _p)
         flags = [p_[6] for p_ in relived["points"]]
         assert flags[26] is False and flags[21:26] == [True] * 5 and flags[27:] == [True] * 3, flags
         assert relived["first_live"] == tdates[21] and relived["live_days"] == 8, "a late ticket after the live start is left out of the live total"

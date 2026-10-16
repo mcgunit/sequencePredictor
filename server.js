@@ -44,6 +44,7 @@ const controls = require('./controls');
 // settlement's exports under data/markets/, see markets.js.
 const marketsPath = path.join(__dirname, 'data', 'markets');
 const markets = require('./markets');
+const api = require('./api');   // the JSON API and the React app under /app (15 Oct 2026)
 // modelsPath removed as it is no longer used
 
 // --- GAME SHAPES ---
@@ -1898,6 +1899,8 @@ app.get('/lottery', (req, res) => {
 // optuna-dashboard sqlite:///db.sqlite3
 auth.install(app, { header: generateHeader, footer: generateFooter });
 markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath, controlsDir: controlsPath });
+api.install(app, { dataDir: marketsPath });
+api.installApp(app, { header: generateHeader, footer: generateFooter });
 // The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
 // 8) above the supervised services (services.js, today the Council API).
 // services.js renders whatever the third argument returns, so it stays

@@ -17,6 +17,19 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-15-new-crypto-and-shares-view',
+    date: '2026-10-15',
+    level: 'minor',
+    audience: 'all',
+    title: 'A new Crypto and Shares view at /app: positions, a trades log, profit per day and per coin',
+    body: [
+      'The first part of the redesign: a new interface at /app with a sidebar (Lottery, Crypto, Shares, Council, and an Admin menu to the pages you know). Crypto and Shares show the followed plan the way a trading screen does: the open positions of the day and the week in one table with the buy and the sell as orders, today\'s call shown next to each week position (the guard rule follows with its own paper book), a trades log, profit per day, the running total against the market, the result per coin or share, and the closed positions with their exit.',
+      'The figures are the same paper money as before, from the same records; a live price shows next to an open position, marked as live, and never replaces a booked result. The per-coin results fill in from the next morning\'s run on.',
+      'The current pages stay as they are and are the Admin view for now.',
+    ],
+    link: { href: '/app/crypto', label: 'Open the new Crypto view' },
+  },
+  {
     id: '2026-10-15-ensemble-gate-and-quantum-keno-subsets',
     date: '2026-10-15',
     level: 'minor',

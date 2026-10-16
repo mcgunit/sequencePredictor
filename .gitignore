@@ -184,3 +184,7 @@ data/markets.sqlite3
 data/markets.sqlite3-journal
 data/markets.sqlite3-wal
 data/markets.sqlite3-shm
+
+# the React user interface (web/): dependencies and the build, made on the server with `npm run build:web`
+web/node_modules/
+web/dist/

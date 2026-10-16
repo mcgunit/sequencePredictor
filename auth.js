@@ -252,6 +252,8 @@ function middleware(req, res, next) {
     // admin password, password reset): worth recording, and rare by nature.
     if (session) audit.record('session.rejected', req, session.u);
     clearSession(res);
+    // the JSON API (api.js, the React app) gets a 401 it can act on, never the login page as a 200
+    if (req.path.startsWith('/api/')) return res.status(401).set('Cache-Control', 'no-store').json({ error: 'login required', login: `/login?next=${encodeURIComponent('/app')}` });
     if (req.method === 'GET') return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
     return res.status(401).send('Login required');
   }

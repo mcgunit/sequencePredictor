@@ -31,6 +31,26 @@ const MARKETS = {
 // "Week ahead" card - the multi-day forecast a hold can be planned on.
 const WEEK_GAMES = { crypto: 'cryptoweek', shares: 'sharesweek' };
 const MIN_WEEK_TRADES = 5;   // positions a weekly book needs before the week card follows it
+const MIN_PLAN_TRADES = 10;  // positions a daily book needs before Today's plan follows it
+
+// Which book the plan follows (Today's plan, and the user page's positions, api.js): the best book under the rule a
+// reader can follow - open to close for shares, the daily round trip for crypto - among the rows with MIN_PLAN_TRADES
+// positions, else the best exact rate. {model, byBook, key, tradesKey, ruleName}.
+function pickPlan(view, market) {
+  const key = market === 'crypto' ? 'pnlCash' : 'openTotal';
+  const tradesKey = market === 'crypto' ? 'trades' : 'openTrades';
+  const ranked = view.models.filter((m) => m[key] !== null && m[tradesKey] !== null && m[tradesKey] >= MIN_PLAN_TRADES).sort((a, b) => b[key] - a[key]);
+  return { model: ranked[0] || view.models.find((m) => m.name === view.best) || null, byBook: ranked.length > 0, key, tradesKey,
+           ruleName: market === 'crypto' ? 'daily round trip' : 'open to close' };
+}
+// The same for the week game's card: its best weekly book from MIN_WEEK_TRADES positions on.
+function pickWeek(w, market) {
+  const key = market === 'crypto' ? 'pnlCash' : 'openTotal';
+  const tradesKey = market === 'crypto' ? 'trades' : 'openTrades';
+  const ranked = w.models.filter((m) => m[key] !== null && m[tradesKey] !== null && m[tradesKey] >= MIN_WEEK_TRADES).sort((a, b) => b[key] - a[key]);
+  return { model: ranked[0] || w.models.find((m) => m.name === w.best) || w.models[0] || null, byBook: ranked.length > 0, key, tradesKey,
+           ruleName: market === 'crypto' ? 'weekly round trip' : 'Monday open to Friday close' };
+}
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (e) { return null; }
@@ -212,6 +232,8 @@ function describeFollowed(f) {
   const points = f.points.filter((p) => Array.isArray(p) && p.length >= 8 && typeof p[0] === 'string').map((p) => ({
     date: p[0], model: p[1] === null || p[1] === undefined ? null : String(p[1]), pickedBy: p[2] === null || p[2] === undefined ? null : String(p[2]),
     positions: num(p[3]) || 0, pnl: num(p[4]) || 0, total: num(p[5]), live: p[6] === true, market: num(p[7]),
+    // the followed row's money per instrument that day (MarketSettle.followed_plan, 15 Oct 2026); {} on older records
+    bySymbol: p.length >= 9 && p[8] && typeof p[8] === 'object' ? Object.fromEntries(Object.entries(p[8]).map(([k, v]) => [String(k), num(v)])) : {},
   }));
   return {
     rule: f.rule === 'open' ? 'open' : 'daily', minTrades: num(f.min_trades), firstLive: typeof f.first_live === 'string' ? f.first_live : null,
@@ -1160,7 +1182,6 @@ function page(market, view, header, footer, user, now = new Date()) {
   // be followed, and a reader who holds from an earlier day is told what to
   // do on a down call.
   let plan = '';
-  const MIN_PLAN_TRADES = 10;
   // the followed-plan record (MarketSettle.followed_plan): the plan cards' second line here, its own card further down
   const dayFollowed = view.trading ? view.trading.followed : null;
   const weekFollowed = view.week && view.week.trading ? view.week.trading.followed : null;
@@ -1200,12 +1221,7 @@ function page(market, view, header, footer, user, now = new Date()) {
       : ' on paper, filled at the open and the close';
     return `${lead}: <b>${money(f.liveTotal, 2)} ${esc(meta.unit)}</b>${paper}; buying everything under the same rule gave ${money(f.liveMarket, 2)} ${esc(meta.unit)} (${aheadOf(f.liveTotal, f.liveMarket, 'this card')}).${isWeek ? ' This week is counted when it settles; a weekly book needs months of live weeks before it says anything about skill.' : ''}${pointer}`;
   };
-  const planKey = market === 'crypto' ? 'pnlCash' : 'openTotal';   // the rule a reader can follow: open to close for shares, the daily book for crypto
-  const planTradesKey = market === 'crypto' ? 'trades' : 'openTrades';
-  const planRuleName = market === 'crypto' ? 'daily round trip' : 'open to close';
-  const ranked = view.models.filter((m) => m[planKey] !== null && m[planTradesKey] !== null && m[planTradesKey] >= MIN_PLAN_TRADES).sort((a, b) => b[planKey] - a[planKey]);
-  const planModel = ranked[0] || view.models.find((m) => m.name === view.best) || null;
-  const planByBook = ranked.length > 0;
+  const { model: planModel, byBook: planByBook, key: planKey, tradesKey: planTradesKey, ruleName: planRuleName } = pickPlan(view, market);
   if (nextDay && planModel) {
     const t = view.trading;
     const planBench = t ? (market === 'crypto' ? t.benchmark : (t.open ? t.open.benchmark : [])) : [];
@@ -1290,12 +1306,7 @@ function page(market, view, header, footer, user, now = new Date()) {
     const closed = closeAt && now >= closeAt;
     const started = openAt && now >= openAt;
     const known = endDay && calendarKnown(market, endDay);
-    const planKey = market === 'crypto' ? 'pnlCash' : 'openTotal';
-    const tradesKey = market === 'crypto' ? 'trades' : 'openTrades';
-    const ruleName = market === 'crypto' ? 'weekly round trip' : 'Monday open to Friday close';
-    const ranked = w.models.filter((m) => m[planKey] !== null && m[tradesKey] !== null && m[tradesKey] >= MIN_WEEK_TRADES).sort((a, b) => b[planKey] - a[planKey]);
-    const weekModel = ranked[0] || w.models.find((m) => m.name === w.best) || w.models[0] || null;
-    const byBook = ranked.length > 0;
+    const { model: weekModel, byBook, key: planKey, tradesKey, ruleName } = pickWeek(w, market);
     const bench = w.trading ? (market === 'crypto' ? w.trading.benchmark : (w.trading.open ? w.trading.open.benchmark : [])) : [];
     const weekMarket = bench.length ? bench[bench.length - 1].total : null;
     if (weekModel && endDay && closeAt && openAt) {
@@ -1414,5 +1425,6 @@ function install(app, { header, footer, dataDir, controlsDir }) {
 }
 
 module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading, binInterval,
+  pickPlan, pickWeek, MIN_PLAN_TRADES, MIN_WEEK_TRADES, dayStatusWeek, describeFollowed,
   nextGameDay, closeMoment, openMoment, closeText, closeShort, openText, brusselsText, appearedText, hoursInto, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE, WEEK_GAMES, weekEnd,
   intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };
