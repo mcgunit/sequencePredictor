@@ -40,12 +40,12 @@ import bisect
 from datetime import date, datetime, timedelta, timezone
 
 try:
-    from src.MarketData import closes, instruments, base_instrument_id, is_week_game
-    from src.MarketGame import (K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
+    from src.MarketData import closes, instruments, base_instrument_id, is_week_game, base_market
+    from src.MarketGame import (NYSE_CLOSED, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                                 predicted_price, price_interval, representative_return)
 except ImportError:  # imported from within src/
-    from MarketData import closes, instruments, base_instrument_id, is_week_game
-    from MarketGame import (K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
+    from MarketData import closes, instruments, base_instrument_id, is_week_game, base_market
+    from MarketGame import (NYSE_CLOSED, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                             predicted_price, price_interval, representative_return)
 
 FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchange; shares are cheaper, this is the conservative one
@@ -778,7 +778,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
     points, total, first_live = [], 0.0, None
     live_total = live_market = 0.0
     live_days = live_positions = 0
-    for i, d in enumerate(dates):
+    def pick():
         known = list(cum_days)
 
         def summary_key(m):
@@ -788,11 +788,13 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
         rank = {m: j for j, m in enumerate(order)}
         books = sorted((m for m in known if cum_trades.get(m, 0) >= min_trades), key=lambda m: (-cum_money.get(m, 0.0), rank[m]))
         if books:
-            model, picked_by = books[0], "book"
-        elif order:
-            model, picked_by = order[0], "exact"
-        else:
-            model, picked_by = None, None
+            return books[0], "book"
+        if order:
+            return order[0], "exact"
+        return None, None
+
+    for i, d in enumerate(dates):
+        model, picked_by = pick()
         pnl = pnl_by.get(model, {}).get(d) if model else None
         positions = counts.get(model, [0] * len(dates))[i] if model else 0
         per_symbol = dict(by_symbol.get(model, {}).get(d, {})) if model and pnl is not None else {}
@@ -822,9 +824,280 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
             cum_days[m] = cum_days.get(m, 0) + 1
             cum_ret[m] = cum_ret.get(m, 0.0) + ret
     market_total = sum(v or 0.0 for v in bench_by.values())
-    return {"rule": rule, "min_trades": min_trades, "points": points, "first_live": first_live,
+    # the row the plan follows next, picked from the whole settled record (the page's pick for the coming day or week)
+    next_model, next_picked_by = pick()
+    return {"rule": rule, "min_trades": min_trades, "points": points, "first_live": first_live, "next_pick": next_model, "next_picked_by": next_picked_by,
             "total": round(total, 4), "market_total": round(market_total, 4),
             "live_total": round(live_total, 4), "live_market": round(live_market, 4), "live_days": live_days, "live_positions": live_positions}
+
+
+GUARD_RULE = ("the week call is the permission, the daily call the trigger: a coin the week's followed row calls up is bought "
+              "at the entry of the first day of the week whose daily call for it is up, held while the daily call does not turn "
+              "flat or down (a day without a daily call keeps a held position and buys nothing), sold at the close of the first "
+              "day whose daily call is flat or down, bought again on the next up call, sold at the week's close at the latest; "
+              "consecutive held days are one position, one fee pair, the stake scaled by a sized week row's size")
+
+
+def guard_trades(days, verdict):
+    """
+    The guarded week's positions for one instrument, from its daily calls
+    (owner, 16-17 Oct 2026). `days` are the week's game days in order,
+    `verdict(day)` True (up), False (flat or down) or None (no daily call).
+    Out at the start; on a day whose call is True the position is bought at
+    the day's entry (or kept); on a day whose call is False a held position
+    is sold at that day's close (the call is known during the day, the sell
+    is at its close) and nothing is bought; a day without a call keeps a
+    held position and buys nothing (the daily book holds nothing on a
+    missing call either). Returns
+    ([(entry_day, exit_day, reason)], open_entry_day): reason "guard" for a
+    sale on a flat or down call, "week end" for the week's close; an
+    open_entry_day when a position is still held after the last day given.
+    """
+    trades, entry = [], None
+    for d in days:
+        call = verdict(d)
+        if entry is None and call is True:
+            entry = d
+        if entry is not None and call is False:
+            trades.append((entry, d, "guard"))
+            entry = None
+    return trades, entry
+
+
+def call_word(bin_value, size, k=K_BINS):
+    """'up', 'flat' or 'down' of one call, the way the pages say it; None without a call."""
+    if size is not None:
+        return "up" if size > 0 else "flat"
+    if bin_value is None:
+        return None
+    b = int(bin_value)
+    return "up" if b >= k / 2 else ("down" if b < k / 2 - 1 else "flat")
+
+
+def next_session(market, day):
+    """The next game day after `day`: the next calendar day for crypto, the next NYSE session for shares."""
+    d = date.fromisoformat(str(day)[:10]) + timedelta(days=1)
+    if base_market(market) == "crypto":
+        return d.isoformat()
+    while d.weekday() >= 5 or d.isoformat() in NYSE_CLOSED:
+        d += timedelta(days=1)
+    return d.isoformat()
+
+
+def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=FEE_PER_LEG):
+    """
+    The week game played with the daily guard (GUARD_RULE) - the rule the
+    user page follows for its week positions since 17 Oct 2026; the plain
+    week book (followed_plan) stays the Admin view's. Per settled week: the
+    week's followed row (the week followed_plan's pick), its up calls, and per
+    game day of that week the daily followed row's call for the instrument
+    (the base market's followed_plan pick for the day). Money per position
+    under the week game's rule: the daily round trip compounding over the
+    held days for crypto (bought at the previous close), open to close for
+    shares (the entry day's open to the exit day's close); one fee pair per
+    position, the stake scaled by a sized week row's size (position_of). A
+    week is live when its week ticket was (week_followed) and every daily
+    ticket of its days was. Each position belongs to its week: the page
+    books it at the week's close W, with the market it is measured against.
+
+    `now` is the week in progress: the held and sold-out positions after the
+    settled days of this week, and for the running day (the day the newest
+    daily ticket is for) what the rule does: "hold", "sell" (at the running
+    day's close: a flat or down call, or the week's last day), "buy" (on an
+    up call: the week's start, a first up call later in the week, or a
+    re-entry after a sale) or "out". Each sold position of this week comes as
+    [entry_day, exit_day, reason, money, log_move, entry_price, exit_price].
+    """
+    if not week_followed or not week_followed.get("points"):
+        return None
+    base = base_market(market)
+    rule = plan_rule(market)
+    day_book = ledger(conn, base, k)
+    day_followed = followed_plan(conn, base, day_book, path=path, k=k) or {"points": [], "next_pick": None}
+    day_model = {p[0]: p[1] for p in day_followed["points"]}
+    day_live = {p[0]: bool(p[6]) for p in day_followed["points"]}
+    calls, rets, words = {}, {}, {}
+    for r in _result_rows(conn, base):
+        size = size_of(r["meta"])
+        if r["bin"] is None and size is None:
+            continue
+        calls[(r["model"], r["symbol"], r["for_date"])] = position_of(r["bin"], r["meta"], k)[0]
+        words[(r["model"], r["symbol"], r["for_date"])] = call_word(r["bin"], size, k)
+        if r["actual_return"] is not None:
+            rets[(r["symbol"], r["for_date"])] = float(r["actual_return"])
+    base_days = sorted({d for (_s, d) in rets})
+    week_up = {}
+    for r in _result_rows(conn, market):
+        if r["bin"] is None and size_of(r["meta"]) is None:
+            continue
+        long, scale = position_of(r["bin"], r["meta"], k)
+        week_up[(r["model"], r["symbol"], r["for_date"])] = scale if long else 0.0     # the stake scale of an up call, 0 when not up
+    symbols = [i["symbol"] for i in instruments(conn, market, active_only=False)]
+    bars = {i["symbol"]: bars_by_date(conn, base_instrument_id(conn, i)) for i in instruments(conn, base, active_only=False)}
+    bar_days = {symbol: sorted(b) for symbol, b in bars.items()}
+
+    def entry_price(symbol, day):
+        """The price a position bought on `day` is booked from: the day's open for shares, the close before it for crypto."""
+        b = bars.get(symbol, {})
+        if rule == "open":
+            return b[day][0] if day in b else None
+        ds = bar_days.get(symbol, [])
+        j = bisect.bisect_left(ds, day) - 1
+        return b[ds[j]][1] if j >= 0 else None
+
+    def exit_price(symbol, day):
+        """The price a position sold at the close of `day` is booked at: that day's close."""
+        bar = bars.get(symbol, {}).get(day)
+        return bar[1] if bar else None
+
+    def money(symbol, held, scale=1.0):
+        """
+        One position over the held days at `scale` times the stake: (money, log move) - None when a price is
+        missing. The move runs from entry_price of the first held day to exit_price of the last: the open to
+        the close for shares, the close before to the close for crypto - the sum of the daily game's returns,
+        which are close to close on the same bars (equal on every settled crypto day, 17 Oct 2026), so a day
+        missing from the daily record inside a held span still counts and the money matches the prices shown.
+        """
+        if not held:
+            return None
+        a, z = entry_price(symbol, held[0]), exit_price(symbol, held[-1])
+        if a is None or z is None or a <= 0 or z <= 0:
+            return None
+        ret = math.log(z / a)
+        return scale * cash_pnl(ret, stake, fee), ret
+
+    def verdict_for(symbol):
+        def verdict(d):
+            m = day_model.get(d)
+            return calls.get((m, symbol, d)) if m else None
+        return verdict
+
+    def run_week(symbol, days, scale, close_day):
+        """
+        The positions of one instrument over the week's days in the daily record; a position still held after
+        them runs to the week's close (`close_day`, its last game day: a last day missing from the daily record
+        has no call and keeps the position) when that day has a price, else to the last day present. A position
+        whose price is missing keeps its place with money None (the week is then not live).
+        """
+        trades, entry = guard_trades(days, verdict_for(symbol))
+        end = close_day if close_day and exit_price(symbol, close_day) is not None else (days[-1] if days else None)
+        out = []
+        for e, x, reason in trades + ([(entry, end, "week end")] if entry is not None and end else []):
+            held = [d for d in days if e <= d < x] + [x]
+            got = money(symbol, held, scale)
+            out.append([symbol, e, x, None if got is None else round(got[0], 4), reason])
+        return out
+
+    def expected_days(w):
+        """The game days of the ISO week ending on `w`: Monday to `w` for crypto, the NYSE sessions among them for shares."""
+        end = date.fromisoformat(w)
+        if base == "crypto":
+            return [(end - timedelta(days=j)).isoformat() for j in range(end.weekday(), -1, -1)]
+        out = []
+        for j in range(end.weekday(), -1, -1):
+            d = end - timedelta(days=j)
+            if d.weekday() < 5 and d.isoformat() not in NYSE_CLOSED:
+                out.append(d.isoformat())
+        return out
+
+    points, total = [], 0.0
+    first_live, live_total, live_market, live_weeks, live_positions = None, 0.0, 0.0, 0, 0
+    settled_base = set(base_days)
+    first_base = base_days[0] if base_days else None
+    for p in week_followed["points"]:
+        w, model, wlive, market_pnl = p[0], p[1], bool(p[6]), p[7]
+        # the guard runs over the week's days the daily record has: a week that starts inside the daily record is
+        # guarded even when a day is missing from it (an unscheduled closure, a day file not rebuilt yet) - that day
+        # has no daily call, as guarded_now sees it; a week from before the daily record carries the plain week
+        expected = expected_days(w)
+        days = [d for d in expected if d in settled_base]
+        guarded = bool(expected) and first_base is not None and expected[0] >= first_base
+        # a day missing from the daily record on which the market traded (a bar exists) is a gap the follower had a
+        # call for: the week cannot be vouched for as followed; a day without a bar was no game day (a closure)
+        gap = any(d in bars.get(sym, {}) for d in expected if d not in settled_base for sym in symbols)
+        trades = []
+        if model and guarded:
+            for symbol in symbols:
+                scale = week_up.get((model, symbol, w)) or 0.0
+                if scale > 0:
+                    trades.extend(run_week(symbol, days, scale, expected[-1]))
+        elif model:
+            # a week from before the daily game's record (the week history goes back further): no daily call to
+            # guard with, so the plain week - each up call held from the week's start to its close
+            plain = p[8] if len(p) > 8 and isinstance(p[8], dict) else {}
+            trades = [[sym, expected[0] if expected else w, w, round(v, 4), "week end"] for sym, v in plain.items() if v is not None]
+        priced = all(t[3] is not None for t in trades)
+        pnl = sum(t[3] for t in trades if t[3] is not None)
+        by_symbol = {}
+        for t in trades:
+            if t[3] is not None:
+                by_symbol[t[0]] = round(by_symbol.get(t[0], 0.0) + t[3], 4)
+        total += pnl
+        live = wlive and guarded and priced and not gap and all(day_live.get(d, False) for d in days)
+        if live:
+            first_live = first_live or w
+            live_total += pnl
+            live_market += market_pnl or 0.0
+            live_weeks += 1
+            live_positions += len(trades)
+        points.append([w, model, len(trades), round(pnl, 4), round(total, 4), live, market_pnl, by_symbol, trades, guarded])
+
+    return {"rule": GUARD_RULE, "points": points, "first_live": first_live, "total": round(total, 4),
+            "live_total": round(live_total, 4), "live_market": round(live_market, 4), "live_weeks": live_weeks,
+            "live_positions": live_positions,
+            "now": guarded_now(conn, market, path, week_followed.get("next_pick"), day_followed.get("next_pick"),
+                               base_days, verdict_for, words, week_of, k, money=money, entry_price=entry_price,
+                               exit_price=exit_price)}
+
+
+def guarded_now(conn, market, path, week_model, day_model_next, base_days, verdict_for, words, week_of_fn, k=K_BINS, money=None, entry_price=None,
+                exit_price=None):
+    """The week in progress under the guard (guarded_week's `now`), or None when the tickets do not line up."""
+    base = base_market(market)
+    week_next = next_day_predictions(conn, market, path)
+    day_next = next_day_predictions(conn, base, path)
+    if not week_next or not day_next or not week_model:
+        return None
+    running = next_session(base, day_next["made_on"])
+    first_day = next_session(base, week_next["made_on"])
+    if week_of_fn(running) != week_of_fn(first_day):
+        return None          # the week ticket is not this week's (a run missed it, or the week has closed): no guard to apply
+    settled = [d for d in base_days if week_of_fn(d) == week_of_fn(running) and d < running]
+    is_last = (date.fromisoformat(running).weekday() == 6) if base == "crypto" else week_closed_by("sharesweek", running)
+    out = {}
+    for symbol, inst in (week_next.get("instruments") or {}).items():
+        wp = next((q for q in inst.get("predictions") or [] if q["model"] == week_model), None)
+        if wp is None or call_word(wp.get("bin"), wp.get("size"), k) != "up":
+            continue
+        scale = float(wp["size"]) if wp.get("size") is not None else 1.0
+        trades, entry = guard_trades(settled, verdict_for(symbol))
+        dp = next((q for q in (day_next.get("instruments") or {}).get(symbol, {}).get("predictions") or [] if q["model"] == day_model_next), None)
+        word = call_word(dp.get("bin"), dp.get("size"), k) if dp else None
+        today_up = None if word is None else word == "up"
+        if entry is not None:
+            action = "sell" if (today_up is False or is_last) else "hold"
+            reason = "guard" if today_up is False else ("week end" if is_last else None)
+        else:
+            # a day without a daily call buys nothing, as in guard_trades
+            action = "buy" if today_up is True else "out"
+            if action == "buy":
+                reason = "start" if not settled else ("re-enter" if trades else "first up call")
+            else:
+                reason = "guard" if trades else "call"
+        closed = []
+        for e, x, r in trades:
+            got = money(symbol, [d for d in settled if e <= d <= x], scale) if money else None
+            closed.append([e, x, r, None if got is None else round(got[0], 4), None if got is None else round(got[1], 6),
+                           entry_price(symbol, e) if entry_price else None, exit_price(symbol, x) if exit_price else None])
+        held_from = entry if entry is not None else (running if action == "buy" else None)
+        out[symbol] = {"action": action, "reason": reason, "entry": held_from, "scale": scale,
+                       "entry_price": (entry_price(symbol, held_from) if entry_price and held_from else None),
+                       "call": word, "sold_on": trades[-1][1] if trades and entry is None else None,
+                       # None unless every sale's money is known: a partial sum would read as the whole
+                       "realized": round(sum(c[3] for c in closed), 4) if closed and all(c[3] is not None for c in closed) else None,
+                       "trades": closed}
+    return {"running_day": running, "first_day": first_day, "last_day": is_last, "week_model": week_model, "day_model": day_model_next,
+            "settled_days": settled, "symbols": out}
 
 
 def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
@@ -1005,6 +1278,8 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     # what following the page's own plan made, picked day by day from the record before each day (before the
     # open book is dropped for the markets without one: followed_plan reads the rule's own book)
     followed = followed_plan(conn, market, book, path=path, k=k)
+    # the week game played with the daily guard - the user page's week positions (GUARD_RULE)
+    guarded = guarded_week(conn, market, path, followed, k) if is_week_game(market) else None
     book.pop("_counts", None)
     if market not in OPEN_RULE_MARKETS:
         book.pop("open", None)
@@ -1056,7 +1331,7 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
                     "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
                     **({"open_rule": "the same calls, but the stake is bought at the session's open and sold at its close, a fee on each leg: the rule a reader of the page can follow"} if "open" in book else {}),
                     "short_rule": "with shorts on, a bin in the lower half is a short: sold at the previous close and bought back at the day's close (daily), kept while the call stays down (hold), sold at the open and bought back at the close (open to close); paper only - selling what one does not own needs a margin or derivatives account",
-                    **book, "followed": followed},
+                    **book, "followed": followed, **({"guarded": guarded} if guarded is not None else {})},
         "next": next_day_predictions(conn, market, path),
         "daily": daily_series(conn, market)[-chart_days:],
         "days": day_records(conn, market, days=DAY_RECORDS, k=k),
@@ -1089,6 +1364,25 @@ def settle_and_export(path, market, db_path=None, log=print, fee=FEE):
 # ---------------------------------------------------------------------------
 # Self-check (no network)
 # ---------------------------------------------------------------------------
+
+def _guard_check():
+    """guard_trades and call_word on hand-made calls: python3 -c 'from src.MarketSettle import _guard_check; _guard_check()'."""
+    days = ["d1", "d2", "d3", "d4", "d5"]
+    v = lambda calls: (lambda d: calls[days.index(d)])
+    assert guard_trades(days, v([True, True, True, True, True])) == ([], "d1"), "all up: one position from the start, still held"
+    assert guard_trades(days, v([None, None, None, None, None])) == ([], None), "no daily calls: nothing bought"
+    assert guard_trades(days, v([True, None, None, False, None])) == ([("d1", "d4", "guard")], None), "a day without a call keeps a held position"
+    assert guard_trades(days, v([None, False, None, True, True])) == ([], "d4"), "a day without a call buys nothing"
+    assert guard_trades(days, v([True, False, True, True, False])) == ([("d1", "d2", "guard"), ("d3", "d5", "guard")], None), "sold at the close of a down day, bought again on the next up call"
+    assert guard_trades(days, v([False, False, True, None, True])) == ([], "d3"), "a down first day buys nothing; the first up call enters"
+    assert guard_trades(days, v([True, True, False, False, False])) == ([("d1", "d3", "guard")], None), "out after the guard, no re-entry without an up call"
+    assert guard_trades([], v([])) == ([], None)
+    assert call_word(7, None) == "up" and call_word(4, None) == "flat" and call_word(2, None) == "down" and call_word(None, None) is None
+    assert call_word(3, 1.5) == "up" and call_word(8, 0.0) == "flat"
+    assert next_session("crypto", "2026-10-17") == "2026-10-18" and next_session("shares", "2026-10-16") == "2026-10-19"
+    assert next_session("sharesweek", "2026-11-25") == "2026-11-27", "Thanksgiving is skipped"
+    print("guard rule: bought on an up daily call, held until a flat or down one (sold at that day's close), bought again on the next up call")
+
 
 def _self_check():
     import tempfile
@@ -1472,4 +1766,5 @@ def _self_check():
 
 
 if __name__ == "__main__":
+    _guard_check()
     _self_check()

@@ -77,26 +77,31 @@ ok(v && v.market === 'crypto' && v.unit === 'USDT' && v.instruments.join() === '
 // the day positions: GARCH's up call becomes a buy-now row, its down call a chip; the week's up call a held row guarded by today's daily call
 ok(v.day && v.day.model === 'GARCH Model' && v.day.byBook && v.day.modelCount === 3 && v.day.ruleName === 'daily round trip', `the day card follows the best book: ${JSON.stringify(v.day)}`);
 const btc = v.open.find((q) => q.symbol === 'BTC' && q.game === 'day');
-ok(btc && btc.status === 'buy now' && btc.sellText === 'tonight 02:00' && btc.openRate === 81682 && btc.band.bin === 6 && btc.band.lowPct === 0.49 && btc.modelsUp.up === 2 && btc.modelsUp.of === 3,
+ok(btc && btc.status === 'buy now' && btc.buyText === 'now' && btc.sellText === 'tonight 02:00' && btc.openRate === 81682 && btc.band.bin === 6 && btc.band.lowPct === 0.49 && btc.modelsUp.up === 2 && btc.modelsUp.of === 3,
    `BTC is a buy-now day position sold tonight: ${JSON.stringify(btc)}`);
 ok(v.none.day.length === 1 && v.none.day[0].symbol === 'ETH' && v.none.day[0].call === 'down', `ETH's down call is a no-position chip: ${JSON.stringify(v.none.day)}`);
 const eth = v.open.find((q) => q.symbol === 'ETH' && q.game === 'week');
-ok(eth && eth.status === 'held' && eth.since === 'since Mon 12 Oct' && eth.openRate === 2536.9 && eth.profitPctClose === -4.54 && eth.guard && eth.guard.state === 'sell' && eth.guard.booked === false && eth.sellText === 'Mon 19 Oct 02:00',
+ok(eth && eth.status === 'held' && eth.buyText === 'Mon 12 Oct' && eth.since === 'since Mon 12 Oct' && eth.openRate === 2536.9 && eth.profitPctClose === -4.54 && eth.guard && eth.guard.state === 'sell' && eth.guard.booked === false && eth.sellText === 'Mon 19 Oct 02:00',
    `ETH's week position is held; today's daily call is down, shown as information, the sell stays at the week's end: ${JSON.stringify(eth)}`);
 ok(v.none.week.length === 1 && v.none.week[0].symbol === 'BTC' && v.none.week[0].call === 'down', 'BTC has no week position');
 ok(v.week && v.week.model === 'PoissonMonteCarlo Model' && v.week.endDay === '2026-10-18' && v.week.closeText === 'Mon 19 Oct 02:00' && v.week.stateText === 'week 12 Oct → 19 Oct' && v.day.stateText === 'day 15 Oct running, 18 h in', `the cards: ${JSON.stringify(v.week)} ${v.day.stateText}`);
 ok(v.status.openToBuy === 1 && v.status.openHeld === 1, 'one to buy, one held');
 
 // the record: positions from the live points' per-symbol money, movePct back from the money, newest first, the week's positions with their exit
-ok(v.status.since === '2026-10-13' && v.status.days === 2 && v.status.liveTotal === 1.81 && v.status.liveMarket === -5.57 && v.status.ahead === 7.38 && v.status.week && v.status.week.days === 1 && v.status.week.liveTotal === -24.82 && v.status.week.positions === 2 && v.status.week.won === 0, `the status strip: ${JSON.stringify(v.status)}`);
-ok(v.status.positions === 4 && v.status.won === 3 && v.status.lost === 1 && v.status.daysWon === 1 && v.status.bestDay.date === '2026-10-13' && v.status.worstDay.pnl === -1.99, `positions and days: ${JSON.stringify(v.status)}`);
+// the headline is what following the whole table made: the daily positions (1.81 over 13-14 Oct) and the weekly ones
+// (-24.82, the week ending 11 Oct) together, against the market under the same rules (-5.57 and -31.98)
+ok(v.status.since === '2026-10-11' && v.status.days === 3 && v.status.liveTotal === -23.01 && v.status.liveMarket === -37.55 && v.status.ahead === 14.54
+   && v.status.dailyTotal === 1.81 && v.status.weeklyTotal === -24.82 && v.status.week && v.status.week.days === 1 && v.status.week.positions === 2 && v.status.week.won === 0,
+   `the status strip: ${JSON.stringify(v.status)}`);
+ok(v.status.positions === 6 && v.status.won === 3 && v.status.lost === 3 && v.status.daysWon === 1 && v.status.daysPlayed === 3 && v.status.daysIdle === 0 && v.status.bestDay.date === '2026-10-13' && v.status.worstDay.pnl === -24.82 && v.status.worstDay.date === '2026-10-11'
+   && v.status.bestCoin.symbol === 'OLD' && v.status.worstCoin.symbol === 'ETH' && v.status.worstCoin.pnl === -13.24, `positions, days and coins: ${JSON.stringify(v.status)}`);
 ok(v.closed.length === 6 && v.closed[0].closed === '2026-10-14' && v.closed[0].symbol === 'BTC' && v.closed[0].pnl === -1.99 && v.closed[0].movePct === -1.79 && v.closed[0].exit === 'close 02:00 next day' && v.closed[0].raw === undefined,
    `the newest closed position: ${JSON.stringify(v.closed[0])}`);
 ok(v.closed.filter((q) => q.game === 'week').length === 2 && v.closed.find((q) => q.game === 'week' && q.symbol === 'ETH').pnl === -14.82 && v.closed.find((q) => q.game === 'week').exit === 'week end',
    'the settled live week gives one closed position per instrument');
 ok(!v.closed.some((q) => q.closed === '2026-10-12'), 'back-built days give no positions');
-ok(v.perCoin.length === 3 && v.perCoin[0].symbol === 'ETH' && v.perCoin[0].pnl === 1.58 && v.perCoin.find((c) => c.symbol === 'BTC').positions === 2, `per coin: ${JSON.stringify(v.perCoin)}`);
-ok(v.daily.length === 2 && v.cumulative[1].plan === 1.81 && v.cumulative[1].market === -5.57, `daily and cumulative: ${JSON.stringify(v.cumulative)}`);
+ok(v.perCoin.length === 3 && v.perCoin[0].symbol === 'OLD' && v.perCoin.find((c) => c.symbol === 'ETH').pnl === -13.24 && v.perCoin.find((c) => c.symbol === 'BTC').positions === 3, `per coin, daily and weekly positions together: ${JSON.stringify(v.perCoin)}`);
+ok(v.daily.length === 3 && v.daily[0].date === '2026-10-11' && v.daily[0].pnl === -24.82 && v.cumulative[2].plan === -23.01 && v.cumulative[2].market === -37.55, `daily and cumulative, the week on the day it settled: ${JSON.stringify(v.cumulative)}`);
 ok(v.log.length === 6 && v.log[0].symbol === 'BTC' && v.log[0].game === 'day', 'the log is the newest positions');
 ok(v.notes.guardText.includes('flat or down') && v.notes.guard.includes('not booked') && v.day.entryNote.includes('00:00 UTC'), 'the notes carry the rules');
 
@@ -115,13 +120,137 @@ ok(bare.status.days === 0 && bare.status.liveTotal === null && bare.closed.lengt
 ok(api.marketView('nope', record, null, now) === null && api.marketView('crypto', null, null, now) === null, 'an unknown market or no record is null');
 // an older point without the per-symbol money gives no positions but keeps the day
 const old = api.marketView('crypto', { ...record, trading: { ...record.trading, followed: { ...record.trading.followed, points: record.trading.followed.points.map((p) => p.slice(0, 8)) } } }, null, now);
-ok(old.status.days === 2 && old.status.positions === 0 && old.daily.length === 2, 'older points without per-symbol money: days yes, positions none');
+ok(old.status.days === 2 && old.status.positions === 0 && old.daily.length === 2 && old.status.liveTotal === 1.81, 'older points without per-symbol money: days yes, positions none');
+// a day on which nothing was bought is neither won nor lost
+const idle = api.marketView('crypto', { ...record, trading: { ...record.trading, followed: { ...record.trading.followed, live_days: 3,
+  points: [...record.trading.followed.points, ['2026-10-15', 'GARCH Model', 'book', 0, 0, 0.81, true, 1.2, {}]] } } }, null, now);
+ok(idle.status.days === 3 && idle.status.daysPlayed === 2 && idle.status.daysIdle === 1 && idle.status.daysWon === 1, `a day without a position: ${JSON.stringify(idle.status)}`);
 
 const exact = (ret) => 100 * Math.exp(ret) * 0.999 - 100 * 1.001;   // MarketSettle.cash_pnl for a 100 stake at 0.10% a leg
 const moved = api.marketView('crypto', { ...record, trading: { ...record.trading, followed: { ...record.trading.followed, points: [['2026-10-14', 'GARCH Model', 'book', 2, 0, 0, true, 0, { BTC: exact(-0.05), ETH: exact(0.1) }]] } } }, null, now);
 ok(moved.closed.find((q) => q.symbol === 'BTC').movePct === -4.88 && moved.closed.find((q) => q.symbol === 'ETH').movePct === 10.52, `the move reads back exactly: ${JSON.stringify(moved.closed.map((q) => q.movePct))}`);
 const sizedView = api.marketView('crypto', { ...record, trading: { ...record.trading, followed: { ...record.trading.followed, points: [['2026-10-14', 'RL Position Model', 'book', 1, 2, 2, true, 0, { BTC: 2 }]] } } }, null, now);
 ok(sizedView.closed[0].movePct === null && sizedView.closed[0].pnl === 2, 'the sized row has no move, only money');
+
+// --- the guarded week (MarketSettle.guarded_week): the week rows and the weekly record follow the guard ----------
+const guardedWeek = { ...weekRecord, trading: { ...weekRecord.trading, guarded: {
+  rule: 'guard', first_live: '2026-10-11', live_total: -3.5, live_market: -31.98, live_weeks: 1, live_positions: 2, total: -3.5,
+  points: [['2026-10-04', 'GARCH Model', 1, 1, 1, false, 4.9, { BTC: 1 }, [['BTC', '2026-09-28', '2026-10-04', 1, 'week end']], true],
+           ['2026-10-11', 'GARCH Model', 2, -3.5, -2.5, true, -31.98, { BTC: -1.5, ETH: -2 }, [['BTC', '2026-10-05', '2026-10-07', -1.5, 'guard'], ['ETH', '2026-10-05', '2026-10-11', -2, 'week end']], true]],
+  now: { running_day: '2026-10-15', first_day: '2026-10-12', last_day: false, week_model: 'PoissonMonteCarlo Model', day_model: 'GARCH Model', settled_days: ['2026-10-12', '2026-10-13', '2026-10-14'],
+    symbols: { ETH: { action: 'sell', reason: 'guard', entry: '2026-10-13', entry_price: 2500, call: 'down', sold_on: null, realized: null, trades: [] } } } } } };
+const gv = api.marketView('crypto', record, guardedWeek, now);
+const ethG = gv.open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethG && ethG.status === 'held' && ethG.buyText === 'Tue 13 Oct' && ethG.openRate === 2500 && ethG.sellText === 'tonight 02:00' && ethG.guard.booked === true && ethG.guard.state === 'sell'
+   && ethG.profitPctClose === -3.14 && !ethG.sellNote && ethG.guard.reason === "today's daily call for ETH is down, so the position is sold at the close (tonight 02:00)"
+   && gv.week.guarded === true && gv.notes.guard.includes('held while the daily call is up'),
+   `under the guard a held week position whose daily call is down is sold tonight, measured from its entry at the last close: ${JSON.stringify(ethG)}`);
+const btcClosed = gv.closed.find((q) => q.game === 'week' && q.symbol === 'BTC');
+ok(gv.status.weeklyTotal === -3.5 && gv.status.week.guarded === true && gv.closed.filter((q) => q.game === 'week').length === 2
+   && btcClosed.exit === 'guard: Wed 7 Oct, close 02:00 next day · bought Mon 5 Oct' && btcClosed.closed === '2026-10-11' && btcClosed.sold === '2026-10-07'
+   && gv.closed.find((q) => q.game === 'week' && q.symbol === 'ETH').exit === 'week end · bought Mon 5 Oct',
+   `the weekly record is the guarded book's, each position dated its week's close with the days it was held: ${JSON.stringify(gv.closed.filter((q) => q.game === 'week'))}`);
+const gDaily = Object.fromEntries(gv.daily.map((d) => [d.date, d]));
+ok(gDaily['2026-10-07'] === undefined && gDaily['2026-10-11'].pnl === -3.5 && gDaily['2026-10-11'].market === -31.98,
+   `a guarded week's money and its market land together on the week's close, never on a mid-week day: ${JSON.stringify(gv.daily)}`);
+const outWeek = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now,
+  symbols: { ETH: { action: 'out', reason: 'guard', entry: null, entry_price: null, call: 'flat', sold_on: '2026-10-13', realized: -1.7, trades: [['2026-10-12', '2026-10-13', 'guard', -1.7, -0.015, 2536.9, 2499.1]] } } } } } };
+const ethOut = api.marketView('crypto', record, outWeek, now).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethOut && ethOut.status === 'out' && ethOut.sellText === '—' && ethOut.since === 'sold Tue 13 Oct · \u22121.5% (\u22121.70 USDT)' && ethOut.profitPctClose === null
+   && ethOut.openRate === null && ethOut.openRateNote === 'no position held' && ethOut.guard.state === 'out' && ethOut.guard.reason === "today's daily call for ETH is flat, so it stays out"
+   && ethOut.statusText.includes('back in on the next up daily call'),
+   `a position the guard sold earlier this week shows as out, its sale under Buy and no entry: ${JSON.stringify(ethOut)}`);
+const twiceWeek = { ...outWeek, trading: { ...outWeek.trading, guarded: { ...outWeek.trading.guarded, now: { ...outWeek.trading.guarded.now,
+  symbols: { ETH: { ...outWeek.trading.guarded.now.symbols.ETH, realized: -2.4, trades: [['2026-10-12', '2026-10-12', 'guard', -1.7, -0.015, 2536.9, 2499.1], ['2026-10-13', '2026-10-14', 'guard', -0.7, -0.005, 2499.1, 2486.6]] } } } } } };
+ok(api.marketView('crypto', record, twiceWeek, now).open.find((q) => q.game === 'week').since === 'sold 2× this week · \u22122.40 USDT', 'two sales this week read as one line with their money');
+// a coin bought back after a guard sale keeps the sale in view until the week closes
+const backWeek = { ...outWeek, trading: { ...outWeek.trading, guarded: { ...outWeek.trading.guarded, now: { ...outWeek.trading.guarded.now,
+  symbols: { ETH: { ...outWeek.trading.guarded.now.symbols.ETH, action: 'hold', reason: null, entry: '2026-10-14', entry_price: 2450, call: 'up', sold_on: null } } } } } };
+const ethBack = api.marketView('crypto', record, backWeek, now).open.find((q) => q.game === 'week');
+ok(ethBack.status === 'held' && ethBack.buyText === 'Wed 14 Oct' && ethBack.earlier === 'earlier: sold Tue 13 Oct · \u22121.5% (\u22121.70 USDT)', `a re-bought coin shows its earlier sale: ${JSON.stringify(ethBack)}`);
+// a sale whose money is not known is never shown as 0.00 (guarded_now sends realized null)
+const unknownWeek = { ...outWeek, trading: { ...outWeek.trading, guarded: { ...outWeek.trading.guarded, now: { ...outWeek.trading.guarded.now,
+  symbols: { ETH: { ...outWeek.trading.guarded.now.symbols.ETH, realized: null, trades: [['2026-10-12', '2026-10-13', 'guard', null, null, 2536.9, null]] } } } } } };
+ok(api.marketView('crypto', record, unknownWeek, now).open.find((q) => q.game === 'week').since === 'sold Tue 13 Oct', 'an unknown sale reads without a figure');
+const buyWeek = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now,
+  symbols: { ETH: { action: 'buy', reason: 're-enter', entry: '2026-10-15', entry_price: 2421.6, call: 'up', sold_on: null, realized: -1.7, trades: [] } } } } } };
+const ethBuy = api.marketView('crypto', record, buyWeek, now).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethBuy && ethBuy.status === 'buy now' && ethBuy.buyText === 'now' && ethBuy.sellText === 'Mon 19 Oct 02:00' && ethBuy.sellNote === 'at the latest · the guard can sell sooner'
+   && ethBuy.statusText.includes('back in') && ethBuy.guard.state === 'buy' && ethBuy.guard.reason === "today's daily call for ETH is up, so the position is bought",
+   `a re-entry on an up call is a buy now, the week's close the latest sell: ${JSON.stringify(ethBuy)}`);
+// after the running day's close (07:00 Belgian on Friday): a buy is held, a guard sale is sold, until the morning run
+const overnight = new Date('2026-10-16T05:00:00Z');
+const ethHeld = api.marketView('crypto', record, buyWeek, overnight).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethHeld && ethHeld.status === 'held' && ethHeld.buyText === 'Thu 15 Oct' && ethHeld.since === 'since Thu 15 Oct' && ethHeld.sellText === 'Mon 19 Oct 02:00'
+   && ethHeld.guard.state === 'hold' && ethHeld.guard.text === 'next call after the morning run' && ethHeld.statusText.includes('still held'),
+   `a position bought on the running day is still held after its close: ${JSON.stringify(ethHeld)}`);
+const ethSold = api.marketView('crypto', record, guardedWeek, overnight).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethSold && ethSold.status === 'sold' && ethSold.buyText === 'Tue 13 Oct' && ethSold.sellText === '—' && ethSold.statusText.includes('money when the week closes'),
+   `a guard sale after the close reads as sold, not too late: ${JSON.stringify(ethSold)}`);
+// the week's last day: sold at the week's close whatever the daily call
+const sundayRecord = { ...record, next: { ...record.next, made_on: '2026-10-17' } };
+const endWeek = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now, running_day: '2026-10-18', last_day: true,
+  symbols: { ETH: { action: 'sell', reason: 'week end', entry: '2026-10-13', entry_price: 2500, call: 'up', sold_on: null, realized: null, trades: [] } } } } } };
+const ethEnd = api.marketView('crypto', sundayRecord, endWeek, new Date('2026-10-18T10:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethEnd && ethEnd.status === 'held' && ethEnd.sellText === 'tonight 02:00' && !ethEnd.sellNote && ethEnd.guard.state === 'weekend' && ethEnd.guard.text === 'daily call up',
+   `the week's last day sells at the week's close, not by the guard: ${JSON.stringify(ethEnd)}`);
+const endOut = { ...endWeek, trading: { ...endWeek.trading, guarded: { ...endWeek.trading.guarded, now: { ...endWeek.trading.guarded.now,
+  symbols: { ETH: { action: 'out', reason: 'call', entry: null, entry_price: null, call: 'flat', sold_on: null, realized: null, trades: [] } } } } } };
+const ethEndOut = api.marketView('crypto', sundayRecord, endOut, new Date('2026-10-18T10:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethEndOut.since === 'not bought this week' && ethEndOut.statusText.includes('the week ends at the close') && !ethEndOut.statusText.includes('first one'),
+   `on the last day an out coin promises no re-entry: ${JSON.stringify(ethEndOut)}`);
+// the day before the last: the guard's next chance to sell is the week's own close
+const saturday = { ...record, next: { ...record.next, made_on: '2026-10-16' } };
+const satWeek = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now, running_day: '2026-10-17',
+  symbols: { ETH: { action: 'hold', reason: null, entry: '2026-10-13', entry_price: 2500, call: 'up', sold_on: null, realized: null, trades: [] } } } } } };
+const ethSat = api.marketView('crypto', saturday, satWeek, new Date('2026-10-17T10:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethSat.sellText === 'Mon 19 Oct 02:00' && ethSat.sellNote === 'the week\'s close', `on the day before the last the guard cannot sell sooner: ${JSON.stringify(ethSat)}`);
+const staleWeek = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now, first_day: '2026-10-05' } } } };
+ok(api.marketView('crypto', record, staleWeek, now).open.find((q) => q.game === 'week' && q.symbol === 'ETH').guard.booked === false, 'a guard state for another week is not used: the plain week with the call as information');
+// a week record a day behind the daily one: its guard state is yesterday's, so it is not applied
+const lagWeek = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now, running_day: '2026-10-14' } } } };
+const lagView = api.marketView('crypto', record, lagWeek, now);
+const ethLag = lagView.open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(lagView.week.guarded === false && ethLag.status === 'sold' && ethLag.buyText === 'Tue 13 Oct' && ethLag.statusText.includes('a run behind')
+   && ethLag.guard.booked === false && ethLag.guard.reason.includes('not in the week record yet') && !ethLag.guard.reason.includes('stays at the week')
+   && lagView.notes.guard.includes('next run') && lagView.status.week.guarded === true && lagView.status.openHeld === 0,
+   `a week record a run behind shows the book as of its running day's close, today's call as information: ${JSON.stringify(ethLag)} / ${lagView.notes.guard}`);
+const lagOut = { ...lagWeek, trading: { ...lagWeek.trading, guarded: { ...lagWeek.trading.guarded, now: { ...lagWeek.trading.guarded.now, symbols: outWeek.trading.guarded.now.symbols } } } };
+const ethLagOut = api.marketView('crypto', record, lagOut, now).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethLagOut.status === 'out' && ethLagOut.since.startsWith('sold Tue 13 Oct'), `a coin the lagging record has sold stays out, never the plain week's Held: ${JSON.stringify(ethLagOut)}`);
+const lagUp = { ...lagOut, trading: { ...lagOut.trading, guarded: { ...lagOut.trading.guarded, now: { ...lagOut.trading.guarded.now,
+  symbols: { BTC: { action: 'out', reason: 'call', entry: null, entry_price: null, call: 'flat', sold_on: null, realized: null, trades: [] } } } } } };
+const btcLagWeek = { ...lagUp, next: { ...lagUp.next, instruments: { ...lagUp.next.instruments, BTC: { base: 83773, predictions: [pred('PoissonMonteCarlo Model', 7, 85000, 86000)] } } } };
+const btcLag = api.marketView('crypto', record, btcLagWeek, now).open.find((q) => q.game === 'week' && q.symbol === 'BTC');
+ok(btcLag && btcLag.status === 'out' && btcLag.guard.state === 'buy' && btcLag.guard.reason.includes('would buy it') && btcLag.statusText.includes('first one. The week record is a run behind')
+   && btcLag.since === 'daily call up today: in by the rule',
+   `a lagging record's out coin on today's up call: the rule would buy it, and the texts read as sentences: ${JSON.stringify(btcLag)}`);
+// a week record ahead of the daily one (the daily export failed): its state is the newer one and is applied
+const aheadWeek = { ...outWeek, trading: { ...outWeek.trading, guarded: { ...outWeek.trading.guarded, now: { ...outWeek.trading.guarded.now, running_day: '2026-10-16' } } } };
+const aheadView = api.marketView('crypto', record, aheadWeek, now);
+const ethAhead = aheadView.open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(aheadView.week.guarded === true && ethAhead.status === 'out' && aheadView.status.openHeld === 0, `a week record ahead of the daily one keeps the guard's rows: ${JSON.stringify(ethAhead)}`);
+// ...and its closes are used when they are newer than the daily record's: the move at the last close
+const aheadHold = { ...aheadWeek, instruments: aheadWeek.instruments.map((i) => (i.symbol === 'ETH' ? { ...i, closes: [...i.closes, ['2026-10-15', 2460]] } : i)),
+  trading: { ...aheadWeek.trading, guarded: { ...aheadWeek.trading.guarded, now: { ...aheadWeek.trading.guarded.now,
+    symbols: { ETH: { action: 'hold', reason: null, entry: '2026-10-15', entry_price: 2400, call: 'up', sold_on: null, realized: null, trades: [] } } } } } };
+ok(api.marketView('crypto', record, aheadHold, now).open.find((q) => q.game === 'week').profitPctClose === 2.5, 'a week record ahead brings the newer close for the move');
+// a guard block without this week's state (no daily ticket for the week yet): nothing is bought, never the plain week's entry
+const noState = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: null } } };
+const noStateView = api.marketView('crypto', record, noState, new Date('2026-10-16T05:00:00Z'));
+ok(noStateView.open.filter((q) => q.game === 'week').every((q) => q.status === 'out') && noStateView.status.openToBuy === 0 && noStateView.status.openHeld === 0,
+   `without the guard's state for the week the week rows are out: ${JSON.stringify(noStateView.open.filter((q) => q.game === 'week'))}`);
+// a crypto sale shown after a later day began names its game day, as the closed positions do
+const lag2 = { ...guardedWeek, trading: { ...guardedWeek.trading, guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now, running_day: '2026-10-13' } } } };
+const ethLag2 = api.marketView('crypto', record, lag2, now).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethLag2.status === 'sold' && ethLag2.statusText.includes('(Tue 13 Oct, close 02:00 next day)') && ethLag2.statusText.includes('2 runs behind'), `a past crypto sale names its game day: ${ethLag2.statusText}`);
+// the plain week on its last day: an up daily call does not hold, the week ends at the close
+const sundayUp = { ...sundayRecord, next: { ...sundayRecord.next, instruments: { ...sundayRecord.next.instruments, ETH: { base: 2421.6, predictions: [pred('GARCH Model', 7, 2440, 2460)] } } } };
+const ethPlainEnd = api.marketView('crypto', sundayUp, weekRecord, new Date('2026-10-18T10:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
+ok(ethPlainEnd && ethPlainEnd.guard && ethPlainEnd.guard.state === 'weekend' && ethPlainEnd.guard.reason.includes('last day'), `on the week's last day the information is the week end: ${JSON.stringify(ethPlainEnd && ethPlainEnd.guard)}`);
+// a sized daily row that is not up reads flat, whatever its bin (MarketSettle.call_word)
+const sizedDay = { ...record, next: { ...record.next, instruments: { ...record.next.instruments, ETH: { base: 2421.6, predictions: [pred('GARCH Model', 1, 2300, 2350, 0)] } } } };
+ok(api.marketView('crypto', sizedDay, null, now).none.day.find((c) => c.symbol === 'ETH').call === 'flat', 'a sized row at size 0 is flat, not down');
 
 // --- shares: the open-to-close rule and its clocks --------------------------------
 const sharesRecord = { ...record, market: 'shares', instruments: record.instruments.map((i) => ({ ...i, symbol: i.symbol === 'BTC' ? 'NVDA' : (i.symbol === 'ETH' ? 'AAPL' : i.symbol) })),
@@ -130,9 +259,26 @@ const sharesRecord = { ...record, market: 'shares', instruments: record.instrume
   trading: { ...record.trading, currency: 'USD', open: { models: record.trading.models, benchmark: record.trading.benchmark }, followed: { ...record.trading.followed, rule: 'open' } } };
 const before = api.marketView('shares', sharesRecord, null, new Date('2026-10-15T09:00:00Z'));   // 11:00 Belgian, before New York opens
 const nvda = before.open.find((q) => q.symbol === 'NVDA');
-ok(before.day.ruleName === 'open to close' && nvda.status === 'buy at open' && nvda.statusText.includes('15:30') && nvda.sellText === 'today 22:00' && before.notes.closeDay.includes('22:00'), `shares before the open: ${JSON.stringify(nvda)}`);
+ok(before.day.ruleName === 'open to close' && nvda.status === 'buy at open' && nvda.buyText === 'today 15:30' && nvda.statusText.includes('15:30') && nvda.sellText === 'today 22:00' && before.notes.closeDay.includes('22:00'), `shares before the open: ${JSON.stringify(nvda)}`);
 const during = api.marketView('shares', sharesRecord, null, new Date('2026-10-15T15:00:00Z'));
 ok(during.open.find((q) => q.symbol === 'NVDA').status === 'buy now' && during.closed[0].exit === 'close 22:00', 'shares during the session: buy now, closed positions exit at 22:00');
+// a guarded share week: a first up call mid-week buys at the open, measured until then from the last close
+const sharesWeek = { ...weekRecord, market: 'sharesweek', instruments: [{ symbol: 'NVDA', active: true, last_close: 229.28, closes: [['2026-10-09', 229.28]] }],
+  next: { ...weekRecord.next, made_on: '2026-10-09', instruments: { NVDA: { base: 229.28, predictions: [pred('PoissonMonteCarlo Model', 7, 235, 240)] } } },
+  trading: { ...weekRecord.trading, rule: 'open', guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now,
+    symbols: { NVDA: { action: 'buy', reason: 'first up call', entry: '2026-10-15', entry_price: null, call: 'up', sold_on: null, realized: null, trades: [] } } } } } };
+const nvdaW = api.marketView('shares', sharesRecord, sharesWeek, new Date('2026-10-15T09:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
+ok(nvdaW && nvdaW.status === 'buy at open' && nvdaW.buyText === 'today 15:30' && nvdaW.openRate === 81682 && nvdaW.openRateNote === 'last close; the book buys at the open of Thu 15 Oct',
+   `a share bought at today's open is measured from the last close, not the week base: ${JSON.stringify(nvdaW)}`);
+// a lagging share week: the daily record already has the running day's close; the entry shown is the close before it
+const sharesAhead = { ...sharesRecord, next: { ...sharesRecord.next, made_on: '2026-10-15' },
+  instruments: sharesRecord.instruments.map((i) => (i.symbol === 'NVDA' ? { ...i, last_close: 80000, closes: [...i.closes, ['2026-10-15', 80000]] } : i)) };
+sharesAhead.next = { ...sharesAhead.next, instruments: { ...sharesAhead.next.instruments, NVDA: { ...sharesAhead.next.instruments.NVDA, base: 80000 } } };
+const nvdaLag = api.marketView('shares', sharesAhead, sharesWeek, new Date('2026-10-16T09:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
+ok(nvdaLag && nvdaLag.status === 'held' && nvdaLag.openRate === 81682 && nvdaLag.openRateNote.includes('the week record catches up'),
+   `a lagging share buy is measured from the close before its day, not its own close: ${JSON.stringify(nvdaLag)}`);
+const nvdaNight = api.marketView('shares', sharesRecord, sharesWeek, new Date('2026-10-15T21:00:00Z')).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
+ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at the open of Thu 15 Oct'), `after the close the note says the share was bought: ${JSON.stringify(nvdaNight)}`);
 
 // --- production's own files, shape only (read-only) -------------------------------
 const prodDir = '/root/sequencePredictor/data/markets';

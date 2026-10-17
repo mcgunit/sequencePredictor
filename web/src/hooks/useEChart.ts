@@ -65,15 +65,29 @@ export function useEChart(build: ((t: Tokens) => ChartOption) | null) {
     chart.current.setOption(build(readTokens()), { notMerge: true });
   }, [build, theme]);
 
+  // Resize with the element, not only the window: a chart that fills its card grows when the card
+  // beside it in the same grid row is taller.
+  const drawn = build !== null;
   useEffect(() => {
     const onResize = () => chart.current?.resize();
     window.addEventListener('resize', onResize);
+    const el = ref.current;
+    const ro = typeof ResizeObserver !== 'undefined' && el ? new ResizeObserver(onResize) : null;
+    if (ro && el) ro.observe(el);
     return () => {
       window.removeEventListener('resize', onResize);
+      ro?.disconnect();
+    };
+  }, [drawn]);
+
+  // the instance goes with the component
+  useEffect(
+    () => () => {
       chart.current?.dispose();
       chart.current = null;
-    };
-  }, []);
+    },
+    [],
+  );
 
   return ref;
 }

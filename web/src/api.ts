@@ -6,7 +6,8 @@
 export type Market = 'crypto' | 'shares';
 export type Game = 'day' | 'week';
 export type Call = 'down' | 'flat';
-export type OpenStatus = 'buy now' | 'buy at open' | 'held' | 'too late';
+// 'sold': a week position the guard sold at today's close (after that close); 'too late': a day position after its close
+export type OpenStatus = 'buy now' | 'buy at open' | 'held' | 'too late' | 'sold' | 'out';
 
 export interface Me {
   user: { name: string; admin: boolean } | null;
@@ -32,8 +33,18 @@ export interface WeekStatus {
   won: number;
 }
 
+export interface CoinResult {
+  symbol: string;
+  pnl: number;
+  positions: number;
+}
+
 export interface Status {
-  week: WeekStatus | null; // the week game's own record; the other figures are the day game's
+  week: WeekStatus | null; // the weekly positions' own record; the figures below count daily and weekly together
+  dailyTotal: number | null;
+  weeklyTotal: number | null;
+  bestCoin: CoinResult | null;
+  worstCoin: CoinResult | null;
   since: string | null;
   days: number;
   liveTotal: number | null;
@@ -44,6 +55,8 @@ export interface Status {
   lost: number;
   winRate: number | null; // 0..1
   daysWon: number;
+  daysPlayed: number; // days with at least one position
+  daysIdle: number; // days on which nothing was bought
   bestDay: DayResult | null;
   worstDay: DayResult | null;
   openToBuy: number;
@@ -64,6 +77,7 @@ export interface DayGame {
 
 export interface WeekGame {
   endDay: string;
+  guarded?: boolean; // the week rows follow the guard's state for today (MarketSettle.guarded_week)
   stateText: string;
   stateTitle?: string;
   closeText: string;
@@ -81,7 +95,8 @@ export interface Band {
 }
 
 export interface Guard {
-  state: 'sell' | 'hold';
+  // buy/hold/sell/out under the guard; weekend: sold at the week's close whatever the daily call
+  state: 'buy' | 'hold' | 'sell' | 'weekend' | 'out';
   text: string;
   reason: string;
   booked?: boolean; // false while the guard rule has no paper book: information, not an order
@@ -92,14 +107,19 @@ export interface OpenPosition {
   game: Game;
   status: OpenStatus;
   statusText: string;
+  buyText?: string; // when to buy, short: "now", "today 15:30", or the day a held position was bought
   openRate: number | null;
   openRateNote: string | null;
   band: Band | null;
   profitPct: number | null;
   profitPctClose: number | null;
   sellText: string;
+  sellNote?: string | null; // under the Sell time: "at the latest · the guard can sell sooner"
   guard: Guard | null;
-  since?: string | null; // week rows: "since Mon 12 Oct"
+  since?: string | null; // week rows: "since Mon 12 Oct", or "sold Tue 13 Oct · −1.5% (−1.74 USDT)" for a position the guard sold
+  realized?: number | null; // money of this week's positions the guard already sold (null when one is not known)
+  earlier?: string | null; // a week row held again after a guard sale this week: "earlier: sold Tue 13 Oct · −1.5% (−1.74 USDT)"
+  action?: 'hold' | 'sell' | 'buy' | 'out'; // the guard's action for the running day
   modelsUp: { up: number; of: number } | null;
 }
 
@@ -142,6 +162,7 @@ export interface ClosedPosition {
   movePct: number | null;
   pnl: number;
   exit: string;
+  sold?: string; // a guarded week position: the day it was sold (closed is its week's close)
 }
 
 export interface MarketView {
@@ -249,6 +270,10 @@ function normalize(raw: Partial<MarketView> | null | undefined, market: Market):
         ? { since: typeof s.week.since === 'string' ? s.week.since : null, days: num(s.week.days, 0), liveTotal: opt(s.week.liveTotal), liveMarket: opt(s.week.liveMarket),
             ahead: opt(s.week.ahead), positions: num(s.week.positions, 0), won: num(s.week.won, 0) }
         : null,
+      dailyTotal: opt(s.dailyTotal),
+      weeklyTotal: opt(s.weeklyTotal),
+      bestCoin: s.bestCoin && typeof s.bestCoin.symbol === 'string' && opt(s.bestCoin.pnl) !== null ? s.bestCoin : null,
+      worstCoin: s.worstCoin && typeof s.worstCoin.symbol === 'string' && opt(s.worstCoin.pnl) !== null ? s.worstCoin : null,
       since: typeof s.since === 'string' ? s.since : null,
       days: num(s.days, 0),
       liveTotal: opt(s.liveTotal),
@@ -259,6 +284,8 @@ function normalize(raw: Partial<MarketView> | null | undefined, market: Market):
       lost: num(s.lost, 0),
       winRate: opt(s.winRate),
       daysWon: num(s.daysWon, 0),
+      daysPlayed: num(s.daysPlayed, num(s.days, 0)),
+      daysIdle: num(s.daysIdle, 0),
       bestDay: s.bestDay && opt(s.bestDay.pnl) !== null ? s.bestDay : null,
       worstDay: s.worstDay && opt(s.worstDay.pnl) !== null ? s.worstDay : null,
       openToBuy: num(s.openToBuy, 0),

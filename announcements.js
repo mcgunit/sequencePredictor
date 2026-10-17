@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-17-guarded-week',
+    date: '2026-10-17',
+    level: 'minor',
+    audience: 'all',
+    title: 'Week positions now follow the guard: held while the daily call is up',
+    body: [
+      'A coin the weekly model calls up is now watched every day. It is bought on the first day of the week whose daily call for it is up (not on a flat or down Monday), held while the daily call stays up, sold at the close of the first day the daily call is flat or down, bought back on the next up call, and sold at the end of the week at the latest. A day without a daily call keeps what is held and buys nothing. The new Guard column in Open positions says Buy, Hold, Sell, Out or Week end, with the daily call under it, and the Sell column follows it; on a phone the Guard column is hidden and the Sell time says when the guard sells.',
+      'The weekly results on the Crypto and Shares pages are booked the same way, each position when its week closes, dated the week\'s close; until then a position the guard sold shows as Out with its move and money. A week held every day comes out exactly as before; on the live weeks so far the guard changed crypto from -24.82 to -21.69 USDT (one week) and shares from -9.72 to -3.92 USD (two weeks: in the week to 16 Oct the daily call for NVDA was flat every day, so the guard never bought the position that lost -6.58 held) - too little to say anything yet.',
+    ],
+    link: { href: '/app/crypto', label: 'Crypto' },
+  },
+  {
     id: '2026-10-15-new-crypto-and-shares-view',
     date: '2026-10-15',
     level: 'minor',
