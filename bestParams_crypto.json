@@ -407,6 +407,58 @@
             },
             "sit_out": true,
             "sit_out_reason": "served sizing -0.0284 does not beat the 0 of never betting - the row sits out"
+        },
+        "SubsetEnsemble Model": {
+            "date": "2026-10-18T00:39:51+00:00",
+            "window_days": 46,
+            "study_best": 0.09211921736190101,
+            "margin": 0.20331556524679467,
+            "decision": "kept",
+            "run_trials": 256,
+            "study_trials": 512,
+            "reason": "challenger +0.0921 does not beat incumbent -0.0353 by 0.203316 (margin 1 x the challenger's standard error 0.2033)",
+            "trial": 256,
+            "challenger": 0.09211921736190101,
+            "incumbent": -0.03526033540152981,
+            "default": -0.4200884378700571,
+            "challenger_tuning": {
+                "score": 0.09211921736190101,
+                "kind": "subset_bound",
+                "days": 46,
+                "mean": 0.29347826086956524,
+                "score_se": 0.20331556524679467
+            },
+            "incumbent_tuning": {
+                "score": -0.03526033540152981,
+                "kind": "subset_bound",
+                "days": 46,
+                "mean": 0.16521739130434782,
+                "score_se": 0.2015212049667472
+            },
+            "default_tuning": {
+                "score": -0.4200884378700571,
+                "kind": "subset_bound",
+                "days": 46,
+                "mean": -0.1608695652173914,
+                "score_se": 0.2606101770004918
+            },
+            "candidates": [
+                "Autoencoder Model",
+                "CatBoost Model",
+                "GARCH Model",
+                "GNN Model",
+                "LaplaceMonteCarlo Model",
+                "LightGBM Model",
+                "Markov Model",
+                "MarkovMonteCarlo Model",
+                "OrderStatistics Baseline",
+                "PoissonMonteCarlo Model",
+                "Regime HMM Model",
+                "Regime HMM Single Model",
+                "Regime HMM ZeroMean Model",
+                "Transformer Model",
+                "XGBoost Model"
+            ]
         }
     },
     "markovSortedPrediction": false,

@@ -1089,6 +1089,50 @@
                 "lucky_strikes": 1,
                 "score_se": 0.23675659631240667
             }
+        },
+        "SubsetEnsemble Model": {
+            "date": "2026-10-18T00:39:09+00:00",
+            "window_days": 120,
+            "study_best": -0.29924560491207036,
+            "margin": 0.6660635694088213,
+            "decision": "kept",
+            "run_trials": 240,
+            "study_trials": 1877,
+            "reason": "challenger -0.3161 does not beat incumbent -0.3161 or default -0.7024 by 0.666064 (margin 1 x the challenger's standard error 0.6661)",
+            "trial": 1640,
+            "challenger": -0.31606356940882124,
+            "incumbent": -0.31606356940882124,
+            "default": -0.7024099309103754,
+            "challenger_tuning": {
+                "score": -0.31606356940882124,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": 0.35000000000000003,
+                "score_se": 0.6660635694088213
+            },
+            "incumbent_tuning": {
+                "score": -0.31606356940882124,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": 0.35000000000000003,
+                "score_se": 0.6660635694088213
+            },
+            "default_tuning": {
+                "score": -0.7024099309103754,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": -0.3236111111111111,
+                "score_se": 0.3787988197992643
+            },
+            "candidates": [
+                "HybridStatisticalModel",
+                "LaplaceMonteCarlo Model",
+                "Markov Model",
+                "MarkovBayesian Model",
+                "MarkovBayesianEnhanched Model",
+                "PoissonMarkov Model",
+                "PoissonMonteCarlo Model"
+            ]
         }
     },
     "classicalSvm_nFeatures": 4,

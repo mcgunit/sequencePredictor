@@ -407,6 +407,58 @@
             },
             "sit_out": false,
             "sit_out_reason": "served sizing +0.2021 beats the 0 of never betting"
+        },
+        "SubsetEnsemble Model": {
+            "date": "2026-10-18T00:40:28+00:00",
+            "window_days": 31,
+            "study_best": 0.011178396974093526,
+            "margin": 0.2265471721913289,
+            "decision": "kept",
+            "run_trials": 256,
+            "study_trials": 512,
+            "reason": "challenger +0.0109 does not beat incumbent +0.0109 by 0.226547 (margin 1 x the challenger's standard error 0.2265)",
+            "trial": 256,
+            "challenger": 0.010872182647380753,
+            "incumbent": 0.010872182647380753,
+            "default": -0.39090691887338663,
+            "challenger_tuning": {
+                "score": 0.010872182647380753,
+                "kind": "subset_bound",
+                "days": 31,
+                "mean": 0.2354838709677419,
+                "score_se": 0.2265471721913289
+            },
+            "incumbent_tuning": {
+                "score": 0.010872182647380753,
+                "kind": "subset_bound",
+                "days": 31,
+                "mean": 0.2354838709677419,
+                "score_se": 0.2265471721913289
+            },
+            "default_tuning": {
+                "score": -0.39090691887338663,
+                "kind": "subset_bound",
+                "days": 31,
+                "mean": -0.04838709677419361,
+                "score_se": 0.34413272532499944
+            },
+            "candidates": [
+                "Autoencoder Model",
+                "CatBoost Model",
+                "GARCH Model",
+                "GNN Model",
+                "LaplaceMonteCarlo Model",
+                "LightGBM Model",
+                "Markov Model",
+                "MarkovMonteCarlo Model",
+                "OrderStatistics Baseline",
+                "PoissonMonteCarlo Model",
+                "Regime HMM Model",
+                "Regime HMM Single Model",
+                "Regime HMM ZeroMean Model",
+                "Transformer Model",
+                "XGBoost Model"
+            ]
         }
     },
     "markovSoftMaxTemperature": 0.21625173611751866,

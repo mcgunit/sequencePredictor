@@ -650,6 +650,46 @@
                 "lucky_strikes": 4,
                 "score_se": 0.09396876185801431
             }
+        },
+        "SubsetEnsemble Model": {
+            "date": "2026-10-18T00:39:29+00:00",
+            "window_days": 120,
+            "study_best": -1.6841009624722807,
+            "margin": 1.302184295805614,
+            "decision": "kept",
+            "run_trials": 8,
+            "study_trials": 40,
+            "reason": "challenger -1.6841 does not beat incumbent -2.1734 or default -1.6841 by 1.30218 (margin 1 x the challenger's standard error 1.3022)",
+            "trial": 32,
+            "challenger": -1.6841009624722807,
+            "incumbent": -2.1733709762732603,
+            "default": -1.6841009624722807,
+            "challenger_tuning": {
+                "score": -1.6841009624722807,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": -0.38333333333333336,
+                "score_se": 1.302184295805614
+            },
+            "incumbent_tuning": {
+                "score": -2.1733709762732603,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": -1.0416666666666667,
+                "score_se": 1.1331765318288154
+            },
+            "default_tuning": {
+                "score": -1.6841009624722807,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": -0.38333333333333336,
+                "score_se": 1.302184295805614
+            },
+            "candidates": [
+                "LaplaceMonteCarlo Model",
+                "Markov Model",
+                "PoissonMonteCarlo Model"
+            ]
         }
     },
     "classicalSvm_nFeatures": 4,
