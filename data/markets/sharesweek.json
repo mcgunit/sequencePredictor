@@ -1,6 +1,6 @@
 {
  "market": "sharesweek",
- "generated_at": "2026-10-17T09:01:54+00:00",
+ "generated_at": "2026-10-18T08:47:57+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -71032,12 +71032,788 @@
     ]
    ],
    "first_live": "2026-10-09",
+   "next_pick": "CatBoost Model",
+   "next_picked_by": "book",
    "total": 1.8713,
    "market_total": 54.5651,
    "live_total": -9.7215,
    "live_market": -19.0511,
    "live_days": 2,
    "live_positions": 3
+  },
+  "guarded": {
+   "rule": "the week call is the permission, the daily call the trigger: a coin the week's followed row calls up is bought at the entry of the first day of the week whose daily call for it is up, held while the daily call does not turn flat or down (a day without a daily call keeps a held position and buys nothing), sold at the close of the first day whose daily call is flat or down, bought again on the next up call, sold at the week's close at the latest; consecutive held days are one position, one fee pair, the stake scaled by a sized week row's size",
+   "points": [
+    [
+     "2026-03-13",
+     null,
+     0,
+     0,
+     0.0,
+     false,
+     1.3807,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-03-20",
+     "XGBoost Model",
+     3,
+     -14.7819,
+     -14.7819,
+     false,
+     -16.6125,
+     {
+      "NVDA": -5.8073,
+      "MSFT": -4.2656,
+      "ASML": -4.709
+     },
+     [
+      [
+       "NVDA",
+       "2026-03-16",
+       "2026-03-20",
+       -5.8073,
+       "week end"
+      ],
+      [
+       "MSFT",
+       "2026-03-16",
+       "2026-03-20",
+       -4.2656,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-03-16",
+       "2026-03-20",
+       -4.709,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-03-27",
+     "RL Position Model",
+     2,
+     -15.1403,
+     -29.9222,
+     false,
+     -19.587,
+     {
+      "NVDA": -8.5299,
+      "ASML": -6.6104
+     },
+     [
+      [
+       "NVDA",
+       "2026-03-23",
+       "2026-03-27",
+       -8.5299,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-03-23",
+       "2026-03-27",
+       -6.6104,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-04-02",
+     "CatBoost Model",
+     3,
+     7.5724,
+     -22.3498,
+     false,
+     9.7094,
+     {
+      "NVDA": 4.8962,
+      "MSFT": 2.9925,
+      "ASML": -0.3163
+     },
+     [
+      [
+       "NVDA",
+       "2026-03-30",
+       "2026-04-02",
+       4.8962,
+       "week end"
+      ],
+      [
+       "MSFT",
+       "2026-03-30",
+       "2026-04-02",
+       2.9925,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-03-30",
+       "2026-04-02",
+       -0.3163,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-04-10",
+     "CatBoost Model",
+     3,
+     19.8124,
+     -2.5374,
+     false,
+     18.9116,
+     {
+      "NVDA": 6.2709,
+      "AAPL": 1.3462,
+      "ASML": 12.1953
+     },
+     [
+      [
+       "NVDA",
+       "2026-04-06",
+       "2026-04-10",
+       6.2709,
+       "week end"
+      ],
+      [
+       "AAPL",
+       "2026-04-06",
+       "2026-04-10",
+       1.3462,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-04-06",
+       "2026-04-10",
+       12.1953,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-04-17",
+     "CatBoost Model",
+     2,
+     12.0428,
+     9.5054,
+     false,
+     24.4292,
+     {
+      "NVDA": 8.2042,
+      "AAPL": 3.8386
+     },
+     [
+      [
+       "NVDA",
+       "2026-04-13",
+       "2026-04-17",
+       8.2042,
+       "week end"
+      ],
+      [
+       "AAPL",
+       "2026-04-13",
+       "2026-04-17",
+       3.8386,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-04-24",
+     "CatBoost Model",
+     2,
+     0.6941,
+     10.1995,
+     false,
+     4.1763,
+     {
+      "AAPL": 0.0698,
+      "MSFT": 0.6243
+     },
+     [
+      [
+       "AAPL",
+       "2026-04-20",
+       "2026-04-24",
+       0.0698,
+       "week end"
+      ],
+      [
+       "MSFT",
+       "2026-04-20",
+       "2026-04-24",
+       0.6243,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-05-01",
+     "CatBoost Model",
+     4,
+     -4.8485,
+     5.351,
+     false,
+     -4.8485,
+     {
+      "NVDA": -5.5346,
+      "AAPL": 5.0749,
+      "MSFT": -2.0768,
+      "ASML": -2.312
+     },
+     [
+      [
+       "NVDA",
+       "2026-04-27",
+       "2026-05-01",
+       -5.5346,
+       "week end"
+      ],
+      [
+       "AAPL",
+       "2026-04-27",
+       "2026-05-01",
+       5.0749,
+       "week end"
+      ],
+      [
+       "MSFT",
+       "2026-04-27",
+       "2026-05-01",
+       -2.0768,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-04-27",
+       "2026-05-01",
+       -2.312,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-05-08",
+     "CatBoost Model",
+     3,
+     18.7091,
+     24.0601,
+     false,
+     26.3709,
+     {
+      "AAPL": 4.6815,
+      "MSFT": 0.669,
+      "ASML": 13.3586
+     },
+     [
+      [
+       "AAPL",
+       "2026-05-04",
+       "2026-05-08",
+       4.6815,
+       "week end"
+      ],
+      [
+       "MSFT",
+       "2026-05-04",
+       "2026-05-08",
+       0.669,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-05-04",
+       "2026-05-08",
+       13.3586,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-05-15",
+     "CatBoost Model",
+     0,
+     0,
+     24.0601,
+     false,
+     7.0483,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-05-22",
+     "CatBoost Model",
+     1,
+     -6.519,
+     17.5411,
+     false,
+     3.5358,
+     {
+      "NVDA": -6.519
+     },
+     [
+      [
+       "NVDA",
+       "2026-05-18",
+       "2026-05-22",
+       -6.519,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-05-29",
+     "Autoencoder Model",
+     2,
+     -2.0845,
+     15.4566,
+     false,
+     3.8564,
+     {
+      "NVDA": -2.6913,
+      "AAPL": 0.6068
+     },
+     [
+      [
+       "NVDA",
+       "2026-05-26",
+       "2026-05-29",
+       -2.6913,
+       "week end"
+      ],
+      [
+       "AAPL",
+       "2026-05-26",
+       "2026-05-29",
+       0.6068,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-06-05",
+     "CatBoost Model",
+     1,
+     -5.1225,
+     10.3341,
+     false,
+     -13.8505,
+     {
+      "NVDA": -5.1225
+     },
+     [
+      [
+       "NVDA",
+       "2026-06-01",
+       "2026-06-05",
+       -5.1225,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-06-12",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     -6.9755,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-06-18",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     -1.1589,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-06-26",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     -23.1429,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-07-02",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     9.1274,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-07-10",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     8.0013,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-07-17",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     1.8285,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-07-24",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     -4.166,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-07-31",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     0.7577,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-08-07",
+     "Regime HMM Single Model",
+     0,
+     0,
+     10.3341,
+     false,
+     26.8413,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-08-14",
+     "CatBoost Model",
+     0,
+     0,
+     10.3341,
+     false,
+     0.944,
+     {},
+     [],
+     false
+    ],
+    [
+     "2026-08-21",
+     "CatBoost Model",
+     1,
+     0.8244,
+     11.1585,
+     false,
+     -11.9199,
+     {
+      "AAPL": 0.8244
+     },
+     [
+      [
+       "AAPL",
+       "2026-08-17",
+       "2026-08-21",
+       0.8244,
+       "week end"
+      ]
+     ],
+     false
+    ],
+    [
+     "2026-08-28",
+     "CatBoost Model",
+     2,
+     -8.2875,
+     2.871,
+     false,
+     5.3366,
+     {
+      "NVDA": -4.5104,
+      "ASML": -3.7771
+     },
+     [
+      [
+       "NVDA",
+       "2026-08-28",
+       "2026-08-28",
+       -4.5104,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-08-25",
+       "2026-08-28",
+       -3.7771,
+       "guard"
+      ]
+     ],
+     true
+    ],
+    [
+     "2026-09-04",
+     "CatBoost Model",
+     1,
+     5.0444,
+     7.9154,
+     false,
+     2.8321,
+     {
+      "NVDA": 5.0444
+     },
+     [
+      [
+       "NVDA",
+       "2026-08-31",
+       "2026-09-04",
+       5.0444,
+       "guard"
+      ]
+     ],
+     true
+    ],
+    [
+     "2026-09-11",
+     "CatBoost Model",
+     4,
+     -2.9587,
+     4.9567,
+     false,
+     -6.1229,
+     {
+      "NVDA": -3.2976,
+      "AAPL": 4.7213,
+      "ASML": -4.3824
+     },
+     [
+      [
+       "NVDA",
+       "2026-09-09",
+       "2026-09-11",
+       -3.2976,
+       "week end"
+      ],
+      [
+       "AAPL",
+       "2026-09-10",
+       "2026-09-11",
+       4.7213,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-09-09",
+       "2026-09-10",
+       -2.5296,
+       "guard"
+      ],
+      [
+       "ASML",
+       "2026-09-11",
+       "2026-09-11",
+       -1.8528,
+       "week end"
+      ]
+     ],
+     true
+    ],
+    [
+     "2026-09-18",
+     "Regime HMM Single Model",
+     1,
+     3.9645,
+     8.9212,
+     false,
+     9.5279,
+     {
+      "NVDA": 3.9645
+     },
+     [
+      [
+       "NVDA",
+       "2026-09-15",
+       "2026-09-18",
+       3.9645,
+       "guard"
+      ]
+     ],
+     true
+    ],
+    [
+     "2026-09-25",
+     "Regime HMM Single Model",
+     0,
+     0,
+     8.9212,
+     false,
+     9.1676,
+     {},
+     [],
+     true
+    ],
+    [
+     "2026-10-02",
+     "CatBoost Model",
+     0,
+     0,
+     8.9212,
+     false,
+     8.2178,
+     {},
+     [],
+     true
+    ],
+    [
+     "2026-10-09",
+     "CatBoost Model",
+     3,
+     -3.9246,
+     4.9966,
+     true,
+     -3.8505,
+     {
+      "AAPL": -0.2503,
+      "ASML": -3.6743
+     },
+     [
+      [
+       "AAPL",
+       "2026-10-05",
+       "2026-10-06",
+       0.0446,
+       "guard"
+      ],
+      [
+       "AAPL",
+       "2026-10-07",
+       "2026-10-09",
+       -0.2949,
+       "week end"
+      ],
+      [
+       "ASML",
+       "2026-10-06",
+       "2026-10-07",
+       -3.6743,
+       "guard"
+      ]
+     ],
+     true
+    ],
+    [
+     "2026-10-16",
+     "Regime HMM Single Model",
+     0,
+     0,
+     4.9966,
+     true,
+     -15.2006,
+     {},
+     [],
+     true
+    ]
+   ],
+   "first_live": "2026-10-09",
+   "total": 4.9966,
+   "live_total": -3.9246,
+   "live_market": -19.0511,
+   "live_weeks": 2,
+   "live_positions": 3,
+   "now": {
+    "running_day": "2026-10-19",
+    "first_day": "2026-10-19",
+    "last_day": false,
+    "week_model": "CatBoost Model",
+    "day_model": "GARCH Model",
+    "settled_days": [],
+    "symbols": {
+     "NVDA": {
+      "action": "out",
+      "reason": "call",
+      "entry": null,
+      "scale": 1.0,
+      "entry_price": null,
+      "call": "flat",
+      "sold_on": null,
+      "realized": null,
+      "trades": []
+     },
+     "AAPL": {
+      "action": "out",
+      "reason": "call",
+      "entry": null,
+      "scale": 1.0,
+      "entry_price": null,
+      "call": "flat",
+      "sold_on": null,
+      "realized": null,
+      "trades": []
+     },
+     "MSFT": {
+      "action": "out",
+      "reason": "call",
+      "entry": null,
+      "scale": 1.0,
+      "entry_price": null,
+      "call": "down",
+      "sold_on": null,
+      "realized": null,
+      "trades": []
+     }
+    }
+   }
   }
  },
  "next": {
