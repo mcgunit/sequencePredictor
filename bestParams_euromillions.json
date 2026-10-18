@@ -208,10 +208,10 @@
     "quantumVqc_batchSize": 64,
     "catBoostBorderCount": 254,
     "catBoostMlBorderCount": 254,
-    "rlTicketLearningRate": 0.11960246591093732,
+    "rlTicketLearningRate": 0.19270508967583486,
     "rlTicketEpochs": 40,
-    "rlTicketSamplesPerDay": 64,
-    "rlTicketTrainDays": 120,
+    "rlTicketSamplesPerDay": 32,
+    "rlTicketTrainDays": 240,
     "subsetEnsembleModels": [
         "HybridStatisticalModel",
         "LSTM Base Model",
@@ -973,6 +973,59 @@
                 "hits_bound": 0.43249589645802083,
                 "lucky_strikes": 0,
                 "score_se": 0.06750410354197915
+            }
+        },
+        "RL Ticket Model": {
+            "date": "2026-10-17T23:58:07+00:00",
+            "window_days": 40,
+            "study_best": 0.5541721928761473,
+            "margin": 0.0,
+            "decision": "replaced",
+            "run_trials": 20,
+            "study_trials": 20,
+            "reason": "challenger +0.5542 beats incumbent +0.4569 and default +0.4823",
+            "trial": 19,
+            "challenger": 0.5541721928761473,
+            "incumbent": 0.4568546093436847,
+            "default": 0.48233031891708955,
+            "challenger_tuning": {
+                "score": 0.5541721928761473,
+                "kind": "hits",
+                "days": 40,
+                "bets": 0,
+                "profit_per_bet": null,
+                "capped_profit_bound": null,
+                "fair_capped_per_bet": null,
+                "hits_mean": 0.675,
+                "hits_bound": 0.5541721928761473,
+                "lucky_strikes": 0,
+                "score_se": 0.12082780712385278
+            },
+            "incumbent_tuning": {
+                "score": 0.4568546093436847,
+                "kind": "hits",
+                "days": 40,
+                "bets": 0,
+                "profit_per_bet": null,
+                "capped_profit_bound": null,
+                "fair_capped_per_bet": null,
+                "hits_mean": 0.575,
+                "hits_bound": 0.4568546093436847,
+                "lucky_strikes": 0,
+                "score_se": 0.11814539065631521
+            },
+            "default_tuning": {
+                "score": 0.48233031891708955,
+                "kind": "hits",
+                "days": 40,
+                "bets": 0,
+                "profit_per_bet": null,
+                "capped_profit_bound": null,
+                "fair_capped_per_bet": null,
+                "hits_mean": 0.6,
+                "hits_bound": 0.48233031891708955,
+                "lucky_strikes": 0,
+                "score_se": 0.1176696810829104
             }
         }
     },
