@@ -459,6 +459,121 @@
                 "Transformer Model",
                 "XGBoost Model"
             ]
+        },
+        "QuantumMetaLearner Model": {
+            "date": "2026-10-18T03:11:01+00:00",
+            "window_days": 58,
+            "study_best": 0.2909999999999999,
+            "margin": 0.31534521044107794,
+            "decision": "kept",
+            "run_trials": 15,
+            "study_trials": 45,
+            "reason": "challenger +0.1944 does not beat incumbent +0.0288 by 0.315345 (margin 1 x the challenger's standard error 0.3153)",
+            "trial": 43,
+            "challenger": 0.1944482758620689,
+            "incumbent": 0.028827586206896506,
+            "default": -0.18831034482758627,
+            "challenger_tuning": {
+                "score": 0.1944482758620689,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": 0.19310344827586198,
+                "top1_accuracy": 0.13448275862068965,
+                "score_se": 0.31534521044107794
+            },
+            "incumbent_tuning": {
+                "score": 0.028827586206896506,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": 0.02758620689655168,
+                "top1_accuracy": 0.12413793103448276,
+                "score_se": 0.3075260169148976
+            },
+            "default_tuning": {
+                "score": -0.18831034482758627,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": -0.18965517241379318,
+                "top1_accuracy": 0.13448275862068965,
+                "score_se": 0.2764686313942753
+            }
+        },
+        "QuantumVQC Model": {
+            "date": "2026-10-18T03:15:53+00:00",
+            "window_days": 58,
+            "study_best": 0.13542857142857137,
+            "margin": 0.27516548470762653,
+            "decision": "replaced",
+            "run_trials": 15,
+            "study_trials": 45,
+            "reason": "challenger +0.1082 beats incumbent -0.2262 and default -0.2247 (margin 1 x the challenger's standard error 0.2752)",
+            "trial": 41,
+            "challenger": 0.1082413793103448,
+            "incumbent": -0.22624137931034488,
+            "default": -0.2247241379310346,
+            "challenger_tuning": {
+                "score": 0.1082413793103448,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": 0.10689655172413791,
+                "top1_accuracy": 0.13448275862068965,
+                "score_se": 0.27516548470762653
+            },
+            "incumbent_tuning": {
+                "score": -0.22624137931034488,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": -0.2275862068965518,
+                "top1_accuracy": 0.13448275862068965,
+                "score_se": 0.31627361001369786
+            },
+            "default_tuning": {
+                "score": -0.2247241379310346,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": -0.22586206896551736,
+                "top1_accuracy": 0.11379310344827587,
+                "score_se": 0.2987426802767235
+            }
+        },
+        "ClassicalSVM Model": {
+            "date": "2026-10-18T03:18:34+00:00",
+            "window_days": 58,
+            "study_best": 0.22179310344827588,
+            "margin": 0.25468102323816466,
+            "decision": "reverted",
+            "run_trials": 15,
+            "study_trials": 45,
+            "reason": "default +0.1547 is not beaten by challenger +0.2218 by 0.254681 and beats incumbent -0.2143 by 0.254681 - reverted to the untuned defaults (margin 1 x the challenger's standard error 0.2547)",
+            "trial": 36,
+            "challenger": 0.22179310344827588,
+            "incumbent": -0.21427586206896548,
+            "default": 0.1547241379310345,
+            "challenger_tuning": {
+                "score": 0.22179310344827588,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": 0.22068965517241382,
+                "top1_accuracy": 0.1103448275862069,
+                "score_se": 0.25468102323816466
+            },
+            "incumbent_tuning": {
+                "score": -0.21427586206896548,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": -0.2155172413793103,
+                "top1_accuracy": 0.12413793103448276,
+                "score_se": 0.3102581884845355
+            },
+            "default_tuning": {
+                "score": 0.1547241379310345,
+                "kind": "holdout_profit",
+                "days": 58,
+                "profit_per_day": 0.153448275862069,
+                "top1_accuracy": 0.12758620689655173,
+                "score_se": 0.27286226265531033
+            },
+            "default_note": "classicalSvm_gamma 0.25 stands in for sklearn's \"scale\" in the default reference, and is served on a revert"
         }
     },
     "markovSortedPrediction": false,
@@ -487,15 +602,15 @@
     "quantumKernel_C": 4.586073796360973,
     "quantumKernel_maxTrainSamples": 2000,
     "quantumVqc_nQubits": 4,
-    "quantumVqc_numLayers": 3,
+    "quantumVqc_numLayers": 1,
     "quantumVqc_encodingScale": 1.35,
-    "quantumVqc_learningRate": 0.023155971003431274,
+    "quantumVqc_learningRate": 0.027007478989909614,
     "quantumVqc_epochs": 90,
     "quantumVqc_batchSize": 128,
     "classicalSvm_nFeatures": 4,
-    "classicalSvm_gamma": 0.0842369780126833,
-    "classicalSvm_C": 0.6821039756742818,
-    "classicalSvm_maxTrainSamples": 1000,
+    "classicalSvm_gamma": 0.25,
+    "classicalSvm_C": 1.0,
+    "classicalSvm_maxTrainSamples": 2000,
     "markovSoftMaxTemperature": 0.10608570994898825,
     "markovMinOccurences": 20,
     "markovAlpha": 0.9349999326731879,
