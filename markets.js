@@ -219,9 +219,28 @@ function describeTrading(t) {
     // what following the page's own plan made (MarketSettle.followed_plan): per settled day the row the plan followed, picked from the
     // record before that day, its positions and money that day, and whether the day's ticket was out before the day closed (live)
     followed: describeFollowed(t.followed),
+    // the week games' guarded book (MarketSettle.guarded_week, 17 Oct 2026): the week positions under the daily guard
+    guarded: describeGuarded(t.guarded),
     // the same rules with shorts on (MarketSettle.ledger "short"): money per model per rule; the market lines above are their benchmark
     short: t.short && typeof t.short === 'object' ? Object.fromEntries(['daily', 'hold', 'open'].filter((r) => t.short[r] && typeof t.short[r] === 'object').map((r) => [r, { models: seriesMap(t.short[r].models), sold: series(t.short[r].benchmark) }])) : null,
   };
+}
+
+// The first week the user pages (api.js) count the guarded week book: the first full week the page showed the guard
+// (owner, 20 Oct 2026: count "what the page said"); before it they count the plain week book.
+const GUARD_SHOWN_FROM = '2026-10-26';
+// MarketSettle.GUARD_FORWARD_FROM: the first week the guard ran forward; for a record exported before it carried forward_from
+const GUARD_FORWARD_FROM = '2026-10-19';
+
+// The guarded week book (MarketSettle.guarded_week). Points are [week close, week row, positions, money, total, live,
+// market, by_symbol, trades, guarded]; guarded false is a week from before the daily record (the plain week).
+function describeGuarded(g) {
+  if (!g || typeof g !== 'object' || !Array.isArray(g.points)) return null;
+  const points = g.points.filter((p) => Array.isArray(p) && p.length >= 8 && typeof p[0] === 'string').map((p) => ({
+    date: p[0], model: p[1] === null || p[1] === undefined ? null : String(p[1]), positions: num(p[2]) || 0, pnl: num(p[3]) || 0,
+    live: p[5] === true, market: num(p[6]), guarded: p[9] !== false,
+  }));
+  return { rule: g.rule ? String(g.rule) : '', forwardFrom: typeof g.forward_from === 'string' ? g.forward_from : GUARD_FORWARD_FROM, points };
 }
 
 // The followed-plan record (MarketSettle.followed_plan). Points are
@@ -422,10 +441,17 @@ function weekEnd(market, madeOn) {
   }
   return isoDay(monday + 4 * DAY_MS);
 }
+// how far into the week, as the week's texts say it: hours under a day ("0.5 h in", where "0 days in" read wrong
+// on a share week's first afternoon), days after it ("1 day in", "3.4 days in")
+function weekElapsedText(now, openAt) {
+  const ms = now - openAt;
+  if (ms < DAY_MS) return `${Math.round(ms / HOUR_MS * 10) / 10} h in`;
+  return `${plural(Math.round(ms / DAY_MS * 10) / 10, 'day', 'days')} in`;
+}
 function dayStatusWeek(now, openAt, closeAt) {
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) return null;
   if (now < openAt) return `the week has not started yet - it starts at ${brusselsText(openAt, true)}`;
-  if (now < closeAt) return `the week is running, ${Math.round((now - openAt) / DAY_MS * 10) / 10} days in; it closes at ${brusselsText(closeAt, true)}`;
+  if (now < closeAt) return `the week is running, ${weekElapsedText(now, openAt)}; it closes at ${brusselsText(closeAt, true)}`;
   return `the week has closed (${brusselsText(closeAt, true)})`;
 }
 function appearedText(madeAt) {
@@ -1054,6 +1080,44 @@ function page(market, view, header, footer, user, now = new Date()) {
       which is read off the hover interval; green is the right bin, pale green one bin off. Chance is 1 in ${view.k} per ${esc(meta.noun)}.</p>`, 'how to read a day')}${dayBlocks}</div></div>`);
   }
 
+  // the guarded week book (MarketSettle.guarded_week): the owner's rule for the week positions, week by week against
+  // the plain week and buying everything - the user pages count it from GUARD_SHOWN_FROM, so its earlier weeks are here only
+  const gBook = view.week && view.week.trading ? view.week.trading.guarded : null;
+  if (gBook && gBook.points.some((p) => p.guarded)) {
+    const plainBy = {};
+    ((view.week.trading.followed || {}).points || []).forEach((p) => { plainBy[p.date] = p; });
+    const weeks = gBook.points.filter((p) => p.guarded).slice().reverse();
+    const signedMoney = (x) => (x === null || x === undefined ? '-' : money(x, 2));
+    const colour = (x) => ((x || 0) >= 0 ? '#27ae60' : '#c0392b');
+    // what the user pages count for the week (api.marketView): the plain week while it is live before GUARD_SHOWN_FROM,
+    // this book while it is live from then on; the guard's own live flag is named as the guard's
+    const note = (p) => {
+      const before = p.date < GUARD_SHOWN_FROM;
+      const counted = before ? Boolean(plainBy[p.date] && plainBy[p.date].live) : p.live;
+      return [
+        counted ? (before ? 'user pages: plain week' : 'user pages: this book') : 'user pages: not counted (not live)',
+        gBook.forwardFrom && p.date < gBook.forwardFrom ? 'booked after the fact' : '',
+        p.live ? '' : 'guard not live',
+      ].filter(Boolean).join(' · ');
+    };
+    const rows = weeks.map((p) => {
+      const plain = plainBy[p.date] || null;
+      return `<tr><td>${esc(p.date)}</td><td style="text-align:left;">${esc(p.model || '-')}</td>
+        <td>${p.positions}</td><td style="color:${colour(p.pnl)};">${signedMoney(p.pnl)}</td>
+        <td style="color:${colour(plain ? plain.pnl : 0)};">${plain ? signedMoney(plain.pnl) : '-'}</td>
+        <td style="color:${colour(p.market)};">${signedMoney(p.market)}</td><td style="text-align:left; color:#7f8c8d;">${esc(note(p))}</td></tr>`;
+    }).join('');
+    const live = weeks.filter((p) => p.live);
+    const sumOf = (arr, f) => arr.reduce((a, p) => a + (f(p) || 0), 0);
+    const totals = live.length
+      ? `<p style="color:#7f8c8d; font-size:0.9em;">Over the ${plural(live.length, 'live week', 'live weeks')}: the guard ${money(sumOf(live, (p) => p.pnl), 2)}, the plain week ${money(sumOf(live, (p) => (plainBy[p.date] ? plainBy[p.date].pnl : 0)), 2)}, buying everything ${money(sumOf(live, (p) => p.market), 2)} ${esc(meta.unit)}${gBook.forwardFrom && live.some((p) => p.date < gBook.forwardFrom) ? ` - the weeks ending before ${esc(gBook.forwardFrom)} booked after the fact` : ''}.</p>`
+      : '';
+    bg += asDetail(`<div class="card"><div class="card-header" onclick="toggleCard(this)"><div><span class="card-title">The guard on the week positions</span>
+      <span class="card-meta" style="margin-left:10px;">the owner's rule since 17 Oct 2026, week by week against the plain week; the user pages count it from the week of ${esc(GUARD_SHOWN_FROM)}</span></div><div class="card-icon">▼</div></div>
+      <div class="card-body">${help(`<p>${esc(gBook.rule)}.</p><p>The owner chose the rule on 16 Oct 2026: the weeks ending before ${esc(gBook.forwardFrom || '-')} are booked with it after the fact - all of them but the newest had closed by then. The user pages (Crypto, Shares) count what the page said each week - the plain week, held to the week's end, before the week of ${esc(GUARD_SHOWN_FROM)}, the first full week they showed the guard, and this book from then on - so its earlier weeks appear here only.</p>`, 'what this card is')}
+      ${totals}<div class="table-wrapper"><table><tr><th>Week ending</th><th style="text-align:left;">Week row</th><th title="positions the guard took">Positions</th><th>Guard ${esc(meta.unit)}</th><th>Plain week ${esc(meta.unit)}</th><th>Buying everything</th><th style="text-align:left;">Note</th></tr>${rows}</table></div></div></div>`);
+  }
+
   // the rows under a proper score (the weekly MarketRows.py report)
   if (view.rows) {
     const rep = view.rows;
@@ -1310,7 +1374,7 @@ function page(market, view, header, footer, user, now = new Date()) {
     const bench = w.trading ? (market === 'crypto' ? w.trading.benchmark : (w.trading.open ? w.trading.open.benchmark : [])) : [];
     const weekMarket = bench.length ? bench[bench.length - 1].total : null;
     if (weekModel && endDay && closeAt && openAt) {
-      const daysIn = Math.round((now - openAt) / DAY_MS * 10) / 10;
+      const weekIn = weekElapsedText(now, openAt);
       const hoursLeft = Math.round((closeAt - now) / HOUR_MS * 10) / 10;
       const openClock = brusselsText(openAt, true);
       const rows = w.instruments.filter((i) => i.active).map((inst) => {
@@ -1339,11 +1403,11 @@ function page(market, view, header, footer, user, now = new Date()) {
         else if (!started) {
           buy = market === 'crypto' ? `a market order at the week's start, ${esc(openClock)}` : `a market order placed before ${esc(opens)} - it fills at the week's first open, where the book buys`;
           sell = market === 'crypto' ? `a market order at ${esc(judgedShort)}, whatever the price then is` : `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one`;
-        } else if (daysIn < 1) {
-          buy = `a market order now - the week is ${daysIn} days in; the book's position opened at ${esc(openClock)}`;
+        } else if (now - openAt < DAY_MS) {
+          buy = `a market order now - the week is ${weekIn}; the book's position opened at ${esc(openClock)}`;
           sell = market === 'crypto' ? `a market order at ${esc(judgedShort)}, whatever the price then is` : `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one`;
         } else {
-          buy = `the book's position has been open since ${esc(openClock)} - the week is ${daysIn} days in, ${hoursLeft} hours left, and the call was for the whole week; a buy now runs only to the week's close`;
+          buy = `the book's position has been open since ${esc(openClock)} - the week is ${weekIn}, ${hoursLeft} hours left, and the call was for the whole week; a buy now runs only to the week's close`;
           sell = market === 'crypto' ? `a market order at ${esc(judgedShort)}, whatever the price then is` : `a market order in the last minutes before ${esc(judgedShort)}, or an at-the-close order if your broker offers one`;
         }
         const callText = !call ? '-' : (up ? `<span style="color:#27ae60; font-weight:bold;">up &#9650;${call.size !== null && call.size !== undefined ? ` &times;${call.size}` : ''}</span>` : `<span style="color:#c0392b;">${call.bin !== null && call.bin < w.k / 2 - 1 ? 'down' : 'flat'} &#9660;</span>`);
@@ -1425,6 +1489,6 @@ function install(app, { header, footer, dataDir, controlsDir }) {
 }
 
 module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading, binInterval,
-  pickPlan, pickWeek, MIN_PLAN_TRADES, MIN_WEEK_TRADES, dayStatusWeek, describeFollowed,
+  pickPlan, pickWeek, MIN_PLAN_TRADES, MIN_WEEK_TRADES, dayStatusWeek, describeFollowed, describeGuarded, GUARD_SHOWN_FROM,
   nextGameDay, closeMoment, openMoment, closeText, closeShort, openText, brusselsText, appearedText, hoursInto, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE, WEEK_GAMES, weekEnd,
   intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };

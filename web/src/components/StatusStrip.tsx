@@ -21,6 +21,8 @@ export default function StatusStrip({ status: s, unit, noun }: { status: Status;
   const pending = s.days > 0 && s.positions === 0; // the record has days but no positions yet: they are written by the next run
   const arrow = (v: number | null) => (isNum(v) ? (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') : '');
   const split = [isNum(s.dailyTotal) ? `daily ${money(s.dailyTotal)}` : '', isNum(s.weeklyTotal) ? `weekly ${money(s.weeklyTotal)}` : ''].filter(Boolean);
+  // the weekly part counts the plain week before the guard was on the page and the guard after it (api.js guardFrom)
+  const weekText = s.week && s.week.guardFrom ? ` The weekly part counts the plain week (held to the week's end) for weeks before ${day(s.week.guardFrom)} and the guard from then on: what the page said each week.` : '';
   return (
     <div className="kpis">
       <Tile
@@ -29,7 +31,7 @@ export default function StatusStrip({ status: s, unit, noun }: { status: Status;
         cls={signClass(s.liveTotal)}
         unit={unit}
         foot={split.length > 1 ? split.join(' · ') : s.since ? `since ${day(s.since)} · ${plural(s.days, 'day')}` : 'no live day yet'}
-        title={`What doing every row of the table made, daily and weekly positions together${s.since ? `, since ${day(s.since)}` : ''}; paper money, live days only.`}
+        title={`What doing every row of the table made, daily and weekly positions together${s.since ? `, since ${day(s.since)}` : ''}; paper money, live days only.${weekText}${s.entryNote ? ` ${s.entryNote}` : ''}`}
       />
       <Tile
         label="vs buying everything"
@@ -50,7 +52,7 @@ export default function StatusStrip({ status: s, unit, noun }: { status: Status;
         value={`${int(s.daysWon)} / ${int(s.daysPlayed)}`}
         foot={[s.bestDay ? `best ${money(s.bestDay.pnl)}` : '', s.worstDay ? `worst ${money(s.worstDay.pnl)}` : ''].filter(Boolean).join(' · ') || DASH}
         title={[
-          `Days on which the positions closed that day made money, out of the days with at least one position`,
+          `Days on which the positions booked that day made money, out of the days with at least one position. A week's positions are booked on the week's last day, also those the guard sold earlier in the week`,
           s.daysIdle ? `${plural(s.daysIdle, 'day')} without a position, not counted` : '',
           s.bestDay ? `best day ${day(s.bestDay.date)}` : '',
           s.worstDay ? `worst day ${day(s.worstDay.date)}` : '',

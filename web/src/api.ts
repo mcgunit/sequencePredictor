@@ -31,6 +31,8 @@ export interface WeekStatus {
   ahead: number | null;
   positions: number;
   won: number;
+  guarded?: boolean; // weeks of the guarded book are among them
+  guardFrom?: string | null; // the first week the guard counts; before it the plain week
 }
 
 export interface CoinResult {
@@ -41,6 +43,7 @@ export interface CoinResult {
 
 export interface Status {
   week: WeekStatus | null; // the weekly positions' own record; the figures below count daily and weekly together
+  entryNote: string | null; // crypto: positions booked from the 00:00 UTC close, before the tickets exist
   dailyTotal: number | null;
   weeklyTotal: number | null;
   bestCoin: CoinResult | null;
@@ -78,6 +81,7 @@ export interface DayGame {
 export interface WeekGame {
   endDay: string;
   guarded?: boolean; // the week rows follow the guard's state for today (MarketSettle.guarded_week)
+  guardOrders?: boolean; // the guard gives this week's orders; false: the plain week with the guard as information
   stateText: string;
   stateTitle?: string;
   closeText: string;
@@ -268,10 +272,12 @@ function normalize(raw: Partial<MarketView> | null | undefined, market: Market):
     status: {
       week: s.week && typeof s.week === 'object'
         ? { since: typeof s.week.since === 'string' ? s.week.since : null, days: num(s.week.days, 0), liveTotal: opt(s.week.liveTotal), liveMarket: opt(s.week.liveMarket),
-            ahead: opt(s.week.ahead), positions: num(s.week.positions, 0), won: num(s.week.won, 0) }
+            ahead: opt(s.week.ahead), positions: num(s.week.positions, 0), won: num(s.week.won, 0),
+            guarded: s.week.guarded === true, guardFrom: typeof s.week.guardFrom === 'string' ? s.week.guardFrom : null }
         : null,
       dailyTotal: opt(s.dailyTotal),
       weeklyTotal: opt(s.weeklyTotal),
+      entryNote: typeof s.entryNote === 'string' ? s.entryNote : null,
       bestCoin: s.bestCoin && typeof s.bestCoin.symbol === 'string' && opt(s.bestCoin.pnl) !== null ? s.bestCoin : null,
       worstCoin: s.worstCoin && typeof s.worstCoin.symbol === 'string' && opt(s.worstCoin.pnl) !== null ? s.worstCoin : null,
       since: typeof s.since === 'string' ? s.since : null,

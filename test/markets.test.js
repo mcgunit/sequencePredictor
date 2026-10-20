@@ -526,6 +526,33 @@ const withWeek = markets.describeMarket(record, { week: weekView });
 ok(withWeek.week && withWeek.week.market === 'cryptoweek' && markets.describeMarket(record).week === null && markets.describeMarket(record, { week: { nonsense: true } }).week === null, 'the week view rides along when it is a market view');
 const thursday = new Date('2026-10-01T09:00:00Z');   // 11:00 Belgian time, Thursday of the week the ticket is for
 const weekPage = markets.page('crypto', withWeek, header, footer, null, thursday);
+ok(markets.dayStatusWeek(new Date('2026-10-19T14:00:00Z'), new Date('2026-10-19T13:30:00Z'), new Date('2026-10-23T20:00:00Z')).startsWith('the week is running, 0.5 h in'), 'a week under a day old counts hours, not 0 days');
+ok(markets.dayStatusWeek(new Date('2026-10-20T13:40:00Z'), new Date('2026-10-19T13:30:00Z'), new Date('2026-10-23T20:00:00Z')).startsWith('the week is running, 1 day in'), 'one day in reads 1 day');
+{
+  const g = markets.describeGuarded({ rule: 'guard', points: [['2026-10-11', 'GARCH Model', 2, -3.5, -3.5, true, -31.98, {}, [], true], ['2026-08-30', 'X', 1, 1, 1, false, 2, {}, [], false], 'bad'] });
+  ok(g && g.points.length === 2 && g.forwardFrom === '2026-10-19' && g.points[0].live === true && g.points[0].market === -31.98 && g.points[1].guarded === false
+     && markets.describeGuarded(null) === null && markets.GUARD_SHOWN_FROM === '2026-10-26',
+     `the guarded book is read for the Admin card, forward_from defaulting to 19 Oct: ${JSON.stringify(g)}`);
+}
+{
+  // the Admin card 'The guard on the week positions': guarded weeks only, newest first, the plain week joined by date,
+  // what the user pages count per week, totals over the guard's live weeks
+  const gWeek = markets.describeMarket({ ...weekRecord, trading: { ...weekRecord.trading,
+    followed: { rule: 'daily', points: [['2026-10-11', 'Markov Model', 'book', 4, -24.82, -24.82, true, -31.98], ['2026-10-25', 'Markov Model', 'book', 2, -5, -29.82, true, -10]] },
+    guarded: { rule: 'the guard', forward_from: '2026-10-19', points: [['2026-09-27', 'X', 1, 9, 9, true, 9, {}, [], false],
+      ['2026-10-11', 'Markov Model', 3, -3.5, -3.5, true, -31.98, {}, [], true], ['2026-10-25', 'Markov Model', 1, -2, -5.5, true, -10, {}, [], true],
+      ['2026-11-01', 'Markov Model', 1, 7, 1.5, false, 4, {}, [], true]] } } });
+  const gPage = markets.page('crypto', markets.describeMarket(record, { week: gWeek }), header, footer, null, thursday);
+  const at = gPage.indexOf('<summary><b>The guard on the week positions</b>');
+  const card = at < 0 ? '' : gPage.slice(at, gPage.indexOf('</table>', at)).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  ok(at > 0 && card.indexOf('2026-11-01') < card.indexOf('2026-10-25') && card.indexOf('2026-10-25') < card.indexOf('2026-10-11') && !card.includes('2026-09-27')
+     && /2026-10-11 Markov Model 3 -3\.50 -24\.82 -31\.98 user pages: plain week · booked after the fact/.test(card)
+     && /2026-10-25 Markov Model 1 -2\.00 -5\.00 -10\.00 user pages: plain week(?! ·)/.test(card)
+     && card.includes('user pages: not counted (not live) · guard not live')
+     && card.includes('Over the 2 live weeks: the guard -5.50, the plain week -29.82, buying everything -41.98')
+     && card.includes('the weeks ending before 2026-10-19 booked after the fact'),
+     `the Admin guard card: ${card.slice(0, 900)}`);
+}
 ok(weekPage.includes('card-title">This week') && weekPage.includes('the UTC week ending 2026-10-04 - the week is running, 3.4 days in; it closes at 02:00 Belgian time on Mon 05/10; 12 settled weeks'),
    `the week card names the week and where it stands: ${(weekPage.match(/the UTC week ending[^<]*/) || [])[0]}`);
 ok(/<b>One model's calls\.<\/b> The table shows <b>Markov Model<\/b>'s calls for the week - one of the \d+ models on this week's ticket, not a vote of them\. It is followed because its weekly paper book is the best under the <b>weekly round trip<\/b> rule\./.test(weekPage)

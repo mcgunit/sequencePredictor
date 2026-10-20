@@ -838,6 +838,13 @@ GUARD_RULE = ("the week call is the permission, the daily call the trigger: a co
               "consecutive held days are one position, one fee pair, the stake scaled by a sized week row's size")
 
 
+# The guard rule was chosen on 16 Oct 2026 and booked from 17 Oct; the first week it ran forward - every decision
+# made after the rule existed - is the week of 19 Oct. Weeks closing before this date are in the guarded book
+# too, but booked after the fact: the Admin market page marks them. The user pages count this book only from the
+# first full week they showed it (markets.GUARD_SHOWN_FROM, 26 Oct) and the plain week before it.
+GUARD_FORWARD_FROM = "2026-10-19"
+
+
 def guard_trades(days, verdict):
     """
     The guarded week's positions for one instrument, from its daily calls
@@ -1042,7 +1049,7 @@ def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=F
             live_positions += len(trades)
         points.append([w, model, len(trades), round(pnl, 4), round(total, 4), live, market_pnl, by_symbol, trades, guarded])
 
-    return {"rule": GUARD_RULE, "points": points, "first_live": first_live, "total": round(total, 4),
+    return {"rule": GUARD_RULE, "forward_from": GUARD_FORWARD_FROM, "points": points, "first_live": first_live, "total": round(total, 4),
             "live_total": round(live_total, 4), "live_market": round(live_market, 4), "live_weeks": live_weeks,
             "live_positions": live_positions,
             "now": guarded_now(conn, market, path, week_followed.get("next_pick"), day_followed.get("next_pick"),

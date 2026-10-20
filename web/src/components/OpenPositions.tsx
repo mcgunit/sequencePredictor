@@ -220,10 +220,12 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
           <summary>How to read this</summary>
           <p>
             Buy and Sell are the orders: a day position is bought when you read this and sold at the close shown. {notes.closeDay || ''} A week
-            position is sold at the week's end at the latest; the guard can sell it sooner. Every sell is a market order at that time, whatever the
-            price; the band only says when the call counts as right. "Now" is a live quote and "Since entry" is live for a held position:
-            information only, every booked result uses the close. The Guard column watches a week position with the daily call: Buy on an up
-            call, Hold while it stays up, Sell at today's close when it is flat or down, Out until the next up call brings it back.
+            position is sold at the week's end{w?.guardOrders ? ' at the latest; the guard can sell it sooner' : ''}. Every sell is a market order at
+            that time, whatever the price; the band only says when the call counts as right. "Now" is a live quote and "Since entry" is live for
+            a held position: information only, every booked result uses the close.{' '}
+            {w?.guardOrders
+              ? 'The Guard column watches a week position with the daily call: Buy on an up call, Hold while it stays up, Sell at today\'s close when it is flat or down, Out until the next up call brings it back.'
+              : 'The Guard column shows the daily call next to a week position, as information.'}
           </p>
           {notes.entryText ? <p>{notes.entryText}</p> : d?.entryNote ? <p>{d.entryNote}</p> : null}
           {notes.guardText ? <p>{notes.guardText}</p> : null}

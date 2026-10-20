@@ -21,10 +21,15 @@ const fs = require('fs');
 const markets = require('./markets');
 
 const { MARKETS, WEEK_GAMES, loadMarket, describeMarket, nextGameDay, closeMoment, openMoment, weekEnd, dayStatus, dayStatusWeek,
-        pickPlan, pickWeek } = markets;
+        pickPlan, pickWeek, GUARD_SHOWN_FROM } = markets;
 
 const BRUSSELS = 'Europe/Brussels';
 const DAY_MS = 86400000;
+// markets.GUARD_SHOWN_FROM: the first week the user pages count the guard (MarketSettle.guarded_week), the first full
+// week the page showed it (owner, 20 Oct 2026: count "what the page said"). Weeks closing before it count the plain
+// week book - held to the week's end - which is what the page told followers then; the guard's own book for those
+// weeks is on the Admin market page only (the weeks before MarketSettle.GUARD_FORWARD_FROM, 19 Oct, booked after the
+// fact). The week of 19 Oct shows the guard as information.
 
 // --- clocks in Belgian time, short ------------------------------------------
 const fmtClock = new Intl.DateTimeFormat('en-GB', { timeZone: BRUSSELS, hour: '2-digit', minute: '2-digit', hour12: false });
@@ -242,7 +247,9 @@ function guardedRow(market, inst, call, gs, gNow, w, wClose, now, daily, unit, {
     row.since = soldText || (gNow.last_day ? 'not bought this week' : 'waiting for an up call');
     row.statusText = trades.length
       ? `sold ${dayText(gs.sold_on || lastTrade[1])} by the guard; ${gNow.last_day ? `out for the rest of the week - ${ends}` : 'back in on the next up daily call'}. Its money is booked when the week closes.`
-      : (gNow.last_day ? `not bought this week: no up daily call; ${ends}` : 'not bought yet this week: no up daily call so far; in on the first one');
+      : (gNow.last_day ? `not bought this week: no up daily call; ${ends}`
+        : (Array.isArray(gNow.settled_days) && gNow.settled_days.length ? 'not bought yet this week: no up daily call so far; in on the first one'
+          : `not bought yet: ${todays} daily call is ${gs.call || 'missing'}; in on the first up daily call this week`));
   }
   // a coin the guard sold earlier this week and bought back: the earlier sale stays visible until the week closes
   if (row.status !== 'out' && soldText) row.earlier = `earlier: ${soldText}`;
@@ -250,7 +257,8 @@ function guardedRow(market, inst, call, gs, gNow, w, wClose, now, daily, unit, {
 }
 
 // --- the view ------------------------------------------------------------------
-function marketView(market, record, weekRecord, now = new Date()) {
+// `guardFrom`: the first week the guard counts (GUARD_SHOWN_FROM; the tests move it).
+function marketView(market, record, weekRecord, now = new Date(), { guardFrom = GUARD_SHOWN_FROM } = {}) {
   const meta = MARKETS[market];
   if (!meta || !record) return null;
   const view = describeMarket(record, { week: weekRecord ? describeMarket(weekRecord) : null });
@@ -302,9 +310,11 @@ function marketView(market, record, weekRecord, now = new Date()) {
   }
 
   // this week: the followed week model's calls as positions under the daily guard (MarketSettle.guarded_week's
-  // `now`); a record without the guard block falls back to the plain week with today's daily call as information
+  // `now`) from the week the guard counts (guardFrom); before it, or on a record without the guard block, the plain
+  // week with today's daily call as information
   const guarded = weekRecord && weekRecord.trading && weekRecord.trading.guarded && typeof weekRecord.trading.guarded === 'object' ? weekRecord.trading.guarded : null;
   let week = null;
+  let guardShown = false;   // this week's rows follow the guard
   if (w && w.madeOn && nextGameDay(market, w.madeOn)) {
     const pick = pickWeek(w, market);
     const firstSession = nextGameDay(market, w.madeOn);
@@ -318,18 +328,21 @@ function marketView(market, record, weekRecord, now = new Date()) {
     const firstClose = firstSession ? closeMoment(market, firstSession) : null;
     const entering = Boolean(started && firstClose && now < firstClose);
     if (pick.model && endDay && wClose && wOpen) {
-      week = { endDay, startText: when(wOpen, now), stateText: `week ${fmtDayMonth.format(wOpen)} → ${fmtDayMonth.format(wClose)}`,
+      week = { endDay, startText: when(wOpen, now), stateText: `week ${fmtDayMonth.format(wOpen)} → ${fmtDayMonth.format(new Date(`${endDay}T12:00:00Z`))}`,
                stateTitle: dayStatusWeek(now, wOpen, wClose) || '', closeText: when(wClose, now),
                model: pick.model.name, modelCount: ticketModels(w.instruments) || w.models.length, ruleName: pick.ruleName, byBook: pick.byBook };
       // the guard's state applies only when it is for this week and for the day the daily rows are for: a week
       // record that lags the daily one (its export failed or was skipped) would apply yesterday's guard to today
-      const gWeek = guarded && guarded.now && guarded.now.first_day === firstSession && guarded.now.symbols ? guarded.now : null;
+      const useGuard = Boolean(guarded) && firstSession >= guardFrom;
+      guardShown = useGuard;
+      const gWeek = useGuard && guarded.now && guarded.now.first_day === firstSession && guarded.now.symbols ? guarded.now : null;
       // the week record for the daily rows' day - or ahead of them (the daily export failed): its state is the newer one
       const gNow = gWeek && nextDay && gWeek.running_day >= nextDay ? gWeek : null;
       // a week record a run behind the daily one: its state is still the book as of its running day's close (sales and
       // coins never bought stay true), shown with today's daily call as information until the next run
       const gLag = !gNow && gWeek && nextDay && gWeek.running_day < nextDay ? gWeek : null;
       week.guarded = Boolean(gNow);
+      week.guardOrders = useGuard;   // the guard gives this week's orders (not information only)
       if ((gNow || gLag) && (gNow || gLag).week_model) { week.model = (gNow || gLag).week_model; }
       w.instruments.filter((i) => i.active).forEach((inst) => {
         const call = inst.next.find((p) => p.model === week.model) || null;
@@ -347,9 +360,10 @@ function marketView(market, record, weekRecord, now = new Date()) {
         // week's end and the help says so.
         let guard = null;
         if (started && todays && !dayClosed) {
-          const pending = guarded
+          const pending = useGuard
             ? 'the guard\'s state for today is not in the week record yet - it comes with the next run'
-            : 'it is not in the record yet, so the sell here stays at the week\'s end';
+            : (guarded ? `this page counts the guard from the week of ${dayText(guardFrom)}, so this week the sell stays at the week's end`
+              : 'it is not in the record yet, so the sell here stays at the week\'s end');
           guard = isUp(todays, k)
             ? (nextDay === endDay
               ? { state: 'weekend', text: 'daily call up', booked: false, reason: `today is the week's last day: the guard rule sells ${inst.symbol} at the close whatever the daily call (up, bin ${todays.bin})` }
@@ -375,7 +389,7 @@ function marketView(market, record, weekRecord, now = new Date()) {
           open.push(row);
           return;
         }
-        if (guarded) {
+        if (useGuard) {
           // a guard block without this week's state (guarded_now None: the daily record has no ticket for this week's
           // days yet): the guard buys nothing on a day without a daily call, so the plain week's entry is never shown
           const up = notHeld();
@@ -421,31 +435,34 @@ function marketView(market, record, weekRecord, now = new Date()) {
   // week's result counts on the day it settles, next to that day's daily result; the market under the
   // same rules is added the same way.
   const dayPositions = positionsOf(market, view, f, 'day');
-  const weekPositions = guarded ? guardedPositions(market, guarded, w && w.trading ? w.trading.stake : null, w && w.trading ? w.trading.feePerLeg : 0)
-    : (w ? positionsOf(market, w, wf, 'week') : []);
+  // the weekly positions as the page told them: the plain week book for weeks closing before guardFrom (or every
+  // week of a record without the guard block), the guarded book from guardFrom on
+  const plainWeek = (date) => !guarded || date < guardFrom;
+  const guardWeekPositions = guarded
+    ? guardedPositions(market, guarded, w && w.trading ? w.trading.stake : null, w && w.trading ? w.trading.feePerLeg : 0).filter((q) => !plainWeek(q.closed))
+    : [];
+  const weekPositions = (w ? positionsOf(market, w, wf, 'week').filter((q) => plainWeek(q.closed)) : []).concat(guardWeekPositions);
   const allPositions = dayPositions.concat(weekPositions);
   const closed = allPositions.slice().sort((a, b) => (a.closed < b.closed ? 1 : a.closed > b.closed ? -1 : 0));   // raw stripped at the end
   const byDate = {};
-  const addPoints = (followed) => (followed ? followed.points.filter((p) => p.live) : []).forEach((p) => {
+  const addPoints = (followed, keep = () => true) => (followed ? followed.points.filter((p) => p.live && keep(p.date)) : []).forEach((p) => {
     const e = byDate[p.date] || (byDate[p.date] = { date: p.date, pnl: 0, market: 0, hasMarket: false, positions: 0 });
     e.pnl += p.pnl;
     e.positions += p.positions || 0;
     if (p.market !== null && p.market !== undefined) { e.market += p.market; e.hasMarket = true; }
   });
   addPoints(f);
-  if (guarded) {
-    // the guarded week: each position's money and the week's market on the week's close (guardedPositions)
-    weekPositions.forEach((q) => {
-      const e = byDate[q.closed] || (byDate[q.closed] = { date: q.closed, pnl: 0, market: 0, hasMarket: false, positions: 0 });
-      e.pnl += q.raw; e.positions += 1;
-    });
-    (guarded.points || []).filter((p) => Array.isArray(p) && p[5] === true && num(p[6]) !== null).forEach((p) => {
-      const e = byDate[p[0]] || (byDate[p[0]] = { date: p[0], pnl: 0, market: 0, hasMarket: false, positions: 0 });
-      e.market += num(p[6]); e.hasMarket = true;
-    });
-  } else {
-    addPoints(wf);
-  }
+  addPoints(wf, plainWeek);
+  // the guarded weeks: each position's money and the week's market on the week's close (guardedPositions)
+  const guardPts = guarded ? (guarded.points || []).filter((p) => Array.isArray(p) && p[5] === true && !plainWeek(p[0])) : [];
+  guardWeekPositions.forEach((q) => {
+    const e = byDate[q.closed] || (byDate[q.closed] = { date: q.closed, pnl: 0, market: 0, hasMarket: false, positions: 0 });
+    e.pnl += q.raw; e.positions += 1;
+  });
+  guardPts.filter((p) => num(p[6]) !== null).forEach((p) => {
+    const e = byDate[p[0]] || (byDate[p[0]] = { date: p[0], pnl: 0, market: 0, hasMarket: false, positions: 0 });
+    e.market += num(p[6]); e.hasMarket = true;
+  });
   const days = Object.values(byDate).sort((a, b) => (a.date < b.date ? -1 : 1));
   let runPlan = 0, runMarket = 0;
   const daily = [], cumulative = [];
@@ -468,13 +485,16 @@ function marketView(market, record, weekRecord, now = new Date()) {
   const best = played.reduce((m, p) => (m === null || p.pnl > m.pnl ? p : m), null);
   const worst = played.reduce((m, p) => (m === null || p.pnl < m.pnl ? p : m), null);
   const sum = (a, b) => (a === null && b === null ? null : (a || 0) + (b || 0));
-  const gLive = guarded && num(guarded.live_weeks) ? guarded : null;
   const dailyTotal = f && f.liveDays ? f.liveTotal : null;
-  const weeklyTotal = guarded ? (gLive ? num(gLive.live_total) : null) : (wf && wf.liveDays ? wf.liveTotal : null);
-  const weeklyMarket = guarded ? (gLive ? num(gLive.live_market) : null) : (wf && wf.liveDays ? wf.liveMarket : null);
+  // the live weeks counted: the plain book's before guardFrom, the guarded book's from it
+  const plainPts = wf ? wf.points.filter((p) => p.live && plainWeek(p.date)) : [];
+  const weekCount = plainPts.length + guardPts.length;
+  const weeklyTotal = weekCount ? plainPts.reduce((a, p) => a + (p.pnl || 0), 0) + guardPts.reduce((a, p) => a + (num(p[3]) || 0), 0) : null;
+  const weeklyMarket = weekCount ? plainPts.reduce((a, p) => a + (p.market || 0), 0) + guardPts.reduce((a, p) => a + (num(p[6]) || 0), 0) : null;
+  const weekSince = [plainPts.length ? plainPts[0].date : null, guardPts.length ? guardPts[0][0] : null].filter(Boolean).sort()[0] || null;
   const liveTotal = sum(dailyTotal, weeklyTotal);
   const liveMarket = sum(f && f.liveDays ? f.liveMarket : null, weeklyMarket);
-  const since = [f && f.liveDays ? f.firstLive : null, guarded ? (gLive ? gLive.first_live : null) : (wf && wf.liveDays ? wf.firstLive : null)].filter(Boolean).sort()[0] || null;
+  const since = [f && f.liveDays ? f.firstLive : null, weekSince].filter(Boolean).sort()[0] || null;
   const bestCoin = perCoin.length ? perCoin[0] : null, worstCoin = perCoin.length ? perCoin[perCoin.length - 1] : null;
 
   return {
@@ -484,8 +504,9 @@ function marketView(market, record, weekRecord, now = new Date()) {
     status: {
       since, days: days.length, liveTotal: round2(liveTotal), liveMarket: round2(liveMarket),
       ahead: liveTotal !== null && liveMarket !== null ? round2(liveTotal - liveMarket) : null,
-      // the two horizons the headline adds up
+      // the two horizons the headline adds up; crypto's entry caveat
       dailyTotal: round2(dailyTotal), weeklyTotal: round2(weeklyTotal),
+      entryNote: market === 'crypto' ? 'Crypto positions, daily and weekly, are booked from the 00:00 UTC close before their first day - before the tickets exist; a real entry is later and at another price.' : null,
       positions: allPositions.length, won, lost: allPositions.length - won,
       winRate: allPositions.length ? won / allPositions.length : null,
       daysWon: played.filter((p) => p.pnl > 0).length, daysPlayed: played.length, daysIdle: days.length - played.length,
@@ -496,12 +517,11 @@ function marketView(market, record, weekRecord, now = new Date()) {
       openHeld: open.filter((q) => q.status === 'held').length,
       paperNote: `Paper money, ${t && t.stake !== null ? t.stake : 100} ${meta.unit} a position, ${t && t.feePerLeg !== null ? (t.feePerLeg * 100).toFixed(2) : '0.10'}% a leg.`,
       // the weekly positions' own record, kept for whoever needs it apart
-      week: guarded ? { since: guarded.first_live || null, days: num(guarded.live_weeks) || 0, liveTotal: round2(weeklyTotal), liveMarket: round2(weeklyMarket),
-                        ahead: weeklyTotal !== null && weeklyMarket !== null ? round2(weeklyTotal - weeklyMarket) : null,
-                        positions: weekPositions.length, won: weekPositions.filter((q) => q.raw > 0).length, guarded: true }
-        : (wf ? { since: wf.firstLive, days: wf.liveDays, liveTotal: round2(wf.liveTotal), liveMarket: round2(wf.liveMarket),
-                  ahead: wf.liveTotal !== null && wf.liveMarket !== null ? round2(wf.liveTotal - wf.liveMarket) : null,
-                  positions: weekPositions.length, won: weekPositions.filter((q) => q.raw > 0).length, guarded: false } : null),
+      // guarded: weeks of the guarded book are among them; guardFrom: the first week the guard counts
+      week: w || guarded ? { since: weekSince, days: weekCount, liveTotal: round2(weeklyTotal), liveMarket: round2(weeklyMarket),
+                             ahead: weeklyTotal !== null && weeklyMarket !== null ? round2(weeklyTotal - weeklyMarket) : null,
+                             positions: weekPositions.length, won: weekPositions.filter((q) => q.raw > 0).length,
+                             guarded: guardPts.length > 0, guardFrom: guarded ? guardFrom : null } : null,
     },
     day: nextDay ? { date: nextDay, stateText: dayState, stateTitle: dayStatus(market, nextDay, now) || '', closeText: closeAt ? when(closeAt, now) : '—',
                      model: plan.model ? plan.model.name : null, modelCount: ticketModels(view.instruments) || view.models.length,
@@ -514,14 +534,17 @@ function marketView(market, record, weekRecord, now = new Date()) {
     daily, cumulative, perCoin, closed: strip(closed),
     notes: {
       entry: market === 'crypto' ? 'paper book enters at 00:00 UTC' : 'book buys at the open, sells at the close',
-      entryText: market === 'crypto' ? 'The daily paper book buys at 00:00 UTC, before the ticket exists; a real entry is later and at another price.' : 'The book buys at the open and sells at the close, which a reader can follow.',
+      entryText: market === 'crypto' ? 'The paper books buy at 00:00 UTC - a day position at the close before its day, a week position at the close before its first day - before the tickets exist; a real entry is later and at another price.' : 'The book buys at the open and sells at the close, which a reader can follow.',
       sell: 'sells are market orders at the time shown',
       sellText: 'Every sell is a market order at the time shown, whatever the price; the band only says when the call counts as right.',
       guard: !guarded ? 'daily call shown; the guard rule is not booked yet'
-        : (week && !week.guarded ? 'guard: today\'s state comes with the next run' : 'guard: a week position is held while the daily call is up'),
+        : (!guardShown ? `guard: information this week, orders from ${dayText(guardFrom)}`
+          : (week && !week.guarded ? 'guard: today\'s state comes with the next run' : 'guard: a week position is held while the daily call is up')),
       guardText: guarded
         ? 'The guard: a coin the weekly model calls up is bought on the first day of the week whose daily call for it is up - not on a day whose daily call is flat or down, nor on a day without a daily call - and held until a daily call turns flat or down; it is then sold at that day\'s close, bought again on the next up call, and sold at the week\'s close at the latest. Each week position is booked when its week closes, dated the week\'s close; until then a position the guard sold shows as Out with its move and money.'
-          + (week && !week.guarded ? ' Today\'s guard state is not in the week record yet: the week rows show the daily call as information until the next run.' : '')
+          + ` The weekly results on this page count the guard from the week of ${dayText(guardFrom)}, the first full week the page showed it; earlier weeks count the plain week (held to the week's end), which is what the page said then. The guard's own book for the earlier weeks is on the Admin market page, the weeks before the week of ${dayText((w && w.trading && w.trading.guarded && w.trading.guarded.forwardFrom) || '2026-10-19')} booked there after the fact.`
+          + (!guardShown ? ' This week the guard is shown as information: the sell stays at the week\'s end.'
+            : (week && !week.guarded ? ' Today\'s guard state is not in the week record yet: the week rows show the daily call as information until the next run.' : ''))
         : 'The guard rule - sell a week position at the close of the first day whose daily call is flat or down, re-enter on the next up call - is shown as information next to each week position until its paper book exists; until then the sell of a week position stays at the week\'s end, as the record books it.',
       closeDay: closeAt ? `${market === 'crypto' ? 'A day position sells at the UTC close, ' : 'A day position sells at the New York close, '}${clock(closeAt)} Belgian time.` : '',
     },
