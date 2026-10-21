@@ -6,6 +6,8 @@ import ControlsPage from './pages/admin/ControlsPage';
 import ModelsPage from './pages/admin/ModelsPage';
 import PhaseShiftPage from './pages/admin/PhaseShiftPage';
 import RandomnessPage from './pages/admin/RandomnessPage';
+import TuningPage from './pages/admin/TuningPage';
+import WeekPage from './pages/admin/WeekPage';
 
 export default function App() {
   return (
@@ -15,12 +17,13 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/crypto" replace />} />
           {/* the admin section: before /:market, and only for the administrator (the API answers 403 anyway) */}
-          <Route path="/admin" element={<Navigate to="/admin/controls" replace />} />
+          <Route path="/admin" element={<AdminGuard><WeekPage /></AdminGuard>} />
+          <Route path="/admin/tuning" element={<AdminGuard><TuningPage /></AdminGuard>} />
           <Route path="/admin/controls" element={<AdminGuard><ControlsPage /></AdminGuard>} />
           <Route path="/admin/models" element={<AdminGuard><ModelsPage /></AdminGuard>} />
           <Route path="/admin/phase-shift" element={<AdminGuard><PhaseShiftPage /></AdminGuard>} />
           <Route path="/admin/randomness" element={<AdminGuard><RandomnessPage /></AdminGuard>} />
-          <Route path="/admin/*" element={<Navigate to="/admin/controls" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
           <Route path="/:market" element={<MarketPage />} />
           <Route path="*" element={<Navigate to="/crypto" replace />} />
         </Routes>

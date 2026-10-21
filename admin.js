@@ -9,6 +9,15 @@
 //   GET /api/admin/models/:game           one game's ranking, its lotto multi-pick table and its best combination
 //   GET /api/admin/phase-shift[/:game]    the tracked lag peaks (the old "Phase-shift check" card)
 //   GET /api/admin/randomness[/:game]     the Randomness watch (entropy, KL, the autoencoder, the Q2 verdict)
+//   GET /api/admin/week                   This week: the weekend's runs, today's predictor, the tuners, the controls
+//                                         matrix with each cell's run of weeks, since Monday (phase P2)
+//   GET /api/admin/tuning[/:game]         Tuning gates: this weekend's decisions by tuner and by game, one game's
+//                                         rows with their scores and their last four weekends (phase P2)
+//
+// Week over week (21 Oct 2026, the owner's decision): data/readings/<sunday>.json, one summary of the four Sunday
+// controls per weekend (weekReading below; readings.js writes it after the Sunday plan, tracked in git). A control's
+// cell carries its own Sunday, the number of weeks in a row it has read the same, and - only when last week read
+// differently - what it read then: the page colours a change, never a state that holds every week.
 //
 // The per-game routes take ?scope=all (the default, every row) or ?scope=top (the users' top five only, from
 // ranking.js usersTop: the first five ranked rows that are in the game's newest day file - the five rows /lottery
@@ -28,7 +37,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const brussels = require('./brussels');
 const controls = require('./controls');
+const gates = require('./gates');
 const markets = require('./markets');
 const rankings = require('./ranking');
 
@@ -83,6 +94,9 @@ const range = (values) => {
   const v = values.filter((x) => x !== null && x !== undefined);
   return v.length ? { min: Math.min(...v), max: Math.max(...v) } : null;
 };
+// A message for the page without the server's absolute paths: each one cut to its file name (services.js writes
+// "cannot open /root/.../council.log: ...").
+const noPaths = (text) => (text === null || text === undefined ? null : String(text).replace(/(?:\/[\w.@+-]+)+\/([\w.@+-]+)/g, '$1'));
 
 // --- reading, once per change --------------------------------------------------
 const cache = new Map();   // key -> {sig, value}
@@ -100,14 +114,19 @@ function memo(key, files, build) {
 }
 
 // The folders read: data/database (modelPerformance.json), data/controls (the Sunday records), data/markets (the
-// regime logs), each overridable; root is the checkout (bestParams_<game>.json, for the tuning gates of phase P2).
-function resolveDirs({ dataDir, root, databaseDir, controlsDir, marketsDir } = {}) {
-  const data = dataDir || path.join(root || __dirname, 'data');
+// regime logs), data/readings (the weekly readings), each overridable; root is the checkout (bestParams_<game>.json
+// and its git history for the tuning gates, config/scheduler.json for the runs, log/ for their log slices).
+function resolveDirs({ dataDir, root, databaseDir, controlsDir, marketsDir, readingsDir, schedulerFile, logDir } = {}) {
+  const top = root || __dirname;
+  const data = dataDir || path.join(top, 'data');
   return {
     databaseDir: databaseDir || path.join(data, 'database'),
     controlsDir: controlsDir || path.join(data, 'controls'),
     marketsDir: marketsDir || path.join(data, 'markets'),
-    root: root || __dirname,
+    readingsDir: readingsDir || path.join(data, 'readings'),
+    schedulerFile: schedulerFile || path.join(top, 'config', 'scheduler.json'),
+    logDir: logDir || path.join(top, 'log'),
+    root: top,
   };
 }
 
@@ -227,18 +246,24 @@ function q0Of(game, reports, info, unreadable = []) {
   const byHits = ranked.filter((m) => num(m.avg_hits) !== null).sort((a, b) => b.avg_hits - a.avg_hits);
   const above = band ? byHits.filter((m) => m.avg_hits > band.ceiling) : [];
   const lengths = above.map((m) => m.draws);
+  const lives = isMarketGame(game) ? above.map((m) => live(m.name) || 0) : [];
   return {
     ranking: payout ? 'profit' : 'hits',
+    // at: the record the band comes from; modes: every control record's own time (a band half rewritten on a Sunday
+    // mixes this week's and last week's)
     band: band ? { ceiling: r3(band.ceiling), from: band.from, rows: mode.rows, seeds: mode.seeds, history: mode.days, metric: band.metric,
-      at: isoUtc(mode.generatedAt), missing: bandMissing(band, unreadable) } : null,
+      at: isoUtc(mode.generatedAt), modes: Object.keys(band.modes).map((m) => ({ mode: m, at: isoUtc(band.modes[m].generatedAt) })),
+      missing: bandMissing(band, unreadable) } : null,
     rankedRows: ranked.length, allRows: models.length, minDraws,
     best: byHits.length ? { ...describe(byHits[0]), clears: band ? byHits[0].avg_hits > band.ceiling : null } : null,
     leader: payout && models.length ? { row: models[0].name, draws: models[0].draws } : null,
     above: {
       n: above.length,
       longest: lengths.length ? Math.max(...lengths) : null,
-      longestLive: above.length && isMarketGame(game) ? Math.max(...above.map((m) => live(m.name) || 0)) : null,
+      longestLive: lives.length ? Math.max(...lives) : null,
       sameLength: above.length ? new Set(lengths).size === 1 : null,
+      // the live counts on their own: rows of one record length can differ in how many of their days were live
+      sameLive: lives.length ? new Set(lives).size === 1 : null,
       inTile: !payout,
       rows: above.map(describe),
     },
@@ -320,7 +345,7 @@ function guarded(errors, part, build) {
 }
 // a game's Q0 with no band and no rows, for a game whose Q0 could not be built
 const NO_Q0 = { ranking: 'hits', band: null, rankedRows: 0, allRows: 0, minDraws: 0, best: null, leader: null,
-  above: { n: 0, longest: null, longestLive: null, sameLength: null, inTile: false, rows: [] } };
+  above: { n: 0, longest: null, longestLive: null, sameLength: null, sameLive: null, inTile: false, rows: [] } };
 function controlsOverview(inputs, report, now = new Date()) {
   const games = {};
   GAMES.forEach((game) => {
@@ -744,6 +769,569 @@ function randomnessGame(report, game, scope = 'all', q2Record = null, today = nu
     scope, shown: models.length, of: names.length, top, topMissing: top.filter((n) => !names.includes(n)), models };
 }
 
+// --- the week's reading: one weekend's four Sunday controls ---------------------------------------------------
+// What data/readings/<sunday>.json holds (readings.js writes it when the Sunday plan's last job finishes; its CLI
+// rebuilds or backfills one): per game the four controls as they read that week, each part with its own record's
+// time. Built by the Controls page's own builders (q0Of, q2Of) and readers (controls.js, markets.js), so a reading
+// is what the page showed that week, kept: the Q0 rows above the band are read against the ranking on disk when the
+// reading is built (rankingAt), never a later one.
+const READING_VERSION = 1;
+const READING_FILE = /^(\d{4}-\d{2}-\d{2})\.json$/;
+const PARTS = ['q0', 'q2', 'fc', 'rows'];
+const VERDICT_SHORT = { 'fits noise': 'fit', inconclusive: 'inconcl.', 'noise ignored': 'ignored', failed: 'failed' };
+const shortRow = (name) => String(name).replace(/ Model$/, '');
+const isoMs = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z') : null);
+// The Sunday (Brussels) a control record belongs to: the controls run from Sunday morning into Monday, a catch-up
+// until Tuesday morning.
+const sundayOf = (at) => { const ms = Date.parse(at); return Number.isFinite(ms) ? brussels.lastWeekday(ms, 0) : null; };
+const interval = (x) => (x ? { mean: r4(x.mean), lo: r4(x.lo), hi: r4(x.hi), verdict: x.verdict } : null);
+// The time a part's record is from. Q0's is its older control record: on a Sunday Q0 rewrites a game's synthetic
+// record hours before its shuffled one, and a band built from one new record and one of last week's is not yet this
+// week's (a stored reading written before 21 Oct 2026 kept the newer time, so the modes are read, not q0.at).
+const partAt = (part, entry) => {
+  const x = entry && entry[part];
+  if (!x) return null;
+  if (part === 'q0' && x.modes && Object.keys(x.modes).length) return earliest(Object.values(x.modes).map((m) => m && m.at));
+  return x.at || null;
+};
+
+function readingOf(game, input, report) {
+  const errors = [];
+  const info = gameInfo(report, game);
+  const q0 = guarded(errors, 'q0', () => {
+    const v = q0Of(game, input.q0, info, input.unreadable);
+    if (!v.band) return null;
+    const modes = {};
+    Object.keys(input.q0 || {}).forEach((mode) => {
+      const r = input.q0[mode];
+      modes[mode] = { best: r4(r.best_row_mean), sd: r4(r.best_row_sd_across_seeds), ceiling: r3(Number(r.best_row_mean) + 2 * (Number(r.best_row_sd_across_seeds) || 0)),
+        rows: r.rows_compared, seeds: Array.isArray(r.seeds) ? r.seeds.length : null, at: isoUtc(r.generated_at) };
+    });
+    const { ceiling, from, rows, seeds, history, metric } = v.band;
+    return { band: { ceiling, from, rows, seeds, history, metric }, modes, ranking: v.ranking,
+      // above null: no ranking to read the band against (no modelPerformance.json, or no rows for this game) - never "none above"
+      rankedRows: info ? v.rankedRows : null, minDraws: info ? v.minDraws : null, above: info ? v.above.rows : null,
+      // the older of the two records: the band is this week's only once both are (partAt)
+      at: earliest(Object.values(modes).map((m) => m.at)) };
+  });
+  const q2 = guarded(errors, 'q2', () => {
+    const v = q2Of(input.q2);
+    return v && { status: v.status, real: v.real, shuffled: v.shuffled, threshold: v.threshold, seeds: v.seeds, windowsTest: v.windowsTest,
+      window: v.window, drawsUsed: v.drawsUsed, at: v.at };
+  });
+  const fc = guarded(errors, 'fc', () => {
+    if (!input.fc) return null;
+    const d = controls.describeFeatureControl(input.fc);
+    return { tableRows: d.tableDays, lockboxRows: d.lockboxDays, repeats: d.repeats, noiseColumns: d.noiseColumns, at: isoUtc(d.generatedAt),
+      // per variant: the verdict, the noise ratio, the noise columns' share, [held-out AUC without, with noise], the base columns above the band
+      variants: d.variants.map((v) => {
+        const out = { key: VARIANT_CODE[v.key] || v.key, verdict: v.verdict, ratio: r3(v.noiseRatio), share: r4(v.noiseShare), auc: [r3(v.heldoutWithout), r3(v.heldoutWith)] };
+        if (v.above.length) out.above = v.above;   // left out when none is above
+        return out;
+      }) };
+  });
+  const rows = isMarketGame(game) ? guarded(errors, 'rows', () => {
+    if (!input.rows) return null;
+    const d = markets.describeRows(input.rows);
+    return { window: d.days, requested: d.requested, lockboxWithheld: d.lockboxWithheld, firstDay: d.firstDay, lastDay: d.lastDay, reference: d.reference,
+      at: isoUtc(d.generatedAt),
+      // the scored rows (the baselines carry no probability), each against uniform and against the reference: mean log-score
+      // difference per draw of the game, 95% interval, verdict; a row's days only where they differ from the window
+      rows: d.rows.filter((r) => r.logScore !== null).map((r) => {
+        const out = { row: r.name, kind: r.kind, vsUniform: interval(r.vsUniform) };
+        if (!r.isReference) out.vsReference = interval(r.vsReference);
+        if (r.days !== d.days) out.days = r.days;
+        return out;
+      }) };
+  }) : null;
+  unreadableErrors(input.unreadable, { q0Band: q0 && q0.band, q2, fc, rows }).forEach((part) => { if (!errors.includes(part)) errors.push(part); });
+  return { unit: UNIT[game], q0, q2, fc, rows, errors };
+}
+// sunday: the week the reading is written for ('YYYY-MM-DD', a Sunday) - then every part whose record is from another
+// week is named in notThisWeek (a control that failed leaves last week's record in place); null for the reading of the
+// records on disk now, where each part carries its own week. by / controls / note say who built it from what.
+function weekReading(inputs, report, { sunday = null, now = new Date(), by = null, controls: source = null, note = null } = {}) {
+  const games = {};
+  GAMES.forEach((game) => { games[game] = readingOf(game, inputs[game] || {}, report); });
+  // every record's time: Q0 per control, the other parts one record each
+  const times = GAMES.flatMap((game) => PARTS.flatMap((part) => {
+    const x = games[game][part];
+    if (!x) return [];
+    return part === 'q0' ? Object.keys(x.modes).map((mode) => ({ game, part: `q0 ${mode}`, at: x.modes[mode].at })) : [{ game, part, at: x.at }];
+  })).filter((t) => t.at);
+  const reading = { version: READING_VERSION, sunday, builtAt: isoUtc(now.toISOString()), by, controls: source, note,
+    rankingAt: isoUtc(report && report.generatedAt), from: earliest(times.map((t) => t.at)), to: latest(times.map((t) => t.at)) };
+  if (sunday) reading.notThisWeek = times.filter((t) => sundayOf(t.at) !== sunday);
+  reading.games = games;
+  return reading;
+}
+
+// --- week over week: the stored readings -------------------------------------------------------------------------
+// Every data/readings/<sunday>.json, read once per change of its file: {bySunday, sundays (oldest first), unreadable}.
+// A file that does not parse, is of another version, or names another day than its file name, is listed unreadable.
+function loadReadings(dir) {
+  let files = [];
+  try { files = fs.readdirSync(dir).filter((f) => READING_FILE.test(f)).sort(); } catch (e) { files = []; }
+  const bySunday = new Map();
+  const unreadable = [];
+  files.forEach((f) => {
+    const day = f.slice(0, 10);
+    const file = path.join(dir, f);
+    const reading = memo(`reading:${file}`, [file], () => {
+      try {
+        const r = JSON.parse(fs.readFileSync(file, 'utf-8'));
+        return r && r.version === READING_VERSION && r.sunday === day && r.games && typeof r.games === 'object' ? r : null;
+      } catch (e) { return null; }
+    });
+    if (reading && brussels.isDay(day) && brussels.weekdayOfDay(day) === 0) bySunday.set(day, reading); else unreadable.push(f);
+  });
+  return { bySunday, sundays: [...bySunday.keys()], unreadable };
+}
+// What one control read in one game one week, as one comparable string; null when there is no record. Two weeks read
+// the same when the strings are equal: Q0 rows above the band or none; Q2's status; every feature-control variant's
+// verdict; which market rows beat the reference, and the reference against uniform.
+function stateOf(part, entry) {
+  const x = entry && entry[part];
+  if (!x) return null;
+  if (part === 'q0') return x.above === null || x.above === undefined ? 'no ranking' : (x.above.length ? 'above' : 'none above');
+  if (part === 'q2') return x.status || null;
+  if (part === 'fc') return list(x.variants).map((v) => `${v.key} ${VERDICT_SHORT[v.verdict] || v.verdict}`).join(' · ');
+  if (part === 'rows') {
+    const ref = shortRow(x.reference);
+    const beat = list(x.rows).filter((r) => r.vsReference && r.vsReference.verdict === 'better').map((r) => shortRow(r.row)).sort();
+    const own = list(x.rows).find((r) => r.row === x.reference);
+    return `beat ${ref}: ${beat.length ? beat.join(', ') : 'none'} · ${ref} vs uniform: ${(own && own.vsUniform && own.vsUniform.verdict) || 'not scored'}`;
+  }
+  return null;
+}
+// One game's part as a stored reading holds it for `day`: undefined when there is no reading of that week, or when the
+// part in it is not that week's own measurement - a control that failed or skipped the game leaves last week's record
+// on disk, and the reading carries it again (notThisWeek), so counting it would count one run twice; null when the
+// reading has no record of it.
+function storedPart(stored, day, game, part) {
+  const reading = stored.bySunday.get(day);
+  if (!reading) return undefined;
+  const entry = reading.games && reading.games[game];
+  if (!entry || !entry[part]) return null;
+  return sundayOf(partAt(part, entry)) === day ? entry : undefined;
+}
+// A control's run of weeks: the week its record is from (its own Sunday), how many weeks in a row ending there it read
+// the same - counting back through stored readings exactly a week apart, so a week without a reading, or whose reading
+// holds an older record of this part (that control did not run that week: noRunBefore for the week before), ends the
+// run - and whether the week before read differently: null when there is no reading of that week to compare with, and
+// `last` (what it read then; null = no record) only when it changed. weeks 1 with changed null is the first week on
+// record. Q0 is read against a ranking, and every stored reading is fixed at its own Sunday's: so once the reading of
+// the record's own Sunday is written, its state is that reading's (sinceReading: the rows today's ranking puts above
+// or below the band that it did not), and before that the records on disk against the live ranking stand in (live).
+function streakOf(stored, game, part, entry) {
+  const now = stateOf(part, entry);
+  const sunday = sundayOf(partAt(part, entry));
+  if (now === null || !sunday) return null;
+  const then = (day) => { const x = storedPart(stored, day, game, part); return x ? stateOf(part, x) : x; };
+  const own = part === 'q0' ? storedPart(stored, sunday, game, part) : undefined;
+  const state = own ? stateOf(part, own) : now;
+  const before = brussels.addDays(sunday, -7);
+  const last = then(before);
+  let weeks = 1;
+  for (let day = before; then(day) === state; day = brussels.addDays(day, -7)) weeks += 1;
+  const out = { state, sunday, weeks, changed: last === undefined ? null : last !== state };
+  if (out.changed) out.last = last;
+  if (last === undefined && stored.bySunday.has(before)) out.noRunBefore = true;
+  if (part === 'q0' && !own) out.live = true;
+  if (own) {
+    const was = list(own.q0.above).map((r) => r.row);
+    const is = list(entry.q0.above).map((r) => r.row);
+    const added = is.filter((r) => !was.includes(r));
+    const dropped = was.filter((r) => !is.includes(r));
+    if (added.length || dropped.length || now !== state) out.sinceReading = { now, added, dropped, rankingAt: stored.bySunday.get(sunday).rankingAt || null };
+  }
+  return out;
+}
+// How many weeks in a row, ending at `sunday`, a row has been above its game's Q0 band. read: the reading of `sunday`
+// itself is stored (streakOf) - then the count starts there, and a row above only against the live ranking, not in
+// that reading, has no weeks (null); otherwise this week is the live one and the stored weeks before it count on.
+function rowWeeks(stored, game, row, sunday, read = false) {
+  const above = (day) => {
+    const x = storedPart(stored, day, game, 'q0');
+    return Boolean(x && Array.isArray(x.q0.above) && x.q0.above.some((r) => r.row === row));
+  };
+  if (read && !above(sunday)) return null;
+  let weeks = 1;
+  for (let day = brussels.addDays(sunday, -7); above(day); day = brussels.addDays(day, -7)) weeks += 1;
+  return weeks;
+}
+// current: weekReading of the records on disk (no sunday); stored: loadReadings. Per game, each part's streak, with
+// behind: true for a part whose record is older than the newest part's (the controls are overwritten while they run).
+function historyOf(current, stored) {
+  const out = {};
+  GAMES.forEach((game) => {
+    out[game] = {};
+    PARTS.filter((part) => part !== 'rows' || isMarketGame(game)).forEach((part) => { out[game][part] = streakOf(stored, game, part, current.games[game]); });
+  });
+  const newest = latest(GAMES.flatMap((game) => Object.values(out[game]).map((s) => s && s.sunday)));
+  GAMES.forEach((game) => Object.values(out[game]).forEach((s) => { if (s && newest && s.sunday < newest) s.behind = true; }));
+  return { games: out, newest };
+}
+const readingsMeta = (stored, newest) => ({ stored: stored.sundays.length, sundays: stored.sundays.slice(-8), newestRecords: newest || null,
+  unreadable: stored.unreadable, rule: 'weeks: the weeks in a row, ending at the record\'s own Sunday, the control read the same in the stored readings (a missing week, or one whose reading holds an older record of the control, ends the run); changed: whether the week before read differently (null: no reading of that week); Q0: the state of the reading of its own Sunday once written (that Sunday\'s ranking), live before that' });
+// The Controls page with its history: each game's history per part, each Q0 row above the band with its weeks above.
+function withHistory(view, current, stored) {
+  const hist = historyOf(current, stored);
+  view.groups.forEach((grp) => grp.games.forEach((g) => {
+    g.history = hist.games[g.game];
+    const q0 = g.history.q0;
+    if (q0 && q0.sunday && g.q0 && g.q0.above && g.q0.above.rows.length) {
+      g.q0 = { ...g.q0, above: { ...g.q0.above, rows: g.q0.above.rows.map((r) => ({ ...r, weeks: rowWeeks(stored, g.game, r.row, q0.sunday, !q0.live) })) } };
+    }
+  }));
+  view.readings = readingsMeta(stored, hist.newest);
+  return view;
+}
+
+// --- the runs: config/scheduler.json and the jobs' own logs ------------------------------------------------------
+// jobs.js wraps every run in two markers in the job's own log, the start in UTC with the code version:
+//   === scheduler: <job name> started 2026-10-18 10:00:15 9e070619 UTC ===
+//   === scheduler: <job name> finished status=0 after 45928s ===
+// A run's log slice is what lies between them. Its warning signatures: a Python warning, error or exception class
+// (with the file that raised it, when the line names one), LOCKBOX, Traceback. Every other line a naive /warn|error/
+// grep would catch is counted as filtered noise (TF/XLA start-up chatter, the gate's lines on "standard error").
+const MARKER_START = /^=== scheduler: (.+?) started (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?: (\S+))? UTC ===$/;
+const MARKER_END = /^=== scheduler: (.+?) finished status=(\S+) after (\d+)s ===$/;
+const WARNING_CLASS = /\b([A-Z][A-Za-z]*(?:Warning|Error|Exception))\b/;
+const WARNING_SOURCE = /([A-Za-z0-9_]+\.py):\d+/;
+const NOISE = /warn|error/i;
+const SLICE_MATCH_MS = 2 * 60 * 1000;   // a run and its log slice start within seconds of each other
+function slicesOf(text) {
+  const out = [];
+  let cur = null;
+  String(text).split('\n').forEach((line) => {
+    if (line.startsWith('=== scheduler: ')) {
+      let m = MARKER_START.exec(line);
+      if (m) {
+        if (cur) out.push(cur);   // a run that never wrote its finished marker (killed)
+        cur = { start: Date.parse(`${m[2].replace(' ', 'T')}Z`), sha: m[3] || null, status: null, seconds: null, sig: {}, noise: 0 };
+        return;
+      }
+      m = MARKER_END.exec(line);
+      if (m && cur) {
+        cur.status = /^-?\d+$/.test(m[2]) ? Number(m[2]) : null;
+        cur.seconds = Number(m[3]);
+        out.push(cur);
+        cur = null;
+        return;
+      }
+    }
+    if (!cur) return;
+    let hit = false;
+    const cls = line.includes('Warning') || line.includes('Error') || line.includes('Exception') ? WARNING_CLASS.exec(line) : null;
+    if (cls) {
+      const src = WARNING_SOURCE.exec(line);
+      const key = src ? `${cls[1]} (${src[1]})` : cls[1];
+      cur.sig[key] = (cur.sig[key] || 0) + 1;
+      hit = true;
+    }
+    if (line.includes('LOCKBOX')) { cur.sig.LOCKBOX = (cur.sig.LOCKBOX || 0) + 1; hit = true; }
+    if (line.includes('Traceback')) { cur.sig.Traceback = (cur.sig.Traceback || 0) + 1; hit = true; }
+    if (!hit && NOISE.test(line)) cur.noise += 1;
+  });
+  if (cur) out.push(cur);   // a run still writing
+  return out;
+}
+// One job's slices, oldest first, from its log and the rotated one (jobs.js keeps one); each file parsed once per change.
+function readSlices(dirs, job) {
+  if (!job || !job.log) return [];
+  return [`${job.log}.1`, job.log].map((f) => path.join(dirs.logDir, f))
+    .flatMap((file) => memo(`log:${file}`, [file], () => { try { return slicesOf(fs.readFileSync(file, 'utf-8')); } catch (e) { return []; } }))
+    .sort((a, b) => a.start - b.start);
+}
+function readScheduler(dirs) {
+  return memo(`scheduler:${dirs.schedulerFile}`, [dirs.schedulerFile], () => {
+    try {
+      const s = JSON.parse(fs.readFileSync(dirs.schedulerFile, 'utf-8'));
+      return { history: list(s.history), current: s.current || null, queue: list(s.queue) };
+    } catch (e) { return null; }
+  });
+}
+const median = (values) => {
+  const s = values.slice().sort((a, b) => a - b);
+  const n = s.length;
+  return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null;
+};
+const ran = (h) => Boolean(h) && !h.dry && !h.blocked && Number.isFinite(h.at);
+// A run's usual duration in minutes: median, range and count of the earlier successful runs, and their basis - a
+// weekly job's earlier runs from its own log's markers (they reach further back than the 40 runs the scheduler
+// keeps), the predictor's from the scheduler's history (or when a log holds none).
+function usualOf(h, job, slices, history) {
+  let minutes = [];
+  let at = [];
+  let basis = 'earlier runs in the job log';
+  if (!job.daily) {
+    const prev = list(slices).filter((s) => s.status === 0 && s.seconds !== null && s.start < h.at - SLICE_MATCH_MS);
+    minutes = prev.map((s) => s.seconds / 60);
+    at = prev.map((s) => s.start);
+  }
+  if (!minutes.length) {
+    const prev = history.filter((x) => x.key === h.key && x.exit === 0 && num(x.seconds) !== null && x.at < h.at - SLICE_MATCH_MS);
+    minutes = prev.map((x) => x.seconds / 60);
+    at = prev.map((x) => x.at);
+    basis = 'earlier runs in the scheduler history';
+  }
+  if (!minutes.length) return null;
+  return { median: r3(median(minutes)), min: r3(Math.min(...minutes)), max: r3(Math.max(...minutes)), n: minutes.length,
+    from: isoMs(Math.min(...at)), to: isoMs(Math.max(...at)), basis };
+}
+// One run: when, how long against the usual, the result, and its warning signatures - each new only when none of the
+// same job's earlier slices the logs still hold had it (a signature that skipped a weekend is recurring, not new);
+// null when there is nothing earlier to compare with. warnings null: the run's log slice is no longer in its log.
+function runLine(h, job, slices, history) {
+  const own = list(slices).find((s) => Math.abs(s.start - h.at) < SLICE_MATCH_MS) || null;
+  const earlier = list(slices).filter((s) => s.start < h.at - SLICE_MATCH_MS);
+  const seen = new Set(earlier.flatMap((s) => Object.keys(s.sig)));
+  const minutes = num(h.seconds) === null ? null : h.seconds / 60;
+  const usual = usualOf(h, job, slices, history);
+  return {
+    key: h.key, job: job.name, start: isoMs(h.at), end: isoMs(h.finishedAt), minutes: r3(minutes),
+    result: h.exit === 0 ? 'ok' : (num(h.exit) === null ? 'unknown' : `exit ${h.exit}`), note: h.note || h.error || null, sha: h.sha || null,
+    usual, overUsual: usual && minutes !== null ? minutes > usual.max : null, vsMedian: usual && minutes !== null && usual.median ? r2(minutes / usual.median) : null,
+    warnings: own ? Object.entries(own.sig).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([sig, n]) => ({ sig, n, new: earlier.length ? !seen.has(sig) : null })) : null,
+    noiseFiltered: own ? own.noise : null,
+    comparedWith: earlier.length ? { runs: earlier.length, from: isoMs(earlier[0].start), to: isoMs(earlier[earlier.length - 1].start) } : null,
+  };
+}
+// Whether a run belongs to the weekend of `saturday`: the daily job on Saturday or Sunday; a weekly plan's job started
+// from Saturday 00:00 until Tuesday 09:00, where the controls' catch-up net ends (Brussels time).
+function inWeekend(h, job, saturday) {
+  if (!job || !Number.isFinite(h.at)) return false;
+  if (job.daily) { const day = brussels.dayOf(h.at); return day === saturday || day === brussels.addDays(saturday, 1); }
+  return Boolean(job.plan) && h.at >= brussels.instant(saturday) && h.at < brussels.instant(brussels.addDays(saturday, 3), 9);
+}
+
+// --- GET /api/admin/tuning ---------------------------------------------------------------------------------------
+const TUNER_ORDER = gates.TUNERS.map((t) => t.tuner).concat('unattributed');
+// current: {game: tuningGate records} of the working tree; hist: gates.history; runs: the scheduler's runs. One entry
+// per record: its numbers (gates.describe), who decided it (gates.attribute) and its last weekends' decisions, aligned
+// with hist.weekends (null: that weekend did not decide the row; 'not read': git could not be read for that weekend).
+function tuningRecords(current, hist, runs) {
+  const out = [];
+  GAMES.forEach((game) => Object.entries(current[game] || {}).forEach(([row, rec]) => {
+    const d = gates.describe(row, rec);
+    const ms = Date.parse(d.date);
+    const attribution = gates.attribute(row, rec, { carrier: ((hist.carriers || {})[game] || {})[row] || null, run: Number.isFinite(ms) ? gates.runOf(ms, runs) : null });
+    const past = ((hist.decisions || {})[game] || {})[row] || [];
+    out.push({ game, ...d, tuner: attribution.tuner, attribution, history: list(hist.weekends).map((w, i) => (past[i] === undefined ? 'not read' : past[i])) });
+  }));
+  return out;
+}
+const countOf = (recs) => ({ n: recs.length, replaced: recs.filter((r) => r.decision === 'replaced').length,
+  kept: recs.filter((r) => r.decision === 'kept').length, reverted: recs.filter((r) => r.decision === 'reverted').length });
+// replacements whose challenger gained less than one of its own standard errors over the incumbent (gainSe), or over
+// the better of incumbent and default - the reference the margin is added to (gainBestSe)
+const under1Se = (recs, key) => recs.filter((r) => r.decision === 'replaced' && r[key] !== null && r[key] < 1).length;
+const atMarginZero = (recs) => recs.filter((r) => !(r.margin > 0)).length;
+const rowsBy = (recs, decision) => {
+  const out = {};
+  recs.filter((r) => r.decision === decision).forEach((r) => { (out[r.game] = out[r.game] || []).push(r.row); });
+  return out;
+};
+const TUNING_META = {
+  decide: 'replaced when the challenger beats the better scored reference (incumbent, default) by the margin; reverted when the untuned default is served instead; kept otherwise (src/TuningGate.py decide)',
+  scores: 'each the gate\'s own score on the gate window: hits, positional, capped_profit, log_score and subset_bound are lower bounds (mean - 1 SE); holdout_hits and holdout_profit are means on the quantum tuner\'s holdout; a keno capped_profit score is the capped profit above a fair ticket (fairPerBet, its capped value per bet), not money won - profitPerBet is the raw, uncapped profit per bet in EUR',
+  margin: 'margin in score units; marginSe = margin / challenger SE (1 for the tuners that ask one SE, 0 for any gain)',
+  gains: 'gainSe = (challenger - incumbent) / challenger SE; gainBestSe over the better reference; gainBarSe over the bar (better reference + margin), the one that decided',
+  trials: 'runTrials: this run\'s scored trials; studyTrials: the study\'s completed trials the sampler was guided by',
+  weekend: 'a decision belongs to the weekend of the Saturday on or before it (Brussels)',
+  attribution: 'record: the record names its tuner (since 21 Oct 2026); family + commit / family + run: the row\'s tuner confirmed by the tuner commit that first carries the record, or the scheduler run holding its date; unattributed otherwise',
+};
+function tuningSummary(records, hist, runs = [], missing = [], now = new Date()) {
+  const weekend = hist.newest || latest(records.map((r) => r.weekend));
+  const mine = records.filter((r) => r.weekend === weekend);
+  const older = records.filter((r) => r.weekend !== weekend);
+  const dates = mine.map((r) => r.date).filter(Boolean);
+  // what this weekend did with the rows the weekend before replaced (held: kept against a new challenger)
+  const at = list(hist.weekends).indexOf(weekend);
+  const previous = at >= 0 ? list(hist.weekends)[at + 1] || null : null;
+  const replacedThen = previous ? records.filter((r) => r.history[at + 1] === 'replaced') : [];
+  const thisTime = (decision) => replacedThen.filter((r) => r.weekend === weekend && r.decision === decision).length;
+  const held = previous ? { weekend: previous, replaced: replacedThen.length, kept: thisTime('kept'), replacedAgain: thisTime('replaced'),
+    reverted: thisTime('reverted'), notDecided: replacedThen.filter((r) => r.weekend !== weekend).length } : null;
+  const byTuner = TUNER_ORDER.map((tuner) => {
+    const recs = mine.filter((r) => r.tuner === tuner);
+    if (tuner === 'unattributed' && !recs.length) return null;
+    const spec = gates.TUNERS.find((t) => t.tuner === tuner);
+    const run = spec ? runs.filter((h) => h.key === spec.job && ran(h) && gates.weekendOf(h.at) === weekend).sort((x, y) => x.at - y.at).pop() || null : null;   // the latest, if run twice
+    // the gate window per unit: one backtest "day" is a draw, a day, a trading day or a week, by game
+    const windows = {};
+    recs.filter((r) => r.windowDays !== null).forEach((r) => { (windows[UNIT[r.game]] = windows[UNIT[r.game]] || []).push(r.windowDays); });
+    return {
+      tuner, job: spec ? spec.job : null, ...countOf(recs), marginZero: atMarginZero(recs),
+      marginOneSe: recs.filter((r) => r.marginSe !== null && Math.abs(r.marginSe - 1) < 1e-6).length,
+      replacedUnder1Se: under1Se(recs, 'gainSe'), replacedUnder1SeVsBetterReference: under1Se(recs, 'gainBestSe'),
+      games: new Set(recs.map((r) => r.game)).size, kinds: [...new Set(recs.map((r) => r.kind).filter(Boolean))],
+      // the records whose capped-profit score is measured above a fair ticket (keno): its fair value per bet
+      aboveFair: recs.filter((r) => r.challenger.fairPerBet !== undefined).length, fairPerBet: range(recs.map((r) => r4(r.challenger.fairPerBet))),
+      windowDays: range(recs.map((r) => r.windowDays)),
+      windowByUnit: Object.fromEntries(Object.values(UNIT).filter((u, i, all) => all.indexOf(u) === i && windows[u]).map((u) => [u, range(windows[u])])),
+      runTrials: range(recs.map((r) => r.runTrials)), studyTrials: range(recs.map((r) => r.studyTrials)),
+      run: run ? { start: isoMs(run.at), end: isoMs(run.finishedAt), minutes: r3(num(run.seconds) === null ? null : run.seconds / 60), result: run.exit === 0 ? 'ok' : (num(run.exit) === null ? 'unknown' : `exit ${run.exit}`) } : null,
+      replacedRows: rowsBy(recs, 'replaced'), revertedRows: rowsBy(recs, 'reverted'),
+    };
+  }).filter(Boolean);
+  const byGame = GAMES.map((game) => {
+    const recs = mine.filter((r) => r.game === game);
+    return { game, group: groupOf(game), ...countOf(recs), marginZero: atMarginZero(recs), notThisWeekend: older.filter((r) => r.game === game).length,
+      noFile: missing.includes(game), replacedRows: recs.filter((r) => r.decision === 'replaced').map((r) => r.row), revertedRows: recs.filter((r) => r.decision === 'reverted').map((r) => r.row) };
+  });
+  return {
+    builtAt: isoUtc(now.toISOString()), weekend,
+    tiles: {
+      ...countOf(mine), marginZero: atMarginZero(mine), replacedUnder1Se: under1Se(mine, 'gainSe'), replacedUnder1SeVsBetterReference: under1Se(mine, 'gainBestSe'),
+      under1SeTuners: [...new Set(mine.filter((r) => r.decision === 'replaced' && r.gainSe !== null && r.gainSe < 1).map((r) => r.tuner))],
+      unattributed: mine.filter((r) => r.tuner === 'unattributed').length, notThisWeekend: older.length, games: new Set(mine.map((r) => r.game)).size,
+      from: earliest(dates), to: latest(dates), heldFromLastWeekend: held,
+    },
+    byTuner, byGame,
+    unattributed: records.filter((r) => r.tuner === 'unattributed').map((r) => ({ game: r.game, row: r.row, weekend: r.weekend, family: r.attribution.family || null, why: r.attribution.why })),
+    history: { weekends: list(hist.weekends), commits: hist.commits || 0, error: hist.error || null,
+      source: 'the newest weekend from bestParams_<game>.json, each earlier one from its last "Saving latest ... hyperopt" commit' },
+    meta: TUNING_META,
+  };
+}
+// --- GET /api/admin/tuning/:game -------------------------------------------------------------------------------------
+// a keno side also carries its fair ticket's capped value and its raw profit per bet (gates.describe)
+const sideOf = (s) => ({ score: r4(s.score), se: r4(s.se), days: s.days,
+  ...(s.fairPerBet !== undefined ? { fairPerBet: r4(s.fairPerBet), profitPerBet: r4(s.profitPerBet) } : {}) });
+function tuningGame(records, game, hist, now = new Date()) {
+  const weekend = hist.newest || latest(records.map((r) => r.weekend));
+  const order = (r) => TUNER_ORDER.indexOf(r.tuner);
+  const recs = records.filter((r) => r.game === game).sort((a, b) => order(a) - order(b) || a.row.localeCompare(b.row));
+  const mine = recs.filter((r) => r.weekend === weekend);
+  return {
+    // unit: what one backtest day of the gate window is in this game (a draw, a day, a trading day, a week)
+    game, group: groupOf(game), unit: UNIT[game], builtAt: isoUtc(now.toISOString()), weekend, ...countOf(mine), notThisWeekend: recs.length - mine.length,
+    weekends: list(hist.weekends), historyError: hist.error || null,
+    rows: recs.map((r) => {
+      const out = {
+        row: r.row, tuner: r.tuner, by: r.attribution.by || null, decision: r.decision, thisWeekend: r.weekend === weekend, weekend: r.weekend, date: r.date,
+        kind: r.kind, windowDays: r.windowDays, runTrials: r.runTrials, studyTrials: r.studyTrials,
+        default: sideOf(r.default), incumbent: sideOf(r.incumbent), challenger: sideOf(r.challenger),
+        margin: r4(r.margin), marginSe: r2(r.marginSe), bar: r4(r.bar), gainSe: r2(r.gainSe), gainBestSe: r2(r.gainBestSe), gainBarSe: r2(r.gainBarSe),
+        history: r.history,
+      };
+      if (r.script) out.script = r.script;
+      if (r.tuner === 'unattributed') { out.why = r.attribution.why; out.family = r.attribution.family || null; }
+      return out;
+    }),
+    meta: TUNING_META,
+  };
+}
+
+// --- GET /api/admin/week ---------------------------------------------------------------------------------------------
+// The sign-in events since a moment, counted - no names, no addresses. events: audit.recent's newest-first entries.
+function signInsOf(events, fromMs, weekMs) {
+  if (!Array.isArray(events)) return null;
+  const count = (since, event) => events.filter((e) => e && e.event === event && Date.parse(e.at) >= since).length;
+  const oldest = events.length ? isoUtc(events[events.length - 1].at) : null;
+  return { failed: count(fromMs, 'login.failed'), locked: count(fromMs, 'login.locked'), ok: count(fromMs, 'login.ok'),
+    last7Days: { failed: count(weekMs, 'login.failed'), locked: count(weekMs, 'login.locked') }, scanned: events.length, oldestScanned: oldest };
+}
+// jobs: [{key, name, log, plan, daily}] (jobs.js JOBS); sched: config/scheduler.json; slices: {job key: log slices};
+// controlsView: controlsOverview with its history (withHistory); tuning: tuningSummary; live: what the running server
+// knows now - {lock, current, queue, council, events} - each missing when not known (null lock = free).
+function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, live = {}, now = new Date() }) {
+  const nowMs = now.getTime();
+  const history = list(sched && sched.history).filter(ran);
+  const byKey = Object.fromEntries(list(jobs).map((j) => [j.key, j]));
+  const daily = list(jobs).find((j) => j.daily) || null;
+  const current = live.current !== undefined ? live.current : (sched && sched.current) || null;
+  const queue = live.queue !== undefined ? live.queue : list(sched && sched.queue);
+  const currentRun = current && Number.isFinite(current.startedAt) ? { key: current.key, at: current.startedAt } : null;
+  // the weekend: this Saturday's once anything of it has started, else the one before
+  const weekendRuns = (sat) => history.filter((h) => inWeekend(h, byKey[h.key], sat)).sort((a, b) => a.at - b.at);
+  let saturday = brussels.lastWeekday(nowMs, 6);
+  let runs = weekendRuns(saturday);
+  if (!runs.length && !(currentRun && inWeekend(currentRun, byKey[currentRun.key], saturday))) {
+    saturday = brussels.addDays(saturday, -7);
+    runs = weekendRuns(saturday);
+  }
+  const sunday = brussels.addDays(saturday, 1);
+  const lines = runs.map((h) => runLine(h, byKey[h.key], slices[h.key], history));
+  // what a weekend runs: the daily job on Saturday and on Sunday, every job of the two weekly plans once
+  const expected = [...(daily ? [{ key: daily.key, day: saturday }, { key: daily.key, day: sunday }] : []),
+    ...list(jobs).filter((j) => j.plan).map((j) => ({ key: j.key }))];
+  const missing = expected.filter((e) => !runs.some((h) => h.key === e.key && (!e.day || brussels.dayOf(h.at) === e.day)));
+  const runningNow = currentRun && inWeekend(currentRun, byKey[currentRun.key], saturday) ? { key: currentRun.key, start: isoMs(currentRun.at) } : null;
+  const isRunning = (e) => Boolean(runningNow) && runningNow.key === e.key && (!e.day || e.day === brussels.dayOf(currentRun.at));
+  const over = lines.filter((l) => l.overUsual).sort((a, b) => (b.minutes - b.usual.max) - (a.minutes - a.usual.max))[0] || null;
+  const starts = runs.map((h) => h.at);
+  const ends = runs.map((h) => h.finishedAt).filter(Number.isFinite);
+  const today = brussels.dayOf(nowMs);
+  const todays = daily ? history.filter((h) => h.key === daily.key && brussels.dayOf(h.at) === today).sort((a, b) => a.at - b.at) : [];
+  const mondayMs = brussels.instant(brussels.lastWeekday(nowMs, 1));
+  const games = controlsView.groups.flatMap((grp) => grp.games);
+  const gateOf = Object.fromEntries(list(tuning && tuning.byGame).map((g) => [g.game, g]));
+  const ct = controlsView.tiles;
+  return {
+    builtAt: isoUtc(now.toISOString()), tz: brussels.TZ,
+    // the ranking the Q0 rows above are read against (the Controls page's rankingAt)
+    rankingAt: controlsView.rankingAt || null,
+    weekend: { saturday, from: isoMs(brussels.instant(saturday)), until: isoMs(brussels.instant(brussels.addDays(saturday, 3), 9)) },
+    tiles: {
+      weekend: {
+        runs: lines.length, ok: lines.filter((l) => l.result === 'ok').length, expected: expected.length,
+        missing: missing.filter((e) => !isRunning(e)), running: runningNow,
+        notOk: lines.filter((l) => l.result !== 'ok').map((l) => ({ key: l.key, result: l.result, note: l.note })),
+        from: isoMs(starts.length ? Math.min(...starts) : NaN), to: isoMs(ends.length ? Math.max(...ends) : NaN),
+        hours: starts.length && ends.length ? r2((Math.max(...ends) - Math.min(...starts)) / 3600000) : null,
+        slowest: over ? { key: over.key, minutes: over.minutes, usual: over.usual } : null,
+        newWarnings: lines.flatMap((l) => list(l.warnings).filter((w) => w.new).map((w) => ({ key: l.key, sig: w.sig, n: w.n }))),
+      },
+      today: {
+        day: today, run: todays.length ? runLine(todays[todays.length - 1], daily, slices[daily.key], history) : null,
+        running: current && daily && current.key === daily.key ? { start: isoMs(current.startedAt) } : null,
+      },
+      tuners: tuning ? { weekend: tuning.weekend, ...tuning.tiles,
+        // job: the scheduler job (a run's drawer finds its tuner's decisions); games and the margins for the Tuning card
+        byTuner: tuning.byTuner.map((t) => ({ tuner: t.tuner, job: t.job, n: t.n, replaced: t.replaced, kept: t.kept, reverted: t.reverted, games: t.games,
+          marginZero: t.marginZero, marginOneSe: t.marginOneSe, replacedUnder1Se: t.replacedUnder1Se })) } : null,
+      q0: ct.q0, q2: ct.q2, fc: ct.fc, rows: ct.rows,
+    },
+    runs: lines,
+    matrix: {
+      columns: ['q0', 'q2', 'fc', 'rows', 'gates'],
+      // RandomnessDiscrimination's power rule: a Q2 record on fewer test windows than this is underpowered
+      fewWindows: FEW_WINDOWS,
+      games: games.map((g) => {
+        const h = g.history || {};
+        const gate = gateOf[g.game];
+        return {
+          game: g.game, group: groupOf(g.game), unit: g.unit, errors: g.errors,
+          // at: the record the band comes from; modes: each control record's own time (what a run wrote is judged on both)
+          q0: g.q0.band ? { above: g.q0.above.n, ceiling: g.q0.band.ceiling, longest: g.q0.above.longest, longestLive: g.q0.above.longestLive,
+            sameLength: g.q0.above.sameLength, sameLive: g.q0.above.sameLive, inTile: g.q0.above.inTile, ranking: g.q0.ranking, seeds: g.q0.band.seeds,
+            at: g.q0.band.at, modes: g.q0.band.modes, history: h.q0 || null } : null,
+          q2: g.q2 ? { status: g.q2.status, real: g.q2.real, threshold: g.q2.threshold, seeds: g.q2.seeds, windowsTest: g.q2.windowsTest, fewWindows: g.q2.fewWindows,
+            at: g.q2.at, history: h.q2 || null } : null,
+          fc: g.fc ? { fits: g.fc.fits, inconclusive: g.fc.inconclusive, ignored: g.fc.ignored, failed: g.fc.failed, variants: g.fc.variants.length, at: g.fc.at, history: h.fc || null } : null,
+          rows: g.rows ? { beat: g.rows.betterThanReference.length, scored: g.rows.rowsScored, reference: g.rows.reference, window: g.rows.window,
+            referenceVsUniform: g.rows.referenceVsUniform ? g.rows.referenceVsUniform.verdict : null, at: g.rows.at, history: h.rows || null } : null,
+          gates: gate ? { replaced: gate.replaced, kept: gate.kept, reverted: gate.reverted, notThisWeekend: gate.notThisWeekend } : null,
+        };
+      }),
+    },
+    readings: controlsView.readings || null,
+    since: {
+      from: isoMs(mondayMs),
+      predictorRuns: daily ? history.filter((h) => h.key === daily.key && h.at >= mondayMs).sort((a, b) => a.at - b.at).map((h) => runLine(h, daily, slices[daily.key], history)) : [],
+      queue: list(queue).map((q) => ({ key: q.key, name: (byKey[q.key] || {}).name || q.key, queuedAt: isoMs(q.queuedAt), manual: Boolean(q.manual) })),
+      running: current ? { key: current.key, name: (byKey[current.key] || {}).name || current.name || current.key, start: isoMs(current.startedAt) } : null,
+      // null: not known here; {held: false}: free
+      lock: live.lock === undefined ? null : (live.lock ? { held: true, pid: live.lock.pid, script: live.lock.script, key: live.lock.key || null } : { held: false }),
+      council: live.council === undefined ? null : live.council,
+      signIns: signInsOf(live.events, mondayMs, nowMs - 7 * 86400000),
+    },
+  };
+}
+
 // --- routes ------------------------------------------------------------------------
 // The guard: auth.middleware has already answered a signed-out /api request with its 401; this one turns away a
 // signed-in reader who is not the administrator. Open access (no login configured) is the administrator.
@@ -779,8 +1367,67 @@ function install(app, options = {}) {
     return null;
   };
 
+  // the routes that wait on git or on the Council API's health probe; a failure is a 500, never an unhandled rejection
+  const answerLater = (res, build) => Promise.resolve().then(build).then(
+    (body) => (body && body.error ? json(res, { error: body.error }, body.status || 404) : json(res, body)),
+    (e) => {
+      console.error(`[${new Date().toISOString()}] admin.js:`, e);
+      return json(res, { error: 'could not build this view' }, 500);
+    });
+  // the Controls page and its history: the records on disk read as a reading, against the stored readings
+  const controlsWithHistory = () => {
+    const inputs = readAll(dirs);
+    return withHistory(controlsOverview(inputs, report()), weekReading(inputs, report()), loadReadings(dirs.readingsDir));
+  };
+  // this weekend's gate records with their attribution and their last weekends (git: cached per sha)
+  const readTuning = async () => {
+    const files = Object.fromEntries(GAMES.map((g) => [g, gates.readGates(dirs.root, g)]));
+    const current = Object.fromEntries(GAMES.map((g) => [g, files[g] || {}]));
+    let hist;
+    try { hist = await gates.history(dirs.root, GAMES, current); } catch (e) {
+      // the full message to the server log; the page gets a fixed phrase, never a path or a file excerpt
+      console.error(`[${new Date().toISOString()}] admin.js: tuning history:`, e);
+      hist = { weekends: [], newest: null, decisions: {}, carriers: {}, commits: 0, error: 'git history not available' };
+    }
+    const sched = readScheduler(dirs);
+    const runs = list(sched && sched.history).filter(ran);
+    return { records: tuningRecords(current, hist, runs), hist, runs, missing: GAMES.filter((g) => files[g] === null) };
+  };
+  // the job list, from jobs.js when the server passes it (options.jobs); the week has no runs without it
+  const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily) }));
+  const COUNCIL_WAIT_MS = 6000;   // services.js probes for up to 5 s
+  const within = (promise, ms) => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer within ${ms / 1000} s`)), ms);
+    Promise.resolve(promise).then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+  });
+  // what the running server knows now: the lock, the running job and the queue (jobs.status), the Council API
+  // (services.status, which probes its health), the audit events; each left out when its module was not passed
+  const liveStatus = async () => {
+    const out = {};
+    if (options.jobs && typeof options.jobs.status === 'function') {
+      try {
+        const s = options.jobs.status();
+        out.lock = s.lock || null;
+        out.current = s.current ? { key: s.current.key, name: s.current.name, startedAt: s.current.startedAt } : null;
+        out.queue = list(s.queue);
+      } catch (e) { /* the schedule has not started yet: the scheduler file stands in */ }
+    }
+    if (options.services && typeof options.services.status === 'function') {
+      try {
+        const all = await within(options.services.status(), COUNCIL_WAIT_MS);
+        const c = list(all).find((s) => s.key === 'councilApi') || null;
+        out.council = c ? { name: c.name, status: c.status, healthy: c.healthy, summary: c.summary, since: isoMs(c.since), restarts: c.restarts,
+          lastExit: c.lastExit ? { code: c.lastExit.code, signal: c.lastExit.signal, at: isoMs(c.lastExit.at) } : null, lastError: noPaths(c.lastError), checkedAt: isoUtc(new Date().toISOString()) } : null;
+      } catch (e) { out.council = { error: noPaths(e.message), checkedAt: isoUtc(new Date().toISOString()) }; }
+    }
+    if (options.audit && typeof options.audit.recent === 'function') {
+      try { out.events = options.audit.recent(1000); } catch (e) { /* no audit log here */ }
+    }
+    return out;
+  };
+
   app.use('/api/admin', guard);
-  app.get('/api/admin/controls', (req, res) => answer(res, () => controlsOverview(readAll(dirs), report())));
+  app.get('/api/admin/controls', (req, res) => answer(res, controlsWithHistory));
   app.get('/api/admin/controls/:game', (req, res) => answer(res, () => {
     const game = gameOf(req);
     if (!game) return { error: 'unknown game', status: 404 };
@@ -810,6 +1457,23 @@ function install(app, options = {}) {
     if (!report()) return noReport;
     return randomnessGame(report(), gameOf(req), scopeOf(req), readControls(dirs, gameOf(req)).q2, todayOf(gameOf(req))) || { error: 'no randomness record for this game', status: 404 };
   }));
+  app.get('/api/admin/tuning', (req, res) => answerLater(res, async () => {
+    const t = await readTuning();
+    return tuningSummary(t.records, t.hist, t.runs, t.missing);
+  }));
+  app.get('/api/admin/tuning/:game', (req, res) => answerLater(res, async () => {
+    const game = gameOf(req);
+    if (!game) return { error: 'unknown game', status: 404 };
+    const t = await readTuning();
+    if (t.missing.includes(game)) return { error: 'no bestParams file for this game', status: 404 };
+    return tuningGame(t.records, game, t.hist);
+  }));
+  app.get('/api/admin/week', (req, res) => answerLater(res, async () => {
+    const [t, live] = await Promise.all([readTuning(), liveStatus()]);
+    const jobs = jobList();
+    return weekView({ jobs, sched: readScheduler(dirs), slices: Object.fromEntries(jobs.map((j) => [j.key, readSlices(dirs, j)])),
+      controlsView: controlsWithHistory(), tuning: tuningSummary(t.records, t.hist, t.runs, t.missing), live });
+  }));
   // anything else under /api/admin is a JSON 404, never the old pages' HTML
   app.use('/api/admin', (req, res) => json(res, { error: 'not found' }, 404));
 }
@@ -818,4 +1482,6 @@ module.exports = {
   GAMES, LOTTERY_GAMES, MARKET_GAMES, UNIT, isoUtc, resolveDirs, readControls, readRegimes, readAll, readReport,
   q0Of, q2Of, fcOf, rowsOf, controlsOverview, controlsDrawer, modelsSummary, modelsGame, phaseShiftSummary, phaseShiftGame,
   randomnessSummary, randomnessGame, guard, install,
+  READING_VERSION, PARTS, sundayOf, weekReading, loadReadings, stateOf, streakOf, historyOf, withHistory,
+  slicesOf, readSlices, readScheduler, runLine, weekView, tuningRecords, tuningSummary, tuningGame,
 };

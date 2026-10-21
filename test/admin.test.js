@@ -31,10 +31,10 @@ function matchRoute(pattern, pathname) {
   }
   return params;
 }
-function request(app, url, user) {
+function dispatch(app, url, user, done = () => {}) {
   const [pathname, qs] = url.split('?');
   const res = { statusCode: 200, headers: {}, body: undefined,
-    status(c) { this.statusCode = c; return this; }, set(k, v) { this.headers[k] = v; return this; }, json(b) { this.body = b; return this; } };
+    status(c) { this.statusCode = c; return this; }, set(k, v) { this.headers[k] = v; return this; }, json(b) { this.body = b; done(this); return this; } };
   const req = { user, query: Object.fromEntries(new URLSearchParams(qs || '')), params: {}, path: pathname };
   let i = 0;
   const next = () => {
@@ -48,11 +48,15 @@ function request(app, url, user) {
       }
     }
     res.statusCode = 404; res.body = 'fell through';
+    done(res);
     return undefined;
   };
   next();
   return res;
 }
+const request = (app, url, user) => dispatch(app, url, user);
+// the routes that wait on git or a probe answer later: resolved when they do
+const requestAsync = (app, url, user) => new Promise((resolve) => { dispatch(app, url, user, resolve); });
 const ADMIN = { name: 'admin', role: 'admin', open: false };
 const USER = { name: 'reader', role: 'user', open: false };
 const OPEN = { name: 'open access', role: 'admin', open: true };
@@ -340,6 +344,380 @@ ok(rankings.loadReport(db) === good && rankings.rankingFor(db, 'lotto').names.le
 write('database/modelPerformance.json', report);
 fs.utimesSync(path.join(db, 'modelPerformance.json'), new Date(), new Date(Date.now() + 30000));
 
+// --- phase P2: week over week, the runs, the tuning gates -----------------------------------------------------
+const readings = require('../readings');
+const gates = require('../gates');
+const { execFileSync } = require('child_process');
+const brussels = require('../brussels');
+
+// Brussels days and the instants they start at, whatever this process's zone
+ok(brussels.dayOf(Date.parse('2026-10-18T22:30:00Z')) === '2026-10-19' && brussels.lastWeekday(Date.parse('2026-10-18T22:30:00Z'), 0) === '2026-10-18'
+  && brussels.instant('2026-10-26') === Date.parse('2026-10-25T23:00:00Z') && brussels.instant('2026-10-25', 9) === Date.parse('2026-10-25T08:00:00Z')
+  && brussels.isDay('2026-10-18') && !brussels.isDay('2026-02-30'), 'Brussels days: Monday 00:30 is Monday, the clocks go back on 25 Oct');
+ok(admin.sundayOf('2026-10-18T22:45:39Z') === '2026-10-18' && admin.sundayOf('2026-10-20T06:00:00Z') === '2026-10-18' && admin.sundayOf('nonsense') === null,
+  'a control record belongs to the Sunday on or before it: a Monday or Tuesday catch-up is still that weekend\'s');
+
+// stored readings: 4 and 11 Oct, built by the same builder from these records moved to their own week (every record
+// time a week or two earlier) and changed by hand; a broken file and a file that is not a Sunday's next to them
+const readingsDir = path.join(dataDir, 'readings');
+const moveBack = (x, days) => {
+  if (!x || typeof x !== 'object') return;
+  Object.keys(x).forEach((k) => {
+    if (k === 'at' && typeof x[k] === 'string') x[k] = new Date(Date.parse(x[k]) - days * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    else moveBack(x[k], days);
+  });
+};
+const storedWeek = (sunday, change) => {
+  const r = admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report, { sunday, now: new Date(`${sunday}T23:00:00Z`) });
+  moveBack(r.games, (Date.parse('2026-10-18') - Date.parse(sunday)) / 86400000);
+  change(r.games);
+  return readings.writeReading(r, { outDir: readingsDir });
+};
+storedWeek('2026-10-11', (g) => { g.lotto.q0.above = g.lotto.q0.above.filter((r) => r.row === 'A Model'); g.lotto.q2.status = 'within'; g.crypto.rows = null; });
+storedWeek('2026-10-04', (g) => { g.lotto.q0.above = []; });
+fs.writeFileSync(path.join(readingsDir, '2026-10-25.json'), '{"version": 1, "sunday": "2026-10-');
+fs.writeFileSync(path.join(readingsDir, '2026-10-20.json'), JSON.stringify({ version: 1, sunday: '2026-10-20', games: {} }));
+const stored = admin.loadReadings(readingsDir);
+ok(stored.sundays.join() === '2026-10-04,2026-10-11' && stored.unreadable.join() === '2026-10-20.json,2026-10-25.json', 'the stored readings, and the files that are not one');
+
+const ch = request(app, '/api/admin/controls', ADMIN).body;
+const hg = Object.fromEntries(ch.groups.flatMap((g) => g.games).map((g) => [g.game, g]));
+ok(JSON.stringify(hg.lotto.history.q0) === '{"state":"above","sunday":"2026-10-18","weeks":2,"changed":false,"live":true}',
+  `Q0 above for the 2nd week (4 Oct read none above); no reading of 18 Oct yet, so against the live ranking: ${JSON.stringify(hg.lotto.history.q0)}`);
+ok(hg.lotto.q0.above.rows.map((r) => `${r.row}:${r.weeks}`).join() === 'A Model:2,B Model:1', 'each row above the band says for how many weeks in a row');
+ok(JSON.stringify(hg.lotto.history.q2) === '{"state":"above","sunday":"2026-10-18","weeks":1,"changed":true,"last":"within"}',
+  'a change from last week carries what it read then - the only thing the page colours');
+ok(hg.lotto.history.fc.state === 'lr fit · qk ignored' && hg.lotto.history.fc.weeks === 3 && hg.lotto.history.fc.changed === false && hg.lotto.history.fc.last === undefined,
+  'a state that holds every week: its count of weeks, no change, nothing to colour');
+ok(hg.crypto.history.rows.state === 'beat GARCH: none · GARCH vs uniform: better' && hg.crypto.history.rows.changed === true && hg.crypto.history.rows.last === null
+  && hg.keno.history.q0.weeks === 3 && hg.euromillions.history.q0 === null && hg.lotto.history.rows === undefined,
+  'a record where last week had none is a change (last: null); a game without records has no history; a lottery game no rows');
+ok(ch.readings.stored === 2 && ch.readings.unreadable.length === 2 && ch.readings.newestRecords === '2026-10-18', 'the page says how many weeks it reads, and which files it could not');
+ok(JSON.stringify(admin.streakOf({ bySunday: new Map([['2026-10-04', stored.bySunday.get('2026-10-04')]]) }, 'lotto', 'q2', admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report).games.lotto))
+  === '{"state":"above","sunday":"2026-10-18","weeks":1,"changed":null}', 'a missing week ends the run and leaves nothing to compare: weeks 1, changed null');
+const none = admin.withHistory(admin.controlsOverview(admin.readAll(admin.resolveDirs({ dataDir })), report), admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report),
+  admin.loadReadings(path.join(tmp, 'no-readings')));
+ok(none.readings.stored === 0 && none.groups[0].games[0].history.q0.weeks === 1 && none.groups[0].games[0].history.q0.changed === null, 'with no reading at all: the first week on record');
+// the controls are overwritten while they run: a part whose record is from an earlier week than the newest says so
+const midRun = admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report);
+midRun.games.lotto.q2 = { ...midRun.games.lotto.q2, at: '2026-10-25T08:48:16Z' };
+const mh = admin.historyOf(midRun, stored);
+ok(mh.newest === '2026-10-25' && mh.games.lotto.q2.sunday === '2026-10-25' && mh.games.lotto.q0.behind === true && mh.games.lotto.q2.behind === undefined,
+  'mid-run on a Sunday: the cells still from last week are marked behind');
+// Q0 rewrites a game's synthetic record hours before its shuffled one: half rewritten, the band is still last week's
+ok(midRun.games.lotto.q0.at === '2026-10-18T10:11:55Z', 'a reading\'s Q0 time is the older of its two control records');
+const halfQ0 = JSON.parse(JSON.stringify(midRun));
+halfQ0.games.lotto.q0.modes.synthetic.at = '2026-10-25T10:11:55Z';
+const hh = admin.historyOf(halfQ0, stored);
+ok(hh.games.lotto.q0.sunday === '2026-10-18' && hh.games.lotto.q0.behind === true, `a band half rewritten is behind, not this week's: ${JSON.stringify(hh.games.lotto.q0)}`);
+
+// a stored week whose reading holds an older record of a control (it failed or skipped the game that Sunday, so last
+// week's record was still on disk) is no reading of that control: it ends the run, it is not one more week
+const staleStored = { ...stored, bySunday: new Map([...stored.bySunday].map(([day, r]) => [day, JSON.parse(JSON.stringify(r))])) };
+const r11 = staleStored.bySunday.get('2026-10-11');
+r11.games.lotto.q2 = { ...staleStored.bySunday.get('2026-10-04').games.lotto.q2 };
+r11.games.lotto.fc = { ...staleStored.bySunday.get('2026-10-04').games.lotto.fc };
+r11.games.lotto.q0 = JSON.parse(JSON.stringify(staleStored.bySunday.get('2026-10-04').games.lotto.q0));
+r11.games.lotto.q0.above = [{ row: 'A Model' }];
+const cur18 = admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report);
+const sf = admin.streakOf(staleStored, 'lotto', 'fc', cur18.games.lotto);
+ok(JSON.stringify(sf) === '{"state":"lr fit · qk ignored","sunday":"2026-10-18","weeks":1,"changed":null,"noRunBefore":true}',
+  `a stale copy is not counted twice: weeks 1, nothing to compare, said: ${JSON.stringify(sf)}`);
+ok(admin.streakOf(staleStored, 'lotto', 'q2', cur18.games.lotto).changed === null && admin.streakOf(staleStored, 'lotto', 'q0', cur18.games.lotto).weeks === 1,
+  'the same for Q2 and Q0');
+const staleView = admin.withHistory(admin.controlsOverview(admin.readAll(admin.resolveDirs({ dataDir })), report), cur18, staleStored);
+ok(staleView.groups[0].games[0].q0.above.rows.map((r) => `${r.row}:${r.weeks}`).join() === 'A Model:1,B Model:1', 'a row above in a stale Q0 copy gets no extra week');
+
+// Q0 once the reading of its own Sunday is stored: the state and the rows' weeks are that reading's (that Sunday's
+// ranking), never today's; where today's ranking reads the band differently is said apart (sinceReading)
+const r18 = admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report, { sunday: '2026-10-18' });
+r18.games.lotto.q0.above = r18.games.lotto.q0.above.filter((r) => r.row === 'A Model');
+r18.rankingAt = '2026-10-18T08:47:31Z';
+const withOwn = { ...stored, bySunday: new Map([...stored.bySunday, ['2026-10-18', r18]]) };
+const own = admin.streakOf(withOwn, 'lotto', 'q0', cur18.games.lotto);
+ok(JSON.stringify(own) === '{"state":"above","sunday":"2026-10-18","weeks":2,"changed":false,"sinceReading":{"now":"above","added":["B Model"],"dropped":[],"rankingAt":"2026-10-18T08:47:31Z"}}',
+  `Q0 reads its own Sunday's reading, the live ranking's extra row said apart: ${JSON.stringify(own)}`);
+r18.games.lotto.q0.above = [];
+const flipped = admin.streakOf(withOwn, 'lotto', 'q0', cur18.games.lotto);
+ok(flipped.state === 'none above' && flipped.changed === true && flipped.last === 'above' && flipped.sinceReading.now === 'above' && flipped.sinceReading.added.join() === 'A Model,B Model',
+  'a later ranking never turns a stored "none above" into "above": the change is the readings\' own');
+r18.games.lotto.q0.above = [{ row: 'A Model' }];
+const ownView = admin.withHistory(admin.controlsOverview(admin.readAll(admin.resolveDirs({ dataDir })), report), cur18, withOwn);
+ok(ownView.groups[0].games[0].q0.above.rows.map((r) => `${r.row}:${r.weeks}`).join() === 'A Model:2,B Model:null',
+  'a row above only against the live ranking has no weeks; the others count from the reading of their Sunday');
+
+// a market row's live count gets its own "≤": rows of one length can differ in live days
+const lives = admin.q0Of('crypto', { synthetic: { best_row_mean: 1, best_row_sd_across_seeds: 0.1, generated_at: '2026-10-18T10:00:00', rows_compared: 5, seeds: [1, 2, 3], days: 100 } },
+  { metric: 'avg_hits', minDrawsForRanking: 10, models: [{ name: 'A Model', avg_hits: 2, draws: 50, live_draws: 20 }, { name: 'B Model', avg_hits: 2.1, draws: 50, live_draws: 17 }] });
+ok(lives.above.sameLength === true && lives.above.sameLive === false && lives.above.longestLive === 20 && lives.band.modes.length === 1 && lives.band.modes[0].at === '2026-10-18T10:00:00Z',
+  'Q0: the same record length, different live counts; the band names each control record\'s time');
+
+// the runs: three jobs, the scheduler's history and their logs
+const TEST_JOBS = [
+  { key: 'predictor', name: 'Daily predictor', log: 'predictor.log', daily: { hour: 9, minute: 0 } },
+  { key: 'hyperoptStatistics', name: 'Weekly tuning: statistical models', log: 'hyperoptStatistics.log', plan: 'weeklyTuning' },
+  { key: 'nullControls', name: 'Weekly controls: null histories (Q0)', log: 'nullControls.log', plan: 'weeklyControls' },
+];
+const Z = (iso) => Date.parse(iso);
+const runOf = (key, startIso, minutes, exit = 0, extra = {}) => ({ at: Z(startIso), finishedAt: Z(startIso) + minutes * 60000, key, name: key, reason: 'test', seconds: minutes * 60, exit, sha: 'abc12345', ...extra });
+const history = [
+  ...[12, 13, 14, 15, 16].map((d, i) => runOf('predictor', `2026-10-${d}T07:00:00Z`, [100, 110, 120, 130, 140][i])),
+  runOf('predictor', '2026-10-17T07:00:00Z', 121), runOf('hyperoptStatistics', '2026-10-17T09:00:00Z', 300),
+  runOf('predictor', '2026-10-18T07:00:00Z', 100), runOf('nullControls', '2026-10-18T10:00:00Z', 760, 1),
+  runOf('predictor', '2026-10-19T07:00:00Z', 98), runOf('predictor', '2026-10-20T07:00:00Z', 112), runOf('predictor', '2026-10-21T07:00:00Z', 108),
+  { at: Z('2026-10-17T12:00:00Z'), key: 'hyperoptStatistics', name: 'x', reason: 'r', dry: true },
+  { at: Z('2026-10-18T01:00:00Z'), finishedAt: Z('2026-10-18T07:00:00Z'), key: 'nullControls', name: 'x', reason: 'r', seconds: 21600, exit: null, blocked: true },
+].reverse();
+fs.mkdirSync(path.join(tmp, 'config'));
+fs.writeFileSync(path.join(tmp, 'config', 'scheduler.json'), JSON.stringify({ version: 1, history, current: null, queue: [{ key: 'predictor', reason: 'by hand', queuedAt: Z('2026-10-21T17:00:00Z'), manual: true }] }));
+fs.mkdirSync(path.join(tmp, 'log'));
+const slice = (name, start, lines, status = 0, seconds = 60) => [`=== scheduler: ${name} started ${start} abc12345 UTC ===`, ...lines,
+  ...(status === null ? [] : [`=== scheduler: ${name} finished status=${status} after ${seconds}s ===`])].join('\n');
+const writeLog = (file, parts) => fs.writeFileSync(path.join(tmp, 'log', file), `${parts.join('\n')}\n`);
+writeLog('hyperoptStatistics.log.1', [slice('Weekly tuning: statistical models', '2026-10-03 08:38:29', ['Traceback (most recent call last):', 'ValueError: boom'], 0, 6000)]);
+writeLog('hyperoptStatistics.log', [
+  slice('Weekly tuning: statistical models', '2026-10-10 08:52:22', ['LOCKBOX: 2 days withheld', 'LOCKBOX: again', '/x/foo.py:12: UserWarning: careful'], 0, 7200),
+  slice('Weekly tuning: statistical models', '2026-10-17 09:00:01', ['LOCKBOX: 1 day withheld', '/src/MarketModels.py:448: RuntimeWarning: invalid value encountered in divide',
+    'Traceback (most recent call last):', '  the gate: standard error 0.0883', 'TF-TRT Warning: Could not find TensorRT'], 0, 18000)]);
+writeLog('nullControls.log', [slice('Weekly controls: null histories (Q0)', '2026-10-18 10:00:01', ['/src/MarketModels.py:448: RuntimeWarning: invalid value'], 1, 45600)]);
+writeLog('predictor.log', ['2026-10-12', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21']
+  .map((d) => slice('Daily predictor', `${d} 07:00:02`, ['saving_lib.py:1: UserWarning: keras', ...(d === '2026-10-21' ? ['Traceback (most recent call last):'] : [])], 0, 6000)));
+ok(admin.slicesOf('=== scheduler: J started 2026-10-18 10:00:01 UTC ===\nZeroDivisionError: x\n=== scheduler: J started 2026-10-18 11:00:01 abc UTC ===\nstill running').map((s) => `${s.status}:${Object.keys(s.sig)}`).join('|')
+  === 'null:ZeroDivisionError|null:', 'a slice without its finished marker (killed, or still running) is kept, without a status');
+
+// the tuning gates: lotto's bestParams in a git repository of the tuners' save commits, and an uncommitted working tree
+const gate = (date, decision, chScore, inc, def, { margin = 0, se = 0.08, kind = 'hits', days = 90, tuner = null } = {}) => ({
+  date, ...(tuner ? { tuner } : {}), window_days: days, study_best: 1, margin, decision, run_trials: 15, study_trials: 105, reason: 'the numbers again', trial: 7,
+  challenger: chScore, incumbent: inc, default: def,
+  challenger_tuning: { score: chScore, kind, days, score_se: se }, incumbent_tuning: inc === null ? null : { score: inc, kind, days, score_se: se },
+  default_tuning: def === null ? null : { score: def, kind, days: days - 3, score_se: se } });
+const bestParams = (records) => fs.writeFileSync(path.join(tmp, 'bestParams_lotto.json'), JSON.stringify({ someKnob: 1, tuningGate: records }, null, 2));
+const git = (args, when) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args],
+  { cwd: tmp, stdio: 'pipe', env: { PATH: process.env.PATH, HOME: process.env.HOME || '/root', GIT_AUTHOR_DATE: when, GIT_COMMITTER_DATE: when } });
+const commit = (subject, when, records) => { bestParams(records); git(['add', 'bestParams_lotto.json'], when); git(['commit', '-q', '--allow-empty', '-m', subject], when); };
+git(['init', '-q'], '2026-10-01T00:00:00Z');
+const markov10 = gate('2026-10-10T10:00:00+00:00', 'replaced', 0.8, 0.6, 0.65);
+const xgb10 = gate('2026-10-10T20:00:00+00:00', 'kept', 0.5, 0.7, 0.6, { margin: 0.08 });
+commit('Saving latest statistical hyperopt', '2026-10-10T12:00:00Z', { 'Markov Model': markov10 });
+commit('Saving latest boosting hyperopt', '2026-10-10T22:00:00Z', { 'Markov Model': markov10, 'XGBoost Model': xgb10 });
+commit('saving last predictions', '2026-10-11T09:00:00Z', { 'Markov Model': markov10, 'XGBoost Model': xgb10 });
+const markov17 = gate('2026-10-17T10:00:00+00:00', 'kept', 0.7, 0.75, 0.65);
+const mystery = gate('2026-10-17T10:30:00+00:00', 'replaced', 0.9, 0.5, 0.85);
+commit('Saving latest statistical hyperopt', '2026-10-17T12:00:00Z', { 'Markov Model': markov17, 'XGBoost Model': xgb10, 'Mystery Model': mystery });
+// the boosting tuner did not commit this weekend: its XGBoost record first rides in the RL ticket tuner's commit
+const xgb17 = gate('2026-10-17T23:00:00+00:00', 'replaced', 0.9, 0.7, 0.6, { margin: 0.08 });
+const rl17 = gate('2026-10-17T23:30:00+00:00', 'replaced', 0.71, 0.70, 0.5);
+commit('Saving latest RL ticket hyperopt', '2026-10-18T01:00:00Z', { 'Markov Model': markov17, 'XGBoost Model': xgb17, 'Mystery Model': mystery, 'RL Ticket Model': rl17 });
+bestParams({ 'Markov Model': markov17, 'XGBoost Model': xgb17, 'Mystery Model': mystery, 'RL Ticket Model': rl17,
+  'LaplaceMonteCarlo Model': gate('2026-10-17T10:15:00+00:00', 'reverted', 0.6, 0.55, 0.62),   // in no commit: the statistical run's window confirms it
+  'QuantumVQC Model': gate('2026-10-18T02:00:00+00:00', 'reverted', 0.5, 0.4, 0.6, { margin: 0.08, tuner: 'HyperoptQuantum' }),
+  'ClassicalSVM Model': gate('2026-10-18T02:10:00+00:00', 'kept', 0.5, 0.6, 0.55, { margin: 0.08, tuner: 'Elsewhere.py' }),
+  'PoissonMarkov Model': gate('2026-10-03T10:00:00+00:00', 'kept', 0.5, 0.6, 0.55) });
+// a checkout with the same files but no git
+const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-bare-'));
+fs.copyFileSync(path.join(tmp, 'bestParams_lotto.json'), path.join(bare, 'bestParams_lotto.json'));
+
+ok(gates.familyOf('Markov Model') === 'statistical' && gates.familyOf('Mystery Model') === null && gates.tunerOfScript('HyperoptRLTicket') === 'RL ticket'
+  && gates.tunerOfScript('/x/HyperoptBoost.py') === 'boosting' && gates.tunerOfSubject('Saving latest subset ensemble hyperopt') === 'ensemble'
+  && gates.tunerOfSubject('Saving latest deep learning hyperopt') === null && gates.weekendOf(Z('2026-10-18T04:03:29Z')) === '2026-10-17',
+  'the tuners by row, by script and by commit subject; a Sunday-night decision belongs to Saturday\'s weekend');
+const d = gates.describe('Mystery Model', mystery);
+ok(d.bar === 0.85 && Math.abs(d.gainSe - 5) < 1e-9 && Math.abs(d.gainBestSe - 0.625) < 1e-9 && d.gainBarSe === d.gainBestSe && d.marginSe === 0 && d.default.days === 87 && d.weekend === '2026-10-17',
+  `one decision's numbers: the bar is the better reference plus the margin, the gains in the challenger's SE: ${JSON.stringify(d)}`);
+ok(gates.attribute('Markov Model', markov17, { carrier: { tuner: 'statistical' } }).by === 'family + commit'
+  && gates.attribute('XGBoost Model', xgb17, { carrier: { tuner: 'RL ticket' } }).tuner === 'unattributed'
+  && gates.attribute('Markov Model', markov17, { run: { tuner: 'statistical' } }).by === 'family + run'
+  && gates.attribute('Markov Model', markov17).tuner === 'unattributed' && gates.attribute('Mystery Model', mystery, { carrier: { tuner: 'statistical' } }).tuner === 'unattributed'
+  && gates.attribute('Anything', { tuner: 'HyperoptQuantum' }).by === 'record',
+  'attribution: the family confirmed by a commit or a run, the record\'s own tuner, otherwise unattributed - never the time alone');
+ok(gates.runOf(Z('2026-10-17T14:00:30Z'), history)?.tuner === 'statistical' && gates.runOf(Z('2026-10-17T14:02:00Z'), history) === null && gates.runOf(Z('2026-10-17T10:00:00Z'), [])  === null,
+  'a run\'s window holds a decision; a minute of slack only past its end');
+
+async function phaseTwo() {
+  // the routes that answer later: the guard first, then 200
+  const app2 = fakeApp();
+  const events = [{ at: '2026-10-21T10:00:00Z', event: 'login.failed', user: 'mallory', ip: '203.0.113.9' }, { at: '2026-10-20T10:00:00Z', event: 'login.ok', user: 'admin', ip: '198.51.100.7' },
+    { at: '2026-10-16T10:00:00Z', event: 'login.locked', user: 'mallory', ip: '203.0.113.9' }];
+  admin.install(app2, { dataDir, root: tmp, jobs: { JOBS: TEST_JOBS, status: () => ({ lock: { pid: 4242, script: 'Predictor.py', key: 'predictor' }, current: null, queue: [] }) },
+    services: { status: async () => [{ key: 'councilApi', name: 'Council API', status: 'running', healthy: true, summary: 'models ready (3/3 members)', since: Z('2026-10-20T20:16:00Z'), restarts: 0, lastExit: null, lastError: null }] },
+    audit: { recent: () => events } });
+  for (const url of ['/api/admin/week', '/api/admin/tuning', '/api/admin/tuning/lotto']) {
+    const u = await requestAsync(app2, url, USER);
+    ok(u.statusCode === 403 && u.body.error === 'admin only', `${url}: 403 for a user`);
+    const a = await requestAsync(app2, url, ADMIN);
+    ok(a.statusCode === 200 && a.headers['Cache-Control'] === 'no-store' && !/NaN|undefined/.test(JSON.stringify(a.body)), `${url}: 200 for the administrator`);
+  }
+  ok((await requestAsync(app2, '/api/admin/tuning/bingo', ADMIN)).statusCode === 404 && (await requestAsync(app2, '/api/admin/tuning/keno', ADMIN)).body.error === 'no bestParams file for this game',
+    'tuning: an unknown game, and a game without a bestParams file, are 404s that say so');
+
+  // --- the tuning gates
+  const t = (await requestAsync(app2, '/api/admin/tuning', ADMIN)).body;
+  ok(t.weekend === '2026-10-17' && t.tiles.n === 7 && t.tiles.replaced === 3 && t.tiles.kept === 2 && t.tiles.reverted === 2 && t.tiles.notThisWeekend === 1 && t.tiles.marginZero === 4,
+    `tuning: this weekend's decisions; a record from an earlier weekend is not counted as kept: ${JSON.stringify(t.tiles)}`);
+  ok(t.tiles.replacedUnder1Se === 1 && t.tiles.replacedUnder1SeVsBetterReference === 2 && t.tiles.under1SeTuners.join() === 'RL ticket',
+    'tuning: replacements that gained under one SE, over the incumbent and over the better reference');
+  ok(JSON.stringify(t.tiles.heldFromLastWeekend) === '{"weekend":"2026-10-10","replaced":1,"kept":1,"replacedAgain":0,"reverted":0,"notDecided":0}',
+    'tuning: what this weekend did with last weekend\'s replacements');
+  const tun = Object.fromEntries(t.byTuner.map((x) => [x.tuner, x]));
+  ok(tun.statistical.n === 2 && tun.boosting.n === 0 && tun['RL ticket'].n === 1 && tun.quantum.n === 1 && tun.unattributed.n === 3 && t.byTuner.reduce((s, x) => s + x.n, 0) === t.tiles.n,
+    `tuning: by tuner, the unattributed apart, the counts adding up to the tile: ${t.byTuner.map((x) => `${x.tuner} ${x.n}`).join(', ')}`);
+  ok(tun.statistical.run.minutes === 300 && tun.statistical.run.result === 'ok' && tun.statistical.revertedRows.lotto.join() === 'LaplaceMonteCarlo Model' && tun.boosting.run === null,
+    'tuning: each tuner\'s run of that weekend, its replaced and reverted rows by game');
+  ok(t.unattributed.map((x) => x.row).sort().join() === 'ClassicalSVM Model,Mystery Model,PoissonMarkov Model,XGBoost Model'
+    && /RL ticket tuner/.test(t.unattributed.find((x) => x.row === 'XGBoost Model').why), 'tuning: every unattributed record with why');
+  ok(t.history.weekends.join() === '2026-10-17,2026-10-10' && t.history.error === null && t.history.commits === 4, 'tuning: the weekends read from git');
+  const lotto2 = t.byGame.find((x) => x.game === 'lotto');
+  ok(lotto2.n === 7 && lotto2.notThisWeekend === 1 && t.byGame.find((x) => x.game === 'keno').noFile === true && t.byGame.reduce((s, x) => s + x.replaced, 0) === t.tiles.replaced,
+    'tuning: by game, the games without a file named');
+  const tl = (await requestAsync(app2, '/api/admin/tuning/lotto', ADMIN)).body;
+  const by = Object.fromEntries(tl.rows.map((r) => [r.row, r]));
+  ok(tl.rows.length === 8 && tl.weekends.join() === '2026-10-17,2026-10-10' && by['Markov Model'].history.join() === 'kept,replaced' && by['XGBoost Model'].history.join() === 'replaced,kept'
+    && JSON.stringify(by['Mystery Model'].history) === '["replaced",null]' && JSON.stringify(by['PoissonMarkov Model'].history) === '[null,null]',
+    'one game: each row\'s last weekends (null: not decided that weekend)');
+  ok(by['Markov Model'].by === 'family + commit' && by['LaplaceMonteCarlo Model'].by === 'family + run' && by['QuantumVQC Model'].by === 'record' && by['QuantumVQC Model'].script === 'HyperoptQuantum'
+    && by['ClassicalSVM Model'].tuner === 'unattributed' && by['PoissonMarkov Model'].thisWeekend === false && by['PoissonMarkov Model'].weekend === '2026-10-03',
+    'one game: who decided each row and how that is known; a stale record says its own weekend');
+  const m = by['Mystery Model'];
+  ok(m.challenger.score === 0.9 && m.challenger.se === 0.08 && m.default.days === 87 && m.bar === 0.85 && m.gainSe === 5 && m.gainBestSe === 0.63 && m.margin === 0 && m.kind === 'hits'
+    && m.windowDays === 90 && m.runTrials === 15 && m.studyTrials === 105 && m.reason === undefined, 'one game: the scores with their SE and days, the bar, the gains, the trials; no reason text');
+  ok(tl.rows.map((r) => r.tuner).join() === 'statistical,statistical,RL ticket,quantum,unattributed,unattributed,unattributed,unattributed', 'one game: rows in chain order');
+  ok(tl.unit === 'draws', 'one game: the unit its gate window counts in');
+  ok(JSON.stringify(tun.statistical.windowByUnit) === '{"draws":{"min":90,"max":90}}' && tun.statistical.aboveFair === 0 && tun.statistical.fairPerBet === null,
+    'tuning: the gate window per unit (draws, days, trading days, weeks), never pooled under one word');
+  // keno: a capped-profit score is measured above a fair ticket - the side carries that ticket's value and the raw profit
+  const kenoGate = { date: '2026-10-17T10:29:23+00:00', window_days: 90, margin: 0, decision: 'replaced', challenger: 0.0566, incumbent: -0.0616, default: -0.2016,
+    challenger_tuning: { score: 0.0566, kind: 'capped_profit', days: 90, profit_per_bet: -0.1444, fair_capped_per_bet: -0.6435, score_se: 0.1869 },
+    incumbent_tuning: { score: -0.0616, kind: 'capped_profit', days: 90, profit_per_bet: -0.6074, fair_capped_per_bet: -0.6435, score_se: 0.0977 }, default_tuning: null };
+  const kh = { weekends: ['2026-10-17'], newest: '2026-10-17', decisions: {}, carriers: {}, commits: 0, error: null };
+  const krecs = admin.tuningRecords({ keno: { 'Markov Model': kenoGate } }, kh, [{ key: 'hyperoptStatistics', at: Z('2026-10-17T09:00:00Z'), finishedAt: Z('2026-10-17T14:00:00Z') }]);
+  const kt = admin.tuningGame(krecs, 'keno', kh).rows[0];
+  const ks = admin.tuningSummary(krecs, kh).byTuner.find((x) => x.tuner === 'statistical');
+  ok(kt.challenger.fairPerBet === -0.6435 && kt.challenger.profitPerBet === -0.1444 && kt.incumbent.profitPerBet === -0.6074 && kt.default.fairPerBet === undefined
+    && m.challenger.fairPerBet === undefined && ks.aboveFair === 1 && ks.fairPerBet.min === -0.6435 && JSON.stringify(ks.windowByUnit) === '{"days":{"min":90,"max":90}}',
+    'keno: a capped-profit side carries the fair ticket it is measured above and its raw profit per bet; a hits side neither');
+  // mid-chain on Saturday: the tuners that have not written yet count no gate, with no margin to speak of
+  ok(t.byTuner.find((x) => x.tuner === 'boosting').n === 0 && t.byTuner.find((x) => x.tuner === 'boosting').marginZero === 0, 'a tuner with no decision this weekend: n 0');
+
+  // a commit whose file is not JSON (Python's json.dump writes NaN) is a fact about that commit, kept: no decision read
+  // there; a file not in a commit the same - neither is a git failure. A git that fails otherwise is not kept.
+  const nanRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-nan-'));
+  const nanGit = (args) => String(execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args],
+    { cwd: nanRepo, stdio: 'pipe', env: { PATH: process.env.PATH, HOME: process.env.HOME || '/root', GIT_AUTHOR_DATE: '2026-10-10T12:00:00Z', GIT_COMMITTER_DATE: '2026-10-10T12:00:00Z' } }));
+  try {
+    nanGit(['init', '-q']);
+    fs.writeFileSync(path.join(nanRepo, 'bestParams_lotto.json'), '{"tuningGate": {"Markov Model": {"date": "2026-10-10T10:00:00+00:00", "decision": "kept", "x": NaN}}}');
+    nanGit(['add', 'bestParams_lotto.json']);
+    nanGit(['commit', '-q', '-m', 'Saving latest statistical hyperopt']);
+    const nanSha = nanGit(['rev-parse', 'HEAD']).trim();
+    ok(await gates.gatesAt(nanRepo, nanSha, 'lotto') === null && await gates.gatesAt(nanRepo, nanSha, 'lotto') === null && await gates.gatesAt(nanRepo, nanSha, 'keno') === null,
+      'a file that is not JSON in a commit, or not in it at all: null, read again from the cache - never a rejection');
+    const nh = await gates.history(nanRepo, ['lotto'], { lotto: { 'Markov Model': markov17 } });
+    ok(nh.error === null && nh.weekends.join() === '2026-10-17,2026-10-10' && JSON.stringify(nh.decisions.lotto['Markov Model']) === '["kept",null]',
+      `the history reads on: that weekend did not decide the row, git did not fail: ${JSON.stringify(nh)}`);
+    const failed = [];
+    for (let i = 0; i < 2; i += 1) { try { await gates.gatesAt(bare, nanSha, 'lotto'); } catch (e) { failed.push(e.code); } }
+    ok(failed.length === 2 && failed.every((c) => typeof c === 'number'), 'a git that fails for another reason (here: no repository) rejects each time: never kept as "not in that commit"');
+  } finally {
+    fs.rmSync(nanRepo, { recursive: true, force: true });
+  }
+
+  // git missing or broken: the working tree's weekend still reads, the history says why it stops there
+  const app3 = fakeApp();
+  admin.install(app3, { dataDir, root: bare });
+  const tb = (await requestAsync(app3, '/api/admin/tuning', ADMIN)).body;
+  ok(tb.history.weekends.join() === '2026-10-17' && /^(git exited with code \d+|git failed|git is not installed here)$/.test(tb.history.error) && tb.tiles.n === 7 && tb.tiles.unattributed === 6,
+    `no git: this weekend only, said why in a fixed phrase (never git's own words or a path); without a commit or a run nothing is attributed by family alone: ${tb.history.error}`);
+
+  // --- the week
+  const live = { lock: { pid: 4242, script: 'Predictor.py', key: 'predictor' }, current: null, queue: [], council: { status: 'running' }, events };
+  const view = (nowIso, extra = {}) => {
+    const inputs = admin.readAll(admin.resolveDirs({ dataDir }));
+    const dirs = admin.resolveDirs({ dataDir, root: tmp });
+    return admin.weekView({ jobs: TEST_JOBS, sched: admin.readScheduler(dirs), slices: Object.fromEntries(TEST_JOBS.map((j) => [j.key, admin.readSlices(dirs, j)])),
+      controlsView: admin.withHistory(admin.controlsOverview(inputs, report), admin.weekReading(inputs, report), admin.loadReadings(readingsDir)), tuning: t, live: { ...live, ...extra }, now: new Date(nowIso) });
+  };
+  const w = view('2026-10-21T18:00:00Z');
+  const we = w.tiles.weekend;
+  ok(w.weekend.saturday === '2026-10-17' && we.runs === 4 && we.ok === 3 && we.expected === 4 && we.missing.length === 0 && we.notOk[0].key === 'nullControls' && we.notOk[0].result === 'exit 1'
+    && we.from === '2026-10-17T07:00:00Z' && we.to === '2026-10-18T22:40:00Z' && we.hours === 39.67, `week: the weekend's runs n/n ok and its window: ${JSON.stringify(we)}`);
+  const stat = w.runs.find((r) => r.key === 'hyperoptStatistics');
+  ok(JSON.stringify(stat.usual) === '{"median":110,"min":100,"max":120,"n":2,"from":"2026-10-03T08:38:29Z","to":"2026-10-10T08:52:22Z","basis":"earlier runs in the job log"}'
+    && stat.minutes === 300 && stat.overUsual === true && stat.vsMedian === 2.73 && we.slowest.key === 'hyperoptStatistics',
+    `week: a weekly job against the median of its earlier weekends, from its log: ${JSON.stringify(stat.usual)}`);
+  ok(JSON.stringify(stat.warnings) === '[{"sig":"LOCKBOX","n":1,"new":false},{"sig":"RuntimeWarning (MarketModels.py)","n":1,"new":true},{"sig":"Traceback","n":1,"new":false}]'
+    && stat.noiseFiltered === 2 && stat.comparedWith.runs === 2,
+    `week: warning signatures, new only when absent from every earlier weekend the logs hold (Traceback was there on 3 Oct, in the rotated log): ${JSON.stringify(stat.warnings)}`);
+  const q0run = w.runs.find((r) => r.key === 'nullControls');
+  ok(q0run.usual === null && q0run.warnings[0].new === null && q0run.comparedWith === null && we.newWarnings.map((x) => `${x.key}:${x.sig}`).join() === 'hyperoptStatistics:RuntimeWarning (MarketModels.py)',
+    'week: with nothing earlier to compare, neither usual nor new is claimed');
+  const sat = w.runs.find((r) => r.key === 'predictor');
+  ok(sat.usual.median === 120 && sat.usual.n === 5 && sat.usual.basis === 'earlier runs in the scheduler history' && sat.warnings[0].new === false && w.runs.length === 4,
+    'week: the predictor against its earlier runs; dry and blocked entries are not runs');
+  ok(w.tiles.today.day === '2026-10-21' && w.tiles.today.run.minutes === 108 && w.tiles.today.run.warnings.find((x) => x.sig === 'Traceback').new === true && w.tiles.today.running === null,
+    'week: today\'s predictor, a new Traceback in it flagged');
+  ok(w.since.from === '2026-10-18T22:00:00Z' && w.since.predictorRuns.length === 3 && JSON.stringify(w.since.lock) === '{"held":true,"pid":4242,"script":"Predictor.py","key":"predictor"}'
+    && w.since.council.status === 'running' && w.since.queue.length === 0, 'week: since Monday (Brussels): the predictor runs, the lock holder, the Council API');
+  ok(JSON.stringify(w.since.signIns) === '{"failed":1,"locked":0,"ok":1,"last7Days":{"failed":1,"locked":1},"scanned":3,"oldestScanned":"2026-10-16T10:00:00Z"}'
+    && !/mallory|203\.0\.113/.test(JSON.stringify(w)), 'week: sign-ins counted, with no name or address sent');
+  ok(w.tiles.tuners.replaced === 3 && w.tiles.tuners.replacedUnder1Se === 1 && w.tiles.tuners.byTuner.length === t.byTuner.length && w.tiles.q0.rowsAbove === ch.tiles.q0.rowsAbove
+    && w.tiles.q2.above === ch.tiles.q2.above, 'week: the tuners\' and controls\' tiles are the Tuning and Controls pages\' own');
+  ok(w.tiles.tuners.byTuner.every((x, i) => x.job === t.byTuner[i].job && x.games === t.byTuner[i].games && x.marginOneSe === t.byTuner[i].marginOneSe)
+    && w.rankingAt === ch.rankingAt && typeof w.rankingAt === 'string',
+    'week: each tuner\'s job, games and 1-SE margins as on the Tuning page; the ranking time the Q0 tile reads against');
+  const lm = w.matrix.games.find((g) => g.game === 'lotto');
+  ok(w.matrix.games.length === 11 && lm.q0.above === 2 && lm.q0.history.weeks === 2 && lm.q2.history.changed === true && lm.gates.replaced === 3 && lm.gates.notThisWeekend === 1
+    && w.matrix.games.find((g) => g.game === 'euromillions').q0 === null && w.readings.stored === 2, 'week: the controls matrix, each cell with its weeks; colour only where changed');
+  // before Saturday's first run the page stays on last weekend; once a job of it runs, on this one
+  ok(view('2026-10-24T05:00:00Z').weekend.saturday === '2026-10-17', 'week: on Saturday morning, still last weekend');
+  const sat24 = view('2026-10-24T08:00:00Z', { current: { key: 'predictor', name: 'Daily predictor', startedAt: Z('2026-10-24T07:00:00Z') } });
+  ok(sat24.weekend.saturday === '2026-10-24' && sat24.tiles.weekend.runs === 0 && sat24.tiles.weekend.running.key === 'predictor'
+    && sat24.tiles.weekend.missing.map((e) => `${e.key}${e.day ? `@${e.day}` : ''}`).join() === 'predictor@2026-10-25,hyperoptStatistics,nullControls',
+    'week: once Saturday\'s predictor runs, the new weekend - the running job is not missing, Sunday\'s still is');
+  const weekRoute = (await requestAsync(app2, '/api/admin/week', ADMIN)).body;
+  ok(weekRoute.since.council.healthy === true && weekRoute.since.council.since === '2026-10-20T20:16:00Z' && weekRoute.since.lock.held === true && weekRoute.matrix.games.length === 11,
+    'week route: the live parts from the modules the server passes');
+  const app4 = fakeApp();
+  admin.install(app4, { dataDir, root: tmp, services: { status: () => Promise.reject(new Error('probe failed')) } });
+  const w4 = (await requestAsync(app4, '/api/admin/week', ADMIN)).body;
+  ok(w4.runs.length === 0 && w4.since.lock === null && w4.since.council.error === 'probe failed' && w4.since.signIns === null,
+    'week route: without the job list there are no runs; what is not known here reads null, a failed probe says so');
+  const app5 = fakeApp();
+  admin.install(app5, { dataDir, root: tmp, services: { status: async () => [{ key: 'councilApi', name: 'Council API', status: 'stopped', healthy: false, summary: '', since: null, restarts: 2,
+    lastExit: null, lastError: 'cannot open /root/sequencePredictor/log/council-api.log: ENOENT: no such file or directory, open \'/root/sequencePredictor/log/council-api.log\'' }] } });
+  const w5 = (await requestAsync(app5, '/api/admin/week', ADMIN)).body;
+  ok(w5.since.council.lastError === 'cannot open council-api.log: ENOENT: no such file or directory, open \'council-api.log\'',
+    `week route: the Council's last error without the server's paths: ${w5.since.council.lastError}`);
+  ok(w5.matrix.fewWindows === 250 && w5.matrix.games.find((g) => g.game === 'lotto').q0.modes.map((x) => x.mode).sort().join() === 'shuffled,synthetic',
+    'week route: Q2\'s power rule, and each Q0 control record\'s time for what a run wrote');
+}
+
+// production's own files for phase P2, read-only: the week and the tuning gates with production's root (git read-only)
+async function phaseTwoOnProduction() {
+  const PROD_ROOT = '/root/sequencePredictor';
+  if (!fs.existsSync(path.join(PROD_ROOT, 'config', 'scheduler.json'))) return;
+  const jobs = require('../jobs');
+  const sizes = [];
+  for (const readingsAt of [path.join(PROD_ROOT, 'data', 'readings'), path.join(__dirname, '..', 'data', 'readings')]) {
+    const prod = fakeApp();
+    admin.install(prod, { root: PROD_ROOT, readingsDir: readingsAt, jobs: { JOBS: jobs.JOBS } });
+    for (const url of ['/api/admin/week', '/api/admin/tuning', ...admin.GAMES.map((g) => `/api/admin/tuning/${g}`), '/api/admin/controls']) {
+      const r = await requestAsync(prod, url, ADMIN);
+      const text = JSON.stringify(r.body);
+      sizes.push([url, text.length]);
+      ok(r.statusCode === 200 && !/NaN|undefined/.test(text), `production ${url} (${fs.existsSync(readingsAt) ? 'with' : 'without'} readings): ${r.statusCode}`);
+      ok(text.length < 40 * 1024, `production ${url}: ${text.length} bytes, under 40 KB`);
+    }
+    const t = (await requestAsync(prod, '/api/admin/tuning', ADMIN)).body;
+    ok(t.byTuner.reduce((s, x) => s + x.n, 0) === t.tiles.n && t.byGame.reduce((s, x) => s + x.n, 0) === t.tiles.n
+      && t.byGame.reduce((s, x) => s + x.replaced, 0) === t.tiles.replaced, 'production: the tuning tiles count the rows of the cards');
+    const w = (await requestAsync(prod, '/api/admin/week', ADMIN)).body;
+    ok(w.tiles.weekend.runs === w.runs.length && w.tiles.weekend.ok === w.runs.filter((r) => r.result === 'ok').length && w.matrix.games.length === 11
+      && w.tiles.tuners.n === t.tiles.n, 'production: the week\'s tiles count its runs and match the Tuning page');
+  }
+  const biggest = sizes.sort((a, b) => b[1] - a[1])[0];
+  console.log(`admin.js phase P2 on production: ${sizes.length} views, the largest ${biggest[0]} at ${biggest[1]} bytes`);
+}
+
 // --- production's own files, read-only, when this checkout runs next to them --------------------------------
 const PROD = '/root/sequencePredictor/data';
 if (fs.existsSync(path.join(PROD, 'database', 'modelPerformance.json'))) {
@@ -385,29 +763,43 @@ if (fs.existsSync(path.join(PROD, 'database', 'modelPerformance.json'))) {
 // --- the same routes through express itself, when it can be loaded (NODE_PATH) --------------------------------
 let express = null;
 try { express = require('express'); } catch (e) { express = null; }
-const cleanUp = () => fs.rmSync(tmp, { recursive: true, force: true });
-if (!express) {
-  cleanUp();
-  console.log(`admin.js: ${checks} checks passed (express not installed here: the route checks ran on the stand-in)`);
-} else {
+const cleanUp = () => { fs.rmSync(tmp, { recursive: true, force: true }); fs.rmSync(bare, { recursive: true, force: true }); };
+function throughExpress() {
+  if (!express) {
+    cleanUp();
+    console.log(`admin.js: ${checks} checks passed (express not installed here: the route checks ran on the stand-in)`);
+    return Promise.resolve();
+  }
   const real = express();
   real.use((req, res, next) => { const who = req.get('x-test-user'); req.user = who === 'admin' ? ADMIN : (who === 'user' ? USER : undefined); next(); });
-  admin.install(real, { dataDir, root: tmp });
-  const server = real.listen(0, '127.0.0.1', async () => {
-    const base = `http://127.0.0.1:${server.address().port}`;
-    try {
-      const get = async (url, who) => { const r = await fetch(base + url, { headers: who ? { 'x-test-user': who } : {} }); return { status: r.status, body: await r.json() }; };
-      ok((await get('/api/admin/models/lotto?scope=top', 'user')).status === 403, 'express: 403 for a user');
-      ok((await get('/api/admin/models/lotto?scope=top')).status === 401, 'express: 401 without a session');
-      const r = await get('/api/admin/models/lotto?scope=top', 'admin');
-      ok(r.status === 200 && r.body.shown === 5, 'express: 200 for the administrator, the scope read from the query');
-      ok((await get('/api/admin/controls/bingo', 'admin')).status === 404 && (await get('/api/admin/else', 'admin')).body.error === 'not found', 'express: the JSON 404s');
-      console.log(`admin.js: ${checks} checks passed (express included)`);
-    } catch (e) {
-      console.error(e); process.exitCode = 1;
-    } finally {
-      server.close();
-      cleanUp();
-    }
+  admin.install(real, { dataDir, root: tmp, jobs: { JOBS: TEST_JOBS } });
+  return new Promise((resolve) => {
+    const server = real.listen(0, '127.0.0.1', async () => {
+      const base = `http://127.0.0.1:${server.address().port}`;
+      try {
+        const get = async (url, who) => { const r = await fetch(base + url, { headers: who ? { 'x-test-user': who } : {} }); return { status: r.status, body: await r.json() }; };
+        ok((await get('/api/admin/models/lotto?scope=top', 'user')).status === 403, 'express: 403 for a user');
+        ok((await get('/api/admin/models/lotto?scope=top')).status === 401, 'express: 401 without a session');
+        const r = await get('/api/admin/models/lotto?scope=top', 'admin');
+        ok(r.status === 200 && r.body.shown === 5, 'express: 200 for the administrator, the scope read from the query');
+        ok((await get('/api/admin/controls/bingo', 'admin')).status === 404 && (await get('/api/admin/else', 'admin')).body.error === 'not found', 'express: the JSON 404s');
+        const wk = await get('/api/admin/week', 'admin');
+        const tg = await get('/api/admin/tuning/lotto', 'admin');
+        ok(wk.status === 200 && wk.body.matrix.games.length === 11 && tg.status === 200 && tg.body.rows.length === 8 && (await get('/api/admin/tuning', 'user')).status === 403
+          && (await get('/api/admin/tuning/bingo', 'admin')).status === 404, 'express: the routes that answer later, the guard and the 404 in front of them');
+        console.log(`admin.js: ${checks} checks passed (express included)`);
+      } catch (e) {
+        console.error(e); process.exitCode = 1;
+      } finally {
+        server.close();
+        cleanUp();
+        resolve();
+      }
+    });
   });
 }
+phaseTwo().then(phaseTwoOnProduction).then(throughExpress).catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+  cleanUp();
+});

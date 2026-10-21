@@ -20,6 +20,20 @@ export function recordText(draws: number | null, unit: string, live: number | nu
   return `${n} · ${live} live, ${draws - live} back-built or late`;
 }
 
+// The longest live record among the market rows above their band, per unit and naming its game - a day, a trading
+// day and a week are not one scale: "markets ≤ 20 live days (crypto), ≤ 14 live trading days (shares), ≤ 2 live weeks
+// (cryptoweek)"; '' with no market row above.
+export function liveRecordsText(games: { game: string; unit: string; longestLive: number | null }[]): string {
+  const top = new Map<string, { game: string; n: number }>();
+  games.forEach((g) => {
+    const n = g.longestLive ?? 0;
+    const was = top.get(g.unit);
+    if (!was || n > was.n) top.set(g.unit, { game: g.game, n });
+  });
+  const parts = [...top.entries()].map(([unit, x]) => `≤ ${x.n} live ${x.n === 1 ? perUnit(unit) : units(unit)} (${x.game})`);
+  return parts.length ? `markets ${parts.join(', ')}` : '';
+}
+
 export function GameButton({ game, onOpen, label }: { game: string; onOpen: (game: string) => void; label?: string }) {
   return (
     <button type="button" className="gbtn" onClick={() => onOpen(game)} aria-haspopup="dialog">

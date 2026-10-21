@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { retryMe, useMe } from '../hooks/useMe';
+import { useWeekStatus } from '../hooks/useWeekStatus';
 
 const NARROW = '(max-width: 860px)';
 
 // The menu as data. An item is a route of this app (to) or a server page (href, a full reload); a server
 // page that the app will replace carries the ↗ "old page" mark. The users see the four top items; the
-// administrator also the three groups.
+// administrator also This week (with its status dot) and the three groups.
 interface Item {
   label: string;
   to?: string; // a route, possibly with an anchor (#q0)
@@ -41,6 +42,7 @@ const ADMIN_GROUPS: Group[] = [
   {
     label: 'Models',
     items: [
+      { label: 'Tuning gates', to: '/admin/tuning' },
       { label: 'Best model & rankings', to: '/admin/models' },
       { label: 'Phase-shift', to: '/admin/phase-shift' },
       { label: 'Randomness watch', to: '/admin/randomness' },
@@ -67,11 +69,32 @@ const ADMIN_GROUPS: Group[] = [
 const HERE: [string, string][] = [
   ['/crypto', 'Crypto'],
   ['/shares', 'Shares'],
+  ['/admin/tuning', 'Tuning gates'],
   ['/admin/controls', 'Controls'],
   ['/admin/models', 'Models'],
   ['/admin/phase-shift', 'Phase-shift'],
   ['/admin/randomness', 'Randomness'],
+  ['/admin', 'This week'],
 ];
+
+// This week's dot: red when a run failed or an output is missing, amber when a run has a new warning signature
+// (pages/admin/week.ts weekStatus); the page itself says which. No dot while the status is not known.
+const DOT_TEXT = { red: 'a run failed or an output is missing', amber: 'a new warning signature' };
+function WeekLink({ on, onNavigate }: { on: boolean; onNavigate: () => void }) {
+  const status = useWeekStatus(true);
+  const level = status?.level ?? null;
+  return (
+    <Link className={on ? 'wk on' : 'wk'} to="/admin" aria-current={on ? 'page' : undefined} onClick={onNavigate}>
+      This week
+      {level ? (
+        <>
+          <span className={`sdot ${level}`} aria-hidden="true" />
+          <span className="vh">: {DOT_TEXT[level]}</span>
+        </>
+      ) : null}
+    </Link>
+  );
+}
 
 function Old() {
   return (
@@ -169,6 +192,7 @@ export default function Sidebar() {
           {user?.admin ? (
             <>
               <div className="grp">Admin</div>
+              <WeekLink on={pathname === '/admin' || pathname === '/admin/'} onNavigate={closeDrawer} />
               {ADMIN_GROUPS.map((g) => {
                 const holds = g.items.some((i) => i.to && pathname === i.to.split('#')[0]);
                 return (

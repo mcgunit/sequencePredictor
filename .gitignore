@@ -178,6 +178,8 @@ test/backtestResults/keno_global_backtest.json
 config/
 src/llmCouncil/answers.json
 data/controls/
+# the weekly readings (readings.js) are tracked; the temporary file of a write cut short is not
+data/readings/.*.tmp
 
 # markets track (README item 4): the SQLite store is re-fetchable and changes daily; its tracked record is the text exports
 data/markets.sqlite3

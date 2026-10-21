@@ -1,6 +1,6 @@
 import { Fragment, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getAdminControls, type ControlsView, type GameControls } from '../../api';
+import { getAdminControls, type ControlsView, type GameControls, type PartHistory, type Q0Row } from '../../api';
 import { DASH, count, dayYear, fixed, perUnit, range, short, signedFixed, span, stamp, weekday } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useDrawerParam } from '../../hooks/useUrlState';
@@ -9,12 +9,15 @@ import { Card, Legend, Scroll } from '../../components/admin/Card';
 import Chip from '../../components/admin/Chip';
 import DotStrip, { Axis, ticks } from '../../components/admin/DotStrip';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
+import Streak, { historyNote, ordinal, readingNote, streakWords } from '../../components/admin/Streak';
 import ControlsDrawer from './ControlsDrawer';
-import { GameButton, GroupRow, earliest, isMarketGame, joinParts, latest, oneControlText, recordText, seedsText, tableNote, units } from './bits';
+import { GameButton, GroupRow, earliest, isMarketGame, joinParts, latest, liveRecordsText, oneControlText, recordText, seedsText, tableNote, units } from './bits';
 
 // /admin/controls: the four Sunday controls for all 11 games on one page (Q0 null band, Q2 randomness,
 // feature control, market rows), games grouped Lottery / Markets, and per game a drawer with all four in
-// full (?game=lotto). Every figure carries its unit and its record's time; nothing is coloured as good or bad.
+// full (?game=lotto). Every figure carries its unit and its record's time; nothing is coloured as good or bad. Each
+// control carries its run of weeks from the weekly readings (data/readings/<sunday>.json): a grey "3rd week" for a
+// state that holds, a coloured "new this week" only where it reads differently from the week before.
 export default function ControlsPage() {
   const load = useLoad(getAdminControls, []);
   const drawer = useDrawerParam();
@@ -41,9 +44,11 @@ export default function ControlsPage() {
   const all = d.groups.flatMap((g) => g.games);
   const from = earliest([t.q0.from, t.q2.from, t.fc.from, t.rows.from]);
   const to = latest([t.q0.at, t.q2.at, t.fc.at, t.rows.at]);
+  const note = historyNote(d.readings, all.flatMap((g) => [g.history.q0, g.history.q2, g.history.fc, g.history.rows]));
   return (
     <div className="admin">
       <PageHead title="Controls" sub={`Sunday controls of ${weekday(from)} · ${all.length} games`} meta={[span(from, to), 'Brussels time']} />
+      {note ? <p className="statusline mut">{note}</p> : null}
       <Tiles d={d} />
       <div className="stack">
         <Q0Card d={d} onOpen={drawer.open} />
@@ -61,12 +66,11 @@ function Tiles({ d }: { d: ControlsView }) {
   const t = d.tiles;
   const games = d.groups.flatMap((g) => g.games);
   const hitRanked = games.filter((g) => g.q0.band && g.q0.ranking === 'hits' && g.q0.above.n > 0);
-  // the longest record among the rows above, per side: a lottery game's draws, a market game's live part only
+  // the longest record among the rows above, per side: a lottery game's draws, a market game's live part only, per unit
   const lottery = hitRanked.filter((g) => !isMarketGame(g.game)).sort((a, b) => (b.q0.above.longest ?? 0) - (a.q0.above.longest ?? 0))[0];
-  const market = hitRanked.filter((g) => isMarketGame(g.game)).sort((a, b) => (b.q0.above.longestLive ?? 0) - (a.q0.above.longestLive ?? 0))[0];
   const records = [
     lottery ? `lottery ≤ ${count(lottery.q0.above.longest, lottery.unit)}` : '',
-    market ? `markets ≤ ${market.q0.above.longestLive ?? 0} live ${market.q0.above.longestLive === 1 ? perUnit(market.unit) : units(market.unit)}` : '',
+    liveRecordsText(hitRanked.filter((g) => isMarketGame(g.game)).map((g) => ({ game: g.game, unit: g.unit, longestLive: g.q0.above.longestLive }))),
   ].filter(Boolean).join(' · ');
   const q2Above = (group: string) => d.groups.find((g) => g.name === group)?.games.filter((g) => g.q2?.status === 'above').length ?? 0;
   const rowsGames = games.filter((g) => g.rows);
@@ -141,6 +145,40 @@ function Tiles({ d }: { d: ControlsView }) {
   );
 }
 
+// --- week over week ----------------------------------------------------------------------
+// A control's streak as a sub line under the game's name, or nothing when there is nothing to say.
+function StreakSub({ h, what }: { h: PartHistory | null; what?: string }) {
+  return streakWords(h, what) ? (
+    <span className="sub">
+      <Streak h={h} what={what} />
+    </span>
+  ) : null;
+}
+
+// The rows above the band by their weeks above it: "3rd week: LSTM Base, Transformer"; rows new above this week are
+// coloured, but only when the week before has a reading to compare with (compared) - else every row is a first week.
+function AboveWeeks({ rows, compared }: { rows: Q0Row[]; compared: boolean }) {
+  const counted = rows.filter((r) => r.weeks !== null);
+  const fresh = compared ? counted.filter((r) => r.weeks === 1) : [];
+  const byWeeks = new Map<number, string[]>();
+  counted.filter((r) => (r.weeks ?? 0) >= 2).forEach((r) => byWeeks.set(r.weeks as number, [...(byWeeks.get(r.weeks as number) ?? []), short(r.row)]));
+  if (!fresh.length && !byWeeks.size) return null;
+  return (
+    <span className="sub">
+      {fresh.length ? (
+        <>
+          <Chip kind="chg">{fresh.length} new above</Chip> {fresh.map((r) => short(r.row)).join(', ')}
+          {byWeeks.size ? ' · ' : ''}
+        </>
+      ) : null}
+      {[...byWeeks.entries()]
+        .sort((a, b) => b[0] - a[0])
+        .map(([w, names]) => `${ordinal(w)} week above: ${names.join(', ')}`)
+        .join(' · ')}
+    </span>
+  );
+}
+
 // --- Q0 -------------------------------------------------------------------------------
 function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void }) {
   const m = d.meta.q0;
@@ -160,7 +198,11 @@ function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
           for rows the control runs (on narrow screens it is in the game&apos;s drawer). jokerplus, pick3 and keno rank on a profit bound; here they are compared
           on hits, and they stay out of the headline count. The rule is still open: {tile.rowsAbove} rows on the hit-ranked games,{' '}
           {tile.alternatives.allGamesOnHits.rowsAbove} if the payout games count on hits, {tile.alternatives.bestRowOnly.games.length} if only each game&apos;s best
-          row counts.
+          row counts. Weeks, on every card: a control&apos;s run of weeks in the stored weekly readings, ending at its record&apos;s Sunday - a grey &quot;3rd
+          week&quot; while it reads the same, a coloured &quot;new this week&quot; with what it read before when it changed (here: rows above, or none above;
+          under Above, how many weeks each row has been above). A week whose reading holds an older record of the control (it did not run that week) ends
+          the run. Q0 is read against a ranking: its weeks come from the readings, each fixed at its own Sunday&apos;s ranking, never a later one; the count
+          is against the ranking on disk, and under Above a line names the rows where the two differ (+ above only now, − above only in the reading).
         </>
       }
       meta={[
@@ -183,7 +225,7 @@ function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
           </thead>
           <tbody>
             {d.groups.map((grp) => (
-              <Q0Group key={grp.name} name={grp.name} seeds={m.seeds[grp.name]} games={grp.games} headline={tile.rowsAbove} onOpen={onOpen} />
+              <Q0Group key={grp.name} name={grp.name} seeds={m.seeds[grp.name]} games={grp.games} headline={tile.rowsAbove} rankingAt={d.rankingAt} onOpen={onOpen} />
             ))}
           </tbody>
         </table>
@@ -192,7 +234,21 @@ function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
   );
 }
 
-function Q0Group({ name, seeds, games, headline, onOpen }: { name: string; seeds: number[] | undefined; games: GameControls[]; headline: number; onOpen: (g: string) => void }) {
+function Q0Group({
+  name,
+  seeds,
+  games,
+  headline,
+  rankingAt,
+  onOpen,
+}: {
+  name: string;
+  seeds: number[] | undefined;
+  games: GameControls[];
+  headline: number;
+  rankingAt: string | null;
+  onOpen: (g: string) => void;
+}) {
   return (
     <>
       <GroupRow cols={5}>
@@ -212,6 +268,7 @@ function Q0Group({ name, seeds, games, headline, onOpen }: { name: string; seeds
             <td className="sym">
               <GameButton game={g.game} onOpen={onOpen} />
               {payout ? <span className="sub">compared on hits; ranks on profit</span> : null}
+              <StreakSub h={g.history.q0} what={g.history.q0?.state ?? ''} />
               {/* the phone line keeps what the band is built on and when, as the hidden Band column does */}
               <span className="sub show-sm">
                 {b
@@ -254,9 +311,11 @@ function Q0Group({ name, seeds, games, headline, onOpen }: { name: string; seeds
                   <span className="sub">
                     {q.above.n === 0
                       ? 'none above'
-                      : `longest ${count(q.above.longest, g.unit)}${market ? `, ${q.above.sameLength ? '' : '≤'}${q.above.longestLive ?? 0} live` : ''}`}
+                      : `longest ${count(q.above.longest, g.unit)}${market ? `, ${q.above.sameLive ? '' : '≤'}${q.above.longestLive ?? 0} live` : ''}`}
                     {payout && q.above.n ? ` · not in the tile's ${headline}` : ''}
                   </span>
+                  {readingNote(g.history.q0, rankingAt) ? <span className="sub">{readingNote(g.history.q0, rankingAt)}</span> : null}
+                  <AboveWeeks rows={q.above.rows} compared={g.history.q0 ? g.history.q0.changed !== null : false} />
                 </>
               )}
             </td>
@@ -359,6 +418,7 @@ function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
                   <span className="g">
                     <GameButton game={g.game} onOpen={onOpen} />
                     <Chip kind={Q2_CHIP[q.status] ?? 'flat'}>{q.status}</Chip>
+                    <Streak h={g.history.q2} />
                   </span>
                   <DotStrip
                     scale={scale}
@@ -497,6 +557,7 @@ function FcGroup({ name, games, scale, grid, onOpen }: { name: string; games: Ga
           <tr key={g.game}>
             <td className="sym">
               <GameButton game={g.game} onOpen={onOpen} />
+              <StreakSub h={g.history.fc} />
               <span className="sub show-sm">{joinParts([`AUC ${auc}`, count(f.tableRows, g.unit), tableNote(f, g.unit)])}</span>
             </td>
             <td className="mid">
@@ -635,6 +696,7 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
                   <tr key={g.game}>
                     <td className="sym">
                       <GameButton game={g.game} onOpen={onOpen} />
+                      <StreakSub h={g.history.rows} />
                       <span className="sub show-sm">{count(r.window, g.unit)}</span>
                     </td>
                     <td className="hide-sm">

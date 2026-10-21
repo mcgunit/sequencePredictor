@@ -40,7 +40,9 @@ stayed served was itself a hijack.
 """
 
 import math
+import os
 import re
+import sys
 from datetime import datetime, timezone
 
 import optuna
@@ -105,6 +107,17 @@ def reference_params(param_names, served, defaults):
 def is_tuned(param_names, served):
     """Whether bestParams_<game>.json carries any of this strategy's keys."""
     return any(name in served for name in param_names)
+
+
+def _caller_script():
+    """
+    The running script's name without ".py" ("HyperoptStatistics"): which tuner wrote a gate record, so a reader
+    of bestParams_<game>.json does not have to infer it from the row's name or the record's time (21 Oct 2026; the
+    admin pages attribute older records by row family, confirmed by the tuner's commit, or not at all). None when
+    Python runs no script file (python3 -c, an interactive session).
+    """
+    stem, ext = os.path.splitext(os.path.basename(sys.argv[0] if sys.argv and sys.argv[0] else ""))
+    return stem if ext == ".py" and stem else None
 
 
 def _fmt(score):
@@ -189,7 +202,7 @@ def _scored(result):
 
 
 def challenge(study, known_numbers, objective, served, defaults, timeout_seconds, label,
-              margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0):
+              margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0, tuner=None):
     """
     Runs the gate for one strategy after its study was optimised.
 
@@ -209,6 +222,9 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      on 7 Oct) its winners of 3 Oct lost 0.07 on average when
                      re-scored a week later, more than 11 of its 20 winning
                      margins outside keno on 10 Oct.
+      tuner          the name recorded as the record's "tuner"; by default
+                     the running script's ("HyperoptStatistics"), which is
+                     how every tuner calls this
 
     Returns a dict: decision ("replaced" | "reverted" | "kept"), replace and
     reverted (bools), reason, params (the dict to write - the challenger's
@@ -223,6 +239,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
             return evaluate_reference(objective, params, timeout_seconds, f"{label} {role}")
 
     record = {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "tuner": tuner or _caller_script(),
               "window_days": window_days}
     try:
         record["study_best"] = json_safe(float(study.best_value))
@@ -424,6 +441,14 @@ if __name__ == "__main__":
     check(out["replace"] and out["params"] == new[1].params, "beats both -> replaced with trial 3's params")
     check(out["served_score"] == -0.4 and out["record"]["decision"] == "replaced", "served score is the challenger's")
     check(out["record"]["study_best"] == 5.0 and out["record"]["challenger_tuning"]["days"] == 90, "record carries context")
+    # which tuner wrote it: the running script by default (here this file, run as python3 -m src.TuningGate), or as given
+    check(out["record"]["tuner"] == _caller_script() and _caller_script() in ("TuningGate", None), f"the record names its script: {out['record']['tuner']}")
+    named = challenge(study, known, None, served, make_defaults(table, served), 10, "t", tuner="HyperoptBoost",
+                      evaluate=scorer({"incumbent": -1.0, "default": -0.9}))
+    check(named["record"]["tuner"] == "HyperoptBoost", f"an explicit tuner is recorded as given: {named['record']['tuner']}")
+    calls.clear()
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": -1.0, "default": -0.9}))
     # incumbent = served values, default = table + global keno flags
     roles = dict(calls)
     check(roles["incumbent"] == {"xEstimators": 10, "xDepth": 2, "m_use_5": True, "m_use_6": True}, roles["incumbent"])
@@ -493,6 +518,7 @@ if __name__ == "__main__":
                     evaluate=scorer({}))
     check(not out["replace"] and out["params"] is None and out["trial"] is None
           and out["record"]["decision"] == "kept", "no new trial -> kept")
+    check("tuner" in out["record"], "a record without a scored trial still names its tuner")
 
     # 8. gate disabled
     calls.clear()

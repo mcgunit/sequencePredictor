@@ -46,6 +46,7 @@ const marketsPath = path.join(__dirname, 'data', 'markets');
 const markets = require('./markets');
 const api = require('./api');   // the JSON API and the React app under /app (15 Oct 2026)
 const admin = require('./admin');   // the admin section's JSON under /api/admin (21 Oct 2026)
+const audit = require('./audit');   // the sign-in events the admin This week page counts
 const rankings = require('./ranking');   // the History ranking and its top five, shared with admin.js
 // modelsPath removed as it is no longer used
 
@@ -1993,8 +1994,10 @@ auth.install(app, { header: generateHeader, footer: generateFooter });
 markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath, controlsDir: controlsPath });
 api.install(app, { dataDir: marketsPath });
 // The admin section's JSON (/api/admin/*, administrator only): the same
-// records the History cards read, from the same folders.
-admin.install(app, { databaseDir: dataPath, controlsDir: controlsPath, marketsDir: marketsPath, root: __dirname });
+// records the History cards read, from the same folders; This week also asks
+// the schedule (its jobs, the lock, the queue), the Council API's supervisor
+// and the sign-in log what they know now.
+admin.install(app, { databaseDir: dataPath, controlsDir: controlsPath, marketsDir: marketsPath, root: __dirname, jobs, services, audit });
 api.installApp(app, { header: generateHeader, footer: generateFooter });
 // The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
 // 8) above the supervised services (services.js, today the Council API).

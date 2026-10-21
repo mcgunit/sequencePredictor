@@ -355,6 +355,7 @@ export interface Q0Band {
   history: number | null; // fair-history length, in the game's unit
   metric: string;
   at: string | null;
+  modes: { mode: string; at: string | null }[]; // each control record's own time (a band half rewritten on a Sunday mixes weeks)
   missing: MissingControl[]; // not empty: the band comes from one control only
 }
 export interface Q0Row {
@@ -364,6 +365,7 @@ export interface Q0Row {
   live: number | null; // market games: days whose ticket was out before the close
   notLive: number | null; // market games: back-built or late days
   own: number | null; // the row's own level in the control the band comes from
+  weeks: number | null; // the overview's rows above the band: weeks in a row above it (the stored readings), null elsewhere and for a row above only against the live ranking, not in its Sunday's reading
 }
 export interface Q0 {
   ranking: 'hits' | 'profit';
@@ -373,7 +375,8 @@ export interface Q0 {
   minDraws: number;
   best: (Q0Row & { clears: boolean | null }) | null;
   leader: { row: string; draws: number | null } | null; // payout games: the profit-bound leader
-  above: { n: number; longest: number | null; longestLive: number | null; sameLength: boolean | null; inTile: boolean; rows: Q0Row[] };
+  // sameLength: every row above has the same record length; sameLive: the same live count (market games)
+  above: { n: number; longest: number | null; longestLive: number | null; sameLength: boolean | null; sameLive: boolean | null; inTile: boolean; rows: Q0Row[] };
 }
 export type Q2Status = 'above' | 'within' | 'too few draws' | 'above band, not shuffled';
 export interface Q2 {
@@ -432,6 +435,43 @@ export interface MarketRows {
   hmmFeatures: string | null;
   at: string | null;
 }
+// Week over week (data/readings/<sunday>.json): what one control read, as one comparable string, and its run of weeks.
+// weeks: the weeks in a row, ending at the record's own Sunday, the stored readings read the same; changed: whether the
+// week before read differently (null: no reading of that week - the first week on record); last: what it read then,
+// only when changed (null: no record that week); behind: the record is older than the newest part's (a run in progress);
+// noRunBefore: the week before has a reading, but this control's record in it was an older week's (it did not run then).
+// Q0 only: live - no reading of the record's own Sunday yet, so the state is the records against the live ranking;
+// sinceReading - the reading of its Sunday is the state, and today's ranking reads differently (rows added, dropped).
+export interface SinceReading {
+  now: string; // the state against the live ranking
+  added: string[];
+  dropped: string[];
+  rankingAt: string | null; // the ranking the reading was built on
+}
+export interface PartHistory {
+  state: string;
+  sunday: string | null;
+  weeks: number;
+  changed: boolean | null;
+  last: string | null;
+  behind: boolean;
+  noRunBefore: boolean;
+  live: boolean;
+  sinceReading: SinceReading | null;
+}
+export interface GameHistory {
+  q0: PartHistory | null;
+  q2: PartHistory | null;
+  fc: PartHistory | null;
+  rows: PartHistory | null;
+}
+export interface ReadingsMeta {
+  stored: number;
+  sundays: string[]; // the last 8 stored, oldest first
+  newestRecords: string | null; // the Sunday of the newest control record on disk
+  unreadable: string[];
+  rule: string;
+}
 export interface GameControls {
   game: string;
   unit: string;
@@ -440,56 +480,59 @@ export interface GameControls {
   fc: Fc | null;
   rows: MarketRows | null;
   errors: string[]; // the parts whose record could not be read ('q0', 'q2', 'fc', 'rows')
+  history: GameHistory; // the overview only; every part null in a drawer
 }
 export interface ControlsView {
   builtAt: string | null;
   rankingAt: string | null;
+  readings: ReadingsMeta | null;
   meta: {
     q0: { rule: string; rows: Range | null; history: Range | null; seeds: Record<string, number[]> };
     q2: { metric: string; axis: [number, number]; fewWindows: number; rule: string };
     fc: { share: string; chanceShare: string; auc: string; variants: Record<string, string> };
     rows: { score: string; pnl: string };
   };
-  tiles: {
-    q0: {
-      rowsAbove: number;
-      games: number;
-      hitRankedGames: number;
-      longest: Range | null;
-      longestLiveMarkets: Range | null;
-      withOwnLevel: number;
-      alternatives: { allGamesOnHits: { rowsAbove: number; games: number }; bestRowOnly: { games: string[] } };
-      noBand: string[]; // games compared on no band
-      oneControl: { game: string; from: string; missing: MissingControl[] }[]; // games whose band comes from one control only
-      from: string | null;
-      at: string | null;
-    };
-    // missing: games with no record yet; unreadable: games whose record is there but could not be read - both out of the counts
-    q2: {
-      above: number;
-      of: number;
-      aboveGames: string[];
-      tooFewGames: string[];
-      aboveFewWindows: { game: string; windowsTest: number | null }[];
-      seeds: Record<string, number[]>;
-      missing: string[];
-      unreadable: string[];
-      from: string | null;
-      at: string | null;
-    };
-    fc: { fits: number; inconclusive: number; ignored: number; failed: number; variants: number; games: number; missing: string[]; unreadable: string[]; from: string | null; at: string | null };
-    rows: {
-      beatReference: number;
-      games: number;
-      referenceAboveUniform: number;
-      windows: { game: string; window: number | null; unit: string }[];
-      missing: string[]; // every market game without a usable report, unreadable ones included
-      unreadable: string[];
-      from: string | null;
-      at: string | null;
-    };
-  };
+  tiles: ControlTiles;
   groups: { name: GroupName; games: GameControls[] }[];
+}
+export interface ControlTiles {
+  q0: {
+    rowsAbove: number;
+    games: number;
+    hitRankedGames: number;
+    longest: Range | null;
+    longestLiveMarkets: Range | null;
+    withOwnLevel: number;
+    alternatives: { allGamesOnHits: { rowsAbove: number; games: number }; bestRowOnly: { games: string[] } };
+    noBand: string[]; // games compared on no band
+    oneControl: { game: string; from: string; missing: MissingControl[] }[]; // games whose band comes from one control only
+    from: string | null;
+    at: string | null;
+  };
+  // missing: games with no record yet; unreadable: games whose record is there but could not be read - both out of the counts
+  q2: {
+    above: number;
+    of: number;
+    aboveGames: string[];
+    tooFewGames: string[];
+    aboveFewWindows: { game: string; windowsTest: number | null }[];
+    seeds: Record<string, number[]>;
+    missing: string[];
+    unreadable: string[];
+    from: string | null;
+    at: string | null;
+  };
+  fc: { fits: number; inconclusive: number; ignored: number; failed: number; variants: number; games: number; missing: string[]; unreadable: string[]; from: string | null; at: string | null };
+  rows: {
+    beatReference: number;
+    games: number;
+    referenceAboveUniform: number;
+    windows: { game: string; window: number | null; unit: string }[];
+    missing: string[]; // every market game without a usable report, unreadable ones included
+    unreadable: string[];
+    from: string | null;
+    at: string | null;
+  };
 }
 
 // GET /api/admin/controls/:game - the drawer: the same objects in full
@@ -838,6 +881,242 @@ export interface RandomnessGameView extends RandomnessLine {
   models: { row: string; kl: number | null; top: boolean }[];
 }
 
+// GET /api/admin/week - This week: the weekend's runs, today's predictor, the tuners, the controls matrix, since Monday.
+// Instants are ISO UTC (the page prints Brussels time); days 'YYYY-MM-DD' are Brussels days; durations in minutes.
+export interface Usual {
+  median: number | null;
+  min: number | null;
+  max: number | null;
+  n: number; // earlier successful runs
+  from: string | null;
+  to: string | null;
+  basis: string; // 'earlier runs in the job log' | 'earlier runs in the scheduler history'
+}
+// new: absent from every earlier slice of the same job the logs still hold; null: nothing earlier to compare with
+export interface WarningSig {
+  sig: string;
+  n: number;
+  new: boolean | null;
+}
+export interface RunLine {
+  key: string;
+  job: string;
+  start: string | null;
+  end: string | null;
+  minutes: number | null;
+  result: string; // 'ok' | 'exit N' | 'unknown'
+  note: string | null;
+  usual: Usual | null;
+  overUsual: boolean | null;
+  vsMedian: number | null;
+  warnings: WarningSig[] | null; // null: the run's log slice is no longer in its log
+  noiseFiltered: number | null;
+  comparedWith: { runs: number; from: string | null; to: string | null } | null;
+}
+export interface HeldFromLastWeekend {
+  weekend: string;
+  replaced: number;
+  kept: number;
+  replacedAgain: number;
+  reverted: number;
+  notDecided: number;
+}
+export interface TuningTiles {
+  n: number;
+  replaced: number;
+  kept: number;
+  reverted: number;
+  marginZero: number;
+  replacedUnder1Se: number;
+  replacedUnder1SeVsBetterReference: number;
+  under1SeTuners: string[];
+  unattributed: number;
+  notThisWeekend: number;
+  games: number;
+  from: string | null;
+  to: string | null;
+  heldFromLastWeekend: HeldFromLastWeekend | null;
+}
+export interface WeekTuner {
+  tuner: string;
+  job: string | null;
+  n: number;
+  replaced: number;
+  kept: number;
+  reverted: number;
+  games: number | null;
+  marginZero: number;
+  marginOneSe: number | null;
+  replacedUnder1Se: number;
+}
+export interface MatrixGame {
+  game: string;
+  group: GroupName;
+  unit: string;
+  errors: string[];
+  q0: {
+    above: number;
+    ceiling: number | null;
+    longest: number | null;
+    longestLive: number | null;
+    sameLength: boolean | null;
+    sameLive: boolean | null;
+    inTile: boolean;
+    ranking: 'hits' | 'profit';
+    seeds: number | null;
+    at: string | null; // the record the band comes from
+    modes: { mode: string; at: string | null }[]; // each control record's own time
+    history: PartHistory | null;
+  } | null;
+  q2: { status: Q2Status; real: number | null; threshold: number | null; seeds: number | null; windowsTest: number | null; fewWindows: boolean; at: string | null; history: PartHistory | null } | null;
+  fc: { fits: number; inconclusive: number; ignored: number; failed: number; variants: number; at: string | null; history: PartHistory | null } | null;
+  rows: { beat: number; scored: number; reference: string; window: number | null; referenceVsUniform: string | null; at: string | null; history: PartHistory | null } | null;
+  gates: { replaced: number; kept: number; reverted: number; notThisWeekend: number } | null;
+}
+export interface CouncilStatus {
+  error: string | null; // the health probe failed or did not answer in time
+  name: string;
+  status: string;
+  healthy: boolean | null;
+  summary: string;
+  since: string | null;
+  restarts: number | null;
+  lastExit: { code: number | null; signal: string | null; at: string | null } | null;
+  lastError: string | null;
+  checkedAt: string | null;
+}
+export interface WeekView {
+  builtAt: string | null;
+  rankingAt: string | null;
+  weekend: { saturday: string | null; from: string | null; until: string | null };
+  tiles: {
+    weekend: {
+      runs: number;
+      ok: number;
+      expected: number;
+      missing: { key: string; day: string | null }[];
+      running: { key: string; start: string | null } | null;
+      notOk: { key: string; result: string; note: string | null }[];
+      from: string | null;
+      to: string | null;
+      hours: number | null;
+      slowest: { key: string; minutes: number | null; usual: Usual | null } | null;
+      newWarnings: { key: string; sig: string; n: number }[];
+    };
+    today: { day: string | null; run: RunLine | null; running: { start: string | null } | null };
+    tuners: (TuningTiles & { weekend: string | null; byTuner: WeekTuner[] }) | null;
+  } & ControlTiles;
+  runs: RunLine[];
+  matrix: { fewWindows: number; games: MatrixGame[] }; // fewWindows: Q2's power rule, under this many test windows
+  readings: ReadingsMeta | null;
+  since: {
+    from: string | null;
+    predictorRuns: RunLine[];
+    queue: { key: string; name: string; queuedAt: string | null; manual: boolean }[];
+    running: { key: string; name: string; start: string | null } | null;
+    lock: { held: boolean; pid: number | null; script: string | null; key: string | null } | null; // null: not known here
+    council: CouncilStatus | null; // null: not known here
+    signIns: { failed: number; locked: number; ok: number; last7Days: { failed: number; locked: number }; scanned: number; oldestScanned: string | null } | null;
+  };
+}
+
+// GET /api/admin/tuning and /api/admin/tuning/:game - the champion/challenger gate's decisions of the newest weekend
+export interface TunerSummary {
+  tuner: string; // 'statistical' | 'boosting' | 'RL ticket' | 'ensemble' | 'quantum' | 'unattributed'
+  job: string | null;
+  n: number;
+  replaced: number;
+  kept: number;
+  reverted: number;
+  marginZero: number;
+  marginOneSe: number;
+  replacedUnder1Se: number;
+  replacedUnder1SeVsBetterReference: number;
+  games: number;
+  kinds: string[];
+  aboveFair: number; // records whose capped-profit score is measured above a fair ticket (keno)
+  fairPerBet: Range | null; // that fair ticket's capped value per bet
+  windowDays: Range | null;
+  windowByUnit: Record<string, Range>; // the gate window per unit: draws, days, trading days, weeks
+  runTrials: Range | null;
+  studyTrials: Range | null;
+  run: { start: string | null; end: string | null; minutes: number | null; result: string } | null;
+  replacedRows: Record<string, string[]>; // game -> rows
+  revertedRows: Record<string, string[]>;
+}
+export interface GameGates {
+  game: string;
+  group: GroupName;
+  n: number;
+  replaced: number;
+  kept: number;
+  reverted: number;
+  marginZero: number;
+  notThisWeekend: number;
+  noFile: boolean;
+  replacedRows: string[];
+  revertedRows: string[];
+}
+export interface TuningView {
+  builtAt: string | null;
+  weekend: string | null;
+  tiles: TuningTiles;
+  byTuner: TunerSummary[];
+  byGame: GameGates[];
+  unattributed: { game: string; row: string; weekend: string | null; family: string | null; why: string }[];
+  history: { weekends: string[]; commits: number; error: string | null; source: string };
+  meta: Record<string, string>;
+}
+export interface GateSide {
+  score: number | null;
+  se: number | null;
+  days: number | null; // backtest days the score covers (can be fewer than the window)
+  fairPerBet: number | null; // keno: the score is capped profit above a fair ticket of this capped value per bet, not money
+  profitPerBet: number | null; // keno: the raw, uncapped profit per bet in EUR
+}
+// a weekend's decision: 'replaced' | 'kept' | 'reverted'; null: that weekend did not decide the row; 'not read': git could not be read
+export type GateLetter = string | null;
+export interface GateRow {
+  row: string;
+  tuner: string;
+  by: string | null; // how it was attributed: 'record' | 'family + commit' | 'family + run'
+  decision: string;
+  thisWeekend: boolean;
+  weekend: string | null;
+  date: string | null;
+  kind: string | null;
+  windowDays: number | null;
+  runTrials: number | null;
+  studyTrials: number | null;
+  default: GateSide;
+  incumbent: GateSide;
+  challenger: GateSide;
+  margin: number | null;
+  marginSe: number | null;
+  bar: number | null;
+  gainSe: number | null;
+  gainBestSe: number | null;
+  gainBarSe: number | null;
+  history: GateLetter[];
+  why: string | null;
+  family: string | null;
+}
+export interface TuningGameView {
+  game: string;
+  group: GroupName;
+  unit: string;
+  builtAt: string | null;
+  weekend: string | null;
+  n: number;
+  replaced: number;
+  kept: number;
+  reverted: number;
+  notThisWeekend: number;
+  weekends: string[];
+  historyError: string | null;
+  rows: GateRow[];
+}
+
 export const getAdminControls = async (): Promise<ControlsView> => normControls(await getJson<unknown>('/api/admin/controls'));
 export const getAdminControlsGame = async (game: string): Promise<ControlsGameView> =>
   normControlsGame(await getJson<unknown>(`/api/admin/controls/${encodeURIComponent(game)}`), game);
@@ -850,6 +1129,9 @@ export const getAdminPhaseShiftGame = async (game: string, scope: Scope): Promis
 export const getAdminRandomness = async (): Promise<RandomnessView> => normRandomness(await getJson<unknown>('/api/admin/randomness'));
 export const getAdminRandomnessGame = async (game: string, scope: Scope): Promise<RandomnessGameView> =>
   normRandomnessGame(await getJson<unknown>(`/api/admin/randomness/${encodeURIComponent(game)}?scope=${scope}`), game, scope);
+export const getAdminWeek = async (): Promise<WeekView> => normWeek(await getJson<unknown>('/api/admin/week'));
+export const getAdminTuning = async (): Promise<TuningView> => normTuning(await getJson<unknown>('/api/admin/tuning'));
+export const getAdminTuningGame = async (game: string): Promise<TuningGameView> => normTuningGame(await getJson<unknown>(`/api/admin/tuning/${encodeURIComponent(game)}`), game);
 
 // --- normalisation of the admin views ---
 type Raw = Record<string, unknown>;
@@ -873,10 +1155,11 @@ const intervalOf = (v: unknown): Interval | null => {
 const seedsOf = (v: unknown): Record<string, number[]> => Object.fromEntries(Object.entries(o(v)).map(([k, x]) => [k, nums(x)]));
 const scopeOf = (v: unknown, fallback: Scope): Scope => (isScope(v) ? v : fallback);
 const missingOf = (v: unknown): MissingControl[] => arr(v as unknown[]).filter(has).map((x) => ({ mode: str(o(x).mode), unreadable: bool(o(x).unreadable) }));
+const modesOf = (v: unknown): { mode: string; at: string | null }[] => arr(v as unknown[]).filter(has).map((x) => ({ mode: str(o(x).mode), at: ostr(o(x).at) }));
 
 function q0RowOf(v: unknown): Q0Row {
   const r = o(v);
-  return { row: str(r.row), hits: opt(r.hits), draws: opt(r.draws), live: opt(r.live), notLive: opt(r.notLive), own: opt(r.own) };
+  return { row: str(r.row), hits: opt(r.hits), draws: opt(r.draws), live: opt(r.live), notLive: opt(r.notLive), own: opt(r.own), weeks: opt(r.weeks) };
 }
 function q0Of(v: unknown): Q0 {
   const r = o(v);
@@ -885,7 +1168,7 @@ function q0Of(v: unknown): Q0 {
   return {
     ranking: r.ranking === 'profit' ? 'profit' : 'hits',
     band: has(r.band)
-      ? { ceiling: opt(b.ceiling), from: str(b.from), rows: opt(b.rows), seeds: opt(b.seeds), history: opt(b.history), metric: str(b.metric, 'hits per draw'), at: ostr(b.at), missing: missingOf(b.missing) }
+      ? { ceiling: opt(b.ceiling), from: str(b.from), rows: opt(b.rows), seeds: opt(b.seeds), history: opt(b.history), metric: str(b.metric, 'hits per draw'), at: ostr(b.at), modes: modesOf(b.modes), missing: missingOf(b.missing) }
       : null,
     rankedRows: num(r.rankedRows, 0),
     allRows: num(r.allRows, 0),
@@ -897,6 +1180,7 @@ function q0Of(v: unknown): Q0 {
       longest: opt(a.longest),
       longestLive: opt(a.longestLive),
       sameLength: typeof a.sameLength === 'boolean' ? a.sameLength : null,
+      sameLive: typeof a.sameLive === 'boolean' ? a.sameLive : null,
       inTile: a.inTile !== false,
       rows: arr(a.rows as unknown[]).map(q0RowOf),
     },
@@ -968,80 +1252,105 @@ function rowsOf(v: unknown): MarketRows | null {
     at: ostr(r.at),
   };
 }
+function partHistoryOf(v: unknown): PartHistory | null {
+  if (!has(v)) return null;
+  const r = o(v);
+  const since = o(r.sinceReading);
+  return {
+    state: str(r.state), sunday: ostr(r.sunday), weeks: num(r.weeks, 1), changed: typeof r.changed === 'boolean' ? r.changed : null, last: ostr(r.last), behind: bool(r.behind),
+    noRunBefore: bool(r.noRunBefore), live: bool(r.live),
+    sinceReading: has(r.sinceReading) ? { now: str(since.now), added: strs(since.added), dropped: strs(since.dropped), rankingAt: ostr(since.rankingAt) } : null,
+  };
+}
+function gameHistoryOf(v: unknown): GameHistory {
+  const r = o(v);
+  return { q0: partHistoryOf(r.q0), q2: partHistoryOf(r.q2), fc: partHistoryOf(r.fc), rows: partHistoryOf(r.rows) };
+}
+function readingsOf(v: unknown): ReadingsMeta | null {
+  if (!has(v)) return null;
+  const r = o(v);
+  return { stored: num(r.stored, 0), sundays: strs(r.sundays), newestRecords: ostr(r.newestRecords), unreadable: strs(r.unreadable), rule: str(r.rule) };
+}
 function gameControlsOf(v: unknown): GameControls {
   const r = o(v);
   const game = str(r.game);
-  return { game, unit: unitOf(r.unit, game), q0: q0Of(r.q0), q2: q2Of(r.q2), fc: fcOf(r.fc), rows: rowsOf(r.rows), errors: strs(r.errors) };
+  return { game, unit: unitOf(r.unit, game), q0: q0Of(r.q0), q2: q2Of(r.q2), fc: fcOf(r.fc), rows: rowsOf(r.rows), errors: strs(r.errors), history: gameHistoryOf(r.history) };
+}
+
+// The four controls' tiles: the Controls page's, and the same objects on This week
+function controlTilesOf(v: unknown): ControlTiles {
+  const t = o(v);
+  const [q0, q2, fc, rows] = [o(t.q0), o(t.q2), o(t.fc), o(t.rows)];
+  const alt = o(q0.alternatives);
+  return {
+    q0: {
+      rowsAbove: num(q0.rowsAbove, 0),
+      games: num(q0.games, 0),
+      hitRankedGames: num(q0.hitRankedGames, 0),
+      longest: rangeOf(q0.longest),
+      longestLiveMarkets: rangeOf(q0.longestLiveMarkets),
+      withOwnLevel: num(q0.withOwnLevel, 0),
+      alternatives: {
+        allGamesOnHits: { rowsAbove: num(o(alt.allGamesOnHits).rowsAbove, 0), games: num(o(alt.allGamesOnHits).games, 0) },
+        bestRowOnly: { games: strs(o(alt.bestRowOnly).games) },
+      },
+      noBand: strs(q0.noBand),
+      oneControl: arr(q0.oneControl as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), from: str(o(x).from), missing: missingOf(o(x).missing) })),
+      from: ostr(q0.from),
+      at: ostr(q0.at),
+    },
+    q2: {
+      above: num(q2.above, 0),
+      of: num(q2.of, 0),
+      aboveGames: strs(q2.aboveGames),
+      tooFewGames: strs(q2.tooFewGames),
+      aboveFewWindows: arr(q2.aboveFewWindows as unknown[]).map((x) => ({ game: str(o(x).game), windowsTest: opt(o(x).windowsTest) })),
+      seeds: seedsOf(q2.seeds),
+      missing: strs(q2.missing),
+      unreadable: strs(q2.unreadable),
+      from: ostr(q2.from),
+      at: ostr(q2.at),
+    },
+    fc: {
+      fits: num(fc.fits, 0),
+      inconclusive: num(fc.inconclusive, 0),
+      ignored: num(fc.ignored, 0),
+      failed: num(fc.failed, 0),
+      variants: num(fc.variants, 0),
+      games: num(fc.games, 0),
+      missing: strs(fc.missing),
+      unreadable: strs(fc.unreadable),
+      from: ostr(fc.from),
+      at: ostr(fc.at),
+    },
+    rows: {
+      beatReference: num(rows.beatReference, 0),
+      games: num(rows.games, 0),
+      referenceAboveUniform: num(rows.referenceAboveUniform, 0),
+      windows: arr(rows.windows as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), window: opt(o(x).window), unit: str(o(x).unit, 'days') })),
+      missing: strs(rows.missing),
+      unreadable: strs(rows.unreadable),
+      from: ostr(rows.from),
+      at: ostr(rows.at),
+    },
+  };
 }
 
 function normControls(raw: unknown): ControlsView {
   const r = o(raw);
   const m = o(r.meta);
-  const t = o(r.tiles);
-  const [q0, q2, fc, rows] = [o(t.q0), o(t.q2), o(t.fc), o(t.rows)];
-  const alt = o(q0.alternatives);
   const axis = nums(o(m.q2).axis);
   return {
     builtAt: ostr(r.builtAt),
     rankingAt: ostr(r.rankingAt),
+    readings: readingsOf(r.readings),
     meta: {
       q0: { rule: str(o(m.q0).rule), rows: rangeOf(o(m.q0).rows), history: rangeOf(o(m.q0).history), seeds: seedsOf(o(m.q0).seeds) },
       q2: { metric: str(o(m.q2).metric), axis: axis.length === 2 ? [axis[0], axis[1]] : [0.5, 1], fewWindows: num(o(m.q2).fewWindows, 250), rule: str(o(m.q2).rule) },
       fc: { share: str(o(m.fc).share), chanceShare: str(o(m.fc).chanceShare), auc: str(o(m.fc).auc), variants: Object.fromEntries(Object.entries(o(o(m.fc).variants)).map(([k, x]) => [k, str(x, k)])) },
       rows: { score: str(o(m.rows).score), pnl: str(o(m.rows).pnl) },
     },
-    tiles: {
-      q0: {
-        rowsAbove: num(q0.rowsAbove, 0),
-        games: num(q0.games, 0),
-        hitRankedGames: num(q0.hitRankedGames, 0),
-        longest: rangeOf(q0.longest),
-        longestLiveMarkets: rangeOf(q0.longestLiveMarkets),
-        withOwnLevel: num(q0.withOwnLevel, 0),
-        alternatives: {
-          allGamesOnHits: { rowsAbove: num(o(alt.allGamesOnHits).rowsAbove, 0), games: num(o(alt.allGamesOnHits).games, 0) },
-          bestRowOnly: { games: strs(o(alt.bestRowOnly).games) },
-        },
-        noBand: strs(q0.noBand),
-        oneControl: arr(q0.oneControl as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), from: str(o(x).from), missing: missingOf(o(x).missing) })),
-        from: ostr(q0.from),
-        at: ostr(q0.at),
-      },
-      q2: {
-        above: num(q2.above, 0),
-        of: num(q2.of, 0),
-        aboveGames: strs(q2.aboveGames),
-        tooFewGames: strs(q2.tooFewGames),
-        aboveFewWindows: arr(q2.aboveFewWindows as unknown[]).map((x) => ({ game: str(o(x).game), windowsTest: opt(o(x).windowsTest) })),
-        seeds: seedsOf(q2.seeds),
-        missing: strs(q2.missing),
-        unreadable: strs(q2.unreadable),
-        from: ostr(q2.from),
-        at: ostr(q2.at),
-      },
-      fc: {
-        fits: num(fc.fits, 0),
-        inconclusive: num(fc.inconclusive, 0),
-        ignored: num(fc.ignored, 0),
-        failed: num(fc.failed, 0),
-        variants: num(fc.variants, 0),
-        games: num(fc.games, 0),
-        missing: strs(fc.missing),
-        unreadable: strs(fc.unreadable),
-        from: ostr(fc.from),
-        at: ostr(fc.at),
-      },
-      rows: {
-        beatReference: num(rows.beatReference, 0),
-        games: num(rows.games, 0),
-        referenceAboveUniform: num(rows.referenceAboveUniform, 0),
-        windows: arr(rows.windows as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), window: opt(o(x).window), unit: str(o(x).unit, 'days') })),
-        missing: strs(rows.missing),
-        unreadable: strs(rows.unreadable),
-        from: ostr(rows.from),
-        at: ostr(rows.at),
-      },
-    },
+    tiles: controlTilesOf(r.tiles),
     groups: arr(r.groups as unknown[]).map((g) => ({
       name: o(g).name === 'Markets' ? 'Markets' : 'Lottery',
       games: arr(o(g).games as unknown[]).filter(has).map(gameControlsOf),
@@ -1326,5 +1635,188 @@ function normRandomnessGame(raw: unknown, game: string, scope: Scope): Randomnes
     builtAt: ostr(r.builtAt), generatedAt: ostr(r.generatedAt), meta: randomnessMetaOf(r.meta),
     scope: scopeOf(r.scope, scope), shown: num(r.shown, 0), of: num(r.of, 0), top: strs(r.top), topMissing: strs(r.topMissing),
     models: arr(r.models as unknown[]).map((x) => ({ row: str(o(x).row), kl: opt(o(x).kl), top: bool(o(x).top) })),
+  };
+}
+
+// --- This week and the tuning gates ---
+const DECISION_LETTERS = ['replaced', 'kept', 'reverted', 'not read'];
+function usualOf(v: unknown): Usual | null {
+  if (!has(v)) return null;
+  const u = o(v);
+  return { median: opt(u.median), min: opt(u.min), max: opt(u.max), n: num(u.n, 0), from: ostr(u.from), to: ostr(u.to), basis: str(u.basis) };
+}
+function runLineOf(v: unknown): RunLine {
+  const r = o(v);
+  const c = o(r.comparedWith);
+  return {
+    key: str(r.key), job: str(r.job, str(r.key)), start: ostr(r.start), end: ostr(r.end), minutes: opt(r.minutes), result: str(r.result, 'unknown'), note: ostr(r.note),
+    usual: usualOf(r.usual), overUsual: typeof r.overUsual === 'boolean' ? r.overUsual : null, vsMedian: opt(r.vsMedian),
+    warnings: Array.isArray(r.warnings)
+      ? r.warnings.filter(has).map((x) => ({ sig: str(o(x).sig), n: num(o(x).n, 0), new: typeof o(x).new === 'boolean' ? (o(x).new as boolean) : null }))
+      : null,
+    noiseFiltered: opt(r.noiseFiltered),
+    comparedWith: has(r.comparedWith) ? { runs: num(c.runs, 0), from: ostr(c.from), to: ostr(c.to) } : null,
+  };
+}
+function tuningTilesOf(v: unknown): TuningTiles {
+  const t = o(v);
+  const h = o(t.heldFromLastWeekend);
+  return {
+    n: num(t.n, 0), replaced: num(t.replaced, 0), kept: num(t.kept, 0), reverted: num(t.reverted, 0), marginZero: num(t.marginZero, 0),
+    replacedUnder1Se: num(t.replacedUnder1Se, 0), replacedUnder1SeVsBetterReference: num(t.replacedUnder1SeVsBetterReference, 0), under1SeTuners: strs(t.under1SeTuners),
+    unattributed: num(t.unattributed, 0), notThisWeekend: num(t.notThisWeekend, 0), games: num(t.games, 0), from: ostr(t.from), to: ostr(t.to),
+    heldFromLastWeekend: has(t.heldFromLastWeekend)
+      ? { weekend: str(h.weekend), replaced: num(h.replaced, 0), kept: num(h.kept, 0), replacedAgain: num(h.replacedAgain, 0), reverted: num(h.reverted, 0), notDecided: num(h.notDecided, 0) }
+      : null,
+  };
+}
+const historyIn = (v: unknown) => partHistoryOf(o(v).history);
+function matrixGameOf(v: unknown): MatrixGame {
+  const r = o(v);
+  const game = str(r.game);
+  const [q0, q2, fc, rows, gates] = [o(r.q0), o(r.q2), o(r.fc), o(r.rows), o(r.gates)];
+  return {
+    game, group: groupName(r.group, game), unit: unitOf(r.unit, game), errors: strs(r.errors),
+    q0: has(r.q0)
+      ? { above: num(q0.above, 0), ceiling: opt(q0.ceiling), longest: opt(q0.longest), longestLive: opt(q0.longestLive), sameLength: typeof q0.sameLength === 'boolean' ? q0.sameLength : null,
+          sameLive: typeof q0.sameLive === 'boolean' ? q0.sameLive : null, inTile: q0.inTile !== false, ranking: q0.ranking === 'profit' ? 'profit' : 'hits', seeds: opt(q0.seeds),
+          at: ostr(q0.at), modes: modesOf(q0.modes), history: historyIn(r.q0) }
+      : null,
+    q2: has(r.q2)
+      ? { status: Q2_STATUS.includes(q2.status as Q2Status) ? (q2.status as Q2Status) : 'within', real: opt(q2.real), threshold: opt(q2.threshold), seeds: opt(q2.seeds),
+          windowsTest: opt(q2.windowsTest), fewWindows: bool(q2.fewWindows), at: ostr(q2.at), history: historyIn(r.q2) }
+      : null,
+    fc: has(r.fc)
+      ? { fits: num(fc.fits, 0), inconclusive: num(fc.inconclusive, 0), ignored: num(fc.ignored, 0), failed: num(fc.failed, 0), variants: num(fc.variants, 0), at: ostr(fc.at), history: historyIn(r.fc) }
+      : null,
+    rows: has(r.rows)
+      ? { beat: num(rows.beat, 0), scored: num(rows.scored, 0), reference: str(rows.reference, 'GARCH Model'), window: opt(rows.window), referenceVsUniform: ostr(rows.referenceVsUniform),
+          at: ostr(rows.at), history: historyIn(r.rows) }
+      : null,
+    gates: has(r.gates) ? { replaced: num(gates.replaced, 0), kept: num(gates.kept, 0), reverted: num(gates.reverted, 0), notThisWeekend: num(gates.notThisWeekend, 0) } : null,
+  };
+}
+function councilOf(v: unknown): CouncilStatus | null {
+  if (!has(v)) return null;
+  const c = o(v);
+  const e = o(c.lastExit);
+  return {
+    error: ostr(c.error), name: str(c.name, 'Council API'), status: str(c.status), healthy: typeof c.healthy === 'boolean' ? c.healthy : null, summary: str(c.summary),
+    since: ostr(c.since), restarts: opt(c.restarts), lastExit: has(c.lastExit) ? { code: opt(e.code), signal: ostr(e.signal), at: ostr(e.at) } : null,
+    lastError: ostr(c.lastError), checkedAt: ostr(c.checkedAt),
+  };
+}
+
+function normWeek(raw: unknown): WeekView {
+  const r = o(raw);
+  const w = o(r.weekend);
+  const t = o(r.tiles);
+  const we = o(t.weekend);
+  const today = o(t.today);
+  const tuners = o(t.tuners);
+  const since = o(r.since);
+  const lock = o(since.lock);
+  const sign = o(since.signIns);
+  const slowest = o(we.slowest);
+  return {
+    builtAt: ostr(r.builtAt),
+    rankingAt: ostr(r.rankingAt),
+    weekend: { saturday: ostr(w.saturday), from: ostr(w.from), until: ostr(w.until) },
+    tiles: {
+      weekend: {
+        runs: num(we.runs, 0), ok: num(we.ok, 0), expected: num(we.expected, 0),
+        missing: arr(we.missing as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), day: ostr(o(x).day) })),
+        running: has(we.running) ? { key: str(o(we.running).key), start: ostr(o(we.running).start) } : null,
+        notOk: arr(we.notOk as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), result: str(o(x).result), note: ostr(o(x).note) })),
+        from: ostr(we.from), to: ostr(we.to), hours: opt(we.hours),
+        slowest: has(we.slowest) ? { key: str(slowest.key), minutes: opt(slowest.minutes), usual: usualOf(slowest.usual) } : null,
+        newWarnings: arr(we.newWarnings as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), sig: str(o(x).sig), n: num(o(x).n, 0) })),
+      },
+      today: { day: ostr(today.day), run: has(today.run) ? runLineOf(today.run) : null, running: has(today.running) ? { start: ostr(o(today.running).start) } : null },
+      tuners: has(t.tuners)
+        ? {
+            ...tuningTilesOf(t.tuners),
+            weekend: ostr(tuners.weekend),
+            byTuner: arr(tuners.byTuner as unknown[]).filter(has).map((x) => {
+              const b = o(x);
+              return { tuner: str(b.tuner), job: ostr(b.job), n: num(b.n, 0), replaced: num(b.replaced, 0), kept: num(b.kept, 0), reverted: num(b.reverted, 0), games: opt(b.games),
+                marginZero: num(b.marginZero, 0), marginOneSe: opt(b.marginOneSe), replacedUnder1Se: num(b.replacedUnder1Se, 0) };
+            }),
+          }
+        : null,
+      ...controlTilesOf(t),
+    },
+    runs: arr(r.runs as unknown[]).filter(has).map(runLineOf),
+    matrix: { fewWindows: num(o(r.matrix).fewWindows, 250), games: arr(o(r.matrix).games as unknown[]).filter(has).map(matrixGameOf) },
+    readings: readingsOf(r.readings),
+    since: {
+      from: ostr(since.from),
+      predictorRuns: arr(since.predictorRuns as unknown[]).filter(has).map(runLineOf),
+      queue: arr(since.queue as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), name: str(o(x).name, str(o(x).key)), queuedAt: ostr(o(x).queuedAt), manual: bool(o(x).manual) })),
+      running: has(since.running) ? { key: str(o(since.running).key), name: str(o(since.running).name), start: ostr(o(since.running).start) } : null,
+      lock: has(since.lock) ? { held: bool(lock.held), pid: opt(lock.pid), script: ostr(lock.script), key: ostr(lock.key) } : null,
+      council: councilOf(since.council),
+      signIns: has(since.signIns)
+        ? { failed: num(sign.failed, 0), locked: num(sign.locked, 0), ok: num(sign.ok, 0),
+            last7Days: { failed: num(o(sign.last7Days).failed, 0), locked: num(o(sign.last7Days).locked, 0) }, scanned: num(sign.scanned, 0), oldestScanned: ostr(sign.oldestScanned) }
+        : null,
+    },
+  };
+}
+
+const rowsByGame = (v: unknown): Record<string, string[]> => Object.fromEntries(Object.entries(o(v)).map(([g, x]) => [g, strs(x)]));
+function normTuning(raw: unknown): TuningView {
+  const r = o(raw);
+  const h = o(r.history);
+  return {
+    builtAt: ostr(r.builtAt),
+    weekend: ostr(r.weekend),
+    tiles: tuningTilesOf(r.tiles),
+    byTuner: arr(r.byTuner as unknown[]).filter(has).map((x) => {
+      const b = o(x);
+      const run = o(b.run);
+      return {
+        tuner: str(b.tuner), job: ostr(b.job), n: num(b.n, 0), replaced: num(b.replaced, 0), kept: num(b.kept, 0), reverted: num(b.reverted, 0),
+        marginZero: num(b.marginZero, 0), marginOneSe: num(b.marginOneSe, 0), replacedUnder1Se: num(b.replacedUnder1Se, 0),
+        replacedUnder1SeVsBetterReference: num(b.replacedUnder1SeVsBetterReference, 0), games: num(b.games, 0), kinds: strs(b.kinds),
+        aboveFair: num(b.aboveFair, 0), fairPerBet: rangeOf(b.fairPerBet),
+        windowDays: rangeOf(b.windowDays), runTrials: rangeOf(b.runTrials), studyTrials: rangeOf(b.studyTrials),
+        windowByUnit: Object.fromEntries(Object.entries(o(b.windowByUnit)).map(([u, x]) => [u, rangeOf(x)]).filter((e): e is [string, Range] => e[1] !== null)),
+        run: has(b.run) ? { start: ostr(run.start), end: ostr(run.end), minutes: opt(run.minutes), result: str(run.result, 'unknown') } : null,
+        replacedRows: rowsByGame(b.replacedRows), revertedRows: rowsByGame(b.revertedRows),
+      };
+    }),
+    byGame: arr(r.byGame as unknown[]).filter(has).map((x) => {
+      const g = o(x);
+      const game = str(g.game);
+      return {
+        game, group: groupName(g.group, game), n: num(g.n, 0), replaced: num(g.replaced, 0), kept: num(g.kept, 0), reverted: num(g.reverted, 0), marginZero: num(g.marginZero, 0),
+        notThisWeekend: num(g.notThisWeekend, 0), noFile: bool(g.noFile), replacedRows: strs(g.replacedRows), revertedRows: strs(g.revertedRows),
+      };
+    }),
+    unattributed: arr(r.unattributed as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), row: str(o(x).row), weekend: ostr(o(x).weekend), family: ostr(o(x).family), why: str(o(x).why) })),
+    history: { weekends: strs(h.weekends), commits: num(h.commits, 0), error: ostr(h.error), source: str(h.source) },
+    meta: Object.fromEntries(Object.entries(o(r.meta)).map(([k, x]) => [k, str(x)])),
+  };
+}
+const sideOf = (v: unknown): GateSide => ({ score: opt(o(v).score), se: opt(o(v).se), days: opt(o(v).days), fairPerBet: opt(o(v).fairPerBet), profitPerBet: opt(o(v).profitPerBet) });
+function normTuningGame(raw: unknown, game: string): TuningGameView {
+  const r = o(raw);
+  const g = str(r.game, game);
+  return {
+    game: g, group: groupName(r.group, g), unit: unitOf(r.unit, g), builtAt: ostr(r.builtAt), weekend: ostr(r.weekend),
+    n: num(r.n, 0), replaced: num(r.replaced, 0), kept: num(r.kept, 0), reverted: num(r.reverted, 0), notThisWeekend: num(r.notThisWeekend, 0),
+    weekends: strs(r.weekends), historyError: ostr(r.historyError),
+    rows: arr(r.rows as unknown[]).filter(has).map((x) => {
+      const w = o(x);
+      return {
+        row: str(w.row), tuner: str(w.tuner, 'unattributed'), by: ostr(w.by), decision: str(w.decision), thisWeekend: w.thisWeekend !== false, weekend: ostr(w.weekend), date: ostr(w.date),
+        kind: ostr(w.kind), windowDays: opt(w.windowDays), runTrials: opt(w.runTrials), studyTrials: opt(w.studyTrials),
+        default: sideOf(w.default), incumbent: sideOf(w.incumbent), challenger: sideOf(w.challenger),
+        margin: opt(w.margin), marginSe: opt(w.marginSe), bar: opt(w.bar), gainSe: opt(w.gainSe), gainBestSe: opt(w.gainBestSe), gainBarSe: opt(w.gainBarSe),
+        history: arr(w.history as unknown[]).map((d) => (typeof d === 'string' && DECISION_LETTERS.includes(d) ? d : null)),
+        why: ostr(w.why), family: ostr(w.family),
+      };
+    }),
   };
 }

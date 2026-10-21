@@ -544,6 +544,97 @@ function finish(exit, note, finishedAt) {
   // Saturday's predictor finishing is the weekly chain's trigger - the whole
   // point of the item: no fixed 14:00 slot, no idle hours.
   if (run.key === 'predictor') maybeTriggerChain(new Date(), 'the predictor finishing');
+  // The Sunday controls' last job finishing writes the week's reading.
+  scheduleReading(run);
+}
+
+// --- the week's reading -----------------------------------------------------
+// When the Sunday plan's last job (Q0) finishes - whatever its exit code: a
+// failed control leaves last week's record in place, and the reading names
+// every part that is not from this week - the four controls are summarised
+// into data/readings/<sunday>.json (readings.js), the admin pages' week-over-
+// week history (21 Oct 2026, the owner's decision). It runs after the run is
+// recorded, on a later turn of the event loop, inside its own try: a reading
+// that cannot be built or written is logged and changes nothing else - not
+// this run's record, not the schedule, not the next job, which has already
+// been started by then. readings.js is loaded only here, so even a broken
+// readings.js or admin.js cannot stop this module from loading.
+const READING_JOB = CONTROL_KEYS[CONTROL_KEYS.length - 1];
+
+// The Sunday whose reading a finished run writes, as YYYY-MM-DD, or null: the
+// controls plan's last job, started inside that plan's own window - Sunday
+// 00:00 until its catch-up net closes on Tuesday 09:00 (local time, like the
+// schedule). A Q0 run started by hand later in the week writes nothing: it is
+// not that weekend's control (the CLI can still write it, said as such).
+function readingSundayOf(run) {
+  if (!run || run.key !== READING_JOB) return null;
+  const week = controlsWeekOf(run);
+  return week && week.inWindow ? week.sunday : null;
+}
+// The Sunday a control run belongs to, and whether it started inside that
+// plan's window; null without a start.
+function controlsWeekOf(run) {
+  if (!run || !Number.isFinite(run.startedAt)) return null;
+  const spec = PLANS[CONTROLS_PLAN];
+  const sunday = lastWeekdaySlot(new Date(run.startedAt), spec.weekday, 0, 0);
+  const anchor = new Date(sunday);
+  anchor.setHours(spec.anchorHour, 0, 0, 0);
+  return { sunday: dayId(sunday), inWindow: run.startedAt < anchor.getTime() + spec.catchUpUntilMs };
+}
+// Why a control run that finished wrote no reading, with the command that
+// rebuilds the week's - so nobody takes the stored reading for one that holds
+// this run's record. root: where data/readings is.
+function noReadingText(run, root = ROOT) {
+  const week = controlsWeekOf(run);
+  if (!week) return null;
+  const name = run.name || (jobByKey(run.key) || {}).name || run.key;
+  const rebuild = `to rebuild that week's reading: node readings.js --controls data/controls --sunday ${week.sunday} `
+    + '--database <a folder holding that Sunday\'s modelPerformance.json> (never today\'s ranking)';
+  if (!week.inWindow) return `${name} started after the controls' window (Tuesday 09:00): no reading includes it; ${rebuild}`;
+  let stored = false;
+  try { stored = fs.existsSync(path.join(root, 'data', 'readings', `${week.sunday}.json`)); } catch (e) { stored = false; }
+  if (stored) return `${name} finished after the reading of Sunday ${week.sunday} was written: that reading keeps the record it found then; ${rebuild}`;
+  return `${name} finished: the reading of Sunday ${week.sunday} is written when ${jobByKey(READING_JOB).name} finishes`;
+}
+
+// Builds and writes the reading for a finished run; answers what was written
+// or null. Never throws. deps (for the test): readings, log, root.
+function writeWeekReading(run, deps = {}) {
+  const say = deps.log || log;
+  let sunday = null;
+  try {
+    sunday = readingSundayOf(run);
+    if (!sunday) return null;
+    const readings = deps.readings || require('./readings');
+    const root = deps.root || ROOT;
+    const result = readings.writeReading(readings.buildReading({ root, sunday, by: 'scheduler' }), { root });
+    say(`the week's reading for Sunday ${sunday}: ${result.written ? 'written' : 'unchanged'} (${path.relative(root, result.file)}, ${result.bytes} bytes)`);
+    return result;
+  } catch (e) {
+    try { say(`could not write the week's reading${sunday ? ` for Sunday ${sunday}` : ''}: ${e.message} - nothing else is affected`); } catch (x) { /* the log is a convenience */ }
+    return null;
+  }
+}
+
+// Called by finish() for every run; only the controls' last job, inside its
+// window, schedules anything. Any other control run says in one log line why
+// it wrote no reading (outside the window, or not the last control - then a
+// reading already written for its Sunday keeps the record it found). deps.defer
+// replaces setImmediate in the test.
+function scheduleReading(run, deps = {}) {
+  try {
+    if (!readingSundayOf(run)) {
+      if (run && CONTROL_KEYS.includes(run.key)) {
+        const text = noReadingText(run, deps.root || ROOT);
+        if (text) (deps.log || log)(text);
+      }
+      return false;
+    }
+    (deps.defer || setImmediate)(() => { writeWeekReading(run, deps); });
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function pollCurrent() {
@@ -1022,6 +1113,6 @@ module.exports = {
     dueAt, weekId, dayId, dailySlot, nextDaily, lastWeekdaySlot, CHAIN_KEYS, CHAIN_PLAN,
     CONTROL_KEYS, CONTROLS_PLAN, PLANS, planKeys, planTriggerAt, nextDueText, planBaseline,
     enqueue, startNext, tick, lockHolder, maybeTriggerChain, state: () => state,
-    chainTriggerAt, exitCodeFrom, allowedQueue,
+    chainTriggerAt, exitCodeFrom, allowedQueue, READING_JOB, readingSundayOf, writeWeekReading, scheduleReading,
   },
 };
