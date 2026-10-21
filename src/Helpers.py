@@ -881,6 +881,21 @@ class Helpers():
             young = sorted([m for m in models if m["draws"] < minDraws], key=sortKey, reverse=True)
             models = established + young
 
+            # A market row's live draws over its whole record: the days whose
+            # ticket was out before the close (_days_predicted_before_draw),
+            # counted without the since date, so declaring a later freeze does
+            # not turn earlier live days into "back-built or late" ones on the
+            # admin pages (admin.js reads it; 21 Oct 2026).
+            liveDays = self._days_predicted_before_draw(game, databaseDir)
+            if liveDays is not None:
+                liveCounts = {}
+                for day in dayTable:
+                    if self._day_key(day["date"]) in liveDays:
+                        for name in day["rows"]:
+                            liveCounts[name] = liveCounts.get(name, 0) + 1
+                for m in models:
+                    m["live_draws"] = liveCounts.get(m["name"], 0)
+
             report["games"][game] = {
                 "metric": metric,
                 "minDrawsForRanking": minDraws,

@@ -232,6 +232,11 @@ const GUARD_SHOWN_FROM = '2026-10-26';
 // MarketSettle.GUARD_FORWARD_FROM: the first week the guard ran forward; for a record exported before it carried forward_from
 const GUARD_FORWARD_FROM = '2026-10-19';
 
+// the first game day of a week game's ticket (the day after its made_on), or null
+function firstSessionOf(w) {
+  return w && w.madeOn && w.market ? nextGameDay(w.market === 'sharesweek' ? 'shares' : 'crypto', w.madeOn) : null;
+}
+
 // The guarded week book (MarketSettle.guarded_week). Points are [week close, week row, positions, money, total, live,
 // market, by_symbol, trades, guarded]; guarded false is a week from before the daily record (the plain week).
 function describeGuarded(g) {
@@ -1430,7 +1435,9 @@ function page(market, view, header, footer, user, now = new Date()) {
         ${help(`<p>The multi-day call, the horizon a hold is measured on: a second game with <b>one draw per week</b> - the week's move (${market === 'crypto' ? 'Monday 00:00 UTC to the next Monday 00:00 UTC' : 'the Friday close to the next Friday close'}) cut into ten bins of each ${esc(meta.noun)}'s own past weeks, every model predicting one bin per ${esc(meta.noun)} for the coming week, scored once, at the week's close.
         The band is measured from the week base, the last close before the week; the book followed buys at the week's first open, so the ${market === 'crypto' ? 'first hours' : 'weekend gap'} ${market === 'crypto' ? 'are' : 'is'} in the call and in the band, not in the book or in your result.
         The ticket for this week was made after the close of ${esc(w.madeOn)}${madeUp ? ` (it went up at ${esc(madeUp)})` : ''}; it stands for the whole week - the week game makes no call between ${market === 'crypto' ? 'Monday and Sunday' : 'Monday and Friday'} - and the model followed is re-picked when the week settles, after the ${market === 'crypto' ? 'Monday' : 'Saturday'} run, so next week's card may follow another model. The card follows a weekly book from ${MIN_WEEK_TRADES} positions on (the daily plan asks ${MIN_PLAN_TRADES}), which is few - hence the months.</p>
-        <p>This is not the daily plan above: the daily rows buy and sell within one session and say nothing about a weekly position, so a daily down call on a ${esc(meta.noun)} is not a sell for a week's hold of it, and a daily up call is not a reason to keep one.
+        <p>${(firstSessionOf(w) || '') >= GUARD_SHOWN_FROM
+          ? `The user pages (Crypto, Shares) follow this week with the guard: a week position is bought on the first up daily call, sold at the close of the first flat or down one, and sold at the week's end at the latest - so there a daily down call does sell a week's hold. This card shows the week game's own call and its plain book, held to the week's end; the guard's book is in the Background card <i>The guard on the week positions</i>.`
+          : `This card shows the week game's own call and its plain book, held to the week's end - what the user pages counted until now. From the week of ${esc(GUARD_SHOWN_FROM)} they follow week positions with the guard: bought on the first up daily call, sold at the close of the first flat or down one, at the week's end at the latest; the guard's book is in the Background card <i>The guard on the week positions</i>.`}
         <b>Stake and fees</b>: the weekly book uses ${w.trading && w.trading.stake !== null ? w.trading.stake : 100} ${esc(meta.unit)} a position and ${w.trading && w.trading.feePerLeg !== null ? pct(w.trading.feePerLeg, 2) : '0.10%'} a leg, one pair for the week; your broker's commission and any transaction tax per leg replace that fee and decide whether a band as narrow as the table shows can pay.
         The <i>Hold while up</i> book in Paper trading below is the daily game's - a run of daily up calls, re-decided every morning - not this weekly hold; the weekly books are on the week game's <a href="/database/${esc(WEEK_GAMES[market])}">game view</a>, which ranks rows by exact rate while this card follows the weekly book, so the two can name different rows.</p>`, 'how the week game works')}
         <div class="table-wrapper"><table class="plan"><tr><th style="text-align:left;">${esc(meta.noun[0].toUpperCase() + meta.noun.slice(1))}</th><th title="up = the predicted weekly bin is in the upper half">Call</th><th title="the predicted bin as prices at the week's close">Band at the week's close</th>
@@ -1476,9 +1483,14 @@ function page(market, view, header, footer, user, now = new Date()) {
   return html + footer();
 }
 
+// The market workbench is the administrator's (21 Oct 2026: the controls are admin-only - its "Rows under a proper
+// score" card is the Sunday market-rows control - and a user's Crypto and Shares pages are the app's): a signed-in
+// user who is not the administrator is sent to /app/<market>. No user at all is the tests' and open access's reader.
+const seesWorkbench = (user) => !user || user.open === true || user.role === 'admin';
 function install(app, { header, footer, dataDir, controlsDir }) {
   Object.keys(MARKETS).forEach((market) => {
     app.get(`/markets/${market}`, (req, res) => {
+      if (!seesWorkbench(req.user)) return res.redirect(302, `/app/${market}`);
       const record = loadMarket(dataDir, market);
       const weekRecord = loadMarket(dataDir, WEEK_GAMES[market]);
       const extras = { rows: controlsDir ? loadRows(controlsDir, market) : null, regimes: loadRegimes(dataDir, market),

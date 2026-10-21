@@ -25,26 +25,40 @@ the build output is not committed, so run `npm run build` on the machine that se
 
 ## Routes (basename `/app`)
 
-| Path      | Page                                        |
-| --------- | ------------------------------------------- |
-| `/`       | redirects to `/crypto`                      |
-| `/crypto` | `MarketPage` for the crypto market          |
-| `/shares` | `MarketPage` for the shares market          |
-| other     | redirects to `/crypto`                      |
+| Path                | Page                                                                  |
+| ------------------- | --------------------------------------------------------------------- |
+| `/`                 | redirects to `/crypto`                                                |
+| `/crypto`           | `MarketPage` for the crypto market                                    |
+| `/shares`           | `MarketPage` for the shares market                                    |
+| `/admin`            | redirects to `/admin/controls`                                        |
+| `/admin/controls`   | the four Sunday controls (Q0, Q2, feature control, market rows)       |
+| `/admin/models`     | Best model per game; a game's drawer holds its ranking                |
+| `/admin/phase-shift`| the tracked lag peaks per game                                        |
+| `/admin/randomness` | the Randomness watch                                                  |
+| other               | redirects to `/crypto` (`/admin/...` to `/admin/controls`)            |
 
-The sidebar also links to the existing server pages (`/lottery`, `/council`, `/markets/...`,
-`/database...`, `/jobs`, `/services`, `/users`, `/whats-new`) as plain anchors.
+The admin routes render only for the administrator (`AdminGuard`, from `/api/me`); the API
+answers a JSON 403 anyway. Their drawers and the All / Top 5 switch live in the URL
+(`?game=lotto`, `?row=...`, `?scope=top`), so a reading can link to one game.
+
+The sidebar (`components/Sidebar.tsx`) is data: the users see Lottery, Crypto, Shares and
+Council; the administrator also the Controls, Models and System groups. Server pages are plain
+anchors, marked ↗ while the app has no page of its own for them.
 
 ## API
 
 All calls are same-origin and typed in `src/api.ts`:
 
-- `GET /api/me` -> `{ user: { name, admin } | null }` (the sidebar footer)
+- `GET /api/me` -> `{ user: { name, admin, open } | null }` (the sidebar and the admin guard; open = open access, no sign-in)
 - `GET /api/markets/:market` -> the whole page model (see the `MarketView` type)
 - `GET /api/quotes/:market` -> `{ at, quotes: { [symbol]: number } }`, fetched after the page
   model and refreshed every 60 s while the tab is visible
 
-Every field may be null or empty; `getMarket()` fills the containers and the format helpers in
+- `GET /api/admin/...` -> the admin views (`getAdminControls`, `getAdminModels`,
+  `getAdminPhaseShift`, `getAdminRandomness` and their per-game getters); `admin.js` documents
+  the shapes
+
+Every field may be null or empty; `getMarket()` and the admin getters fill the containers and the format helpers in
 `src/format.ts` answer "—" for anything missing, so the page always renders.
 
 ## Layout
@@ -56,8 +70,13 @@ src/
   styles.css              the one global stylesheet (light/dark tokens)
   hooks/useEChart.ts      ECharts binding (tree-shaken core, resize, theme change)
   hooks/useQuotes.ts      live quotes polling
-  components/             sidebar, status strip, open/closed positions, trades log, charts
+  hooks/useMe.ts          who is reading (/api/me, asked once)
+  hooks/useLoad.ts        one fetch per change of its keys (the admin pages)
+  hooks/useUrlState.ts    the All / Top 5 switch and the drawers, kept in the URL
+  components/             sidebar, KPI tile, status strip, open/closed positions, trades log, charts
+  components/admin/       card, chip, drawer, DotStrip (inline SVG), the switch, guard and load states
   pages/MarketPage.tsx    loads the market and lays out the page
+  pages/admin/            Controls, Models, Phase-shift and Randomness pages and their drawers
 ```
 
 There is no dev server script on purpose: the API lives in the Express app, so the quickest

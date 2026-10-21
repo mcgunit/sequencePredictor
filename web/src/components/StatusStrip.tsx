@@ -1,22 +1,10 @@
 import type { Status } from '../api';
 import { DASH, day, int, isNum, money, plural, share, signClass, unsigned } from '../format';
+import Tile from './Tile';
 
 // A row of six equal tiles: label, one figure, one line of context. What following the whole table made
 // (daily and weekly positions together) first, then how it compares with buying everything, the
 // positions, the days, the coins, and what is open now.
-function Tile({ label, value, cls, unit, foot, title }: { label: string; value: string; cls?: string; unit?: string; foot: string; title?: string }) {
-  return (
-    <div className="kpi" title={title}>
-      <span className="k">{label}</span>
-      <span className={`v ${cls ?? ''}`}>
-        {value}
-        {unit ? <small>{unit}</small> : null}
-      </span>
-      <span className="f">{foot}</span>
-    </div>
-  );
-}
-
 export default function StatusStrip({ status: s, unit, noun }: { status: Status; unit: string; noun: string }) {
   const pending = s.days > 0 && s.positions === 0; // the record has days but no positions yet: they are written by the next run
   const arrow = (v: number | null) => (isNum(v) ? (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') : '');

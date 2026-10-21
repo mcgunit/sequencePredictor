@@ -612,8 +612,9 @@ async function quotesFor(market, symbols) {
 // --- routes --------------------------------------------------------------------
 function install(app, { dataDir }) {
   const json = (res, body, status = 200) => { res.set('Cache-Control', 'no-store'); res.status(status).json(body); };
+  // open: open access (no login configured) - there is nobody to sign out, and the app says so
   app.get('/api/me', (req, res) => {
-    json(res, { user: req.user ? { name: req.user.name, admin: req.user.role === 'admin' } : null });
+    json(res, { user: req.user ? { name: req.user.name, admin: req.user.role === 'admin', open: req.user.open === true } : null });
   });
   app.get('/api/markets/:market', (req, res) => {
     const market = req.params.market;

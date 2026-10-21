@@ -108,3 +108,72 @@ export function axisDates(dates: unknown[]): string[] {
 export function esc(s: unknown): string {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
+
+// --- the admin pages ------------------------------------------------------------
+
+// An unsigned figure to fixed decimals, "1.126"; "—" for anything that is not a number.
+export function fixed(v: unknown, decimals = 3): string {
+  return isNum(v) ? v.toFixed(decimals).replace('-', MINUS) : DASH;
+}
+
+// A signed figure to fixed decimals, "+0.117" / "−0.195".
+export function signedFixed(v: unknown, decimals = 3): string {
+  return isNum(v) ? signed(v, decimals) : DASH;
+}
+
+// "Sun 18 Oct 12:11" in Belgian time; a date-only string stays a calendar day, "Sun 18 Oct".
+export function stamp(s: unknown): string {
+  const d = parse(s);
+  if (!d) return DASH;
+  const date = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: zone(s) }).format(d).replace(',', '');
+  return typeof s === 'string' && DATE_ONLY.test(s) ? date : `${date} ${time(s)}`;
+}
+
+// A run from one instant to another: "Sun 18 Oct 10:48 → 11:02", the second date left out when it is the same day.
+export function span(from: unknown, to: unknown): string {
+  if (!parse(from)) return stamp(to);
+  if (!parse(to) || from === to) return stamp(from);
+  const sameDay = day(from) === day(to);
+  return `${stamp(from)} → ${sameDay ? time(to) : stamp(to)}`;
+}
+
+// "1 Mar 2026": a calendar day with its year (windows that span years).
+export function dayYear(s: unknown): string {
+  const d = parse(s);
+  if (!d) return DASH;
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: zone(s) }).format(d);
+}
+
+// Row names come in full ("Transformer Model"); the pages show them without the trailing " Model".
+export function short(name: unknown): string {
+  return typeof name === 'string' ? name.replace(/ Model$/, '') : DASH;
+}
+
+// What one scored draw of a game is, singular: draw, day, trading day or week.
+export function perUnit(unit: unknown): string {
+  if (unit === 'weeks') return 'week';
+  if (unit === 'trading days') return 'trading day';
+  if (unit === 'days') return 'day';
+  return 'draw';
+}
+
+// "14 draws", "1 week", "189 trading days": a count with its game's unit.
+export function count(n: unknown, unit: unknown): string {
+  if (!isNum(n)) return DASH;
+  const k = Math.round(n);
+  const one = perUnit(unit);
+  return `${k} ${k === 1 ? one : `${one}s`}`;
+}
+
+// A range of numbers, "5-9", or the one number when both ends agree.
+export function range(r: { min: number; max: number } | null | undefined, decimals = 0): string {
+  if (!r || !isNum(r.min) || !isNum(r.max)) return DASH;
+  return r.min === r.max ? r.min.toFixed(decimals) : `${r.min.toFixed(decimals)}-${r.max.toFixed(decimals)}`;
+}
+
+// "Sun 18 Oct": the weekday and the day of an instant in Belgian time, or of a calendar day.
+export function weekday(s: unknown): string {
+  const d = parse(s);
+  if (!d) return DASH;
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: zone(s) }).format(d).replace(',', '');
+}

@@ -169,6 +169,12 @@ if __name__ == "__main__":
     check(crypto["models"][0]["draws"] == 5 and crypto["bestModel"] == "A Model", f"all-history counts every stored day and A leads it: {crypto['models'][0]}")
     check(since_block and since_block["bestModel"] == "B Model" and all(m["draws"] == 2 for m in since_block["models"]),
           f"the since block counts only the two days predicted before their draw: {since_block and since_block['models']}")
+    check(all(m.get("live_draws") == 2 for m in crypto["models"]), f"every row's live draws over its whole record: {crypto['models']}")
+    # a later freeze date shortens the since block, never a row's live draws (admin.js reads those)
+    Helpers().generate_model_performance_report(market_root, combinationShuffles=0, since=parse({"since": "2026-10-02", "label": "later freeze"}))
+    later = json.load(open(os.path.join(market_root, "modelPerformance.json")))["games"]["crypto"]
+    check(all(m["draws"] == 1 for m in later["since"]["models"]) and all(m.get("live_draws") == 2 for m in later["models"]),
+          f"a later freeze: one since draw, still two live draws: {later['models']}")
     shutil.rmtree(repo, ignore_errors=True)
 
     for message in failures:

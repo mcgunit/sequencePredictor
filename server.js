@@ -45,6 +45,8 @@ const controls = require('./controls');
 const marketsPath = path.join(__dirname, 'data', 'markets');
 const markets = require('./markets');
 const api = require('./api');   // the JSON API and the React app under /app (15 Oct 2026)
+const admin = require('./admin');   // the admin section's JSON under /api/admin (21 Oct 2026)
+const rankings = require('./ranking');   // the History ranking and its top five, shared with admin.js
 // modelsPath removed as it is no longer used
 
 // --- GAME SHAPES ---
@@ -67,24 +69,43 @@ const MULTI_PICK = { lotto: { extra: 3, grids: { 7: 7, 8: 28, 9: 84 }, gridPrice
 const multiPickFor = (game) => MULTI_PICK[game] || null;
 const multiHits = (ticketMains, extras, realMains) => new Set([...ticketMains, ...extras].map(Number).filter((n) => realMains.includes(n))).size;
 
-// --- Which rows a reader sees by default (3 Oct 2026, owner's decision) ---
+// --- Which rows a reader sees (3 Oct 2026; 21 Oct 2026, owner's decision) ---
 // A user sees the next prediction of the top five rows of the History ranking
-// (modelPerformance.json, the same order as the Best model card) and can
-// switch the rest on; the administrator sees every row, switch on. Nothing
-// is dropped from the day files - it is display only.
-const TOP_MODELS_SHOWN = 5;
+// (modelPerformance.json, the same order as the Best model card) and nothing
+// else - no switch; the administrator sees every row, with the switch. The
+// ranking and the five come from ranking.js, which admin.js reads too.
+// Nothing is dropped from the day files - it is display only.
+const { TOP_MODELS_SHOWN } = rankings;
 // The whole ranking (names in order) and its metric; generateTable takes the
 // first TOP_MODELS_SHOWN names that are actually in the table it draws.
-function rankingFor(game) {
-  try {
-    const report = JSON.parse(fs.readFileSync(path.join(dataPath, 'modelPerformance.json'), 'utf-8'));
-    const info = report.games && report.games[game];
-    if (!info || !Array.isArray(info.models) || !info.models.length) return null;
-    return { names: info.models.map((m) => String(m.name)), metric: info.metric === 'profit_bound' ? 'capped profit per bet (lower bound)' : (info.metric === 'profit_per_bet' ? 'profit per bet' : 'average hits') };
-  } catch (e) { return null; }
-}
+const rankingFor = (game) => rankings.rankingFor(dataPath, game);
 const seesAllModels = (user) => !user || user.open === true || user.role === 'admin';
-const nextTableOptions = (game, user) => ({ ranking: rankingFor(game), showAll: seesAllModels(user) });
+// The weekly controls (Q0 band, Q2, feature control) are the administrator's
+// (21 Oct 2026): the same rule as seeing every row.
+const seesControls = seesAllModels;
+// The options of a prediction table for its reader: the History ranking, and whether the reader sees every row
+// (the administrator, with the switch) or the top rows only (a user). coming: the table is the coming draw's
+// (/lottery, the newest day's next prediction) - the one table a user gets cut to the top rows. Every other table
+// is a past draw: a user sees it in full and no ranking is applied to it (today's ranking on a past draw is
+// hindsight); the administrator's switch there says so.
+const readerTableOptions = (game, user, coming = false) => {
+  if (seesAllModels(user)) return { ranking: rankingFor(game), showAll: true, admin: true, coming };
+  return coming ? { ranking: rankingFor(game), showAll: false, admin: false, coming } : { showAll: true, admin: false, coming };
+};
+// A user's coming-draw table cut to the top rows: what is drawn under it (the frequency chart, a vote of every
+// row) would count the rows the user does not get.
+const cutForReader = (modelRows, options) => { const sel = tableSelection(modelRows, options); return Boolean(sel.topSet) && !sel.showAll; };
+// The coming draw's rows as its reader gets them: "top 5 of 31 model rows" for a user, "31 model rows" for the
+// administrator (/lottery's card, the home page's lottery lines); '' without a row.
+function modelRowsMeta(modelRows, game, user) {
+  const n = (modelRows || []).length;
+  if (!n) return '';
+  const sel = tableSelection(modelRows, readerTableOptions(game, user, true));
+  return sel.shown < sel.allNames.length ? `top ${sel.shown} of ${sel.allNames.length} model rows` : `${n} model rows`;
+}
+// A market's page for the reader: the workbench (/markets/<m>, markets.js) is the administrator's, a user's
+// Crypto and Shares pages are the app's (21 Oct 2026; markets.js sends a user there too).
+const marketHref = (market, user) => (seesAllModels(user) ? `/markets/${market}` : `/app/${market}`);
 
 // --- the three sections (decided with the owner on 1 Oct 2026) ---
 // The site is organised by what is predicted: the lottery games, crypto and
@@ -124,9 +145,23 @@ function lotteryNav(active) {
     ${item('/lottery', 'New predictions', 'predictions')}${item('/database', 'History', 'history')}</div>`;
 }
 // The note on a market's game view: what the digits are, where the prices are.
-function marketGameViewNote(game) {
+// The market's page is the reader's (marketHref): the administrator's
+// workbench, or a user's app page, which follows one model's calls as daily and
+// weekly positions and has none of the workbench's cards (21 Oct 2026).
+function marketPageLine(game, user) {
   const base = marketBase(game);
-  const title = markets.MARKETS[base] ? markets.MARKETS[base].title : base;
+  const href = marketHref(base, user);
+  if (seesAllModels(user)) {
+    const title = markets.MARKETS[base] ? markets.MARKETS[base].title : base;
+    return game !== base
+      ? `The <a href="${href}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the coming week's calls in its <i>Week ahead</i> card.`
+      : `The <a href="${href}" style="color:#7d6608; font-weight:bold;">${title} page</a> explains this in three steps with the newest day as the example, and shows the same days as prices and moves.`;
+  }
+  const page = base === 'crypto' ? 'Crypto' : 'Shares';
+  return `The <a href="${href}" style="color:#7d6608; font-weight:bold;">${page} page</a> follows one model's calls as daily and weekly positions, in paper money.`;
+}
+function marketGameViewNote(game, user) {
+  const base = marketBase(game);
   const symbols = marketSymbols(game);
   const noun = base === 'crypto' ? 'coin' : 'share';
   // 13 Oct 2026: what the game is and where its page is stay visible; what
@@ -134,13 +169,13 @@ function marketGameViewNote(game) {
   if (game !== base) {
     return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
     <b>This is the game view of the ${base} market's week game.</b> Each week is one draw with one slot per ${noun}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
-    The <a href="/markets/${base}" style="color:#7d6608; font-weight:bold;">${title} page</a> shows the coming week's calls in its <i>Week ahead</i> card.
+    ${marketPageLine(game, user)}
     ${help(`The digit is the <b>bin</b> of the week's move - the close of the week's last ${base === 'crypto' ? 'day (Sunday, UTC)' : 'session (normally Friday)'} against the close of the week before, placed among the ${noun}'s own past weekly moves sorted
     from worst to best and cut into ten equal piles. A hit is the right bin in the right slot.`, 'what the digit means')}</div>`;
   }
   return `<div style="background:#fef9e7; border:1px solid #f9e79f; border-radius:8px; padding:12px 16px; margin-bottom:20px; color:#7d6608;">
     <b>This is the game view of the ${game} market.</b> Each day is one draw with one slot per ${game === 'crypto' ? 'coin' : 'share'}${symbols.length ? ` (${symbols.join(', ')}, in that order)` : ''}.
-    The <a href="/markets/${game}" style="color:#7d6608; font-weight:bold;">${title} page</a> explains this in three steps with the newest day as the example, and shows the same days as prices and moves.
+    ${marketPageLine(game, user)}
     ${help(`The digit is the <b>bin</b> of that day's move - today's close against yesterday's close, placed among the ${game === 'crypto' ? 'coin' : 'share'}'s own past daily moves sorted
     from worst to best and cut into ten equal piles: 0 is a day among its worst tenth, 9 among its best, 4 and 5 barely moved. A hit is the right bin in the right slot.`, 'what the digit means')}</div>`;
 }
@@ -585,8 +620,8 @@ function generateHeader(title = "Sequence Predictor", user = null) {
       <div class="nav-group">
         <a href="/" style="font-size: 1.3em;">📊 Predictor</a>
         <a href="/lottery">Lottery</a>
-        <a href="/markets/crypto">Crypto</a>
-        <a href="/markets/shares">Shares</a>
+        <a href="${marketHref('crypto', user)}">Crypto</a>
+        <a href="${marketHref('shares', user)}">Shares</a>
         <a href="/council">Council</a>
         ${user && user.role === 'admin' ? '<a href="/admin/users">Users</a><a href="/admin/jobs">Jobs</a>' : ''}
         ${whatsnew.navLink(user)}
@@ -621,6 +656,23 @@ function generateFooter() {
   return `</div></body></html>`;
 }
 
+// The rows a prediction table shows its reader: the first TOP_MODELS_SHOWN
+// names of the ranking that are in THIS table (a ranked row may be missing
+// from a day) - all a user gets; the administrator gets every row with the
+// switch, which needs two ranked rows present to mean anything. A user never
+// gets every row: with no ranked row in the table (no report yet, a game the
+// report does not have, a day older than every ranked row) the first rows of
+// the table stand in, and the table says so (unranked).
+function tableSelection(modelRows, options = {}) {
+  const allNames = [...new Set((modelRows || []).map((m) => m.name || 'not known'))];
+  const ranking = options.ranking && Array.isArray(options.ranking.names) ? options.ranking : null;
+  const limit = options.limit || TOP_MODELS_SHOWN;
+  const showAll = options.showAll !== false;
+  const unranked = !showAll && !rankings.topNames(ranking, limit, allNames).length;
+  const ranked = unranked ? allNames.slice(0, limit) : rankings.topNames(ranking, limit, allNames);
+  const topSet = (showAll ? ranked.length >= 2 : ranked.length > 0) && ranked.length < allNames.length ? new Set(ranked) : null;
+  return { allNames, ranking, ranked, unranked, topSet, showAll, shown: topSet && !showAll ? ranked.length : allNames.length };
+}
 // --- LOGIC: Table Generation ---
 // realResult is the full drawn row (mains + specials, or mains + lotto bonus);
 // cells are highlighted index-aware so a predicted star only lights up against
@@ -634,15 +686,10 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   // carries extras, so lotto pages scored before the feature stay six-column
   const multiCfg = multiPickFor(game);
   const multi = multiCfg && modelRows.some((m) => Array.isArray(m.multiPick) && m.multiPick.length) ? multiCfg : null;
-  // the reader's default view: the first TOP_MODELS_SHOWN names of the
-  // ranking that are in THIS table (a ranked row may be missing from a day);
-  // with fewer than two present the table shows everything
-  const allNames = [...new Set(modelRows.map((m) => m.name || 'not known'))];
-  const ranking = options.ranking && Array.isArray(options.ranking.names) ? options.ranking : null;
-  const ranked = ranking ? ranking.names.filter((n) => allNames.includes(n)).slice(0, options.limit || TOP_MODELS_SHOWN) : [];
-  const topSet = ranked.length >= 2 && ranked.length < allNames.length ? new Set(ranked) : null;
-  const showAll = options.showAll !== false;
+  const { allNames, ranking, ranked, unranked, topSet, showAll } = tableSelection(modelRows, options);
   const hiddenNames = topSet ? allNames.filter((n) => !topSet.has(n)) : [];
+  // the reader is the administrator unless the options say otherwise (a user's tables say admin: false)
+  const admin = options.admin !== false;
   // Joker+ is positional: hits are leading/trailing runs, not membership, and
   // its 7th value is a zodiac sign code that must be shown as a name. The
   // market games (crypto, shares) are positional too: a return bin in the
@@ -655,10 +702,21 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
 
   let html = `<div class="table-wrapper">`;
   if (title) html += `<div style="padding: 10px; font-weight: bold; background: #f8f9fa; border-bottom: 1px solid #ddd;">${title}</div>`;
-  if (hiddenNames.length) {
+  // the administrator gets the switch (all rows by default); a user gets the
+  // top rows only, with the line that says which ranking picked them. Only
+  // the coming draw's table is cut for a user: on a past draw the switch
+  // applies today's ranking, which the administrator is told is hindsight.
+  if (hiddenNames.length && showAll) {
     html += `<label style="display:block; padding:8px 10px; font-size:0.85em; color:#555; background:#f8f9fa; border-bottom:1px solid #ddd; cursor:pointer;">
-      <input type="checkbox" ${showAll ? 'checked' : ''} onchange="toggleAllModels(this)"> Show all ${allNames.length} models
-      <span style="color:#7f8c8d;">- by default the top ${ranked.length} of the <a href="/database">History</a> ranking by ${ranking.metric} over every scored draw</span></label>`;
+      <input type="checkbox" checked onchange="toggleAllModels(this)"> Show all ${allNames.length} models
+      <span style="color:#7f8c8d;">${options.coming
+        ? `- a user sees the top ${ranked.length} of the <a href="/database">History</a> ranking by ${ranking.metric} over every scored draw`
+        : `- unchecked: the top ${ranked.length} of today's <a href="/database">History</a> ranking by ${ranking.metric}, applied to a past draw (hindsight); a user sees every row of a past draw`}</span></label>`;
+  } else if (hiddenNames.length) {
+    // a user's line: the ranking card is the administrator's, so no link to it
+    html += `<div style="padding:8px 10px; font-size:0.85em; color:#555; background:#f8f9fa; border-bottom:1px solid #ddd;">${unranked
+      ? `The first ${ranked.length} rows of this table: no row of it is in the History ranking yet`
+      : `The ${ranked.length} models with the best record by ${ranking.metric} over every scored draw`}</div>`;
   }
   html += '<table border="1">';
 
@@ -679,6 +737,8 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
   html += '</tr>';
 
   modelRows.forEach((model) => {
+    // a user's table has the top rows only: the others are not sent at all
+    if (topSet && !showAll && !topSet.has(model.name || 'not known')) return;
     model.predictions.forEach((row, rowIndex) => {
       const modelType = model.name || "not known";
       const { mains: ticketMains, specials: ticketSpecials } = splitTicket(row, realMains, specialCount);
@@ -688,7 +748,7 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
       const runs = (isJoker && hasReal) ? jokerplusRuns(ticketMains, realMains) : null;
       const signHit = runs ? jokerplusSignHit(ticketSpecials, realSpecials) : 0;
       const hiddenRow = topSet && !topSet.has(modelType);
-      html += `<tr${hiddenRow ? ` class="extra-model"${showAll ? '' : ' style="display:none;"'}` : ''}>
+      html += `<tr${hiddenRow ? ' class="extra-model"' : ''}>
         <td style="font-weight: bold; background: #f9f9f9;">${modelType}</td>
         <td style="font-weight: bold; background: #f9f9f9;">${rowIndex + 1}</td>`;
       row.forEach((cell, cellIndex) => {
@@ -766,8 +826,8 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
       probable ones, for a <b>system play</b>: 7 numbers = ${multi.grids[7]} grids = ${price(7)}, 8 numbers = ${multi.grids[8]} grids = ${price(8)}, 9 numbers = ${multi.grids[9]} grids = ${price(9)}
       (${multi.gridPrice.toFixed(2)} EUR a grid, against one grid for the six). More numbers win more by arithmetic alone: 6 numbers hit 3 of the six drawn - the smallest prize that needs no bonus number;
       ranks that use the bonus number are not counted here - ${(multi.chance[6] * 100).toFixed(1)}% of the time, 7 numbers ${(multi.chance[7] * 100).toFixed(1)}%, 8 numbers ${(multi.chance[8] * 100).toFixed(1)}%,
-      9 numbers ${(multi.chance[9] * 100).toFixed(1)}%, and any extra number hits ${(multi.perExtra * 100).toFixed(1)}% of draws by luck. The <a href="/database">History</a> page tracks whether the model's
-      extra numbers do better than that. A row without shaded numbers (a vote, the RL ticket, HybridStatisticalModel, or a row whose ranking failed that run) has no extras and keeps its six small to large.</p>`, 'multi-pick: why the six are not sorted');
+      9 numbers ${(multi.chance[9] * 100).toFixed(1)}%, and any extra number hits ${(multi.perExtra * 100).toFixed(1)}% of draws by luck.${admin ? ` The <a href="/database">History</a> page tracks whether the model's
+      extra numbers do better than that.` : ''} A row without shaded numbers (a vote, the RL ticket, HybridStatisticalModel, or a row whose ranking failed that run) has no extras and keeps its six small to large.</p>`, 'multi-pick: why the six are not sorted');
   }
   return html;
 }
@@ -860,7 +920,9 @@ function generateList(data, title = '') {
 
 // --- LOGIC: Model performance summary (generated by Predictor.py after each
 // prediction run - see Helpers.generate_model_performance_report) ---
-function generatePerformanceSummary() {
+// showControls (21 Oct 2026): the Q0 null band - its column, the greyed rows
+// and the ∅ marks - is the administrator's; a user's card has none of it.
+function generatePerformanceSummary(showControls = true) {
   const reportPath = path.join(dataPath, 'modelPerformance.json');
   if (!fs.existsSync(reportPath)) return '';
 
@@ -891,7 +953,7 @@ function generatePerformanceSummary() {
     // greyed like a row with too few draws. The payout games rank by profit,
     // which the control does not measure, so there the band is shown against
     // the rows' average hits but greys nothing.
-    const band = controls.nullBand(controls.loadNullControls(controlsPath, game));
+    const band = showControls ? controls.nullBand(controls.loadNullControls(controlsPath, game)) : null;
     if (band) anyBand = true;
     const bandGreys = Boolean(band) && info.metric === 'avg_hits';
     const bandTitle = !band ? '' : Object.keys(band.modes).map((mode) => {
@@ -942,13 +1004,13 @@ function generatePerformanceSummary() {
         <td>${metricLabel[info.metric] || info.metric}</td>
         <td style="font-weight: bold; color: ${valueColor};">${display}${bestNote}</td>
         <td>${best.draws}</td>
-        <td>${bandCell}</td>
+        ${showControls ? `<td>${bandCell}</td>` : ''}
         <td style="text-align: left;">${sinceCell}</td>
       </tr>
       <tr id="rank-${game}" style="display: none;">
-        <td colspan="7" style="padding: 0;">
+        <td colspan="${showControls ? 7 : 6}" style="padding: 0;">
           <table style="width: 100%; min-width: 0; margin: 0;">
-            <tr><th>#</th><th style="text-align: left;">Model</th><th${info.metric === 'profit_bound' ? ' title="what the ranking reads: per draw the profit per bet with every bet capped at 20 EUR (a keno bet against a fair ticket of its size), its mean minus one standard error over the draws - the bound keno is tuned by; pick3 and Joker+ are tuned by slot hits, with this bound only as a tie-breaker"' : ''}>${metricLabel[info.metric] || info.metric}</th>${info.metric === 'profit_bound' ? '<th title="raw profit per bet over every scored draw, and the bets">Profit / bet</th>' : ''}<th>Avg hits</th><th>Best day</th><th>Scored draws</th>${game === 'keno' ? '<th title="profit per bet and bets for each playable ticket size the row played, so the sizes can be read apart">Per ticket size</th>' : ''}${since ? `<th title="${auth.escapeHtml(since.label)} - the null band is measured over long control histories and is not applied to this column">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
+            <tr><th>#</th><th style="text-align: left;">Model</th><th${info.metric === 'profit_bound' ? ' title="what the ranking reads: per draw the profit per bet with every bet capped at 20 EUR (a keno bet against a fair ticket of its size), its mean minus one standard error over the draws - the bound keno is tuned by; pick3 and Joker+ are tuned by slot hits, with this bound only as a tie-breaker"' : ''}>${metricLabel[info.metric] || info.metric}</th>${info.metric === 'profit_bound' ? '<th title="raw profit per bet over every scored draw, and the bets">Profit / bet</th>' : ''}<th>Avg hits</th><th>Best day</th><th>Scored draws</th>${game === 'keno' ? '<th title="profit per bet and bets for each playable ticket size the row played, so the sizes can be read apart">Per ticket size</th>' : ''}${since ? `<th title="${auth.escapeHtml(since.label)}${showControls ? ' - the null band is measured over long control histories and is not applied to this column' : ''}">Since ${since.date}</th><th>Draws since</th>` : ''}</tr>
             ${ranking}
           </table>
         </td>
@@ -970,12 +1032,12 @@ function generatePerformanceSummary() {
         ${help(`<p>
           Keno/Pick3/Joker+ rank by the <b>profit bound</b> (real payout tables): per draw the profit per bet with every bet capped at 20 EUR - a keno bet measured against a fair ticket of its size, so 0 is a fair ticket - and its mean minus one standard error over the draws - the bound the weekly tuners score Keno by (Pick3 and Joker+ are tuned by slot hits, with this bound only as a tie-breaker). One winning ticket cannot crown a row on it, as it could on the raw profit per bet (ranked by until 13 Oct 2026), which stays in its own column. Other games rank by average hits of the main ticket.
           Click a game row for the full model ranking. Greyed models have fewer scored draws than the ranking minimum.
-          ${anySince ? `<b>Best since the freeze</b> (${auth.escapeHtml(declared.label)}, from ${declared.date}): the same ranking counted only over the stored days on or after the declared date - the frozen design\'s own track record, every day of it predicted before its draw. For the market games a day counts only if its ticket was out before the day\'s close, which leaves out the back-built history they started with (1 and 5 Oct) and any day a missed run rebuilt the morning after - the same live/back-built split as their <i>Following the plan</i> card, which for shares asks for the ticket before the open rather than the close. Nothing is rebuilt; the date is a filter. A game reads "no scored draw since ... yet" until its first draw on or after the date is scored; rows with fewer than the ranking minimum of draws since the date are shown grey in that column until they have them. The null band is not applied to this column: it is measured over long control histories, and the best of thirty rows over a handful of draws clears it by luck almost always.` : 'The <b>Best since the freeze</b> column fills in once a date is declared in <code>since.json</code>: the same ranking counted only over the days from that date on.'}
-          ${anyBand ? '<b>Null band</b> (weekly <code>NullControls.py</code>): the best of the tracked rows, run on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - scores this much by selection alone (mean over the control histories plus two standard deviations). Rows marked ∅ sit within it: they have shown nothing a leaderboard over noise would not show. For the payout games the band is on average hits, not on the profit they rank by, so it is information only.' : 'The <b>null band</b> column fills in once the weekly <code>NullControls.py</code> job has run: what the best row scores on a history with nothing in it.'}
+          ${anySince ? `<b>Best since the freeze</b> (${auth.escapeHtml(declared.label)}, from ${declared.date}): the same ranking counted only over the stored days on or after the declared date - the frozen design\'s own track record, every day of it predicted before its draw. For the market games a day counts only if its ticket was out before the day\'s close, which leaves out the back-built history they started with (1 and 5 Oct) and any day a missed run rebuilt the morning after - the same live/back-built split as their <i>Following the plan</i> card, which for shares asks for the ticket before the open rather than the close. Nothing is rebuilt; the date is a filter. A game reads "no scored draw since ... yet" until its first draw on or after the date is scored; rows with fewer than the ranking minimum of draws since the date are shown grey in that column until they have them.${showControls ? ' The null band is not applied to this column: it is measured over long control histories, and the best of thirty rows over a handful of draws clears it by luck almost always.' : ''}` : 'The <b>Best since the freeze</b> column fills in once a date is declared in <code>since.json</code>: the same ranking counted only over the days from that date on.'}
+          ${!showControls ? '' : (anyBand ? '<b>Null band</b> (weekly <code>NullControls.py</code>): the best of the tracked rows, run on histories with provably nothing in them - fair synthetic draws and the real draws shuffled - scores this much by selection alone (mean over the control histories plus two standard deviations). Rows marked ∅ sit within it: they have shown nothing a leaderboard over noise would not show. For the payout games the band is on average hits, not on the profit they rank by, so it is information only.' : 'The <b>null band</b> column fills in once the weekly <code>NullControls.py</code> job has run: what the best row scores on a history with nothing in it.')}
         </p>`, 'how rows are ranked')}
         <div class="table-wrapper">
           <table style="min-width: 0;">
-            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th><th title="Q0: what the best of the rows scores on a history with nothing in it">Null band</th><th style="text-align: left;" title="The forward record: the same ranking over the days since the declared date (since.json)">Best since the freeze</th></tr>
+            <tr><th style="text-align: left;">Game</th><th style="text-align: left;">Best model</th><th>Metric</th><th>Value</th><th>Scored draws</th>${showControls ? '<th title="Q0: what the best of the rows scores on a history with nothing in it">Null band</th>' : ''}<th style="text-align: left;" title="The forward record: the same ranking over the days since the declared date (since.json)">Best since the freeze</th></tr>
             ${rows}
           </table>
         </div>
@@ -1470,10 +1532,20 @@ function generateRandomnessWatch() {
 app.get('/database', (req, res) => {
   const folders = lotteryFolders();
   const marketFolders = databaseFolders().filter(isMarketFolder);
+  // The weekly controls and the detailed cards are the administrator's (21
+  // Oct 2026): a user's page is the games' history only - no Best model card
+  // with its rankings, no multi-pick, combination or phase-shift card, no
+  // Randomness watch, no feature control. The admin section (/app, admin.js)
+  // has them all.
+  const showControls = seesControls(req.user);
+  const showDetail = seesAllModels(req.user);
   let html = generateHeader("Lottery games - History", req.user);
   html += '<h1>History</h1>' + lotteryNav('history');
-  html += help(`Every past draw of every lottery game with what each model predicted and what it hit; below, the cards that rank the
-    rows and watch the draws (they include the two markets, which are tracked as games too).`, 'about this page');
+  html += help(showDetail
+    ? `Every past draw of every lottery game with what each model predicted and what it hit; below, the cards that rank the
+    rows${showControls ? ' and watch the draws' : ''} (they include the two markets, which are tracked as games too).`
+    : `Every past draw of every lottery game with what every model predicted and what it hit. The top ${TOP_MODELS_SHOWN} rows are for the coming draw
+    only (<a href="/lottery">New predictions</a>).`, 'about this page');
   html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
   folders.forEach((folder) => {
     html += `<form action="/database/${folder}" method="get">
@@ -1483,14 +1555,16 @@ app.get('/database', (req, res) => {
   html += '</div>';
   if (marketFolders.length) {
     html += `<p style="color: #7f8c8d; font-size: 0.9em;">The markets' game view, the same digits scored the same way: ${marketFolders.map((f) => `<a href="/database/${f}">${f}</a>`).join(' · ')}
-      - their own pages are <a href="/markets/crypto">Crypto</a> and <a href="/markets/shares">Shares</a>.</p>`;
+      - their own pages are <a href="${marketHref('crypto', req.user)}">Crypto</a> and <a href="${marketHref('shares', req.user)}">Shares</a>.</p>`;
   }
-  html += generatePerformanceSummary();
-  html += generateMultiPickSummary();
-  html += generateCombinationSummary();
-  html += generateLagAnalysis();
-  html += generateRandomnessWatch();
-  html += generateFeatureControl();
+  if (showDetail) {
+    html += generatePerformanceSummary(showControls);
+    html += generateMultiPickSummary();
+    html += generateCombinationSummary();
+    html += generateLagAnalysis();
+  }
+  if (showControls) html += generateRandomnessWatch();
+  if (showControls) html += generateFeatureControl();
   html += generateFooter();
   res.send(html);
 });
@@ -1520,10 +1594,15 @@ app.get('/database/:folder', (req, res) => {
   }, {});
 
   const sortedMonths = Object.keys(filesByMonth).sort((a, b) => new Date(b) - new Date(a));
+  // The scored days count every row, for a user as for the administrator. A
+  // user's history is to count the top five as ranked before each draw (owner,
+  // 21 Oct 2026); today's ranking applied to past draws would show a record
+  // nobody could have played, so until the ranking of each day is exported the
+  // past days stay as they were.
 
   let html = generateHeader(`${auth.escapeHtml(folder)} Predictions`, req.user);
   html += `<h1>${auth.escapeHtml(folder)}</h1>`;
-  html += isMarketFolder(folder) ? marketGameViewNote(game) : lotteryNav('history');
+  html += isMarketFolder(folder) ? marketGameViewNote(game, req.user) : lotteryNav('history');
   html += '<div>';
 
   sortedMonths.forEach((month, index) => {
@@ -1614,7 +1693,7 @@ app.get('/database/:folder', (req, res) => {
     const bestStat = isJoker
       ? `Best Match: ${monthBest.left}/${monthBest.right} (${monthBest.specials})`
       : `Best Match: ${monthBest.mains}${(specialCount > 0 || game === 'lotto') ? ` (${monthBest.specials})` : ''}`;
-    const headerStat = calcProfit ? (isJoker ? `Total: ${formatProfit(monthProfit, game)} € · ${bestStat}` : `Total: ${monthProfit} €`) : bestStat;
+    const headerStat = (calcProfit ? (isJoker ? `Total: ${formatProfit(monthProfit, game)} € · ${bestStat}` : `Total: ${monthProfit} €`) : bestStat);
     // Only expand if it is the first month (index === 0)
     const isExpanded = index === 0 ? 'expanded' : '';
 
@@ -1646,6 +1725,12 @@ app.get('/database/:folder/:file', (req, res) => {
   const game = gameFromFolder(folder);
   const calculateProfitFlag = game === "keno" || game === "pick3" || game === "jokerplus";
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
+  // A user's top five applies to the coming draw only - the newest day's next
+  // prediction, ranked by today's History ranking. A past draw's rows are shown
+  // in full: today's ranking applied to them would be hindsight.
+  const isNewestDay = (dayFiles(folder) || [])[0] === file;
+  const pastOptions = readerTableOptions(game, req.user, false);
+  const nextOptions = readerTableOptions(game, req.user, isNewestDay);
   // Mains of the drawn row, used for the frequency-chart bar coloring: the
   // charted frequencies are main-number frequencies, so a bar must not turn
   // green just because its number came out as a star/dream/viking/bonus. The
@@ -1656,7 +1741,8 @@ app.get('/database/:folder/:file', (req, res) => {
   // Joker+ charts are restricted to the digit range (see chartFrequency);
   // other games get the same object back.
   const currentFrequency = chartFrequency(jsonData.currentNumberFrequency, game);
-  const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
+  // the next draw's chart is a vote of every row: not under a user's table cut to the top rows
+  const nextFrequency = cutForReader(jsonData.newPrediction, nextOptions) ? null : chartFrequency(jsonData.numberFrequency, game);
   // The draw this day's "Next Draw Prediction" was made for: the next one
   // after this file, on the game's own schedule (see drawDateMeta).
   const nextDrawMeta = drawDateMeta(
@@ -1669,7 +1755,7 @@ app.get('/database/:folder/:file', (req, res) => {
         <h1 style="margin: 0;">${auth.escapeHtml(file)}</h1>
         <a href="/database/${encodeURIComponent(folder)}" class="nav-btn" style="text-decoration: none;">Back to ${isMarketFolder(folder) ? `${auth.escapeHtml(folder)} game view` : 'History'}</a>
     </div>
-    ${isMarketFolder(folder) ? marketGameViewNote(game) : ''}
+    ${isMarketFolder(folder) ? marketGameViewNote(game, req.user) : ''}
 
     <div class="card expanded">
         <div class="card-header" onclick="toggleCard(this)">
@@ -1690,11 +1776,13 @@ app.get('/database/:folder/:file', (req, res) => {
               : (game === 'lotto'
                 ? `<p>Hits are shown as <b>N (M)</b>: N among the 6 drawn mains, M = 1 (amber cell) when a played number matches the bonus ball - "5 (1)" is a high tier, "6 (0)" the jackpot; a full main match makes a bonus match impossible.</p>`
                 : (isMarketFolder(folder)
-                  ? `<p>Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. ${game === marketBase(game)
-                    ? `The <a href="/markets/${game}">${game} page</a> shows the newest 30 settled days as returns, every model's money and the next day's calls as prices.`
-                    : `This is the ${marketBase(game)} market's week game - one draw per week; the <a href="/markets/${marketBase(game)}">${marketBase(game)} page</a> shows the coming week's calls in its Week ahead card.`}</p>`
+                  ? `<p>Hits are the predicted bin equal to the actual bin <b>in the same slot</b> (green cells) - chance is 1 in 10 per slot. ${!seesAllModels(req.user)
+                    ? `${game === marketBase(game) ? 'The' : `This is the ${marketBase(game)} market's week game - one draw per week; the`} <a href="${marketHref(marketBase(game), req.user)}">${marketBase(game) === 'crypto' ? 'Crypto' : 'Shares'} page</a> follows one model's calls as daily and weekly positions, in paper money.`
+                    : (game === marketBase(game)
+                    ? `The <a href="${marketHref(game, req.user)}">${game} page</a> shows the newest 30 settled days as returns, every model's money and the next day's calls as prices.`
+                    : `This is the ${marketBase(game)} market's week game - one draw per week; the <a href="${marketHref(marketBase(game), req.user)}">${marketBase(game)} page</a> shows the coming week's calls in its Week ahead card.`)}</p>`
                   : ''))), 'how hits are counted')}
-            ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game)}
+            ${generateTable(jsonData.currentPrediction, '', jsonData.realResult, calculateProfitFlag, game, pastOptions)}
 
             ${currentFrequency && Object.keys(currentFrequency).length > 0 ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -1723,7 +1811,7 @@ app.get('/database/:folder/:file', (req, res) => {
              <div><span class="card-title">Next Draw Prediction</span>${nextDrawMeta}</div><div class="card-icon">▼</div>
         </div>
         <div class="card-body">
-            ${generateTable(jsonData.newPrediction, '', [], false, game, nextTableOptions(game, req.user))}
+            ${generateTable(jsonData.newPrediction, '', [], false, game, nextOptions)}
 
             ${nextFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -1758,7 +1846,9 @@ function sectionCard(title, text, lines, links, more = '') {
   </div>`;
 }
 
-function lotterySectionLines() {
+// user: the reader - a user gets the top rows of each game's coming draw, so the
+// line counts them as /lottery's card does
+function lotterySectionLines(user) {
   const lines = [];
   lotteryFolders().forEach((folder) => {
     const files = dayFiles(folder);
@@ -1766,9 +1856,9 @@ function lotterySectionLines() {
     const next = nextDrawDate(files.map(parseDayFileDate), null);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const when = !next ? '' : (next.getTime() === today.getTime() ? 'today' : (next < today ? `${formatDrawDate(next)} (no newer run yet)` : formatDrawDate(next)));
-    let rows = 0;
-    try { rows = (JSON.parse(fs.readFileSync(path.join(dataPath, folder, files[0]), 'utf-8')).newPrediction || []).length; } catch (e) { rows = 0; }
-    lines.push(`<b>${folder}</b>${when ? ` - next draw ${when}` : ''}${rows ? `, ${rows} model rows` : ''}`);
+    let rows = '';
+    try { rows = modelRowsMeta(JSON.parse(fs.readFileSync(path.join(dataPath, folder, files[0]), 'utf-8')).newPrediction, gameFromFolder(folder), user); } catch (e) { rows = ''; }
+    lines.push(`<b>${folder}</b>${when ? ` - next draw ${when}` : ''}${rows ? `, ${rows}` : ''}`);
   });
   return lines;
 }
@@ -1804,15 +1894,15 @@ app.get('/', (req, res) => {
   html += pipelineBanner();
   html += '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap:20px; align-items:stretch;">';
   html += sectionCard('Lottery games',
-    'Lotto, EuroMillions, EuroDreams, VikingLotto, Keno, Pick3 and Joker+: every model\'s ticket for the next draw, and the record of every past draw.',
-    lotterySectionLines(), [{ href: '/lottery', label: 'New predictions' }, { href: '/database', label: 'History' }]);
+    `Lotto, EuroMillions, EuroDreams, VikingLotto, Keno, Pick3 and Joker+: ${seesAllModels(req.user) ? 'every model\'s ticket' : `the top ${TOP_MODELS_SHOWN} models' tickets`} for the next draw, and the record of every past draw.`,
+    lotterySectionLines(req.user), [{ href: '/lottery', label: 'New predictions' }, { href: '/database', label: 'History' }]);
   html += sectionCard('Crypto',
     'Five coins against USDT, every day.',
-    marketSectionLines('crypto'), [{ href: '/markets/crypto', label: 'Crypto page' }],
+    marketSectionLines('crypto'), [{ href: marketHref('crypto', req.user), label: 'Crypto page' }],
     'Each coin\'s next-day return is cut into ten equally likely bins and every model predicts one bin per coin - drawn as a price on the chart, with the price band it stands for in the table beneath.');
   html += sectionCard('Shares',
     'Four shares on Nasdaq, every trading day, the same way: a bin per share per day, settled the morning after the close.',
-    marketSectionLines('shares'), [{ href: '/markets/shares', label: 'Shares page' }]);
+    marketSectionLines('shares'), [{ href: marketHref('shares', req.user), label: 'Shares page' }]);
   html += '</div>';
   // "Not advice." stays visible - the one line a reader must see before
   // acting on anything here; the reason opens behind the "?".
@@ -1828,7 +1918,7 @@ app.get('/lottery', (req, res) => {
   const folders = lotteryFolders();
   let html = generateHeader("Lottery games - New predictions", req.user);
   html += `<h1 style="margin-bottom: 20px;">New Predictions</h1>` + lotteryNav('predictions');
-  html += help(`One card per game. Open a card for every model's ticket for the next draw -
+  html += help(`One card per game. Open a card for ${seesAllModels(req.user) ? 'every model\'s ticket' : `the top ${TOP_MODELS_SHOWN} models' tickets`} for the next draw -
        each row is one method, kept separate on purpose so its real-life record can be followed on the
        <a href="/database">History</a> page.`, 'how to read this page');
   // Visible to every visitor: a run in progress explains why today's draw is
@@ -1845,7 +1935,9 @@ app.get('/lottery', (req, res) => {
       // Without a real result the game only steers display (Joker+ sign
       // name, digit-only chart); every other game renders exactly as before.
       const game = gameFromFolder(folder);
-      const nextFrequency = chartFrequency(jsonData.numberFrequency, game);
+      const options = readerTableOptions(game, req.user, true);
+      // the chart is a vote of every row: not under a user's table cut to the top rows
+      const nextFrequency = cutForReader(jsonData.newPrediction, options) ? null : chartFrequency(jsonData.numberFrequency, game);
       // Which draw these numbers are for: the next one after the newest
       // scored day file (see drawDateMeta).
       const drawMeta = drawDateMeta(files.map(parseDayFileDate), null, true);
@@ -1857,13 +1949,13 @@ app.get('/lottery', (req, res) => {
             <div>
                 <span class="card-title">${folder}</span>
                 ${drawMeta}
-                <span class="card-meta" style="margin-left: 10px;">${(jsonData.newPrediction || []).length} model rows</span>
+                <span class="card-meta" style="margin-left: 10px;">${modelRowsMeta(jsonData.newPrediction, game, req.user) || '0 model rows'}</span>
             </div>
             <div class="card-icon">▼</div>
           </div>
           
           <div class="card-body">
-            ${generateTable(jsonData.newPrediction, '', [], false, game, nextTableOptions(game, req.user))}
+            ${generateTable(jsonData.newPrediction, '', [], false, game, options)}
 
             ${nextFrequency ? `
                 <div style="margin-top: 20px; height: 200px; width: 100%;">
@@ -1900,6 +1992,9 @@ app.get('/lottery', (req, res) => {
 auth.install(app, { header: generateHeader, footer: generateFooter });
 markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath, controlsDir: controlsPath });
 api.install(app, { dataDir: marketsPath });
+// The admin section's JSON (/api/admin/*, administrator only): the same
+// records the History cards read, from the same folders.
+admin.install(app, { databaseDir: dataPath, controlsDir: controlsPath, marketsDir: marketsPath, root: __dirname });
 api.installApp(app, { header: generateHeader, footer: generateFooter });
 // The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
 // 8) above the supervised services (services.js, today the Council API).

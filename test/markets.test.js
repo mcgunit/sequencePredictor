@@ -334,6 +334,11 @@ let sent = '';
 routes['/markets/crypto']({ user: null }, { send: (h) => { sent = h; } });
 ok(sent.includes('Crypto predictor') && sent.includes('chart-crypto-BTC') && sent.includes('Rows under a proper score') && sent.includes('Regime reading'),
   'the route renders the record, the report and the readings on disk');
+let moved = null; sent = '';
+routes['/markets/shares']({ user: { name: 'u', role: 'user', open: false } }, { send: (h) => { sent = h; }, redirect: (code, to) => { moved = [code, to]; } });
+ok(moved && moved[0] === 302 && moved[1] === '/app/shares' && sent === '', 'a user who is not the administrator is sent to the app page, never the workbench or its controls');
+routes['/markets/crypto']({ user: { name: 'admin', role: 'admin', open: false } }, { send: (h) => { sent = h; } });
+ok(sent.includes('Rows under a proper score'), 'the administrator gets the workbench');
 
 fs.rmSync(dir, { recursive: true, force: true });
 fs.rmSync(controls, { recursive: true, force: true });
