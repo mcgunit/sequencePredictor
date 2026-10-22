@@ -2,7 +2,8 @@
 // 15 Oct 2026, the UI redesign). Three routes, all behind the same session as
 // the pages (auth.middleware runs first):
 //
-//   GET /api/me               who is signed in
+//   GET /api/me               who is signed in, and the session's form token
+//                             (csrf) the app's JSON POSTs send back (system.js)
 //   GET /api/markets/:market  the user view of a market (crypto, shares): the
 //                             followed plan as positions, open and closed, with
 //                             the day-by-day and per-instrument results
@@ -612,9 +613,12 @@ async function quotesFor(market, symbols) {
 // --- routes --------------------------------------------------------------------
 function install(app, { dataDir }) {
   const json = (res, body, status = 200) => { res.set('Cache-Control', 'no-store'); res.status(status).json(body); };
-  // open: open access (no login configured) - there is nobody to sign out, and the app says so
+  // open: open access (no login configured) - there is nobody to sign out, and the app says so. csrf: the session's
+  // form token, which every JSON POST of the app sends back as _csrf (system.js; the old forms carry the same token).
+  // A cross-origin page cannot read this answer, so it cannot learn the token.
   app.get('/api/me', (req, res) => {
-    json(res, { user: req.user ? { name: req.user.name, admin: req.user.role === 'admin', open: req.user.open === true } : null });
+    json(res, { user: req.user ? { name: req.user.name, admin: req.user.role === 'admin', open: req.user.open === true } : null,
+      csrf: req.user && req.user.csrf ? String(req.user.csrf) : null });
   });
   app.get('/api/markets/:market', (req, res) => {
     const market = req.params.market;

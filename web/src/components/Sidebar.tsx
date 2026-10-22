@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { retryMe, useMe } from '../hooks/useMe';
 import { useWeekStatus } from '../hooks/useWeekStatus';
+import { useWhatsNew } from '../hooks/useWhatsNew';
 
 const NARROW = '(max-width: 860px)';
 
 // The menu as data. An item is a route of this app (to) or a server page (href, a full reload); a server
-// page that the app will replace carries the ↗ "old page" mark. The users see the four top items; the
-// administrator also This week (with its status dot) and the three groups.
+// page that the app will replace carries the ↗ "old page" mark. The users see the four top items, and in the
+// footer their account, What's new and Sign out; the administrator also This week (with its status dot) and the
+// three groups, What's new among the System items.
 interface Item {
   label: string;
   to?: string; // a route, possibly with an anchor (#q0)
@@ -15,6 +17,7 @@ interface Item {
   old?: boolean;
   nested?: boolean; // an anchor inside the page above it
   links?: { label: string; href: string }[]; // one line, several old pages (the market workbench)
+  news?: boolean; // carries What's new's unseen count
 }
 interface Group {
   label: string;
@@ -58,9 +61,9 @@ const ADMIN_GROUPS: Group[] = [
   {
     label: 'System',
     items: [
-      { label: 'Jobs & services', href: '/admin/jobs', old: true },
-      { label: 'Users', href: '/admin/users', old: true },
-      { label: "What's new", href: '/whats-new', old: true },
+      { label: 'Jobs & services', to: '/admin/jobs' },
+      { label: 'People', to: '/admin/people' },
+      { label: "What's new", to: '/whats-new', news: true },
     ],
   },
 ];
@@ -74,7 +77,11 @@ const HERE: [string, string][] = [
   ['/admin/models', 'Models'],
   ['/admin/phase-shift', 'Phase-shift'],
   ['/admin/randomness', 'Randomness'],
+  ['/admin/jobs', 'Jobs & services'],
+  ['/admin/people', 'People'],
   ['/admin', 'This week'],
+  ['/account', 'Account'],
+  ['/whats-new', "What's new"],
 ];
 
 // This week's dot: red when a run failed or an output is missing, amber when a run has a new warning signature
@@ -96,6 +103,17 @@ function WeekLink({ on, onNavigate }: { on: boolean; onNavigate: () => void }) {
   );
 }
 
+// What's new's unseen notes and an unread introduction, as a count; nothing at 0 or while not known.
+function NewCount({ n }: { n: number | null | undefined }) {
+  if (!n) return null;
+  return (
+    <span className="badge">
+      {n}
+      <span className="vh"> new in What&apos;s new</span>
+    </span>
+  );
+}
+
 function Old() {
   return (
     <span className="old">
@@ -105,7 +123,7 @@ function Old() {
   );
 }
 
-function ItemLink({ item, sub, pathname, hash, onNavigate }: { item: Item; sub: boolean; pathname: string; hash: string; onNavigate: () => void }) {
+function ItemLink({ item, sub, pathname, hash, news, onNavigate }: { item: Item; sub: boolean; pathname: string; hash: string; news?: number | null; onNavigate: () => void }) {
   const cls = [sub ? 'sub' : '', item.nested ? 'sub2' : ''].filter(Boolean).join(' ');
   if (item.links) {
     return (
@@ -133,8 +151,9 @@ function ItemLink({ item, sub, pathname, hash, onNavigate }: { item: Item; sub: 
   const anchored = hash !== '' && ADMIN_GROUPS.some((g) => g.items.some((i) => i.to === `${path}${hash}`));
   const on = pathname === path && (anchor ? hash === `#${anchor}` : !anchored);
   return (
-    <Link className={[cls, on ? 'on' : ''].filter(Boolean).join(' ') || undefined} to={item.to ?? '/'} aria-current={on ? 'page' : undefined} onClick={onNavigate}>
+    <Link className={[cls, on ? 'on' : '', item.news ? 'wn' : ''].filter(Boolean).join(' ') || undefined} to={item.to ?? '/'} aria-current={on ? 'page' : undefined} onClick={onNavigate}>
       {item.label}
+      {item.news ? <NewCount n={news} /> : null}
     </Link>
   );
 }
@@ -145,6 +164,9 @@ export default function Sidebar() {
   const [open, setOpen] = useState(!narrow);
   const me = useMe();
   const user = me?.user ?? null;
+  // the unseen notes, and the introduction while it is unread (the old navbar's dot lit for either)
+  const wn = useWhatsNew(user && !user.open ? 'once' : 'never').view;
+  const news = wn && wn.unseen !== null ? wn.unseen + (wn.tour.done === false ? 1 : 0) : null;
 
   // Open as a sidebar on wide screens, closed under the compact bar on phones.
   useEffect(() => {
@@ -174,6 +196,8 @@ export default function Sidebar() {
         <summary className="bar">
           <span className="brand">Predictor</span>
           <span className="here">{here}</span>
+          {/* on a phone the menu starts closed: the count shows on the bar, as the old navbar's dot did */}
+          <NewCount n={news} />
           <span className="burger" aria-hidden="true">
             ☰
           </span>
@@ -198,9 +222,13 @@ export default function Sidebar() {
                 return (
                   // every group open on a wide screen; on a phone only the one holding the page
                   <details key={`${g.label}-${narrow ? 'n' : 'w'}`} className="grpd" open={!narrow || holds}>
-                    <summary>{g.label}</summary>
+                    <summary>
+                      <span>{g.label}</span>
+                      {/* the count of a folded group's What's new (hidden while the group is open: the item has it) */}
+                      {g.items.some((i) => i.news) ? <NewCount n={news} /> : null}
+                    </summary>
                     {g.items.map((it) => (
-                      <ItemLink key={it.label} item={it} sub pathname={pathname} hash={hash} onNavigate={closeDrawer} />
+                      <ItemLink key={it.label} item={it} sub pathname={pathname} hash={hash} news={news} onNavigate={closeDrawer} />
                     ))}
                   </details>
                 );
@@ -224,13 +252,21 @@ export default function Sidebar() {
                 <span>Open access: no sign-in on this server</span>
               ) : (
                 <>
-                  <span>Signed in as {user.name}</span>
+                  <Link className={pathname === '/account' ? 'acct on' : 'acct'} to="/account" aria-current={pathname === '/account' ? 'page' : undefined} onClick={closeDrawer}>
+                    Signed in as <b>{user.name}</b>
+                    <span className="vh">: your account</span>
+                  </Link>
                   <span>
-                    <a href="/account">
-                      Account
-                      <Old />
-                    </a>
-                    {' · '}
+                    {/* a user has no System group: What's new is here */}
+                    {!user.admin ? (
+                      <>
+                        <Link className={pathname === '/whats-new' ? 'wn on' : 'wn'} to="/whats-new" aria-current={pathname === '/whats-new' ? 'page' : undefined} onClick={closeDrawer}>
+                          What&apos;s new
+                          <NewCount n={news} />
+                        </Link>
+                        {' · '}
+                      </>
+                    ) : null}
                     {/* /logout clears the session and answers with the login page (auth.js), as the old navbar's form */}
                     <form method="post" action="/logout">
                       <button type="submit" className="linkbtn">

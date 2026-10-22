@@ -147,3 +147,25 @@ export function useSwitchParam<T extends string>(key: string, values: readonly T
   );
   return [value, set];
 }
+
+// A filter kept in the URL only (?runs=predictor), never remembered: switching replaces the history entry, null clears
+// it. hash: the card to show it in (#runs), scrolled to by the page; drop: keys to clear with it (the drawer it was set
+// from, ?job=).
+export function useFilterParam(key: string): [string | null, (v: string | null, hash?: string, drop?: string[]) => void] {
+  const [params] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const value = params.get(key) || null;
+  const set = useCallback(
+    (v: string | null, hash?: string, drop: string[] = []) => {
+      const next = new URLSearchParams(params);
+      drop.forEach((k) => next.delete(k));
+      if (v) next.set(key, v);
+      else next.delete(key);
+      const search = next.toString();
+      navigate({ search: search ? `?${search}` : '', hash: hash ?? location.hash }, { replace: true });
+    },
+    [params, navigate, location.hash, key],
+  );
+  return [value, set];
+}

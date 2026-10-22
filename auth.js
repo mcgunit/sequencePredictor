@@ -196,8 +196,11 @@ function resolveSession(session) {
 }
 
 // --- login rate limit ---------------------------------------------------------
-const failures = new Map(); // "address|user" -> { count, first }
+const failures = new Map(); // "address|user" (a sign-in) or "password|user" (a password change) -> { count, first }
 function failureKey(req, name) { return `${req.ip}|${String(name).toLowerCase()}`; }
+// A password change is guessed at from a session that is already open: its attempts count per name alone, so a
+// stolen cookie gains nothing by changing address.
+const OWN_PASSWORD = { ip: 'password' };
 function pruneFailures(now) {
   if (failures.size < FAILURE_MAP_LIMIT) return;
   for (const [key, entry] of failures) if (now - entry.first > LOGIN_WINDOW_MS) failures.delete(key);
@@ -277,6 +280,117 @@ function requireAdmin(render) {
 function csrfOk(req) {
   const body = req.body || {};
   return Boolean(req.user && req.user.csrf && typeof body._csrf === 'string' && safeEqual(body._csrf, req.user.csrf));
+}
+
+// --- account changes: one rule for the old forms and the app's JSON -----------
+// Each answers {ok, status, message}: status as the JSON routes (system.js) give
+// it - 400 a value that breaks a rule, 403 user management while authentication
+// is off, 404 no such user, 409 refused by what it found (the name is taken, it
+// is the administrator) - and the forms below redirect with the same message.
+// The audit entries are written here, so both ways leave the same trail.
+const refuse = (status, message) => ({ ok: false, status, message });
+const isAdminName = (name) => String(name).toLowerCase() === String(config.ADMIN_USER).toLowerCase();
+
+// In open mode accounts are read-only: without an administrator identity nobody
+// may create accounts that would become valid the moment authentication is
+// switched on.
+function managementRefusal() {
+  return enabled() ? null : refuse(403, 'User management needs WEB_USER and WEB_PASSWORD to be set.');
+}
+
+function addUser(req, rawName, rawPassword) {
+  const off = managementRefusal();
+  if (off) return off;
+  const username = String(rawName || '').trim();
+  const password = String(rawPassword || '');
+  if (!USERNAME_RE.test(username)) return refuse(400, 'User name must be 3-32 letters, digits, dots, underscores or dashes.');
+  if (password.length < MIN_PASSWORD_LENGTH) return refuse(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  if (isAdminName(username)) return refuse(409, 'That name is the administrator account.');
+  const users = loadUsers();
+  if (users.some((u) => u.name.toLowerCase() === username.toLowerCase())) return refuse(409, `User ${username} already exists.`);
+  users.push({ name: username, role: 'user', createdAt: new Date().toISOString(), ...hashPassword(password) });
+  saveUsers(users);
+  audit.record('user.added', req, username, `by ${req.user.name}`);
+  return { ok: true, status: 200, message: `User ${username} added.` };
+}
+
+// The administrator's own credential is the environment's (WEB_USER /
+// WEB_PASSWORD): it has no record here, so it can be neither given a password
+// nor deleted - the one administrator always remains.
+function setUserPassword(req, rawName, rawPassword) {
+  const off = managementRefusal();
+  if (off) return off;
+  const username = String(rawName || '');
+  const password = String(rawPassword || '');
+  if (password.length < MIN_PASSWORD_LENGTH) return refuse(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  if (isAdminName(username)) return refuse(409, 'The administrator password is set in .env, not here.');
+  const users = loadUsers();
+  const user = findUser(users, username);
+  if (!user) return refuse(404, `User ${username} not found.`);
+  Object.assign(user, hashPassword(password), { passwordChangedAt: new Date().toISOString() });
+  saveUsers(users);
+  audit.record('password.admin', req, username, `by ${req.user.name}`);
+  return { ok: true, status: 200, message: `Password of ${username} changed - the user's open sessions are ended.` };
+}
+
+function deleteUser(req, rawName) {
+  const off = managementRefusal();
+  if (off) return off;
+  const username = String(rawName || '');
+  if (isAdminName(username)) return refuse(409, 'The administrator account comes from the environment and cannot be deleted.');
+  const users = loadUsers();
+  if (!findUser(users, username)) return refuse(404, `User ${username} not found.`);
+  saveUsers(users.filter((u) => u.name !== username));
+  audit.record('user.deleted', req, username, `by ${req.user.name}`);
+  return { ok: true, status: 200, message: `User ${username} deleted.` };
+}
+
+// Why the signed-in reader cannot change their own password here, or null.
+function ownPasswordRefusal(user) {
+  if (!enabled() || !user || user.open) return refuse(409, 'Authentication is off on this server.');
+  if (user.role === 'admin') return refuse(409, 'The administrator password is set in .env, not here.');
+  return null;
+}
+
+// The reader's own password, the current one required. The change revokes every
+// session older than it - including this one, so the browser that made it is
+// given a fresh session (and with it a fresh form token: session.csrf) rather
+// than being thrown back to the login page.
+function changeOwnPassword(req, res, body) {
+  const refused = ownPasswordRefusal(req.user);
+  if (refused) return refused;
+  const current = String((body || {}).current || '');
+  const password = String((body || {}).password || '');
+  const confirm = String((body || {}).confirm || '');
+  const users = loadUsers();
+  const user = findUser(users, req.user.name);
+  if (!user) return refuse(404, 'Your account no longer exists.');
+  // the sign-in's limit on guessing the current password too: LOGIN_MAX_FAILURES wrong ones within LOGIN_WINDOW_MS
+  if (isLocked(OWN_PASSWORD, user.name)) return refuse(429, 'Too many wrong passwords - try again in 15 minutes.');
+  if (!verifyPassword(current, user.salt, user.hash)) {
+    recordFailure(OWN_PASSWORD, user.name);
+    audit.record('password.rejected', req, req.user.name);
+    return refuse(400, 'That is not your current password.');
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) return refuse(400, `The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  if (password !== confirm) return refuse(400, 'The two new passwords do not match.');
+  if (password === current) return refuse(400, 'The new password is the same as the current one.');
+
+  Object.assign(user, hashPassword(password), { passwordChangedAt: new Date().toISOString() });
+  saveUsers(users);
+  clearFailures(OWN_PASSWORD, user.name);
+  audit.record('password.self', req, req.user.name);
+  const session = issueSession(req, res, user.name, 'user');
+  return { ok: true, status: 200, message: 'Your password has been changed. Your other browsers have been signed out.', session };
+}
+
+// An account as the pages may show it: never the salt or the hash.
+function publicUser(u) {
+  return { name: u.name, role: u.role === 'admin' ? 'admin' : 'user', createdAt: u.createdAt || null, passwordChangedAt: u.passwordChangedAt || null,
+    lastLoginAt: u.lastLoginAt || null, lastLoginIp: u.lastLoginIp || null, logins: Number.isFinite(u.logins) ? u.logins : null };
+}
+function listUsers() {
+  return loadUsers().map(publicUser);
 }
 
 // --- pages ---------------------------------------------------------------------
@@ -494,42 +608,19 @@ function install(app, render) {
     res.send(accountPage(render, req, req.query.msg ? String(req.query.msg).slice(0, 200) : null, req.query.err === '1'));
   });
 
+  // The form and the app's JSON route (system.js) share changeOwnPassword.
   app.post('/account/password', (req, res) => {
-    const backToAccount = (message, isError) => res.redirect(`/account?msg=${encodeURIComponent(message)}${isError ? '&err=1' : ''}`);
     if (!csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    if (!enabled() || req.user.open) return backToAccount('Authentication is off on this server.', true);
-    if (req.user.role === 'admin') return backToAccount('The administrator password is set in .env, not here.', true);
-
-    const body = req.body || {};
-    const current = String(body.current || '');
-    const password = String(body.password || '');
-    const confirm = String(body.confirm || '');
-    const users = loadUsers();
-    const user = findUser(users, req.user.name);
-    if (!user) return backToAccount('Your account no longer exists.', true);
-    if (!verifyPassword(current, user.salt, user.hash)) {
-      audit.record('password.rejected', req, req.user.name);
-      return backToAccount('That is not your current password.', true);
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) return backToAccount(`The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`, true);
-    if (password !== confirm) return backToAccount('The two new passwords do not match.', true);
-    if (password === current) return backToAccount('The new password is the same as the current one.', true);
-
-    Object.assign(user, hashPassword(password), { passwordChangedAt: new Date().toISOString() });
-    saveUsers(users);
-    audit.record('password.self', req, req.user.name);
-    // The change revokes every session older than it - including this one, so
-    // the browser that made the change is given a fresh session rather than
-    // being thrown back to the login page.
-    issueSession(req, res, user.name, 'user');
-    backToAccount('Your password has been changed. Your other browsers have been signed out.', false);
+    const result = changeOwnPassword(req, res, req.body);
+    res.redirect(`/account?msg=${encodeURIComponent(result.message)}${result.ok ? '' : '&err=1'}`);
   });
 
   const adminOnly = requireAdmin(render);
-  // In open mode the page is read-only: without an administrator identity
-  // nobody may create accounts that would become valid the moment
-  // authentication is switched on.
-  const writable = (req, res, next) => (enabled() ? next() : res.status(403).send('User management needs WEB_USER and WEB_PASSWORD to be set.'));
+  // In open mode the page is read-only (managementRefusal).
+  const writable = (req, res, next) => {
+    const off = managementRefusal();
+    return off ? res.status(off.status).send(off.message) : next();
+  };
 
   app.get('/admin/activity', adminOnly, (req, res) => {
     res.send(activityPage(render, req));
@@ -542,53 +633,32 @@ function install(app, render) {
   const back = (res, message, isError) => res.redirect(`/admin/users?msg=${encodeURIComponent(message)}${isError ? '&err=1' : ''}`);
   const rejectCsrf = (res) => res.status(403).send('Invalid form token - reload the page and try again.');
 
+  // The forms and the app's JSON routes (system.js) share addUser,
+  // setUserPassword and deleteUser: same rules, messages and audit entries.
+  const answer = (res, result) => back(res, result.message, !result.ok);
   app.post('/admin/users/add', adminOnly, writable, (req, res) => {
     if (!csrfOk(req)) return rejectCsrf(res);
-    const body = req.body || {};
-    const username = String(body.username || '').trim();
-    const password = String(body.password || '');
-    if (!USERNAME_RE.test(username)) return back(res, 'User name must be 3-32 letters, digits, dots, underscores or dashes.', true);
-    if (password.length < MIN_PASSWORD_LENGTH) return back(res, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`, true);
-    if (username.toLowerCase() === String(config.ADMIN_USER).toLowerCase()) return back(res, 'That name is the administrator account.', true);
-    const users = loadUsers();
-    if (users.some((u) => u.name.toLowerCase() === username.toLowerCase())) return back(res, `User ${username} already exists.`, true);
-    users.push({ name: username, role: 'user', createdAt: new Date().toISOString(), ...hashPassword(password) });
-    saveUsers(users);
-    audit.record('user.added', req, username, `by ${req.user.name}`);
-    back(res, `User ${username} added.`, false);
+    answer(res, addUser(req, (req.body || {}).username, (req.body || {}).password));
   });
 
   app.post('/admin/users/password', adminOnly, writable, (req, res) => {
     if (!csrfOk(req)) return rejectCsrf(res);
-    const body = req.body || {};
-    const username = String(body.username || '');
-    const password = String(body.password || '');
-    if (password.length < MIN_PASSWORD_LENGTH) return back(res, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`, true);
-    const users = loadUsers();
-    const user = findUser(users, username);
-    if (!user) return back(res, `User ${username} not found.`, true);
-    Object.assign(user, hashPassword(password), { passwordChangedAt: new Date().toISOString() });
-    saveUsers(users);
-    audit.record('password.admin', req, username, `by ${req.user.name}`);
-    back(res, `Password of ${username} changed - the user's open sessions are ended.`, false);
+    answer(res, setUserPassword(req, (req.body || {}).username, (req.body || {}).password));
   });
 
   app.post('/admin/users/delete', adminOnly, writable, (req, res) => {
     if (!csrfOk(req)) return rejectCsrf(res);
-    const username = String((req.body || {}).username || '');
-    const users = loadUsers();
-    if (!findUser(users, username)) return back(res, `User ${username} not found.`, true);
-    saveUsers(users.filter((u) => u.name !== username));
-    audit.record('user.deleted', req, username, `by ${req.user.name}`);
-    back(res, `User ${username} deleted.`, false);
+    answer(res, deleteUser(req, (req.body || {}).username));
   });
 }
 
 // requireAdmin / csrfOk / ensureConfigDir are exported for the other page
-// modules (council.js and the account, audit and job pages to come) so every
-// one of them gates and validates exactly like the user pages here.
+// modules (council.js, jobs.js, services.js, system.js) so every one of them
+// gates and validates exactly like the user pages here; the account changes
+// for system.js, the app's JSON.
 module.exports = {
   enabled, misconfigured, middleware, install, escapeHtml, safeNext,
   requireAdmin, csrfOk, ensureConfigDir, USERS_FILE, SECRET_FILE, CONFIG_DIR: config.CONFIG_DIR,
-  MIN_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH, USERNAME_RE, LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS, adminName: () => (enabled() ? config.ADMIN_USER : null),
+  managementRefusal, addUser, setUserPassword, deleteUser, ownPasswordRefusal, changeOwnPassword, listUsers,
 };

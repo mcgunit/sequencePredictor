@@ -933,11 +933,80 @@ function lastRunOf(key) {
   return state.history.find((h) => h.key === key && !h.dry && !h.blocked) || null;
 }
 
-function status() {
+// --- the actions: one rule for the old forms and the app's JSON ----------------
+// Each answers {ok, status, message}: status as the JSON routes give it - 400 a
+// request that names no job, 409 refused by the state it found (the schedule is
+// off, already queued, no longer running), 500 the system refused - and the old
+// form routes redirect with the same message, so the two can never disagree.
+
+// Why a job may not be started by hand now, or null: unknown, the schedule is
+// switched off (the Run now button is disabled then), or it is already running
+// or queued (enqueue never takes a job twice). Also on every job of status().
+function runRefusal(key, current = mode()) {
+  const job = jobByKey(key);
+  if (!job) return { status: 400, message: 'unknown job' };
+  if (current === 'off') return { status: 409, message: 'the schedule is disabled - remove config/scheduler.disabled first' };
+  if ((state.current && state.current.key === key) || state.queue.some((q) => q.key === key)) {
+    return { status: 409, message: `${job.name}: already running or queued` };
+  }
+  return null;
+}
+
+// Run now: queued as a manual entry (the one thing dry mode still starts), and
+// started at once when the lock is free. started: it is the running job now.
+function runNow(key, by) {
+  const refused = runRefusal(String(key || ''));
+  if (refused) return Object.assign({ ok: false }, refused);
+  const job = jobByKey(String(key));
+  const queued = enqueue(job.key, `started by hand (${by})`, true);
+  saveState();
+  startNext();
+  if (!queued) return { ok: false, status: 409, message: `${job.name}: already running or queued` };
+  const started = Boolean(state.current && state.current.key === job.key);
+  const place = state.queue.findIndex((q) => q.key === job.key) + 1;
+  return { ok: true, status: 200, message: `${job.name}: ${started ? 'started' : `queued${place ? `, ${place === 1 ? 'first' : `number ${place}`} in the queue` : ''}`}`, started };
+}
+
+// Cancel: takes a job out of the queue; a running job is stopped, not cancelled.
+function cancelQueued(key, by) {
+  const before = state.queue.length;
+  state.queue = state.queue.filter((q) => q.key !== key);
+  if (before === state.queue.length) {
+    return jobByKey(key) ? { ok: false, status: 409, message: 'not in the queue' } : { ok: false, status: 400, message: 'unknown job' };
+  }
+  saveState();
+  const name = (jobByKey(key) || { name: key }).name;
+  log(`${name} removed from the queue by ${by}`);
+  return { ok: true, status: 200, message: `${name}: removed from the queue` };
+}
+
+// Stop: SIGTERM to the running job's whole process group, named by its run id
+// so a page that is behind can never stop the next job. deps (for the test):
+// kill, isAlive.
+function stopRun(runId, by, { kill = (pid, signal) => process.kill(pid, signal), isAlive = alive } = {}) {
+  const run = state.current;
+  if (!run || run.runId !== String(runId || '')) return { ok: false, status: 409, message: 'that job is no longer running' };
+  if (!run.pid) return { ok: false, status: 409, message: 'that job has not reported its PID yet' };
+  if (!isAlive(run.pid, run.runId)) return { ok: false, status: 409, message: 'that job is already gone - the page will catch up in a moment' };
+  try {
+    // Negative PID: the whole process group setsid created, so the Python
+    // process goes with the wrapper instead of being left behind.
+    kill(-run.pid, 'SIGTERM');
+    log(`${run.name} (pid ${run.pid}) stopped by ${by}`);
+    return { ok: true, status: 200, message: `${run.name}: stopping` };
+  } catch (e) {
+    return { ok: false, status: 500, message: `could not stop it: ${e.message}` };
+  }
+}
+
+// full: every kept run (HISTORY_KEPT) instead of the old page's newest 12, for
+// the app's Jobs page.
+function status({ full = false } = {}) {
   const now = new Date();
   const holder = lockHolder();
+  const current = mode();
   return {
-    mode: mode(),
+    mode: current,
     modeReason: modeReason(),
     lock: holder,
     current: state.current ? Object.assign({}, state.current, {
@@ -949,9 +1018,13 @@ function status() {
       command: `python3 ${job.script}${job.args.length ? ` ${job.args.join(' ')}` : ''}`,
       logFile: path.join(LOG_DIR, job.log),
       next: nextDueText(job, now),
+      nextAt: job.daily ? nextDaily(now, job.daily).getTime() : null,
+      plan: job.plan || null,
       last: lastRunOf(job.key),
+      refusal: (runRefusal(job.key, current) || {}).message || null,
     })),
-    history: state.history.slice(0, 12),
+    history: full ? state.history.slice() : state.history.slice(0, 12),
+    kept: HISTORY_KEPT,
   };
 }
 
@@ -1065,47 +1138,26 @@ function install(app, render) {
   const adminOnly = auth.requireAdmin(render);
   const back = (res, message) => res.redirect('/admin/jobs?msg=' + encodeURIComponent(message));
 
+  // The forms and the app's JSON routes (system.js) share runNow, cancelQueued
+  // and stopRun: same rules, same messages.
   app.post('/admin/jobs/run', adminOnly, (req, res) => {
     if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const job = jobByKey(String((req.body || {}).key || ''));
-    if (!job) return back(res, 'unknown job');
-    if (mode() === 'off') return back(res, 'the schedule is disabled - remove config/scheduler.disabled first');
-    const queued = enqueue(job.key, `started by hand (${req.user.name})`, true);
-    saveState();
-    startNext();
-    return back(res, queued ? `${job.name}: queued` : `${job.name}: already running or queued`);
+    return back(res, runNow((req.body || {}).key, req.user.name).message);
   });
 
   app.post('/admin/jobs/cancel', adminOnly, (req, res) => {
     if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const key = String((req.body || {}).key || '');
-    const before = state.queue.length;
-    state.queue = state.queue.filter((q) => q.key !== key);
-    saveState();
-    if (before !== state.queue.length) log(`${jobByKey(key).name} removed from the queue by ${req.user.name}`);
-    return back(res, before !== state.queue.length ? 'removed from the queue' : 'not in the queue');
+    return back(res, cancelQueued(String((req.body || {}).key || ''), req.user.name).message);
   });
 
   app.post('/admin/jobs/stop', adminOnly, (req, res) => {
     if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const run = state.current;
-    if (!run || run.runId !== String((req.body || {}).runId || '')) return back(res, 'that job is no longer running');
-    if (!run.pid) return back(res, 'that job has not reported its PID yet');
-    if (!alive(run.pid, run.runId)) return back(res, 'that job is already gone - the page will catch up in a moment');
-    try {
-      // Negative PID: the whole process group setsid created, so the Python
-      // process goes with the wrapper instead of being left behind.
-      process.kill(-run.pid, 'SIGTERM');
-      log(`${run.name} (pid ${run.pid}) stopped by ${req.user.name}`);
-      return back(res, `${run.name}: stopping`);
-    } catch (e) {
-      return back(res, `could not stop it: ${e.message}`);
-    }
+    return back(res, stopRun((req.body || {}).runId, req.user.name).message);
   });
 }
 
 module.exports = {
-  install, start, stop, status, section, JOBS,
+  install, start, stop, status, section, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun,
   // Pure schedule logic for test/jobs.test.js, plus the few entry points the
   // launch/adoption test drives directly (there is no other way to exercise
   // a reparented job without a browser and a real 12-hour tuner).

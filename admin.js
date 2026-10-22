@@ -95,8 +95,10 @@ const range = (values) => {
   return v.length ? { min: Math.min(...v), max: Math.max(...v) } : null;
 };
 // A message for the page without the server's absolute paths: each one cut to its file name (services.js writes
-// "cannot open /root/.../council.log: ...").
-const noPaths = (text) => (text === null || text === undefined ? null : String(text).replace(/(?:\/[\w.@+-]+)+\/([\w.@+-]+)/g, '$1'));
+// "cannot open /root/.../council.log: ..."). Only a path that starts a word is absolute: a relative one
+// ("data/database/pick3/2026-10-20.json" in a git line) and a date ("2026/10/21") stay as they are.
+const noPaths = (text) => (text === null || text === undefined ? null
+  : String(text).replace(/(^|[\s('"`=:,[{<])(?:\/[\w.@+-]+)+\/([\w.@+-]+)/g, '$1$2'));
 
 // --- reading, once per change --------------------------------------------------
 const cache = new Map();   // key -> {sig, value}
@@ -1001,47 +1003,63 @@ const WARNING_CLASS = /\b([A-Z][A-Za-z]*(?:Warning|Error|Exception))\b/;
 const WARNING_SOURCE = /([A-Za-z0-9_]+\.py):\d+/;
 const NOISE = /warn|error/i;
 const SLICE_MATCH_MS = 2 * 60 * 1000;   // a run and its log slice start within seconds of each other
+const EXAMPLE_CHARS = 300;               // the newest line of each signature, kept for the run's log drawer
+// A log's slices, in file order. Each with where it lies in the file, so a run's own lines can be read from the end
+// of its slice without parsing the file again: from (the byte after its start marker's line), to (the byte its
+// finished marker - or the next run's start marker, for a run killed before it wrote one - begins at; null for a run
+// still writing: to the end of the file), lines (the lines between). text: the log as a Buffer (byte offsets
+// exact) or a string (offsets of its UTF-8 bytes).
 function slicesOf(text) {
+  const buf = Buffer.isBuffer(text) ? text : Buffer.from(String(text), 'utf-8');
   const out = [];
   let cur = null;
-  String(text).split('\n').forEach((line) => {
+  const close = (at) => { cur.to = at; out.push(cur); cur = null; };
+  for (let pos = 0; pos <= buf.length;) {
+    let end = buf.indexOf(10, pos);
+    if (end < 0) end = buf.length;
+    const line = buf.toString('utf-8', pos, end);
+    const at = pos;
+    pos = end + 1;
     if (line.startsWith('=== scheduler: ')) {
       let m = MARKER_START.exec(line);
       if (m) {
-        if (cur) out.push(cur);   // a run that never wrote its finished marker (killed)
-        cur = { start: Date.parse(`${m[2].replace(' ', 'T')}Z`), sha: m[3] || null, status: null, seconds: null, sig: {}, noise: 0 };
-        return;
+        if (cur) close(at);   // a run that never wrote its finished marker (killed)
+        cur = { start: Date.parse(`${m[2].replace(' ', 'T')}Z`), sha: m[3] || null, status: null, seconds: null, sig: {}, noise: 0,
+          examples: {}, from: Math.min(pos, buf.length), to: null, lines: 0 };
+        continue;
       }
       m = MARKER_END.exec(line);
       if (m && cur) {
         cur.status = /^-?\d+$/.test(m[2]) ? Number(m[2]) : null;
         cur.seconds = Number(m[3]);
-        out.push(cur);
-        cur = null;
-        return;
+        close(at);
+        continue;
       }
     }
-    if (!cur) return;
+    if (!cur) continue;
+    if (line || end < buf.length) cur.lines += 1;
     let hit = false;
+    const seen = (key) => { cur.sig[key] = (cur.sig[key] || 0) + 1; cur.examples[key] = line.slice(0, EXAMPLE_CHARS); hit = true; };
     const cls = line.includes('Warning') || line.includes('Error') || line.includes('Exception') ? WARNING_CLASS.exec(line) : null;
     if (cls) {
       const src = WARNING_SOURCE.exec(line);
-      const key = src ? `${cls[1]} (${src[1]})` : cls[1];
-      cur.sig[key] = (cur.sig[key] || 0) + 1;
-      hit = true;
+      seen(src ? `${cls[1]} (${src[1]})` : cls[1]);
     }
-    if (line.includes('LOCKBOX')) { cur.sig.LOCKBOX = (cur.sig.LOCKBOX || 0) + 1; hit = true; }
-    if (line.includes('Traceback')) { cur.sig.Traceback = (cur.sig.Traceback || 0) + 1; hit = true; }
+    if (line.includes('LOCKBOX')) seen('LOCKBOX');
+    if (line.includes('Traceback')) seen('Traceback');
     if (!hit && NOISE.test(line)) cur.noise += 1;
-  });
+  }
   if (cur) out.push(cur);   // a run still writing
   return out;
 }
-// One job's slices, oldest first, from its log and the rotated one (jobs.js keeps one); each file parsed once per change.
+// One job's slices, oldest first, from its log and the rotated one (jobs.js keeps one); each file parsed once per
+// change. Each slice names its file (the byte range is that file's).
 function readSlices(dirs, job) {
   if (!job || !job.log) return [];
   return [`${job.log}.1`, job.log].map((f) => path.join(dirs.logDir, f))
-    .flatMap((file) => memo(`log:${file}`, [file], () => { try { return slicesOf(fs.readFileSync(file, 'utf-8')); } catch (e) { return []; } }))
+    .flatMap((file) => memo(`log:${file}`, [file], () => {
+      try { return slicesOf(fs.readFileSync(file)).map((slice) => Object.assign(slice, { file })); } catch (e) { return []; }
+    }))
     .sort((a, b) => a.start - b.start);
 }
 function readScheduler(dirs) {
@@ -1080,11 +1098,23 @@ function usualOf(h, job, slices, history) {
   return { median: r3(median(minutes)), min: r3(Math.min(...minutes)), max: r3(Math.max(...minutes)), n: minutes.length,
     from: isoMs(Math.min(...at)), to: isoMs(Math.max(...at)), basis };
 }
+// The item that started nearest `at`, within SLICE_MATCH_MS, or null: a run's own log slice (startOf: its start
+// marker), or the kept run a run id names. The nearest, not the first in the window: a job run again a minute after
+// it failed has two slices inside it, and each run gets its own.
+function nearestAt(items, at, startOf = (x) => x.start) {
+  let best = null;
+  let gap = SLICE_MATCH_MS;
+  list(items).forEach((x) => {
+    const d = Math.abs(startOf(x) - at);
+    if (d < gap) { best = x; gap = d; }
+  });
+  return best;
+}
 // One run: when, how long against the usual, the result, and its warning signatures - each new only when none of the
 // same job's earlier slices the logs still hold had it (a signature that skipped a weekend is recurring, not new);
 // null when there is nothing earlier to compare with. warnings null: the run's log slice is no longer in its log.
 function runLine(h, job, slices, history) {
-  const own = list(slices).find((s) => Math.abs(s.start - h.at) < SLICE_MATCH_MS) || null;
+  const own = nearestAt(slices, h.at);
   const earlier = list(slices).filter((s) => s.start < h.at - SLICE_MATCH_MS);
   const seen = new Set(earlier.flatMap((s) => Object.keys(s.sig)));
   const minutes = num(h.seconds) === null ? null : h.seconds / 60;
@@ -1325,7 +1355,7 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
       queue: list(queue).map((q) => ({ key: q.key, name: (byKey[q.key] || {}).name || q.key, queuedAt: isoMs(q.queuedAt), manual: Boolean(q.manual) })),
       running: current ? { key: current.key, name: (byKey[current.key] || {}).name || current.name || current.key, start: isoMs(current.startedAt) } : null,
       // null: not known here; {held: false}: free
-      lock: live.lock === undefined ? null : (live.lock ? { held: true, pid: live.lock.pid, script: live.lock.script, key: live.lock.key || null } : { held: false }),
+      lock: live.lock === undefined ? null : (live.lock ? { held: true, pid: live.lock.pid, script: live.lock.script ? path.basename(String(live.lock.script)) : null, key: live.lock.key || null } : { held: false }),
       council: live.council === undefined ? null : live.council,
       signIns: signInsOf(live.events, mondayMs, nowMs - 7 * 86400000),
     },
@@ -1333,6 +1363,12 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
 }
 
 // --- routes ------------------------------------------------------------------------
+// A promise's value, or a rejection after ms (the Council API's health probe must not hold a page).
+const within = (promise, ms) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(`no answer within ${ms / 1000} s`)), ms);
+  Promise.resolve(promise).then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+});
+
 // The guard: auth.middleware has already answered a signed-out /api request with its 401; this one turns away a
 // signed-in reader who is not the administrator. Open access (no login configured) is the administrator.
 function guard(req, res, next) {
@@ -1396,10 +1432,6 @@ function install(app, options = {}) {
   // the job list, from jobs.js when the server passes it (options.jobs); the week has no runs without it
   const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily) }));
   const COUNCIL_WAIT_MS = 6000;   // services.js probes for up to 5 s
-  const within = (promise, ms) => new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`no answer within ${ms / 1000} s`)), ms);
-    Promise.resolve(promise).then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
-  });
   // what the running server knows now: the lock, the running job and the queue (jobs.status), the Council API
   // (services.status, which probes its health), the audit events; each left out when its module was not passed
   const liveStatus = async () => {
@@ -1484,4 +1516,6 @@ module.exports = {
   randomnessSummary, randomnessGame, guard, install,
   READING_VERSION, PARTS, sundayOf, weekReading, loadReadings, stateOf, streakOf, historyOf, withHistory,
   slicesOf, readSlices, readScheduler, runLine, weekView, tuningRecords, tuningSummary, tuningGame,
+  // shared with system.js (the Jobs page): the same run lines, usual durations, path cutting and probe timeout
+  noPaths, usualOf, ran, within, isoMs, SLICE_MATCH_MS, nearestAt,
 };

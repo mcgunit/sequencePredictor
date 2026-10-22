@@ -37,13 +37,18 @@ export function durationText(m: number | null, usual?: Usual | null): string {
   const hours = Math.max(m, usual && isNum(usual.max) ? usual.max : 0) >= 60;
   return `${minutes(m, hours)} ${hours ? 'h' : 'min'}`;
 }
-// "usual 7.7-8.2 h" in the run's own unit
-export function usualText(u: Usual | null, m: number | null): string {
-  if (!u || !isNum(u.min) || !isNum(u.max)) return 'no earlier run to compare';
+// "7.7-8.2 h": the usual range in the run's own unit; '' without one
+export function usualRange(u: Usual | null, m: number | null = null): string {
+  if (!u || !isNum(u.min) || !isNum(u.max)) return '';
   const hours = Math.max(isNum(m) ? m : 0, u.max) >= 60;
   const lo = minutes(u.min, hours);
   const hi = minutes(u.max, hours);
-  return `usual ${lo === hi ? lo : `${lo}-${hi}`} ${hours ? 'h' : 'min'}`;
+  return `${lo === hi ? lo : `${lo}-${hi}`} ${hours ? 'h' : 'min'}`;
+}
+// "usual 7.7-8.2 h" in the run's own unit
+export function usualText(u: Usual | null, m: number | null): string {
+  const r = usualRange(u, m);
+  return r ? `usual ${r}` : 'no earlier run to compare';
 }
 // "3 earlier runs (job log)" / "12 earlier runs (scheduler history)"
 export function usualBasis(u: Usual | null): string {

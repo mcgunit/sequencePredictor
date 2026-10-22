@@ -26,6 +26,32 @@ function ask() {
     });
 }
 
+// The session's form token for the actions (postJson), or null while it is not known (asked, failed, signed out).
+export function csrfToken(): string | null {
+  return state && !state.failed ? state.csrf ?? null : null;
+}
+
+// A password change re-issues the session with a new form token (POST /api/account/password answers it): from then on
+// every action sends that one.
+export function setCsrf(csrf: string) {
+  if (!state || state.failed) return;
+  state = { ...state, csrf };
+  tell();
+}
+
+// After an action was refused for a stale form token (a password changed in another browser tab re-issued the session):
+// ask for the current one without putting the readers back to "loading", so the page and its dialog stay as they are.
+// A failed ask keeps what was known.
+export function refreshMe(): Promise<void> {
+  return getMe().then(
+    (me) => {
+      state = me;
+      tell();
+    },
+    () => undefined,
+  );
+}
+
 // Ask again after a failure (the guard's "Try again"); every reader shows "loading" until the answer.
 export function retryMe() {
   state = undefined;

@@ -519,3 +519,141 @@ nav.side a.wk { display: flex; align-items: center; gap: 8px; }
 }
 .dsec .tbl .chip { white-space: normal; }
 .dsec .tbl code { font-family: var(--mono); font-size: 0.92em; overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------------------------------------------------------
+   System pages (admin batch 3): Jobs & services, People, Account, What's new. Buttons, the in-page confirmation
+   (centred; a bottom sheet on phones), the toast, log tails, form fields, tables that fold into one block per row on
+   phones, and the sidebar's What's new count. */
+select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Buttons: plain, primary (the dialog's action), danger (stop, delete) */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: var(--fs-sm); font-weight: 500; line-height: 1.2;
+  padding: 7px 12px; min-height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--faint); background: var(--row-hover); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--act-fg); }
+.btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.btn.danger { color: var(--down); border-color: var(--down); }
+.dialog .btn.danger { background: var(--down); color: var(--act-fg); }
+.dialog .btn.danger:hover:not(:disabled) { background: var(--down); filter: brightness(1.08); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+@media (max-width: 640px) { .btn { min-height: 40px; } }
+
+/* The confirmation: over the page and over a drawer */
+.scrim.top { z-index: 30; }
+.dialog { position: fixed; z-index: 31; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(470px, calc(100% - 32px)); max-height: calc(100vh - 48px); overflow-y: auto;
+  margin: 0; padding: 18px var(--pad) 14px; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--sheet-shadow); }
+.dialog h2 { font-size: 17px; line-height: 1.3; margin: 0 0 10px; font-weight: 600; letter-spacing: -0.005em; overflow-wrap: anywhere; }
+.dialog .dialog-tz { margin: -6px 0 10px; color: var(--muted); font-size: var(--fs-xs); }
+.dialog.wide { width: min(640px, calc(100% - 32px)); }
+.dialog-b h3 { font-size: 14px; line-height: 1.35; margin: 14px 0 4px; font-weight: 600; }
+.dialog-b section > p { margin: 0 0 6px; }
+.dialog-b > p { margin: 0 0 8px; }
+.dialog-b > p.ferr { color: var(--down); }
+.dialog-f { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+@media (max-width: 640px) {
+  .dialog { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: 100%; max-height: 88vh; border-radius: var(--radius) var(--radius) 0 0; border-bottom: 0;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .dialog-f .btn { flex: 1 1 0; min-height: 44px; }
+  .dialog.wide { width: 100%; }
+}
+
+/* Form fields (the dialogs, the account's password) */
+.field { display: grid; gap: 4px; margin: 12px 0 0; font-size: var(--fs-sm); }
+.field > span { font-weight: 500; }
+.field small { color: var(--muted); font-size: var(--fs-xs); }
+.field input { font: inherit; font-size: 16px; padding: 8px 10px; min-height: 40px; width: 100%; min-width: 0; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.field input:focus-visible { border-color: var(--accent); }
+.ferr { color: var(--down); font-size: var(--fs-sm); margin: 12px 0 0; }
+.pwform { display: grid; max-width: 420px; }
+.pwform .acts { margin: 16px 0 10px; }
+
+/* The toast: an action's short message, at the foot of the screen over everything */
+.toast-slot { position: fixed; z-index: 40; left: 0; right: 0; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; padding: 0 16px; pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: baseline; gap: 12px; max-width: 560px; padding: 10px 10px 10px 16px; border-radius: 10px; background: var(--fg); color: var(--card);
+  box-shadow: var(--sheet-shadow); font-size: var(--fs-sm); line-height: 1.4; overflow-wrap: anywhere; }
+.toast button { background: none; border: 0; color: inherit; font: inherit; font-size: 18px; line-height: 1; padding: 0 6px; cursor: pointer; opacity: 0.8; }
+.toast button:hover { opacity: 1; }
+
+/* Log tails: wrapped, never wider than their card */
+pre.logtail { margin: 0 0 6px; font-family: var(--mono); font-size: 11.5px; line-height: 1.5; color: var(--fg); background: var(--row-hover); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow-y: auto; }
+pre.logtail.tall, pre.logtail.cmd { max-height: none; }
+.subh { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; margin: 16px 0 6px; overflow-wrap: anywhere; }
+.card-b > .subh:first-child { margin-top: 0; }
+.card-b .line { font-size: var(--fs-sm); color: var(--muted); margin: 6px 0 4px; }
+.card-b .line b { color: var(--fg); font-weight: 600; }
+.line.warn b { color: var(--warn); }
+.note.pad { padding: 0 var(--pad) 10px; }
+
+/* Running & queue */
+.now-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 6px; }
+.now-h .gbtn { font-size: 15px; }
+.now-h .btn { margin-left: auto; }
+.now .rbar { margin-top: 8px; }
+.now .legend { margin: 4px 0 0; }
+.qlist { list-style: none; margin: 0; padding: 0; display: grid; }
+.qlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.qlist li:first-child { border-top: 0; }
+.qlist .qn { color: var(--faint); font-size: var(--fs-sm); min-width: 14px; }
+.qlist .qt { flex: 1 1 200px; min-width: 0; }
+.qlist .qt b { font-weight: 600; }
+.qlist .qt small { display: block; color: var(--muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.tbl td.warn { color: var(--warn); }
+.card-h .pick { margin-left: auto; }
+.pick select { font: inherit; font-size: var(--fs-sm); color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; max-width: 100%; }
+
+/* A run's warning signatures, each with its newest line */
+.wlist { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.wlist li { display: grid; gap: 4px; min-width: 0; }
+.wh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--fs-sm); }
+.wh code { font-family: var(--mono); font-size: 0.92em; overflow-wrap: anywhere; }
+code.wline { display: block; font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--muted); background: var(--row-hover); border-radius: 6px; padding: 4px 8px;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* A table that folds into one block per row on phones: the lead cell on top, every other cell under its own label
+   (data-l), so nothing scrolls sideways */
+@media (max-width: 640px) {
+  .tbl.stk thead { display: none; }
+  .tbl.stk, .tbl.stk tbody, .tbl.stk tr { display: block; }
+  .tbl.stk tr { padding: 9px var(--pad); border-bottom: 1px solid var(--line); }
+  .tbl.stk tbody tr:last-child { border-bottom: 0; }
+  .tbl.stk tr.grp { padding: 12px var(--pad) 0; border-bottom: 0; }
+  .tbl.stk tr.grp th { display: block; padding: 0; border: 0; background: none; white-space: normal; }
+  .tbl.stk td { display: block; position: relative; min-height: 22px; padding: 2px 0 2px 92px; border: 0; }
+  .tbl.stk td::before { content: attr(data-l); position: absolute; left: 0; top: 4px; width: 84px; font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+  .tbl.stk td.lead { padding: 0 0 4px; }
+  .tbl.stk td.lead::before { content: none; }
+  .tbl.stk tbody tr:hover td { background: none; }
+}
+
+/* The sidebar: What's new's count, the account line */
+.badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--act-fg);
+  font-size: var(--fs-xs); font-weight: 600; line-height: 1; letter-spacing: 0; }
+nav.side a.wn { display: flex; align-items: center; gap: 8px; }
+nav.side .foot a.wn { display: inline-flex; gap: 6px; }
+nav.side details.grpd summary .badge { margin-left: auto; margin-right: 8px; }
+nav.side summary.bar .badge { margin-left: auto; }
+nav.side summary.bar .badge + .burger { margin-left: 0; }
+nav.side details.grpd[open] > summary .badge { display: none; }
+nav.side .foot a.acct { display: block; color: var(--fg); }
+nav.side .foot a.acct b { font-weight: 600; }
+nav.side .foot a.acct.on, nav.side .foot a.wn.on { color: var(--accent); }
+
+/* What's new: one folding card per note, the unseen ones open and outlined */
+.notes { display: grid; gap: 12px; max-width: 920px; }
+details.note-c { display: block; }
+details.note-c > summary { list-style: none; cursor: pointer; }
+details.note-c > summary::-webkit-details-marker { display: none; }
+.note-h { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; padding: 14px var(--pad) 12px; border-radius: var(--radius); }
+.note-h:hover { background: var(--row-hover); }
+.note-h h2 { flex: 1 1 320px; min-width: 0; margin: 0; font-size: 15px; font-weight: 600; line-height: 1.35; }
+.note-h h2::before { content: '›'; display: inline-block; width: 14px; color: var(--faint); transition: transform .15s; }
+details.note-c[open] .note-h h2::before { transform: rotate(90deg); }
+.note-m { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: var(--fs-sm); }
+details.note-c .card-b p { margin: 0 0 10px; max-width: 75ch; }
+details.note-c .card-b .acts { margin-top: 6px; }
+details.note-c.fresh { border-color: var(--accent); }
+.step h3 { font-size: var(--fs-sm); font-weight: 600; margin: 12px 0 2px; }
+.step p { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .note-h h2::before { transition: none; } }

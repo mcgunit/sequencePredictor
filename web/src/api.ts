@@ -12,6 +12,8 @@ export type OpenStatus = 'buy now' | 'buy at open' | 'held' | 'too late' | 'sold
 export interface Me {
   // open: open access (no login configured), where there is nobody to sign out
   user: { name: string; admin: boolean; open?: boolean } | null;
+  // the session's form token, which every POST of the app sends back as _csrf (system.js); renewed by a password change
+  csrf?: string | null;
 }
 
 export interface Quotes {
@@ -231,6 +233,42 @@ async function getJson<T>(url: string): Promise<T> {
   }
 }
 
+// An action (system.js): a JSON POST carrying the session's form token as _csrf. The answer is {ok, message, ...}; a
+// refusal is {error} with its status (400 a rule, 403 not allowed or a stale token, 404 nothing by that name, 409 the
+// state refused it, 500 the system did), and its message is the server's own words, ready to show.
+export interface Done {
+  ok: true;
+  message: string;
+}
+export async function postJson<T extends Done = Done>(url: string, csrf: string, body: Record<string, unknown>): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ ...body, _csrf: csrf }),
+    });
+  } catch (e) {
+    throw new ApiError(url, null, `Could not reach the server (${(e as Error).message || 'network error'}). Nothing was sent.`);
+  }
+  if (res.status === 401) {
+    window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    throw new ApiError(url, 401, 'signed out - going to the login page');
+  }
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  const answer = (data && typeof data === 'object' ? data : {}) as { ok?: unknown; message?: unknown; error?: unknown };
+  if (!res.ok) throw new ApiError(url, res.status, typeof answer.error === 'string' ? answer.error : `The server answered ${res.status} ${res.statusText}`.trim());
+  if (answer.ok !== true) throw new ApiError(url, res.status, 'The server did not answer with JSON.');
+  return { ...(answer as object), ok: true, message: typeof answer.message === 'string' ? answer.message : 'done' } as T;
+}
+
 export function isMarket(s: string | undefined): s is Market {
   return s === 'crypto' || s === 'shares';
 }
@@ -240,7 +278,10 @@ export const TITLES: Record<Market, string> = { crypto: 'Crypto', shares: 'Share
 export async function getMe(): Promise<Me> {
   const me = await getJson<Partial<Me> | null>('/api/me');
   const u = me?.user;
-  return { user: u && typeof u.name === 'string' ? { name: u.name, admin: u.admin === true, open: u.open === true } : null };
+  return {
+    user: u && typeof u.name === 'string' ? { name: u.name, admin: u.admin === true, open: u.open === true } : null,
+    csrf: typeof me?.csrf === 'string' && me.csrf ? me.csrf : null,
+  };
 }
 
 export async function getQuotes(market: Market): Promise<Quotes> {
@@ -1820,3 +1861,388 @@ function normTuningGame(raw: unknown, game: string): TuningGameView {
     }),
   };
 }
+
+// --- System pages (system.js): Jobs & services, People, Account, What's new ----------------------------------------
+// Jobs & services and People are the administrator's (a JSON 403 for a user); Account and What's new every signed-in
+// reader's own. Instants are ISO UTC (the pages print Brussels time), durations minutes to one decimal. The actions
+// (postJson) send the form token GET /api/me serves.
+
+export type ScheduleMode = 'on' | 'dry' | 'off';
+// a run as the tiles and the schedule name it: its log id (the run drawer's ?run=), its start, how long, how it ended
+export interface RunShort {
+  id: string;
+  key: string;
+  start: string | null;
+  minutes: number | null;
+  result: string; // 'ok' | 'exit N' | 'unknown' (killed, or ended without an exit code)
+}
+export interface JobLine {
+  key: string;
+  name: string;
+  description: string;
+  command: string;
+  log: string | null; // the log file's name
+  plan: string | null; // 'weeklyTuning' | 'weeklyControls' | null (the daily predictor)
+  daily: boolean;
+  nextAt: string | null; // the daily job's next slot
+  trigger: string | null; // a weekly job: "when Saturday's predictor finishes"
+  usual: Usual | null; // its earlier successful runs, a weekly job's from its own log
+  last: RunShort | null; // the newest run that ran
+  canRun: boolean;
+  refusal: string | null; // why Run now is refused now (the schedule is off, already running or queued)
+}
+export type RunKind = 'run' | 'dry' | 'blocked';
+export interface RunItem {
+  id: string;
+  key: string;
+  name: string;
+  kind: RunKind; // dry: the schedule only recorded it; blocked: it waited 6 h on the lock
+  start: string | null;
+  end: string | null;
+  minutes: number | null;
+  result: string; // 'ok' | 'exit N' | 'unknown' | 'dry run' | 'waited on the lock' (it stayed queued)
+  note: string | null;
+  reason: string | null;
+  usual: Usual | null; // the runs of this job before this one (kind run)
+  overUsual: boolean | null;
+  vsMedian: number | null;
+  warnings: { signatures: number; new: number } | null;
+  sliceGone: boolean; // a run whose log slice has rotated away: its warnings cannot be read
+}
+export interface Running {
+  id: string; // its log id, for the run drawer
+  runId: string; // what Stop names
+  key: string;
+  name: string;
+  reason: string | null;
+  start: string | null;
+  minutes: number | null; // elapsed at builtAt
+  pid: number | null;
+  usual: Usual | null;
+  vsMedian: number | null;
+  overUsual: boolean | null;
+  log: string[];
+}
+export interface QueueItem {
+  key: string;
+  name: string;
+  reason: string | null;
+  queuedAt: string | null;
+  waitedMinutes: number | null;
+  manual: boolean;
+}
+export interface ServiceLine {
+  key: string;
+  name: string;
+  description: string;
+  status: string; // 'running' | 'external' | 'restarting' | 'stopped' | 'disabled' | 'failed'
+  healthy: boolean;
+  summary: string | null;
+  pid: number | null;
+  port: number | null;
+  since: string | null;
+  upMinutes: number | null;
+  restarts: number;
+  lastExit: { code: number | null; signal: string | null; at: string | null } | null;
+  lastError: string | null;
+  checkedAt: string | null;
+  actions: { start: boolean; stop: boolean; restart: boolean };
+  log: { lines: string[]; healthDropped: number; file: string | null; scanned: { lines: number; kb: number; whole: boolean } | null } | null;
+}
+export interface JobsView {
+  builtAt: string | null;
+  mode: { mode: ScheduleMode; reason: string } | null;
+  lock: { held: boolean; pid: number | null; script: string | null; key: string | null; ours: boolean } | null;
+  running: Running | null;
+  queue: QueueItem[];
+  jobs: JobLine[];
+  runs: { kept: number | null; shown: number; ran: number; items: RunItem[] };
+  today: { day: string | null; key: string; run: RunShort | null; running: boolean } | null;
+  lastFailure: (RunShort & { name: string | null; note: string | null }) | null;
+  services: ServiceLine[] | null;
+  servicesError: string | null;
+  errors: string[];
+}
+export interface LogWarning {
+  sig: string;
+  n: number;
+  new: boolean | null; // null: no earlier run of the job in the log to compare with
+  line: string | null; // its newest line
+}
+export interface RunLog {
+  id: string;
+  key: string;
+  job: string;
+  log: string | null;
+  start: string | null;
+  end: string | null;
+  minutes: number | null;
+  result: string; // 'ok' | 'exit N' | 'unknown' | 'running'
+  note: string | null;
+  inKeptRuns: boolean;
+  running: boolean;
+  warnings: LogWarning[];
+  noiseFiltered: number | null;
+  comparedWith: { runs: number; from: string | null; to: string | null } | null;
+  lines: { shown: number; of: number | null; whole: boolean; readKb: number };
+  tail: string[];
+  error: string | null;
+}
+
+export interface AuditEntry {
+  at: string | null;
+  event: string;
+  label: string;
+  user: string | null;
+  address: string | null;
+  device: string | null; // "Chrome on Windows"
+  detail: string | null;
+}
+export interface PersonLine {
+  name: string;
+  role: 'admin' | 'user';
+  source: string; // 'environment' | 'users.json'
+  created: string | null;
+  passwordChangedAt: string | null;
+  signIns: number | null;
+  lastSignIn: { at: string | null; address: string | null; device: string | null; from: 'activity' | 'account' } | null;
+}
+export interface PeopleView {
+  builtAt: string | null;
+  auth: { enabled: boolean; writable: boolean; minPasswordLength: number; userName: string };
+  tiles: {
+    users: number;
+    failed: number;
+    lockouts: number; // an address and name whose failures reached the sign-in limit
+    refusedWhileLocked: number; // sign-ins tried while locked (login.locked)
+    newDeviceOrAddress: number;
+    days: number;
+    from: string | null;
+    to: string | null;
+    scanned: { events: number; oldest: string | null; all: boolean; complete: boolean };
+  };
+  users: PersonLine[];
+  exceptions: { shown: number; of: number; compared: string; items: (AuditEntry & { kind: string })[] };
+  activity: { shown: number; of: number | null; oldest: string | null; items: AuditEntry[] };
+}
+export interface AccountView {
+  name: string;
+  role: 'admin' | 'user';
+  open: boolean;
+  source: string; // 'open access' | 'environment' | 'users.json'
+  created: string | null;
+  passwordChangedAt: string | null;
+  password: { canChange: boolean; why: string | null; minLength: number };
+  lastSignIn: { at: string | null; address: string | null; device: string | null } | null;
+  activity: { shown: number; max: number; items: AuditEntry[] };
+}
+export interface Note {
+  id: string;
+  date: string | null;
+  level: 'major' | 'minor';
+  audience: 'all' | 'admin';
+  title: string;
+  body: string[];
+  link: { href: string; label: string } | null;
+  seen: boolean | null; // null: open access, no account to record it against
+}
+export interface WhatsNewView {
+  open: boolean;
+  audience: 'admin' | 'all';
+  unseen: number | null;
+  of: number;
+  pending: { kind: 'tour' | 'news'; ids: string[] } | null;
+  tour: { done: boolean | null; title: string; intro: string; steps: { title: string; body: string }[] };
+  items: Note[];
+}
+
+export const MIN_PASSWORD = 8; // auth.js MIN_PASSWORD_LENGTH, when an answer does not name it
+
+const runShortOf = (v: unknown): RunShort | null => {
+  if (!has(v)) return null;
+  const r = o(v);
+  return { id: str(r.id), key: str(r.key), start: ostr(r.start), minutes: opt(r.minutes), result: str(r.result, 'unknown') };
+};
+const entryOf = (v: unknown): AuditEntry => {
+  const e = o(v);
+  return { at: ostr(e.at), event: str(e.event), label: str(e.label, str(e.event)), user: ostr(e.user), address: ostr(e.address), device: ostr(e.device), detail: ostr(e.detail) };
+};
+const signInOf = (v: unknown) => {
+  if (!has(v)) return null;
+  const s = o(v);
+  return { at: ostr(s.at), address: ostr(s.address), device: ostr(s.device) };
+};
+const MODES: ScheduleMode[] = ['on', 'dry', 'off'];
+const RUN_KINDS: RunKind[] = ['run', 'dry', 'blocked'];
+
+function normJobs(raw: unknown): JobsView {
+  const r = o(raw);
+  const m = o(r.mode);
+  const lock = o(r.lock);
+  const cur = o(r.running);
+  const runs = o(r.runs);
+  const today = o(r.today);
+  const fail = o(r.lastFailure);
+  return {
+    builtAt: ostr(r.builtAt),
+    mode: has(r.mode) ? { mode: MODES.includes(m.mode as ScheduleMode) ? (m.mode as ScheduleMode) : 'dry', reason: str(m.reason) } : null,
+    lock: has(r.lock) ? { held: bool(lock.held), pid: opt(lock.pid), script: ostr(lock.script), key: ostr(lock.key), ours: bool(lock.ours) } : null,
+    running: has(r.running)
+      ? {
+          id: str(cur.id), runId: str(cur.runId), key: str(cur.key), name: str(cur.name, str(cur.key)), reason: ostr(cur.reason), start: ostr(cur.start),
+          minutes: opt(cur.minutes), pid: opt(cur.pid), usual: usualOf(cur.usual), vsMedian: opt(cur.vsMedian),
+          overUsual: typeof cur.overUsual === 'boolean' ? cur.overUsual : null, log: strs(cur.log),
+        }
+      : null,
+    queue: arr(r.queue as unknown[]).filter(has).map((x) => {
+      const q = o(x);
+      return { key: str(q.key), name: str(q.name, str(q.key)), reason: ostr(q.reason), queuedAt: ostr(q.queuedAt), waitedMinutes: opt(q.waitedMinutes), manual: bool(q.manual) };
+    }),
+    jobs: arr(r.jobs as unknown[]).filter(has).map((x) => {
+      const j = o(x);
+      return {
+        key: str(j.key), name: str(j.name, str(j.key)), description: str(j.description), command: str(j.command), log: ostr(j.log), plan: ostr(j.plan), daily: bool(j.daily),
+        nextAt: ostr(j.nextAt), trigger: ostr(j.trigger), usual: usualOf(j.usual), last: runShortOf(j.last), canRun: bool(j.canRun), refusal: ostr(j.refusal),
+      };
+    }),
+    runs: {
+      kept: opt(runs.kept), shown: num(runs.shown, 0), ran: num(runs.ran, 0),
+      items: arr(runs.items as unknown[]).filter(has).map((x) => {
+        const h = o(x);
+        const w = o(h.warnings);
+        const kind = RUN_KINDS.includes(h.kind as RunKind) ? (h.kind as RunKind) : 'run';
+        return {
+          id: str(h.id), key: str(h.key), name: str(h.name, str(h.key)), kind, start: ostr(h.start), end: ostr(h.end), minutes: opt(h.minutes),
+          result: str(h.result, 'unknown'), note: ostr(h.note), reason: ostr(h.reason), usual: usualOf(h.usual),
+          overUsual: typeof h.overUsual === 'boolean' ? h.overUsual : null, vsMedian: opt(h.vsMedian),
+          warnings: has(h.warnings) ? { signatures: num(w.signatures, 0), new: num(w.new, 0) } : null,
+          sliceGone: kind === 'run' && 'warnings' in h && h.warnings === null,
+        };
+      }),
+    },
+    today: has(r.today) ? { day: ostr(today.day), key: str(today.key, 'predictor'), run: runShortOf(today.run), running: bool(today.running) } : null,
+    lastFailure: has(r.lastFailure) ? { ...(runShortOf(r.lastFailure) as RunShort), name: ostr(fail.name), note: ostr(fail.note) } : null,
+    services: Array.isArray(r.services)
+      ? r.services.filter(has).map((x) => {
+          const s = o(x);
+          const e = o(s.lastExit);
+          const a = o(s.actions);
+          const l = o(s.log);
+          const sc = o(l.scanned);
+          return {
+            key: str(s.key), name: str(s.name, str(s.key)), description: str(s.description), status: str(s.status, 'unknown'), healthy: bool(s.healthy), summary: ostr(s.summary),
+            pid: opt(s.pid), port: opt(s.port), since: ostr(s.since), upMinutes: opt(s.upMinutes), restarts: num(s.restarts, 0),
+            lastExit: has(s.lastExit) ? { code: opt(e.code), signal: ostr(e.signal), at: ostr(e.at) } : null,
+            lastError: ostr(s.lastError), checkedAt: ostr(s.checkedAt),
+            actions: { start: bool(a.start), stop: bool(a.stop), restart: bool(a.restart) },
+            log: has(s.log)
+              ? { lines: strs(l.lines), healthDropped: num(l.healthDropped, 0), file: ostr(l.file), scanned: has(l.scanned) ? { lines: num(sc.lines, 0), kb: num(sc.kb, 0), whole: bool(sc.whole) } : null }
+              : null,
+          };
+        })
+      : null,
+    servicesError: ostr(r.servicesError),
+    errors: strs(r.errors),
+  };
+}
+
+function normRunLog(raw: unknown, id: string): RunLog {
+  const r = o(raw);
+  const l = o(r.lines);
+  const c = o(r.comparedWith);
+  return {
+    id: str(r.id, id), key: str(r.key), job: str(r.job, str(r.key)), log: ostr(r.log), start: ostr(r.start), end: ostr(r.end), minutes: opt(r.minutes),
+    result: str(r.result, 'unknown'), note: ostr(r.note), inKeptRuns: bool(r.inKeptRuns), running: bool(r.running),
+    warnings: arr(r.warnings as unknown[]).filter(has).map((x) => {
+      const w = o(x);
+      return { sig: str(w.sig), n: num(w.n, 0), new: typeof w.new === 'boolean' ? w.new : null, line: ostr(w.line) };
+    }),
+    noiseFiltered: opt(r.noiseFiltered),
+    comparedWith: has(r.comparedWith) ? { runs: num(c.runs, 0), from: ostr(c.from), to: ostr(c.to) } : null,
+    lines: { shown: num(l.shown, 0), of: opt(l.of), whole: bool(l.whole), readKb: num(l.readKb, 0) },
+    tail: strs(r.tail),
+    error: ostr(r.error),
+  };
+}
+
+function normPeople(raw: unknown): PeopleView {
+  const r = o(raw);
+  const a = o(r.auth);
+  const t = o(r.tiles);
+  const sc = o(t.scanned);
+  const ex = o(r.exceptions);
+  const ac = o(r.activity);
+  return {
+    builtAt: ostr(r.builtAt),
+    auth: { enabled: bool(a.enabled), writable: bool(a.writable), minPasswordLength: num(a.minPasswordLength, MIN_PASSWORD), userName: str(a.userName, '3-32 letters, digits, dots, underscores or dashes') },
+    tiles: {
+      users: num(t.users, 0), failed: num(t.failed, 0), lockouts: num(t.lockouts, 0), refusedWhileLocked: num(t.refusedWhileLocked, 0),
+      newDeviceOrAddress: num(t.newDeviceOrAddress, 0), days: num(t.days, 7),
+      from: ostr(t.from), to: ostr(t.to), scanned: { events: num(sc.events, 0), oldest: ostr(sc.oldest), all: bool(sc.all), complete: bool(sc.complete) },
+    },
+    users: arr(r.users as unknown[]).filter(has).map((x) => {
+      const u = o(x);
+      const s = o(u.lastSignIn);
+      return {
+        name: str(u.name), role: u.role === 'admin' ? 'admin' : 'user', source: str(u.source), created: ostr(u.created), passwordChangedAt: ostr(u.passwordChangedAt),
+        signIns: opt(u.signIns), lastSignIn: has(u.lastSignIn) ? { ...(signInOf(u.lastSignIn) as { at: string | null; address: string | null; device: string | null }), from: s.from === 'account' ? 'account' : 'activity' } : null,
+      };
+    }),
+    exceptions: { shown: num(ex.shown, 0), of: num(ex.of, 0), compared: str(ex.compared), items: arr(ex.items as unknown[]).filter(has).map((x) => ({ ...entryOf(x), kind: str(o(x).kind) })) },
+    activity: { shown: num(ac.shown, 0), of: opt(ac.of), oldest: ostr(ac.oldest), items: arr(ac.items as unknown[]).filter(has).map(entryOf) },
+  };
+}
+
+function normAccount(raw: unknown): AccountView {
+  const r = o(raw);
+  const p = o(r.password);
+  const ac = o(r.activity);
+  return {
+    name: str(r.name), role: r.role === 'admin' ? 'admin' : 'user', open: bool(r.open), source: str(r.source), created: ostr(r.created), passwordChangedAt: ostr(r.passwordChangedAt),
+    password: { canChange: bool(p.canChange), why: ostr(p.why), minLength: num(p.minLength, MIN_PASSWORD) },
+    lastSignIn: signInOf(r.lastSignIn),
+    activity: { shown: num(ac.shown, 0), max: num(ac.max, 15), items: arr(ac.items as unknown[]).filter(has).map(entryOf) },
+  };
+}
+
+function normWhatsNew(raw: unknown): WhatsNewView {
+  const r = o(raw);
+  const t = o(r.tour);
+  const p = o(r.pending);
+  return {
+    open: bool(r.open), audience: r.audience === 'admin' ? 'admin' : 'all', unseen: opt(r.unseen), of: num(r.of, 0),
+    pending: has(r.pending) ? { kind: p.kind === 'tour' ? 'tour' : 'news', ids: strs(p.ids) } : null,
+    tour: {
+      done: typeof t.done === 'boolean' ? t.done : null, title: str(t.title, 'Welcome'), intro: str(t.intro),
+      steps: arr(t.steps as unknown[]).filter(has).map((x) => ({ title: str(o(x).title), body: str(o(x).body) })),
+    },
+    items: arr(r.items as unknown[]).filter(has).map((x) => {
+      const n = o(x);
+      const l = o(n.link);
+      return {
+        id: str(n.id), date: ostr(n.date), level: n.level === 'major' ? 'major' : 'minor', audience: n.audience === 'admin' ? 'admin' : 'all', title: str(n.title), body: strs(n.body),
+        link: has(n.link) && typeof l.href === 'string' ? { href: l.href, label: str(l.label, l.href) } : null, seen: typeof n.seen === 'boolean' ? n.seen : null,
+      };
+    }),
+  };
+}
+
+export const getAdminJobs = async (): Promise<JobsView> => normJobs(await getJson<unknown>('/api/admin/jobs'));
+export const getAdminRunLog = async (id: string): Promise<RunLog> => normRunLog(await getJson<unknown>(`/api/admin/jobs/run/${encodeURIComponent(id)}/log`), id);
+export const getAdminPeople = async (all: boolean): Promise<PeopleView> => normPeople(await getJson<unknown>(`/api/admin/people${all ? '?limit=all' : ''}`));
+export const getAccount = async (): Promise<AccountView> => normAccount(await getJson<unknown>('/api/account'));
+export const getWhatsNew = async (): Promise<WhatsNewView> => normWhatsNew(await getJson<unknown>('/api/whats-new'));
+
+// The actions' addresses (system.js), named once.
+export const ACTIONS = {
+  run: '/api/admin/jobs/run', // {key}
+  cancel: '/api/admin/jobs/cancel', // {key}
+  stop: '/api/admin/jobs/stop', // {runId}
+  service: (name: string, action: 'start' | 'stop' | 'restart') => `/api/admin/services/${encodeURIComponent(name)}/${action}`,
+  addUser: '/api/admin/people/add', // {username, password}
+  setPassword: '/api/admin/people/password', // {username, password}
+  deleteUser: '/api/admin/people/delete', // {username}
+  ownPassword: '/api/account/password', // {current, password, confirm} -> csrf: the new session's token
+  seen: '/api/whats-new/seen', // {ids?, all?, tour?}
+  replay: '/api/whats-new/replay',
+};

@@ -91,6 +91,30 @@ function hasUnseen(user) {
   return Boolean(user && !user.open && (!stateOf(user).tourDone || unseen(user).length));
 }
 
+// The tour's steps this reader's audience may see.
+function tourSteps(user) {
+  return TOUR.steps.filter((s) => s.audience !== 'admin' || (user && user.role === 'admin'));
+}
+
+// --- what a reader sends back: shared by the form and the app's JSON ---------
+// A browser sends one `id` field per note, which Express turns into an array; a
+// single note arrives as a plain string. Comma-separated values are accepted
+// too, so a hand-made request cannot silently store one nonsense id instead of
+// four real ones.
+function idsFrom(value) {
+  return [].concat(value || [])
+    .flatMap((v) => String(v).split(','))
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .slice(0, 50);
+}
+
+// "Show me the introduction again": the tour is pending on the next page.
+function replay(user) {
+  const state = loadState();
+  if (state[user.name]) { state[user.name].tourDone = false; saveState(state); }
+}
+
 // --- rendering ---------------------------------------------------------------
 const DIALOG_CSS = `
   .sp-dialog-backdrop {
@@ -125,8 +149,7 @@ function dialog(user) {
   const content = show.kind === 'tour'
     ? `<h2>${escapeHtml(TOUR.title)}, ${escapeHtml(user.name)}</h2>
        <p>${escapeHtml(TOUR.intro)}</p>
-       ${TOUR.steps.filter((s) => s.audience !== 'admin' || user.role === 'admin')
-         .map((s) => `<h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.body)}</p>`).join('')}`
+       ${tourSteps(user).map((s) => `<h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.body)}</p>`).join('')}`
     : `<h2>What's new</h2>
        ${show.items.map((a) => `
           <h3>${escapeHtml(a.title)} <span class="sp-date">${escapeHtml(a.date)}</span></h3>
@@ -197,25 +220,18 @@ function install(app, render, auth) {
   app.post('/whats-new/seen', (req, res) => {
     if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
     const body = req.body || {};
-    // A browser sends one `id` field per note, which Express turns into an
-    // array; a single note arrives as a plain string. Comma-separated values
-    // are accepted too, so a hand-made request cannot silently store one
-    // nonsense id instead of four real ones.
-    const ids = [].concat(body.id || [])
-      .flatMap((value) => String(value).split(','))
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .slice(0, 50);
-    markSeen(req.user, ids, body.tour === '1');
+    markSeen(req.user, idsFrom(body.id), body.tour === '1');
     res.redirect(auth.safeNext(req.get('referer') ? new URL(req.get('referer'), 'http://x').pathname : '/'));
   });
 
   app.post('/whats-new/replay', (req, res) => {
     if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const state = loadState();
-    if (state[req.user.name]) { state[req.user.name].tourDone = false; saveState(state); }
+    replay(req.user);
     res.redirect('/');
   });
 }
 
-module.exports = { install, dialog, navLink, page, pending, hasUnseen, DIALOG_CSS, STATE_FILE };
+// visible / unseen / stateOf / markSeen / tourSteps / idsFrom / replay: the app's JSON (system.js) reads and records
+// through the same functions as the dialog and the page.
+module.exports = { install, dialog, navLink, page, pending, hasUnseen, DIALOG_CSS, STATE_FILE,
+  visible, unseen, stateOf, markSeen, tourSteps, idsFrom, replay, TOUR };

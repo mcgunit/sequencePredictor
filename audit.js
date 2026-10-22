@@ -123,8 +123,30 @@ function lastLogins(limit = 500) {
   return seen;
 }
 
+// How many events the two files hold - the true count behind a page that shows
+// only the newest few - and the oldest one's time. Reads both files whole, which
+// the rotation bounds at MAX_BYTES each; a line that does not parse is not an
+// event and is not counted.
+function count() {
+  let events = 0;
+  let oldest = null;
+  for (const file of [`${FILE}.1`, FILE]) {
+    let text;
+    try { text = fs.readFileSync(file, 'utf-8'); } catch (e) { continue; }
+    text.split('\n').forEach((line) => {
+      if (!line) return;
+      let entry;
+      try { entry = JSON.parse(line); } catch (e) { return; }
+      if (!entry || typeof entry.at !== 'string') return;
+      events += 1;
+      if (oldest === null || entry.at < oldest) oldest = entry.at;
+    });
+  }
+  return { events, oldest };
+}
+
 function label(event) {
   return LABELS[event] || event;
 }
 
-module.exports = { record, recent, lastLogins, label, FILE };
+module.exports = { record, recent, lastLogins, count, label, FILE, LABELS };

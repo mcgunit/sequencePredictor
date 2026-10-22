@@ -46,6 +46,7 @@ const marketsPath = path.join(__dirname, 'data', 'markets');
 const markets = require('./markets');
 const api = require('./api');   // the JSON API and the React app under /app (15 Oct 2026)
 const admin = require('./admin');   // the admin section's JSON under /api/admin (21 Oct 2026)
+const system = require('./system');   // the System pages' JSON: Jobs & services, People, Account, What's new (21 Oct 2026)
 const audit = require('./audit');   // the sign-in events the admin This week page counts
 const rankings = require('./ranking');   // the History ranking and its top five, shared with admin.js
 // modelsPath removed as it is no longer used
@@ -1993,6 +1994,12 @@ app.get('/lottery', (req, res) => {
 auth.install(app, { header: generateHeader, footer: generateFooter });
 markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath, controlsDir: controlsPath });
 api.install(app, { dataDir: marketsPath });
+// The System pages' JSON (system.js): Jobs & services and People for the
+// administrator, Account and What's new for every signed-in reader, with the
+// JSON POST actions (form token from /api/me). It calls the same rules as the
+// old forms below (jobs.js, services.js, auth.js, whatsnew.js). Installed
+// before admin.js, whose catch-all answers the rest of /api/admin with a 404.
+system.install(app, { root: __dirname, jobs, services });
 // The admin section's JSON (/api/admin/*, administrator only): the same
 // records the History cards read, from the same folders; This week also asks
 // the schedule (its jobs, the lock, the queue), the Council API's supervisor

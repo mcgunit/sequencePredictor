@@ -162,7 +162,9 @@ async function refreshHealth(service) {
 // --- lifecycle -------------------------------------------------------------
 async function start(service, { manual = false } = {}) {
   const info = runtime(service);
-  if (info.child) return { ok: true, message: 'already running' };
+  // changed: whether the call did anything - false for a service that was
+  // already up, so the app's JSON can answer 409 instead of a success.
+  if (info.child) return { ok: true, changed: false, message: 'already running' };
 
   const existing = await probe(service);
   if (existing) {
@@ -170,7 +172,7 @@ async function start(service, { manual = false } = {}) {
     info.health = existing;
     info.healthAt = Date.now();
     logLine(service, `port ${service.port} already answers - adopting that instance, not starting a second one`);
-    return { ok: true, message: `something already answers on port ${service.port} - adopted` };
+    return { ok: true, changed: false, message: `something already answers on port ${service.port} - adopted` };
   }
 
   let fd;
@@ -252,7 +254,7 @@ async function start(service, { manual = false } = {}) {
     if (info.timer.unref) info.timer.unref();
   });
 
-  return { ok: true, message: `started (pid ${child.pid})` };
+  return { ok: true, changed: true, message: `started (pid ${child.pid})` };
 }
 
 function stop(service, { manual = true } = {}) {
@@ -260,7 +262,7 @@ function stop(service, { manual = true } = {}) {
   if (info.timer) { clearTimeout(info.timer); info.timer = null; }
   if (!info.child) {
     info.status = info.status === 'external' ? 'external' : 'stopped';
-    return { ok: true, message: info.status === 'external' ? 'not ours to stop (started outside the server)' : 'already stopped' };
+    return { ok: true, changed: false, message: info.status === 'external' ? 'not ours to stop (started outside the server)' : 'already stopped' };
   }
   info.stopping = manual;
   info.health = null;
@@ -269,16 +271,43 @@ function stop(service, { manual = true } = {}) {
   const child = info.child;
   const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) { /* gone */ } }, 5000);
   if (killer.unref) killer.unref();
-  return { ok: true, message: 'stopping' };
+  return { ok: true, changed: true, message: 'stopping' };
 }
 
 async function restart(service) {
-  stop(service, { manual: true });
+  const stopped = stop(service, { manual: true });
   await new Promise((resolve) => setTimeout(resolve, 600));
   const info = runtime(service);
   info.crashes = [];
   info.backoff = BACKOFF_START_MS;
-  return start(service, { manual: true });
+  const started = await start(service, { manual: true });
+  return Object.assign({}, started, { changed: Boolean(stopped.changed || started.changed) });
+}
+
+// --- actions: one rule for the old form and the app's JSON -------------------
+// Which buttons a service's state allows - the Jobs page greys the others, the
+// app shows the same: s is a status() entry (status, pid).
+function actionsFor(s) {
+  const managed = s.status !== 'external';
+  return { start: s.status !== 'running' && s.status !== 'external', restart: managed, stop: managed && Boolean(s.pid) };
+}
+
+const ACTIONS = ['start', 'stop', 'restart'];
+// One action on one service, said in the service's own log. Answers
+// {ok, status, message, changed}: 400 an unknown service or action, 409 an
+// action that changed nothing (already running, already stopped, not ours),
+// 500 one that failed (the log cannot be opened, the spawn failed).
+async function act(key, action, by) {
+  const service = serviceByKey(String(key || ''));
+  if (!service) return { ok: false, status: 400, message: 'unknown service' };
+  if (!ACTIONS.includes(action)) return { ok: false, status: 400, message: `${service.name}: unknown action` };
+  let result;
+  if (action === 'start') result = await start(service, { manual: true });
+  else if (action === 'stop') result = stop(service);
+  else result = await restart(service);
+  logLine(service, `${action} requested by ${by}: ${result.message}`);
+  const status = !result.ok ? 500 : (result.changed ? 200 : 409);
+  return { ok: status === 200, status, changed: Boolean(result.changed), message: `${service.name}: ${result.message}` };
 }
 
 function startAll() {
@@ -327,6 +356,7 @@ async function status() {
       lastExit: info.lastExit,
       lastError: info.lastError,
       healthy: Boolean(info.health),
+      checkedAt: info.healthAt || null,
       summary: info.health && service.summarize ? service.summarize(info.health) : null,
       log: tailLog(service),
     };
@@ -356,7 +386,7 @@ function page(req, render, services, message, extra) {
   const csrf = `<input type="hidden" name="_csrf" value="${esc(req.user.csrf)}">`;
   const cards = services.map((s) => {
     const [colour, label] = BADGE[s.status] || ['#7f8c8d', s.status];
-    const managed = s.status !== 'external';
+    const can = actionsFor(s);
     return `
     <div class="card expanded">
       <div class="card-header" onclick="toggleCard(this)">
@@ -380,9 +410,9 @@ function page(req, render, services, message, extra) {
         </table>
         <form method="post" action="/admin/jobs/action" class="inline-form">${csrf}
           <input type="hidden" name="key" value="${esc(s.key)}">
-          <button type="submit" name="action" value="start" class="nav-btn"${s.status === 'running' || s.status === 'external' ? ' disabled' : ''}>Start</button>
-          <button type="submit" name="action" value="restart" class="nav-btn"${managed ? '' : ' disabled'}>Restart</button>
-          <button type="submit" name="action" value="stop" class="nav-btn" style="background:#c0392b; border-color:#a93226;"${managed && s.pid ? '' : ' disabled'}>Stop</button>
+          <button type="submit" name="action" value="start" class="nav-btn"${can.start ? '' : ' disabled'}>Start</button>
+          <button type="submit" name="action" value="restart" class="nav-btn"${can.restart ? '' : ' disabled'}>Restart</button>
+          <button type="submit" name="action" value="stop" class="nav-btn" style="background:#c0392b; border-color:#a93226;"${can.stop ? '' : ' disabled'}>Stop</button>
         </form>
         ${s.status === 'external' ? '<p style="color:#7f8c8d;">This instance was started outside the server (by hand, or by the other checkout), so the buttons above cannot manage it.</p>' : ''}
         <pre style="background:#2c3e50; color:#ecf0f1; padding:12px; border-radius:6px; overflow-x:auto; max-height:260px; font-size:0.85em;">${esc(s.log.join('\n') || 'no log yet')}</pre>
@@ -421,19 +451,12 @@ function install(app, render, extraSection) {
     res.send(page(req, render, await status(), req.query.msg ? String(req.query.msg).slice(0, 200) : null, extra));
   });
 
+  // The form and the app's JSON route (system.js) share act(): same rule, same message.
   app.post('/admin/jobs/action', adminOnly, async (req, res) => {
     if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const service = serviceByKey(String((req.body || {}).key || ''));
-    const action = String((req.body || {}).action || '');
-    if (!service) return res.redirect('/admin/jobs?msg=' + encodeURIComponent('unknown service'));
-    let result;
-    if (action === 'start') result = await start(service, { manual: true });
-    else if (action === 'stop') result = stop(service);
-    else if (action === 'restart') result = await restart(service);
-    else result = { message: 'unknown action' };
-    logLine(service, `${action} requested by ${req.user.name}: ${result.message}`);
-    res.redirect('/admin/jobs?msg=' + encodeURIComponent(`${service.name}: ${result.message}`));
+    const result = await act((req.body || {}).key, String((req.body || {}).action || ''), req.user.name);
+    res.redirect('/admin/jobs?msg=' + encodeURIComponent(result.message));
   });
 }
 
-module.exports = { install, startAll, stopAll, status, SERVICES };
+module.exports = { install, startAll, stopAll, status, act, actionsFor, ACTIONS, SERVICES };
