@@ -1777,9 +1777,49 @@
     33,
     18
    ]
+  },
+  {
+   "date": "2026-10-21",
+   "row": "Regime HMM Model",
+   "regimes": 4,
+   "features": [
+    "returns"
+   ],
+   "dominant": 2,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 0.9187507784292196,
+   "weights": [
+    0.0014795285401583281,
+    0.04361232626969957,
+    0.9187507784292196,
+    0.036157366760922474
+   ],
+   "expected_return": [
+    0.000752378813207881,
+    0.00012055000147111223,
+    0.00041824573220281024,
+    -0.00012341740459562283,
+    0.0002606988397004782
+   ],
+   "volatility": [
+    0.02186517514544346,
+    0.029760534221713625,
+    0.02382259805753035,
+    0.03490652031615605,
+    0.04151337436102439
+   ],
+   "template": 3,
+   "template_distance": 0.17612243907059213,
+   "templates": [
+    32,
+    14,
+    3,
+    34
+   ]
   }
  ],
- "updated": "2026-10-20",
+ "updated": "2026-10-21",
  "Regime HMM ZeroMean Model": [
   {
    "date": "2026-08-30",
@@ -3544,6 +3584,42 @@
     2,
     3
    ]
+  },
+  {
+   "date": "2026-10-21",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 0.5,
+   "weights": [
+    0.5,
+    0.5
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.024424507499300977,
+    0.03343478973632046,
+    0.02706822022826057,
+    0.04150687618481477,
+    0.04678300350634639
+   ],
+   "template": 2,
+   "template_distance": 0.17278160335634962,
+   "templates": [
+    2,
+    3
+   ]
   }
  ],
  "Regime HMM Single Model": [
@@ -5145,6 +5221,40 @@
    ],
    "template": 1,
    "template_distance": 0.2323843926211761,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-10-21",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.0008820383742761937,
+    0.0002436851098089467,
+    0.0006208141452927207,
+    0.0008891029224803338,
+    0.0006998725131569323
+   ],
+   "volatility": [
+    0.024408575847224598,
+    0.03343390169093668,
+    0.027061100053815627,
+    0.041497352525369326,
+    0.04677776817613413
+   ],
+   "template": 1,
+   "template_distance": 0.21050517926891957,
    "templates": [
     1
    ]
