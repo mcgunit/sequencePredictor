@@ -1503,4 +1503,4 @@ function install(app, { header, footer, dataDir, controlsDir }) {
 module.exports = { MARKETS, COLOURS, CHART_CLIENT_JS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading, binInterval,
   pickPlan, pickWeek, MIN_PLAN_TRADES, MIN_WEEK_TRADES, dayStatusWeek, describeFollowed, describeGuarded, GUARD_SHOWN_FROM,
   nextGameDay, closeMoment, openMoment, closeText, closeShort, openText, brusselsText, appearedText, hoursInto, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE, WEEK_GAMES, weekEnd,
-  intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price };
+  intervalText, binOfMove, gameViewLink, signedPct, page, install, pct, money, price, MIN_RANK_DAYS };

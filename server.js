@@ -51,25 +51,14 @@ const audit = require('./audit');   // the sign-in events the admin This week pa
 const rankings = require('./ranking');   // the History ranking and its top five, shared with admin.js
 // modelsPath removed as it is no longer used
 
-// --- GAME SHAPES ---
-// Mirrors Predictor.py's SPECIAL_COLUMN_COUNTS: how many trailing values of a
-// full result/ticket row are special numbers (euromillions stars, eurodreams
-// dream number, vikinglotto viking, jokerplus zodiac sign code). A main-ball
-// hit and a special-ball hit are different prize dimensions, so the UI must
-// never pool them.
-const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1, jokerplus: 1 };
-
-// --- Lotto multi-pick (src/MultiPick.py, README "Lotto multi-pick") ---
-// A lotto row carries, besides its six numbers (ordered by the model's own
-// probability, highest first), the next three it did not play - row.multiPick
-// - for a 7-, 8- or 9-number system play. The table shows them as three
-// shaded cells; the hits column adds the hits among all nine.
-const comb = (n, k) => { let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r; };
-// P(at least minHits of the drawn numbers among `picked`): the exact hypergeometric, as src/MultiPick.chance
-const winChance = (picked, pool = 45, draw = 6, minHits = 3) => { let sum = 0; for (let h = minHits; h <= Math.min(draw, picked); h++) sum += comb(draw, h) * comb(pool - draw, picked - h); return sum / comb(pool, picked); };
-const MULTI_PICK = { lotto: { extra: 3, grids: { 7: 7, 8: 28, 9: 84 }, gridPrice: 1.5, chance: { 6: winChance(6), 7: winChance(7), 8: winChance(8), 9: winChance(9) }, perExtra: 6 / 45 } };
-const multiPickFor = (game) => MULTI_PICK[game] || null;
-const multiHits = (ticketMains, extras, realMains) => new Set([...ticketMains, ...extras].map(Number).filter((n) => realMains.includes(n))).size;
+// --- GAME SHAPES, MULTI-PICK, JOKER+, MONEY ---
+// The rules that score a ticket against a drawn row live in draws.js (moved there on 22 Oct 2026 so the admin
+// workbench and the users' Lottery read the same rules as these pages): the special columns, the lotto multi-pick,
+// the Joker+ runs, sign and payout, the keno / pick3 payout tables, the split of a drawn row and a ticket, and the
+// day files' dates and schedule.
+const draws = require('./draws');
+const { SPECIAL_COLUMN_COUNTS, multiPickFor, multiHits, zodiacName, displayRow, jokerplusRuns, jokerplusSignHit, formatProfit, chartFrequency,
+  gameFromFolder, splitRealResult, splitTicket, calculateProfit, parseDayFileDate, nextDrawDate } = draws;
 
 // --- Which rows a reader sees (3 Oct 2026; 21 Oct 2026, owner's decision) ---
 // A user sees the next prediction of the top five rows of the History ranking
@@ -182,135 +171,6 @@ function marketGameViewNote(game, user) {
     from worst to best and cut into ten equal piles: 0 is a day among its worst tenth, 9 among its best, 4 and 5 barely moved. A hit is the right bin in the right slot.`, 'what the digit means')}</div>`;
 }
 
-// --- JOKER+ ---
-// The Python side stores the Joker+ zodiac sign as its 0..11 code (regulation
-// order, see Helpers.ZODIAC_CANONICAL) so every model works on ints; the UI
-// decodes it back to the spelling the National Lottery's CSV exports use
-// (code 2 is 'Tweeling' there, not the regulation's 'Tweelingen') so the
-// page reads like the official result listing.
-const ZODIAC = ["Ram", "Stier", "Tweeling", "Kreeft", "Leeuw", "Maagd",
-                "Weegschaal", "Schorpioen", "Boogschutter", "Steenbok", "Waterman", "Vissen"];
-// Alternate spellings tolerated when a row carries a name instead of a code
-// (hand-edited files, the draw API's English names) - a value that only
-// differs in spelling must still count as the same sign.
-const ZODIAC_ALIASES = {
-  tweelingen: 2, aries: 0, taurus: 1, gemini: 2, cancer: 3, leo: 4, virgo: 5,
-  libra: 6, scorpio: 7, sagittarius: 8, capricorn: 9, aquarius: 10, pisces: 11
-};
-
-// Sign code (0..11) of a ticket/result value, or null when it is absent or
-// unrecognizable: an unknown sign simply cannot match, it must not break the
-// page. Mirrors Helpers._zodiac_code_or_none.
-function zodiacCode(value) {
-  if (value === null || value === undefined || typeof value === 'boolean') return null;
-  if (typeof value === 'number' || /^\s*\d+\s*$/.test(String(value))) {
-    const code = Number(value);
-    return Number.isInteger(code) && code >= 0 && code < ZODIAC.length ? code : null;
-  }
-  const key = String(value).trim().toLowerCase();
-  const idx = ZODIAC.findIndex(name => name.toLowerCase() === key);
-  if (idx >= 0) return idx;
-  return Object.prototype.hasOwnProperty.call(ZODIAC_ALIASES, key) ? ZODIAC_ALIASES[key] : null;
-}
-
-// Display name of a sign value. Unknown values are shown verbatim rather than
-// hidden so a bad code is visible in the UI instead of silently vanishing.
-function zodiacName(value) {
-  const code = zodiacCode(value);
-  return code === null ? String(value) : ZODIAC[code];
-}
-
-// Joker+ rows are [d1..d6, zodiacCode]; for display the trailing code becomes
-// its name. Other games and mains-only 6-digit rows are returned untouched.
-function displayRow(row, game) {
-  if (game !== 'jokerplus' || !Array.isArray(row) || row.length !== 7) return row;
-  return row.slice(0, 6).concat([zodiacName(row[6])]);
-}
-
-// Leading/trailing runs of a Joker+ ticket against the drawn digits - the two
-// quantities the game pays on (mirrors Helpers.jokerplus_runs). L = number of
-// LEADING positions matching consecutively from the left end, R = number of
-// TRAILING positions matching consecutively from the right end. Compared
-// positionally in drawn order, never as sets: digits repeat within a draw,
-// so membership tests are meaningless here. When every position matches the
-// match is full and R is reported as 0 so the two runs never double-count
-// the same positions; otherwise the mismatching position separates them and
-// L + R <= 5. Only the leading min(len) positions are compared so a 6-digit
-// mains-only ticket and a 7-value [digits + sign] row both work.
-function jokerplusRuns(ticketDigits, realDigits) {
-  const n = Math.min(ticketDigits.length, realDigits.length);
-  let left = 0;
-  while (left < n && Number(ticketDigits[left]) === Number(realDigits[left])) left += 1;
-  if (left === n) return { left: n, right: 0 };
-  let right = 0;
-  while (right < n - left && Number(ticketDigits[n - 1 - right]) === Number(realDigits[n - 1 - right])) right += 1;
-  return { left, right };
-}
-
-// Whether a Joker+ ticket's sign matches the drawn sign (0/1 for the "(Z)"
-// part of the notation). A ticket without a sign cell cannot match.
-function jokerplusSignHit(ticketSpecials, realSpecials) {
-  if (ticketSpecials.length === 0 || realSpecials.length === 0) return 0;
-  const ticketSign = zodiacCode(ticketSpecials[0]);
-  return ticketSign !== null && ticketSign === zodiacCode(realSpecials[0]) ? 1 : 0;
-}
-
-// Official Joker+ prize structure (Reglement Joker+, Sept 2023), mirroring
-// Helpers.PAYOUT_TABLE_JOKERPLUS. Left and right runs each pay per run length
-// and cumulate; all six digits matching is its own tier (the fixed minimum
-// jackpot when the sign matches too, which then replaces the sign refund
-// rather than adding to it). A matching sign alone refunds the stake. The
-// digits are system-generated; only the sign is chosen by the player.
-const PAYOUT_TABLE_JOKERPLUS = {
-  runs: { 0: 0, 1: 2, 2: 5, 3: 20, 4: 200, 5: 2000 },
-  full: 20000,
-  fullWithSign: 200000,
-  sign: 1.5,
-  betCost: 1.5
-};
-
-// Net profit of one Joker+ ticket (mirrors Helpers.jokerplus_ticket_profit).
-// ticket/realResult are [d1..d6, zodiacCode]; a 6-value ticket or result is
-// scored with the sign unknown (no sign match possible). Invalid shapes score
-// 0 like the other games' invalid-shape branches in calculateProfit.
-function jokerplusTicketProfit(ticket, realResult) {
-  if (!Array.isArray(ticket) || !Array.isArray(realResult)) return 0;
-  if (![6, 7].includes(ticket.length) || ![6, 7].includes(realResult.length)) return 0;
-  const ticketDigits = ticket.slice(0, 6).map(Number);
-  const realDigits = realResult.slice(0, 6).map(Number);
-  if (ticketDigits.some(Number.isNaN) || realDigits.some(Number.isNaN)) return 0;
-  const signMatch = jokerplusSignHit(ticket.slice(6), realResult.slice(6)) === 1;
-  const { left, right } = jokerplusRuns(ticketDigits, realDigits);
-  const table = PAYOUT_TABLE_JOKERPLUS;
-  let payout;
-  if (left === 6) {
-    payout = signMatch ? table.fullWithSign : table.full;
-  } else {
-    payout = table.runs[left] + table.runs[right];
-    if (signMatch) payout += table.sign;
-  }
-  return payout - table.betCost;
-}
-
-// Joker+ profits carry half-euro cents (1.50 stake/refund), so they are shown
-// with two decimals; the other payout games keep their integer rendering.
-function formatProfit(value, game) {
-  return game === 'jokerplus' && typeof value === 'number' ? value.toFixed(2) : value;
-}
-
-// Frequency dict fed to the bar charts. The day JSON's numberFrequency pools
-// every value of every predicted row; for Joker+ that would mix the zodiac
-// code in with the digits. A code 3 is indistinguishable from a digit 3
-// here, but codes 10 and 11 can only be signs, so the chart is restricted to
-// the digit range 0..9 and its x-axis stays "digits". Other games are
-// returned as-is (same object, so their charts render byte-identically).
-function chartFrequency(freq, game) {
-  if (game !== 'jokerplus' || !freq) return freq;
-  const digitsOnly = {};
-  Object.keys(freq).forEach((key) => { if (/^\d$/.test(String(key).trim())) digitsOnly[key] = freq[key]; });
-  return digitsOnly;
-}
-
 // --- LOGIC: is the pipeline busy right now? ---
 // Every Python entry point (Predictor.py, the five tuners, TrainMetaLearner)
 // takes this one PID lock file in the repo root, so it is the cheapest honest
@@ -369,50 +229,14 @@ function pipelineBanner() {
 
 // --- LOGIC: which draw a "new prediction" is for ---
 // A day JSON is named after the draw it scored, and its "newPrediction" is
-// the prediction for the NEXT draw of that game (checked against the data:
-// file D's newPrediction is exactly what file D+1 carries as its scored
-// currentPrediction). The schedule differs per game and has changed before -
-// Keno/Pick3/Joker+ draw daily, Lotto Wed+Sat, Euromillions Tue+Fri,
-// EuroDreams Mon+Thu, VikingLotto Wed - so it is read from the game's own
-// recent draw dates instead of being hardcoded: the weekdays of the last
-// SCHEDULE_WINDOW stored draws are the schedule, and the prediction applies
-// to the first date after its file that falls on one of them.
-const SCHEDULE_WINDOW = 40;
+// the prediction for the NEXT draw of that game; draws.nextDrawDate reads the
+// game's schedule from its own recent draw dates (the weekdays of its last
+// stored draws) and gives the first date after a file that falls on one.
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// "2026-9-16.json" (day files are not zero padded) -> local Date, or null
-// for anything that isn't a day file.
-function parseDayFileDate(file) {
-  const parts = String(file).replace('.json', '').split('-').map(Number);
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
-  const [year, month, day] = parts;
-  const date = new Date(year, month - 1, day);
-  return (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) ? date : null;
-}
-
 function formatDrawDate(date) {
   return `${WEEKDAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
-}
-
-// First date after `anchor` (default: the newest stored draw) whose weekday
-// is one the game actually draws on. null when there are no day files or no
-// such date within two weeks (an unreadable schedule shows no date at all
-// rather than a guessed one).
-function nextDrawDate(fileDates, anchor) {
-  const dates = fileDates.filter(Boolean).sort((a, b) => a - b);
-  if (!dates.length) return null;
-  const from = anchor || dates[dates.length - 1];
-  // Only draws up to the anchor define its schedule, so a history page from
-  // before a schedule change is read with the schedule of its own time.
-  const upToAnchor = dates.filter((d) => d <= from);
-  const weekdays = new Set((upToAnchor.length ? upToAnchor : dates).slice(-SCHEDULE_WINDOW).map((d) => d.getDay()));
-  const next = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  for (let step = 0; step < 14; step += 1) {
-    next.setDate(next.getDate() + 1);
-    if (weekdays.has(next.getDay())) return next;
-  }
-  return null;
 }
 
 // The "for the draw of ..." line next to a new-prediction table. On the home
@@ -430,41 +254,6 @@ function drawDateMeta(fileDates, anchor, warnWhenPast) {
   }
   const when = next.getTime() === today.getTime() ? 'today, ' : '';
   return `<span class="card-meta" style="margin-left: 10px;">for the draw of ${when}${label}</span>`;
-}
-
-// Database folder names equal game names today, but the routes historically
-// matched with includes() (e.g. a "keno_backup" folder still behaves as keno),
-// so keep that tolerance. vikinglotto must be tested before lotto because
-// "vikinglotto".includes("lotto") is true.
-function gameFromFolder(folder) {
-  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus", "cryptoweek", "sharesweek", "crypto", "shares"];   // the week games before their base: "cryptoweek".includes("crypto")
-  for (const g of games) if (folder.includes(g)) return g;
-  return folder;
-}
-
-// Split a real-result row (a full CSV row) into main, special and bonus
-// numbers. Lotto follows the real game's tiers: 6 played numbers score
-// against the 6 drawn mains, and the 7th (bonus) value only supplements a
-// partial match - "5 (1)" is a high tier, "6 (0)" the jackpot - so the bonus
-// is a separate pool matched against the ticket ITSELF (a play has no bonus
-// slot), mirroring Helpers.find_best_matching_prediction.
-function splitRealResult(realResult, game) {
-  if (!Array.isArray(realResult) || realResult.length === 0) return { mains: [], specials: [], bonus: [] };
-  const s = SPECIAL_COLUMN_COUNTS[game] || 0;
-  if (s > 0 && realResult.length > s) return { mains: realResult.slice(0, -s), specials: realResult.slice(-s), bonus: [] };
-  if (game === "lotto") return { mains: realResult.slice(0, 6), specials: [], bonus: realResult.slice(6) };
-  return { mains: realResult.slice(), specials: [], bonus: [] };
-}
-
-// Split one prediction row. For special-column games a row longer than the
-// real main count carries its specials appended at the end; a row that is not
-// longer is a mains-only ticket (RL Ticket Model rows, keno subset tickets),
-// so it gets no special cells.
-function splitTicket(row, realMains, specialCount) {
-  if (specialCount > 0 && row.length > realMains.length) {
-    return { mains: row.slice(0, -specialCount), specials: row.slice(-specialCount) };
-  }
-  return { mains: row, specials: [] };
 }
 
 // --- HELPER: Generate HTML Header ---
@@ -832,76 +621,6 @@ function generateTable(data, title = '', realResult = [], calcProfit = false, ga
       extra numbers do better than that.` : ''} A row without shaded numbers (a vote, the RL ticket, HybridStatisticalModel, or a row whose ranking failed that run) has no extras and keeps its six small to large.</p>`, 'multi-pick: why the six are not sorted');
   }
   return html;
-}
-
-function calculateProfit(prediction, realResult, game, name) {
-  const payoutTableKeno = {
-    10: { 0: 3, 5: 1, 6: 4, 7: 10, 8: 200, 9: 2000, 10: 250000 },
-    9: { 0: 3, 5: 2, 6: 5, 7: 50, 8: 500, 9: 50000 },
-    8: { 0: 3, 5: 4, 6: 10, 7: 100, 8: 10000 },
-    7: { 0: 3, 5: 3, 6: 30, 7: 3000 },
-    6: { 3: 1, 4: 4, 5: 20, 6: 200 },
-    5: { 3: 2, 4: 5, 5: 150 },
-    4: { 2: 1, 3: 2, 4: 30 },
-    3: { 2: 1, 3: 16 },
-    2: { 2: 6.5 },
-    "lost": -1
-  };
-  // Mirror of Helpers.PAYOUT_TABLE_PICK3 (Reglement Pick-3, juli 2024).
-  const payoutTablePick3 = {
-    straight: 500, straight_consolation: 1, box_with_doubles: 160, box_no_doubles: 80,
-    front_pair: 50, back_pair: 50, bet_cost: 1
-  };
-  const played = prediction.length;
-
-  switch (game) {
-    case "keno": {
-      // NEW LOGIC: Strictly ignore profit if prediction row > 10 numbers
-      if (played > 10) return 0;
-
-      const correctNumbers = prediction.filter(n => realResult.includes(n)).length;
-      if (played >= 2 && played <= 10 && payoutTableKeno[played]) return payoutTableKeno[played][correctNumbers] ?? payoutTableKeno["lost"];
-      return 0; 
-    }
-    case "pick3": {
-      // Official cumulative model, the same as Helpers.pick3_ticket_profit
-      // (which scores the backtests, the tuners and the performance report):
-      // the tracked ticket plays every bet type at 1 EUR - straight, box,
-      // front pair, back pair; a triple cannot play box, so its stake is 3 -
-      // each bet is evaluated on its own, prizes cumulate, and the stake is
-      // deducted. The previous version paid the first matching tier only and
-      // never deducted the stake, so an exact [1,2,3] showed 500 here and
-      // 676 in the backtest, and every pick3 row's History profit disagreed
-      // with its tuning profit.
-      if (played != 3 || realResult.length < 3) return 0;
-      const pred = prediction.map(Number); const actual = realResult.slice(0, 3).map(Number);
-      const distinct = new Set(pred).size;
-      const isTriple = distinct === 1;
-      const stake = (isTriple ? 3 : 4) * payoutTablePick3.bet_cost;
-      let payout = 0;
-      if (pred[0] === actual[0] && pred[1] === actual[1] && pred[2] === actual[2]) payout += payoutTablePick3.straight;
-      else if (pred[2] === actual[2]) payout += payoutTablePick3.straight_consolation;
-      if (!isTriple && [...pred].sort((a, b) => a - b).join(',') === [...actual].sort((a, b) => a - b).join(',')) {
-        payout += distinct === 2 ? payoutTablePick3.box_with_doubles : payoutTablePick3.box_no_doubles;
-      }
-      if (pred[0] === actual[0] && pred[1] === actual[1]) payout += payoutTablePick3.front_pair;
-      if (pred[1] === actual[1] && pred[2] === actual[2]) payout += payoutTablePick3.back_pair;
-      return payout - stake;
-    }
-    case "jokerplus": {
-      // Positional run tiers + sign, one 1.50 EUR stake per row (Z6).
-      return jokerplusTicketProfit(prediction, realResult);
-    }
-    default: {
-      // Unreachable today (calcProfit is only enabled for keno/pick3/jokerplus), but
-      // kept split-aware per the main/special audit so a future caller cannot
-      // reintroduce the pooled main+special count: hits are main-vs-main only.
-      const { mains: realMains } = splitRealResult(realResult, game);
-      const { mains: ticketMains } = splitTicket(prediction, realMains, SPECIAL_COLUMN_COUNTS[game] || 0);
-      const correctNumbers = ticketMains.filter(n => realMains.includes(n)).length;
-      return `${correctNumbers}/${ticketMains.length}`;
-    }
-  }
 }
 
 function generateList(data, title = '') {

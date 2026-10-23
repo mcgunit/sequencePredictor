@@ -204,7 +204,7 @@ export class ApiError extends Error {
   }
 }
 
-async function getJson<T>(url: string): Promise<T> {
+export async function getJson<T>(url: string): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
@@ -655,7 +655,8 @@ export interface ControlsGameView {
   q0: Q0 & { modes: Record<string, Q0Mode> };
   q2: Q2Full | null;
   fc: (Omit<Fc, 'variants'> & { rule: string | null; variants: FcVariantFull[] }) | null;
-  rows: (MarketRows & { uniform: number | null; table: RowsTableRow[] }) | null;
+  // failed: the rows that failed in the report (admin.js rowsFull): why one scored no day, or how many days one raised on
+  rows: (MarketRows & { uniform: number | null; table: RowsTableRow[]; failed: { row: string; reason: string | null; days: number | null }[] }) | null;
   regimes: Regime[] | null;
   errors: string[];
 }
@@ -1443,6 +1444,7 @@ function normControlsGame(raw: unknown, game: string): ControlsGameView {
     ? {
         ...rowsBase,
         uniform: opt(o(r.rows).uniform),
+        failed: arr(o(r.rows).failed as unknown[]).filter(has).map((x) => ({ row: str(o(x).row), reason: ostr(o(x).reason), days: opt(o(x).days) })),
         table: arr(o(r.rows).table as unknown[]).map((x) => {
           const w = o(x);
           return {

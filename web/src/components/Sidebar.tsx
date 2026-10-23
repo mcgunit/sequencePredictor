@@ -7,7 +7,7 @@ import { useWhatsNew } from '../hooks/useWhatsNew';
 const NARROW = '(max-width: 860px)';
 
 // The menu as data. An item is a route of this app (to) or a server page (href, a full reload); a server
-// page that the app will replace carries the ↗ "old page" mark. The users see the four top items, and in the
+// page that the app will replace carries the ↗ "old page" mark (the Workbench replaced the market workbench's). The users see the four top items, and in the
 // footer their account, What's new and Sign out; the administrator also This week (with its status dot) and the
 // three groups, What's new among the System items.
 interface Item {
@@ -16,7 +16,8 @@ interface Item {
   href?: string;
   old?: boolean;
   nested?: boolean; // an anchor inside the page above it
-  links?: { label: string; href: string }[]; // one line, several old pages (the market workbench)
+  prefix?: boolean; // "on" for the pages under it too (/admin/games/lotto/2026-10-21)
+  links?: { label: string; to: string }[]; // one line, several routes (the market workbench: crypto, shares)
   news?: boolean; // carries What's new's unseen count
 }
 interface Group {
@@ -49,11 +50,12 @@ const ADMIN_GROUPS: Group[] = [
       { label: 'Best model & rankings', to: '/admin/models' },
       { label: 'Phase-shift', to: '/admin/phase-shift' },
       { label: 'Randomness watch', to: '/admin/randomness' },
+      { label: 'Games', to: '/admin/games', prefix: true },
       {
         label: 'Market workbench',
         links: [
-          { label: 'crypto', href: '/markets/crypto' },
-          { label: 'shares', href: '/markets/shares' },
+          { label: 'crypto', to: '/admin/markets/crypto' },
+          { label: 'shares', to: '/admin/markets/shares' },
         ],
       },
     ],
@@ -79,6 +81,8 @@ const HERE: [string, string][] = [
   ['/admin/randomness', 'Randomness'],
   ['/admin/jobs', 'Jobs & services'],
   ['/admin/people', 'People'],
+  ['/admin/games', 'Games'],
+  ['/admin/markets', 'Market workbench'],
   ['/admin', 'This week'],
   ['/account', 'Account'],
   ['/whats-new', "What's new"],
@@ -130,10 +134,9 @@ function ItemLink({ item, sub, pathname, hash, news, onNavigate }: { item: Item;
       <div className="pair">
         {item.label}
         {item.links.map((l) => (
-          <a key={l.href} href={l.href}>
+          <Link key={l.to} to={l.to} className={pathname === l.to ? 'on' : undefined} aria-current={pathname === l.to ? 'page' : undefined} onClick={onNavigate}>
             {l.label}
-            <Old />
-          </a>
+          </Link>
         ))}
       </div>
     );
@@ -149,7 +152,7 @@ function ItemLink({ item, sub, pathname, hash, news, onNavigate }: { item: Item;
   const [path, anchor = ''] = (item.to ?? '/').split('#');
   // a page's own entry is "on" unless one of its anchors is; an anchor only when it is the one in the URL
   const anchored = hash !== '' && ADMIN_GROUPS.some((g) => g.items.some((i) => i.to === `${path}${hash}`));
-  const on = pathname === path && (anchor ? hash === `#${anchor}` : !anchored);
+  const on = (pathname === path || (item.prefix === true && pathname.startsWith(`${path}/`))) && (anchor ? hash === `#${anchor}` : !anchored);
   return (
     <Link className={[cls, on ? 'on' : '', item.news ? 'wn' : ''].filter(Boolean).join(' ') || undefined} to={item.to ?? '/'} aria-current={on ? 'page' : undefined} onClick={onNavigate}>
       {item.label}
@@ -218,7 +221,9 @@ export default function Sidebar() {
               <div className="grp">Admin</div>
               <WeekLink on={pathname === '/admin' || pathname === '/admin/'} onNavigate={closeDrawer} />
               {ADMIN_GROUPS.map((g) => {
-                const holds = g.items.some((i) => i.to && pathname === i.to.split('#')[0]);
+                const holds = g.items.some(
+                  (i) => (i.to && (pathname === i.to.split('#')[0] || (i.prefix && pathname.startsWith(`${i.to}/`)))) || i.links?.some((l) => pathname === l.to),
+                );
                 return (
                   // every group open on a wide screen; on a phone only the one holding the page
                   <details key={`${g.label}-${narrow ? 'n' : 'w'}`} className="grpd" open={!narrow || holds}>

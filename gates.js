@@ -169,6 +169,7 @@ function git(root, args) {
   }));
 }
 const heads = new Map();   // root -> {at, sha}
+const forgetHeads = () => heads.clear();   // for the tests: read HEAD again on the next call
 async function headOf(root) {
   const hit = heads.get(root);
   if (hit && Date.now() - hit.at < HEAD_TTL_MS) return hit.sha;
@@ -281,12 +282,14 @@ async function history(root, games, current, { weekends: shown = WEEKENDS_SHOWN 
 }
 // Why git could not be read, in a fixed phrase for the page (git's own words can name the checkout's path, a parse
 // error quotes the file); the full message goes to the server log.
-const gitError = (e) => {
-  console.error(`[${new Date().toISOString()}] gates.js: git:`, String((e && (e.stderr || e.message)) || e).trim());
+const gitError = (e, who = 'gates.js') => {
+  console.error(`[${new Date().toISOString()}] ${who}: git:`, String((e && (e.stderr || e.message)) || e).trim());
   if (e && e.killed) return `git took over ${GIT_TIMEOUT_MS / 1000} s`;
   if (e && e.code === 'ENOENT') return 'git is not installed here';
   return typeof (e && e.code) === 'number' ? `git exited with code ${e.code}` : 'git failed';
 };
 
 module.exports = { TUNERS, DECISIONS, WEEKENDS_SHOWN, familyOf, tunerOfScript, tunerOfSubject, tunerOfJob, weekendOf, readGates, stampOf,
-  describe, attribute, runOf, saveCommits, gatesAt, history };
+  describe, attribute, runOf, saveCommits, gatesAt, history,
+  // shared with rankhistory.js: the same pooled, fixed-argument git (at most four at once), HEAD and failure phrase
+  git, headOf, forgetHeads, gitError, NOT_IN_COMMIT, SHA };

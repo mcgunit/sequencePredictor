@@ -36,6 +36,10 @@ the build output is not committed, so run `npm run build` on the machine that se
 | `/admin/models`     | Best model per game; a game's drawer holds its ranking                |
 | `/admin/phase-shift`| the tracked lag peaks per game                                        |
 | `/admin/randomness` | the Randomness watch                                                  |
+| `/admin/games`      | the Workbench's game picker                                           |
+| `/admin/games/:game`| every stored draw of a game by month (`?scope=top`: each draw's top 5 as ranked before it) |
+| `/admin/games/:game/:date` | one draw scored: the result, every row's tickets, the vote, the coming draw on the newest day |
+| `/admin/markets/:market` | the market workbench (crypto, shares): the plan and week cards in detail, following the plan, paper books, models, accuracy, prices, day by day, the guard, regimes |
 | other               | redirects to `/crypto` (`/admin/...` to `/admin`)                     |
 
 The admin routes render only for the administrator (`AdminGuard`, from `/api/me`); the API
@@ -62,6 +66,10 @@ All calls are same-origin and typed in `src/api.ts`:
 - `GET /api/admin/...` -> the admin views (`getAdminWeek`, `getAdminTuning`, `getAdminControls`,
   `getAdminModels`, `getAdminPhaseShift`, `getAdminRandomness` and their per-game getters);
   `admin.js` documents the shapes
+- the Workbench (`src/workbench.ts`, `workbench.js` documents the shapes): `GET /api/admin/history/:game?scope=&month=`,
+  `/api/admin/draw/:game/:date?scope=`, `/api/admin/market/:market/workbench` and its `/books/:rule` and
+  `/instrument/:symbol` series. Top on a past draw is the five ranked first before it (production's git history of the
+  ranking), never today's; before 25 Aug 2026 no ranking was recorded and the pages say so
 
 Every field may be null or empty; `getMarket()` and the admin getters fill the containers and the format helpers in
 `src/format.ts` answer "—" for anything missing, so the page always renders.
@@ -82,9 +90,14 @@ src/
   components/             sidebar, KPI tile, status strip, open/closed positions, trades log, charts
   components/admin/       card, chip, drawer, DotStrip (inline SVG), stacked and duration bars, the
                           weeks-in-a-row chip, the switch, guard and load states
+  components/draws/       a game's history (month cards, day lines), the drawn row, the scored tickets per
+                          family, the multi-pick legend, the vote charts, the scope line; mode="admin" | "user"
+                          (the users' Lottery reuses them with the top five only)
+  workbench.ts            the Workbench's API types, normalisers and getters
   pages/MarketPage.tsx    loads the market and lays out the page
   pages/admin/            This week, Tuning gates, Controls, Models, Phase-shift and Randomness pages
-                          and their drawers
+                          and their drawers; Games, a game's history, one draw, the market workbench
+                          (its cards in pages/admin/workbench/)
 ```
 
 There is no dev server script on purpose: the API lives in the Express app, so the quickest

@@ -13,6 +13,9 @@
 //                                         matrix with each cell's run of weeks, since Monday (phase P2)
 //   GET /api/admin/tuning[/:game]         Tuning gates: this weekend's decisions by tuner and by game, one game's
 //                                         rows with their scores and their last four weekends (phase P2)
+//   GET /api/admin/history/:game, /api/admin/draw/:game/:date, /api/admin/market/:market/workbench[/...]
+//                                         the Workbench (workbench.js, batch 4): every past draw, one draw, the market
+//                                         workbench; Top there is the five ranked first before each draw (rankhistory.js)
 //
 // Week over week (21 Oct 2026, the owner's decision): data/readings/<sunday>.json, one summary of the four Sunday
 // controls per weekend (weekReading below; readings.js writes it after the Sunday plan, tracked in git). A control's
@@ -42,6 +45,7 @@ const controls = require('./controls');
 const gates = require('./gates');
 const markets = require('./markets');
 const rankings = require('./ranking');
+const workbench = require('./workbench');
 
 const LOTTERY_GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto', 'jokerplus', 'pick3', 'keno'];
 const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek'];
@@ -507,7 +511,9 @@ function rowsFull(record) {
   if (!record) return null;
   const d = markets.describeRows(record);
   const interval = (x) => (x ? { mean: r4(x.mean), lo: r4(x.lo), hi: r4(x.hi), verdict: x.verdict } : null);
-  return { ...rowsOf(record), uniform: r4(d.uniform), floor: d.floor,
+  // the rows that failed (C16 of the workbench parity): a count is days the row raised on, a text why it scored no day
+  const failed = Object.keys(d.errors).sort().map((row) => (typeof d.errors[row] === 'string' ? { row, reason: d.errors[row] } : { row, days: num(d.errors[row]) }));
+  return { ...rowsOf(record), failed, uniform: r4(d.uniform), floor: d.floor,
     table: d.rows.map((r) => ({ row: r.name, kind: r.kind, reference: r.isReference, days: r.days, logScore: r4(r.logScore), se: r4(r.se),
       vsReference: interval(r.vsReference), vsUniform: interval(r.vsUniform), exact: r3(r.exact), adjacent: r3(r.adjacent), direction: r3(r.direction) })) };
 }
@@ -1506,6 +1512,10 @@ function install(app, options = {}) {
     return weekView({ jobs, sched: readScheduler(dirs), slices: Object.fromEntries(jobs.map((j) => [j.key, readSlices(dirs, j)])),
       controlsView: controlsWithHistory(), tuning: tuningSummary(t.records, t.hist, t.runs, t.missing), live });
   }));
+  // the Workbench (workbench.js): the draws of every game, one draw, the market workbench. The point-in-time ranking
+  // reads git at the checkout's root; its cache goes to the server's own gitignored config/ unless the caller names a file
+  workbench.install(app, { dirs, answerLater, games: { GAMES, UNIT, groupOf },
+    rankCacheFile: options.rankCacheFile || path.join(__dirname, 'config', 'rankhistory-cache.json') });
   // anything else under /api/admin is a JSON 404, never the old pages' HTML
   app.use('/api/admin', (req, res) => json(res, { error: 'not found' }, 404));
 }

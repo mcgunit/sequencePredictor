@@ -187,6 +187,7 @@ nav.side a .old, nav.side .pair .old { color: var(--faint); font-weight: 400; ma
 nav.side .pair { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; padding: 6px 10px 6px 24px; color: var(--muted); font-size: 13px; }
 nav.side .pair a { display: inline; padding: 0; color: var(--muted); font-weight: 400; border-radius: 4px; }
 nav.side .pair a:hover { background: none; color: var(--accent); }
+nav.side .pair a.on { color: var(--accent); font-weight: 500; }
 nav.side .foot { display: grid; gap: 4px; }
 nav.side .foot form { margin: 0; display: inline; }
 nav.side .foot a { display: inline; padding: 0; font-weight: 400; color: var(--muted); }
@@ -657,3 +658,131 @@ details.note-c.fresh { border-color: var(--accent); }
 .step h3 { font-size: var(--fs-sm); font-weight: 600; margin: 12px 0 2px; }
 .step p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .note-h h2::before { transition: none; } }
+
+/* ---------------------------------------------------------------------------------------------------------
+   The Workbench (admin batch 4): every past draw of a game, one draw, the market workbench. Numbers are small cells:
+   a hit solid green, the lotto bonus and Joker+'s sign amber, Joker+'s trailing run blue, one bin off pale green, the
+   multi-pick extras dashed. The Hits column and the legend under each table say the same in words. */
+.nums { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: flex-end; vertical-align: middle; max-width: 100%; }
+.nums .gap { width: 6px; }
+.nb { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 24px; padding: 0 4px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--card); color: var(--fg); font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.nb.drawn { background: var(--fg); border-color: var(--fg); color: var(--card); }
+.nb.m, .nb.l, .nb.s { background: var(--up); border-color: var(--up); color: var(--act-fg); }
+.nb.b, .nb.z { background: var(--warn); border-color: var(--warn); color: var(--act-fg); }
+.nb.r { background: var(--accent); border-color: var(--accent); color: var(--act-fg); }
+.nb.a { background: var(--up-bg); border-color: var(--up); color: var(--up); }
+.nb.x { border-style: dashed; border-color: var(--faint); background: var(--flat-bg); }
+.nb.x.m { background: var(--up); border-color: var(--fg); }
+.nb.none { color: var(--faint); border-style: dashed; background: transparent; }
+.nb.word { min-width: 0; padding: 0 8px; font-size: var(--fs-sm); }
+.nums.sm .nb { min-width: 22px; height: 20px; font-size: 12px; border-radius: 5px; }
+.slot { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; min-width: 34px; }
+.slot > small { font-size: 10px; line-height: 12px; color: var(--muted); letter-spacing: 0.02em; }
+.slot > small.ar { color: var(--fg); }
+.nums.sm .slot { min-width: 30px; }
+.swatch i.nbm, .swatch i.nbb, .swatch i.nbr, .swatch i.nba, .swatch i.nbx, .swatch i.nbd { width: 12px; height: 12px; border-radius: 3px; background: var(--up); }
+.swatch i.nbb { background: var(--warn); } .swatch i.nbr { background: var(--accent); } .swatch i.nbd { background: var(--fg); }
+.swatch i.nba { background: var(--up-bg); box-shadow: inset 0 0 0 1px var(--up); }
+.swatch i.nbx { background: var(--flat-bg); border: 1px dashed var(--faint); }
+
+/* The drawn row: mains, then the specials or the bonus as their own labelled group */
+.rstrip { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: flex-end; }
+.rgrp { display: grid; gap: 4px; min-width: 0; }
+.rgrp > small { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+
+/* A game's history: one folding card per month, one line per draw */
+.mcard .fold-h .meta b { color: var(--fg); font-weight: 600; }
+.dlist { display: grid; border-top: 1px solid var(--line); }
+.dl { display: grid; grid-template-columns: 104px minmax(0, max-content) minmax(0, 1fr); gap: 4px 18px; align-items: center; padding: 8px var(--pad); border-top: 1px solid var(--line); }
+.dl:first-child { border-top: 0; }
+.dl:hover { background: var(--row-hover); }
+.dl .d { font-weight: 600; white-space: nowrap; }
+.dl .d a { color: var(--accent); text-decoration: none; }
+.dl .d a:hover { text-decoration: underline; }
+.dl .d small { display: block; color: var(--muted); font-weight: 400; font-size: var(--fs-xs); }
+.fig { font-size: var(--fs-sm); min-width: 0; }
+.fig b { font-weight: 600; }
+.fig small { display: block; color: var(--muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.dlist > .empty { min-height: 72px; }
+@media (max-width: 640px) {
+  .dl { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .dl .d small { display: inline; margin-left: 6px; }
+}
+
+/* One draw: prev / next, the scope line, the tickets, the keno blocks */
+.drawnav { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: var(--fs-sm); }
+.drawnav a { color: var(--accent); text-decoration: none; }
+.drawnav a:hover { text-decoration: underline; }
+.drawnav .off { color: var(--faint); }
+.scopeline { font-size: var(--fs-sm); color: var(--muted); margin: 0 0 8px; }
+.scopeline b { color: var(--fg); font-weight: 600; }
+.card-b > .legend { margin-top: 10px; }
+.tbl td.nm { min-width: 130px; }
+.tbl td .chip.model { vertical-align: 1px; }
+.tbl tr.out td { color: var(--muted); }
+.kgrid { display: grid; }
+.kb { padding: 10px var(--pad); border-top: 1px solid var(--line); min-width: 0; }
+.kb:first-child { border-top: 0; }
+.kb-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 6px; }
+.kb-h b { font-weight: 600; }
+.kb-h .fig { margin-left: auto; text-align: right; }
+.kl { display: grid; grid-template-columns: 74px minmax(0, 1fr) 150px; gap: 4px 10px; align-items: center; padding: 3px 0; }
+.kl > span:first-child { font-size: var(--fs-sm); color: var(--muted); }
+.kl .num { text-align: right; font-size: var(--fs-sm); white-space: nowrap; }
+@media (max-width: 640px) {
+  .kb-h .fig { margin-left: 0; text-align: left; flex-basis: 100%; }
+  .kl { grid-template-columns: 56px minmax(0, 1fr); }
+  .kl .num { grid-column: 2; text-align: left; color: var(--muted); }
+}
+
+/* The vote charts: one per slot for the positional games */
+.vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 16px; }
+.vslot h3 { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; margin: 4px 0 0; }
+.chart.mini { height: 120px; }
+.chart.tall { height: 300px; }
+
+/* The market workbench: the bins of a day as strips, the plan's lines, the switch rows over a chart */
+.bstrips { display: grid; gap: 12px; }
+.bst { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 4px 12px; align-items: start; }
+.bst .lab { font-size: var(--fs-sm); }
+.bst .lab b { font-weight: 600; }
+.bst .lab small { display: block; color: var(--muted); font-size: var(--fs-xs); }
+.bbox { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 2px; }
+.bbox i { display: flex; align-items: center; justify-content: center; height: 24px; border: 1px solid var(--line); border-radius: 4px; font-style: normal; font-size: var(--fs-xs); color: var(--muted); background: var(--card); }
+.bbox i.adj { background: var(--up-bg); }
+.bbox i.pk { box-shadow: inset 0 0 0 2px var(--up); color: var(--fg); }
+.bbox i.on { background: var(--fg); border-color: var(--fg); color: var(--card); }
+.bedges { position: relative; height: 14px; margin-top: 2px; }
+.bedges span { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; color: var(--muted); white-space: nowrap; }
+@media (max-width: 640px) { .bst { grid-template-columns: minmax(0, 1fr); } .bedges span:nth-child(even) { display: none; } }
+.plines { display: grid; gap: 8px; margin: 0 0 12px; font-size: var(--fs-sm); max-width: 110ch; }
+.plines p { margin: 0; }
+.plines b { font-weight: 600; }
+.plines .lbl { font-weight: 600; color: var(--fg); }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 10px; }
+.ctl .pick { margin-left: 0; }
+.ctl .note { flex: 1 1 200px; }
+.wb-links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--fs-sm); }
+.wb-links a { color: var(--accent); text-decoration: none; }
+.wb-links a:hover { text-decoration: underline; }
+details.fold > summary { cursor: pointer; color: var(--accent); font-size: var(--fs-sm); list-style: none; padding: 6px 0; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '›'; display: inline-block; width: 12px; transition: transform .15s; }
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > summary .mut { color: var(--muted); }
+.games { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--gap); }
+.games a.card { color: inherit; text-decoration: none; padding: 14px var(--pad); gap: 4px; }
+.games a.card:hover { border-color: var(--faint); }
+.games a.card b { color: var(--accent); font-weight: 600; }
+.games a.card small { color: var(--muted); font-size: var(--fs-sm); }
+@media (prefers-reduced-motion: reduce) { details.fold > summary::before { transition: none; } }
+.swatch i.ln { background: var(--fg); }
+.swatch i.dot.acc { background: var(--accent); }
+.swatch i.dot.up { background: var(--up); }
+.swatch i.acc14 { width: 14px; height: 10px; border-radius: 2px; background: var(--accent); opacity: 0.25; }
+.swatch i.sq.up { box-shadow: inset 0 0 0 2px var(--up); }
+/* a switch never wider than its row on a phone: its buttons wrap */
+.ctl .seg, .head-r .seg { flex-wrap: wrap; max-width: 100%; }
+.swatch i.dash.down { border-top-color: var(--down); }
+.swatch i.barb { width: 12px; height: 12px; border-radius: 3px; background: var(--bar-b); }

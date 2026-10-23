@@ -7,7 +7,7 @@ import type { ComposeOption, ECharts } from 'echarts/core';
 import type { BarSeriesOption, LineSeriesOption } from 'echarts/charts';
 import type { GridComponentOption, TooltipComponentOption } from 'echarts/components';
 
-// Only the pieces the three panels use, so the bundle stays small.
+// Only the pieces the panels and the Workbench's charts use (bars and lines), so the bundle stays small.
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
 export type ChartOption = ComposeOption<BarSeriesOption | LineSeriesOption | GridComponentOption | TooltipComponentOption>;
@@ -22,6 +22,10 @@ export interface Tokens {
   down: string;
   card: string;
   font: string;
+  faint: string; // the Workbench's context lines and the chance line
+  warn: string;
+  upBg: string;
+  barB: string;
 }
 
 export function readTokens(): Tokens {
@@ -36,6 +40,10 @@ export function readTokens(): Tokens {
     down: t('--down'),
     card: t('--card'),
     font: 'IBM Plex Sans, system-ui, sans-serif',
+    faint: t('--faint'),
+    warn: t('--warn'),
+    upBg: t('--up-bg'),
+    barB: t('--bar-b'),
   };
 }
 

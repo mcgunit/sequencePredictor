@@ -474,6 +474,22 @@ function RowsSection({ d }: { d: ControlsGameView }) {
                 { mark: 'tick', label: 'zero' },
               ]}
             />
+            {r.failed.length ? (
+              <p className="line">
+                <b>
+                  {r.failed.length} {r.failed.length === 1 ? 'row' : 'rows'} failed
+                </b>
+                :{' '}
+                {r.failed
+                  .map((f) => `${short(f.row).replace(/_/g, ' ')} ${f.reason ? `scored no ${perUnit(d.unit)} (${f.reason})` : f.days !== null ? `raised on ${f.days} ${f.days === 1 ? perUnit(d.unit) : units(d.unit)}` : '(no reason recorded)'}`)
+                  .join('; ')}
+                .
+              </p>
+            ) : r.errors ? (
+              <p className="line">
+                <b>{r.errors} failed</b> (the report names none).
+              </p>
+            ) : null}
             {offScale.length ? (
               <p className="line">
                 Off the axis (more than {OFF_SCALE_WIDTHS} median interval widths from zero, so the others stay readable):{' '}
