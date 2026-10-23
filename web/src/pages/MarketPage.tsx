@@ -11,10 +11,10 @@ import ClosedPositions from '../components/ClosedPositions';
 
 type State = { kind: 'loading' } | { kind: 'error'; error: Error } | { kind: 'ok'; data: MarketView };
 
-// /crypto and /shares; anything else goes back to /crypto.
+// /crypto and /shares; anything else goes back to Home.
 export default function MarketPage() {
   const { market } = useParams();
-  if (!isMarket(market)) return <Navigate to="/crypto" replace />;
+  if (!isMarket(market)) return <Navigate to="/" replace />;
   return <Market key={market} market={market} />;
 }
 

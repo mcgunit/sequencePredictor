@@ -7,9 +7,10 @@ import { useWhatsNew } from '../hooks/useWhatsNew';
 const NARROW = '(max-width: 860px)';
 
 // The menu as data. An item is a route of this app (to) or a server page (href, a full reload); a server
-// page that the app will replace carries the ↗ "old page" mark (the Workbench replaced the market workbench's). The users see the four top items, and in the
-// footer their account, What's new and Sign out; the administrator also This week (with its status dot) and the
-// three groups, What's new among the System items.
+// page that the app will replace carries the ↗ "old page" mark. The users see the five top items (Home, Lottery,
+// Crypto, Shares, Council: the slim app of 21-23 Oct 2026), and in the footer their account, What's new and Sign out;
+// the administrator the same and also This week (with its status dot) and the three groups, What's new among the
+// System items.
 interface Item {
   label: string;
   to?: string; // a route, possibly with an anchor (#q0)
@@ -26,10 +27,11 @@ interface Group {
 }
 
 const USER_ITEMS: Item[] = [
-  { label: 'Lottery', href: '/lottery', old: true },
+  { label: 'Home', to: '/' },
+  { label: 'Lottery', to: '/lottery', prefix: true },
   { label: 'Crypto', to: '/crypto' },
   { label: 'Shares', to: '/shares' },
-  { label: 'Council', href: '/council', old: true },
+  { label: 'Council', to: '/council' },
 ];
 
 const ADMIN_GROUPS: Group[] = [
@@ -70,8 +72,10 @@ const ADMIN_GROUPS: Group[] = [
   },
 ];
 
-// What the compact bar names on a phone.
+// What the compact bar names on a phone ('/' only on Home itself).
 const HERE: [string, string][] = [
+  ['/lottery', 'Lottery'],
+  ['/council', 'Council'],
   ['/crypto', 'Crypto'],
   ['/shares', 'Shares'],
   ['/admin/tuning', 'Tuning gates'],
@@ -187,7 +191,7 @@ export default function Sidebar() {
     if (narrow) setOpen(false);
   }, [pathname, narrow]);
 
-  const here = (HERE.find(([p]) => pathname.startsWith(p)) ?? ['', ''])[1];
+  const here = pathname === '/' ? 'Home' : (HERE.find(([p]) => pathname.startsWith(p)) ?? ['', ''])[1];
   const active = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : undefined);
   const closeDrawer = () => {
     if (narrow) setOpen(false);
@@ -209,7 +213,8 @@ export default function Sidebar() {
           <div className="brand">Predictor</div>
           {USER_ITEMS.map((it) =>
             it.to ? (
-              <NavLink key={it.label} to={it.to} className={active} onClick={closeDrawer}>
+              // Home is "on" on Home only; Lottery also on a game's history and its draws (prefix)
+              <NavLink key={it.label} to={it.to} end={!it.prefix} className={active} onClick={closeDrawer}>
                 {it.label}
               </NavLink>
             ) : (

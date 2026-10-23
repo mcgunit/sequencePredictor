@@ -42,7 +42,7 @@ export interface Shape {
   slots: string[]; // markets: the instrument per slot
   ticket: TicketInfo | null;
 }
-function shapeOf(v: unknown, game: string): Shape {
+export function shapeOf(v: unknown, game: string): Shape {
   const s = o(v);
   const fam = FAMILIES.includes(s.family as Family) ? (s.family as Family) : MARKET_GAMES.includes(game) ? 'market' : 'lotto';
   const t = o(s.ticket);
@@ -62,7 +62,7 @@ export interface DrawResult {
   bonus: number[];
   signName: string | null; // jokerplus: the sign by name
 }
-function resultOf(v: unknown): DrawResult | null {
+export function resultOf(v: unknown): DrawResult | null {
   if (!has(v)) return null;
   const r = o(v);
   return { mains: nums(r.mains), specials: nums(r.specials), bonus: nums(r.bonus), signName: ostr(r.signName) };
@@ -78,7 +78,7 @@ export interface Best {
   sign: number | null;
   by: string;
 }
-function bestOf(v: unknown): Best | null {
+export function bestOf(v: unknown): Best | null {
   if (!has(v)) return null;
   const b = o(v);
   return { mains: opt(b.mains), specials: opt(b.specials), left: opt(b.left), right: opt(b.right), sign: opt(b.sign), by: str(b.by) };
@@ -92,7 +92,7 @@ export interface RankVersion {
   metricText: string;
   minDraws: number | null;
 }
-function versionOf(v: unknown, metrics: Record<string, string> = {}): RankVersion | null {
+export function versionOf(v: unknown, metrics: Record<string, string> = {}): RankVersion | null {
   if (!has(v)) return null;
   const r = o(v);
   const metric = str(r.metric);
@@ -108,7 +108,7 @@ export interface DayFigures {
   best: Best | null;
   multi: number | null; // lotto: the best hits among a row's nine numbers, when a row had extras
 }
-function figuresOf(v: unknown): DayFigures | null {
+export function figuresOf(v: unknown): DayFigures | null {
   if (!has(v)) return null;
   const f = o(v);
   if (opt(f.rows) === null) return null;
@@ -230,7 +230,7 @@ function ticketOf(v: unknown): Ticket {
     bets: has(t.bets) ? { straight: num(b.straight, 0), consolation: num(b.consolation, 0), box: num(b.box, 0), frontPair: num(b.frontPair, 0), backPair: num(b.backPair, 0) } : null,
   };
 }
-function rowOf(v: unknown): Row {
+export function rowOf(v: unknown): Row {
   const r = o(v);
   const mp = o(r.multiPick);
   return {
@@ -341,36 +341,46 @@ export interface Draw {
   coming: Coming | null;
   scoredIn: string | null;
 }
-const noneOf = (v: unknown) => (has(v) ? { code: str(o(v).code), text: str(o(v).text) } : null);
+export const noneOf = (v: unknown) => (has(v) ? { code: str(o(v).code), text: str(o(v).text) } : null);
+// the pieces of a draw the users' Lottery (lottery.ts) also reads on its own: whose rows a past draw's table shows, whose
+// the coming draw's, and lotto's multi-pick legend
+export function drawScopeOf(v: unknown, scope: Scope): DrawScope {
+  const s = o(v);
+  return {
+    scope: isScope(s.scope) ? s.scope : scope, rows: num(s.rows, 0), of: num(s.of, 0), tickets: num(s.tickets, 0), top: strs(s.top),
+    cutoff: ostr(s.cutoff), ranking: versionOf(s.ranking), none: noneOf(s.none),
+  };
+}
+export function comingScopeOf(v: unknown, scope: Scope): Coming['scope'] {
+  const cs = o(v);
+  const todayRanking = versionOf(cs.ranking);
+  return { scope: isScope(cs.scope) ? cs.scope : scope, rows: num(cs.rows, 0), of: num(cs.of, 0), top: strs(cs.top),
+    ranking: todayRanking ? { ...todayRanking, today: true } : null, none: noneOf(cs.none) };
+}
+export function multiPickLegendOf(v: unknown): MultiPickLegendData | null {
+  if (!has(v)) return null;
+  const mp = o(v);
+  return { extra: num(mp.extra, 3), gridPrice: opt(mp.gridPrice), perExtra: opt(mp.perExtra), minHits: opt(mp.minHits),
+    sizes: arr(mp.sizes).filter(has).map((x) => ({ size: num(o(x).size, 0), grids: opt(o(x).grids), price: opt(o(x).price), chance: opt(o(x).chance) })) };
+}
 export function normDraw(raw: unknown, game: string, date: string, scope: Scope): Draw {
   const r = o(raw);
   const g = str(r.game, game);
-  const s = o(r.scope);
   const c = o(r.coming);
-  const cs = o(c.scope);
-  const mp = o(r.multiPick);
-  const todayRanking = versionOf(cs.ranking);
   return {
     game: g, group: r.group === 'Lottery' || r.group === 'Markets' ? r.group : groupOf(g), unit: str(r.unit, MARKET_GAMES.includes(g) ? 'days' : 'draws'),
     builtAt: ostr(r.builtAt), date: str(r.date, date), weekday: str(r.weekday), file: str(r.file),
     prev: ostr(r.prev), next: ostr(r.next), newest: bool(r.newest), shape: shapeOf(r.shape, g), result: resultOf(r.result),
-    scope: {
-      scope: isScope(s.scope) ? s.scope : scope, rows: num(s.rows, 0), of: num(s.of, 0), tickets: num(s.tickets, 0), top: strs(s.top),
-      cutoff: ostr(s.cutoff), ranking: versionOf(s.ranking), none: noneOf(s.none),
-    },
+    scope: drawScopeOf(r.scope, scope),
     rows: arr(r.rows).filter(has).map(rowOf),
     figures: figuresOf(r.figures),
-    multiPick: has(r.multiPick)
-      ? { extra: num(mp.extra, 3), gridPrice: opt(mp.gridPrice), perExtra: opt(mp.perExtra), minHits: opt(mp.minHits),
-          sizes: arr(mp.sizes).filter(has).map((x) => ({ size: num(o(x).size, 0), grids: opt(o(x).grids), price: opt(o(x).price), chance: opt(o(x).chance) })) }
-      : null,
+    multiPick: multiPickLegendOf(r.multiPick),
     votes: votesOf(r.votes),
     market: marketDayOf(r.market),
     coming: has(r.coming)
       ? {
           date: ostr(c.date), madeAt: ostr(c.madeAt),
-          scope: { scope: isScope(cs.scope) ? cs.scope : scope, rows: num(cs.rows, 0), of: num(cs.of, 0), top: strs(cs.top),
-            ranking: todayRanking ? { ...todayRanking, today: true } : null, none: noneOf(cs.none) },
+          scope: comingScopeOf(c.scope, scope),
           rows: arr(c.rows).filter(has).map(rowOf),
           votes: votesOf(c.votes),
         }

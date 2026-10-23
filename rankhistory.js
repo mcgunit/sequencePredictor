@@ -182,7 +182,9 @@ function makeHistory(versions, { head = null, error = null, skipped = 0, unread 
     const v = versions.find((x) => x.games && x.games[game]);
     return v ? { sha: v.sha, committedAt: isoMs(v.at), generatedAt: v.generatedAt } : null;
   }
-  return { head, error, skipped, unread: unread.length, versions, first: first ? { sha: first.sha, committedAt: isoMs(first.at), generatedAt: first.generatedAt } : null,
+  // unreadAt: the commit times of the versions git could not read (ms), so a caller can tell a game's first readable
+  // ranking from its first saved one (lottery.js: an unread version before it may be the first)
+  return { head, error, skipped, unread: unread.length, unreadAt: unread.slice(), versions, first: first ? { sha: first.sha, committedAt: isoMs(first.at), generatedAt: first.generatedAt } : null,
     rankingAt, topAt, cutoffOf, firstOf };
 }
 

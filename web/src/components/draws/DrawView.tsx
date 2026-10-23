@@ -72,7 +72,7 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
         id="tickets"
         title={mode === 'admin' ? (top ? 'Top 5 rows scored' : 'Every row scored') : 'The models’ tickets'}
         help={howHitsCounted(d.shape, mode)}
-        meta={[`${s.rows} of ${s.of} rows`, d.shape.money ? `${s.tickets} tickets` : '']}
+        meta={[mode === 'user' ? `top ${s.rows} of ${s.of} models` : `${s.rows} of ${s.of} rows`, d.shape.money ? `${s.tickets} tickets` : '']}
         flush
       >
         <div className="card-b">
@@ -87,7 +87,9 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
           <TicketTable shape={d.shape} rows={ordered(d.rows, top)} result={d.result} market={d.market} mode={mode} currency={currency} ranked={s.ranking !== null} showTop={!top} />
         ) : (
           <div className="card-b">
-            <div className="empty">{top ? `No Top 5 for this draw: ${s.none ? prettyDates(s.none.text) : 'no ranking before it'}.` : 'No predictions stored for this draw.'}</div>
+            <div className="empty">
+              {top ? `No ${mode === 'user' ? 'top' : 'Top'} 5 for this draw: ${s.none ? prettyDates(s.none.text) : 'no ranking before it'}.` : 'No predictions stored for this draw.'}
+            </div>
           </div>
         )}
       </Card>
@@ -111,7 +113,10 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
         <Card
           id="next"
           title={`Next draw${d.coming.date ? ` · ${weekday(d.coming.date)}` : ''}`}
-          meta={[`${d.coming.scope.rows} of ${d.coming.scope.of} rows`, d.coming.madeAt ? `ticket ${stamp(d.coming.madeAt)}` : '']}
+          meta={[
+            mode === 'user' ? `top ${d.coming.scope.rows} of ${d.coming.scope.of} models` : `${d.coming.scope.rows} of ${d.coming.scope.of} rows`,
+            d.coming.madeAt ? `${mode === 'user' ? 'tickets made' : 'ticket'} ${stamp(d.coming.madeAt)}` : '',
+          ]}
           flush
         >
           <div className="card-b">
@@ -131,7 +136,7 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
             />
           ) : (
             <div className="card-b">
-              <div className="empty">No rows in this scope for the coming draw.</div>
+              <div className="empty">{mode === 'user' ? `No top 5 for the coming draw${d.coming.scope.none ? `: ${prettyDates(d.coming.scope.none.text)}` : ''}.` : 'No rows in this scope for the coming draw.'}</div>
             </div>
           )}
           <div className="card-b">

@@ -4,6 +4,11 @@ import Sidebar from './components/Sidebar';
 import WhatsNewDialog from './components/WhatsNewDialog';
 import AdminGuard, { Loading } from './components/admin/States';
 import AccountPage from './pages/AccountPage';
+import CouncilPage from './pages/CouncilPage';
+import HomePage from './pages/HomePage';
+import LotteryDrawPage from './pages/LotteryDrawPage';
+import LotteryGamePage from './pages/LotteryGamePage';
+import LotteryPage from './pages/LotteryPage';
 import MarketPage from './pages/MarketPage';
 import WhatsNewPage from './pages/WhatsNewPage';
 
@@ -28,7 +33,8 @@ export default function App() {
       <main className="wrap">
         <Suspense fallback={<Loading />}>
         <Routes>
-          <Route path="/" element={<Navigate to="/crypto" replace />} />
+          {/* Home: the Lottery, Crypto and Shares sections and the Council (the owner's rule of 1 Oct 2026) */}
+          <Route path="/" element={<HomePage />} />
           {/* the admin section: before /:market, and only for the administrator (the API answers 403 anyway) */}
           <Route path="/admin" element={<AdminGuard><WeekPage /></AdminGuard>} />
           <Route path="/admin/tuning" element={<AdminGuard><TuningPage /></AdminGuard>} />
@@ -44,11 +50,16 @@ export default function App() {
           <Route path="/admin/jobs" element={<AdminGuard><JobsPage /></AdminGuard>} />
           <Route path="/admin/people" element={<AdminGuard><PeoplePage /></AdminGuard>} />
           <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
+          {/* the users' Lottery: today's top 5 per game, each past draw's five as ranked before it (lottery.js) */}
+          <Route path="/lottery" element={<LotteryPage />} />
+          <Route path="/lottery/:game" element={<LotteryGamePage />} />
+          <Route path="/lottery/:game/:date" element={<LotteryDrawPage />} />
+          <Route path="/council" element={<CouncilPage />} />
           {/* every signed-in reader's own pages (the API answers only for the reader) */}
           <Route path="/account" element={<AccountPage />} />
           <Route path="/whats-new" element={<WhatsNewPage />} />
           <Route path="/:market" element={<MarketPage />} />
-          <Route path="*" element={<Navigate to="/crypto" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
       </main>

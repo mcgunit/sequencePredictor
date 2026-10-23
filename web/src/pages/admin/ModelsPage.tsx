@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { getAdminModels, type ModelsGameSummary, type ModelsView } from '../../api';
-import { DASH, count, day, fixed, perUnit, short, stamp, weekday } from '../../format';
+import { getAdminModels, type Combination, type ModelsGameSummary, type ModelsView } from '../../api';
+import { DASH, count, day, fixed, perUnit, short, signedFixed, stamp, weekday } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useDrawerParam } from '../../hooks/useUrlState';
 import { Card, Scroll } from '../../components/admin/Card';
@@ -38,6 +38,7 @@ export default function ModelsPage() {
       />
       <div className="stack">
         <BestCard d={d} onOpen={drawer.open} />
+        <CombinationCard d={d} onOpen={drawer.open} />
       </div>
       {drawer.game ? <ModelsDrawer key={drawer.game} game={drawer.game} onClose={drawer.close} /> : null}
     </div>
@@ -168,6 +169,93 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
                 ))}
               </span>
               <span className="sub">{topWhose(g)}</span>
+            </td>
+          </tr>
+        );
+      })}
+    </>
+  );
+}
+
+// The old History page's Best combination per game card: per game the best set of rows played together, its value
+// with its control's p value on the same line, the draws its members share and the best single row on those draws;
+// a game opens its drawer, where the set's top ten are.
+function CombinationCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void }) {
+  const groups = (['Lottery', 'Markets'] as const).map((name) => ({ name, games: d.games.filter((g) => g.group === name) })).filter((g) => g.games.length);
+  if (!d.games.some((g) => g.combination)) return null;
+  return (
+    <Card
+      title="Best combination per game"
+      flush
+      help={
+        <>
+          The best set of established rows played together over the draws they all have: for the payout games the net profit per draw of playing every
+          member (uncapped), for the others the best line held per draw (the average of the best member&apos;s hits). Its p value comes from the same search on
+          shuffled draws: above 0.05 the set is no better than the best set luck finds. The best single row is scored on the same draws, so it can differ from
+          its ranking value. A game opens the set&apos;s top ten.
+        </>
+      }
+      meta={[`ranking ${stamp(d.generatedAt)}`, 'every established row, not filtered by a switch']}
+    >
+      <Scroll>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Game</th>
+              <th>Rows played together</th>
+              <th className="num last-sm">Value</th>
+              <th className="num hide-sm">Shared draws</th>
+              <th className="hide-sm">Best single row on the same draws</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((grp) => (
+              <CombinationGroup key={grp.name} name={grp.name} games={grp.games} onOpen={onOpen} />
+            ))}
+          </tbody>
+        </table>
+      </Scroll>
+    </Card>
+  );
+}
+
+function comboValue(c: Combination, unit: string, v: number | null): string {
+  const per = `per ${perUnit(unit)}`;
+  return c.metric === 'profit_per_draw' ? `${signedFixed(v, 2)} EUR ${per}` : `${fixed(v)} hits ${per}`;
+}
+
+function CombinationGroup({ name, games, onOpen }: { name: string; games: ModelsGameSummary[]; onOpen: (g: string) => void }) {
+  return (
+    <>
+      <GroupRow cols={5}>{name}</GroupRow>
+      {games.map((g) => {
+        const c = g.combination;
+        const best = c?.best ?? null;
+        const control = c?.control ?? null;
+        // the value's control on the value's line: a set no better than luck says so where its number is
+        const controlText = !control ? 'no control' : 'error' in control ? 'control not available' : `p = ${fixed(control.pValue)}${control.consistentWithLuck ? ' · consistent with luck' : ''}`;
+        const single = c?.bestSingle ?? null;
+        const singleText = single ? `${short(single.row)} ${comboValue(c as Combination, g.unit, single.value)}` : DASH;
+        const beats = c?.beatsBestSingle === true ? 'the set beats it' : c?.beatsBestSingle === false ? 'the set does not beat it' : '';
+        return (
+          <tr key={g.game} className={control && !('error' in control) && control.consistentWithLuck ? 'grey' : undefined}>
+            <td className="sym">
+              <GameButton game={g.game} onOpen={onOpen} />
+              <span className="sub">{c ? (c.metric === 'profit_per_draw' ? 'profit per draw' : 'best line held') : DASH}</span>
+            </td>
+            <td>
+              {best ? best.members.map(short).join(' + ') : <span className="mut">{c?.note ?? 'no combination scored'}</span>}
+              {best ? <span className="sub">{`${best.how}${best.size !== null ? `, ${best.size} rows` : ''}`}</span> : null}
+              {best ? <span className="sub show-sm">{`${count(best.draws, g.unit)} shared · best single: ${singleText}${beats ? ` (${beats})` : ''}`}</span> : null}
+            </td>
+            <td className="num last-sm">
+              <b>{best ? comboValue(c as Combination, g.unit, best.value) : DASH}</b>
+              {best ? <span className="sub">{`${controlText}${c?.metric === 'profit_per_draw' && c.measure.capped === false ? ' · uncapped' : ''}`}</span> : null}
+            </td>
+            <td className="num hide-sm">{best ? count(best.draws, g.unit) : DASH}</td>
+            <td className="hide-sm">
+              {singleText}
+              {beats ? <span className="sub">{beats}</span> : null}
             </td>
           </tr>
         );

@@ -136,11 +136,13 @@ function scopeOfDraw(scope, t, presentCount) {
 // drawn row, the rows and tickets in scope, the money games' profit and stake, the best ticket (draws.dayFigures).
 // A month's totals are over the same rows as its draws. With Top a draw's rows are its point-in-time top five; a draw
 // without a recorded ranking has no figures and says why (ranking.none). A draw names the ranking version it was read
-// against by its index in `ranking.versions` (the versions the sent draws use).
-function historyView(dirs, game, scope, hist, extra = {}, month = null, now = new Date()) {
+// against by its index in `ranking.versions` (the versions the sent draws use). include (optional, date -> boolean):
+// the draws this history holds - the users' Lottery (lottery.js) leaves out the draws before the game's first saved
+// ranking, so they are not read, listed or counted at all.
+function historyView(dirs, game, scope, hist, extra = {}, month = null, now = new Date(), { include = null } = {}) {
   const dir = path.join(dirs.databaseDir, game);
-  const files = dayFilesOf(dir);
-  if (!files.length) return { error: 'no stored draw for this game', status: 404 };
+  const files = dayFilesOf(dir).filter((f) => !include || include(f.date));
+  if (!files.length) return { error: include ? 'no draw of this game in this history yet' : 'no stored draw for this game', status: 404 };
   const entries = files.map(({ file, date }) => {
     const day = readDay(path.join(dir, file)) || { realResult: [], currentPrediction: [] };
     const t = hist.topAt(game, date, namesOf(day.currentPrediction));
@@ -628,5 +630,5 @@ function install(app, ctx) {
   }));
 }
 
-module.exports = { SCOPES, MARKETS, BOOK_RULES, isoDay, dayFilesOf, historyView, drawView, planOf, weekOf, followedOf, booksOf, bookSeries, instrumentOf,
+module.exports = { SCOPES, MARKETS, BOOK_RULES, isoDay, dayFilesOf, readDay, readFull, historyView, drawView, planOf, weekOf, followedOf, booksOf, bookSeries, instrumentOf,
   modelsOf, guardOf, exampleOf, workbenchOf, workbenchSource, install };

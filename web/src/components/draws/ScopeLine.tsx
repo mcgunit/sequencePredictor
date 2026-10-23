@@ -19,7 +19,12 @@ export default function ScopeLine({ scope, mode }: { scope: DrawScope; mode: Mod
         </p>
       );
     }
-    return <p className="scopeline">{none ? `${none}: every model's row of this draw (${scope.rows}).` : `Every model's row of this draw (${scope.rows}).`}</p>;
+    // a user never gets every row: a draw without its ranking has no rows at all, and says why
+    return (
+      <p className="scopeline">
+        <b>No top 5 for this draw</b>: {none ?? 'no ranking was saved before it'}.
+      </p>
+    );
   }
   if (scope.scope === 'top') {
     if (!r || none) {
@@ -63,7 +68,8 @@ export function ComingScopeLine({ scope, mode }: { scope: Coming['scope']; mode:
         <b>
           {mode === 'user' ? `The ${scope.rows} models with the best record` : `Today's top 5: ${scope.rows} of ${scope.of} rows`}
         </b>{' '}
-        · by {r.metricText}, the ranking generated {stamp(r.generatedAt)} · the same five a user sees
+        · by {r.metricText}, the ranking generated {stamp(r.generatedAt)}
+        {mode === 'admin' ? ' · the same five a user sees' : ''}
       </p>
     );
   }

@@ -67,6 +67,82 @@ function denied(req) {
   return ACCESS === 'admin' && req.user && !req.user.open && req.user.role !== 'admin';
 }
 
+// Who sits on the council and how to reach them (GET /council/api/endpoints: the members, their labs and
+// temperatures, the head, the preset, each endpoint's reachability) is the administrator's (owner, 23 Oct 2026).
+// Open access (no login configured) is the administrator, as everywhere else.
+function isAdmin(req) {
+  return Boolean(req.user && (req.user.open === true || req.user.role === 'admin'));
+}
+
+// What a user is sent of a run (owner, 23 Oct 2026: the members' and endpoints' details are the administrator's).
+// api.py's job and the turn filed from it carry both - a lab on every member and on the head, and a failed run's
+// "EndpointsUnavailable: <member>: http://<host>:<port> unreachable: ..." (its preflight, when the model boxes are
+// off) - so a user's copy is cleaned here, on the server, not only on the page. The administrator gets them whole.
+const NOT_SITTING = 'the council was not sitting (a member could not be reached)';
+const NOT_ANSWERING = 'The council cannot sit right now: its service is not answering.';
+const ADDRESSES = [
+  /\bhttps?:\/\/[^\s)'"<>]+/gi,                        // a URL
+  /\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g,             // an IPv4 address, with its port
+  /\b[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)*:\d{2,5}\b/gi,    // host:port (localhost:8090, modelbox:8081)
+];
+function plainError(text) {
+  if (typeof text !== 'string') return text;
+  if (/^EndpointsUnavailable\b/.test(text)) return NOT_SITTING;
+  return ADDRESSES.reduce((t, re) => t.replace(re, 'an endpoint'), text);
+}
+// a member, the head or a seat without its lab, its error without an address
+function plainSeat(seat) {
+  if (!seat || typeof seat !== 'object' || Array.isArray(seat)) return seat;
+  const { lab, ...rest } = seat;
+  return rest.error === undefined ? rest : { ...rest, error: plainError(rest.error) };
+}
+function plainResult(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+  return { ...result, members: Array.isArray(result.members) ? result.members.map(plainSeat) : result.members, head: plainSeat(result.head) };
+}
+function plainProgress(progress) {
+  if (!progress || typeof progress !== 'object' || Array.isArray(progress)) return progress;
+  const seats = progress.seats && typeof progress.seats === 'object'
+    ? Object.fromEntries(Object.entries(progress.seats).map(([name, s]) => [name, plainSeat(s)])) : progress.seats;
+  return { ...progress, seats, head: plainSeat(progress.head) };
+}
+// a job (api.py's job.public()) or a filed turn, as the reader gets it
+function forReader(req, run) {
+  if (isAdmin(req) || !run || typeof run !== 'object') return run;
+  const out = { ...run };
+  if (out.error !== undefined) out.error = plainError(out.error);
+  if (out.result !== undefined) out.result = plainResult(out.result);
+  if (out.progress !== undefined) out.progress = plainProgress(out.progress);
+  return out;
+}
+// the Council API did not answer the proxy: its reason (connect ECONNREFUSED 127.0.0.1:8099) is the administrator's and
+// the server log's
+function apiDown(req, res, e) {
+  if (isAdmin(req)) return res.status(503).json({ error: `The members of the council have to be summoned (${e.message})` });
+  console.error(`[${new Date().toISOString()}] council.js: the council api did not answer: ${e.message}`);
+  return res.status(503).json({ error: NOT_ANSWERING });
+}
+
+// Whose run a job is: every job is filed in its asker's session when api.py accepts it (and re-tracked from the
+// pending turns after a restart), so a job id is answered only to the account whose session holds it. Kept in memory
+// for the jobs this process filed or tracks; any other id is looked up in the caller's own sessions.
+const JOB_OWNERS_KEPT = 500;
+const jobOwners = new Map();   // job id -> account name
+function noteJobOwner(jobId, owner) {
+  if (!jobId) return;
+  jobOwners.delete(String(jobId));
+  jobOwners.set(String(jobId), String(owner));
+  if (jobOwners.size > JOB_OWNERS_KEPT) jobOwners.delete(jobOwners.keys().next().value);
+}
+function ownsJob(req, jobId) {
+  const name = String(req.user.name);
+  if (jobOwners.has(jobId)) return jobOwners.get(jobId) === name;
+  return sessions.list(name).some((s) => {
+    const session = sessions.load(name, s.id);
+    return Boolean(session && session.turns.some((t) => t.jobId === jobId));
+  });
+}
+
 // --- recording answers server-side ---------------------------------------------
 // A turn is filed as pending the moment api.py accepts it, and completed by
 // this poller when the job ends - not by the browser, which may be closed by
@@ -79,6 +155,7 @@ const tracked = new Set();
 
 function track(owner, sessionId, turnId, jobId, since) {
   const key = `${sessionId}/${turnId}`;
+  noteJobOwner(jobId, owner);
   if (tracked.has(key)) return;
   tracked.add(key);
   const startedAt = since ? Date.parse(since) || Date.now() : Date.now();
@@ -153,9 +230,9 @@ function install(app, { header, footer, escapeHtml }) {
         jobId: reply.id, question: String(body.question || ''), context: body.context ? String(body.context) : null,
       });
       track(req.user.name, session.id, turn.id, reply.id, turn.asked);
-      res.status(202).json(Object.assign({}, reply, { session: session.id, turn: turn.id }));
+      res.status(202).json(Object.assign({}, forReader(req, reply), { session: session.id, turn: turn.id }));
     } catch (e) {
-      res.status(503).json({ error: `The members of the council have to be summoned (${e.message})` });
+      apiDown(req, res, e);
     }
   });
 
@@ -166,21 +243,42 @@ function install(app, { header, footer, escapeHtml }) {
     if (!/^[a-f0-9]{1,32}$/.test(req.params.id)) {
       return res.status(400).json({ error: 'bad job id' });
     }
+    // Only the asker's own run: another account's question and answer are
+    // not this caller's to read (a job id is not a secret).
+    if (!ownsJob(req, req.params.id)) return res.status(404).json({ error: 'no such job' });
     try {
       const { status, body } = await callApi('GET', `/job/${req.params.id}`);
-      res.status(status).json(body);
+      res.status(status).json(forReader(req, body));
     } catch (e) {
-      res.status(503).json({ error: `The members of the council have to be summoned (${e.message})` });
+      apiDown(req, res, e);
+    }
+  });
+
+  // Whether the council can sit now (api.py /health: at least one member and the head answer), for every reader: the
+  // page keeps Ask off while it cannot, rather than file a run bound to fail. Only {ready, busy}: who does not answer,
+  // and where, is the administrator's (/endpoints). The Council API itself not answering is not ready either.
+  app.get('/council/api/status', async (req, res) => {
+    if (denied(req)) return res.status(403).json({ error: 'not permitted' });
+    res.set('Cache-Control', 'no-store');
+    try {
+      const { status, body } = await callApi('GET', '/health');
+      const s = body && body.status;
+      res.json({ ready: status === 200 && Boolean(s && s.ready === true), busy: Boolean(body && body.busy === true) });
+    } catch (e) {
+      console.error(`[${new Date().toISOString()}] council.js: the council api did not answer: ${e.message}`);
+      res.json({ ready: false, busy: false });
     }
   });
 
   app.get('/council/api/endpoints', async (req, res) => {
     if (denied(req)) return res.status(403).json({ error: 'not permitted' });
+    // the members and their endpoints are the administrator's (isAdmin above)
+    if (!isAdmin(req)) return res.status(403).set('Cache-Control', 'no-store').json({ error: 'admin only' });
     try {
       const { status, body } = await callApi('GET', '/endpoints');
       res.status(status).json(body);
     } catch (e) {
-      res.status(503).json({ error: `The members of the council have to be summoned (${e.message})` });
+      apiDown(req, res, e);
     }
   });
 
@@ -195,7 +293,7 @@ function install(app, { header, footer, escapeHtml }) {
     if (denied(req)) return res.status(403).json({ error: 'not permitted' });
     const session = sessions.load(req.user.name, req.params.id);
     if (!session) return res.status(404).json({ error: 'no such session' });
-    res.json({ session });
+    res.json({ session: Array.isArray(session.turns) ? { ...session, turns: session.turns.map((t) => forReader(req, t)) } : session });
   });
 
   app.post('/council/api/sessions/:id/delete', jsonBody, (req, res) => {
@@ -604,7 +702,16 @@ function page(req, header, footer, escapeHtml) {
       hint.textContent = 'the model endpoints are not answering - earlier sessions can still be read';
       tablePhase.textContent = 'No session - the council is not in.';
     }
-    fetch('/council/api/endpoints').then(function (r) { return r.json(); }).then(function (d) {
+    fetch('/council/api/endpoints').then(function (r) {
+      // a user: the members and their endpoints are the administrator's (403); asking works as before
+      if (r.status === 403) return { forUser: true };
+      return r.json();
+    }).then(function (d) {
+      if (d.forUser) {
+        document.getElementById('council-panel').textContent = 'Ask the council a question below.';
+        tablePhase.textContent = 'Waiting for a question.';
+        return;
+      }
       if (!d.members) return;
       members = d.members;
       streams = d.stream_answers !== false;

@@ -85,21 +85,20 @@ const rowsOf = (html, name) => (html.match(new RegExp(`>${name}</td>`, 'g')) || 
 const TOP = NAMES.slice(0, 5);
 
 // --- a user ------------------------------------------------------------------------------------------------
-const uDay = render('/database/:folder/:file', { folder: 'lotto', file: '2026-10-20.json' }, 'user').html;
-ok(TOP.every((n) => rowsOf(uDay, n) === 2) && rowsOf(uDay, 'F Model') === 1 && rowsOf(uDay, 'G Model') === 1,
-  'a user\'s day view: the scored (past) table in full - today\'s ranking applied to a past draw would be hindsight - and the next draw\'s table with the top five only');
-ok(!uDay.includes('Show all 7 models') && uDay.includes('The 5 models with the best record by average hits over every scored draw') && !uDay.includes('<a href="/database">History</a> ranking'),
-  'a user\'s day view: no switch, the line that says whose rows they are, no link to a ranking card a user does not get');
-ok(uDay.includes('chart-analysis') && !uDay.includes('chart-detail') && uDay.includes('<b>Multi-pick.</b>') && !uDay.includes('History</a> page tracks whether'),
-  'a user\'s day view: no next-draw chart under the cut table (a vote of every row), no pointer to the multi-pick card');
-const uFolder = render('/database/:folder', { folder: 'lotto' }, 'user').html;
-ok(uFolder.includes('Match: 6') && !uFolder.includes('top 5 models ·') && !uFolder.includes('today\'s ranking'),
-  'a user\'s month and day figures count every row until the ranking of each day exists (never today\'s top five on past draws)');
-const uIndex = render('/database', {}, 'user').html;
-ok(uIndex.includes('what every model predicted and what it hit') && !uIndex.includes('History ranking'), 'a user\'s History says past draws are every row, with no ranking it does not show');
-['Null band', 'Randomness watch', 'Best model per game', 'Phase-shift check', 'Feature control', 'Best combination'].forEach((card) => {
-  ok(!uIndex.includes(card), `a user's History has no "${card}" card`);
-});
+// The old lottery History pages send a past draw's every row and its file's vote, so they are the administrator's
+// (23 Oct 2026, the owner: no row outside the five ranked before a draw is ever sent to a user): a user is sent to the
+// same draw, game or list in the app (lottery.js), and nothing of the draw is sent.
+const uDay = render('/database/:folder/:file', { folder: 'lotto', file: '2026-10-20.json' }, 'user');
+ok(uDay.redirect === '/app/lottery/lotto/2026-10-20' && uDay.html === '' && NAMES.every((n) => !uDay.html.includes(n)) && !uDay.html.includes('currentNumberFrequency'),
+  `a user's old day view: sent to the draw in the app, no row and no vote sent (${uDay.redirect})`);
+ok(render('/database/:folder/:file', { folder: 'eurodreams', file: '2026-10-20.json' }, 'user').redirect === '/app/lottery/eurodreams/2026-10-20',
+  'a user\'s old day view of another game: the same draw in the app');
+const uFolder = render('/database/:folder', { folder: 'lotto' }, 'user');
+ok(uFolder.redirect === '/app/lottery/lotto' && uFolder.html === '', `a user's old month view: sent to the game's counted draws in the app (${uFolder.redirect})`);
+const uIndex = render('/database', {}, 'user');
+ok(uIndex.redirect === '/app/lottery' && uIndex.html === '', `a user's old History: sent to the app's Lottery (${uIndex.redirect})`);
+ok(render('/database/:folder/:file', { folder: 'lotto', file: '2026-10-21.json' }, 'user').status === 404 && render('/database/:folder', { folder: 'bingo' }, 'user').status === 404,
+  'a user: a draw or a folder that is not there is still a 404');
 const uLottery = render('/lottery', {}, 'user').html;
 ok(TOP.every((n) => rowsOf(uLottery, n) === 1) && rowsOf(uLottery, 'G Model') === 0 && !uLottery.includes('Show all 7 models') && uLottery.includes('top 5 of 7 model rows'),
   'a user\'s new predictions: the top five rows, no switch');

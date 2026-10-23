@@ -198,6 +198,10 @@ export class ApiError extends Error {
     public readonly url: string,
     public readonly status: number | null,
     message: string,
+    // the answer's code where the page must react to it (lottery.js: 'before-first', 'not-ranked')
+    public readonly code: string | null = null,
+    // the server's own words, without the request (a user page says these, the admin pages the whole message)
+    public readonly detail: string | null = null,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -218,13 +222,15 @@ export async function getJson<T>(url: string): Promise<T> {
   }
   if (!res.ok) {
     let detail = '';
+    let code: string | null = null;
     try {
-      const body = (await res.json()) as { error?: unknown };
+      const body = (await res.json()) as { error?: unknown; code?: unknown };
       if (body && typeof body.error === 'string') detail = body.error;
+      if (body && typeof body.code === 'string' && body.code) code = body.code;
     } catch {
       /* no JSON body */
     }
-    throw new ApiError(url, res.status, detail ? `${detail} (GET ${url}: ${res.status})` : `GET ${url} answered ${res.status} ${res.statusText}`.trim());
+    throw new ApiError(url, res.status, detail ? `${detail} (GET ${url}: ${res.status})` : `GET ${url} answered ${res.status} ${res.statusText}`.trim(), code, detail || null);
   }
   try {
     return (await res.json()) as T;
@@ -736,6 +742,7 @@ export interface ModelsGameSummary {
   since: SinceSummary | null;
   top: string[];
   follows: Follows | null;
+  combination: Combination | null; // the best set (no top-ten list here: that is in the game's drawer)
 }
 export interface ModelsView {
   builtAt: string | null;
@@ -1521,6 +1528,7 @@ function normModels(raw: unknown): ModelsView {
         since: sinceSummaryOf(g.since),
         top: strs(g.top),
         follows: followsOf(g.follows),
+        combination: combinationOf(g.combination),
       };
     }),
   };

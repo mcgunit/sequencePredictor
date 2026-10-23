@@ -567,6 +567,9 @@ function modelsSummary(report, inputs = {}, { today = {}, follows = {} } = {}, n
       top: topOf(report, game, today[game]),
       // a market game's users' page follows its best book, not the top five
       follows: isMarketGame(game) ? follows[game] || null : undefined,
+      // the old History page's Best combination per game row: the best set with its p value, the best single row on
+      // its draws (the set's top ten stays in the game's drawer)
+      combination: comboBrief(info),
     };
   });
   return { builtAt: isoUtc(now.toISOString()), generatedAt: isoUtc(report && report.generatedAt), window: 'every scored draw',
@@ -618,6 +621,13 @@ function combinationOf(info) {
       : { error: c.error || 'not available' }),
     ranking: (combo.ranking || []).map(line),
   };
+}
+// A game's best combination without its top-ten ranking: the overview's row
+function comboBrief(info) {
+  const c = combinationOf(info);
+  if (!c) return null;
+  const { ranking, ...brief } = c;
+  return brief;
 }
 function modelsGame(report, game, scope = 'all', input = {}, { today = null, follows = null } = {}, now = new Date()) {
   const info = gameInfo(report, game);

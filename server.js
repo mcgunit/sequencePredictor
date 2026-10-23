@@ -45,6 +45,7 @@ const controls = require('./controls');
 const marketsPath = path.join(__dirname, 'data', 'markets');
 const markets = require('./markets');
 const api = require('./api');   // the JSON API and the React app under /app (15 Oct 2026)
+const lottery = require('./lottery');   // the users' Lottery and Home JSON under /api/lottery, /api/home (23 Oct 2026)
 const admin = require('./admin');   // the admin section's JSON under /api/admin (21 Oct 2026)
 const system = require('./system');   // the System pages' JSON: Jobs & services, People, Account, What's new (21 Oct 2026)
 const audit = require('./audit');   // the sign-in events the admin This week page counts
@@ -78,7 +79,8 @@ const seesControls = seesAllModels;
 // (the administrator, with the switch) or the top rows only (a user). coming: the table is the coming draw's
 // (/lottery, the newest day's next prediction) - the one table a user gets cut to the top rows. Every other table
 // is a past draw: a user sees it in full and no ranking is applied to it (today's ranking on a past draw is
-// hindsight); the administrator's switch there says so.
+// hindsight); the administrator's switch there says so. Since 23 Oct 2026 a user reaches a past table of a market's
+// game view only: the lottery History pages send a user to the app (appLotteryHref below).
 const readerTableOptions = (game, user, coming = false) => {
   if (seesAllModels(user)) return { ranking: rankingFor(game), showAll: true, admin: true, coming };
   return coming ? { ranking: rankingFor(game), showAll: false, admin: false, coming } : { showAll: true, admin: false, coming };
@@ -1249,8 +1251,20 @@ function generateRandomnessWatch() {
     </div>`;
 }
 
+// A user's lottery History is the app's (23 Oct 2026, the owner: the server never sends a user a row outside the five
+// ranked before that draw, nor a vote of every row - these pages send a past draw's every row and its file's vote).
+// Until the switch (batch 6) the lottery folders here are the administrator's, and a user is sent to the same draw,
+// game or list in the app (lottery.js). The markets' game views stay as they are: their own pages are the app's.
+const appLotteryHref = (folder, file) => {
+  const game = gameFromFolder(folder);
+  if (!lottery.GAMES.includes(game)) return '/app/lottery';
+  const iso = file ? draws.isoOfFile(file) : null;
+  return iso ? `/app/lottery/${game}/${iso}` : `/app/lottery/${game}`;
+};
+
 // 1. Database Index
 app.get('/database', (req, res) => {
+  if (!seesAllModels(req.user)) return res.redirect('/app/lottery');
   const folders = lotteryFolders();
   const marketFolders = databaseFolders().filter(isMarketFolder);
   // The weekly controls and the detailed cards are the administrator's (21
@@ -1296,6 +1310,7 @@ app.get('/database/:folder', (req, res) => {
   if (!isPlainName(folder)) return res.status(404).send('Folder not found');
   const folderPath = path.join(dataPath, folder);
   if (!fs.existsSync(folderPath)) return res.status(404).send('Folder not found');
+  if (!seesAllModels(req.user) && !isMarketFolder(folder)) return res.redirect(appLotteryHref(folder));
   const game = gameFromFolder(folder);
   const calcProfit = game === "keno" || game === "pick3" || game === "jokerplus";
   // Joker+ has a payout table AND a positional notation worth seeing at a
@@ -1442,6 +1457,7 @@ app.get('/database/:folder/:file', (req, res) => {
   if (!isPlainName(folder) || !isPlainName(file)) return res.status(404).send('File not found');
   const filePath = path.join(dataPath, folder, file);
   if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
+  if (!seesAllModels(req.user) && !isMarketFolder(folder)) return res.redirect(appLotteryHref(folder, file));
   const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   const game = gameFromFolder(folder);
   const calculateProfitFlag = game === "keno" || game === "pick3" || game === "jokerplus";
@@ -1713,6 +1729,10 @@ app.get('/lottery', (req, res) => {
 auth.install(app, { header: generateHeader, footer: generateFooter });
 markets.install(app, { header: generateHeader, footer: generateFooter, dataDir: marketsPath, controlsDir: controlsPath });
 api.install(app, { dataDir: marketsPath });
+// The users' Lottery and Home (lottery.js): every signed-in reader gets the user view - the top five rows of the
+// coming draw by today's ranking, each past draw's five as ranked before it, nothing before the first saved ranking.
+// The point-in-time ranking reads this checkout's git history, its cache in the gitignored config/ (as admin.js).
+lottery.install(app, { root: __dirname, databaseDir: dataPath, marketsDir: marketsPath });
 // The System pages' JSON (system.js): Jobs & services and People for the
 // administrator, Account and What's new for every signed-in reader, with the
 // JSON POST actions (form token from /api/me). It calls the same rules as the

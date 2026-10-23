@@ -1,14 +1,16 @@
+import type { ReactNode } from 'react';
 import { DASH, isNum, money, short, unsigned } from '../../format';
 import type { DrawResult, MarketDay, Row, Shape, Ticket } from '../../workbench';
 import { Legend, Scroll } from '../admin/Card';
 import Chip from '../admin/Chip';
-import { Nb, Slot } from './ResultStrip';
-import { eur, eurU, specialsLabel, type Mode } from './text';
+import { specialsLabel, type Mode } from './text';
 
-// Every row's tickets with the hits marked the way the game scores them (draws.js marks): lotto's bonus and the
-// multi-pick 7th-9th numbers, the special games' own group, Joker+'s runs and sign, pick3's digits in place and its
-// bets, keno's ticket per size, a market's bin per slot with the position the books take. The Hits and Profit
-// columns say in words what the colours show. On a phone the table folds into one block per row.
+// Every row's tickets in the old History table's grid (owner, 24 Oct 2026: "the table with the hits like it was"):
+// one column per number - Num 1..n, then the special columns, Joker+'s Sign, a market's instruments -, lotto's
+// 7th-9th multi-pick numbers in their shaded columns, and a cell coloured the way the game scores it (draws.js
+// marks): green a hit, amber the lotto bonus and Joker+'s sign, blue Joker+'s trailing run, pale green a market's
+// bin one off or a pick3 digit drawn in another place. The Hits and Profit columns say in words what the colours
+// show. Wide tables scroll inside their card, as the old ones did.
 
 interface Props {
   shape: Shape;
@@ -23,10 +25,14 @@ interface Props {
 }
 
 const plural = (n: number | null | undefined, one: string, many = `${one}s`) => `${isNum(n) ? n : DASH} ${n === 1 ? one : many}`;
+// a draws.js mark letter -> the cell's colour class: hit, bonus/sign, trailing run, one off
+const CELL: Record<string, string> = { m: 'hm', l: 'hm', s: 'hm', b: 'hb', z: 'hb', r: 'hr', a: 'ha' };
+const ordinal = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 
-function NameCell({ row, mode, ranked, showTop, rankWhose }: { row: Row; mode: Mode; ranked: boolean; showTop: boolean; rankWhose: string }) {
+function NameCell({ row, mode, ranked, showTop, rankWhose, first }: { row: Row; mode: Mode; ranked: boolean; showTop: boolean; rankWhose: string; first: boolean }) {
+  if (!first) return <td className="mdl mut">{short(row.name)}</td>;
   return (
-    <td className="lead nm">
+    <td className="mdl">
       <span className="strong">{short(row.name)}</span>
       {showTop && row.top ? (
         <>
@@ -39,64 +45,70 @@ function NameCell({ row, mode, ranked, showTop, rankWhose }: { row: Row; mode: M
   );
 }
 
-// the number cells of one ticket
-function Cells({ shape, row, t, result, market, extrasInTable }: { shape: Shape; row: Row; t: Ticket; result: DrawResult | null; market: MarketDay | null; extrasInTable: boolean }) {
-  if (shape.family === 'market') {
-    const k = market?.k ?? 10;
-    const sizes = market?.models[row.name]?.sizes ?? null;
-    return (
-      <span className="nums">
-        {t.mains.map((v, i) => {
-          const drawn = result?.mains[i];
-          const mark = t.mark[i] === 'm' ? 'm' : isNum(drawn) && Math.abs(v - drawn) === 1 ? 'a' : '';
-          // the position the paper books take (only on a settled day with its market figures)
-          const size = sizes ? sizes[i] : null;
-          const under = market ? (sizes ? `×${isNum(size) ? size : 0}` : v >= k / 2 ? '▲' : '▼') : undefined;
-          return (
-            <Slot key={i} label={shape.slots[i] ?? String(i + 1)} under={under}>
-              <Nb v={v} mark={mark} />
-            </Slot>
-          );
-        })}
-      </span>
+// The grid's columns for this table: how many main cells, which special/sign columns, whether lotto's extras show
+function columnsOf(shape: Shape, rows: Row[]) {
+  const tickets = rows.flatMap((r) => r.tickets);
+  const mains = Math.max(0, ...tickets.map((t) => t.mains.length));
+  const specials = shape.family === 'specials' ? Math.max(0, ...tickets.map((t) => (t.specials ? t.specials.length : 0))) : 0;
+  const sign = shape.family === 'jokerplus';
+  const extras = shape.family === 'lotto' && rows.some((r) => r.multiPick) ? Math.max(3, ...rows.map((r) => (r.multiPick ? r.multiPick.numbers.length : 0))) : 0;
+  return { mains, specials, sign, extras };
+}
+
+function headCells(shape: Shape, cols: ReturnType<typeof columnsOf>): ReactNode[] {
+  const out: ReactNode[] = [];
+  for (let i = 0; i < cols.mains; i += 1) {
+    const label = shape.family === 'market' ? (shape.slots[i] ?? `Slot ${i + 1}`) : `Num ${i + 1}`;
+    out.push(<th key={`m${i}`} className="c">{label}</th>);
+  }
+  const special = specialsLabel(shape).replace(/s$/, '');
+  for (let i = 0; i < cols.specials; i += 1) out.push(<th key={`s${i}`} className="c sp">{cols.specials > 1 ? `${special} ${i + 1}` : special}</th>);
+  if (cols.sign) out.push(<th key="sign" className="c sp">Sign</th>);
+  const base = cols.mains;
+  for (let i = 0; i < cols.extras; i += 1) out.push(<th key={`x${i}`} className="c x">{ordinal(base + i + 1)}</th>);
+  return out;
+}
+
+// One ticket's number cells, coloured by its marks; a shorter ticket's missing cells stay empty
+function bodyCells(shape: Shape, row: Row, t: Ticket, ti: number, cols: ReturnType<typeof columnsOf>, result: DrawResult | null): ReactNode[] {
+  const out: ReactNode[] = [];
+  for (let i = 0; i < cols.mains; i += 1) {
+    const v = t.mains[i];
+    if (v === undefined) {
+      out.push(<td key={`m${i}`} className="c none" />);
+      continue;
+    }
+    let cls = CELL[t.mark[i] ?? ''] ?? '';
+    // a market's bin one off the drawn one (pale green); a pick3 digit drawn in another place (pale green)
+    if (!cls && shape.family === 'market' && result && isNum(result.mains[i]) && Math.abs(v - (result.mains[i] as number)) === 1) cls = 'ha';
+    if (!cls && shape.family === 'pick3' && (t.markMember[i] ?? '') === 'm') cls = 'ha';
+    out.push(<td key={`m${i}`} className={`c ${cls}`}>{v}</td>);
+  }
+  for (let i = 0; i < cols.specials; i += 1) {
+    const v = t.specials ? t.specials[i] : undefined;
+    out.push(
+      <td key={`s${i}`} className={`c sp ${v === undefined ? 'none' : (CELL[t.markSpecials[i] ?? ''] ?? '')}`}>
+        {v === undefined ? (i === 0 && t.specials && !t.specials.length ? '–' : '') : v}
+      </td>,
     );
   }
-  const mains = t.mains.map((v, i) => <Nb key={`m${i}`} v={v} mark={t.mark[i] ?? ''} />);
-  let second = null;
-  if (shape.family === 'jokerplus') {
+  if (cols.sign) {
     const sign = t.signName ?? (t.specials && t.specials.length ? String(t.specials[0]) : null);
-    second = sign ? <Nb v={sign} word mark={t.markSpecials[0] === 'z' ? 'z' : ''} /> : null;
-  } else if (shape.family === 'specials' && t.specials) {
-    second = t.specials.length ? (
-      t.specials.map((v, i) => <Nb key={`s${i}`} v={v} mark={t.markSpecials[i] === 's' ? 's' : ''} />)
-    ) : (
-      <span className="nb none word">no {specialsLabel(shape).toLowerCase()}</span>
-    );
-  } else if (shape.family === 'lotto' && extrasInTable) {
-    const mp = row.multiPick;
-    second = mp
-      ? mp.numbers.map((v, i) => <Nb key={`x${i}`} v={v} extra mark={mp.mark[i] === 'm' ? 'm' : ''} />)
-      : [0, 1, 2].map((i) => (
-          <span key={`x${i}`} className="nb none">
-            –
-          </span>
-        ));
+    out.push(<td key="sign" className={`c sp word ${CELL[t.markSpecials[0] ?? ''] ?? ''}`}>{sign ?? '–'}</td>);
   }
-  return (
-    <span className="nums">
-      {mains}
-      {second ? (
-        <>
-          <span className="gap" />
-          {second}
-        </>
-      ) : null}
-    </span>
-  );
+  // lotto's 7th-9th: the main ticket's (the first) extras only, as the old table had them
+  const mp = ti === 0 ? row.multiPick : null;
+  for (let i = 0; i < cols.extras; i += 1) {
+    const v = mp ? mp.numbers[i] : undefined;
+    out.push(
+      <td key={`x${i}`} className={`c x ${v !== undefined && (mp?.mark[i] ?? '') === 'm' ? 'hm' : ''}${v === undefined ? ' none' : ''}`}>{v === undefined ? '–' : v}</td>,
+    );
+  }
+  return out;
 }
 
 // The Hits cell in words: "2 (1) · of 9: 3", "1/2 (0)", "2 in place", "2 of 5"
-function hitsOf(shape: Shape, row: Row, t: Ticket, market: MarketDay | null): { main: string; sub: string | null } {
+function hitsOf(shape: Shape, row: Row, t: Ticket, market: MarketDay | null, mode: Mode): { main: string; sub: string | null } {
   const h = t.hits;
   const n = (v: number | null | undefined) => (isNum(v) ? String(v) : DASH);
   if (!h) return { main: DASH, sub: null };
@@ -110,7 +122,8 @@ function hitsOf(shape: Shape, row: Row, t: Ticket, market: MarketDay | null): { 
     case 'jokerplus':
       return { main: `${n(h.left)}/${n(h.right)} (${n(h.sign)})`, sub: null };
     case 'pick3':
-      return { main: `${n(h.positional)} in place`, sub: `membership ${n(h.membership)} (the old Hits)` };
+      // the admin also sees the old page's membership count; a user the digits in place only
+      return { main: `${n(h.positional)} in place`, sub: mode === 'admin' ? `membership ${n(h.membership)} (the old Hits)` : null };
     case 'market': {
       const m = market?.models[row.name];
       const of = shape.slots.length || t.mains.length;
@@ -151,7 +164,10 @@ function legendOf(shape: Shape, extras: boolean) {
         { mark: 'nbb', label: 'the sign' },
       ];
     case 'pick3':
-      return [{ mark: 'nbm', label: 'the right digit in place' }];
+      return [
+        { mark: 'nbm', label: 'the right digit in place' },
+        { mark: 'nba', label: 'drawn, in another place' },
+      ];
     case 'market':
       return [
         { mark: 'nbm', label: 'the right bin' },
@@ -164,33 +180,30 @@ function legendOf(shape: Shape, extras: boolean) {
 
 export default function TicketTable({ shape, rows, result, market, mode, currency, ranked, showTop, rankWhose = 'in that ranking' }: Props) {
   const scored = result !== null;
-  const extras = shape.family === 'lotto' && rows.some((r) => r.multiPick);
   if (!rows.length) return <div className="empty">No rows in this scope.</div>;
-  if (shape.family === 'keno') return <KenoBlocks rows={rows} mode={mode} ranked={ranked} showTop={showTop} scored={scored} rankWhose={rankWhose} />;
+  const keno = shape.family === 'keno';
+  const cols = columnsOf(shape, rows);
   const money_ = shape.money && scored;
   const pnl = shape.family === 'market' && scored && market !== null;
-  const numbersHead =
-    shape.family === 'market'
-      ? `Bin per slot${market ? ' · position' : ''}`
-      : shape.family === 'lotto'
-        ? extras
-          ? 'Numbers · 7th-9th shaded'
-          : 'Numbers'
-        : shape.family === 'specials'
-          ? `Numbers · ${specialsLabel(shape)}`
-          : shape.family === 'jokerplus'
-            ? 'Digits · sign'
-            : 'Digits';
   const hitsHead =
-    shape.family === 'lotto' || shape.family === 'specials' ? 'Hits N (M)' : shape.family === 'jokerplus' ? 'Hits L/R (Z)' : shape.family === 'market' ? 'Exact' : 'Hits';
+    shape.family === 'lotto' || shape.family === 'specials'
+      ? `Hits${cols.extras ? ' · of 9' : ''}`
+      : shape.family === 'jokerplus'
+        ? 'Hits L/R (Z)'
+        : shape.family === 'market'
+          ? 'Exact'
+          : 'Hits';
   return (
     <>
       <Scroll>
-        <table className="tbl stk">
+        <table className="tbl grid">
           <thead>
             <tr>
               <th>Model</th>
-              <th>{numbersHead}</th>
+              <th className="rk" title={keno ? 'the ticket: its size, or the row\'s ranking (not played)' : 'the row\'s ticket'}>
+                {keno ? 'Ticket' : '#'}
+              </th>
+              {headCells(shape, cols)}
               {scored ? <th>{hitsHead}</th> : null}
               {money_ ? <th className="num">Profit EUR</th> : null}
               {pnl ? <th className="num">P&amp;L {currency ?? ''}, long</th> : null}
@@ -199,31 +212,37 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
           <tbody>
             {rows.map((row) =>
               row.tickets.map((t, i) => {
-                const h = hitsOf(shape, row, t, market);
+                const h = hitsOf(shape, row, t, market, mode);
                 const m = market?.models[row.name];
+                const ranking = keno && t.kind === 'ranking';
                 return (
-                  <tr key={`${row.name}-${i}`}>
-                    {i === 0 ? <NameCell row={row} mode={mode} ranked={ranked} showTop={showTop} rankWhose={rankWhose} /> : <td className="lead nm mut">{short(row.name)}</td>}
-                    <td data-l="Numbers">
-                      <Cells shape={shape} row={row} t={t} result={result} market={market} extrasInTable={extras} />
-                    </td>
+                  <tr key={`${row.name}-${i}`} className={i === 0 ? 'first' : undefined}>
+                    <NameCell row={row} mode={mode} ranked={ranked} showTop={showTop} rankWhose={rankWhose} first={i === 0} />
+                    <td className="rk">{keno ? (ranking ? 'ranking' : t.mains.length) : i + 1}</td>
+                    {bodyCells(shape, row, t, i, cols, result)}
                     {scored ? (
-                      <td data-l="Hits">
-                        <span className="strong">{h.main}</span>
-                        {h.sub ? <span className="sub">{h.sub}</span> : null}
+                      <td className="hits">
+                        <span className="strong">{keno ? plural(t.hits?.mains, 'hit') : h.main}</span>
+                        {!keno && h.sub ? <span className="sub">{h.sub}</span> : null}
                       </td>
                     ) : null}
                     {money_ ? (
-                      <td className="num" data-l="Profit">
-                        <span className={isNum(t.profit) && t.profit > 0 ? 'strong' : undefined}>{money(t.profit)}</span>
-                        <span className="sub">
-                          stake {unsigned(t.stake)}
-                          {shape.family === 'pick3' ? ` · ${betsWon(t)}` : ''}
-                        </span>
+                      <td className="num hits">
+                        {ranking ? (
+                          <span className="mut">not played</span>
+                        ) : (
+                          <>
+                            <span className={isNum(t.profit) && t.profit > 0 ? 'strong' : undefined}>{money(t.profit)}</span>
+                            <span className="sub">
+                              stake {unsigned(t.stake)}
+                              {shape.family === 'pick3' ? ` · ${betsWon(t)}` : ''}
+                            </span>
+                          </>
+                        )}
                       </td>
                     ) : null}
                     {pnl ? (
-                      <td className="num" data-l="P&L">
+                      <td className="num hits">
                         {m ? money(m.pnlCash) : DASH}
                         {m ? <span className="sub">{plural(m.trades, 'long position')}</span> : null}
                       </td>
@@ -236,54 +255,7 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
         </table>
       </Scroll>
       <div className="card-b">
-        <Legend items={legendOf(shape, extras)} />
-      </div>
-    </>
-  );
-}
-
-// Keno: per row its 20-number ranking (not played) and one ticket per size, each with its hits and net profit
-function KenoBlocks({ rows, mode, ranked, showTop, scored, rankWhose }: { rows: Row[]; mode: Mode; ranked: boolean; showTop: boolean; scored: boolean; rankWhose: string }) {
-  return (
-    <>
-      <div className="kgrid">
-        {rows.map((row) => {
-          const played = row.tickets.filter((t) => t.kind !== 'ranking');
-          const profit = played.reduce((s, t) => s + (t.profit ?? 0), 0);
-          const stake = played.reduce((s, t) => s + (t.stake ?? 0), 0);
-          return (
-            <div className="kb" key={row.name}>
-              <div className="kb-h">
-                <b>{short(row.name)}</b>
-                {showTop && row.top ? <Chip kind="model">top 5</Chip> : null}
-                {mode === 'admin' && ranked ? <span className="mut">{row.rank ? `#${row.rank} ${rankWhose}` : `not ${rankWhose}`}</span> : null}
-                <span className="fig">
-                  {scored ? <b>{eur(profit)}</b> : null}
-                  <small>
-                    {plural(played.length, 'ticket')} · stake {eurU(stake)}
-                  </small>
-                </span>
-              </div>
-              {row.tickets.map((t, i) => (
-                <div className="kl" key={i}>
-                  <span>{t.kind === 'ranking' ? 'ranking' : `${t.mains.length} numbers`}</span>
-                  <span className="nums sm">
-                    {t.mains.map((v, j) => (
-                      <Nb key={j} v={v} mark={t.mark[j] ?? ''} />
-                    ))}
-                  </span>
-                  <span className="num">
-                    {scored ? plural(t.hits?.mains, 'hit') : ''}
-                    {t.kind === 'ranking' ? `${scored ? ' · ' : ''}not played` : scored ? ` · ${money(t.profit)}` : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-      <div className="card-b">
-        <Legend items={[{ mark: 'nbm', label: 'a drawn number' }]} />
+        <Legend items={keno ? [{ mark: 'nbm', label: 'a drawn number' }] : legendOf(shape, cols.extras > 0)} />
       </div>
     </>
   );

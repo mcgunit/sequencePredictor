@@ -146,6 +146,8 @@ Every other draw comes before 25 Aug, or is back-built or back-filled. Five keno
 
 ## What the users' Lottery (next batch) needs from this batch
 
+> **Built in batch 5 (23 Oct 2026).** API: `lottery.js` (`/api/lottery`, `/api/lottery/:game`, `/api/lottery/:game/:date`, `/api/home`), with the owner's answers to Q1 and Q2 below: the users' history starts at each game's first saved ranking (the earlier draws left out, one line says how many), and the vote is drawn over the five rows sent. App: `/` (Home), `/lottery`, `/lottery/:game`, `/lottery/:game/:date` (`components/draws/*` in `mode="user"`, no switch, no rank numbers, no stored vote) and `/council`. The sidebar's Lottery and Council are app routes now (no ↗). The old `/lottery`, `/database` and `/council` server pages stay until the switch (batch 6); the lottery folders of `/database` are the administrator's in the meantime (they send a past draw's every row and its file's vote): a user is redirected to the same list, game or draw under `/app/lottery`. The markets' game views stay as they are.
+
 1. **The `rankingHistory` API**, per game and draw: `{version generatedAt, metric, minDraws, top5 present in the table}` or `{none: 'before 25 Aug 2026' | 'game not ranked yet' | 'back-filled'}`. The user API calls it server side.
 2. **`draws.js` scoring** with a scope: figures (A3–A6, B6) over the rows in scope only, with the count of rows on the same line. In user mode the server cuts the rows; hidden rows are never sent.
 3. **The components** in user mode:

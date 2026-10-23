@@ -84,7 +84,7 @@ export default function VotesChart({ votes, shape, game, slotLabels, mode }: { v
   const stored = votes.stored && mode === 'admin' ? votes.stored : null;
   const showing = stored && view === 'stored' ? 'stored' : 'rows';
   const rowsWord = `${votes.rows} ${votes.rows === 1 ? 'row' : 'rows'}`;
-  if (!votes.rows && !stored) return <div className="empty">No rows in this scope, so no vote.</div>;
+  if (!votes.rows && !stored) return <div className="empty">{mode === 'user' ? 'No rows shown, so no vote.' : 'No rows in this scope, so no vote.'}</div>;
 
   const switcher = stored ? (
     <div className="ctl">

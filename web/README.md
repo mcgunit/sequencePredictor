@@ -27,7 +27,11 @@ the build output is not committed, so run `npm run build` on the machine that se
 
 | Path                | Page                                                                  |
 | ------------------- | --------------------------------------------------------------------- |
-| `/`                 | redirects to `/crypto`                                                |
+| `/`                 | Home: the Lottery, Crypto and Shares sections (each its headline and a link), the Council below |
+| `/lottery`          | the users' Lottery: per game the coming draw with today's top 5 and their tickets, the last draw and how the five ranked before it did (`#game` opens one card) |
+| `/lottery/:game`    | the game's counted draws by month, from its first saved ranking (`?month=` opens a month); the draws before it left out, one line says how many |
+| `/lottery/:game/:date` | one counted draw: the result, the five ranked before it scored, the vote over them; the coming draw on the newest day |
+| `/council`          | the question box, the run's progress and answer, the reader's own sessions (`?session=` opens one); the members and endpoints in a folded card for the administrator |
 | `/crypto`           | `MarketPage` for the crypto market                                    |
 | `/shares`           | `MarketPage` for the shares market                                    |
 | `/admin`            | This week: the weekend's runs, today's predictor, the tuners, the controls matrix, since Monday |
@@ -40,7 +44,7 @@ the build output is not committed, so run `npm run build` on the machine that se
 | `/admin/games/:game`| every stored draw of a game by month (`?scope=top`: each draw's top 5 as ranked before it) |
 | `/admin/games/:game/:date` | one draw scored: the result, every row's tickets, the vote, the coming draw on the newest day |
 | `/admin/markets/:market` | the market workbench (crypto, shares): the plan and week cards in detail, following the plan, paper books, models, accuracy, prices, day by day, the guard, regimes |
-| other               | redirects to `/crypto` (`/admin/...` to `/admin`)                     |
+| other               | redirects to `/` (`/admin/...` to `/admin`)                           |
 
 The admin routes render only for the administrator (`AdminGuard`, from `/api/me`); the API
 answers a JSON 403 anyway. Their drawers and switches live in the URL (`?game=lotto`, `?row=...`,
@@ -49,10 +53,15 @@ Colour on the admin pages marks a change only: a control that reads differently 
 before (the weekly readings in `data/readings/`), a run over its usual time or with a new warning
 signature, a failed run or a missing output; a state that holds every week stays grey.
 
-The sidebar (`components/Sidebar.tsx`) is data: the users see Lottery, Crypto, Shares and
-Council; the administrator also This week (with a status dot: red when a run failed or an output
-is missing, amber for a new warning signature) and the Controls, Models and System groups. Server pages are plain
-anchors, marked ↗ while the app has no page of its own for them.
+The sidebar (`components/Sidebar.tsx`) is data: the users see Home, Lottery, Crypto, Shares and
+Council (and in its foot their account, What's new and Sign out); the administrator the same and also This week (with
+a status dot: red when a run failed or an output is missing, amber for a new warning signature) and the Controls,
+Models and System groups. Server pages are plain anchors, marked ↗ while the app has no page of its own for them.
+
+The users' pages follow the owner's rules of 21-23 Oct 2026: a user sees the top 5 rows of each game's History ranking
+(the coming draw: today's five; a past draw: the five ranked before it), never a row outside them - the server does
+not send one - and every figure is over those five; Home, the Lottery and the Council say whose number each figure is
+and over which window.
 
 ## API
 
@@ -70,6 +79,14 @@ All calls are same-origin and typed in `src/api.ts`:
   `/api/admin/draw/:game/:date?scope=`, `/api/admin/market/:market/workbench` and its `/books/:rule` and
   `/instrument/:symbol` series. Top on a past draw is the five ranked first before it (production's git history of the
   ranking), never today's; before 25 Aug 2026 no ranking was recorded and the pages say so
+
+- the users' Lottery and Home (`src/lottery.ts`, `lottery.js` documents the shapes): `GET /api/lottery`,
+  `/api/lottery/:game?month=`, `/api/lottery/:game/:date` and `/api/home`; the same answer for every reader, the
+  administrator included. A draw before the game's first saved ranking is a 404 with `code: 'before-first'`
+  (`ApiError.code`), a game no saved ranking ranks yet `code: 'not-ranked'`
+- the Council (`src/council.ts`, `council.js`): `/council/api/ask`, `/job/:id` (the asker's own run),
+  `/sessions`, `/sessions/:id`, `/sessions/:id/delete`; `/endpoints` for the administrator only. Its POSTs send the
+  form token from `/api/me` as `_csrf`
 
 Every field may be null or empty; `getMarket()` and the admin getters fill the containers and the format helpers in
 `src/format.ts` answer "—" for anything missing, so the page always renders.
@@ -93,7 +110,14 @@ src/
   components/draws/       a game's history (month cards, day lines), the drawn row, the scored tickets per
                           family, the multi-pick legend, the vote charts, the scope line; mode="admin" | "user"
                           (the users' Lottery reuses them with the top five only)
+  components/lottery/     the users' Lottery bits: game picker, a ticket as cells, the one-line figure, the load states
+  components/council/     the answers' Markdown, rendered as elements (never innerHTML: the text is the models')
   workbench.ts            the Workbench's API types, normalisers and getters
+  lottery.ts              the users' Lottery and Home: types, normalisers (the Workbench's) and getters
+  council.ts              the Council's sessions, runs and actions
+  pages/HomePage.tsx      Home
+  pages/Lottery*.tsx      the users' Lottery: the games, a game's history, one draw
+  pages/CouncilPage.tsx   the Council
   pages/MarketPage.tsx    loads the market and lays out the page
   pages/admin/            This week, Tuning gates, Controls, Models, Phase-shift and Randomness pages
                           and their drawers; Games, a game's history, one draw, the market workbench
@@ -101,4 +125,4 @@ src/
 ```
 
 There is no dev server script on purpose: the API lives in the Express app, so the quickest
-loop is `npm run build` and a reload of `/app/crypto`.
+loop is `npm run build` and a reload of `/app/`.

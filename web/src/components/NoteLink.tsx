@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 
-// The old pages the app now has (21 Oct 2026): a note's link to one of them opens the app's page instead.
+// The old pages the app now has (21 Oct 2026; the Lottery and the Council 23 Oct): a note's link to one of them opens the
+// app's page instead.
 const IN_APP: Record<string, string> = {
+  '/lottery': '/lottery',
+  '/council': '/council',
   '/admin/jobs': '/admin/jobs',
   '/admin/users': '/admin/people',
   '/admin/activity': '/admin/people',
