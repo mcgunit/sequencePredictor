@@ -16,16 +16,13 @@ import { bestWords, drawHref, historyHref, nextText, userText } from '../compone
 
 // /lottery: one folding card per game. The coming draw with today's five rows (the History ranking's top five) and their
 // tickets, lotto's extras for a system play; the last draw with its result and how the five ranked BEFORE it did,
-// together and row by row - two different fives, each named on its own line. Wide screens open every card; on a phone
-// they start folded, and #game (the Home page's links) opens and scrolls to one.
-
-const NARROW = '(max-width: 860px)';
+// together and row by row - two different fives, each named on its own line. Every card starts folded; #game (the Home
+// page's links, the chips above the cards) opens and scrolls to one.
 
 export default function LotteryPage() {
   const load = useLoad(getLottery, []);
   const { hash } = useLocation();
   const navigate = useNavigate();
-  const [wide] = useState(() => !window.matchMedia(NARROW).matches);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
   const target = hash.replace(/^#/, '');
 
@@ -50,7 +47,7 @@ export default function LotteryPage() {
     );
   }
   const games = load.data.games;
-  const isOpen = (g: string) => opened[g] ?? (wide || g === target);
+  const isOpen = (g: string) => opened[g] ?? g === target;
   return (
     <div className="lottery">
       {head}

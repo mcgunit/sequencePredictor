@@ -231,8 +231,8 @@ export default function Sidebar() {
                   (i) => (i.to && (pathname === i.to.split('#')[0] || (i.prefix && pathname.startsWith(`${i.to}/`)))) || i.links?.some((l) => pathname === l.to),
                 );
                 return (
-                  // every group open on a wide screen; on a phone only the one holding the page
-                  <details key={`${g.label}-${narrow ? 'n' : 'w'}`} className="grpd" open={!narrow || holds}>
+                  // folded, except the one holding the page
+                  <details key={g.label} className="grpd" open={holds}>
                     <summary>
                       <span>{g.label}</span>
                       {/* the count of a folded group's What's new (hidden while the group is open: the item has it) */}

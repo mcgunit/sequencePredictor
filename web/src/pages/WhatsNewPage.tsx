@@ -63,7 +63,7 @@ export default function WhatsNewPage() {
 function NoteCard({ n, sender }: { n: Note; sender: Sender }) {
   const fresh = n.seen === false;
   return (
-    <details className={`card note-c${fresh ? ' fresh' : ''}`} open={fresh}>
+    <details className={`card note-c${fresh ? ' fresh' : ''}`}>
       <summary className="note-h">
         <h2>{n.title}</h2>
         <span className="note-m">
@@ -95,7 +95,7 @@ function TourCard({ view, sender }: { view: WhatsNewView; sender: Sender }) {
   const t = view.tour;
   const unread = t.done === false;
   return (
-    <details className={`card note-c${unread ? ' fresh' : ''}`} open={unread}>
+    <details className={`card note-c${unread ? ' fresh' : ''}`}>
       <summary className="note-h">
         <h2>Introduction · {t.title}</h2>
         <span className="note-m">

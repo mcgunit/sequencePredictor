@@ -497,7 +497,7 @@ function ResultView({ result, admin }: { result: CouncilResult; admin: boolean }
         <p className="note">{answered ? 'No head model weighed the answers: the members’ answers are below.' : 'No member answered, so there is no answer.'}</p>
       )}
       {result.members.length ? (
-        <details className="fold members" open={!head}>
+        <details className="fold members">
           <summary>
             The members&apos; answers <span className="mut">· {answered} of {result.members.length} answered</span>
           </summary>
