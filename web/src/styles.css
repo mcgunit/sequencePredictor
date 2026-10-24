@@ -800,12 +800,17 @@ details.fold > summary .mut { color: var(--muted); }
 .card-f a.more:hover { text-decoration: underline; }
 .head-r a.btn { text-decoration: none; }
 
-/* Home: Lottery, Crypto, Shares side by side; one column at 1100px and below */
-.hgrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap); align-items: stretch; margin-bottom: var(--gap); }
-@media (max-width: 1100px) { .hgrid { grid-template-columns: minmax(0, 1fr); } }
-.hgames { display: grid; }
-.hgame { display: grid; gap: 3px; padding: 9px 0; border-top: 1px solid var(--line); min-width: 0; }
+/* Home: Lottery wide on the left, its games in two columns; Crypto and Shares stacked on the right; every card as
+   tall as its own content (a stretched card left Crypto and Shares mostly empty); one column at 1100px and below */
+.hgrid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); grid-template-areas: "lot cry" "lot sha" "lot ."; grid-template-rows: auto auto 1fr;
+  gap: var(--gap); align-items: start; margin-bottom: var(--gap); }
+.hgrid > :nth-child(1) { grid-area: lot; } .hgrid > :nth-child(2) { grid-area: cry; } .hgrid > :nth-child(3) { grid-area: sha; }
+@media (max-width: 1100px) { .hgrid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lot" "cry" "sha"; grid-template-rows: none; } }
+.hgames { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+@media (max-width: 1400px) { .hgames { grid-template-columns: minmax(0, 1fr); } }
+.hgame { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; align-content: start; }
 .hgame:first-child { border-top: 0; padding-top: 0; }
+@media (min-width: 1401px) { .hgame:nth-child(2) { border-top: 0; padding-top: 0; } }
 .hgame-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .hgame-h a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .hgame-h a:hover { text-decoration: underline; }
@@ -936,25 +941,26 @@ details.panel > summary { padding: 4px 0; }
 @keyframes blink { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } details.member > summary .m-h::before { transition: none; } }
 
-/* The hits table as the old History pages drew it: one column per number, the cell coloured by how it scored */
-.tbl.grid td.mdl { font-weight: 600; background: var(--cell-head); white-space: nowrap; }
-.tbl.grid td.mdl.mut { font-weight: 400; color: var(--muted); }
-.tbl.grid td.mdl .sub { font-weight: 400; }
-.tbl.grid th.rk, .tbl.grid td.rk { text-align: center; background: var(--cell-head); font-weight: 600; width: 1%; white-space: nowrap; }
-.tbl.grid th.c, .tbl.grid td.c { text-align: center; min-width: 34px; padding-left: 6px; padding-right: 6px; font-variant-numeric: tabular-nums; }
-.tbl.grid td.c { font-weight: 500; }
-.tbl.grid td.c.word { white-space: nowrap; }
-.tbl.grid td.c.hm { background: var(--hit); color: var(--hit-fg); font-weight: 600; }
-.tbl.grid td.c.hb { background: var(--bonus); color: var(--hit-fg); font-weight: 600; }
-.tbl.grid td.c.hr { background: var(--run2); color: var(--hit-fg); font-weight: 600; }
-.tbl.grid td.c.ha { background: var(--near); color: var(--near-fg); }
-.tbl.grid th.c.x { background: var(--mp-bg); color: var(--mp-fg); }
-.tbl.grid td.c.x { background: var(--mp-bg); color: var(--mp-fg); outline: 1px dashed var(--mp-line); outline-offset: -3px; }
-.tbl.grid td.c.x.hm { background: var(--hit); color: var(--hit-fg); }
-.tbl.grid td.c.none { color: var(--faint); }
-.tbl.grid td.hits { font-weight: 600; background: var(--cell-head); white-space: nowrap; }
-.tbl.grid td.hits .sub { font-weight: 400; }
-.tbl.grid tr.first td { border-top: 1px solid var(--line); }
+/* The hits table as the old History pages drew it: one column per number, the cell coloured by how it scored
+   (class tix: .grid is the page layout's three columns of cards) */
+.tbl.tix td.mdl { font-weight: 600; background: var(--cell-head); white-space: nowrap; }
+.tbl.tix td.mdl.mut { font-weight: 400; color: var(--muted); }
+.tbl.tix td.mdl .sub { font-weight: 400; }
+.tbl.tix th.rk, .tbl.tix td.rk { text-align: center; background: var(--cell-head); font-weight: 600; width: 1%; white-space: nowrap; }
+.tbl.tix th.c, .tbl.tix td.c { text-align: center; min-width: 34px; padding-left: 6px; padding-right: 6px; font-variant-numeric: tabular-nums; }
+.tbl.tix td.c { font-weight: 500; }
+.tbl.tix td.c.word { white-space: nowrap; }
+.tbl.tix td.c.hm { background: var(--hit); color: var(--hit-fg); font-weight: 600; }
+.tbl.tix td.c.hb { background: var(--bonus); color: var(--hit-fg); font-weight: 600; }
+.tbl.tix td.c.hr { background: var(--run2); color: var(--hit-fg); font-weight: 600; }
+.tbl.tix td.c.ha { background: var(--near); color: var(--near-fg); }
+.tbl.tix th.c.x { background: var(--mp-bg); color: var(--mp-fg); }
+.tbl.tix td.c.x { background: var(--mp-bg); color: var(--mp-fg); outline: 1px dashed var(--mp-line); outline-offset: -3px; }
+.tbl.tix td.c.x.hm { background: var(--hit); color: var(--hit-fg); }
+.tbl.tix td.c.none { color: var(--faint); }
+.tbl.tix td.hits { font-weight: 600; background: var(--cell-head); white-space: nowrap; }
+.tbl.tix td.hits .sub { font-weight: 400; }
+.tbl.tix tr.first td { border-top: 1px solid var(--line); }
 /* the number chips elsewhere (the drawn row, the history lines) in the same colours */
 .nb.m, .nb.l, .nb.s { background: var(--hit); border-color: var(--hit); color: var(--hit-fg); }
 .nb.b, .nb.z { background: var(--bonus); border-color: var(--bonus); color: var(--hit-fg); }

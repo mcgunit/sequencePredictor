@@ -196,7 +196,7 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
   return (
     <>
       <Scroll>
-        <table className="tbl grid">
+        <table className="tbl tix">
           <thead>
             <tr>
               <th>Model</th>

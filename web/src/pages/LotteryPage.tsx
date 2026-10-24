@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { DASH, isNum, money, short, stamp, unsigned, weekday } from '../format';
 import { useLoad } from '../hooks/useLoad';
-import { getLottery, type GameCard, type LastDraw } from '../lottery';
+import { getLottery, getUserDraw, type GameCard, type LastDraw } from '../lottery';
 import type { Shape } from '../workbench';
 import { Help, Scroll } from '../components/admin/Card';
 import { Failed, Loading, PageHead } from '../components/admin/States';
@@ -183,9 +183,21 @@ function LastSection({ c, l }: { c: GameCard; l: LastDraw }) {
           </>
         )}
       </div>
-      {!l.leftOut && l.rows.length ? <LastRows shape={c.shape} rows={l.rows} /> : null}
+      {!l.leftOut && l.rows.length ? <LastTickets c={c} l={l} /> : null}
     </>
   );
+}
+
+// The last draw's tickets in the hits grid (the old History table: every number in its own coloured cell), loaded from
+// the draw's own route - the same five as above, ranked before the draw; the per-row summary while it loads or when
+// the draw cannot be read
+function LastTickets({ c, l }: { c: GameCard; l: LastDraw }) {
+  const load = useLoad(() => getUserDraw(c.game, l.date), [c.game, l.date]);
+  if (load.kind === 'ok' && load.data.rows.length) {
+    const d = load.data;
+    return <TicketTable shape={d.shape} rows={d.rows} result={d.result} market={null} mode="user" ranked={d.scope.ranking !== null} showTop={false} rankWhose="in the ranking before this draw" />;
+  }
+  return <LastRows shape={c.shape} rows={l.rows} />;
 }
 
 // Each of those five with its own figure: the money games' profit, the others' best ticket as N (M) (the help and the
