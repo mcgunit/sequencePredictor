@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { retryMe, useMe } from '../hooks/useMe';
 import { useWeekStatus } from '../hooks/useWeekStatus';
 import { useWhatsNew } from '../hooks/useWhatsNew';
+import { readTheme, setTheme, type ThemeChoice } from '../theme';
 
 const NARROW = '(max-width: 860px)';
 
@@ -288,8 +289,30 @@ export default function Sidebar() {
               )}
             </div>
           ) : null}
+          <ThemeSwitch />
         </div>
       </details>
     </nav>
+  );
+}
+
+// Auto (the system's scheme), Light or Dark, remembered in this browser (theme.ts)
+function ThemeSwitch() {
+  const [choice, setChoice] = useState<ThemeChoice>(() => readTheme());
+  const pick = (c: ThemeChoice) => {
+    setTheme(c);
+    setChoice(c);
+  };
+  return (
+    <div className="foot theme">
+      <span id="theme-label">Colours</span>
+      <div className="seg" role="group" aria-labelledby="theme-label">
+        {(['auto', 'light', 'dark'] as const).map((c) => (
+          <button key={c} type="button" aria-pressed={choice === c} onClick={() => pick(c)} title={c === 'auto' ? 'follow the system setting' : undefined}>
+            {c === 'auto' ? 'Auto' : c === 'light' ? 'Light' : 'Dark'}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

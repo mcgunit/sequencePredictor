@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import type { ComposeOption, ECharts } from 'echarts/core';
 import type { BarSeriesOption, LineSeriesOption } from 'echarts/charts';
 import type { GridComponentOption, TooltipComponentOption } from 'echarts/components';
+import { THEME_EVENT } from '../theme';
 
 // Only the pieces the panels and the Workbench's charts use (bars and lines), so the bundle stays small.
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
@@ -59,7 +60,12 @@ export function useEChart(build: ((t: Tokens) => ChartOption) | null) {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const bump = () => setTheme((n) => n + 1);
     mq.addEventListener('change', bump);
-    return () => mq.removeEventListener('change', bump);
+    // the reader's own switch in the side menu (theme.ts)
+    window.addEventListener(THEME_EVENT, bump);
+    return () => {
+      mq.removeEventListener('change', bump);
+      window.removeEventListener(THEME_EVENT, bump);
+    };
   }, []);
 
   useEffect(() => {
