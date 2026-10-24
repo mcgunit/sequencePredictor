@@ -707,7 +707,9 @@ const byRanking = (report, game) => {
 const LAG_META = { lags: `+1 .. +${LAG_MAX} (+1 is the draw the prediction was made for)`, runsKept: LAG_RUNS_KEPT, trailShown: TRAIL_SHOWN,
   trailFields: ['lag', 'runs', 'from', 'to', 'avgHits', 'z'],
   tracked: 'at least 3 runs, and the most frequent peak in at least half of them',
-  z: "how far the run's peak sticks out of the row's own lag profile", control: 'none: no control measures what z or the tracked share reach by chance' };
+  // near 1: the old card's reading of a flat profile (server.js "how to read the peaks")
+  z: "how far the run's peak sticks out of the row's own lag profile; near 1 the profile is flat, so the hits come from number frequency rather than timing",
+  control: 'none: no control measures what z or the tracked share reach by chance' };
 function phaseShiftSummary(report, today = {}, now = new Date()) {
   const games = GAMES.filter((g) => gameInfo(report, g) && gameInfo(report, g).lagAnalysis && Object.keys(gameInfo(report, g).lagAnalysis).length).map((game) => {
     const la = gameInfo(report, game).lagAnalysis;
@@ -768,7 +770,9 @@ function randomnessOf(game, info, q2Record) {
   };
 }
 const RANDOMNESS_META = { tripwires: { entropyBelow: ENTROPY_LOW, klHistoryAbove: KL_HIGH, aeBelow: AE_ALERT_Z },
-  window: 'the newest scored draws (window); pick3 and Joker+ per digit position, averaged', ae: `the most negative rolling z over the last ${AE_WINDOW} draws`,
+  window: 'the newest scored draws (window); pick3 and Joker+ per digit position, averaged',
+  // what the z is of, and which way is the alarm (server.js "AE anomaly")
+  ae: `the most negative rolling z of its reconstruction NLL over the last ${AE_WINDOW} draws; strongly negative means the real draws became easy to reconstruct, a predictability spike`,
   modelKl: 'KL(predicted || real) over the window; no reference value', q2: 'the weekly controlled test (Controls page)', fewWindows: FEW_WINDOWS };
 const randomnessGames = (report) => GAMES.filter((g) => { const info = gameInfo(report, g); return info && (info.randomnessWatch || info.anomalyWatch); });
 function randomnessSummary(report, q2Records = {}, now = new Date()) {

@@ -49,7 +49,26 @@ function guardOf(p: OpenPosition): { label: string; chip: string; sub: string | 
   }
 }
 
-function Row({ p, quote, withCall, models }: { p: OpenPosition; quote: number | undefined; withCall: boolean; models: { day: string; week: string } }) {
+// A sized row's position (the RL Position Model): a multiple of the paper stake
+function sizeTitle(size: number, stake: number | null | undefined, unit: string): string {
+  return `Position size ×${size}${isNum(stake) ? `: ${Math.round(size * stake)} ${unit} at the paper stake of ${stake} ${unit} a position` : ''}.`;
+}
+
+function Row({
+  p,
+  quote,
+  withCall,
+  models,
+  stake,
+  unit,
+}: {
+  p: OpenPosition;
+  quote: number | undefined;
+  withCall: boolean;
+  models: { day: string; week: string };
+  stake: number | null | undefined;
+  unit: string;
+}) {
   // Only a held position has a live move: a "buy now" row has nothing to measure yet, a "too late" or "sold"
   // row was sold at the close - its result comes with the morning run - and an "out" row holds nothing.
   const held = p.status === 'held';
@@ -80,6 +99,12 @@ function Row({ p, quote, withCall, models }: { p: OpenPosition; quote: number | 
       </td>
       <td title={p.statusText || undefined}>
         <span className={`chip ${STATUS_CHIP[p.status] ?? 'flat'}`}>{buy.chip}</span>
+        {isNum(p.size) ? (
+          <span className="strong" title={sizeTitle(p.size, stake, unit)}>
+            {' '}
+            ×{p.size}
+          </span>
+        ) : null}
         {buy.text ? <span className="strong"> {buy.text}</span> : null}
         {buy.sub ? <span className="sub">{buy.sub}</span> : null}
         {p.earlier ? <span className="sub">{p.earlier}</span> : null}
@@ -131,9 +156,14 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
   const liveAt = quotes?.at ? time(quotes.at) : '';
   const stateTitle = [d?.stateTitle, w?.stateTitle].filter(Boolean).join(' ');
   const short = (m: string | null | undefined) => (m ? m.replace(/ Model$/, '') : '');
-  const pickNote = 'the best paper book of its horizon so far; the pick can change';
-  const dayTitle = d ? `${d.model ?? 'no model'}${isNum(d.modelCount) ? `, one of ${d.modelCount} models` : ''}${d.ruleName ? `, ${d.ruleName}` : ''}: ${pickNote}.` : '';
-  const weekTitle = w ? `${w.model ?? 'no model'}${isNum(w.modelCount) ? `, one of ${w.modelCount} models` : ''}${w.ruleName ? `, ${w.ruleName}` : ''}: ${pickNote}.` : '';
+  // why the model is followed: its paper book, or the best exact rate while no book has the positions it needs (10 a
+  // day, 5 a week: markets.js pickPlan, pickWeek)
+  const pickNote = (g: { byBook?: boolean; minTrades?: number }) =>
+    g.byBook === false
+      ? `the best exact rate, as no book has ${g.minTrades ?? 'enough'} positions yet; the pick can change`
+      : 'the best paper book of its horizon so far; the pick can change';
+  const dayTitle = d ? `${d.model ?? 'no model'}${isNum(d.modelCount) ? `, one of ${d.modelCount} models` : ''}${d.ruleName ? `, ${d.ruleName}` : ''}: ${pickNote(d)}.` : '';
+  const weekTitle = w ? `${w.model ?? 'no model'}${isNum(w.modelCount) ? `, one of ${w.modelCount} models` : ''}${w.ruleName ? `, ${w.ruleName}` : ''}: ${pickNote(w)}.` : '';
   const models = { day: short(d?.model), week: short(w?.model) };
   // the daily-call column whenever there is a week position: it is what the week position is watched by
   const withCall = open.some((p) => p.guard || p.game === 'week');
@@ -190,7 +220,9 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
                   <td colSpan={withCall ? 7 : 6}>No open position: nothing to buy and nothing held.</td>
                 </tr>
               ) : (
-                open.map((p, i) => <Row key={`${p.symbol}-${p.game}-${i}`} p={p} quote={quotes?.quotes[p.symbol]} withCall={withCall} models={models} />)
+                open.map((p, i) => (
+                  <Row key={`${p.symbol}-${p.game}-${i}`} p={p} quote={quotes?.quotes[p.symbol]} withCall={withCall} models={models} stake={d?.stake} unit={data.unit} />
+                ))
               )}
             </tbody>
           </table>
@@ -228,6 +260,11 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
               : 'The Guard column shows the daily call next to a week position, as information.'}
           </p>
           {notes.entryText ? <p>{notes.entryText}</p> : d?.entryNote ? <p>{d.entryNote}</p> : null}
+          {open.some((p) => isNum(p.size)) ? (
+            <p>
+              A ×N in the Buy column is the daily model&apos;s position size: N times the paper stake{isNum(d?.stake) ? ` of ${d.stake} ${data.unit}` : ''}.
+            </p>
+          ) : null}
           {notes.guardText ? <p>{notes.guardText}</p> : null}
           {generatedAt ? (
             <p>

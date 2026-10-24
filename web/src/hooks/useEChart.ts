@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
+import { DataZoomSliderComponent, GridComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { ComposeOption, ECharts } from 'echarts/core';
 import type { BarSeriesOption, LineSeriesOption } from 'echarts/charts';
-import type { GridComponentOption, TooltipComponentOption } from 'echarts/components';
+import type { DataZoomComponentOption, GridComponentOption, TooltipComponentOption } from 'echarts/components';
 import { THEME_EVENT } from '../theme';
 
-// Only the pieces the panels and the Workbench's charts use (bars and lines), so the bundle stays small.
-echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+// Only the pieces the panels and the Workbench's charts use (bars, lines, the zoom slider under the Workbench's long
+// charts), so the bundle stays small. The slider only: zoom inside the plot (wheel, pinch) would take a phone's page
+// scroll, so it is not even registered.
+echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, DataZoomSliderComponent, CanvasRenderer]);
 
-export type ChartOption = ComposeOption<BarSeriesOption | LineSeriesOption | GridComponentOption | TooltipComponentOption>;
+export type ChartOption = ComposeOption<BarSeriesOption | LineSeriesOption | GridComponentOption | TooltipComponentOption | DataZoomComponentOption>;
 
 // The CSS tokens, read at render time so the charts follow light and dark mode.
 export interface Tokens {

@@ -84,6 +84,7 @@ export function MonthCard({
   unit,
   scope,
   mode,
+  initial,
   versions,
   first,
   loadMonth,
@@ -94,12 +95,13 @@ export function MonthCard({
   unit: string;
   scope: 'all' | 'top';
   mode: Mode;
+  initial: boolean; // open on load: the month a link asked for (back from one of its draws)
   versions: RankVersion[];
   first: string | null; // when the first ranking was saved
   loadMonth: (month: string) => Promise<History>;
   drawHref: (date: string) => string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initial);
   const [got, setGot] = useState<{ days: DayLine[]; versions: RankVersion[] } | null>(m.days ? { days: m.days, versions } : null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -166,8 +168,9 @@ export function MonthCard({
   );
 }
 
-// The whole history: the months as folding cards. The scope's months reload from the parent (key the view on scope).
-export default function HistoryView({ h, mode, loadMonth, drawHref }: { h: History; mode: Mode; loadMonth: (month: string) => Promise<History>; drawHref: (date: string) => string }) {
+// The whole history: the months as folding cards, all folded but the month a link asked for (open). The scope's months
+// reload from the parent (key the view on scope).
+export default function HistoryView({ h, mode, open, loadMonth, drawHref }: { h: History; mode: Mode; open: string | null; loadMonth: (month: string) => Promise<History>; drawHref: (date: string) => string }) {
   return (
     <div className="stack">
       {h.months.map((m) => (
@@ -178,6 +181,7 @@ export default function HistoryView({ h, mode, loadMonth, drawHref }: { h: Histo
           unit={h.unit}
           scope={h.scope}
           mode={mode}
+          initial={m.month === open}
           versions={h.ranking.versions}
           first={h.ranking.first ? (h.ranking.first.committedAt ?? h.ranking.first.generatedAt) : null}
           loadMonth={loadMonth}

@@ -128,8 +128,9 @@ function UsersCard({ d, onAsk }: { d: PeopleView; onAsk: (a: PeopleAsk) => void 
       help={
         <>
           The administrator signs in with WEB_USER and WEB_PASSWORD from the server&apos;s .env; that account cannot be changed here. Users sign in with their own
-          password and see the predictions and the History pages only. Last sign-in: the newest in the activity log (with the browser), or the account&apos;s own
-          record when that is newer. Setting a password ends that user&apos;s open sessions.
+          password and see Home, Lottery (the top 5 models only, as ranked before each draw), Crypto, Shares, the Council (asking it, and their own sessions),
+          their own account and What&apos;s new. Last sign-in: the newest in the activity log (with the browser), or the account&apos;s own record when that is newer. Setting a
+          password ends that user&apos;s open sessions.
         </>
       }
       meta={['Brussels time']}
@@ -280,7 +281,12 @@ function ActivityCard({ d, all, setAll, busy }: { d: PeopleView; all: boolean; s
       className="span-3"
       title="Activity"
       flush
-      help={<>Every sign-in, sign-out and account change recorded in the audit log, newest first: who, what, from which address and browser.</>}
+      help={
+        <>
+          Every sign-in, sign-out and account change recorded in the audit log, newest first: who, what, from which address and browser. The log is rotated at
+          2 MB with one older file kept, so it reaches back only to the date shown. Addresses are the caller&apos;s as seen through the reverse proxy.
+        </>
+      }
       meta={[`the newest ${a.shown} of ${total} events`, a.oldest ? `log since ${stamp(a.oldest)}` : '', 'Brussels time']}
       foot={
         more || all ? (
@@ -351,7 +357,9 @@ function AddDialog({ d, sender, onClose }: { d: PeopleView; sender: Sender; onCl
   return (
     <Confirm
       title="Add a user"
-      lines={['The user signs in with this name and password and sees the predictions and the History pages only.']}
+      lines={[
+        "The user signs in with this name and password and sees Home, Lottery (the top 5 models only, as ranked before each draw), Crypto, Shares, the Council (asking it, and their own sessions), their own account and What's new.",
+      ]}
       action="Add user"
       busy={sender.busy}
       error={problem ?? sender.error}

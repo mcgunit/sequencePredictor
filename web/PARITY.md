@@ -1,4 +1,4 @@
-> Working checklist for the switch to the new app (batch 4, 22 Oct 2026). Built routes: /app/admin/games, /app/admin/games/:game, /app/admin/games/:game/:date (API /api/admin/history/:game, /api/admin/draw/:game/:date) and /app/admin/markets/:market (API /api/admin/market/:market/workbench); the route names proposed below (/admin/draws) were renamed while building. The final parity sign-off happens before the switch (batch 6).
+> Working checklist for the switch to the new app (batch 4, 22 Oct 2026). Built routes: /app/admin/games, /app/admin/games/:game, /app/admin/games/:game/:date (API /api/admin/history/:game, /api/admin/draw/:game/:date) and /app/admin/markets/:market (API /api/admin/market/:market/workbench); the route names proposed below (/admin/draws) were renamed while building. The final parity sign-off happens before the switch (batch 6). Section D (24 Oct 2026, batch 6) covers the rest of the old pages and holds the owner's sign-off list.
 
 # Workbench parity: old pages to the new app (batch 4)
 
@@ -146,7 +146,7 @@ Every other draw comes before 25 Aug, or is back-built or back-filled. Five keno
 
 ## What the users' Lottery (next batch) needs from this batch
 
-> **Built in batch 5 (23 Oct 2026).** API: `lottery.js` (`/api/lottery`, `/api/lottery/:game`, `/api/lottery/:game/:date`, `/api/home`), with the owner's answers to Q1 and Q2 below: the users' history starts at each game's first saved ranking (the earlier draws left out, one line says how many), and the vote is drawn over the five rows sent. App: `/` (Home), `/lottery`, `/lottery/:game`, `/lottery/:game/:date` (`components/draws/*` in `mode="user"`, no switch, no rank numbers, no stored vote) and `/council`. The sidebar's Lottery and Council are app routes now (no ↗). The old `/lottery`, `/database` and `/council` server pages stay until the switch (batch 6); the lottery folders of `/database` are the administrator's in the meantime (they send a past draw's every row and its file's vote): a user is redirected to the same list, game or draw under `/app/lottery`. The markets' game views stay as they are.
+> **Built in batch 5 (23 Oct 2026).** API: `lottery.js` (`/api/lottery`, `/api/lottery/:game`, `/api/lottery/:game/:date`, `/api/home`), with the owner's answers to Q1 and Q2 below: the users' history starts at each game's first saved ranking (the earlier draws left out, one line says how many), and the vote is drawn over the five rows sent. App: `/` (Home), `/lottery`, `/lottery/:game`, `/lottery/:game/:date` (`components/draws/*` in `mode="user"`, no switch, no rank numbers, no stored vote) and `/council`. The sidebar's Lottery and Council are app routes now (no ↗). The old `/lottery`, `/database` and `/council` server pages stayed until the switch (batch 6: since then every old address redirects to its app page, see section D); the lottery folders of `/database` are the administrator's in the meantime (they send a past draw's every row and its file's vote): a user is redirected to the same list, game or draw under `/app/lottery`. The markets' game views stay as they are.
 
 1. **The `rankingHistory` API**, per game and draw: `{version generatedAt, metric, minDraws, top5 present in the table}` or `{none: 'before 25 Aug 2026' | 'game not ranked yet' | 'back-filled'}`. The user API calls it server side.
 2. **`draws.js` scoring** with a scope: figures (A3–A6, B6) over the rows in scope only, with the count of rows on the same line. In user mode the server cuts the rows; hidden rows are never sent.
@@ -166,4 +166,45 @@ Every other draw comes before 25 Aug, or is back-built or back-filled. Five keno
 2. **Vote charts (B8, B10) in user mode:** recompute over the top 5's rows, or leave them out (the old user page leaves them out)?
 3. **Positional games (jokerplus, pick3, markets):** draw the vote per position or slot, instead of the pooled chart that lights values drawn in another slot?
 4. **Market rows' Trades and P&L columns** (price units, the Sunday backtest): drop them for good, or add them to Controls › Market rows?
-5. **pick3 Hits column:** replace membership hits with positional hits plus the bet types won (B6d)?
+5. **pick3 Hits column:** replace membership hits with positional hits plus the bet types won (B6d)? **Decided (owner, 24 Oct 2026): yes** - users see digits in place and the bet types won; the membership count stays on the administrator's view only.
+
+## D. The rest of the old pages (batch 6, 24 Oct 2026)
+
+**How this was read.** Before the switch a read-only sweep compared every element of the old pages with the app, in eight areas:
+- Home and the shared chrome (navbar, pipeline banner, footer);
+- the users' lottery pages;
+- the administrator's ranking cards and control cards on `/database`;
+- the markets (the users' view, and rows C1-C19 above);
+- the lottery workbench (rows A and B above) and the Council;
+- the system pages (account, users, activity, jobs, What's new, the introduction);
+- the redirect map and every link to an old address.
+
+An adversarial reader then tried to refute each reported gap. Result: 42 gaps reported, 6 refuted, 36 confirmed (no blocker, 10 should, 26 minor).
+
+**Closed in batch 6**
+- **Run in progress** (should): `pipeline.js` (moved out of server.js) gives `/api/home` and `/api/lottery` a `running` field. Home and Lottery show the old banner's line, and refresh every minute while a job holds `process.lock`.
+- **Users' lottery**: the Joker+ sentence that only the sign can be chosen; "today," on the coming draw; "the 5 of N models"; the multi-pick order sentence; the bonus number not counted in the chances.
+- **Administrator's ranking cards**: a combination's "no verdict" on the hit games (a set scores at least its own rows by construction); "above chance" tags and reading guidance on multi-pick; the Best model and Phase-shift help texts; the count of established rows tried; "not declared" Since.
+- **Control cards**: the feature control's chance of a column clearing the band by luck (one week in K); its noise-column and importance definitions; the AUC cell label; the Q2 suite (quantum included or not); the randomness autoencoder z and the "boring causes" caveat; the market rows' ablation reading, row kinds, probability floor and HMM feature set (also on the workbench's Regime card).
+- **Markets**: the draw table's position marks (▲, ▼, ×size, sits out) and the bin's price range on hover; a zoom slider under the paper-books and instrument charts; the week-to-week running chart; the "why bins" background. The users' position size (×N) and the model pill's reason (book or exact rate) are latent while GARCH is picked.
+- **Council**: the administrator's Ask is disabled with the reason when the Council API is down; live answers in folded cards with their Member N labels.
+- **System pages**: each run's commit; the Council API's command and directory; the users' pages named correctly on People; the activity log's reach and address source; the schedule's off switch (`config/scheduler.disabled`).
+- **Phone check** (360 / 390 / 430 px): the model column stays in place in the ticket tables; long tile labels wrap; a wrapped meta line never starts with a dot.
+
+**Decided with the owner (24 Oct 2026)**
+- Q5 above (pick3 Hits): users see digits in place; the old membership count is shown to the administrator only.
+- The introduction (`announcements.js` TOUR) rewritten for the app, and the switch announcement (`2026-10-24-new-interface`, major, every reader), both proofread by the owner.
+
+**Deferred** (not needed for the switch)
+- Several models drawn at once on an instrument chart, the old "Price bars" view and its "Reset zoom" button. The slider zooms; zooming by mouse wheel or pinch inside the plot was left out on purpose, so a phone scrolls the page.
+- Position size on week rows: needs a decision on whether the guarded week scales by size.
+- The Council's administrator-only mode (`COUNCIL_ACCESS=admin`): not set on production, so the app does not reflect it yet.
+- The models drawer's Since column shows a dash when no date is declared (the overview says "not declared").
+
+**Sign-off before the switch** (the owner)
+- [ ] As a user: Home, Lottery (a game, its history, a draw), Crypto, Shares, Council, account, What's new; on a phone too.
+- [ ] As the administrator: This week, Controls, Models (all six pages), Jobs & services, People.
+- [ ] A few old bookmarks open their app page, for each role.
+- [ ] Sign-in page: light, dark, phone.
+- [ ] The introduction rewrite and the switch announcement, proofread and approved.
+

@@ -8,7 +8,7 @@ import ResultStrip from './ResultStrip';
 import ScopeLine, { ComingScopeLine } from './ScopeLine';
 import TicketTable from './TicketTable';
 import VotesChart, { slotNames } from './VotesChart';
-import { CURRENCY_OF, MARKET_DRAW, MARKET_OF, howHitsCounted, prettyDates, type Mode } from './text';
+import { CURRENCY_OF, MARKET_DRAW, MARKET_OF, MULTI_PICK_ORDER, howHitsCounted, prettyDates, type Mode } from './text';
 
 // One draw (the old /database/:folder/:file page): the drawn row with the day's figures over the rows in scope, every
 // row's tickets scored, lotto's multi-pick once, the vote, and - on the newest day only - the coming draw's tickets
@@ -17,6 +17,10 @@ import { CURRENCY_OF, MARKET_DRAW, MARKET_OF, howHitsCounted, prettyDates, type 
 
 // a Top table reads best in its ranking's order; All keeps the file's
 const ordered = (rows: Row[], top: boolean) => (top ? [...rows].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99)) : rows);
+
+// the coming draw's date, "today, Sat 24 Oct" on its own Brussels day (the old page's "for the draw of today, ...")
+const BRUSSELS_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels', year: 'numeric', month: '2-digit', day: '2-digit' });
+const comingText = (date: string) => `${date === BRUSSELS_DAY.format(new Date()) ? 'today, ' : ''}${weekday(date)}`;
 
 export function MarketNote({ game, slots, mode, marketHref }: { game: string; slots: string[]; mode: Mode; marketHref?: (market: string) => string }) {
   if (!MARKET_DRAW[game]) return null;
@@ -94,7 +98,7 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
         )}
       </Card>
       {d.multiPick ? (
-        <Card title="Multi-pick" help="A row with shaded numbers lists its six in the model’s own probability order, highest first, not small to large; a row without them (a vote, the RL ticket, a row whose ranking failed that run) keeps its six small to large.">
+        <Card title="Multi-pick" help={MULTI_PICK_ORDER}>
           <MultiPickLegend data={d.multiPick} mode={mode} />
         </Card>
       ) : null}
@@ -112,7 +116,7 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
       {d.coming ? (
         <Card
           id="next"
-          title={`Next draw${d.coming.date ? ` · ${weekday(d.coming.date)}` : ''}`}
+          title={`Next draw${d.coming.date ? ` · ${comingText(d.coming.date)}` : ''}`}
           meta={[
             mode === 'user' ? `top ${d.coming.scope.rows} of ${d.coming.scope.of} models` : `${d.coming.scope.rows} of ${d.coming.scope.of} rows`,
             d.coming.madeAt ? `${mode === 'user' ? 'tickets made' : 'ticket'} ${stamp(d.coming.madeAt)}` : '',

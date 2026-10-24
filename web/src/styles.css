@@ -30,6 +30,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+code { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: var(--fs-md); line-height: 1.45; font-variant-numeric: tabular-nums; }
 
 /* Sidebar */
@@ -77,6 +78,7 @@ nav.side .foot { margin-top: 18px; padding: 12px 10px 0; font-size: var(--fs-sm)
 .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px var(--pad) 13px; min-width: 0; display: grid; gap: 4px; align-content: start; }
 .kpi .k { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 860px) { .kpi .k { white-space: normal; } }   /* two tiles a row on a phone: a long label wraps, never cut */
 .kpi .v { font-size: var(--fs-xl); font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; white-space: nowrap; }
 .kpi .v small { font-size: var(--fs-sm); font-weight: 500; color: var(--muted); margin-left: 4px; letter-spacing: 0; white-space: normal; }
 .kpi .f { font-size: var(--fs-sm); color: var(--muted); }
@@ -99,7 +101,11 @@ nav.side .foot { margin-top: 18px; padding: 12px 10px 0; font-size: var(--fs-sm)
 .model-pill { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--muted); background: var(--flat-bg); border-radius: 8px; padding: 4px 10px; }
 .model-pill .tag { margin-left: 0; vertical-align: 0; }
 .model-pill b { color: var(--fg); font-weight: 600; }
-.meta.dots > span + span::before { content: '·'; margin-right: 10px; color: var(--faint); }
+/* the dot sits in the gap before an item; an item that wraps to the start of a line has its dot clipped (no line
+   starts with a dot) */
+.meta.dots { overflow: hidden; column-gap: 18px; }
+.meta.dots > span { position: relative; }
+.meta.dots > span + span::before { content: '·'; position: absolute; left: -11px; color: var(--faint); }
 .card-b { padding: 0 var(--pad) 14px; flex: 1; min-width: 0; }
 .card-b.flush { padding-inline: 0; }
 /* a chart body fills its card, so two cards in one row end level whatever the other holds */
@@ -799,6 +805,13 @@ details.fold > summary .mut { color: var(--muted); }
 .card-f a.more { font-size: var(--fs-sm); color: var(--accent); text-decoration: none; font-weight: 500; }
 .card-f a.more:hover { text-decoration: underline; }
 .head-r a.btn { text-decoration: none; }
+/* The run banner (Home, the Lottery): one line while a pipeline job holds process.lock, the old pages' blue banner */
+.runbanner { display: flex; align-items: center; gap: 10px; margin: -6px 0 var(--gap); padding: 10px 14px; background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: var(--radius); font-size: var(--fs-sm); }
+.runbanner b { font-weight: 600; }
+.runbanner .spin { flex: none; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: run-spin 1s linear infinite; }
+@keyframes run-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .runbanner .spin { animation: none; } }
 
 /* Home: Lottery wide on the left, its games in two columns; Crypto and Shares stacked on the right; every card as
    tall as its own content (a stretched card left Crypto and Shares mostly empty); one column at 1100px and below */
@@ -958,6 +971,12 @@ details.panel > summary { padding: 4px 0; }
 .tbl.tix td.c.x { background: var(--mp-bg); color: var(--mp-fg); outline: 1px dashed var(--mp-line); outline-offset: -3px; }
 .tbl.tix td.c.x.hm { background: var(--hit); color: var(--hit-fg); }
 .tbl.tix td.c.none { color: var(--faint); }
+/* a market bin's position after it (▲ long, ▼ not long, ▲×size, sits out); on a green hit cell it takes the cell's white */
+.tbl.tix td.c .pz { font-size: var(--fs-xs); font-weight: 600; }
+.tbl.tix td.c .pz.up { color: var(--up); }
+.tbl.tix td.c .pz.dn { color: var(--down); }
+.tbl.tix td.c .pz.out { color: var(--muted); font-weight: 400; }
+.tbl.tix td.c.hm .pz { color: inherit; }
 .tbl.tix td.hits { font-weight: 600; background: var(--cell-head); white-space: nowrap; }
 .tbl.tix td.hits .sub { font-weight: 400; }
 .tbl.tix tr.first td { border-top: 1px solid var(--line); }
@@ -984,3 +1003,7 @@ nav.side .foot.theme .seg button { padding: 3px 9px; font-size: var(--fs-xs); }
 /* The hits grid: every cell centred vertically, so a number sits in the middle of its coloured cell when the Hits
    cell's second line makes the row taller (the base table aligns cells on the text baseline) */
 .tbl.tix td { vertical-align: middle; }
+/* the model column stays in view while the numbers scroll sideways (a phone, a wide keno grid) */
+.tbl.tix th:first-child, .tbl.tix td.mdl { position: sticky; left: 0; z-index: 1; }
+.tbl.tix th:first-child { background: var(--card); }
+.tbl.tix td.mdl { box-shadow: inset -1px 0 0 var(--line); }

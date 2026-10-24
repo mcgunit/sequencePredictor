@@ -66,7 +66,7 @@ export function ComingScopeLine({ scope, mode }: { scope: Coming['scope']; mode:
     return (
       <p className="scopeline">
         <b>
-          {mode === 'user' ? `The ${scope.rows} models with the best record` : `Today's top 5: ${scope.rows} of ${scope.of} rows`}
+          {mode === 'user' ? `The ${scope.rows} of ${scope.of} models with the best record` : `Today's top 5: ${scope.rows} of ${scope.of} rows`}
         </b>{' '}
         · by {r.metricText}, the ranking generated {stamp(r.generatedAt)}
         {mode === 'admin' ? ' · the same five a user sees' : ''}

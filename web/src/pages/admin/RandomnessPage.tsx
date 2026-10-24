@@ -72,7 +72,8 @@ function WatchCard({ d, onOpen }: { d: RandomnessView; onOpen: (g: string) => vo
           Tripwires, deliberately loose: an alarm, not a verdict. Entropy: how evenly the newest draws spread over the numbers (1 = perfectly even), over{' '}
           {d.meta.window}. KL vs history: how far the newest draws&apos; frequencies sit from the game&apos;s own history; KL vs uniform is shown with it, without a
           tripwire. Autoencoder: {d.meta.ae}. Q2: {d.meta.q2}. Watch names the tripwires that are up. The market games and
-          vikinglotto carry the autoencoder only.
+          vikinglotto carry the autoencoder only. Rule changes, data artefacts and small windows all move these figures: a tripwire that is up is a reason to
+          look, not proof of manipulation, and even a Q2 above the band has the boring causes in the README to rule out first.
         </>
       }
       meta={[`tripwires: ${tripwireText(d.meta)}`]}

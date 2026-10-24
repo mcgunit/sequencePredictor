@@ -256,7 +256,8 @@ function install(app, { header, footer, escapeHtml }) {
 
   // Whether the council can sit now (api.py /health: at least one member and the head answer), for every reader: the
   // page keeps Ask off while it cannot, rather than file a run bound to fail. Only {ready, busy}: who does not answer,
-  // and where, is the administrator's (/endpoints). The Council API itself not answering is not ready either.
+  // and where, is the administrator's (/endpoints). The Council API itself not answering is not ready either; the
+  // administrator is also told why (apiError: the proxy's reason, an address in it), since /endpoints is then a 503.
   app.get('/council/api/status', async (req, res) => {
     if (denied(req)) return res.status(403).json({ error: 'not permitted' });
     res.set('Cache-Control', 'no-store');
@@ -265,6 +266,7 @@ function install(app, { header, footer, escapeHtml }) {
       const s = body && body.status;
       res.json({ ready: status === 200 && Boolean(s && s.ready === true), busy: Boolean(body && body.busy === true) });
     } catch (e) {
+      if (isAdmin(req)) return res.json({ ready: false, busy: false, apiError: e.message });
       console.error(`[${new Date().toISOString()}] council.js: the council api did not answer: ${e.message}`);
       res.json({ ready: false, busy: false });
     }

@@ -109,7 +109,7 @@ export default function GameHistoryPage() {
   const raw = params.get('month');
   const month = raw && MONTH.test(raw) ? raw : null;
   const known = isGame(game);
-  // ?month= opens that month (back from one of its draws); a month without a stored draw opens the newest
+  // ?month= opens that month (back from one of its draws); a month without a stored draw leaves every month folded
   const load = useLoad(
     () => (known ? (month ? getHistory(game, scope, month).catch(() => getHistory(game, scope)) : getHistory(game, scope)) : Promise.reject(new Error('unknown game'))),
     [game, scope, month],
@@ -152,7 +152,7 @@ export default function GameHistoryPage() {
       />
       <ScopeSummary h={h} />
       {h.shape.family === 'market' ? <MarketNote game={game} slots={h.shape.slots} mode="admin" marketHref={marketHref} /> : null}
-      <HistoryView key={`${game}-${h.scope}`} h={h} mode="admin" loadMonth={loadMonth} drawHref={toDraw} />
+      <HistoryView key={`${game}-${h.scope}`} h={h} mode="admin" open={month} loadMonth={loadMonth} drawHref={toDraw} />
     </div>
   );
 }

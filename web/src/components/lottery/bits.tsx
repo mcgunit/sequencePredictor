@@ -29,10 +29,11 @@ export function UserGamePicker({ game }: { game: string }) {
   );
 }
 
-// "Sat 24 Oct", or that the date has gone and the next run has not scored it yet (the records hold no time of day)
+// "Sat 24 Oct" ("today, Sat 24 Oct" on the day, as the old pages said it), or that the date has gone and the next run
+// has not scored it yet (the records hold no time of day)
 export function nextText(n: NextDraw | null): string {
   if (!n || !n.date) return 'not known yet';
-  return `${weekday(n.date)}${n.past ? ' (that day has passed; the next run scores it)' : ''}`;
+  return `${n.today ? 'today, ' : ''}${weekday(n.date)}${n.past ? ' (that day has passed; the next run scores it)' : ''}`;
 }
 
 // One coming ticket as cells: the numbers or digits, then the stars, dream, Viking number or Joker+'s sign as their own

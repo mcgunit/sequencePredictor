@@ -60,6 +60,13 @@ const isoAt = (text) => { const ms = Date.parse(text); return Number.isFinite(ms
 const cutLine = (line) => admin.noPaths(String(line).split('\r').filter(Boolean).pop() || '').slice(0, LINE_CHARS);
 // A run's id in these routes: its job and its start in epoch ms (the kept runs carry no run id of their own).
 const runIdOf = (key, at) => `${key}-${Math.round(at)}`;
+// A directory as a page may show it: relative to the checkout (src/llmCouncil), or its own name when it lies outside.
+function dirOf(dir, root) {
+  if (!dir) return null;
+  const rel = root ? path.relative(root, String(dir)) : null;
+  if (rel === '') return '.';
+  return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel.split(path.sep).join('/') : path.basename(String(dir));
+}
 
 // A browser and system in two words, from a user agent; the device a sign-in is compared on is the agent itself with
 // its version numbers taken out (deviceKey), so a browser update is not a new device.
@@ -132,8 +139,9 @@ const resultOf = (h) => {
   return num(h.exit) === null ? 'unknown' : `exit ${h.exit}`;
 };
 // status: jobs.status({full: true}); jobs: jobs.JOBS; slices: {job key: admin.readSlices}; services: services.status()
-// (or {error}); actionsFor: services.actionsFor; serviceLogs: {service key: serviceLog}. Pure, for the test.
-function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor = null, serviceLogs = {}, now = new Date() }) {
+// (or {error}); actionsFor: services.actionsFor; serviceLogs: {service key: serviceLog}; root: the checkout, which a
+// service's working directory is named relative to. Pure, for the test.
+function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor = null, serviceLogs = {}, root = null, now = new Date() }) {
   const nowMs = now.getTime();
   const errors = [];
   const byKey = Object.fromEntries(list(jobs).map((j) => [j.key, j]));
@@ -184,6 +192,8 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
 
   const svc = services && !services.error ? list(services).map((x) => ({
     key: x.key, name: x.name, description: x.description, status: x.status, healthy: Boolean(x.healthy), summary: x.summary || null,
+    // what it runs and where (services.js: "python3 api.py ..." in src/llmCouncil), without an absolute path
+    command: admin.noPaths(x.command || null), cwd: dirOf(x.cwd, root),
     pid: x.pid || null, port: x.port || null, since: isoMs(x.since),
     upMinutes: x.status === 'running' && num(x.since) !== null ? r1((nowMs - x.since) / 60000) : null,
     restarts: num(x.restarts) || 0, lastExit: x.lastExit ? { code: x.lastExit.code, signal: x.lastExit.signal || null, at: isoMs(x.lastExit.at) } : null,
@@ -453,7 +463,8 @@ function install(app, options = {}) {
         try { all = await admin.within(services.status(), SERVICES_WAIT_MS); } catch (e) { all = { error: admin.noPaths(e.message) }; }
       }
       const serviceLogs = Object.fromEntries(list(all).map((x) => [x.key, serviceLog(x.logFile)]));
-      json(res, jobsView({ status: jobsStatus(), jobs: jobList(), slices: slicesAll(), services: all, actionsFor: services && services.actionsFor, serviceLogs }));
+      json(res, jobsView({ status: jobsStatus(), jobs: jobList(), slices: slicesAll(), services: all, actionsFor: services && services.actionsFor, serviceLogs,
+        root: dirs.root }));
     } catch (e) { fail(res, e); }
   });
   app.get('/api/admin/jobs/run/:id/log', admin.guard, (req, res) => {

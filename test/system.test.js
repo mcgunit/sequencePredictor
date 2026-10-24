@@ -176,6 +176,17 @@ ok(system.networkOf('2a02:a03f:8722:b301:322d:e75:225b:eb45') === system.network
   fs.rmSync(dir, { recursive: true, force: true });
 }
 {
+  // a service's command and working directory: no absolute path, the directory relative to the checkout
+  const root = path.join(os.tmpdir(), 'checkout');
+  const svc = (cwd, command = 'python3 api.py --config config.json --port 8099') => system.jobsView({ status: null, root,
+    services: [{ key: 'councilApi', name: 'Council API', status: 'stopped', command, cwd }] }).services[0];
+  const here = svc(path.join(root, 'src', 'llmCouncil'));
+  const away = svc('/srv/other/llmCouncil', '/usr/bin/python3 /srv/other/llmCouncil/api.py --port 8099');
+  ok(here.command === 'python3 api.py --config config.json --port 8099' && here.cwd === 'src/llmCouncil' && svc(root).cwd === '.'
+    && away.cwd === 'llmCouncil' && away.command === 'python3 api.py --port 8099' && svc(null).cwd === null,
+    `services: the command without paths, the working directory relative to the checkout or by name: ${here.cwd}, ${away.cwd}, ${away.command}`);
+}
+{
   // sign-in exceptions on hand-made events (newest first, as audit.recent gives them)
   const at0 = Date.parse('2026-10-21T20:00:00Z');
   const at = (h) => new Date(at0 - h * 3600000).toISOString();
@@ -373,6 +384,10 @@ async function main() {
     && council.checkedAt && council.upMinutes === null, `services: the Council API, stopped, its last health check, the buttons its state allows: ${JSON.stringify(council.actions)}`);
   ok(council.log.healthDropped === 30 && council.log.lines.length === 3 && council.log.lines[0].includes('(cwd llmCouncil)') && council.log.file === 'councilApi.log',
     'services: the log tail without the /health probes, paths cut to file names');
+  ok(council.command === 'python3 api.py --config config.json --port 8099' && council.cwd === 'llmCouncil',
+    `services: what it runs, and where by name alone (this copy lies outside the checkout the view is built for): ${council.command} in ${council.cwd}`);
+  ok(j.runs.items.find((r) => r.id === `hyperoptBoost-${RUN2}`).sha === 'bbb2222' && j.runs.items.find((r) => r.key === 'nullControls').sha === null,
+    'jobs: each run\'s commit, null when none was recorded');
   const jText = JSON.stringify(j);
   ok(!jText.includes(tmp) && !jText.includes('/root/') && !/NaN|undefined/.test(jText), 'jobs: no absolute path, no NaN');
 
@@ -440,7 +455,7 @@ async function main() {
   const refusedKill = jobs.stopRun(state.current.runId, 'boss', { kill: () => { throw new Error('EPERM'); }, isAlive: () => true });
   ok(!refusedKill.ok && refusedKill.status === 500 && refusedKill.message === 'could not stop it: EPERM', 'stop: a signal the system refuses is a 500 with its reason');
   const jr = (await call(app, 'GET', '/api/admin/jobs', { user: ADMIN })).body;
-  ok(jr.running.id === `hyperoptBoost-${RUN4}` && jr.running.runId === state.current.runId && jr.running.usual.median === 65 && jr.running.log.length === 20
+  ok(jr.running.id === `hyperoptBoost-${RUN4}` && jr.running.runId === state.current.runId && jr.running.sha === 'ddd4444' && jr.running.usual.median === 65 && jr.running.log.length === 20
     && jr.running.log.every((l) => !l.includes('/root/')) && jr.jobs.find((x) => x.key === 'hyperoptBoost').refusal === `${BOOST}: already running or queued`
     && jr.running.log.slice(-2).join('|') === ' create mode 100644 data/database/pick3/2026-10-20.json|saved 2026/10/21',
     'jobs: the running job with its run id for Stop, elapsed against the usual, its last 20 log lines without absolute paths (relative ones and dates kept)');

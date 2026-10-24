@@ -7,6 +7,7 @@ import { Legend, Scroll } from '../../components/admin/Card';
 import DotStrip, { Axis, niceScale, type Scale } from '../../components/admin/DotStrip';
 import { Failed, Loading } from '../../components/admin/States';
 import { isMarketGame, oneControlText, recordText, tableNote, units } from './bits';
+import { hmmFeaturesText } from '../../components/draws/text';
 
 // One game's four controls in full (GET /api/admin/controls/:game): Q0 with both fair-history controls and
 // each row's own level, Q2 per seed, the feature-control variants as numbers, and for a market game the rows
@@ -240,7 +241,7 @@ function Q2Section({ d }: { d: ControlsGameView }) {
         {q.drawsUsed !== null ? count(q.drawsUsed, d.unit) : `${count(q.drawsCap, d.unit)} at most`}
         {q.drawsUsed !== null && q.drawsCap !== null && q.drawsUsed < q.drawsCap ? ` (of ${q.drawsCap} asked: the history is shorter)` : ''} ·{' '}
         {q.windowsTrain ?? DASH} train / {q.windowsTest ?? DASH} test windows{q.fewWindows ? ' (under 250: underpowered)' : ''} · {q.features ?? DASH} features ·{' '}
-        {q.seeds ?? DASH} seeds · {stamp(q.at)}
+        {q.seeds ?? DASH} seeds · {q.quantum ? 'quantum suite included' : 'classical suite only'} · {stamp(q.at)}
       </p>
       <div className="lanes">
         <div className="lane axrow">
@@ -280,6 +281,20 @@ function Q2Section({ d }: { d: ControlsGameView }) {
 
 const share = (v: number | null) => (v === null ? DASH : `${Math.round(v * 100)}%`);
 
+// One week in how many at least one of n base-model columns clears the noise band (mean + 2 sd, one-sided: 2.28%
+// each) by chance alone: 1 / (1 - 0.9772^n), at least 2 - the old card's weeksFor.
+const chanceWeeks = (n: number) => Math.max(2, Math.round(1 / (1 - Math.pow(1 - 0.0228, n))));
+// that figure for the column counts at hand (per variant, or per game): null when no count is known
+export function chanceText(counts: (number | null | undefined)[]): string | null {
+  const n = counts.filter((x): x is number => typeof x === 'number' && x > 0);
+  if (!n.length) return null;
+  const lo = Math.min(...n);
+  const hi = Math.max(...n);
+  return lo === hi
+    ? `with ${hi} base-model columns per variant, one clears the band by chance about one week in ${chanceWeeks(hi)}`
+    : `with ${lo} to ${hi} base-model columns per variant, one clears the band by chance about one week in ${chanceWeeks(hi)} to ${chanceWeeks(lo)}`;
+}
+
 function FcSection({ d }: { d: ControlsGameView }) {
   const f = d.fc;
   if (!f) {
@@ -290,6 +305,7 @@ function FcSection({ d }: { d: ControlsGameView }) {
     );
   }
   const counts = [`${f.fits} fit`, f.inconclusive ? `${f.inconclusive} inconcl.` : '', f.ignored ? `${f.ignored} ignored` : '', f.failed ? `${f.failed} failed` : ''].filter(Boolean).join(' · ');
+  const chance = chanceText(f.variants.map((v) => v.columns));
   return (
     <Section title="Feature control" aside={<Chip>{counts}</Chip>}>
       <p className="line">
@@ -342,12 +358,23 @@ function FcSection({ d }: { d: ControlsGameView }) {
           </tbody>
         </table>
       </Scroll>
-      {f.rule ? (
-        <details className="help">
-          <summary>The verdict rule</summary>
-          <p>{f.rule}</p>
-        </details>
+      {/* a column above the band is the figure read most; how often one gets there by chance stands with it */}
+      {f.columnsAbove && chance ? (
+        <p className="line" style={{ marginTop: 8 }}>
+          Above band: {chance}. A column counts when it stays above week after week, not when it appears once.
+        </p>
       ) : null}
+      <details className="help">
+        <summary>How to read this table</summary>
+        <p>
+          Noise columns: shuffled copies of real base-model scores, so they look exactly like a base model and mean nothing. Noise share: their share of the
+          variant&apos;s training importance, against the chance share a model that cannot tell them apart would give them. Importance is the ranking power lost
+          when a column is scrambled (the drop in |AUC − 0.5|), so a model whose probabilities came out inverted still shows what it leans on. Above band: base
+          models whose held-out importance beats the noise columns&apos; mean + 2 sd. AUC: held-out, without the noise columns and with them; the cost is the
+          difference.
+        </p>
+        {f.rule ? <p>Verdict rule: {f.rule}</p> : null}
+      </details>
     </Section>
   );
 }
@@ -378,6 +405,9 @@ function forestScale(intervals: Interval[]): { values: number[]; off: (x: Interv
   if (!kept.length) return { values: [0, ...intervals.flatMap(ends)], off: () => false };
   return { values: [0, ...kept.flatMap(ends)], off: far };
 }
+
+// a market-rows row's kind (MarketRows.py): a market model, a lottery model run on the market, or a baseline
+const ROW_KIND: Record<string, string> = { market: 'market row', base: 'lottery row', baseline: 'baseline' };
 
 function RowsSection({ d }: { d: ControlsGameView }) {
   if (!isMarketGame(d.game)) {
@@ -427,7 +457,8 @@ function RowsSection({ d }: { d: ControlsGameView }) {
                     <tr key={x.row}>
                       <td className="w-name">
                         {short(x.row).replace(/_/g, ' ')}
-                        {x.reference ? <span className="tag">reference</span> : x.logScore === null ? <span className="tag">baseline</span> : null}
+                        {x.reference ? <span className="tag">reference</span> : null}
+                        {x.kind ? <span className="tag">{ROW_KIND[x.kind] ?? x.kind}</span> : null}
                         <span className="sub">{x.logScore === null ? 'no log-score' : `log-score ${signedFixed(x.logScore)} ± ${fixed(x.se)}`}</span>
                         <span className="sub show-sm">
                           exact {share(x.exact)} · adjacent {share(x.adjacent)} · direction {share(x.direction)}
@@ -500,8 +531,13 @@ function RowsSection({ d }: { d: ControlsGameView }) {
               <summary>How to read this table</summary>
               <p>
               Mean log-score difference per {perUnit(d.unit)} against {reference} and against uniform, with a 95% interval: a row beats {reference} only when the
-              whole interval is above zero. Hit rates over the same {units(d.unit)}: the exact bin, the bin or a neighbour, and the direction. Profit and loss is
-              left out (price units).
+              whole interval is above zero.{r.floor !== null ? ` A probability under ${r.floor} is scored as ${r.floor}.` : ''} Hit rates over the same{' '}
+              {units(d.unit)}: the exact bin, the bin or a neighbour, and the direction. Profit and loss is left out (price units). Market rows are the market
+              models, lottery rows the lottery models run on this market, baselines the random and frequency picks.
+              </p>
+              <p>
+              The two ablation rows say what the Regime HMM&apos;s regimes are made of: if the full row is not better than ZeroMean, the regimes carry variance
+              only; if it is not better than Single, there are no regimes worth the name. {hmmFeaturesText(r.hmmFeatures)}
               </p>
             </details>
           </>

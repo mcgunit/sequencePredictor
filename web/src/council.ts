@@ -204,10 +204,11 @@ export const getEndpoints = async (): Promise<Endpoints> => endpointsOf(await ge
 export interface CouncilStatus {
   ready: boolean; // at least one member and the head answer
   busy: boolean; // another question is being answered
+  apiError: string | null; // the administrator's only: why the Council API itself did not answer (its /endpoints is then a 503)
 }
 export const getStatus = async (): Promise<CouncilStatus> => {
   const s = o(await getJson<unknown>('/council/api/status'));
-  return { ready: s.ready === true, busy: s.busy === true };
+  return { ready: s.ready === true, busy: s.busy === true, apiError: ostr(s.apiError) };
 };
 
 // A council POST with the session's form token as _csrf. A refusal is an ApiError in the server's own words; a run the

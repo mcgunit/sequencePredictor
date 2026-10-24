@@ -248,6 +248,9 @@ ok(cg.crypto.rows.window === 231 && cg.crypto.rows.rowsScored === 1 && cg.crypto
   && cg.crypto.rows.referenceVsUniform.mean === 0.0923 && cg.lotto.rows === null, 'market rows: the window, the rows against uniform and GARCH; a lottery game has none');
 const drawer = request(app, '/api/admin/controls/crypto', ADMIN).body;
 ok(drawer.q0.modes.shuffled.perRow['M Model'] === 0.642 && drawer.q2.perSeed.real.length === 0 && drawer.rows.table.length === 3 && drawer.regimes[0].label === 'calm', 'the drawer: the modes, the rows table and the regime reading');
+// the Market rows help names the probability floor, each row's kind and the Regime HMM feature set (the old markets page's C16 / C17)
+ok(drawer.rows.floor === 0.001 && drawer.rows.table.map((x) => x.kind).join() === 'market,foundation,baseline' && drawer.rows.hmmFeatures === 'returns' && drawer.q2.quantum === true,
+  `the drawer: the probability floor, each row's kind, the HMM feature set and the Q2 quantum flag: ${JSON.stringify([drawer.rows.floor, drawer.rows.table.map((x) => x.kind)])}`);
 const lottoDrawer = request(app, '/api/admin/controls/lotto', ADMIN).body;
 ok(lottoDrawer.q2.perSeed.real.length === 3 && lottoDrawer.fc.variants[1].above[0] === 'C Model' && lottoDrawer.rows === null && lottoDrawer.regimes === null, 'the lottery drawer: per seed, the variants in full, no market parts');
 
@@ -295,6 +298,16 @@ ok(rl.status === 'watch' && rl.reasons.join() === 'entropy,q2' && rl.q2.real ===
 const rlg = request(app, '/api/admin/randomness/lotto?scope=top', ADMIN).body;
 ok(rlg.models.map((r) => r.row).join() === 'A Model,C Model' && rlg.of === 3 && rlg.topMissing.join() === 'B Model,D Model,E Model',
   'randomness: the model KL rows, lowest first, the top scope, and the top rows with no KL row named');
+// the readings the old cards' help gave: what the autoencoder's z is of and which way is the alarm; z near 1 is a flat lag profile
+ok(/reconstruction NLL/.test(rw.meta.ae) && /strongly negative/.test(rw.meta.ae) && /predictability spike/.test(rw.meta.ae) && /near 1 the profile is flat/.test(ps.meta.z)
+  && /number frequency rather than timing/.test(request(app, '/api/admin/phase-shift', ADMIN).body.meta.z), 'the meta texts: the autoencoder z read as the old card did, z near 1 a flat profile');
+
+// a game whose combination search found no set: the note and how many established rows were tried (the old "(N established rows)")
+const noSet = JSON.parse(JSON.stringify(report));
+noSet.games.lotto.combinations = { metric: 'avg_best_hits', minDrawsForRanking: 10, candidateRows: ['A Model'], evaluated: 0, note: 'fewer than two established rows', best: null };
+const noSetCombo = admin.modelsGame(noSet, 'lotto').combination;
+ok(noSetCombo.best === null && noSetCombo.note === 'fewer than two established rows' && noSetCombo.candidateRows === 1 && all.combination.candidateRows === 3,
+  `combination: no set found keeps its note and the established rows tried: ${JSON.stringify(noSetCombo)}`);
 
 // a market row's live draws: the report's own count over the whole record; the since record stands in only while
 // the freeze is on or before the day the markets went live

@@ -20,6 +20,7 @@
 const path = require('path');
 const fs = require('fs');
 const markets = require('./markets');
+const shell = require('./shell');   // the few server-rendered pages' look (the app-not-built answer)
 
 const { MARKETS, WEEK_GAMES, loadMarket, describeMarket, nextGameDay, closeMoment, openMoment, weekEnd, dayStatus, dayStatusWeek,
         pickPlan, pickWeek, GUARD_SHOWN_FROM } = markets;
@@ -331,7 +332,8 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
     if (pick.model && endDay && wClose && wOpen) {
       week = { endDay, startText: when(wOpen, now), stateText: `week ${fmtDayMonth.format(wOpen)} → ${fmtDayMonth.format(new Date(`${endDay}T12:00:00Z`))}`,
                stateTitle: dayStatusWeek(now, wOpen, wClose) || '', closeText: when(wClose, now),
-               model: pick.model.name, modelCount: ticketModels(w.instruments) || w.models.length, ruleName: pick.ruleName, byBook: pick.byBook };
+               model: pick.model.name, modelCount: ticketModels(w.instruments) || w.models.length, ruleName: pick.ruleName, byBook: pick.byBook,
+               minTrades: markets.MIN_WEEK_TRADES };
       // the guard's state applies only when it is for this week and for the day the daily rows are for: a week
       // record that lags the daily one (its export failed or was skipped) would apply yesterday's guard to today
       const useGuard = Boolean(guarded) && firstSession >= guardFrom;
@@ -527,6 +529,9 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
     day: nextDay ? { date: nextDay, stateText: dayState, stateTitle: dayStatus(market, nextDay, now) || '', closeText: closeAt ? when(closeAt, now) : '—',
                      model: plan.model ? plan.model.name : null, modelCount: ticketModels(view.instruments) || view.models.length,
                      ruleName: plan.ruleName, byBook: plan.byBook, madeAt: view.madeAt || null,
+                     // the positions a book needs before the plan follows it (the best exact rate until then); the paper
+                     // stake, which a sized row's position is a multiple of
+                     minTrades: markets.MIN_PLAN_TRADES, stake: t && t.stake !== null ? t.stake : null,
                      entryNote: market === 'crypto' ? 'The daily paper book buys at 00:00 UTC, before the ticket exists; a real entry is later and at another price.'
                                                     : 'The book buys at the open and sells at the close, which a reader can follow.' } : null,
     week,
@@ -638,14 +643,15 @@ function install(app, { dataDir }) {
 
 // The React app (web/dist) under /app, with the SPA fallback; a missing build
 // says how to make one instead of a 404.
-function installApp(app, { header, footer }) {
+function installApp(app) {
   const express = require('express');
   const dist = path.join(__dirname, 'web', 'dist');
   app.use('/app', express.static(dist, { index: false, maxAge: '1h' }));
   app.get(['/app', '/app/*'], (req, res) => {
     const index = path.join(dist, 'index.html');
     if (fs.existsSync(index)) { res.set('Cache-Control', 'no-store'); return res.sendFile(index); }
-    res.status(503).send(header('App', req.user) + '<h1>The app is not built</h1><p>Run <code>npm run build:web</code> in the checkout and restart the server.</p>' + footer());
+    // in the sign-in look (shell.js): the old pages' chrome would link back here through the switch's redirects
+    res.status(503).send(shell.page('Not built', '<h1>The app is not built</h1><p class="sub">Run <code>npm run build:web</code> in the checkout and restart the server.</p>'));
   });
 }
 

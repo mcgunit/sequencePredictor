@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-24-new-interface',
+    date: '2026-10-24',
+    level: 'major',
+    audience: 'all',
+    title: 'A new interface: the old pages have moved into it',
+    body: [
+      'The site now opens in the new interface. Every old address, bookmarks included, opens its page here. The menu on the left (behind ☰ on a phone) has Home, Lottery, Crypto, Shares and Council; your account, What\'s new and a light / dark switch are at its foot.',
+      'Lottery shows, per game, the tickets of the five models with the best record for the next draw. Every model is still run and scored; the pages show the five with the best record. A game\'s history counts each draw with the five models ranked best before that draw, never today\'s five, from the first saved ranking on 25 Aug 2026; earlier draws are left out.',
+      'The figures come from the same records as before. Notes here from before today describe the old pages.',
+    ],
+  },
+  {
     id: '2026-10-17-guarded-week',
     date: '2026-10-17',
     level: 'minor',
@@ -455,7 +467,7 @@ const ANNOUNCEMENTS = [
 ];
 
 // Shown once to an account that has never seen anything here: what the pages
-// are, in the order someone would meet them. `audience: 'admin'` steps are
+// are, in the order someone would meet them (rewritten for the app at the switch, 24 Oct 2026). `audience: 'admin'` steps are
 // skipped for a plain user.
 const TOUR = {
   title: 'Welcome',
@@ -463,33 +475,33 @@ const TOUR = {
   steps: [
     {
       audience: 'all',
-      title: 'Three sections',
-      body: 'The home page offers three sections - Lottery games, Crypto and Shares - and the top bar repeats them as Lottery, Crypto and Shares. Each section has its own pages; what is predicted differs, the models and the honesty rules are the same.',
+      title: 'The menu',
+      body: 'The menu on the left (behind ☰ on a phone) has five pages: Home, Lottery, Crypto, Shares and Council. Home sums up each lottery game and the two markets; the other pages go into detail. What is predicted differs; the models and the honesty rules are the same.',
     },
     {
       audience: 'all',
       title: 'Lottery games',
-      body: 'New predictions has one card per game. Open a card to see every model\'s ticket for the next draw, and the date of the draw they are for. History keeps every past draw with what each model predicted, how many numbers it hit and what that would have paid; its cards rank the models, show which combinations do best together, and watch whether the draws still look random.',
+      body: 'One card per game with the tickets of the five models with the best record for the next draw, and the date of that draw. A game\'s history keeps every draw since the first saved ranking (25 Aug 2026), counted with the five models ranked best before that draw: what they predicted, how many numbers they hit and what that would have paid.',
     },
     {
       audience: 'all',
       title: 'Crypto and Shares',
-      body: 'Each coin\'s or share\'s next-day return is cut into ten equally likely bins, and every model predicts one bin per instrument, every day - a draw with one slot per coin. The pages show the price with the predicted course drawn on it, how often each model got the bin, the neighbouring bin and the direction right against chance, a paper profit, and the newest thirty settled days as returns and bins. A first card explains how a day becomes a draw, with the newest day as the example.',
+      body: 'Each coin\'s or share\'s next-day return is cut into ten equally likely bins, and every model predicts one bin per instrument, every day. These pages follow one model\'s calls with paper money: the open positions of the day and the week with their buy and sell, the profit per day, the running total against buying everything, the result per coin or share, and the closed positions.',
     },
     {
       audience: 'all',
       title: 'Council',
-      body: 'A question can be put to several local language models at once; they answer separately and a head model summarises. It needs the model machine to be switched on, and says so when it is not.',
+      body: 'A question can be put to several local language models at once; they answer separately and a head model weighs their answers. It needs the model machine to be switched on, and says so when it is not. Your earlier questions stay under your sessions.',
     },
     {
       audience: 'all',
       title: 'Your account',
-      body: 'Your name in the top bar opens your account: change your password there, and see the sign-ins recorded for you.',
+      body: 'At the foot of the menu, your name opens your account (change your password, see the sign-ins recorded for you), What\'s new keeps every note, and Colours switches between light, dark and your device\'s setting.',
     },
     {
       audience: 'admin',
-      title: 'Users, Jobs and Activity',
-      body: 'As administrator you also have the Users page (add or remove accounts, set a password), the Jobs page (the services the server runs, with their logs) and the Activity page (who signed in, and what changed).',
+      title: 'The Admin menu',
+      body: 'As administrator you also have the Admin menu: This week (the weekend\'s runs, tuners and controls at a glance), Controls, Models (tuning gates, every model\'s ranking, phase-shift, randomness watch, each game\'s full history and the market workbench) and System (jobs and services with their logs, People with accounts and sign-in activity).',
     },
   ],
 };

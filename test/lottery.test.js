@@ -209,7 +209,7 @@ async function partOne() {
   ok(lotto.coming.rows.map((r) => r.name).join() === TODAY.slice(0, 5).join() && lotto.coming.scope.top.join() === TODAY.slice(0, 5).join()
     && lotto.coming.scope.ranking.today === true && lotto.coming.scope.of === 8 && lotto.coming.rows.every((r) => r.top === undefined),
     `the coming draw: today's five in their order (${lotto.coming.rows.map((r) => r.name).join(', ')})`);
-  ok(lotto.next.date === '2026-10-13' && lotto.next.weekday === 'Tue' && lotto.next.time === null && lotto.next.madeAt === '2026-10-11T07:10:00Z' && lotto.next.past === true
+  ok(lotto.next.date === '2026-10-13' && lotto.next.weekday === 'Tue' && lotto.next.time === null && lotto.next.madeAt === '2026-10-11T07:10:00Z' && lotto.next.past === true && lotto.next.today === false
     && JSON.stringify(lotto.coming.rows[0].multiPick) === '{"numbers":[16,17,18]}' && JSON.stringify(lotto.coming.rows[0].tickets[0].mains) === '[10,11,12,13,14,15]'
     && lotto.multiPick.sizes.length === 4, 'the next draw on the game\'s schedule (no time: the records hold the date), its rows with the multi-pick 7th-9th and the legend once');
   ok(lotto.last.date === '2026-10-10' && lotto.last.scope.top.join() === V2.slice(0, 5).join() && lotto.last.rows.map((r) => r.name).join() === V2.slice(0, 5).join()
@@ -331,6 +331,35 @@ async function partOne() {
     && home.crypto.today.toBuy === view.status.openToBuy && home.crypto.today.held === view.status.openHeld && home.crypto.unit === 'USDT',
     `Home, crypto: the plan against buying everything with its window, today's positions - api.js marketView's own figures: ${JSON.stringify(home.crypto.plan)}`);
   ok(home.shares.empty === 'no record yet' && JSON.stringify(home).length < 10 * 1024, `Home: a market without a record says so; the answer is small (${JSON.stringify(home).length} bytes)`);
+
+  // --- the coming draw on its own day: today (the old pages' "for the draw of today, ..."), not past --------------------
+  const onTheDay = new Date('2026-10-13T08:00:00Z');   // 10:00 Brussels on the draw's day
+  const dayCard = lottery.overviewOf(dirs, full, todays, onTheDay).games.find((g) => g.game === 'lotto');
+  const dayHome = lottery.homeOf(dirs, full, todays, onTheDay).lottery.find((g) => g.game === 'lotto');
+  ok(dayCard.next.date === '2026-10-13' && dayCard.next.today === true && dayCard.next.past === false && dayHome.next.today === true
+    && lottery.overviewOf(dirs, full, todays, new Date('2026-10-12T21:59:00Z')).games.find((g) => g.game === 'lotto').next.today === false,
+    'the coming draw on its own Brussels day is today, not past; the evening before (23:59 Brussels) it is neither');
+
+  // --- a run in progress: both answers say which job and since when (pipeline.js), never its pid or the lock's path -----
+  ok(overview.running === null && home.running === null, 'no process.lock: running is null on /api/lottery and /api/home');
+  const lock = path.join(repo, 'process.lock');
+  const since = new Date('2026-10-12T05:00:00Z');
+  fs.writeFileSync(lock, `${process.pid}\n`);   // this test's own process: alive, and no pipeline script on its command line
+  fs.utimesSync(lock, since, since);
+  try {
+    for (const url of ['/api/lottery', '/api/home']) {
+      const u = (await get(url)).body;
+      const a = (await get(url, ADMIN)).body;
+      ok(u.running && Object.keys(u.running).join() === 'what,since' && u.running.what === 'A pipeline job is running' && u.running.since === '2026-10-12T05:00:00Z'
+        && JSON.stringify(a.running) === JSON.stringify(u.running) && !/process\.lock|\/proc/.test(JSON.stringify(u.running)),
+        `${url}: running says the job and since when, the same for a user and the administrator, no pid or path (${JSON.stringify(u.running)})`);
+    }
+    fs.writeFileSync(lock, '');
+    ok((await get('/api/lottery')).body.running === null, 'an empty lock: nothing running');
+  } finally { fs.rmSync(lock, { force: true }); }
+  const after = (await get('/api/lottery')).body;
+  ok(after.running === null && withoutBuiltAt({ ...after, running: undefined }) === withoutBuiltAt({ ...overview, running: undefined }),
+    'the lock gone: running is null again, and the rest of the answer is what it was');
 }
 
 // ===================================================================================================================

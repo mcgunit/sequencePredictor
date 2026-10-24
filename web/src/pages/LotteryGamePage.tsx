@@ -10,8 +10,8 @@ import HistoryView from '../components/draws/History';
 import { bestMeaning, bestText, eur, eurU, gameTitle } from '../components/draws/text';
 import { LotteryFailed, UserGamePicker, drawHref, fromTo, lotteryHref, userText } from '../components/lottery/bits';
 
-// /lottery/:game: the game's draws from its first saved ranking on, a folding card per month, newest first and the newest
-// open (?month= opens that month instead: back from one of its draws). Every figure is over the five models ranked best
+// /lottery/:game: the game's draws from its first saved ranking on, a folding card per month, newest first, all folded
+// (?month= opens that month: back from one of its draws). Every figure is over the five models ranked best
 // BEFORE each draw - the newest ranking saved before 15:00 Brussels time that day - never today's five; the draws before
 // the first saved ranking are left out, and one line says how many.
 const MONTH = /^\d{4}-\d{2}$/;
@@ -74,7 +74,7 @@ export default function LotteryGamePage() {
       <div className="stack">
         {h.total ? <TotalCard h={h} t={h.total} /> : null}
         {h.months.length ? (
-          <HistoryView key={game} h={h} mode="user" loadMonth={loadMonth} drawHref={toDraw} />
+          <HistoryView key={game} h={h} mode="user" open={month} loadMonth={loadMonth} drawHref={toDraw} />
         ) : (
           <div className="card">
             <div className="card-b empty">No draw of {title} has been counted yet.</div>

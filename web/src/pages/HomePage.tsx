@@ -8,11 +8,12 @@ import { Card } from '../components/admin/Card';
 import { Failed, Loading, PageHead } from '../components/admin/States';
 import { gameTitle, prettyDates } from '../components/draws/text';
 import { TicketNums, figureText, lotteryHref, nextText, userText } from '../components/lottery/bits';
+import RunBanner from '../components/RunBanner';
 
 // / : the three sections (the owner's rule of 1 Oct: Lottery games, Crypto, Shares), each with its headline and a link,
 // and the Council below. One answer (/api/home, about 6 KB): the Lottery's figures are the Lottery page's, the markets'
 // are /crypto's and /shares' own (api.js marketView), so the pages cannot disagree. Every figure says whose it is and
-// over which days.
+// over which days. While a pipeline job runs, a line says so and the page is read again every minute until it ends.
 export default function HomePage() {
   const load = useLoad(getHome, []);
   const me = useMe();
@@ -48,6 +49,7 @@ export default function HomePage() {
   return (
     <div className="home">
       {head}
+      <RunBanner running={h.running} refresh={load.retry} />
       <div className="hgrid">
         <LotterySection games={h.lottery} />
         <MarketSection m={h.crypto} />

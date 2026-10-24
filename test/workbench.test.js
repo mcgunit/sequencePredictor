@@ -340,7 +340,8 @@ async function marketPart(app) {
     daily: [{ date: '2026-10-04', exact_mean: 0.5, best_exact: 1, best_model: 'Up Model' }],
     days: [{ date: '2026-10-04', best: 'Up Model', exact_mean: 0.5, instruments: [{ symbol: 'BTC', return: 0.006, bin: 6, edges }],
       models: [{ name: 'Up Model', bins: [6], exact: 1, adjacent: 1, direction: 1, positions: 1, pnl: 0.005, pnl_cash: 0.5, trades: 1 },
-        { name: 'Down Model', bins: [1], exact: 0, adjacent: 0, direction: 0, positions: 1, pnl: 0, pnl_cash: 0, trades: 0 }] }],
+        { name: 'Down Model', bins: [1], exact: 0, adjacent: 0, direction: 0, positions: 1, pnl: 0, pnl_cash: 0, trades: 0 },
+        { name: 'RL Position Model', bins: [3], sizes: [0.5], exact: 0, adjacent: 0, direction: 0, positions: 1, pnl: 0.003, pnl_cash: 0.2, trades: 1 }] }],
   };
   fs.writeFileSync(path.join(mdir, 'crypto.json'), JSON.stringify(record));
   const view = markets.describeMarket(record, { week: null });
@@ -369,6 +370,17 @@ async function marketPart(app) {
     'an instrument: closes and moves, the edges and every model\'s bin from the first tracked day, the next calls');
   const day = (await request(app, '/api/admin/market/crypto/workbench', ADMIN)).body;
   ok(day.market === 'crypto' && day.plan.model === 'Up Model' && !/NaN|undefined/.test(JSON.stringify(day)), 'the workbench route');
+  // a settled day's draw (the old Day by day, C14): the close before the day, which turns a bin's edges into prices, and
+  // the sized row's size per slot, which its cells read instead of the bin's half
+  const ddir = path.join(repo, 'data', 'database', 'crypto');
+  fs.mkdirSync(ddir, { recursive: true });
+  fs.writeFileSync(path.join(ddir, '2026-10-4.json'), JSON.stringify({ realResult: [6],
+    currentPrediction: [{ name: 'Up Model', predictions: [[6]] }, { name: 'RL Position Model', predictions: [[3]] }], newPrediction: [] }));
+  const drawn = (await request(app, '/api/admin/draw/crypto/2026-10-04?scope=all', ADMIN)).body;
+  const dm = drawn.market;
+  ok(dm && dm.instruments[0].before === 83500 && dm.instruments[0].edges.length === 9 && dm.models['RL Position Model'].sizes.join() === '0.5'
+    && dm.models['Up Model'].sizes === null && dm.models['Down Model'] === undefined && !/NaN|undefined/.test(JSON.stringify(drawn)),
+    `a market draw: the close before the day for the bins' prices, the sized row's size per slot, only the rows shown: ${JSON.stringify(dm)}`);
 }
 
 // ===================================================================================================================

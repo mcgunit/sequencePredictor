@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Card, Scroll } from '../../../components/admin/Card';
 import { DASH, day, isNum, money, pct, rate, share, short, stamp } from '../../../format';
-import type { Workbench } from '../../../workbench';
+import { binInterval, type Workbench } from '../../../workbench';
+import { hmmFeaturesText } from '../../../components/draws/text';
 import { drawHref } from '../GameHistoryPage';
 
 // The rest of the old market page, each as its own card: day by day (C14), the guard on the week positions (C15),
@@ -138,11 +139,14 @@ export function GuardCard({ w }: { w: Workbench }) {
 
 // The regime reading: which regime the Regime HMM rows believe the market is in after the newest game day
 export function RegimesCard({ w }: { w: Workbench }) {
+  // the Regime HMM rows share one feature set: what it means for reading the ablations (as Controls › Market rows)
+  const hmm = w.regimes.find((r) => r.row.startsWith('Regime HMM') && r.features.length);
+  const features = hmm ? hmmFeaturesText(hmm.features.join(',')) : '';
   return (
     <Card
       id="regimes"
       title="Regime reading"
-      help="A regime is a Gaussian over the instruments' returns; the label is the dominant regime's volatility against the market's, the template number keeps its identity across refits. The expected return is the mixture's mean per instrument: a reading, not a recommendation. The weekly readings and their history are on Controls › Regimes."
+      help={`A regime is a Gaussian over the instruments' returns; the label is the dominant regime's volatility against the market's, the template number keeps its identity across refits. The expected return is the mixture's mean per instrument: a reading, not a recommendation. The weekly readings and their history are on Controls › Regimes.${features ? ` ${features}` : ''}`}
       meta={[`${w.regimes.length} rows`]}
       flush
     >
@@ -192,12 +196,41 @@ export function RegimesCard({ w }: { w: Workbench }) {
   );
 }
 
+// The worked "a bin is still a price range" (markets.js): the example day's first instrument, its bin as moves and as
+// closes from the close before; null without a bin, edges or that close
+function priceRangeOf(ex: NonNullable<Workbench['example']>) {
+  const i = ex.instruments[0];
+  if (!i || i.bin === null || !i.edges.length || !isNum(i.close.before)) return null;
+  const base = i.close.before;
+  const [lo, hi] = binInterval(i.bin, i.edges);
+  const move = (x: number) => pct(x * 100, 2);
+  const price = (x: number) => rate(base * Math.exp(x));
+  let moves = '';
+  let prices = '';
+  if (lo !== null && hi !== null) {
+    moves = `from ${move(lo)} to ${move(hi)}`;
+    prices = `between about ${price(lo)} and ${price(hi)}`;
+  } else if (hi !== null) {
+    moves = `below ${move(hi)}`;
+    prices = `below about ${price(hi)}`;
+  } else if (lo !== null) {
+    moves = `above ${move(lo)}`;
+    prices = `above about ${price(lo)}`;
+  }
+  // the bin across zero: its middle decides its direction
+  const straddles = lo !== null && hi !== null && lo < 0 && hi > 0 ? ((lo + hi) / 2 < 0 ? 'down' : 'up') : null;
+  return { symbol: i.symbol, bin: i.bin, date: ex.date, base, moves, prices, straddles };
+}
+
 // Background: how a day becomes a draw, with the newest settled day as the worked example (each instrument's ten bins,
-// the cut points under them, where the day landed and what the day's most exact row had called)
+// the cut points under them, where the day landed and what the day's most exact row had called), why bins and not the
+// price, and the log-return note
 export function BackgroundCard({ w }: { w: Workbench }) {
   const ex = w.example;
   const best = ex?.best ?? null;
   const crypto = w.market === 'crypto';
+  const range = ex ? priceRangeOf(ex) : null;
+  const half = w.k / 2;
   return (
     <Card id="background" title="Background: how a day becomes a draw" meta={[w.calendar, `chance: exact ${share(w.chance.exact)}, within one bin ${share(w.chance.adjacent)}, direction ${share(w.chance.direction)}`]}>
       <details className="fold">
@@ -277,6 +310,33 @@ export function BackgroundCard({ w }: { w: Workbench }) {
             </div>
           </>
         ) : null}
+      </details>
+      <details className="fold">
+        <summary>Why bins and not the price</summary>
+        <div className="plines">
+          <p>
+            A price is never hit exactly, so &quot;right&quot; would need a tolerance, say ±1%. With a fixed band a model that always says &quot;unchanged&quot; is right on
+            every day that moves less than the band: the score would measure how calm the {w.noun} was, not the model, and ±1% means one thing for a volatile {w.noun} and
+            another for a calm one. With each {w.noun}&apos;s own bins any fixed answer, always bin {half - 1} or always bin {w.k - 1}, is right about 1 time in {w.k}, because
+            every bin held one day in {w.k} of its past.
+          </p>
+          <p>
+            About, not exactly: the edges come from the days before, so in a calm stretch the middle bins come up more often than 1 in {w.k}, in a wild stretch the outer
+            ones. That tilt (how big the move will be, not which way) is the one part of a day&apos;s move known to be somewhat predictable. The GARCH row forecasts only
+            that, so it shows how much of a score is the tilt alone: a model has to beat luck and beat GARCH.
+          </p>
+          <p>
+            <span className="lbl">A bin is still a price range.</span>
+            {range
+              ? ` ${range.symbol}'s bin ${range.bin} on ${stamp(range.date)} covered the moves ${range.moves}${range.straddles ? ` (it straddles zero; its middle is ${range.straddles === 'down' ? 'below' : 'above'} zero, so for direction it counts as ${range.straddles})` : ''}, which from the close of ${rate(range.base)} means a close ${range.prices}.`
+              : ''}{' '}
+            That is how the charts draw a call as a price with its band.
+          </p>
+          <p className="note">
+            Strictly, every move and edge on this page is a log return (the kind that adds up day over day), not a chart&apos;s plain percentage change. On ordinary days
+            the two are the same number; at the ±3% edges they differ by a few hundredths of a percent, at ±6% by about two tenths.
+          </p>
+        </div>
       </details>
       <details className="fold">
         <summary>How to read the charts and the books</summary>

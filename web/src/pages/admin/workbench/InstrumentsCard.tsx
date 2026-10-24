@@ -13,8 +13,9 @@ import { frame, tooltip } from './chart';
 // next day is under the chart.
 
 type View = 'price' | 'moves';
-type Range = 'tracked' | '1M' | '3M' | '1Y';
-const RANGE_DAYS: Record<Exclude<Range, 'tracked'>, number> = { '1M': 31, '3M': 92, '1Y': 366 };
+type Range = 'tracked' | '1M' | '3M' | '6M' | '1Y' | 'all';
+const RANGES: Range[] = ['tracked', '1M', '3M', '6M', '1Y', 'all'];
+const RANGE_DAYS: Record<Exclude<Range, 'tracked' | 'all'>, number> = { '1M': 31, '3M': 92, '6M': 183, '1Y': 366 };
 
 // a bin as a move interval and its representative (markets.js marketRepresentative): the middle, or for an end bin
 // its edge moved outward by half the neighbouring bin's width
@@ -103,7 +104,7 @@ function PriceChart({ s, c, view, model }: { s: InstrumentSeries; c: Course; vie
       const base = c.lo.map((l, i) => (has[i] ? (l ?? yMin) : null));
       const height = c.hi.map((h, i) => (has[i] && base[i] !== null ? (h ?? yMax) - (base[i] as number) : null));
       const fmt = (v: unknown) => (view === 'price' ? rate(v) : pct(isNum(v) ? v * 100 : null, 2));
-      const o = frame(t, c.cats, { left: view === 'price' ? 64 : 48, right: 12, min: yMin, max: yMax });
+      const o = frame(t, c.cats, { left: view === 'price' ? 64 : 48, right: 12, min: yMin, max: yMax, zoom: true });
       return {
         ...o,
         yAxis: { ...(o.yAxis as object), axisLabel: { color: t.muted, fontSize: 11, width: view === 'price' ? 58 : 42, align: 'right', overflow: 'truncate', formatter: (v: number) => fmt(v) } },
@@ -115,12 +116,13 @@ function PriceChart({ s, c, view, model }: { s: InstrumentSeries; c: Course; vie
             .filter(Boolean)
             .join('<br/>'),
         ),
+        // the close (or the move) first: the zoom slider's shadow draws the first series; z sets the layers
         series: [
-          { name: 'band base', type: 'line', data: base, stack: 'band', stackStrategy: 'all', symbol: 'none', lineStyle: { opacity: 0 }, silent: true, connectNulls: false },
-          { name: 'band', type: 'line', data: height, stack: 'band', stackStrategy: 'all', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { color: t.accent, opacity: 0.14 }, silent: true, connectNulls: false },
           view === 'price'
             ? { name: 'Close', type: 'line', data: c.close, symbol: 'none', lineStyle: { width: 1.6, color: t.fg }, itemStyle: { color: t.fg }, z: 4 }
             : { name: 'Move', type: 'bar', data: c.move.map((v) => ({ value: v, itemStyle: { color: isNum(v) && v < 0 ? t.down : t.up } })), barMaxWidth: 8, z: 3 },
+          { name: 'band base', type: 'line', data: base, stack: 'band', stackStrategy: 'all', symbol: 'none', lineStyle: { opacity: 0 }, silent: true, connectNulls: false },
+          { name: 'band', type: 'line', data: height, stack: 'band', stackStrategy: 'all', symbol: 'none', lineStyle: { opacity: 0 }, areaStyle: { color: t.accent, opacity: 0.14 }, silent: true, connectNulls: false },
           {
             name: short(model),
             type: 'line',
@@ -147,7 +149,7 @@ function Instrument({ w, symbol }: { w: Workbench; symbol: string }) {
   const [picked, setPicked] = useState<string | null>(null);
   const s = load.kind === 'ok' && load.data.symbol === symbol ? load.data : null;
   const model = s ? (picked && s.course[picked] ? picked : (s.best ?? s.order[0] ?? null)) : null;
-  const start = !s ? 0 : range === 'tracked' ? s.from : Math.max(0, s.dates.length - RANGE_DAYS[range]);
+  const start = !s ? 0 : range === 'tracked' ? s.from : range === 'all' ? 0 : Math.max(0, s.dates.length - RANGE_DAYS[range]);
   const c = useMemo(() => (s ? courseOf(s, model, view, start) : null), [s, model, view, start]);
   if (load.kind === 'error') return <Failed error={load.error} retry={load.retry} bare />;
   if (!s || !c) return <div className="chart tall empty">Loading…</div>;
@@ -174,9 +176,9 @@ function Instrument({ w, symbol }: { w: Workbench; symbol: string }) {
           </button>
         </div>
         <div className="seg" role="group" aria-label="Range">
-          {(['tracked', '1M', '3M', '1Y'] as Range[]).map((r) => (
+          {RANGES.filter((r) => r === 'tracked' || r === 'all' || s.dates.length > RANGE_DAYS[r]).map((r) => (
             <button key={r} type="button" aria-pressed={range === r} onClick={() => setRange(r)}>
-              {r === 'tracked' ? 'Tracked' : r}
+              {r === 'tracked' ? 'Tracked' : r === 'all' ? 'All' : r}
             </button>
           ))}
         </div>

@@ -49,12 +49,25 @@ export interface NextDraw {
   weekday: string | null;
   time: string | null;
   past: boolean; // the date has gone and no newer run has scored it yet
+  today: boolean; // the date is today's in Brussels
   madeAt: string | null;
 }
 function nextOf(v: unknown): NextDraw | null {
   if (!has(v)) return null;
   const n = o(v);
-  return { date: ostr(n.date), weekday: ostr(n.weekday), time: ostr(n.time), past: n.past === true, madeAt: ostr(n.madeAt) };
+  return { date: ostr(n.date), weekday: ostr(n.weekday), time: ostr(n.time), past: n.past === true, today: n.today === true, madeAt: ostr(n.madeAt) };
+}
+
+// A pipeline job holding process.lock (pipeline.js), on /api/lottery and /api/home: the job in the old banner's words and
+// since when; null when nothing runs
+export interface Running {
+  what: string;
+  since: string | null;
+}
+function runningOf(v: unknown): Running | null {
+  if (!has(v)) return null;
+  const r = o(v);
+  return { what: str(r.what, 'A pipeline job is running'), since: ostr(r.since) };
 }
 
 // --- GET /api/lottery ---------------------------------------------------------------------------------------------------
@@ -93,6 +106,7 @@ export interface LotteryOverview {
   topN: number;
   firstSaved: { committedAt: string | null; generatedAt: string | null } | null;
   games: GameCard[];
+  running: Running | null;
 }
 const savedOf = (v: unknown) => (has(v) ? { committedAt: ostr(o(v).committedAt), generatedAt: ostr(o(v).generatedAt) } : null);
 function lastOf(v: unknown): LastDraw | null {
@@ -121,7 +135,7 @@ function cardOf(v: unknown): GameCard {
 }
 export function normOverview(raw: unknown): LotteryOverview {
   const r = o(raw);
-  return { builtAt: ostr(r.builtAt), topN: num(r.topN, 5), firstSaved: savedOf(r.firstSaved), games: arr(r.games).filter(has).map(cardOf) };
+  return { builtAt: ostr(r.builtAt), topN: num(r.topN, 5), firstSaved: savedOf(r.firstSaved), games: arr(r.games).filter(has).map(cardOf), running: runningOf(r.running) };
 }
 
 // --- GET /api/lottery/:game ---------------------------------------------------------------------------------------------
@@ -200,6 +214,7 @@ export interface Home {
   lottery: HomeGame[];
   crypto: MarketHeadline;
   shares: MarketHeadline;
+  running: Running | null;
 }
 function homeGameOf(v: unknown): HomeGame {
   const g = o(v);
@@ -228,7 +243,10 @@ function headlineOf(v: unknown, market: string): MarketHeadline {
 }
 export function normHome(raw: unknown): Home {
   const r = o(raw);
-  return { builtAt: ostr(r.builtAt), lottery: arr(r.lottery).filter(has).map(homeGameOf), crypto: headlineOf(r.crypto, 'crypto'), shares: headlineOf(r.shares, 'shares') };
+  return {
+    builtAt: ostr(r.builtAt), lottery: arr(r.lottery).filter(has).map(homeGameOf), crypto: headlineOf(r.crypto, 'crypto'), shares: headlineOf(r.shares, 'shares'),
+    running: runningOf(r.running),
+  };
 }
 
 const enc = encodeURIComponent;

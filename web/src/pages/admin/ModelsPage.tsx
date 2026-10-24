@@ -57,10 +57,14 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
           Best row: the first row of the game&apos;s History ranking over every scored draw, with its record (market games: the live days apart from the
           back-built or late ones). Lotto, EuroMillions, EuroDreams, Vikinglotto and the market games rank on average hits; jokerplus, pick3 and keno on a capped
           profit bound, the mean minus 1 SE per bet: keno&apos;s bound is measured against a fair ticket of its size (0 is a fair ticket, not money won), so the raw
-          profit per bet stands under it. Since: the best row of the forward record from the design freeze, with its own minimum of draws. Q0 band: hits per
-          draw on fair histories; a hit-ranked row within it is no better than the best of the control rows by chance, and for the payout games it is
-          information only. Top 5: for a lottery game the five rows a user sees today, the first five ranked rows in the newest day&apos;s table (a ranked
-          row missing from it is passed over); for a market game the first five of its History game view, while the users&apos; Crypto and Shares pages
+          profit per bet stands under it. Keno is tuned by this bound; pick3 and jokerplus are tuned by slot hits, with the bound only a tie-breaker. Until 13 Oct
+          2026 the payout games ranked on the raw profit per bet, on which one winning ticket could crown a row. Since: the best row of the forward record from
+          the design freeze, the same ranking over the draws on or after the declared date, with its own minimum of draws (the date is a filter, nothing is
+          rebuilt); &ldquo;no record since&rdquo; until a game&apos;s first draw on or after the date is scored, &ldquo;not declared&rdquo; until a date is set in
+          since.json. Q0 band: hits per draw on fair histories; a hit-ranked row within it is no better than the best of the control rows by chance, and for
+          the payout games it is information only. The band is not applied to Since: it is measured over long control histories, and the best of the rows
+          over a few draws clears it by luck. Top 5: for a lottery game the five rows a user sees today, the first five ranked rows in the newest day&apos;s table
+          (a ranked row missing from it is passed over); for a market game the first five of its History game view, while the users&apos; Crypto and Shares pages
           follow the row named under them, by best book. A game opens its whole ranking.
         </>
       }
@@ -89,6 +93,9 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
   );
 }
 
+// a cell of a row greyed by the Q0 band that the band does not apply to (Since)
+const NOT_GREYED = { color: 'var(--fg)' };
+
 function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSummary[]; onOpen: (g: string) => void }) {
   return (
     <>
@@ -97,16 +104,18 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
         const b = g.best;
         const v = b ? valueCell(g, b.value, b.profitPerBet, b.bets) : null;
         const s = g.since;
-        // a profit bound carries what it is measured against on its own line (keno: a fair ticket, not money won)
-        const sinceText = !s ? DASH : s.none || !s.best ? 'no record since' : `${short(s.best.row)} ${sinceValue(g, s.best.value)}`;
+        // a profit bound carries what it is measured against on its own line (keno: a fair ticket, not money won); no
+        // since record at all means no date is declared in since.json
+        const sinceText = !s ? 'not declared' : s.none || !s.best ? 'no record since' : `${short(s.best.row)} ${sinceValue(g, s.best.value)}`;
         // the since record counts only live days in a market game (Since.py)
         const sinceSub = s && s.best ? `${count(s.best.draws, g.unit)}${isMarketGame(g.game) ? ' live' : ''}${s.best.tooFew ? ' · too few' : ''} · ranked from ${count(s.minDraws, g.unit)}` : '';
         const band = g.band;
         const bandSub = band ? (band.greys ? (b?.inBand ? 'best row within the band' : 'best row above the band') : `on hits, information only · best row ${fixed(b?.avgHits)}`) : '';
         // what the band is built on: the best of a few control rows on long fair histories, not this ranking
         const bandBasis = band ? `best of ${band.rows ?? DASH} rows · fair histories of ${count(band.history, g.unit)}` : '';
+        const grey = Boolean(band?.greys && b?.inBand);
         return (
-          <tr key={g.game} className={band?.greys && b?.inBand ? 'grey' : undefined}>
+          <tr key={g.game} className={grey ? 'grey' : undefined}>
             <td className="sym">
               <GameButton game={g.game} onOpen={onOpen} />
               <span className="sub">{g.metric === 'avg_hits' ? 'average hits' : 'profit bound'}</span>
@@ -142,7 +151,8 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
                 </span>
               ))}
             </td>
-            <td className="hide-sm">
+            {/* the band is not applied to Since, so a row greyed by the band leaves this cell in plain colour */}
+            <td className="hide-sm" style={grey ? NOT_GREYED : undefined}>
               {sinceText}
               {sinceSub ? <span className="sub">{sinceSub}</span> : null}
             </td>
@@ -192,7 +202,8 @@ function CombinationCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => 
           The best set of established rows played together over the draws they all have: for the payout games the net profit per draw of playing every
           member (uncapped), for the others the best line held per draw (the average of the best member&apos;s hits). Its p value comes from the same search on
           shuffled draws: above 0.05 the set is no better than the best set luck finds. The best single row is scored on the same draws, so it can differ from
-          its ranking value. A game opens the set&apos;s top ten.
+          its ranking value. The best line held grows with every extra line, so a set is at least as good as any of its own rows by construction: pairs and
+          triples are ranked within their size, and the hit games give the best single row no verdict. A game opens the set&apos;s top ten.
         </>
       }
       meta={[`ranking ${stamp(d.generatedAt)}`, 'every established row, not filtered by a switch']}
@@ -236,7 +247,15 @@ function CombinationGroup({ name, games, onOpen }: { name: string; games: Models
         const controlText = !control ? 'no control' : 'error' in control ? 'control not available' : `p = ${fixed(control.pValue)}${control.consistentWithLuck ? ' · consistent with luck' : ''}`;
         const single = c?.bestSingle ?? null;
         const singleText = single ? `${short(single.row)} ${comboValue(c as Combination, g.unit, single.value)}` : DASH;
-        const beats = c?.beatsBestSingle === true ? 'the set beats it' : c?.beatsBestSingle === false ? 'the set does not beat it' : '';
+        // the best line held never falls when a line is added, so the hit games get no verdict, and say why
+        const beats =
+          c?.beatsBestSingle === true
+            ? 'the set beats it'
+            : c?.beatsBestSingle === false
+              ? 'the set does not beat it'
+              : single && c?.metric === 'avg_best_hits'
+                ? 'no verdict: a set scores at least its own rows by construction'
+                : '';
         return (
           <tr key={g.game} className={control && !('error' in control) && control.consistentWithLuck ? 'grey' : undefined}>
             <td className="sym">
@@ -244,7 +263,13 @@ function CombinationGroup({ name, games, onOpen }: { name: string; games: Models
               <span className="sub">{c ? (c.metric === 'profit_per_draw' ? 'profit per draw' : 'best line held') : DASH}</span>
             </td>
             <td>
-              {best ? best.members.map(short).join(' + ') : <span className="mut">{c?.note ?? 'no combination scored'}</span>}
+              {best ? (
+                best.members.map(short).join(' + ')
+              ) : (
+                <span className="mut">
+                  {c ? `${c.note ?? 'no combination scored'} (${c.candidateRows} established ${c.candidateRows === 1 ? 'row' : 'rows'})` : 'no combination scored'}
+                </span>
+              )}
               {best ? <span className="sub">{`${best.how}${best.size !== null ? `, ${best.size} rows` : ''}`}</span> : null}
               {best ? <span className="sub show-sm">{`${count(best.draws, g.unit)} shared · best single: ${singleText}${beats ? ` (${beats})` : ''}`}</span> : null}
             </td>

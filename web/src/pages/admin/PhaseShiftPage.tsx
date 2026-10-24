@@ -64,9 +64,19 @@ export default function PhaseShiftPage() {
   return (
     <div className="admin">
       {head}
-      <p className="note" style={{ marginBottom: 'var(--gap)' }}>
+      <p className="note">
         Lags {d.meta.lags}. Tracked: {d.meta.tracked}. {cap(d.meta.control.replace(/^none: /, ''))}.
       </p>
+      {/* the old card's reading of the peaks, folded as every help */}
+      <details className="help" style={{ marginBottom: 'var(--gap)' }}>
+        <summary>How to read the peaks</summary>
+        <p>
+          Each run scores every prediction against each lag and keeps only its best one. z near 1 means a flat lag profile, so the row&apos;s hits come from
+          number frequency rather than timing. Several runs agreeing on the same lag is what a real phase shift would look like; a peak that moves every run is
+          noise. The trail shows the peaks in run order: a repeated +30 ×5 means the peak is holding still, +26 → +28 → +30 that it is drifting. Pick3 is scored
+          positionally (the digit in the right place), Joker+ as its left and right positional runs.
+        </p>
+      </details>
       <div className="stack">
         {(['Lottery', 'Markets'] as const).map((group) => {
           const games = d.games.filter((g) => g.group === group);

@@ -23,6 +23,7 @@ const path = require('path');
 const config = require('./config');
 const audit = require('./audit');
 const { help } = require('./help');   // the "?" the pages keep their explanations behind (13 Oct 2026)
+const shell = require('./shell');   // the server-side pages' look: sign-in, not found, server error
 
 const COOKIE_NAME = 'sp_session';
 const SESSION_HOURS = 24;                 // renewed while in use ...
@@ -394,25 +395,19 @@ function listUsers() {
 }
 
 // --- pages ---------------------------------------------------------------------
+// The sign-in page, in the app's look (shell.js). It stays server-side: the app itself needs a session to load.
 function loginPage(error, next) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sign in - Sequence Predictor</title>
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    .box { background: white; padding: 30px 36px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 320px; }
-    h1 { margin: 0 0 20px 0; font-size: 1.3em; color: #2c3e50; }
-    label { display: block; font-weight: 600; margin-top: 12px; color: #2c3e50; }
-    input { width: 100%; box-sizing: border-box; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
-    button { width: 100%; margin-top: 18px; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; }
-    .error { color: #c0392b; margin-top: 12px; }
-  </style></head><body><div class="box">
-  <h1>📊 Sequence Predictor</h1>
+  return shell.page('Sign in', `
+  <h1>Predictor</h1>
+  <p class="sub">Sign in to see the predictions and their record.</p>
   <form method="post" action="/login" autocomplete="on">
     <input type="hidden" name="next" value="${escapeHtml(next || '/')}">
-    <label>User name<input name="username" autocomplete="username" required autofocus></label>
+    <label>User name<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
     <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    ${error ? `<p class="err" role="alert">${escapeHtml(error)}</p>` : ''}
     <button type="submit">Sign in</button>
-    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
-  </form></div></body></html>`;
+  </form>
+  <p class="foot">Not advice: the models are not expected to beat the draw or the market, and this site measures whether they do.</p>`);
 }
 
 function usersPage(render, req, message, isError) {
@@ -657,7 +652,7 @@ function install(app, render) {
 // gates and validates exactly like the user pages here; the account changes
 // for system.js, the app's JSON.
 module.exports = {
-  enabled, misconfigured, middleware, install, escapeHtml, safeNext,
+  enabled, misconfigured, middleware, install, escapeHtml, safeNext, loginPage,
   requireAdmin, csrfOk, ensureConfigDir, USERS_FILE, SECRET_FILE, CONFIG_DIR: config.CONFIG_DIR,
   MIN_PASSWORD_LENGTH, USERNAME_RE, LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS, adminName: () => (enabled() ? config.ADMIN_USER : null),
   managementRefusal, addUser, setUserPassword, deleteUser, ownPasswordRefusal, changeOwnPassword, listUsers,

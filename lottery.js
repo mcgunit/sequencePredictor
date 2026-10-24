@@ -14,6 +14,9 @@
 //   GET /api/home                       the Home page in one answer: per lottery game the next draw and its top pick,
 //                                       per market (crypto, shares) the plan's headline and today's positions, counted
 //
+// /api/lottery and /api/home also carry `running`: the pipeline job that holds process.lock, in the old banner's words,
+// and since when ({what, since}, pipeline.js), or null - the pages say so on one line and read again until it clears.
+//
 // The owner's rules (21-23 Oct 2026). A user sees the top five rows of each game's History ranking and nothing else:
 // for the coming draw today's five (ranking.js usersTop, the five /lottery showed), for a past draw the five ranked
 // first before it (rankhistory.js topAt, the 15:00 Brussels cut-off) - never today's five applied to a past draw. A
@@ -43,6 +46,7 @@ const api = require('./api');
 const brussels = require('./brussels');
 const draws = require('./draws');
 const markets = require('./markets');
+const pipeline = require('./pipeline');
 const rankings = require('./ranking');
 const rankhistory = require('./rankhistory');
 const workbench = require('./workbench');
@@ -245,7 +249,7 @@ function historyOf(dirs, game, hist, month, now = new Date()) {
 // One game's card: the coming draw - its date on the game's own schedule (no time of day: the records hold the date
 // only), today's five rows in their order with their tickets - and the last scored draw: its result, the five ranked
 // before it, each row's figures (draws.dayFigures over that row alone) and the five's together. past: the coming
-// draw's date has gone and no newer run has scored it yet.
+// draw's date has gone and no newer run has scored it yet; today: it is today's date in Brussels.
 const byRank = (a, b) => (a.rank === null ? 99 : a.rank) - (b.rank === null ? 99 : b.rank);
 function rowFigures(game, day, name) {
   const { rows, best, ...f } = draws.dayFigures(game, day, (n) => n === name);
@@ -263,6 +267,7 @@ function cardOf(dirs, game, hist, report, now) {
   onlyTop(view, allowed, comingAllowed);
   const start = startOf(hist, game);
   const c = view.coming;
+  const today = brussels.dayOf(now.getTime());
   const last = { date: view.date, weekday: view.weekday, result: view.result };
   if (start && start.counts(view.date)) {
     Object.assign(last, { scope: plainScope(view.scope), figures: view.figures,
@@ -275,7 +280,8 @@ function cardOf(dirs, game, hist, report, now) {
   }
   return {
     ...base, shape: view.shape,
-    next: { date: c.date, weekday: c.date ? draws.weekdayOf(c.date) : null, time: null, past: Boolean(c.date && c.date < brussels.dayOf(now.getTime())), madeAt: c.madeAt },
+    next: { date: c.date, weekday: c.date ? draws.weekdayOf(c.date) : null, time: null, past: Boolean(c.date && c.date < today), today: Boolean(c.date && c.date === today),
+      madeAt: c.madeAt },
     // every coming row is one of today's five: their `top` flag (the admin's All marks them) is left out
     coming: { scope: c.scope, rows: c.rows.slice().sort(byRank).map(({ top, ...r }) => r) },
     multiPick: view.multiPick,
@@ -324,7 +330,7 @@ function homeOf(dirs, hist, report, now = new Date()) {
 
 // --- routes ----------------------------------------------------------------------------------------------------------
 // options: as admin.install (root, dataDir or databaseDir / marketsDir), rankCacheFile (the rank history's cache: the
-// server's gitignored config/ by default, the file admin.js uses too)
+// server's gitignored config/ by default, the file admin.js uses too), lockFile (process.lock in the root by default)
 function install(app, options = {}) {
   const dirs = admin.resolveDirs(options);
   const rankCacheFile = options.rankCacheFile || path.join(__dirname, 'config', 'rankhistory-cache.json');
@@ -341,10 +347,13 @@ function install(app, options = {}) {
   const history = () => rankhistory.load(dirs.root, { cacheFile: rankCacheFile });
   const report = () => rankings.loadReport(dirs.databaseDir);
   const gameOf = (req) => (GAMES.includes(req.params.game) ? req.params.game : null);
+  // read on every answer, never kept with the overview: the lock comes and goes while its sources stay the same
+  const lockFile = options.lockFile || path.join(dirs.root, 'process.lock');
+  const running = () => pipeline.runningNow(lockFile);
 
   app.use('/api/lottery', signedIn);
   app.use('/api/home', signedIn);
-  app.get('/api/lottery', (req, res) => answerLater(res, async () => overviewOf(dirs, await history(), report())));
+  app.get('/api/lottery', (req, res) => answerLater(res, async () => ({ ...overviewOf(dirs, await history(), report()), running: running() })));
   app.get('/api/lottery/:game', (req, res) => answerLater(res, async () => {
     const game = gameOf(req);
     if (!game) return { error: 'unknown game', status: 404 };
@@ -359,7 +368,7 @@ function install(app, options = {}) {
     if (!date) return { error: 'the date is YYYY-MM-DD', status: 400 };
     return drawOf(dirs, game, date, await history(), report());
   }));
-  app.get('/api/home', (req, res) => answerLater(res, async () => homeOf(dirs, await history(), report())));
+  app.get('/api/home', (req, res) => answerLater(res, async () => ({ ...homeOf(dirs, await history(), report()), running: running() })));
   // anything else under /api/lottery and /api/home is a JSON 404, never a page
   app.use('/api/lottery', (req, res) => json(res, { error: 'not found' }, 404));
   app.use('/api/home', (req, res) => json(res, { error: 'not found' }, 404));

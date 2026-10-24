@@ -28,7 +28,12 @@ function RunningChart({ f, cur }: { f: Followed; cur: string }) {
   if (dates.length < 2) return null;
   return (
     <>
-      <div ref={ref} className="chart short" role="img" aria-label={`Running totals over ${dates.length} live days: plan ${money(plan[plan.length - 1])}, buying everything ${money(market[market.length - 1])} ${cur}`} />
+      <div
+        ref={ref}
+        className="chart short"
+        role="img"
+        aria-label={`Running totals over ${dates.length} live ${f.week ? 'weeks' : 'days'}: plan ${money(plan[plan.length - 1])}, buying everything ${money(market[market.length - 1])} ${cur}`}
+      />
       <Legend
         items={[
           { mark: '', label: 'following the plan, running total' },
@@ -97,7 +102,7 @@ function PointsTable({ points, week, withRunning, cur }: { points: FollowedPoint
   );
 }
 
-function Part({ f, w, title, chart }: { f: Followed | null; w: Workbench; title: string; chart: boolean }) {
+function Part({ f, w, title }: { f: Followed | null; w: Workbench; title: string }) {
   const cur = w.currency;
   if (!f) {
     return (
@@ -140,7 +145,7 @@ function Part({ f, w, title, chart }: { f: Followed | null; w: Workbench; title:
             </>
           )}
         </p>
-        {chart && f.live.length ? <RunningChart f={f} cur={cur} /> : null}
+        {f.live.length ? <RunningChart f={f} cur={cur} /> : null}
       </div>
       {f.live.length ? <PointsTable points={f.live} week={f.week} withRunning cur={cur} /> : null}
       <div className="card-b">
@@ -176,8 +181,8 @@ export default function FollowedCard({ w }: { w: Workbench }) {
       meta={[w.followed.day ? `${w.followed.day.liveDays} live days` : '', w.followed.week ? `${w.followed.week.liveDays} live weeks` : '']}
       flush
     >
-      <Part f={w.followed.day} w={w} title="Day to day" chart />
-      <Part f={w.followed.week} w={w} title="Week to week" chart={false} />
+      <Part f={w.followed.day} w={w} title="Day to day" />
+      <Part f={w.followed.week} w={w} title="Week to week" />
     </Card>
   );
 }

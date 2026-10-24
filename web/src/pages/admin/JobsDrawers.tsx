@@ -9,8 +9,8 @@ import { afterText, basisText, fromRunId, runAsk, takesText, type Ask } from './
 import { durationText, jobLabel, usualRange, usualText } from './week';
 
 // The Jobs page's two drawers: a job (?job=) - what it does, Run now with its cost, when it runs, how long it usually
-// takes, its last run and its command - and a run (?run=) - when and how long against its usual, then its log slice:
-// the warning signatures first, then its last lines.
+// takes, its last run and its command - and a run (?run=) - when, how long against its usual and at which commit,
+// then its log slice: the warning signatures first, then its last lines.
 
 export function JobDrawer({
   job,
@@ -117,6 +117,7 @@ export function RunLogDrawer({ id, d, onClose }: { id: string; d: JobsView; onCl
   const minutes = live ? live.minutes : item?.minutes ?? log?.minutes ?? null;
   const result = live ? 'running' : item?.result ?? log?.result ?? DASH;
   const end = item?.end ?? log?.end ?? null;
+  const sha = item?.sha ?? live?.sha ?? log?.sha ?? null;
   const range = usualRange(usual, minutes);
   return (
     <Drawer title={key ? jobLabel(key, name) : 'Run'} sub={`${stamp(start)} · Brussels time`} onClose={onClose}>
@@ -126,6 +127,12 @@ export function RunLogDrawer({ id, d, onClose }: { id: string; d: JobsView; onCl
           {range ? ` · usual ${range}` : ''}
           {usual ? ` · ${basisText(usual)}` : ''}
           {isNum(live?.vsMedian ?? item?.vsMedian) ? ` · ${(live?.vsMedian ?? item?.vsMedian ?? 0).toFixed(2)}× the median` : ''}
+          {sha ? (
+            <>
+              {' · at commit '}
+              <code>{sha}</code>
+            </>
+          ) : null}
         </p>
         {item?.reason || live?.reason ? <p className="line">{cap(item?.reason ?? live?.reason ?? '')}.</p> : null}
         {item?.note || log?.note ? <p className="line">{item?.note ?? log?.note}</p> : null}

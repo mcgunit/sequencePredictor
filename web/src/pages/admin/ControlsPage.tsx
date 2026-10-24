@@ -10,7 +10,7 @@ import Chip from '../../components/admin/Chip';
 import DotStrip, { Axis, ticks } from '../../components/admin/DotStrip';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 import Streak, { historyNote, ordinal, readingNote, streakWords } from '../../components/admin/Streak';
-import ControlsDrawer from './ControlsDrawer';
+import ControlsDrawer, { chanceText } from './ControlsDrawer';
 import { GameButton, GroupRow, earliest, isMarketGame, joinParts, latest, liveRecordsText, oneControlText, recordText, seedsText, tableNote, units } from './bits';
 
 // /admin/controls: the four Sunday controls for all 11 games on one page (Q0 null band, Q2 randomness,
@@ -367,6 +367,8 @@ function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
           frequency and destroys time order. A game is above when its dot is right of the tick and right of the hollow dot. A threshold of 0.8 or more means too
           few draws to judge; the record&apos;s own power rule puts that case below about {d.meta.q2.fewWindows} test windows, so a game above on fewer windows is
           read with that in mind. {seedsText(d.tiles.q2.seeds.Lottery)} for lottery games, {seedsText(d.tiles.q2.seeds.Markets)} for markets: a band on few seeds is wide and moves from week to week.
+          The suite: logistic regression, an RBF SVM, a random forest, gradient boosting and a small network, plus a quantum kernel and a VQC unless the run
+          skipped them (a game&apos;s drawer says which).
         </>
       }
       meta={[
@@ -462,6 +464,8 @@ function FcCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
   const grid = ticks(0, top, 0.1, String).map((x) => x.at);
   const repeats = [...new Set(games.map((g) => g.fc?.repeats).filter((x) => x !== null && x !== undefined))];
   const noise = [...new Set(games.map((g) => g.fc?.noiseColumns).filter((x) => x !== null && x !== undefined))];
+  // how often one of a game's base-model columns clears the band by chance alone (the old card's figure)
+  const chance = chanceText(games.map((g) => g.fc?.columns));
   return (
     <Card
       id="fc"
@@ -469,12 +473,15 @@ function FcCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
       flush
       help={
         <>
-          Each variant ({VARIANTS.map((k) => `${k} ${d.meta.fc.variants[k] ?? k}`).join(', ')}) is trained with pure-noise columns added. Fits noise (filled): a
-          noise column matters at least a tenth as much as an average real column in training and the repeats agree (t &gt; 2). Inconclusive (hollow): the
-          ratio is exceeded but the repeats disagree. Share: the noise columns&apos; share of training importance; the tick is this table&apos;s chance share,
-          noise columns / (columns + noise columns). Above the noise band: real columns whose held-out importance beats the noise mean + 2 sd. Table: one row
-          per draw, so its length is in draws, days, trading days or weeks; the lockbox rows are withheld from it. Behind: the table ends that many draws before
-          the newest draw of the game&apos;s data file. Positional: the table is built per position (one classifier per slot).
+          Each variant ({VARIANTS.map((k) => `${k} ${d.meta.fc.variants[k] ?? k}`).join(', ')}) is trained with noise columns added: shuffled copies of real
+          base-model scores, so they look exactly like a base model and mean nothing. Fits noise (filled): a noise column matters at least a tenth as much as an
+          average real column in training and the repeats agree (t &gt; 2). Inconclusive (hollow): the ratio is exceeded but the repeats disagree. Share: the
+          noise columns&apos; share of training importance; the tick is this table&apos;s chance share, noise columns / (columns + noise columns). Importance is
+          the ranking power lost when a column is scrambled (the drop in |AUC − 0.5|), so a model whose probabilities came out inverted still shows what it
+          leans on. Above the noise band: real columns whose held-out importance beats the noise mean + 2 sd{chance ? `; ${chance}` : ''}: a column counts
+          when it stays above week after week, not when it appears once. Table: one row per draw, so its length is in draws, days, trading days or weeks; the
+          lockbox rows are withheld from it. Behind: the table ends that many draws before the newest draw of the game&apos;s data file. Positional: the table is built
+          per position (one classifier per slot).
         </>
       }
       meta={[`${VARIANTS.length} variants · ${noise.join('/') || DASH} noise columns · ${repeats.join('/') || DASH} repeats`, span(d.tiles.fc.from, d.tiles.fc.at)]}
@@ -598,7 +605,7 @@ function FcGroup({ name, games, scale, grid, onOpen }: { name: string; games: Ga
             </td>
             <td className="hide-sm">
               {auc}
-              <span className="sub">without / with noise</span>
+              <span className="sub">range over the variants, without and with noise</span>
             </td>
             <td className="hide-sm">
               {count(f.tableRows, g.unit)}

@@ -1,10 +1,15 @@
 // The council session store: what it must keep true (see the header of
 // councilSessions.js). Runs against a temporary directory, never config/.
+// And council.js's /council/api/status when the Council API is down: the
+// administrator is told why, a user only that the council cannot sit (on a
+// stand-in for the Council API on a free port - the real one is never called).
 // Run with: npm test
 const assert = require('assert');
 const fs = require('fs');
+const http = require('http');
 const os = require('os');
 const path = require('path');
+const Module = require('module');
 
 const { createStore } = require('../councilSessions');
 
@@ -68,3 +73,74 @@ try {
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
+
+// --- council.js /council/api/status: up, then the Council API not answering -------
+async function statusRoute() {
+  checks = 0;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'council-status-'));
+  const standIn = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (req.url === '/health') return res.end(JSON.stringify({ ok: true, busy: false, status: { ready: true } }));
+    return res.end(JSON.stringify({ members: [], head: null, status: { ready: true, members: [] } }));
+  });
+  await new Promise((resolve) => standIn.listen(0, '127.0.0.1', resolve));
+  const port = standIn.address().port;
+  process.env.COUNCIL_API_HOST = '127.0.0.1';
+  process.env.COUNCIL_API_PORT = String(port);
+  process.env.COUNCIL_ACCESS = 'user';
+  // the session store in the temp dir; the form check and express only where council.js asks for them
+  const stubs = { './auth': { csrfOk: () => false }, './councilSessions': createStore(tmp) };
+  try { require.resolve('express'); } catch (e) { stubs.express = { json: () => (req, res, next) => next() }; }
+  const councilFile = path.join(__dirname, '..', 'council.js');
+  const original = Module.prototype.require;
+  Module.prototype.require = function stubbed(id) {
+    if (this.filename === councilFile && Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
+    return original.apply(this, arguments);
+  };
+  const routes = {};
+  try {
+    const council = require('../council');
+    council.install({ get: (p, ...fns) => { routes[`GET ${p}`] = fns; }, post: (p, ...fns) => { routes[`POST ${p}`] = fns; } },
+      { header: () => '', footer: () => '', escapeHtml: (t) => t });
+  } finally { Module.prototype.require = original; }
+  const get = (url, user) => new Promise((resolve) => {
+    const res = { statusCode: 200, headers: {}, body: undefined,
+      status(c) { this.statusCode = c; return this; }, set(k, v) { this.headers[k] = v; return this; },
+      json(b) { this.body = b; resolve(this); return this; } };
+    routes[`GET ${url}`][0]({ method: 'GET', user, params: {}, query: {}, headers: {} }, res, () => resolve(res));
+  });
+  const alice = { name: 'alice', role: 'user', open: false };
+  const admin = { name: 'admin', role: 'admin', open: false };
+  const keys = (body) => JSON.stringify(Object.keys(body).sort());
+
+  try {
+    const upUser = await get('/council/api/status', alice);
+    const upAdmin = await get('/council/api/status', admin);
+    ok(upUser.body.ready === true && keys(upUser.body) === '["busy","ready"]' && upAdmin.body.ready === true && keys(upAdmin.body) === '["busy","ready"]',
+      `the Council API answers: ready, and no apiError for anyone (${JSON.stringify(upAdmin.body)})`);
+
+    await new Promise((resolve) => standIn.close(resolve));
+    const logged = console.error;
+    console.error = () => {};
+    let downUser;
+    try { downUser = await get('/council/api/status', alice); } finally { console.error = logged; }
+    const downAdmin = await get('/council/api/status', admin);
+    const downOpen = await get('/council/api/status', { name: 'open access', role: 'admin', open: true });
+    ok(downAdmin.statusCode === 200 && downAdmin.body.ready === false && /ECONNREFUSED/.test(downAdmin.body.apiError) && downAdmin.headers['Cache-Control'] === 'no-store'
+      && /ECONNREFUSED/.test(downOpen.body.apiError),
+      `the Council API down: the administrator (and open access) are told why (${downAdmin.body.apiError})`);
+    ok(downUser.statusCode === 200 && downUser.body.ready === false && keys(downUser.body) === '["busy","ready"]'
+      && !JSON.stringify(downUser.body).includes('127.0.0.1') && !JSON.stringify(downUser.body).includes(String(port)),
+      `a user only that the council cannot sit, no address (${JSON.stringify(downUser.body)})`);
+    const endpoints = await get('/council/api/endpoints', admin);
+    ok(endpoints.statusCode === 503 && /summoned/.test(endpoints.body.error), 'and the administrator\'s /endpoints is the 503 the page reads as the Council API not answering');
+    console.log(`council.js status: ${checks} checks passed`);
+  } finally {
+    if (standIn.listening) standIn.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+statusRoute().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

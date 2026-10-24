@@ -5,11 +5,15 @@ import type { ChartOption, Tokens } from '../../../hooks/useEChart';
 // axis with its labels right-aligned in a fixed margin, the tokens for every colour. Every chart starts its value axis
 // where the data says (money can be negative) and draws one series per line, so the lines compare on one scale.
 
-export function frame(t: Tokens, dates: string[], opts: { left?: number; right?: number; percent?: boolean; min?: number; max?: number } = {}): ChartOption {
+// zoom: a thin slider under the x axis (C8, C9) - drag a handle to zoom, the window between them to pan. Nothing zooms
+// inside the plot: a wheel or a pinch there would take the page's scroll on a phone. The range buttons pick what the
+// slider runs over; a new range or row starts it full again.
+export function frame(t: Tokens, dates: string[], opts: { left?: number; right?: number; percent?: boolean; min?: number; max?: number; zoom?: boolean } = {}): ChartOption {
   return {
     animation: false,
     textStyle: { fontFamily: t.font, color: t.fg },
-    grid: { left: opts.left ?? 48, right: opts.right ?? 64, top: 14, bottom: 22, containLabel: false },
+    grid: { left: opts.left ?? 48, right: opts.right ?? 64, top: 14, bottom: opts.zoom ? 50 : 22, containLabel: false },
+    ...(opts.zoom ? { dataZoom: [slider(t, opts.left ?? 48, opts.right ?? 64)] } : {}),
     xAxis: {
       type: 'category',
       data: axisDates(dates),
@@ -33,6 +37,28 @@ export function frame(t: Tokens, dates: string[], opts: { left?: number; right?:
         formatter: opts.percent ? (v: number) => `${(v * 100).toFixed(0)}%` : undefined,
       },
     },
+  };
+}
+
+// the slider, as wide as the plot, in the tokens' colours (a hex token with an alpha suffix for the window). Without
+// brushSelect the window itself is what pans (ECharts draws no move handle then)
+function slider(t: Tokens, left: number, right: number) {
+  return {
+    type: 'slider' as const,
+    xAxisIndex: 0,
+    left,
+    right,
+    bottom: 6,
+    height: 14,
+    showDetail: false,
+    brushSelect: false,
+    borderColor: t.line,
+    backgroundColor: 'transparent',
+    fillerColor: `${t.accent}1f`,
+    dataBackground: { lineStyle: { color: t.faint, width: 1 }, areaStyle: { color: t.faint, opacity: 0.12 } },
+    selectedDataBackground: { lineStyle: { color: t.accent, width: 1 }, areaStyle: { color: t.accent, opacity: 0.12 } },
+    handleStyle: { color: t.card, borderColor: t.muted },
+    emphasis: { handleStyle: { borderColor: t.accent } },
   };
 }
 

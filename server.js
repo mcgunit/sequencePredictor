@@ -8,6 +8,7 @@ const council = require("./council");
 const services = require("./services");
 const jobs = require("./jobs");
 const whatsnew = require("./whatsnew");
+const switchover = require('./switchover');   // the switch to the app: the old pages' redirects, the last 404 and error answers (24 Oct 2026)
 const { help, HELP_CSS, autoReload } = require("./help");   // the "?" every page keeps its explanations behind (13 Oct 2026)
 
 const app = express();
@@ -25,6 +26,9 @@ if (auth.misconfigured()) {
 app.set('trust proxy', config.TRUST_PROXY);
 app.use(express.urlencoded({ extended: false, limit: '16kb' }));
 app.use(auth.middleware);
+// The switch to the app (24 Oct 2026): every old page address answers with its app page, for each reader as the old
+// page was (switchover.js); the old page handlers below are no longer reached.
+app.use(switchover.redirects);
 
 // Init the LLM Council
 council.install(app, {
@@ -174,46 +178,8 @@ function marketGameViewNote(game, user) {
 }
 
 // --- LOGIC: is the pipeline busy right now? ---
-// Every Python entry point (Predictor.py, the five tuners, TrainMetaLearner)
-// takes this one PID lock file in the repo root, so it is the cheapest honest
-// answer to "is a run in progress" - no scheduler needed, and it stays true
-// when a job is started by hand or by cron. /proc gives the command line, so
-// the banner can say which job it is rather than just "busy".
-const PIPELINE_LOCK = path.join(__dirname, 'process.lock');
-const JOB_NAMES = {
-  'Predictor.py': 'Today\'s predictions are being computed',
-  'HyperoptStatistics.py': 'Weekly tuning: statistical models',
-  'HyperoptBoost.py': 'Weekly tuning: boosting models',
-  'HyperoptRLTicket.py': 'Weekly tuning: RL ticket model',
-  'HyperoptEnsemble.py': 'Weekly tuning: ensemble subsets',
-  'HyperoptQuantum.py': 'Weekly tuning: quantum meta-learners',
-  'HyperoptDeepLearning.py': 'Tuning: deep learning models',
-  'TrainMetaLearner.py': 'Retraining the meta-learner',
-  'RandomnessDiscrimination.py': 'Weekly controls: randomness discrimination',
-  'NullControls.py': 'Weekly controls: null histories',
-  'IrrelevantFeatureControl.py': 'Weekly controls: irrelevant-feature control',
-  'MarketsDaily.py': 'Refreshing the market games (bars and bins)',
-};
-
-function pipelineStatus() {
-  let pid;
-  let since = null;
-  try {
-    pid = Number(fs.readFileSync(PIPELINE_LOCK, 'utf-8').trim());
-    since = fs.statSync(PIPELINE_LOCK).mtimeMs;
-  } catch (e) {
-    return null;                       // no lock: nothing running
-  }
-  if (!pid || Number.isNaN(pid)) return null;
-  let cmdline;
-  try {
-    cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8').replace(/\0/g, ' ').trim();
-  } catch (e) {
-    return null;                       // stale lock of a dead run - the scripts clean it up themselves
-  }
-  const script = Object.keys(JOB_NAMES).find((name) => cmdline.includes(name));
-  return { pid, since, what: script ? JOB_NAMES[script] : 'A pipeline job is running' };
-}
+// process.lock and the job's name in words: pipeline.js (24 Oct 2026), which the app's Home and Lottery read too.
+const { pipelineStatus } = require('./pipeline');
 
 function pipelineBanner() {
   const status = pipelineStatus();
@@ -1744,7 +1710,7 @@ system.install(app, { root: __dirname, jobs, services });
 // the schedule (its jobs, the lock, the queue), the Council API's supervisor
 // and the sign-in log what they know now.
 admin.install(app, { databaseDir: dataPath, controlsDir: controlsPath, marketsDir: marketsPath, root: __dirname, jobs, services, audit });
-api.installApp(app, { header: generateHeader, footer: generateFooter });
+api.installApp(app);
 // The Jobs page: the scheduled pipeline jobs (jobs.js, README roadmap item
 // 8) above the supervised services (services.js, today the Council API).
 // services.js renders whatever the third argument returns, so it stays
@@ -1753,6 +1719,8 @@ services.install(app, { header: generateHeader, footer: generateFooter }, jobs.s
 jobs.install(app, { header: generateHeader, footer: generateFooter });
 // First-login introduction and the what's-new note (whatsnew.js).
 whatsnew.install(app, { header: generateHeader, footer: generateFooter }, auth);
+// Last: an unknown address answers 404 and a thrown error 500, as a page or as JSON, never with the stack (switchover.js).
+switchover.finish(app);
 
 // The UI is reachable from outside (a Tailscale funnel proxies to this
 // port), pm2 restarts the process on exit, and this process now owns the

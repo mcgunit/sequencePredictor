@@ -275,6 +275,15 @@ ok(ethPlainEnd && ethPlainEnd.guard && ethPlainEnd.guard.state === 'weekend' && 
 // a sized daily row that is not up reads flat, whatever its bin (MarketSettle.call_word)
 const sizedDay = { ...record, next: { ...record.next, instruments: { ...record.next.instruments, ETH: { base: 2421.6, predictions: [pred('GARCH Model', 1, 2300, 2350, 0)] } } } };
 ok(api.marketView('crypto', sizedDay, null, now).none.day.find((c) => c.symbol === 'ETH').call === 'flat', 'a sized row at size 0 is flat, not down');
+// a sized row that is up: the day row carries its size, the day card the stake it is a multiple of
+const sizedUp = { ...record, next: { ...record.next, instruments: { ...record.next.instruments, BTC: { base: 81682, predictions: [pred('GARCH Model', 3, 80500, 81300, 0.5)] } } } };
+const sizedUpView = api.marketView('crypto', sizedUp, null, now);
+ok(sizedUpView.open.find((q) => q.game === 'day' && q.symbol === 'BTC').size === 0.5 && sizedUpView.day.stake === 100 && v.open.find((q) => q.game === 'day').size === null,
+   'a sized row that is up is a day position at its size; the stake is on the day card; an unsized row has no size');
+// the pick's reason: the best book once a book has its positions (10 a day, 5 a week), the best exact rate before
+ok(v.day.byBook === true && v.day.minTrades === 10 && v.week.minTrades === 5 && typeof v.week.byBook === 'boolean', `the cards say how many positions a book needs: ${v.day.minTrades}, ${v.week.minTrades}`);
+const young = api.marketView('crypto', { ...record, models: record.models.map((m) => ({ ...m, trades: 4 })) }, null, now);
+ok(young.day.byBook === false && young.day.model === 'Young Model' && young.day.minTrades === 10, `no book with 10 positions: the best exact rate is followed: ${JSON.stringify(young.day)}`);
 
 // --- shares: the open-to-close rule and its clocks --------------------------------
 const sharesRecord = { ...record, market: 'shares', instruments: record.instruments.map((i) => ({ ...i, symbol: i.symbol === 'BTC' ? 'NVDA' : (i.symbol === 'ETH' ? 'AAPL' : i.symbol) })),

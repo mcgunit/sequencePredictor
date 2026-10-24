@@ -83,6 +83,7 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
         <p className="line">
           Since {day(since.date)} ({since.label}): from {count(since.minDraws, d.unit)}
           {since.live ? `, ${since.live}` : ''}; best {short(since.bestModel)}.
+          {band ? ` The Q0 band is not applied to this column: the best of the rows over a few ${units(d.unit)} clears it by luck.` : ''}
         </p>
       ) : null}
       <p className="line">
@@ -114,6 +115,9 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
     </Section>
   );
 }
+
+// a cell of a row greyed by the Q0 band that the band does not apply to (Since)
+const NOT_GREYED = { color: 'var(--fg)' };
 
 function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: RankRow; market: boolean; sizesOpen: boolean; onSizes: () => void }) {
   const hits = d.metric === 'avg_hits';
@@ -159,7 +163,8 @@ function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: 
         {count(r.draws, d.unit)}
         {market && r.live !== null && r.draws !== null ? <span className="sub">{r.live >= r.draws ? 'all live' : `${r.live} live`}</span> : null}
       </td>
-      <td className="num hide-sm">
+      {/* the band is not applied to Since, so a row greyed by the band leaves this cell in plain colour */}
+      <td className="num hide-sm" style={grey ? NOT_GREYED : undefined}>
         {sinceText || DASH}
         {sinceSub ? <span className="sub">{sinceSub}</span> : null}
       </td>
@@ -200,15 +205,37 @@ function SizesRow({ r }: { r: RankRow }) {
   );
 }
 
+// a multi-pick rate with a text tag when it is above its chance level (more numbers win more by arithmetic alone)
+function Rate({ v, level }: { v: number | null; level: number | null }) {
+  return (
+    <>
+      {share(v)}
+      {v !== null && level !== null && v > level ? <span className="tag">above chance</span> : null}
+    </>
+  );
+}
+
 function MultiPickSection({ mp, unit, scope }: { mp: MultiPick; unit: string; scope: 'all' | 'top' }) {
   const six = mp.chance[String(mp.draw)] ?? null;
   const nine = mp.chance[String(mp.draw + mp.extra)] ?? null;
+  const extras = (xs: (number | null)[]) =>
+    xs.map((x, i) => (
+      <Fragment key={i}>
+        {i ? ' · ' : null}
+        <Rate v={x} level={mp.perExtraChance} />
+      </Fragment>
+    ));
   return (
     <Section title={`Multi-pick (${mp.draw} + ${mp.extra} extra numbers)`} aside={<Chip>{mp.draws ? `${range(mp.draws)} ${units(unit)} per row` : 'no draws yet'}</Chip>}>
       <p className="line">
         Chance of {mp.minHits ?? DASH} or more hits per {perUnit(unit)}: <b>{share(six)}</b> with {mp.draw} numbers, <b>{share(nine)}</b> with {mp.draw + mp.extra} (
         {mp.grids ?? DASH} grids, {mp.price ?? DASH} EUR). Each extra number hits {share(mp.perExtraChance)} by chance. {mp.rowsWithExtras} rows have extras
         {scope === 'top' ? `; ${mp.rows.length} of the top 5 shown` : ''}.
+      </p>
+      <p className="line">
+        More numbers win more by arithmetic alone, so each rate is read against its chance level, over the {units(unit)} with extras; a rate above it is tagged
+        &ldquo;above chance&rdquo;. One row above over a few {units(unit)} is noise; a row that stays above for many {units(unit)} is the finding, and the ground
+        for rethinking its first {mp.draw} numbers (README roadmap item 10).
       </p>
       <Scroll>
         <table className="tbl">
@@ -231,14 +258,18 @@ function MultiPickSection({ mp, unit, scope }: { mp: MultiPick; unit: string; sc
                 <td className="w-name">
                   {short(r.row)}
                   {mp.draws && mp.draws.min !== mp.draws.max ? <span className="sub">{count(r.draws, unit)}</span> : null}
-                  <span className="sub show-sm">extras hit {r.extraHits.map((x) => share(x)).join(' · ')}</span>
+                  <span className="sub show-sm">extras hit {extras(r.extraHits)}</span>
                 </td>
                 <td className="num">
                   {fixed(r.avgHits6, 2)} → {fixed(r.avgHits9, 2)}
                 </td>
-                <td className="num">{share(r.win6)}</td>
-                <td className="num last-sm">{share(r.win9)}</td>
-                <td className="hide-sm">{r.extraHits.map((x) => share(x)).join(' · ')}</td>
+                <td className="num">
+                  <Rate v={r.win6} level={six} />
+                </td>
+                <td className="num last-sm">
+                  <Rate v={r.win9} level={nine} />
+                </td>
+                <td className="hide-sm">{extras(r.extraHits)}</td>
               </tr>
             ))}
           </tbody>
@@ -263,7 +294,9 @@ function CombinationSection({ c, unit }: { c: Combination; unit: string }) {
   return (
     <Section title="Best combination" aside={<Chip>every established row · not filtered by the switch</Chip>}>
       {!c.best ? (
-        <p className="line">{c.note ?? 'No combination could be scored.'}</p>
+        <p className="line">
+          {cap(c.note ?? 'no combination could be scored')} ({c.candidateRows} established {c.candidateRows === 1 ? 'row' : 'rows'}).
+        </p>
       ) : (
         <>
           {/* the value, its uncapped state and its p value on one line (plan decision 8) */}
@@ -289,6 +322,9 @@ function CombinationSection({ c, unit }: { c: Combination; unit: string }) {
               {short(c.bestSingle.row)} at {value(c.bestSingle.value)}
               {c.beatsBestSingle === true ? ' · the set beats it' : c.beatsBestSingle === false ? ' · the set does not beat it' : ''}; its ranking value above is over
               its own record.
+              {profit
+                ? ''
+                : ' No verdict: the best line held grows with every extra line, so a set is at least as good as any of its own rows by construction.'}
             </p>
           ) : null}
           {profit ? (
@@ -301,6 +337,7 @@ function CombinationSection({ c, unit }: { c: Combination; unit: string }) {
             {control && !('error' in control)
               ? ` · on shuffled draws the best set averages ${value(control.bestMean)}, 95th percentile ${value(control.bestP95)}`
               : ''}
+            {profit ? '' : ' · the table holds the best pairs, then the best triples, each ranked within its size'}
           </p>
           {c.ranking.length ? (
             <Scroll>

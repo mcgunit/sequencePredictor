@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { DASH, isNum, money, short, unsigned } from '../../format';
-import type { DrawResult, MarketDay, Row, Shape, Ticket } from '../../workbench';
+import { DASH, isNum, money, pct, rate, short, unsigned } from '../../format';
+import { binInterval, type DrawResult, type MarketDay, type Row, type Shape, type Ticket } from '../../workbench';
 import { Legend, Scroll } from '../admin/Card';
 import Chip from '../admin/Chip';
 import { specialsLabel, type Mode } from './text';
@@ -69,8 +69,37 @@ function headCells(shape: Shape, cols: ReturnType<typeof columnsOf>): ReactNode[
   return out;
 }
 
-// One ticket's number cells, coloured by its marks; a shorter ticket's missing cells stay empty
-function bodyCells(shape: Shape, row: Row, t: Ticket, ti: number, cols: ReturnType<typeof columnsOf>, result: DrawResult | null): ReactNode[] {
+// A market bin's cell on a settled day (the old Day by day, markets.js): the position the paper books take on it -
+// ▲ long (a bin in the upper half), ▼ not long; a sized row (the RL Position Model) is read by its size, ▲×size or
+// sits out at 0, whatever half its bin is in - and a hover with the bin as moves and as prices from the close before.
+// The day's slots are in the ticket's order (MarketSettle.day_records).
+function marketCell(market: MarketDay, row: Row, i: number, b: number): { mark: ReactNode; title: string } {
+  const inst = market.instruments[i];
+  const [lo, hi] = binInterval(b, inst ? inst.edges : []);
+  const base = inst && isNum(inst.before) ? inst.before : null;
+  const move = (x: number) => pct(x * 100, 2);
+  const price = (x: number) => (base === null ? '' : rate(base * Math.exp(x)));
+  let range = '';
+  if (lo !== null && hi !== null) range = `: ${move(lo)} to ${move(hi)}${base !== null ? `, a close between about ${price(lo)} and ${price(hi)}` : ''}`;
+  else if (hi !== null) range = `: below ${move(hi)}${base !== null ? `, a close below about ${price(hi)}` : ''}`;
+  else if (lo !== null) range = `: above ${move(lo)}${base !== null ? `, a close above about ${price(lo)}` : ''}`;
+  const size = market.models[row.name]?.sizes?.[i] ?? null;
+  let mark: ReactNode;
+  let rule: string;
+  if (size !== null) {
+    mark = size > 0 ? <span className="pz up">▲×{size}</span> : <span className="pz out">sits out</span>;
+    rule = size > 0 ? `long, size ×${size}` : 'size 0: sits out';
+  } else {
+    const up = b >= market.k / 2;
+    mark = <span className={`pz ${up ? 'up' : 'dn'}`}>{up ? '▲' : '▼'}</span>;
+    rule = up ? 'long (upper half)' : 'not long (lower half; a paper short with shorts on)';
+  }
+  return { mark, title: `bin ${b}${range} · ${rule}` };
+}
+
+// One ticket's number cells, coloured by its marks; a shorter ticket's missing cells stay empty. In the admin's table a
+// market row on a settled day carries its position after the bin and the bin's range as the cell's hover.
+function bodyCells(shape: Shape, row: Row, t: Ticket, ti: number, cols: ReturnType<typeof columnsOf>, result: DrawResult | null, market: MarketDay | null, mode: Mode): ReactNode[] {
   const out: ReactNode[] = [];
   for (let i = 0; i < cols.mains; i += 1) {
     const v = t.mains[i];
@@ -82,7 +111,13 @@ function bodyCells(shape: Shape, row: Row, t: Ticket, ti: number, cols: ReturnTy
     // a market's bin one off the drawn one (pale green); a pick3 digit drawn in another place (pale green)
     if (!cls && shape.family === 'market' && result && isNum(result.mains[i]) && Math.abs(v - (result.mains[i] as number)) === 1) cls = 'ha';
     if (!cls && shape.family === 'pick3' && (t.markMember[i] ?? '') === 'm') cls = 'ha';
-    out.push(<td key={`m${i}`} className={`c ${cls}`}>{v}</td>);
+    const pos = mode === 'admin' && shape.family === 'market' && market && market.models[row.name] ? marketCell(market, row, i, v) : null;
+    out.push(
+      <td key={`m${i}`} className={`c ${cls}${pos ? ' word' : ''}`} title={pos?.title}>
+        {v}
+        {pos ? <> {pos.mark}</> : null}
+      </td>,
+    );
   }
   for (let i = 0; i < cols.specials; i += 1) {
     const v = t.specials ? t.specials[i] : undefined;
@@ -219,7 +254,7 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
                   <tr key={`${row.name}-${i}`} className={i === 0 ? 'first' : undefined}>
                     <NameCell row={row} mode={mode} ranked={ranked} showTop={showTop} rankWhose={rankWhose} first={i === 0} />
                     <td className="rk">{keno ? (ranking ? 'ranking' : t.mains.length) : i + 1}</td>
-                    {bodyCells(shape, row, t, i, cols, result)}
+                    {bodyCells(shape, row, t, i, cols, result, market, mode)}
                     {scored ? (
                       <td className="hits">
                         <span className="strong">{keno ? plural(t.hits?.mains, 'hit') : h.main}</span>

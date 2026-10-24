@@ -102,6 +102,13 @@ function marketView(marketsDir, game) {
   return cached(`market:${file}`, [file], () => { const r = markets.loadMarket(marketsDir, game); return r ? markets.describeMarket(r) : null; });
 }
 const slotsOf = (view) => (view ? view.instruments.slice().sort((a, b) => (a.position || 0) - (b.position || 0)).map((i) => i.symbol) : null);
+// an instrument's close before a day and on it (null where its closes do not reach): the close before is the base a
+// bin's edges turn into prices from
+function closeAround(view, symbol, date) {
+  const inst = view.instruments.find((i) => i.symbol === symbol);
+  const at = inst ? inst.closes.findIndex((p) => p[0] === date) : -1;
+  return { before: at > 0 ? inst.closes[at - 1][1] : null, on: at >= 0 ? inst.closes[at][1] : null };
+}
 // the workbench's view of a market: its record with the week game, the rows report and the regime log (as markets.install)
 function workbenchSource(dirs, market) {
   const week = markets.WEEK_GAMES[market];
@@ -185,8 +192,9 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
 // One draw. rows: the scored table in the file's order, each row with its tickets (draws.scoreRow), its position in
 // the ranking the draw is read against (rank, null when not ranked then) and whether it was in that top five; figures:
 // the history's day line over the same rows; votes: the vote of the shown rows' first tickets (per slot for the
-// positional games) and, with All, the file's own weighted vote of every row; market: a market day's moves and every
-// shown row's exact / direction / money (the newest 30 settled days; older days have bins and hits only). coming: the
+// positional games) and, with All, the file's own weighted vote of every row; market: a market day's moves with the
+// close before it (a bin's price range) and every shown row's exact / direction / money and, for a sized row, its size
+// per slot (the newest 30 settled days; older days have bins and hits only). coming: the
 // newest day's next prediction with today's ranking; an older day names the draw its next prediction was scored in.
 function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new Date()) {
   const dir = path.join(dirs.databaseDir, game);
@@ -229,7 +237,7 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
       const kept = new Set(shown.map(nameOf));
       // best: the day's best row if it is shown; exactMean: the mean exact rate over every row of the day, so only with All
       out.market = { k: market.k, chance: market.chance, best: d.best && kept.has(d.best) ? d.best : null, exactMean: scope === 'all' ? r4(d.exactMean) : null,
-        instruments: d.instruments.map((i) => ({ symbol: i.symbol, ret: r6(i.ret), bin: i.bin, edges: i.edges.map(r6) })),
+        instruments: d.instruments.map((i) => ({ symbol: i.symbol, ret: r6(i.ret), bin: i.bin, edges: i.edges.map(r6), before: closeAround(market, i.symbol, d.date).before })),
         models: Object.fromEntries(d.models.filter((m) => kept.has(m.name)).map((m) => [m.name, { exact: m.exact, adjacent: m.adjacent, direction: m.direction,
           positions: m.positions, trades: m.trades, pnl: r6(m.pnl), pnlCash: r2(m.pnlCash), sizes: m.sizes }])) };
     }
@@ -533,13 +541,8 @@ function guardOf(view) {
 function exampleOf(view) {
   const ex = view.days[0];
   if (!ex) return null;
-  const closeAround = (symbol, date) => {
-    const inst = view.instruments.find((i) => i.symbol === symbol);
-    const at = inst ? inst.closes.findIndex((p) => p[0] === date) : -1;
-    return { before: at > 0 ? inst.closes[at - 1][1] : null, on: at >= 0 ? inst.closes[at][1] : null };
-  };
   const best = ex.models.find((m) => m.name === ex.best) || ex.models[0] || null;
-  return { date: ex.date, instruments: ex.instruments.map((i) => ({ symbol: i.symbol, ret: r6(i.ret), bin: i.bin, edges: i.edges.map(r6), close: closeAround(i.symbol, ex.date) })),
+  return { date: ex.date, instruments: ex.instruments.map((i) => ({ symbol: i.symbol, ret: r6(i.ret), bin: i.bin, edges: i.edges.map(r6), close: closeAround(view, i.symbol, ex.date) })),
     best: best ? { name: best.name, bins: best.bins, exact: best.exact, adjacent: best.adjacent, direction: best.direction, positions: best.positions } : null };
 }
 

@@ -202,7 +202,8 @@ function RunningCard({ d, onAsk, onOpenRun }: { d: JobsView; onAsk: (a: Ask) => 
         <>
           One job runs at a time, behind the process.lock every pipeline script takes; the others wait in the queue in the order they came. The bar is the
           running job&apos;s time on the scale of its usual median (the tick), from 0 to 2.5×; the shaded band is the usual range of its earlier successful
-          runs. Stop sends SIGTERM to the job&apos;s whole process group; Cancel takes a waiting job out of the queue. Both ask first.
+          runs. Next to its start, its process id and the commit it runs at. Stop sends SIGTERM to the job&apos;s whole process group; Cancel takes a waiting
+          job out of the queue. Both ask first.
         </>
       }
       meta={[`as of ${time(d.builtAt)}`, 'Brussels time']}
@@ -216,6 +217,12 @@ function RunningCard({ d, onAsk, onOpenRun }: { d: JobsView; onAsk: (a: Ask) => 
             <span className="mut">
               since {stamp(r.start)}
               {r.pid !== null ? ` · pid ${r.pid}` : ''}
+              {r.sha ? (
+                <>
+                  {' · at '}
+                  <code>{r.sha}</code>
+                </>
+              ) : null}
             </span>
             <button type="button" className="btn danger" disabled={r.pid === null} onClick={() => onAsk(stopAsk(r, d))}>
               Stop
@@ -337,6 +344,11 @@ function ServiceCard({ sv, onAsk }: { sv: ServiceLine; onAsk: (a: Ask) => void }
           {sv.lastExit ? ` · last exit ${sv.lastExit.signal ? `signal ${sv.lastExit.signal}` : `code ${sv.lastExit.code ?? DASH}`} ${stamp(sv.lastExit.at)}` : ''}
           {sv.lastError ? <span className="sub">last error: {sv.lastError}</span> : null}
         </dd>
+        <dt>Runs</dt>
+        <dd>
+          {sv.command ? <code>{sv.command}</code> : DASH}
+          {sv.cwd ? <span className="sub">in {sv.cwd}</span> : null}
+        </dd>
       </dl>
       <h3 className="subh">
         Its log{log?.file ? ` · ${log.file}` : ''} · the last {log?.lines.length ?? 0} lines
@@ -368,7 +380,8 @@ function ScheduleCard({ d, onOpenJob, onOpenRun }: { d: JobsView; onOpenJob: (ke
         <>
           The daily predictor runs at its slot; the tuning chain starts when Saturday&apos;s predictor finishes, the controls when Sunday&apos;s does, each job
           after the one before. Took: the last run against the usual range of the runs of that job before it. A job&apos;s name opens what it runs, its usual
-          duration and Run now.
+          duration and Run now. To stop the schedule without a restart, create config/scheduler.disabled on the server: nothing new starts while it is there,
+          Run now included. Remove it to resume.
         </>
       }
       meta={[`${d.jobs.length} jobs`, 'Brussels time']}
@@ -460,7 +473,7 @@ function RunsCard({ d, filter, setFilter, onOpenRun }: { d: JobsView; filter: st
         <>
           Every run the schedule keeps, newest first: dry runs (the schedule only recorded them) and waits on the lock included. Every bar is on one scale: the
           run&apos;s time as a multiple of the usual median of that job&apos;s runs before it (the tick), from 0 to 2.5×; the shaded band is their usual range.
-          Amber: longer than the usual maximum. A run opens its log, warning signatures first.
+          Amber: longer than the usual maximum. Next to a run&apos;s start, the commit it ran at. A run opens its log, warning signatures first.
         </>
       }
       meta={[shown, d.runs.kept !== null ? `the newest ${d.runs.kept} are kept` : '', win.from ? span(win.from, win.to) : '', 'Brussels time']}
@@ -523,7 +536,15 @@ function RunRow({ x, onOpen }: { x: RunItem; onOpen: (id: string) => void }) {
         <button type="button" className="gbtn row" onClick={() => onOpen(x.id)} aria-haspopup="dialog">
           {label}
         </button>
-        <small>{stamp(x.start)}</small>
+        <small>
+          {stamp(x.start)}
+          {x.sha ? (
+            <>
+              {' · at '}
+              <code>{x.sha}</code>
+            </>
+          ) : null}
+        </small>
       </span>
       {x.kind === 'run' ? (
         <DurationBar minutes={x.minutes} usual={x.usual} label={`${label}: ${durationText(x.minutes, x.usual)}${range ? `, usual ${range}` : ''}`} />

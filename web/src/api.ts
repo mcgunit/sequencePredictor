@@ -78,6 +78,9 @@ export interface DayGame {
   model: string | null;
   modelCount: number;
   ruleName: string;
+  byBook?: boolean; // the model is followed for its paper book; false: no book has minTrades positions yet, the best exact rate
+  minTrades?: number;
+  stake?: number | null; // the paper stake a position: a sized row's position is size x stake
   entryNote: string;
 }
 
@@ -91,6 +94,8 @@ export interface WeekGame {
   model: string | null;
   modelCount: number;
   ruleName: string;
+  byBook?: boolean; // as DayGame: false while no weekly book has minTrades positions
+  minTrades?: number;
 }
 
 export interface Band {
@@ -128,6 +133,7 @@ export interface OpenPosition {
   earlier?: string | null; // a week row held again after a guard sale this week: "earlier: sold Tue 13 Oct · −1.5% (−1.74 USDT)"
   action?: 'hold' | 'sell' | 'buy' | 'out'; // the guard's action for the running day
   modelsUp: { up: number; of: number } | null;
+  size?: number | null; // a sized row's position (the RL Position Model): a multiple of the stake; null for every other row
 }
 
 export interface NoneCall {
@@ -661,8 +667,9 @@ export interface ControlsGameView {
   q0: Q0 & { modes: Record<string, Q0Mode> };
   q2: Q2Full | null;
   fc: (Omit<Fc, 'variants'> & { rule: string | null; variants: FcVariantFull[] }) | null;
-  // failed: the rows that failed in the report (admin.js rowsFull): why one scored no day, or how many days one raised on
-  rows: (MarketRows & { uniform: number | null; table: RowsTableRow[]; failed: { row: string; reason: string | null; days: number | null }[] }) | null;
+  // failed: the rows that failed in the report (admin.js rowsFull): why one scored no day, or how many days one raised on;
+  // floor: a probability under it is scored as it (the report's probability_floor)
+  rows: (MarketRows & { uniform: number | null; floor: number | null; table: RowsTableRow[]; failed: { row: string; reason: string | null; days: number | null }[] }) | null;
   regimes: Regime[] | null;
   errors: string[];
 }
@@ -1451,6 +1458,7 @@ function normControlsGame(raw: unknown, game: string): ControlsGameView {
     ? {
         ...rowsBase,
         uniform: opt(o(r.rows).uniform),
+        floor: opt(o(r.rows).floor),
         failed: arr(o(r.rows).failed as unknown[]).filter(has).map((x) => ({ row: str(o(x).row), reason: ostr(o(x).reason), days: opt(o(x).days) })),
         table: arr(o(r.rows).table as unknown[]).map((x) => {
           const w = o(x);
@@ -1918,6 +1926,7 @@ export interface RunItem {
   vsMedian: number | null;
   warnings: { signatures: number; new: number } | null;
   sliceGone: boolean; // a run whose log slice has rotated away: its warnings cannot be read
+  sha: string | null; // the commit it ran at (git short sha)
 }
 export interface Running {
   id: string; // its log id, for the run drawer
@@ -1928,6 +1937,7 @@ export interface Running {
   start: string | null;
   minutes: number | null; // elapsed at builtAt
   pid: number | null;
+  sha: string | null; // the commit it runs at
   usual: Usual | null;
   vsMedian: number | null;
   overUsual: boolean | null;
@@ -1948,6 +1958,8 @@ export interface ServiceLine {
   status: string; // 'running' | 'external' | 'restarting' | 'stopped' | 'disabled' | 'failed'
   healthy: boolean;
   summary: string | null;
+  command: string | null; // what it runs, without absolute paths
+  cwd: string | null; // where: relative to the checkout (src/llmCouncil)
   pid: number | null;
   port: number | null;
   since: string | null;
@@ -1989,6 +2001,7 @@ export interface RunLog {
   minutes: number | null;
   result: string; // 'ok' | 'exit N' | 'unknown' | 'running'
   note: string | null;
+  sha: string | null; // the commit it ran at: the kept run's, or its start marker's
   inKeptRuns: boolean;
   running: boolean;
   warnings: LogWarning[];
@@ -2100,7 +2113,7 @@ function normJobs(raw: unknown): JobsView {
     running: has(r.running)
       ? {
           id: str(cur.id), runId: str(cur.runId), key: str(cur.key), name: str(cur.name, str(cur.key)), reason: ostr(cur.reason), start: ostr(cur.start),
-          minutes: opt(cur.minutes), pid: opt(cur.pid), usual: usualOf(cur.usual), vsMedian: opt(cur.vsMedian),
+          minutes: opt(cur.minutes), pid: opt(cur.pid), sha: ostr(cur.sha), usual: usualOf(cur.usual), vsMedian: opt(cur.vsMedian),
           overUsual: typeof cur.overUsual === 'boolean' ? cur.overUsual : null, log: strs(cur.log),
         }
       : null,
@@ -2127,6 +2140,7 @@ function normJobs(raw: unknown): JobsView {
           overUsual: typeof h.overUsual === 'boolean' ? h.overUsual : null, vsMedian: opt(h.vsMedian),
           warnings: has(h.warnings) ? { signatures: num(w.signatures, 0), new: num(w.new, 0) } : null,
           sliceGone: kind === 'run' && 'warnings' in h && h.warnings === null,
+          sha: ostr(h.sha),
         };
       }),
     },
@@ -2141,6 +2155,7 @@ function normJobs(raw: unknown): JobsView {
           const sc = o(l.scanned);
           return {
             key: str(s.key), name: str(s.name, str(s.key)), description: str(s.description), status: str(s.status, 'unknown'), healthy: bool(s.healthy), summary: ostr(s.summary),
+            command: ostr(s.command), cwd: ostr(s.cwd),
             pid: opt(s.pid), port: opt(s.port), since: ostr(s.since), upMinutes: opt(s.upMinutes), restarts: num(s.restarts, 0),
             lastExit: has(s.lastExit) ? { code: opt(e.code), signal: ostr(e.signal), at: ostr(e.at) } : null,
             lastError: ostr(s.lastError), checkedAt: ostr(s.checkedAt),
@@ -2162,7 +2177,7 @@ function normRunLog(raw: unknown, id: string): RunLog {
   const c = o(r.comparedWith);
   return {
     id: str(r.id, id), key: str(r.key), job: str(r.job, str(r.key)), log: ostr(r.log), start: ostr(r.start), end: ostr(r.end), minutes: opt(r.minutes),
-    result: str(r.result, 'unknown'), note: ostr(r.note), inKeptRuns: bool(r.inKeptRuns), running: bool(r.running),
+    result: str(r.result, 'unknown'), note: ostr(r.note), sha: ostr(r.sha), inKeptRuns: bool(r.inKeptRuns), running: bool(r.running),
     warnings: arr(r.warnings as unknown[]).filter(has).map((x) => {
       const w = o(x);
       return { sig: str(w.sig), n: num(w.n, 0), new: typeof w.new === 'boolean' ? w.new : null, line: ostr(w.line) };

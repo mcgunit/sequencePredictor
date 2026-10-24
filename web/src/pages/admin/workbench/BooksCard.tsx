@@ -16,8 +16,9 @@ type Base = 'daily' | 'hold' | 'open';
 const BASE_TEXT: Record<Base, string> = { daily: 'Daily round trip', hold: 'Hold while up', open: 'Open to close' };
 const MARKET_TEXT: Record<Base, string> = { daily: 'buying everything', hold: 'buy and hold', open: 'buying everything' };
 
-type Range = 'all' | '3M' | '1M';
-const RANGE_DAYS: Record<Exclude<Range, 'all'>, number> = { '3M': 92, '1M': 31 };
+type Range = '1M' | '3M' | '6M' | '1Y' | 'all';
+const RANGES: Range[] = ['1M', '3M', '6M', '1Y', 'all'];
+const RANGE_DAYS: Record<Exclude<Range, 'all'>, number> = { '1M': 31, '3M': 92, '6M': 183, '1Y': 366 };
 // the newest n dates of a book (the totals stay cumulative since the book's first day)
 function sliceOf(s: BookSeries, range: Range): BookSeries {
   if (range === 'all' || s.dates.length <= RANGE_DAYS[range]) return s;
@@ -56,17 +57,18 @@ function BooksChart({ s, pick, all, cur }: { s: BookSeries; pick: string | null;
     (t: Tokens): ChartOption => {
       const context = all ? s.order.filter((n) => n !== pick).map((n) => lineSeries(short(n), s.series[n] ?? [], t.faint, 'context')) : [];
       return {
-        ...frame(t, s.dates, { right: 72 }),
+        ...frame(t, s.dates, { right: 72, zoom: true }),
         tooltip: tooltip(t, s.dates, (i) =>
           [pick ? `${short(pick)}: ${money(s.series[pick]?.[i])}` : '', `Market: ${money(s.market[i])}`, s.sold ? `Selling everything: ${money(s.sold[i])}` : '']
             .filter(Boolean)
             .join('<br/>'),
         ),
+        // the highlighted row first, else the market: the zoom slider's shadow draws the first series (z sets the layers)
         series: [
-          ...context,
+          ...(pick ? [lineSeries(short(pick), s.series[pick] ?? [], t.accent, 'main', (v) => money(v))] : []),
           lineSeries('Market', s.market, t.muted, 'dashed', (v) => money(v)),
           ...(s.sold ? [lineSeries('Selling everything', s.sold, t.down, 'dashed', (v) => money(v))] : []),
-          ...(pick ? [lineSeries(short(pick), s.series[pick] ?? [], t.accent, 'main', (v) => money(v))] : []),
+          ...context,
         ],
       };
     },
@@ -186,13 +188,11 @@ export default function BooksCard({ w }: { w: Workbench }) {
           </div>
           {s && s.dates.length > RANGE_DAYS['1M'] ? (
             <div className="seg" role="group" aria-label="Range">
-              {(['all', '3M', '1M'] as Range[])
-                .filter((r) => r === 'all' || s.dates.length > RANGE_DAYS[r])
-                .map((r) => (
-                  <button key={r} type="button" aria-pressed={range === r} onClick={() => setRange(r)}>
-                    {r === 'all' ? 'All' : r}
-                  </button>
-                ))}
+              {RANGES.filter((r) => r === 'all' || s.dates.length > RANGE_DAYS[r]).map((r) => (
+                <button key={r} type="button" aria-pressed={range === r} onClick={() => setRange(r)}>
+                  {r === 'all' ? 'All' : r}
+                </button>
+              ))}
             </div>
           ) : null}
           {s ? (

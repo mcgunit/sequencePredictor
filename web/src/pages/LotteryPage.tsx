@@ -11,13 +11,15 @@ import MultiPickLegend from '../components/draws/MultiPickLegend';
 import ResultStrip from '../components/draws/ResultStrip';
 import ScopeLine, { ComingScopeLine } from '../components/draws/ScopeLine';
 import TicketTable from '../components/draws/TicketTable';
-import { bestText, gameTitle, howHitsCounted, prettyDates } from '../components/draws/text';
+import { MULTI_PICK_ORDER, bestText, gameTitle, howHitsCounted, prettyDates } from '../components/draws/text';
 import { bestWords, drawHref, historyHref, nextText, userText } from '../components/lottery/bits';
+import RunBanner from '../components/RunBanner';
 
 // /lottery: one folding card per game. The coming draw with today's five rows (the History ranking's top five) and their
 // tickets, lotto's extras for a system play; the last draw with its result and how the five ranked BEFORE it did,
 // together and row by row - two different fives, each named on its own line. Every card starts folded; #game (the Home
-// page's links, the chips above the cards) opens and scrolls to one.
+// page's links, the chips above the cards) opens and scrolls to one. While a pipeline job runs, a line says so and the
+// page is read again every minute until it ends (RunBanner).
 
 export default function LotteryPage() {
   const load = useLoad(getLottery, []);
@@ -51,6 +53,7 @@ export default function LotteryPage() {
   return (
     <div className="lottery">
       {head}
+      <RunBanner running={load.data.running} refresh={load.retry} />
       <nav className="jump" aria-label="Games on this page">
         {games.map((g) => (
           <a
@@ -145,6 +148,7 @@ function GameCardView({ c, open, onToggle }: { c: GameCard; open: boolean; onTog
             <div className="card-b">
               <details className="fold">
                 <summary>Multi-pick: the shaded numbers, sizes and prices</summary>
+                <p className="note">{MULTI_PICK_ORDER}</p>
                 <MultiPickLegend data={c.multiPick} mode="user" />
               </details>
             </div>

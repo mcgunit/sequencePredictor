@@ -111,12 +111,16 @@ export default function CouncilPage() {
   }, [sid, sessionAttempt]);
   const shown = session && session.id === sid ? session : null;
 
-  // the members and their endpoints: the administrator's only (a user's request would be a 403)
-  const endpoints = useLoad<Endpoints | null>(() => (admin ? getEndpoints() : Promise.resolve(null)), [admin]);
-  // a user's: only whether the council can sit now, looked at again every 30 s while it cannot
+  // whether the council can sit now, for every reader (the administrator's too: when the Council API itself is down, its
+  // /endpoints is a 503 and only this says so, with the reason), looked at again every 30 s while it cannot
   const [statusKey, setStatusKey] = useState(0);
-  const status = useLoad<CouncilStatus | null>(() => (admin ? Promise.resolve(null) : getStatus()), [admin, statusKey]);
-  const notSitting = !admin && status.kind === 'ok' && status.data !== null && !status.data.ready;
+  const status = useLoad<CouncilStatus>(getStatus, [statusKey]);
+  // the members and their endpoints: the administrator's only (a user's request would be a 403), read again with the status
+  const endpoints = useLoad<Endpoints | null>(() => (admin ? getEndpoints() : Promise.resolve(null)), [admin, statusKey]);
+  const summon = endpoints.kind === 'ok' && endpoints.data?.status && !endpoints.data.status.ready ? endpoints.data.status : null;
+  // the status decides; the administrator's members' check stands in while the status is not known
+  const notSitting = status.kind === 'ok' ? !status.data.ready : summon !== null;
+  const apiDown = admin && status.kind === 'ok' ? status.data.apiError : null;
   useEffect(() => {
     if (!notSitting) return undefined;
     const timer = setInterval(() => setStatusKey((n) => n + 1), 30000);
@@ -196,8 +200,7 @@ export default function CouncilPage() {
   const [askError, setAskError] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const running = pending.length > 0 || asking !== null;
-  const summon = endpoints.kind === 'ok' && endpoints.data?.status && !endpoints.data.status.ready ? endpoints.data.status : null;
-  const canAsk = !running && !summon && !notSitting && question.trim().length > 0 && question.length <= MAX_QUESTION && context.length <= MAX_CONTEXT;
+  const canAsk = !running && !notSitting && question.trim().length > 0 && question.length <= MAX_QUESTION && context.length <= MAX_CONTEXT;
 
   const ask = async (ev?: FormEvent) => {
     ev?.preventDefault();
@@ -222,6 +225,8 @@ export default function CouncilPage() {
       showLog();
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) void refreshMe();
+      // a 503 is the Council API gone since the page looked: the status is read again, so Ask goes off and says why
+      if (e instanceof ApiError && e.status === 503) setStatusKey((n) => n + 1);
       setAskError(askRefusal(e, admin));
     } finally {
       setAsking(null);
@@ -316,15 +321,17 @@ export default function CouncilPage() {
                   New session
                 </button>
                 <span id="ask-state" className="note" role="status">
-                  {summon
-                    ? `The members have to be summoned: ${summonText(summon)}.`
-                    : notSitting
-                      ? 'The council is not sitting right now; your earlier sessions can still be read.'
-                      : running
-                        ? 'Running: this can take several minutes.'
-                        : sid
-                          ? `Asked in “${title ?? 'this session'}”.`
-                          : 'A new session starts with this question.'}
+                  {notSitting
+                    ? apiDown
+                      ? `The members have to be summoned: the Council API is not answering (${apiDown}).`
+                      : summon
+                        ? `The members have to be summoned: ${summonText(summon)}.`
+                        : 'The council is not sitting right now; your earlier sessions can still be read.'
+                    : running
+                      ? 'Running: this can take several minutes.'
+                      : sid
+                        ? `Asked in “${title ?? 'this session'}”.`
+                        : 'A new session starts with this question.'}
                 </span>
               </div>
               {askError ? (
@@ -533,6 +540,8 @@ function ProgressView({ job, lost, gone }: { job: Job | null; lost: boolean; gon
   const p = job?.progress ?? null;
   const done = p ? p.seats.filter((s) => s.state === 'answered' || s.state === 'cached' || s.state === 'failed').length : 0;
   const head = p?.head ?? null;
+  // the head numbers the answers it reads from the moment it starts, so its "Member 2 says…" can be followed while it writes
+  const order = head?.order ?? [];
   return (
     <div className="progress" aria-live="polite">
       <p className="note">
@@ -542,19 +551,37 @@ function ProgressView({ job, lost, gone }: { job: Job | null; lost: boolean; gon
       </p>
       {p && p.seats.length ? (
         <ul className="seats">
-          {p.seats.map((s) => (
-            <li key={s.name} className={s.state}>
-              <span className="s-n">
+          {p.seats.map((s) => {
+            const answered = s.state === 'answered' || s.state === 'cached';
+            const seat = seatLabel(order, s.name);
+            // a member's reply so far, or its whole answer once in, folded (one opened while it streams stays open when it is in)
+            const text = s.state === 'asking' ? s.partial : answered ? s.answer : null;
+            const line = (
+              <span className={text ? 's-n m-h' : 's-n'}>
+                {seat ? <span className="chip flat">{seat}</span> : null}
                 <b>{s.name}</b>
                 <small>
                   {SEAT_WORDS[s.state]}
-                  {s.state === 'answered' || s.state === 'cached' ? secs(s.seconds) : ''}
+                  {answered ? secs(s.seconds) : ''}
                 </small>
               </span>
-              {s.state === 'asking' && s.partial ? <span className="m-x">…{s.partial.replace(/\s+/g, ' ').trim().slice(-160)}</span> : null}
-              {(s.state === 'answered' || s.state === 'cached') && s.answer ? <span className="m-x">{excerpt(s.answer, 160)}</span> : null}
-            </li>
-          ))}
+            );
+            return (
+              <li key={s.name} className={s.state}>
+                {text ? (
+                  <details className="member">
+                    <summary>
+                      {line}
+                      <span className="m-x">{answered ? excerpt(text, 160) : `…${text.replace(/\s+/g, ' ').trim().slice(-160)}`}</span>
+                    </summary>
+                    <Markdown text={text} typing={!answered} />
+                  </details>
+                ) : (
+                  line
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       {head && head.state === 'asking' ? (
@@ -574,11 +601,13 @@ function ProgressView({ job, lost, gone }: { job: Job | null; lost: boolean; gon
 function PanelCard({ load }: { load: ReturnType<typeof useLoad<Endpoints | null>> }) {
   const e = load.kind === 'ok' ? load.data : null;
   const s = e?.status ?? null;
+  // a 503 here is council.js saying the Council API itself did not answer (api.py's /endpoints always answers 200)
+  const failed = load.kind === 'error' ? (load.error instanceof ApiError && load.error.status === 503 ? ' · the Council API is not answering' : ' · could not be read') : '';
   return (
     <div className="card">
       <details className="fold panel">
         <summary>
-          Members and endpoints <span className="mut">· admin{s ? ` · ${s.reachable} of ${s.total} members reachable${s.head ? `, head ${s.head.ok ? 'reachable' : 'not answering'}` : ''}` : ''}</span>
+          Members and endpoints <span className="mut">· admin{s ? ` · ${s.reachable} of ${s.total} members reachable${s.head ? `, head ${s.head.ok ? 'reachable' : 'not answering'}` : ''}` : failed}</span>
         </summary>
         {load.kind === 'loading' ? (
           <p className="note">Loading…</p>

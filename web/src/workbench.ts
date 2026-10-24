@@ -272,8 +272,13 @@ export interface MarketDay {
   chance: { exact: number | null; adjacent: number | null; direction: number | null };
   best: string | null;
   exactMean: number | null; // over every row of the day: All only
-  instruments: { symbol: string; ret: number | null; bin: number | null; edges: number[] }[];
+  instruments: { symbol: string; ret: number | null; bin: number | null; edges: number[]; before: number | null }[]; // before: the previous close, a bin's prices
   models: Record<string, MarketDayModel>;
+}
+// A bin's move interval under a day's edges: [low, high], null at an open end (markets.js binInterval); a bin is that
+// interval of prices from the close before, close x e^edge (the moves are log returns)
+export function binInterval(bin: number, edges: number[]): [number | null, number | null] {
+  return [bin > 0 ? (edges[bin - 1] ?? null) : null, bin < edges.length ? (edges[bin] ?? null) : null];
 }
 function chanceOf(v: unknown) {
   const c = o(v);
@@ -284,7 +289,7 @@ function marketDayOf(v: unknown): MarketDay | null {
   const m = o(v);
   return {
     k: num(m.k, 10), chance: chanceOf(m.chance), best: ostr(m.best), exactMean: opt(m.exactMean),
-    instruments: arr(m.instruments).filter(has).map((x) => ({ symbol: str(o(x).symbol), ret: opt(o(x).ret), bin: opt(o(x).bin), edges: nums(o(x).edges) })),
+    instruments: arr(m.instruments).filter(has).map((x) => ({ symbol: str(o(x).symbol), ret: opt(o(x).ret), bin: opt(o(x).bin), edges: nums(o(x).edges), before: opt(o(x).before) })),
     models: Object.fromEntries(
       Object.entries(o(m.models)).map(([name, x]) => {
         const w = o(x);
