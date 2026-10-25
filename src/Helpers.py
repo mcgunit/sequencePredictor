@@ -665,6 +665,12 @@ class Helpers():
             # its hits/profit that day - the table the portfolio search in
             # _build_combination_report works from.
             dayTable = []
+            # Each DL row's newest learningCheck ('no better than the
+            # frequencies', src/LearningCheck.py, 25 Oct 2026) with the date of
+            # the day file that carries it - the newest draw the check's data
+            # runs to, the run itself came after it - for the admin pages:
+            # name -> (date, label).
+            learningChecks = {}
 
             for fileName in os.listdir(gameDir):
                 if not fileName.endswith(".json"):
@@ -674,6 +680,20 @@ class Helpers():
                         dayData = json.load(infile)
                 except Exception:
                     continue
+
+                # The label rides on the rows the day made (newPrediction), so
+                # it is read before the scored-day filter below: the newest day
+                # file is the one that holds it, scored or not.
+                try:
+                    madeOn = datetime.strptime(fileName[:-5], "%Y-%m-%d")
+                except ValueError:
+                    madeOn = None
+                for row in (dayData.get("newPrediction") or []) if madeOn else []:
+                    label = row.get("learningCheck") if isinstance(row, dict) else None
+                    # a dict or nothing: the entry below copies it with its date
+                    if isinstance(label, dict) and row.get("name") and (row["name"] not in learningChecks
+                                                      or learningChecks[row["name"]][0] < madeOn):
+                        learningChecks[row["name"]] = (madeOn, label)
 
                 realResult = dayData.get("realResult")
                 scoredModels = dayData.get("currentPrediction") or []
@@ -852,6 +872,10 @@ class Helpers():
                                                     "profit_per_bet": round(v["profit_total"] / v["bets"], 3)}
                                         for size, v in sorted(entry["by_size"].items())} if entry.get("by_size") else None),
                     "multi_pick": multiOut,
+                    # DL rows: the newest 'no better than the frequencies' label as the day file stores it, plus that
+                    # file's date (25 Oct 2026); a label only - the ranking above does not read it
+                    "learning_check": (dict(learningChecks[name][1], date=learningChecks[name][0].strftime("%Y-%m-%d"))
+                                       if name in learningChecks else None),
                 })
 
             if not models:
@@ -1396,21 +1420,40 @@ class Helpers():
                 votes[slot][value] = votes[slot].get(value, 0.0) + weight
         return votes
 
-    def build_positional_vote_predictions(self, rows, slot_count, model_scores=None):
+    def build_positional_vote_predictions(self, rows, slot_count, model_scores=None, game=None, shares=None):
         """
         The per-slot vote as a ticket: for every slot the value with the most
         weighted votes, ties to the lowest value (the rule the positional
-        meta-learner and the RL row use), in drawn order, duplicates across
-        slots allowed. Returns {"ticket": [...], "confidence": [winning vote
-        share per slot], "frequency": [{value: votes} per slot]}, or None
-        when no row could vote for some slot.
+        meta-learner uses), in drawn order, duplicates across slots allowed.
+        On a market game (is_market_game(game)) a tie goes to the tied bin
+        nearest the middle of the bin range, then the lower one (25 Oct 2026):
+        the lowest bin is the most bearish call, so the old rule pushed every
+        tied slot towards "no long" - a direction no member gave. Ties are
+        common there: the unscored market rows all weigh 1.0, and the
+        tie-break alone decided 42 of 70 crypto SubsetEnsemble slots.
+        shares ({row name: factor}, missing = 1.0) scales a row's weight:
+        XGBoost and LightGBM vote with half each on the markets
+        (src/VoteRows.positional_vote, which every vote row goes through).
+        Returns {"ticket": [...], "confidence": [winning vote share per
+        slot], "frequency": [{value: votes} per slot]}, or None when no row
+        could vote for some slot.
         """
-        votes = self.count_position_votes(rows, slot_count, model_scores=model_scores)
+        if shares and any(float(share) != 1.0 for share in shares.values()):
+            # count_position_votes weighs every row in full: count each row on its own, scaled by its share
+            votes = [dict() for _ in range(slot_count)]
+            for row in rows or []:
+                share = float(shares.get(row.get("name"), 1.0))
+                for slot, counted in zip(votes, self.count_position_votes([row], slot_count, model_scores=model_scores)):
+                    for value, weight in counted.items():
+                        slot[value] = slot.get(value, 0.0) + share * weight
+        else:
+            votes = self.count_position_votes(rows, slot_count, model_scores=model_scores)
+        middle = (MARKET_BINS - 1) / 2.0 if is_market_game(game) else None
         ticket, confidence = [], []
         for slot in votes:
             if not slot:
                 return None
-            best = min(slot, key=lambda value: (-slot[value], value))
+            best = min(slot, key=lambda value: (-slot[value], abs(value - middle) if middle is not None else 0, value))
             total = sum(slot.values())
             ticket.append(int(best))
             confidence.append(round(slot[best] / total, 3) if total else 0.0)
@@ -1829,11 +1872,27 @@ class Helpers():
 
         return base
 
+    # Stored in every weights fingerprint next to the architecture keys: saved
+    # weights of another version train fresh once (the mismatch path below)
+    # and are saved with this one. 2 (25 Oct 2026): the warm-start guard
+    # (fit_with_warm_start_guard) keeps loaded weights that no epoch beats,
+    # which would freeze two months of daily full-rate drift in place (pick3
+    # UnifiedLstmGruTcn val_loss 3.52, crypto Transformer 3.06, both worse
+    # than uniform at 2.30) - so every DL row in every game starts once from
+    # scratch and is guarded from there on.
+    WEIGHTS_VERSION = 2
+
+    def _versioned_fingerprint(self, fingerprint):
+        if not isinstance(fingerprint, dict):
+            return fingerprint
+        return {**fingerprint, "weightsVersion": self.WEIGHTS_VERSION}
+
     def load_weights_if_fingerprint_matches(self, model, model_path, fingerprint):
         """
         Loads saved .weights.h5 into `model` only if the fingerprint stored
         next to it matches `fingerprint` (the architecture-shaping parameters
-        the weights were trained under). Returns True if weights were loaded.
+        the weights were trained under, plus WEIGHTS_VERSION). Returns True if
+        weights were loaded, and marks the model for fit_with_warm_start_guard.
 
         Why: warm-starting from saved weights saves real training time, but
         after a hyperopt run changes an architecture parameter (units, layers,
@@ -1864,14 +1923,23 @@ class Helpers():
             except Exception:
                 stored = None
 
+        fingerprint = self._versioned_fingerprint(fingerprint)
         if stored != fingerprint:
-            print(f"Saved weights at {weights_path} were trained with different "
-                  f"architecture parameters (or predate fingerprinting) - training fresh")
+            unversioned = lambda f: {k: v for k, v in f.items() if k != "weightsVersion"} if isinstance(f, dict) else f
+            if isinstance(stored, dict) and unversioned(stored) == unversioned(fingerprint):
+                print(f"Saved weights at {weights_path} predate weights version {self.WEIGHTS_VERSION} "
+                      f"(the warm-start guard, 25 Oct 2026) - training fresh once")
+            else:
+                print(f"Saved weights at {weights_path} were trained with different "
+                      f"architecture parameters (or predate fingerprinting) - training fresh")
             return False
 
         try:
             model.load_weights(weights_path)
             print(f"Loading weights from {weights_path}")
+            # read by fit_with_warm_start_guard: only loaded weights are a
+            # state worth keeping, a fresh initialisation is not
+            model._loaded_weights_from = weights_path
             return True
         except Exception as e:
             print(f"Failed to load weights from {weights_path}, training fresh: {e}")
@@ -1880,13 +1948,61 @@ class Helpers():
     def save_weights_with_fingerprint(self, model, model_path, fingerprint):
         """Counterpart of load_weights_if_fingerprint_matches: persists the
         weights together with the architecture fingerprint they were trained
-        under."""
+        under (and WEIGHTS_VERSION)."""
         model.save_weights(f"{model_path}.weights.h5")
         try:
             with open(f"{model_path}.fingerprint.json", "w") as outfile:
-                json.dump(fingerprint, outfile, indent=2)
+                json.dump(self._versioned_fingerprint(fingerprint), outfile, indent=2)
         except Exception as e:
             print(f"Failed to write weights fingerprint for {model_path}: {e}")
+
+    def fit_with_warm_start_guard(self, model, fit, val_data, val_labels, batch_size=None, label=""):
+        """
+        Runs fit() - a zero-argument callable around the row's model.fit that
+        returns its History - and returns (history, val_loss), val_loss being
+        the validation loss of the weights the model holds afterwards.
+
+        Why (25 Oct 2026): every DL row warm-starts from its saved weights
+        (load_weights_if_fingerprint_matches) but compiles a fresh optimiser
+        at the full learning rate, and Keras 3.7's EarlyStopping takes the
+        weights after epoch 1 as its first 'best' - the loaded state was
+        never a candidate. Every daily run therefore added at least one
+        full-rate epoch that val_loss could not veto, and the rows that can
+        memorise drifted further each day (crypto Transformer val_loss 2.70
+        on 11 Oct to 3.06 on 24 Oct, pick3 UnifiedLstmGruTcn 3.27 to 3.52).
+        So the loaded weights are scored on the validation split before fit
+        and put back when the best epoch does not beat them. Both numbers
+        include the L2 term (Keras adds the model's regularisation losses to
+        evaluate's loss and to val_loss alike), so they compare.
+
+        Only loaded weights are guarded (the loader marks the model): a fresh
+        initialisation is no state worth keeping. One log line says which way
+        it went.
+        """
+        loaded_loss, loaded_weights = None, None
+        if getattr(model, "_loaded_weights_from", None):
+            try:
+                loaded_loss = float(model.evaluate(val_data, val_labels, batch_size=batch_size,
+                                                   verbose=0, return_dict=True)["loss"])
+                loaded_weights = model.get_weights()
+            except Exception as e:
+                print(f"Warm-start guard ({label}): could not score the loaded weights, training unguarded: {e}")
+
+        history = fit()
+        # a NaN epoch is never the best one (TerminateOnNaN can end a run on it)
+        finite = [float(v) for v in history.history.get("val_loss", []) if np.isfinite(v)]
+        best = min(finite) if finite else float("inf")
+
+        if loaded_weights is None or not np.isfinite(loaded_loss):
+            return history, best
+        if best < loaded_loss:
+            print(f"Warm-start guard ({label}): training beat the loaded weights "
+                  f"(val_loss {loaded_loss:.4f} -> {best:.4f}) - keeping the trained weights")
+            return history, best
+        model.set_weights(loaded_weights)
+        print(f"Warm-start guard ({label}): no epoch beat the loaded weights (best val_loss {best:.4f}, "
+              f"loaded {loaded_loss:.4f}) - restored the loaded weights")
+        return history, loaded_loss
 
     def getLatestPrediction(self, csvPath, dateRange=None):
         """

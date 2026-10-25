@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
-import { getAdminModelsGame, type Combination, type ModelsGameView, type MultiPick, type RankRow } from '../../api';
-import { DASH, cap, count, day, fixed, perUnit, range, share, short, signedFixed, stamp } from '../../format';
+import { getAdminModelsGame, type Combination, type LearningCheck, type ModelsGameView, type MultiPick, type RankRow } from '../../api';
+import { DASH, cap, count, day, fixed, isNum, perUnit, plural, range, share, short, signedFixed, stamp } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useScope } from '../../hooks/useUrlState';
 import Drawer, { Section } from '../../components/admin/Drawer';
@@ -43,6 +43,8 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
   const market = isMarketGame(d.game);
   const since = d.since && !d.since.none ? d.since : null;
   const modes = band ? Object.entries(band.modes) : [];
+  const checked = d.rows.filter((r) => r.learning);
+  const flagged = checked.filter((r) => r.learning?.verdict === 'counts-only').length;
   return (
     <Section
       title="Ranking"
@@ -90,6 +92,14 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
         Top 5{d.scope === 'all' ? ' (tagged)' : ''}: {d.top.map(short).join(', ') || DASH}, {topWhose(d)}
         {isMarketGame(d.game) ? '.' : ': the first five ranked rows in the newest day\'s table, a ranked row missing from it passed over.'}
       </p>
+      {checked.length ? (
+        <p className="line">
+          Learning check of the deep-learning rows (from 25 Oct 2026): {flagged} of {plural(checked.length, 'checked row')} shown {flagged === 1 ? 'is' : 'are'}{' '}
+          tagged &ldquo;no better than the frequencies&rdquo;: on the newest day a tagged row ran, its validation loss did not get below that of the training
+          split&apos;s frequencies per position by more than an output that ignores its input gets on the same windows; the tag&apos;s title gives the losses
+          and whether the row ignores its input. A label only: the ranking does not read it, and the users&apos; pages do not show it.
+        </p>
+      ) : null}
       <Scroll>
         <table className="tbl">
           <thead>
@@ -135,6 +145,7 @@ function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: 
       <td className="w-name">
         {short(r.row)}
         {r.top && d.scope === 'all' ? <span className="tag">top 5</span> : null}
+        <LearningTag l={r.learning} />
         {r.young ? (
           <>
             {' '}
@@ -174,6 +185,32 @@ function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: 
       </td>
     </tr>
   );
+}
+
+// The "no better than the frequencies" tag of a deep-learning row (25 Oct 2026, src/LearningCheck.py): on a
+// counts-only verdict only, its title giving the row's validation loss against the frequencies' loss, the bar it had
+// to clear, whether it ignores its input and the date its data runs to. A row that learns gets no tag, nor does a row
+// without a check (every other row). The Models page tags its best row and top five with it too.
+export function LearningTag({ l }: { l: LearningCheck | null | undefined }) {
+  if (!l || l.verdict !== 'counts-only') return null;
+  return (
+    <span className="tag" title={learningTitle(l)}>
+      no better than the frequencies
+    </span>
+  );
+}
+
+function learningTitle(l: LearningCheck): string {
+  const bar = isNum(l.baselineLoss) && isNum(l.margin) ? l.baselineLoss - l.margin : null;
+  // above the frequencies' own loss: the row memorises its training windows rather than collapsing onto the counts
+  const worse = isNum(l.valLoss) && isNum(l.baselineLoss) && l.valLoss > l.baselineLoss;
+  const ticket = `the same ticket on ${share(l.sameTicket)} of ${l.windows ?? DASH} validation windows`;
+  return [
+    `Validation loss ${fixed(l.valLoss, 4)} against ${fixed(l.baselineLoss, 4)} for the training split's frequencies per position${worse ? ' (worse than them)' : ''}.`,
+    `A row that learns gets below ${fixed(bar, 4)}: the margin ${fixed(l.margin, 4)} is what an output that ignores its input gets below the frequencies on the same windows.`,
+    l.inputBlind ? `Input-blind: ${ticket}.` : `Not input-blind: ${ticket}${worse ? ', so its ticket follows its input but does worse on held-out draws (memorising)' : ''}.`,
+    `Checked on the data up to ${day(l.date)}; a label only, the ranking does not read it.`,
+  ].join(' ');
 }
 
 // keno: the row's profit per bet at each playable ticket size, in place of the old one-line string

@@ -25,6 +25,7 @@ if src_dir not in sys.path:
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
 from TimeBudget import TimeBudgetCallback
+from LearningCheck import learning_check
 
 helpers = Helpers()
 
@@ -75,6 +76,13 @@ class LSTMModel:
         self.window_size = 10
         self.predictionWindowSize = 20
         self.labelSmoothing = 0.1
+        # Whether the loss applies labelSmoothing (25 Oct 2026). Off for the
+        # LSTM Base Model: commit 49bcb2f5 (3 Feb 2026) dropped it from the
+        # loss, so that row trains on plain cross-entropy and the owner keeps
+        # it that way. On for its twin, the LSTM Smoothed Model (Predictor.py
+        # LSTM_ROWS): the same network and tuned keys with labelSmoothing in
+        # the loss, so the two rows show what smoothing does to one model.
+        self.applyLabelSmoothing = False
         self.num_heads = 2
         self.key_dim = 16
 
@@ -159,6 +167,21 @@ class LSTMModel:
 
     def setLabelSmoothing(self, value):
         self.labelSmoothing = value
+
+    def setApplyLabelSmoothing(self, value):
+        self.applyLabelSmoothing = bool(value)
+
+    def _loss(self):
+        # LSTM Base Model keeps the exact loss it has had since 49bcb2f5;
+        # only the smoothed twin passes labelSmoothing (both heads, like the
+        # TCN/unified/research rows do).
+        if self.applyLabelSmoothing:
+            return losses.CategoricalCrossentropy(label_smoothing=float(self.labelSmoothing))
+        return losses.CategoricalCrossentropy()
+
+    def _rowLabel(self, name):
+        # names the row in the guard's and the learning check's log lines
+        return f"LSTM Smoothed {name}" if self.applyLabelSmoothing else f"LSTM {name}"
 
     def setNumHeads(self, value):
         self.num_heads = value
@@ -259,8 +282,8 @@ class LSTMModel:
 
             model = models.Model(inputs=input_layer, outputs=[main_output, special_output])
             loss = {
-                "main_output": losses.CategoricalCrossentropy(),
-                "special_output": losses.CategoricalCrossentropy(),
+                "main_output": self._loss(),
+                "special_output": self._loss(),
             }
             metrics = {
                 "main_output": ['accuracy', self.digit_accuracy, self.any_digit_hit],
@@ -268,7 +291,7 @@ class LSTMModel:
             }
         else:
             model = models.Model(inputs=input_layer, outputs=main_output)
-            loss = losses.CategoricalCrossentropy() # from_logits=False is default, which matches Softmax output
+            loss = self._loss() # from_logits=False is default, which matches Softmax output
             metrics = [
                 'accuracy',
                 # We can keep your custom metrics here
@@ -314,6 +337,11 @@ class LSTMModel:
             "window_size": int(self.window_size),
             "num_heads": int(self.num_heads),
             "key_dim": int(self.key_dim),
+            # Only on the smoothed twin, like embedding_input_dim above: the
+            # loss shapes no weight, but weights trained under the other loss
+            # must never warm-start this row should a weights folder be
+            # copied across - and LSTM Base's fingerprint stays as it was.
+            **({"labelSmoothedLoss": True} if self.applyLabelSmoothing else {}),
         }
 
         if self.loadModelWeights:
@@ -369,6 +397,10 @@ class LSTMModel:
         # Now everything is 0..num_classes-1 internally
         # -------------------------------------------------------
 
+        # Like UnifiedLstmTcn/GNN: the smoothed twin's weights folder
+        # (data/models/lstm_smoothed_model, 25 Oct 2026) does not exist until
+        # its first run, and the checkpoint/savefig/save calls below need it.
+        os.makedirs(self.modelPath, exist_ok=True)
         model_path = os.path.join(self.modelPath, f"model_{name}.keras")
         checkpoint_path = os.path.join(self.modelPath, f"model_{name}_checkpoint.keras")
 
@@ -415,12 +447,15 @@ class LSTMModel:
         model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2],
                                    specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes,
                                    embeddingInputDim=embedding_input_dim)
-        history = self.train_model(model, X, train_targets, X_val, val_targets, model_name=name)
-
-        # Best (not last) val_loss - EarlyStopping uses restore_best_weights=True,
-        # so the epoch history ends on may not be the epoch the saved weights
-        # came from. Read by HyperoptDeepLearning.py as a hyperopt signal.
-        self.last_val_loss = float(min(history.history.get("val_loss", [float("inf")])))
+        # Warm-start guard (25 Oct 2026, Helpers.fit_with_warm_start_guard):
+        # loaded weights that no epoch beats on val_loss are put back.
+        # last_val_loss is the val_loss of the weights the model now holds -
+        # the best epoch's (EarlyStopping uses restore_best_weights=True, so
+        # not necessarily the last one's) or the loaded weights'. Read by
+        # HyperoptDeepLearning.py as a hyperopt signal.
+        history, self.last_val_loss = helpers.fit_with_warm_start_guard(
+            model, lambda: self.train_model(model, X, train_targets, X_val, val_targets, model_name=name),
+            X_val, val_targets, batch_size=self.batchSize, label=self._rowLabel(name))
 
         # Exploding gradients (some hyperopt-sampled hyperparameter combos)
         # can leave the model's live weights NaN/Inf even after training -
@@ -457,6 +492,10 @@ class LSTMModel:
             raise RuntimeError(
                 f"{name}: training produced non-finite weights and no healthy "
                 f"checkpoint exists - skipping this model's prediction")
+
+        # The 'no better than the frequencies' label (src/LearningCheck.py,
+        # 25 Oct 2026) - Predictor.py stores it on the row, nothing drops it.
+        self.last_learning_check = learning_check(model, X_val, y, y_val, mainDigits, label=self._rowLabel(name))
 
         # Predict next draw using all history available
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)

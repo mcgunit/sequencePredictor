@@ -13,6 +13,7 @@ from datetime import datetime
 from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, install_sigterm_handler
 from src.TuningGate import challenge, make_defaults
+from src.VoteRows import effective_members, weighted_is_flat, positional_vote, voter_count, SUBSET_WEIGHTS_KEY
 
 helpers = Helpers()
 
@@ -38,7 +39,11 @@ ROW_NAME = "SubsetEnsemble Model"
 # like pick3 and are scored with the fixed rule in bin space
 # (Helpers.market_ticket_profit: long on an upper-half bin, +1/-1 on the
 # actual half, minus a fee, in units) - the "profit" the positional machinery
-# uses wherever it asks for one; the euro books live in the settlement.
+# uses wherever it asks for one; the euro books live in the settlement. Two
+# market rules since 25 Oct 2026 (src/VoteRows.py): XGBoost and LightGBM vote
+# as one voter, and the weighted vote is weighted by each candidate's own
+# score under this objective on this window (member_scores, written as
+# SUBSET_WEIGHTS_KEY) - modelScores hold only four statistical market rows.
 GAMES = ("euromillions", "lotto", "eurodreams", "keno", "vikinglotto", "pick3", "jokerplus", "crypto", "shares", "cryptoweek", "sharesweek")
 JOKERPLUS_ENSEMBLE_FLAG = "useJokerplusEnsemble"
 
@@ -312,16 +317,25 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     share of slots the ticket got right) and se that standard error
     std / sqrt(days), the unit of the gate's margin, or None when the subset is
     infeasible: fewer than two
-    members, or members that coexist on less than MIN_TRIAL_COVERAGE of the
-    window (and at least MIN_EVALUATION_DAYS).
+    members (or voters: XGBoost and LightGBM alone on a market), a weighted
+    vote one member outweighs, or members that coexist on less than
+    MIN_TRIAL_COVERAGE of the window (and at least MIN_EVALUATION_DAYS).
     """
-    if len(members) < 2:
-        return None  # a one-row "ensemble" is just that row
+    if len(members) < 2 or voter_count(members, dataset_name) < 2:
+        return None  # a one-row "ensemble" is just that row - and on a market XGBoost + LightGBM are one (25 Oct 2026)
+    weights = model_scores if weighted else None
+    # ...and so is a weighted vote one member outweighs (its weight strictly greater than the others' together under
+    # this run's vote weights): it wins every slot they disagree on, so the vote is its ticket under this row's name -
+    # pick3 LaplaceMonteCarlo + Markov served Markov's ticket on 35 of 35 days, eurodreams LSTM Base + Laplace
+    # Laplace's (25 Oct 2026). Infeasible rather than scored as that member: every value in the study and every
+    # reference the gate scores is then an ensemble's, so "a subset beat the plain vote" never means "one row did".
+    # The flat twin of the same subset stays in the search; Predictor.py skips such a selection on the day too.
+    if len(effective_members(members, weights, dataset_name)) < 2:
+        return None
 
     # The softmax Keno sub-selection samples; a fixed seed keeps identical
     # subsets identically scored (the other tuners reseed for the same reason).
     np.random.seed(42)
-    weights = model_scores if weighted else None
     memberSet = set(members)
     positional = helpers.is_positional_game(dataset_name)
 
@@ -333,9 +347,11 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
             continue  # a member did not run that day - production skips the row too
         if positional:
             # Per-slot vote over the full stored ticket (pick3: 3 digits;
-            # Joker+: 6 digits + the zodiac code as slot 7).
+            # Joker+: 6 digits + the zodiac code as slot 7), with the served
+            # tie-break (a market tie to the bin nearest the middle) and the
+            # served voters (XGBoost and LightGBM as one on a market).
             slotCount = len(memberRows[0]["predictions"][0])
-            vote = helpers.build_positional_vote_predictions(memberRows, slotCount, model_scores=weights)
+            vote = positional_vote(memberRows, slotCount, model_scores=weights, game=dataset_name)
             if not vote:
                 continue
             predictions = [vote["ticket"]]
@@ -352,7 +368,18 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
         if dayBets > 0:
             daily.append(dayScore / dayBets)
 
-    if len(daily) < max(MIN_EVALUATION_DAYS, int(np.ceil(MIN_TRIAL_COVERAGE * len(evaluation_days)))):
+    return bound_of(daily, slotAccuracy, len(evaluation_days), confidencePenalty)
+
+
+def bound_of(daily, slotAccuracy, windowDays, confidencePenalty=DEFAULT_CONFIDENCE_PENALTY):
+    """
+    The value of a per-day score series (evaluate_subset, member_scores):
+    {"value", "mean", "days", "se"} with value the lower confidence bound
+    mean - confidencePenalty x se plus SLOT_ACCURACY_WEIGHT x the mean slot
+    accuracy (positional games), or None when the series covers less than
+    MIN_TRIAL_COVERAGE of the windowDays (and at least MIN_EVALUATION_DAYS).
+    """
+    if len(daily) < max(MIN_EVALUATION_DAYS, int(np.ceil(MIN_TRIAL_COVERAGE * windowDays))):
         return None
     daily = np.array(daily, dtype=float)
     mean = float(daily.mean())
@@ -362,6 +389,56 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     if slotAccuracy:
         value += SLOT_ACCURACY_WEIGHT * float(np.mean(slotAccuracy))
     return {"value": value, "mean": mean, "days": len(daily), "se": se}
+
+
+def member_scores(candidates, dataset_name, evaluation_days, confidencePenalty=DEFAULT_CONFIDENCE_PENALTY):
+    """
+    {row: bound_of's {"value", "mean", "days", "se"} for the row on its own}
+    on a positional game: each candidate's stored ticket, read through the
+    same per-slot vote (a vote of one - evaluate_subset itself declines a
+    one-row subset), scored by score_day on the days it ran and valued by
+    bound_of - the subsets' metric over the subsets' window. Rows without a
+    value (too few scored days) are left out and weigh 1.0, like an unscored
+    row.
+
+    The market games weigh their SubsetEnsemble Model by these (owner, 25 Oct
+    2026): there modelScores hold only the four statistical rows, so every
+    other member weighed 1.0 and "weighted" was nearly the flat vote. Scored
+    on the window the subsets are selected on, the weights are in-sample on
+    the day they are written, like the selection itself.
+    """
+    scores = {}
+    for name in candidates:
+        daily, slotAccuracy = [], []
+        for _, rows, realResult in evaluation_days:
+            row = next((r for r in rows if r.get("name") == name and r.get("predictions") and r["predictions"][0]), None)
+            if row is None:
+                continue
+            slotCount = len(row["predictions"][0])
+            vote = positional_vote([row], slotCount, game=dataset_name)
+            if not vote:
+                continue
+            slotAccuracy.append(sum(int(t) == int(r) for t, r in zip(vote["ticket"], realResult[:slotCount])) / slotCount)
+            dayScore, dayBets = score_day([vote["ticket"]], realResult, dataset_name, slotCount)
+            if dayBets > 0:
+                daily.append(dayScore / dayBets)
+        result = bound_of(daily, slotAccuracy, len(evaluation_days), confidencePenalty)
+        if result:
+            scores[name] = result
+    return scores
+
+
+def subset_weights(scores):
+    """
+    {row: vote weight} from member_scores: the values min-max mapped to
+    [1, 2] by the vote's own lookup (Helpers._build_model_weight_lookup) and
+    rounded for the JSON file. The lookup maps such weights onto themselves
+    (lowest 1.0, highest 2.0), so the served row, reading them back through
+    it, weighs every member exactly as this run scored it; all 1.0 when every
+    value is the same.
+    """
+    weight_for = helpers._build_model_weight_lookup({name: result["value"] for name, result in scores.items()})
+    return {name: round(float(weight_for(name)), 4) for name in scores}
 
 
 def search_subsets(candidates, evaluate, max_evaluations):
@@ -486,7 +563,9 @@ def reference_flags(existingData, candidates):
     margin, which would have kept a dead selection for good.
 
     The plain vote - every candidate, weighted - is the all-in vote over this
-    run's candidates: what the WeightedEnsemble Model restricts to those rows.
+    run's candidates: what the WeightedEnsemble Model restricts to those rows
+    (on a market weighted by the candidates' own scores, member_scores, since
+    25 Oct 2026).
     """
     defaults = {include_param(name): True for name in candidates}
     defaults["subsetEnsembleWeighted"] = True
@@ -518,6 +597,22 @@ def gate_objective(trial, candidates, evaluate):
 def members_of(params, candidates):
     """(members, weighted) from a dict of include flags."""
     return [name for name in candidates if params.get(include_param(name))], bool(params.get("subsetEnsembleWeighted", True))
+
+
+def vote_shape(members, weighted, voteScores, dataset_name):
+    """
+    What a selection votes as under this run's weights (voteScores: what the
+    weighted vote is weighted with - modelScores, on a market this run's
+    subset_weights), for the gate's record (25 Oct 2026): "effectiveMembers",
+    the members that can still change its ticket (src/VoteRows.effective_
+    members - one member that outweighs the rest makes the vote its ticket),
+    and "weightedEqualsFlat", a weighted vote that weighs every member as the
+    flat one does (every weight 1.0: unscored, or scored at the minimum - the
+    market members under modelScores until 25 Oct 2026), so "weighted" is the
+    flat vote.
+    """
+    return {"effectiveMembers": effective_members(members, voteScores if weighted else None, dataset_name),
+            "weightedEqualsFlat": bool(weighted and weighted_is_flat(members, voteScores, dataset_name))}
 
 
 def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty, optunaDatabase, runTag):
@@ -572,6 +667,18 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
         (count for game, count in Helpers.SPECIAL_COLUMN_COUNTS.items() if game in dataset_name), 0)
     fallbackMainCount = main_count_of(evaluation_days[-1][1], specialColumnCount, 0)
     modelScores = existingData.get("modelScores", {})
+    # What the weighted vote is weighted with: modelScores, and on a market each candidate's own score under this
+    # objective on this window (25 Oct 2026) - written with the selection below, so the served row and every
+    # combination scored here, the gate's references included, weigh the members alike
+    voteScores, memberResults = modelScores, None
+    if helpers.is_market_game(dataset_name):
+        memberResults = member_scores(candidates, dataset_name, evaluation_days, confidencePenalty)
+        voteScores = subset_weights(memberResults) or modelScores   # none scored: what the served row falls back to
+        if memberResults:
+            print("Vote weights from each candidate's own score: " + ", ".join(
+                f"{name} {weight:.2f}" for name, weight in sorted(voteScores.items(), key=lambda item: -item[1])))
+        else:
+            print("No candidate has enough scored days for a vote weight of its own - weighted by modelScores")
     # The served row slices its Keno subsets with the tuned
     # WeightedEnsemble mode/temperature unless it has its own.
     subsetMode = existingData.get("subsetEnsembleSubsetMode",
@@ -580,10 +687,10 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
                                          existingData.get("weightedEnsembleSubsetTemperature", 0.5))
 
     evaluate = lambda members, weighted, dataset_name=dataset_name, evaluation_days=evaluation_days, \
-                      modelScores=modelScores, specialColumnCount=specialColumnCount, \
+                      voteScores=voteScores, specialColumnCount=specialColumnCount, \
                       fallbackMainCount=fallbackMainCount, kenoSubsetSizes=kenoSubsetSizes, \
                       subsetMode=subsetMode, subsetTemperature=subsetTemperature: \
-        evaluate_subset(members, weighted, dataset_name, evaluation_days, modelScores,
+        evaluate_subset(members, weighted, dataset_name, evaluation_days, voteScores,
                         specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode,
                         subsetTemperature, confidencePenalty)
 
@@ -623,6 +730,16 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
     # the same evaluation (reference_flags, gate_objective). Until 15 Oct 2026 the best combination was
     # written as it was - the last tuner of the chain to do so.
     served, defaults, note = reference_flags(existingData, candidates)
+    # A served selection one member outweighs under this run's weights is that member's ticket: evaluate_subset
+    # scores it as nothing, and the record says why (25 Oct 2026)
+    servedMembers, servedWeighted = members_of(served, candidates)
+    servedEffective = vote_shape(servedMembers, servedWeighted, voteScores, dataset_name)["effectiveMembers"]
+    if len(servedMembers) >= 2 and voter_count(servedMembers, dataset_name) < 2:
+        # XGBoost + LightGBM alone on a market: one voter, scored as nothing - not "XGBoost's ticket" (25 Oct 2026)
+        note = f"the served selection ({', '.join(servedMembers)}) is one voter on a market game - scored as nothing"
+    elif len(servedMembers) >= 2 and len(servedEffective) < 2:
+        note = (f"the served selection is {servedEffective[0]}'s ticket under this run's weights (it outweighs the "
+                f"other member(s) together) - scored as nothing")
     if note:
         print(f"  {studyName}: {note}")
     study = open_study(studyName, optunaDatabase, quiet=True)
@@ -661,6 +778,24 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
             "confidencePenalty": confidencePenalty,
             "decision": outcome["decision"],
         }
+
+    if memberResults is not None:
+        # A market's vote weights (25 Oct 2026): written whatever the gate decided - it scored the served selection,
+        # the plain vote and the challenger under them, so a kept selection is served with them too. The record keeps
+        # the scores they were mapped from. Nothing scored: the served row falls back to modelScores, as scored here.
+        if memberResults:
+            existingData[SUBSET_WEIGHTS_KEY] = voteScores
+        else:
+            existingData.pop(SUBSET_WEIGHTS_KEY, None)
+        record["memberScores"] = {name: round(float(result["value"]), 4) for name, result in memberResults.items()}
+
+    # What the row votes as from now on, under this run's weights (record is the tuningGate entry set above):
+    # its effective members, and whether "weighted" is the flat vote because every member weighs 1.0 (25 Oct 2026)
+    record.update(vote_shape(list(existingData.get("subsetEnsembleModels") or []),
+                             bool(existingData.get("subsetEnsembleWeighted", True)), voteScores, dataset_name))
+    if record["weightedEqualsFlat"]:
+        print(f"  {studyName}: the weighted vote is the flat one - every member weighs 1.0 "
+              f"(unscored, or scored at the minimum)")
 
     with open(jsonBestParamsFilePath, "w+") as outfile:
         json.dump(existingData, outfile, indent=4)
@@ -721,7 +856,47 @@ def _self_check():
     outcome = challenge(study, {0}, lambda trial: gate_objective(trial, candidates, evaluate), dead, make_defaults(defaults, {}),
                         timeout_seconds=60, label="self-check", margin=0.0, enabled=True, window_days=20, se_margin=0.0)
     assert outcome["decision"] == "replaced" and members_of(outcome["params"], candidates) == (candidates, False), outcome["reason"]
-    print("HyperoptEnsemble self-check OK: the gate's references, objective and decisions on hand-made data")
+    # evaluate_subset on hand-made days (25 Oct 2026): a weighted pair one member outweighs (A 2.0 against B 1.0) is
+    # infeasible like a one-row subset, its flat twin and the trio (2.0 against 2.5) are scored
+    days = [(datetime(2026, 9, 1 + i), [{"name": "A Model", "predictions": [[1, 2, 3]]}, {"name": "B Model", "predictions": [[6, 7, 3]]},
+                                        {"name": "C Model", "predictions": [[1, 7, 4]]}], [1, 7, 3]) for i in range(12)]
+    scores = {"A Model": 1.0, "B Model": 0.0, "C Model": 0.5}
+    score = lambda members, weighted, game="pick3": evaluate_subset(members, weighted, game, days, scores, 0, 3, [], "softmax", 0.5)
+    assert score(["A Model", "B Model"], True) is None
+    assert score(["A Model", "B Model"], False) is not None and score(candidates, True) is not None
+    # the market tie-break: A [1,2,3] against B [6,7,3], flat - slot 1 goes to 6 (nearer the middle), slot 2 to the
+    # lower of the equidistant 2 and 7: [6,2,3] is long the first instrument, which closed in the lower half: -1 - fee
+    assert abs(score(["A Model", "B Model"], False, "crypto")["mean"] - (-1.1)) < 1e-9, score(["A Model", "B Model"], False, "crypto")
+    # the record: a pick3 copy, and a market vote whose weights are all 1.0 (X unscored, B at the minimum)
+    assert vote_shape(["A Model", "B Model"], True, scores, "pick3") == {"effectiveMembers": ["A Model"], "weightedEqualsFlat": False}
+    assert vote_shape(["X Model", "B Model"], True, scores, "crypto") == {"effectiveMembers": ["X Model", "B Model"], "weightedEqualsFlat": True}
+    assert vote_shape(["X Model", "B Model"], False, scores, "crypto")["weightedEqualsFlat"] is False
+    # the market rules of 25 Oct 2026 on hand-made crypto days, real bins [7, 2, 8]: XGBoost and LightGBM [7, 2, 8] are
+    # long the two up instruments (+0.9 each, all three slots right), Markov [1, 6, 3] long the down one (-1.1), GNN
+    # [6, 1, 1] long the first (+0.9)
+    tickets = {"XGBoost Model": [7, 2, 8], "LightGBM Model": [7, 2, 8], "Markov Model": [1, 6, 3], "GNN Model": [6, 1, 1]}
+    market = [(datetime(2026, 9, 1 + i), [{"name": n, "predictions": [t]} for n, t in tickets.items()], [7, 2, 8]) for i in range(12)]
+    results = member_scores(list(tickets), "crypto", market)
+    assert {n: round(r["value"], 4) for n, r in results.items()} == {"XGBoost Model": 1.81, "LightGBM Model": 1.81, "Markov Model": -1.1, "GNN Model": 0.9}, results
+    weights = subset_weights(results)
+    assert weights == {"XGBoost Model": 2.0, "LightGBM Model": 2.0, "Markov Model": 1.0, "GNN Model": 1.6873}, weights
+    lookup = helpers._build_model_weight_lookup(weights)
+    assert all(lookup(n) == w for n, w in weights.items()), "the served row reads the weights back unchanged"
+    marketScore = lambda members, weighted: evaluate_subset(members, weighted, "crypto", market, weights, 0, 3, [], "softmax", 0.5)
+    # the twins alone are one voter; flat with Markov they weigh 0.5 + 0.5 against its 1.0 - each slot a tie the
+    # middle settles, [7, 6, 3]: +0.9 - 1.1 = -0.2 a day, where counted twice they outvoted it to their own +1.8.
+    # Weighted by the members' own scores the pair is one voter of weight 2.0 against Markov's 1.0: +1.8 again.
+    assert marketScore(["XGBoost Model", "LightGBM Model"], True) is None and marketScore(["XGBoost Model", "LightGBM Model"], False) is None
+    assert abs(marketScore(["XGBoost Model", "LightGBM Model", "Markov Model"], False)["mean"] - (-0.2)) < 1e-9
+    assert abs(marketScore(["XGBoost Model", "LightGBM Model", "Markov Model"], True)["mean"] - 1.8) < 1e-9
+    # weighted by the members' own scores the vote is not the flat one any more, and GNN (1.69) outweighs Markov (1.0)
+    assert vote_shape(["GNN Model", "Markov Model"], True, weights, "crypto") == {"effectiveMembers": ["GNN Model"], "weightedEqualsFlat": False}
+    assert vote_shape(["XGBoost Model", "LightGBM Model", "GNN Model"], True, weights, "crypto") == \
+        {"effectiveMembers": ["XGBoost Model", "LightGBM Model", "GNN Model"], "weightedEqualsFlat": False}
+    assert vote_shape(["XGBoost Model", "LightGBM Model"], True, {}, "crypto")["weightedEqualsFlat"] is True
+    print("HyperoptEnsemble self-check OK: the gate's references, objective and decisions on hand-made data; a dominated "
+          "weighted pair is infeasible; market ties go to the middle; weighted = flat is recorded; on a market XGBoost "
+          "and LightGBM are one voter and the weights are the members' own scores")
 
 
 if __name__ == "__main__":

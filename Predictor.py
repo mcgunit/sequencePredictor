@@ -47,9 +47,11 @@ from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
 from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder
+from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, effective_members, positional_vote, voter_count, subset_vote_scores
 
 tcn = TCNModel()
 lstm = LSTMModel()
+lstmSmoothed = LSTMModel()   # the LSTM Smoothed Model row, see LSTM_ROWS
 unifiedLstmTcn = UnifiedLstmTcnModel()
 unifiedLstmGruTcn = UnifiedLstmGruTcnModel()
 transformer = TransformerModel()
@@ -115,11 +117,13 @@ DL_CHILD_STARTUP_SECONDS = 120
 # model of their own only: the meta rows are aggregates of these and the DL
 # research rows emit identical tickets day after day, so an all-rows vote
 # double-counts. The tuned SubsetEnsemble Model may contain any row
-# HyperoptEnsemble.py selected. Joker+ gets both rows only behind this flag in
-# bestParams_jokerplus.json: its digits are system-generated, the player only
-# picks the sign, so a digit ticket is fiction there (see README, Joker+).
-POSITIONAL_VOTE_DEFAULT_ROWS = {"Markov Model", "MarkovMonteCarlo Model", "PoissonMonteCarlo Model",
-                                "LaplaceMonteCarlo Model", "XGBoost Model", "LightGBM Model", "CatBoost Model"}
+# HyperoptEnsemble.py selected. POSITIONAL_VOTE_DEFAULT_ROWS lives in
+# src/VoteRows.py since 25 Oct 2026 (imported above), so the RL Position Model
+# votes over the same rows; on the market games XGBoost and LightGBM vote as
+# one there (VoteRows.MARKET_SHARED_VOTE_ROWS). Joker+ gets both rows only
+# behind this flag in bestParams_jokerplus.json: its digits are
+# system-generated, the player only picks the sign, so a digit ticket is
+# fiction there (see README, Joker+).
 JOKERPLUS_ENSEMBLE_FLAG = "useJokerplusEnsemble"
 
 
@@ -379,21 +383,41 @@ def process_single_history_entry_first_step(args):
     return jsonFilePath
 
 
+# The two LSTM rows (src/LSTM.py): one network, the same unprefixed tuned keys
+# (HyperoptDeepLearning.py's lstm_model study), two losses. LSTM Base Model
+# trains on plain cross-entropy, as it has since 49bcb2f5 (3 Feb 2026); the
+# LSTM Smoothed Model (owner, 25 Oct 2026: one row with label smoothing, one
+# without) puts the tuned labelSmoothing into its loss. Each row has its own
+# use<Prefix> switch (default on), weights folder and fingerprint, warm-start
+# guard and learning check, and is tracked on its own. Cost: the twin is a
+# second full LSTM training behind --ai, about 150 s more per game and day
+# (LSTM Base took 153 s on average over its 84 runs in the 11-24 Oct 2026
+# logs, half of them at the 240 s budget), and the DL child's auto deadline
+# grows by one model (enabledDlModelCount). Folder None = the run's modelPath
+# (data/models/lstm_model).
+# (model instance, use<Prefix> key, display name, weights folder, label smoothing in the loss)
+LSTM_ROWS = [
+    (lstm, "useLstm", "LSTM Base Model", None, False),
+    (lstmSmoothed, "useLstmSmoothed", "LSTM Smoothed Model", "lstm_smoothed_model", True),
+]
+
+
 def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
                      years_back, specialColumnCount, skipRows, repoPath, fullAi=True,
                      trainSeconds=None, partialPath=None):
     """
-    Trains and predicts every deep learning model for one day: LSTM Base
-    Model plus the UNIFIED_DL_MODELS rows. Module-level and fully
-    argument-driven so it can run in a spawned child process (see
-    runDeepLearningStepInChild). Returns (newPredictionRaw, unique_labels,
-    dlRows, anomalyWatch) - newPredictionRaw/unique_labels are None if the
-    LSTM did not run or failed, anomalyWatch is None unless the Autoencoder
-    Model ran (it must be computed in this same child - the trained model
-    dies with it).
+    Trains and predicts every deep learning model for one day: the LSTM_ROWS
+    (LSTM Base Model and LSTM Smoothed Model) plus the UNIFIED_DL_MODELS
+    rows. Module-level and fully argument-driven so it can run in a spawned
+    child process (see runDeepLearningStepInChild). Returns
+    (newPredictionRaw, unique_labels, dlRows, anomalyWatch) -
+    newPredictionRaw/unique_labels are LSTM Base Model's and None if it did
+    not run or failed, anomalyWatch is None unless the Autoencoder Model ran
+    (it must be computed in this same child - the trained model dies with
+    it).
 
     Order and budgets: the cheap research rows (Transformer/GNN/Autoencoder)
-    run first, then the LSTM, then the heavy TCN/unified rows, and after
+    run first, then the two LSTM rows, then the heavy TCN/unified rows, and after
     every model the results so far are written to partialPath - so when the
     parent kills this child at its deadline (or the OOM killer does), the day
     loses only the model that was still training, never the rows that always
@@ -432,10 +456,13 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
     if not fullAi:
         return predictedSequence, unique_labels, dlRows, anomalyWatch
 
-    if bestParams_json_object.get("useLstm", True):
-        modelToUse = lstm
+    for modelToUse, useKey, displayName, modelTypeFolder, labelSmoothed in LSTM_ROWS:
+        if not bestParams_json_object.get(useKey, True):
+            print(f"{displayName} disabled via {useKey} - skipping")
+            continue
         modelToUse.setDataPath(dataPath)
-        modelToUse.setModelPath(modelPath)
+        modelToUse.setModelPath(os.path.join(repoPath, "data", "models", modelTypeFolder) if modelTypeFolder else modelPath)
+        modelToUse.setApplyLabelSmoothing(labelSmoothed)
         # Tuned keys are applied when present; a game that HyperoptDeepLearning.py
         # has never tuned (jokerplus on 2026-09-17: none of the 16 keys) keeps
         # the LSTMModel defaults instead of taking the whole DL step down with a
@@ -457,11 +484,11 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
             ("reduceLearningRatePatience", modelToUse.setReduceLearningRatePAience),
             ("reduceLearningRateFactor", modelToUse.setReducedLearningRateFactor),
             ("windowSize", modelToUse.setWindowSize),  # 50 - 100
-            ("labelSmoothing", modelToUse.setLabelSmoothing),
+            ("labelSmoothing", modelToUse.setLabelSmoothing),  # in the loss of the LSTM Smoothed Model only
         ]
         missingKeys = [key for key, _ in lstmSetters if key not in bestParams_json_object]
         if missingKeys:
-            print(f"LSTM Base Model for {name}: {len(missingKeys)} untuned key(s) ({', '.join(missingKeys[:4])}"
+            print(f"{displayName} for {name}: {len(missingKeys)} untuned key(s) ({', '.join(missingKeys[:4])}"
                   f"{', ...' if len(missingKeys) > 4 else ''}) - using the model defaults; "
                   f"tune with HyperoptDeepLearning.py -g {name} --models lstm_model")
         for key, setter in lstmSetters:
@@ -472,22 +499,24 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
 
         # Own try/except (like every other model): the LSTM raising - e.g.
         # training went NaN with no healthy checkpoint (see LSTM.run) - must cost
-        # only its own row, not the unified DL rows that follow.
+        # only its own row, not the other LSTM row or the unified DL rows that follow.
         started = time.time()
         try:
-            latest_raw_predictions, unique_labels = modelToUse.run(
+            latest_raw_predictions, rowLabels = modelToUse.run(
                 name, skipLastColumns, skipRows=skipRows, years_back=years_back,
                 specialColumnCount=specialColumnCount)
-            predictedSequence = latest_raw_predictions.tolist()
+            # newPredictionRaw and the day's labels stay LSTM Base Model's, as before the twin
+            if modelToUse is lstm:
+                predictedSequence = latest_raw_predictions.tolist()
+                unique_labels = rowLabels
             dlRows = deepLearningMethod(
-                dlRows, predictedSequence, unique_labels, gameName=name,
-                kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
-            print(f"LSTM Base Model: {time.time() - started:.0f}s")
+                dlRows, latest_raw_predictions.tolist(), rowLabels, modelDisplayName=displayName, gameName=name,
+                kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object),
+                learningCheck=getattr(modelToUse, "last_learning_check", None))
+            print(f"{displayName}: {time.time() - started:.0f}s")
         except Exception as e:
-            print("Failed to perform LSTM Base Model prediction: ", e)
+            print(f"Failed to perform {displayName} prediction: ", e)
         checkpoint()
-    else:
-        print("LSTM Base Model disabled via useLstm - skipping")
 
     dlRows, heavyAnomalyWatch = runUnifiedDeepLearningModels(
         dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
@@ -501,7 +530,7 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
 
 def enabledDlModelCount(bestParams_json_object, fullAi):
     """How many DL models deepLearningStep will train for this game with these flags."""
-    count = 1 if fullAi and bestParams_json_object.get("useLstm", True) else 0
+    count = sum(1 for _, useKey, _, _, _ in LSTM_ROWS if fullAi and bestParams_json_object.get(useKey, True))
     for _, prefix, _, _, modelDefaults in UNIFIED_DL_MODELS:
         if modelDefaults.get("requiresFullAi", True) and not fullAi:
             continue
@@ -1211,12 +1240,15 @@ def _appendVoteEnsembleRow(current_json_object, name, rows, rowName, model_score
     game's SPECIAL_COLUMN_COUNTS and voted on separately.
 
     Positional games (pick3, Joker+) vote per slot instead
-    (Helpers.build_positional_vote_predictions): argmax digit per drawn
-    position, ties to the lowest digit, duplicates allowed, drawn order kept
-    - a set-style top-3 would sort the digits and could never express a
-    repeated one. The row carries a per-slot "positionConfidence" (winning
-    vote share) and the WeightedEnsemble vote writes "positionFrequency"
-    (one digit histogram per slot) into the day JSON for the per-slot chart.
+    (Helpers.build_positional_vote_predictions through
+    src/VoteRows.positional_vote): argmax digit per drawn position, ties to
+    the lowest digit (on the market games to the tied bin nearest the middle,
+    and XGBoost and LightGBM as one voter, half the weight each, since 25 Oct
+    2026 - see there), duplicates allowed, drawn order kept - a set-style
+    top-3 would sort the digits and could never express a repeated one. The
+    row carries a per-slot "positionConfidence" (winning vote share) and the
+    WeightedEnsemble vote writes "positionFrequency" (one digit histogram per
+    slot) into the day JSON for the per-slot chart.
     """
     predictions = current_json_object.get("newPrediction", [])
     ticket_size = next((len(model["predictions"][0]) for model in rows if model.get("predictions")), 0)
@@ -1224,7 +1256,7 @@ def _appendVoteEnsembleRow(current_json_object, name, rows, rowName, model_score
         return
 
     if Helpers.is_positional_game(name):
-        vote = helpers.build_positional_vote_predictions(rows, ticket_size, model_scores=model_scores)
+        vote = positional_vote(rows, ticket_size, model_scores=model_scores, game=name)
         if not vote:
             return
         predictions.append({"name": rowName, "predictions": [vote["ticket"]], "positionConfidence": vote["confidence"]})
@@ -1262,8 +1294,9 @@ def addWeightedEnsemblePrediction(current_json_object, name, model_scores=None, 
     it shows up in the Model table next to every individual model's own
     prediction), instead of only existing as a separate chart. For the
     positional games (Pick3, Joker+ - Helpers.is_positional_game) the vote is
-    taken per slot over POSITIONAL_VOTE_DEFAULT_ROWS (see there); Joker+ only
-    with JOKERPLUS_ENSEMBLE_FLAG.
+    taken per slot over POSITIONAL_VOTE_DEFAULT_ROWS (see there; XGBoost and
+    LightGBM as one voter on the market games); Joker+ only with
+    JOKERPLUS_ENSEMBLE_FLAG.
 
     For games with special columns (Euromillions star numbers, EuroDreams
     dream number, VikingLotto super viking - see SPECIAL_COLUMN_COUNTS), the
@@ -1298,14 +1331,19 @@ def addSubsetEnsemblePrediction(current_json_object, name, model_scores=None, be
     `SubsetEnsemble Model` (README roadmap item 2): the WeightedEnsemble vote
     restricted to the rows HyperoptEnsemble.py selected for this game -
     bestParams "subsetEnsembleModels" (the member names) and
-    "subsetEnsembleWeighted" (vote with the modelScores weights, or count
-    every member once). Nothing is served until the tuner has written a
-    selection of at least two rows. A day on which a selected member did not
-    run is skipped for this row: the subset was scored only on days every
-    member was present, and a vote among the remaining rows would be a
-    different ensemble wearing this row's name. Positional games vote per
-    slot over the selected rows (any row the tuner picked, unlike the
-    untuned WeightedEnsemble Model); Joker+ only with JOKERPLUS_ENSEMBLE_FLAG.
+    "subsetEnsembleWeighted" (vote with the modelScores weights - on the
+    market games with the tuner's own "subsetEnsembleWeights" once written,
+    src/VoteRows.subset_vote_scores - or count every member once). Nothing
+    is served until the tuner has written a selection of at least two rows
+    (two voters: XGBoost and LightGBM are one on a market). A day on which a
+    selected member did not run is skipped for this row: the subset was
+    scored only on days every member was present, and a vote among the
+    remaining rows would be a different ensemble wearing this row's name. So
+    is a day on which one member outweighs the rest
+    (src/VoteRows.effective_members). Positional
+    games vote per slot over the selected rows (any row the tuner picked,
+    unlike the untuned WeightedEnsemble Model); Joker+ only with
+    JOKERPLUS_ENSEMBLE_FLAG.
     Keno sub-selections use subsetEnsembleSubsetMode/Temperature when tuned,
     otherwise WeightedEnsemble Model's tuned values.
     """
@@ -1316,6 +1354,10 @@ def addSubsetEnsemblePrediction(current_json_object, name, model_scores=None, be
     members = bestParams_json_object.get("subsetEnsembleModels") or []
     if len(members) < 2:
         return
+    if voter_count(members, name) < 2:
+        # XGBoost + LightGBM alone on a market: one voter, which HyperoptEnsemble scores as infeasible (25 Oct 2026)
+        print(f"SubsetEnsemble Model skipped for {name}: {members} are one voter on a market game")
+        return
 
     rows = [row for row in current_json_object.get("newPrediction", [])
             if row.get("name") in members and row.get("predictions") and row["predictions"][0]]
@@ -1325,7 +1367,20 @@ def addSubsetEnsemblePrediction(current_json_object, name, model_scores=None, be
         print(f"SubsetEnsemble Model skipped for {name}: selected member(s) not predicted today: {missing}")
         return
 
-    weights = model_scores if bestParams_json_object.get("subsetEnsembleWeighted", True) else None
+    # On the markets modelScores weigh only the four statistical rows - every other member 1.0 - so the tuner writes
+    # one score per candidate from its own objective and window, and the weighted vote reads those (25 Oct 2026);
+    # until the first Saturday run after that writes them, modelScores as before
+    weights = subset_vote_scores(name, bestParams_json_object, model_scores) \
+        if bestParams_json_object.get("subsetEnsembleWeighted", True) else None
+    # A member whose weight is strictly greater than the others' together wins every slot they disagree on: the
+    # vote would be that member's ticket wearing this row's name (pick3 LaplaceMonteCarlo + Markov served Markov's
+    # on 35 of 35 days). HyperoptEnsemble scores such a selection as infeasible, like a one-row subset, so it is
+    # skipped here too (25 Oct 2026) - checked on today's weights, since modelScores move every week.
+    effective = effective_members(members, weights, name)
+    if len(effective) < 2:
+        print(f"SubsetEnsemble Model skipped for {name}: under today's weights {effective[0]} outweighs the other "
+              f"member(s) together - the vote would be its ticket")
+        return
     _appendVoteEnsembleRow(
         current_json_object, name, rows, "SubsetEnsemble Model", weights, bestParams_json_object,
         bestParams_json_object.get("subsetEnsembleSubsetMode",
@@ -1335,13 +1390,18 @@ def addSubsetEnsemblePrediction(current_json_object, name, model_scores=None, be
 
 
 def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels, modelDisplayName="LSTM Base Model",
-                       gameName="", kenoSubsetSizes=None):
+                       gameName="", kenoSubsetSizes=None, learningCheck=None):
 
     try:
         nthPredictions = {
             "name": modelDisplayName,
             "predictions": []
         }
+        # The row's 'no better than the frequencies' label (the model's
+        # last_learning_check, src/LearningCheck.py, 25 Oct 2026): a label
+        # for the admin pages only - no ensemble, ranking or tuner drops on it.
+        if learningCheck:
+            nthPredictions["learningCheck"] = learningCheck
 
         predicted_indices = np.argmax(newPredictionRaw, axis=-1)
         predicted_digits = [int(unique_labels[i]) for i in predicted_indices]
@@ -1520,7 +1580,8 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
 
             listOfDecodedPredictions = deepLearningMethod(
                 listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, modelDisplayName=displayName,
-                gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object))
+                gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object),
+                learningCheck=getattr(model, "last_learning_check", None))
 
             if model is autoencoderAnomaly:
                 autoencoderRan = True
@@ -2582,7 +2643,7 @@ if __name__ == "__main__":
             help='Hard deadline in seconds for the whole per-day deep learning child; at the deadline '
                  'the child is killed and the rows it had finished are kept (cheap rows run first). '
                  '0 (default) = auto: enabled models x (--dl-model-seconds + 60 s of load/compile/predict '
-                 'overhead) + 120 s child start-up - 37 min for 7 models at the default budget. With '
+                 'overhead) + 120 s child start-up - 42 min for 8 models at the default budget. With '
                  '--dl-model-seconds 0 there is no automatic deadline; pass one here to keep a hard cap.')
         parser.add_argument(
             '-b', '--boost', type=helpers.str2bool, default=True,

@@ -125,12 +125,8 @@ def _positional_baseline_tickets(train_mains, min_number, max_number, draw_size)
     while len(global_frequency_prediction) < draw_size:
         global_frequency_prediction.append(ranked[0])
 
-    column_frequency_prediction = []
-    for col in range(min(draw_size, train_mains.shape[1])):
-        counts = defaultdict(float)
-        for draw in train_mains:
-            counts[int(draw[col])] += 1
-        column_frequency_prediction.append(max(counts, key=lambda n: (counts[n], -n)))
+    # the served OrderStatistics Baseline row uses the same rule (25 Oct 2026)
+    column_frequency_prediction = Baselines.positional_column_frequency_ticket(train_mains, draw_size)
 
     return random_prediction, global_frequency_prediction, column_frequency_prediction
 

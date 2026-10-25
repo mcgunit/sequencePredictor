@@ -33,8 +33,11 @@ their "fair process" is the efficient-market prior - a geometric random walk.
              with the instrument's own mean and standard deviation over the
              real history (matched volatility, no clustering, no cross-
              section, no drift beyond the mean), cut into bins by the game's
-             own causal quantile rule - so the bins are as equiprobable as the
-             real ones and only the dynamics differ.
+             own causal quantile rule - the same rule, so only the dynamics
+             differ. Drifting volatility is one of them: the walk's bins are
+             equally likely in every stretch, the real ones only over the
+             history each day is cut from (src/MarketGame.py; until 25 Oct
+             2026 this called the two "as equiprobable" as each other).
   shuffled   the real game days reordered, bins AND returns together: every
              bin frequency and the returns' marginal survive, volatility
              clustering and momentum die with the order.

@@ -22,6 +22,7 @@ if src_dir not in sys.path:
 from Helpers import Helpers
 from SelectiveProgbarLogger import SelectiveProgbarLogger
 from TimeBudget import TimeBudgetCallback
+from LearningCheck import learning_check
 
 helpers = Helpers()
 
@@ -356,12 +357,14 @@ class AutoencoderAnomaly:
         model = self.create_model(max_value, num_classes=num_classes, model_path=model_path, digitsPerDraw=X.shape[2],
                                   specialColumnCount=specialColumnCount, specialNumClasses=special_num_classes,
                                   embeddingInputDim=embedding_input_dim)
-        history = self.train_model(model, X, train_targets, X_val, val_targets, model_name=name)
-
-        # Best (not last) val_loss - EarlyStopping uses restore_best_weights=True,
-        # so the epoch history ends on may not be the epoch the saved weights
-        # came from.
-        self.last_val_loss = float(min(history.history.get("val_loss", [float("inf")])))
+        # Warm-start guard (25 Oct 2026, Helpers.fit_with_warm_start_guard):
+        # loaded weights that no epoch beats on val_loss are put back.
+        # last_val_loss is the val_loss of the weights the model now holds -
+        # the best epoch's (EarlyStopping uses restore_best_weights=True, so
+        # not necessarily the last one's) or the loaded weights'.
+        history, self.last_val_loss = helpers.fit_with_warm_start_guard(
+            model, lambda: self.train_model(model, X, train_targets, X_val, val_targets, model_name=name),
+            X_val, val_targets, batch_size=self.batchSize, label=f"Autoencoder {name}")
 
         # Exploding gradients can leave the model's live weights NaN/Inf even
         # after training - if the very first epoch is already non-finite,
@@ -400,6 +403,10 @@ class AutoencoderAnomaly:
             raise RuntimeError(
                 f"{name}: training produced non-finite weights and no healthy "
                 f"checkpoint exists - skipping this model's prediction")
+
+        # The 'no better than the frequencies' label (src/LearningCheck.py,
+        # 25 Oct 2026) - Predictor.py stores it on the row, nothing drops it.
+        self.last_learning_check = learning_check(model, X_val, y, y_val, mainDigits, label=f"Autoencoder {name}")
 
         latest_raw_predictions = helpers.predict_numbers(model, numbers, window_size=self.predictionWindowSize)
 

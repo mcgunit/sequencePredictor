@@ -748,8 +748,21 @@ export interface ModelsGameSummary {
   band: ModelsBand | null;
   since: SinceSummary | null;
   top: string[];
+  learning: Record<string, LearningCheck>; // the best row's and the top five's, by name; a row without one is not in it
   follows: Follows | null;
   combination: Combination | null; // the best set (no top-ten list here: that is in the game's drawer)
+}
+// A deep-learning row's newest learning check (src/LearningCheck.py, 25 Oct 2026): 'counts-only' is the "no better
+// than the frequencies" label; the losses are cross-entropy summed over the heads, without the L2 term. A label only.
+export interface LearningCheck {
+  verdict: 'learns' | 'counts-only';
+  valLoss: number | null;
+  baselineLoss: number | null; // the training split's class frequencies per position, smoothed as the row's loss
+  margin: number | null; // what an output that ignores its input gets below the baseline on these windows
+  sameTicket: number | null; // share of the validation windows on the most common argmax ticket
+  inputBlind: boolean; // sameTicket 95% or more
+  windows: number | null;
+  date: string | null; // the day file that carries it: the newest draw the check's data runs to
 }
 export interface ModelsView {
   builtAt: string | null;
@@ -774,6 +787,7 @@ export interface RankRow {
   inBand: boolean;
   since: { value: number | null; draws: number | null; young: boolean } | null | undefined; // undefined: the game has no since record
   bySize: { size: number; profitPerBet: number | null; bets: number | null }[] | null;
+  learning: LearningCheck | null; // null: not a deep-learning row, or none since 25 Oct 2026
 }
 export interface MultiPick {
   draw: number;
@@ -1512,6 +1526,15 @@ function sinceSummaryOf(v: unknown): SinceSummary | null {
     best: has(s.best) ? { row: str(best.row), value: opt(best.value), draws: opt(best.draws), tooFew: bool(best.tooFew) } : null,
   };
 }
+// a verdict other than the two LearningCheck.py writes reads as no check at all
+function learningCheckOf(v: unknown): LearningCheck | null {
+  const l = o(v);
+  if (l.verdict !== 'learns' && l.verdict !== 'counts-only') return null;
+  return {
+    verdict: l.verdict, valLoss: opt(l.valLoss), baselineLoss: opt(l.baselineLoss), margin: opt(l.margin), sameTicket: opt(l.sameTicket),
+    inputBlind: bool(l.inputBlind), windows: opt(l.windows), date: ostr(l.date),
+  };
+}
 
 function normModels(raw: unknown): ModelsView {
   const r = o(raw);
@@ -1535,6 +1558,10 @@ function normModels(raw: unknown): ModelsView {
         band: modelsBandOf(g.band),
         since: sinceSummaryOf(g.since),
         top: strs(g.top),
+        learning: Object.fromEntries(Object.entries(o(g.learning)).flatMap(([k, x]) => {
+          const l = learningCheckOf(x);
+          return l ? [[k, l] as const] : [];
+        })),
         follows: followsOf(g.follows),
         combination: combinationOf(g.combination),
       };
@@ -1612,6 +1639,7 @@ function normModelsGame(raw: unknown, game: string, scope: Scope): ModelsGameVie
         rank: num(w.rank, i + 1), row: str(w.row), top: bool(w.top), value: opt(w.value), profitPerBet: opt(w.profitPerBet), bets: opt(w.bets),
         avgHits: opt(w.avgHits), bestDay: opt(w.bestDay), draws: opt(w.draws), live: opt(w.live), young: bool(w.young), inBand: bool(w.inBand), since,
         bySize: Array.isArray(w.bySize) ? w.bySize.map((y) => ({ size: num(o(y).size, 0), profitPerBet: opt(o(y).profitPerBet), bets: opt(o(y).bets) })) : null,
+        learning: learningCheckOf(w.learning),
       };
     }),
     multiPick: multiPickOf(r.multiPick),

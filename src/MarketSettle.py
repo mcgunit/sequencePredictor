@@ -21,10 +21,17 @@ express, because it only ever sees bins:
                  next day's predictions as prices, per-model accuracy against
                  chance, the daily accuracy series
 
-Chance levels for K = 10 equiprobable bins: exact 1/K = 10%, adjacent
-(|p - a| <= 1) (3K - 2)/K^2 = 28%, direction about 50%. A model has shown
-something when it sits above those over many days - and, as everywhere in
-this project, only after the controls have had their say.
+Chance levels for K = 10 bins: exact 1/K = 10%, adjacent (|p - a| <= 1)
+(3K - 2)/K^2 = 28%, direction about 50%. They are the design target and
+approximately true (25 Oct 2026; until then this said "equiprobable bins"):
+the bins are equally likely over the history each day is cut from, not
+within every stretch of it (src/MarketGame.py) - crypto's two middle bins
+each held 12.6% of its game days, and about 19% of the 30 days up to
+23 Oct 2026. Exact 1/K holds for a call made at random whatever the
+stretch; a call that keeps naming a bin its stretch over-fills beats it
+without skill. A model has shown something when it sits above those over
+many days - and, as everywhere in this project, only after the controls
+have had their say.
 
 Self-check: python3 -m src.MarketSettle (part of npm test; no network).
 """

@@ -81,6 +81,9 @@ const dataDir = path.join(tmp, 'data');
 const write = (rel, obj) => fs.writeFileSync(path.join(dataDir, rel), JSON.stringify(obj));
 
 const lottoRow = (name, draws, avgHits, bestHits, extra = {}) => ({ name, draws, avg_hits: avgHits, profit_bound: null, avg_special_hits: null, best_hits: bestHits, profit_total: null, profit_per_bet: null, bets: 0, profit_by_size: null, multi_pick: null, ...extra });
+// a deep-learning row's learning_check as Helpers.py writes it (src/LearningCheck.py plus the day, 25 Oct 2026)
+const learningCheck = (verdict, valLoss, baselineLoss, margin, sameTicket, date = '2026-10-25') => ({ learning_check: { valLoss, baselineLoss, margin, verdict, sameTicket,
+  inputBlind: sameTicket >= 0.95, windows: 699, date } });
 const lagHistory = (lags) => lags.map((lag, i) => ({ run: `2026-10-${String(i + 1).padStart(2, '0')}`, lag, avg_hits: 1 + i / 100, n: 80 + i, z: 2 + i / 10, profile_mean: 0.8, metric: 'main_hits' }));
 const lag = (lags) => { const h = lagHistory(lags); const counts = {}; h.forEach((r) => { counts[r.lag] = (counts[r.lag] || 0) + 1; }); const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   return { peak: h[h.length - 1], history: h, runs: h.length, lag_counts: counts, consensus_lag: Number(best[0]), consensus_runs: best[1], best_lag: h[h.length - 1].lag }; };
@@ -90,10 +93,14 @@ const report = {
     lotto: {
       metric: 'avg_hits', minDrawsForRanking: 10, bestModel: 'A Model',
       models: [
-        lottoRow('A Model', 14, 1.3, 3, { multi_pick: { draws: 4, avg_hits: 1.5, base_avg_hits: 1.25, win_rate: 0.25, base_win_rate: 0, extra_hit_rates: [0.25, 0, 0] } }),
-        lottoRow('B Model', 30, 1.2, 4), lottoRow('C Model', 90, 1.0, 3), lottoRow('D Model', 90, 0.9, 3), lottoRow('E Model', 90, 0.85, 2),
+        // A collapsed onto the frequencies (input-blind), C learns, D carries a verdict LearningCheck.py never writes, Young
+        // memorises (worse than the frequencies, its ticket follows its input) and is outside the top five
+        lottoRow('A Model', 14, 1.3, 3, { multi_pick: { draws: 4, avg_hits: 1.5, base_avg_hits: 1.25, win_rate: 0.25, base_win_rate: 0, extra_hit_rates: [0.25, 0, 0] },
+          ...learningCheck('counts-only', 2.30331, 2.3034, 0.004, 1.0) }),
+        lottoRow('B Model', 30, 1.2, 4), lottoRow('C Model', 90, 1.0, 3, learningCheck('learns', 2.2501, 2.3034, 0.004, 0.31)),
+        lottoRow('D Model', 90, 0.9, 3, learningCheck('maybe', 2.3, 2.3, 0, 0.5)), lottoRow('E Model', 90, 0.85, 2, { learning_check: null }),
         lottoRow('F Model', 90, 0.8, 2, { multi_pick: { draws: 4, avg_hits: 1, base_avg_hits: 1, win_rate: 0, base_win_rate: 0, extra_hit_rates: [0, 0, 0] } }),
-        lottoRow('Young Model', 3, 2, 3),
+        lottoRow('Young Model', 3, 2, 3, learningCheck('counts-only', 3.5212, 2.3034, 0.004, 0.0472, '2026-10-24')),
       ],
       multi_pick: { extra: 3, draw: 6, min_hits: 3, grid_price: 1.5, per_extra_chance: 0.13333, chance: { 6: { win: 0.02383, grids: 1, price: 1.5 }, 9: { win: 0.08395, grids: 84, price: 126 } }, rows_with_extras: 2 },
       since: { date: '2026-09-27', label: 'September 2026 design freeze', metric: 'avg_hits', minDrawsForRanking: 6, bestModel: 'B Model',
@@ -276,6 +283,29 @@ ok(all.multiPick.rows.length === 2 && top.multiPick.rows.length === 1 && all.mul
 ok(all.combination.control.pValue === 0.188 && all.combination.control.consistentWithLuck === true && all.combination.beatsBestSingle === null, 'combination: the p value travels with the value; "beats" only for profit');
 const kg = request(app, '/api/admin/models/keno', ADMIN).body;
 ok(kg.rows[0].bySize.length === 2 && kg.rows[0].bySize[0].size === 5 && kg.combination.measure.capped === false && kg.combination.beatsBestSingle === true, 'keno: per ticket size, the uncapped combination');
+
+// the learning check of the deep-learning rows (src/LearningCheck.py, 25 Oct 2026): every drawer row carries its
+// newest one with the losses, the input-blind fact and its day, or null; the summary names those of the best row
+// and the top five; a label only - no row moves, leaves the top five or changes its value on it
+const lr = (name) => all.rows.find((r) => r.row === name).learning;
+ok(JSON.stringify(lr('A Model')) === JSON.stringify({ verdict: 'counts-only', valLoss: 2.3033, baselineLoss: 2.3034, margin: 0.004, sameTicket: 1, inputBlind: true, windows: 699, date: '2026-10-25' }),
+  `the drawer: a collapsed row's check with its losses, input-blind and its day: ${JSON.stringify(lr('A Model'))}`);
+ok(lr('Young Model').verdict === 'counts-only' && lr('Young Model').inputBlind === false && lr('Young Model').valLoss > lr('Young Model').baselineLoss && lr('Young Model').date === '2026-10-24'
+  && lr('C Model').verdict === 'learns', 'the drawer: a memorising row reads counts-only without being input-blind; a row that learns says so');
+ok(['B Model', 'D Model', 'E Model', 'F Model'].every((n) => lr(n) === null) && kg.rows.every((r) => r.learning === null),
+  'the drawer: no check, a null one or a verdict LearningCheck.py never writes is no learning check');
+ok(JSON.stringify(Object.keys(ml.learning)) === '["A Model","C Model"]' && ml.learning['A Model'].verdict === 'counts-only' && Object.keys(mk.learning).length === 0,
+  `the summary: the checks of the best row and the top five only (Young Model is outside them): ${JSON.stringify(Object.keys(ml.learning))}`);
+ok(top.rows.find((r) => r.row === 'A Model').learning.inputBlind === true && top.rows.every((r) => r.learning === null || ['A Model', 'C Model'].includes(r.row)),
+  'the top scope keeps the checks of its rows');
+const unlabelled = JSON.parse(JSON.stringify(report));
+unlabelled.games.lotto.models.forEach((x) => { delete x.learning_check; });
+const plain = admin.modelsGame(unlabelled, 'lotto');
+const labelled = admin.modelsGame(report, 'lotto');
+const plainLotto = admin.modelsSummary(unlabelled).games.find((g) => g.game === 'lotto');
+ok(JSON.stringify(plain.rows.map((r) => [r.rank, r.row, r.value, r.top, r.inBand])) === JSON.stringify(labelled.rows.map((r) => [r.rank, r.row, r.value, r.top, r.inBand]))
+  && plain.top.join() === labelled.top.join() && plainLotto.best.row === ml.best.row && plainLotto.top.join() === ml.top.join() && Object.keys(plainLotto.learning).length === 0
+  && plain.rows.every((r) => r.learning === null), 'the label moves no row: the same ranking, values, best row and top five without it');
 
 // phase shift and randomness
 const ps = request(app, '/api/admin/phase-shift/lotto', ADMIN).body;

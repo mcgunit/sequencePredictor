@@ -41,6 +41,11 @@ controls and Predictor.py treat them like any statistical model.
                            the next return on volatility and momentum; with
                            returns only, the random walk with drift.
 
+Tickets: GARCH names the most likely bin per instrument; the three Regime HMM
+rows, since 25 Oct 2026, the bin that holds their mixture's predictive median
+(_median_ticket says why). The probabilities - what the proper score judges -
+are the same either way.
+
 Templates: across daily refits a regime's label is arbitrary (label switching),
 so when a state directory is set (Predictor.py's live run) each fitted regime
 is matched to a persistent template by the closed-form 2-Wasserstein distance
@@ -183,6 +188,27 @@ def mixture_bin_probabilities(edges, weights, locs, scales, df=None):
 
 def _ticket(probabilities):
     return [int(np.argmax(row)) for row in probabilities]
+
+
+def _median_ticket(probabilities):
+    """
+    Per instrument the bin that holds the predictive median: the first bin
+    whose cumulative probability reaches one half. The Regime HMM rows'
+    ticket since 25 Oct 2026 (the owner's item 2); GARCH keeps _ticket. The
+    bins are quantiles of fat-tailed returns - narrow in the middle, wide
+    outside - so a forecast near zero mean puts its most mass in a bin away
+    from the middle (mostly 1 or 8, 0-2 or 7-9 as its spread varies), and
+    which side won was set by the asymmetry of the edges, not by the model:
+    the ZeroMean row, whose mean is exactly zero, went long on BTC, ETH and
+    XRP every crypto day and never in shares. The median moves with the forecast's location, so the
+    upper-half call the fixed rule trades is the model's own: its predictive
+    median above the instrument's historical median return.
+    """
+    out = []
+    for row in probabilities:
+        cumulative = np.cumsum(np.asarray(row, dtype=float))
+        out.append(int(min(np.searchsorted(cumulative, 0.5 * cumulative[-1], side="left"), len(cumulative) - 1)))
+    return out
 
 
 def _slots(probabilities):
@@ -469,6 +495,14 @@ class GaussianHMM:
                 self.covars[k][np.ix_(a, b)] = 0.0
                 self.covars[k][np.ix_(b, a)] = 0.0
 
+    def _variance_only(self, d):
+        """Every coordinate's mean held at zero: K > 1 states can then differ in their covariances only."""
+        return self.K > 1 and len(set(self.zero_mean_dims)) >= d
+
+    def _spread(self, rng, size):
+        """Covariance scale factors calm-to-turbulent around 1 (0.5 .. 2), jittered by this restart's rng."""
+        return np.geomspace(0.5, 2.0, size) * np.exp(rng.uniform(-0.2, 0.2, size))
+
     def _init(self, X, rng):
         T, d = X.shape
         idx = rng.choice(T, size=self.K, replace=False) if T >= self.K else rng.integers(0, T, size=self.K)
@@ -476,6 +510,20 @@ class GaussianHMM:
         global_cov = np.cov(X, rowvar=False) if T > 1 else np.eye(d)
         global_cov = np.atleast_2d(global_cov) + self.min_covar * np.eye(d)
         self.covars = np.array([global_cov.copy() for _ in range(self.K)])
+        if self._variance_only(d):
+            # With every mean held at zero - the ZeroMean row once
+            # regimeHmmFeatures is 'returns' only (tuned in on 10 Oct 2026) -
+            # the random starting means are zeroed below and every state
+            # would start as the same N(0, global_cov): the E-step splits each
+            # row evenly, the M-step rebuilds identical states, and EM never
+            # leaves that symmetric point (K=2 at exactly [0.5, 0.5], the
+            # ablation reduced to Single without drift). Variance is all such
+            # states may differ in, so they start spread around the global
+            # covariance, drawn from this restart's own rng so restarts
+            # explore different starts (25 Oct 2026). Only here: the full row
+            # and ZeroMean with vol/mom features separate their states through
+            # the free means and start exactly as before.
+            self.covars *= self._spread(rng, self.K)[:, None, None]
         self.startprob = np.full(self.K, 1.0 / self.K)
         if self.K == 1:
             self.transmat = np.ones((1, 1))
@@ -516,6 +564,10 @@ class GaussianHMM:
                     # a regime that lost every observation: restart it somewhere
                     self.means[k] = X[rng.integers(0, T)]
                     self.covars[k] = global_cov.copy()
+                    if self._variance_only(d):
+                        # its mean is zeroed again below, so at global_cov it
+                        # would copy any other regime restarted this step (see _init)
+                        self.covars[k] *= 2.0 ** rng.uniform(-1.0, 1.0)
                     continue
                 self.means[k] = (gamma[:, k] @ X) / Nk[k]
                 if self.zero_mean_dims:
@@ -911,7 +963,8 @@ class RegimeHmmModel:
         return probs
 
     def run(self, generateSubsets=None, skipRows=0, skipLastColumns=0, specialColumnCount=0):
-        return _ticket(self._probabilities(skipRows)), {}
+        # the median bin, not the most likely one (_median_ticket); the probabilities below are unchanged
+        return _median_ticket(self._probabilities(skipRows)), {}
 
     def score_positions(self, skipRows=0, skipLastColumns=0, specialColumnCount=0):
         return _slots(self._probabilities(skipRows))
@@ -1039,6 +1092,21 @@ def _self_check():
     mix = mixture_bin_probabilities(edges, [0.5, 0.5], [0.0, 0.0], [0.01, 0.04], df=[5.0, 5.0])
     assert abs(mix.sum() - 1) < 1e-9 and mix.min() > 0
 
+    # 3b. The HMM rows' ticket is the median bin (25 Oct 2026): on fat-tailed
+    # edges a zero-mean Gaussian with the history's spread has its most mass
+    # in an outer bin - the old ticket - while its median sits in the middle;
+    # moving the location moves the median bin, and with it the side.
+    fat = np.random.default_rng(25).standard_t(3, size=5000) * 0.02   # own stream: the sections below keep their data
+    fat_edges = quantile_edges(fat, 10)
+    flat_law = mixture_bin_probabilities(fat_edges, [1.0], [0.0], [fat.std()])
+    assert _ticket([flat_law])[0] in (0, 1, 8, 9) and _median_ticket([flat_law])[0] in (4, 5), (_ticket([flat_law]), flat_law.round(3))
+    centre = 0.5 * (fat_edges[3] + fat_edges[4])    # inside bin 4
+    assert _median_ticket([mixture_bin_probabilities(fat_edges, [1.0], [centre], [0.03])]) == [4]
+    assert _median_ticket([mixture_bin_probabilities(fat_edges, [1.0], [fat_edges[6] + 1e-4], [0.03])]) == [7]
+    assert _median_ticket([[0.25, 0.25, 0.0, 0.5]]) == [1] and _median_ticket([[0.2, 0.25, 0.1, 0.45]]) == [2], "the first bin reaching one half"
+    print(f"tickets: zero-mean law on t(3) edges - most likely bin {_ticket([flat_law])[0]}, median bin {_median_ticket([flat_law])[0]}; "
+          "the median bin follows the location")
+
     # 4. The HMM finds two simulated volatility regimes, K is selected, constraints hold.
     K_true, T2, d = 2, 1500, 3
     A = np.array([[0.97, 0.03], [0.05, 0.95]])
@@ -1066,6 +1134,23 @@ def _self_check():
     score_text = ", ".join("K%d:%.0f" % (k, v["score"]) for k, v in scores.items())
     print(f"HMM: two volatility regimes decoded at {accuracy:.1%}, K=2 selected from 1..4 ({score_text}), "
           f"zero-mean and block constraints hold, K=1 is the sample Gaussian; fit {took:.2f}s for {T2} rows")
+
+    # 4b. Every mean held at zero (the ZeroMean row on regimeHmmFeatures='returns'):
+    # the states must still separate by variance instead of sitting on the
+    # identical start, which served exactly [0.5, 0.5] from 10 to 25 Oct 2026.
+    var_only = GaussianHMM(2, zero_mean_dims=list(range(d)), seed=1).fit(X)
+    assert np.all(var_only.means == 0) and not np.allclose(var_only.covars[0], var_only.covars[1]), "zero-mean states never separated"
+    decoded_v = var_only._forward(var_only._emission(X))[0].argmax(axis=1)
+    accuracy_v = max((decoded_v == states).mean(), (decoded_v != states).mean())
+    assert accuracy_v > 0.9, accuracy_v
+    variance_fc = RegimeHmmModel(variant="zero_mean", regimes=(2, 3), features="returns", validation=300, restarts=2).forecast(X)
+    assert not np.allclose(variance_fc["weights"], 1.0 / variance_fc["K"]), variance_fc["weights"]
+    assert not all(np.allclose(variance_fc["regimes"][0][1], S) for _, S in variance_fc["regimes"][1:]), "identical zero-mean regimes"
+    free = GaussianHMM(2, seed=1)
+    free._init(X, np.random.default_rng(1))
+    assert np.array_equal(free.covars[0], free.covars[1]), "a start with free means must stay the shared global covariance"
+    print(f"HMM zero-mean on returns only: variance regimes decoded at {accuracy_v:.1%}, row K={variance_fc['K']} "
+          f"weights {np.round(variance_fc['weights'], 3).tolist()} (not uniform); free-mean starts unchanged")
 
     # 5. Conditional Gaussian against a brute-force sample.
     Sigma = np.array([[1.0, 0.6, 0.2], [0.6, 1.0, 0.1], [0.2, 0.1, 1.0]])
@@ -1109,7 +1194,13 @@ def _self_check():
             timings[name] = time.time() - started
             assert subsets == {} and len(ticket) == n_pos and all(0 <= b <= 9 for b in ticket)
             assert len(slots) == n_pos and all(abs(sum(s.values()) - 1) < 1e-9 for s in slots) and all(len(s) == 10 for s in slots)
-            assert ticket == [max(s, key=s.get) for s in slots]
+            if name == GARCH_NAME:
+                assert ticket == [max(s, key=s.get) for s in slots], "GARCH names the most likely bin"
+            else:
+                # the median bin of the same probabilities: below it less than half the mass, up to it at least half
+                for b, s in zip(ticket, slots):
+                    below = sum(s[j] for j in range(b))
+                    assert below < 0.5 <= below + s[b], (name, b, s)
             pooled = model.score_numbers(skipRows=0)
             assert hasattr(model, "score_numbers") and abs(sum(pooled.values()) - 1) < 1e-9 and len(pooled) == 10, "score_numbers is what makes the Backtester collect the per-slot scores"
         # causal: hiding the newest five days gives the same answer whatever those five days hold
@@ -1143,7 +1234,8 @@ def _self_check():
         except FileNotFoundError as exc:
             assert "returns.tsv" in str(exc)
     print("rows: " + ", ".join(f"{n.replace(' Model', '')} {t:.1f}s" for n, t in timings.items())
-          + " on 700 days x 3 instruments; tickets are argmax bins, probabilities sum to one, hidden days never leak, the reading is logged")
+          + " on 700 days x 3 instruments; GARCH tickets are the most likely bin and the HMM rows' the median bin, "
+          "probabilities sum to one, hidden days never leak, the reading is logged")
     print("MarketModels self-check OK")
 
 

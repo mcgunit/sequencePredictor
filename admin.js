@@ -520,7 +520,8 @@ function rowsFull(record) {
 
 // --- GET /api/admin/models -----------------------------------------------------------
 // The Best model per game card: the best row, its value with unit, its scored draws, the best since the freeze, the
-// Q0 band read on hits, and the five rows the users see (for a market game also the row its users' page follows).
+// Q0 band read on hits, and the five rows the users see (for a market game also the row its users' page follows),
+// with the learning check of the deep-learning rows among them.
 function sinceBestOf(report, info) {
   const declared = report && report.since ? report.since : null;
   const since = info && info.since ? info.since : null;
@@ -546,6 +547,19 @@ function bandForModels(reports, metric, unreadable = []) {
     missing: bandMissing(band, unreadable) },
     modes, within: (hits) => greys && controls.withinBand(hits, band) };
 }
+// A deep-learning row's newest learning check (src/LearningCheck.py, 25 Oct 2026), as Helpers.py writes it on the
+// row's modelPerformance.json entry (learning_check, null for every other row and before that day): 'counts-only'
+// is the "no better than the frequencies" label - its validation loss did not get below the training-split
+// frequencies' loss by more than any output that ignores its input gets on those windows. Passed with its losses,
+// the input-blind fact and the date of the day file that carries it (the newest draw its data runs to; the run came
+// after it), so the page can say why; a label only, nothing here ranks, hides or reweights on it (the owner's
+// decision, 25 Oct 2026).
+function learningOf(m) {
+  const c = m && m.learning_check;
+  if (!c || typeof c !== 'object' || (c.verdict !== 'learns' && c.verdict !== 'counts-only')) return null;
+  return { verdict: c.verdict, valLoss: r4(c.valLoss), baselineLoss: r4(c.baselineLoss), margin: r4(c.margin), sameTicket: r3(c.sameTicket),
+    inputBlind: c.inputBlind === true, windows: num(c.windows), date: typeof c.date === 'string' ? c.date : null };
+}
 // users: {today: {game: the names in its newest day file} (ranking.namesToday), so the top five are the users' five;
 // follows: {market game: the row its users' page follows} (followsOf)}
 function modelsSummary(report, inputs = {}, { today = {}, follows = {} } = {}, now = new Date()) {
@@ -555,6 +569,10 @@ function modelsSummary(report, inputs = {}, { today = {}, follows = {} } = {}, n
     const minDraws = num(info.minDrawsForRanking) || 0;
     const { band, within } = bandForModels((inputs[game] || {}).q0, info.metric, (inputs[game] || {}).unreadable);
     const live = liveOf(game, info);
+    const top = topOf(report, game, today[game]);
+    // the learning check of each row the card names (the best row and the top five), by name; rows without one are left out
+    const learning = {};
+    info.models.filter((m) => m === best || top.includes(m.name)).forEach((m) => { const l = learningOf(m); if (l) learning[m.name] = l; });
     return {
       game, group: groupOf(game), unit: UNIT[game], metric: info.metric, measure: measureOf(game, info.metric), minDraws,
       rows: info.models.length, rankedRows: info.models.filter((m) => m.draws >= minDraws).length,
@@ -564,7 +582,8 @@ function modelsSummary(report, inputs = {}, { today = {}, follows = {} } = {}, n
         avgHits: num(best.avg_hits), inBand: within(best.avg_hits), live: live(best.name) },
       band,
       since: sinceBestOf(report, info),
-      top: topOf(report, game, today[game]),
+      top,
+      learning,
       // a market game's users' page follows its best book, not the top five
       follows: isMarketGame(game) ? follows[game] || null : undefined,
       // the old History page's Best combination per game row: the best set with its p value, the best single row on
@@ -648,6 +667,7 @@ function modelsGame(report, game, scope = 'all', input = {}, { today = null, fol
       avgHits: num(m.avg_hits), bestDay: num(m.best_hits), draws: m.draws, live: live(m.name), young: m.draws < minDraws,
       inBand: within(m.avg_hits),
       since: since ? (sm ? { value: num(sm[info.metric]), draws: sm.draws, young: sm.draws < since.minDrawsForRanking } : null) : undefined,
+      learning: learningOf(m),
     };
     if (game === 'keno') {
       out.bySize = m.profit_by_size ? Object.keys(m.profit_by_size).map((k) => ({ size: Number(k), profitPerBet: num(m.profit_by_size[k].profit_per_bet), bets: num(m.profit_by_size[k].bets) })) : null;

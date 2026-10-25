@@ -6,7 +6,7 @@ import { useDrawerParam } from '../../hooks/useUrlState';
 import { Card, Scroll } from '../../components/admin/Card';
 import Chip from '../../components/admin/Chip';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
-import ModelsDrawer from './ModelsDrawer';
+import ModelsDrawer, { LearningTag } from './ModelsDrawer';
 import { GameButton, GroupRow, isMarketGame, oneControlText, recordText, sinceValue, topWhose, valueCell } from './bits';
 
 // /admin/models: the Best model per game card of the old History page, one row per game, with its top five (a
@@ -65,7 +65,10 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
           the payout games it is information only. The band is not applied to Since: it is measured over long control histories, and the best of the rows
           over a few draws clears it by luck. Top 5: for a lottery game the five rows a user sees today, the first five ranked rows in the newest day&apos;s table
           (a ranked row missing from it is passed over); for a market game the first five of its History game view, while the users&apos; Crypto and Shares pages
-          follow the row named under them, by best book. A game opens its whole ranking.
+          follow the row named under them, by best book. No better than the frequencies (deep-learning rows, from 25 Oct 2026): on the newest day it ran, the
+          row&apos;s validation loss did not get below that of the training split&apos;s frequencies per position by more than an output that ignores its input
+          gets on the same windows; the tag&apos;s title gives the losses and whether the row ignores its input, and it is a label only, read by neither the
+          ranking nor the users&apos; five. A game opens its whole ranking.
         </>
       }
       meta={[`ranking ${stamp(d.generatedAt)}`, d.window, since ? `since ${since}${d.since?.label ? `: ${d.since.label}` : ''}` : '']}
@@ -95,6 +98,7 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
 
 // a cell of a row greyed by the Q0 band that the band does not apply to (Since)
 const NOT_GREYED = { color: 'var(--fg)' };
+const KEEP_TOGETHER = { display: 'inline-flex', alignItems: 'center', maxWidth: '100%' };
 
 function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSummary[]; onOpen: (g: string) => void }) {
   return (
@@ -114,6 +118,8 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
         // what the band is built on: the best of a few control rows on long fair histories, not this ranking
         const bandBasis = band ? `best of ${band.rows ?? DASH} rows · fair histories of ${count(band.history, g.unit)}` : '';
         const grey = Boolean(band?.greys && b?.inBand);
+        // the top five rows whose newest learning check reads no better than the frequencies
+        const flagged = g.top.filter((n) => g.learning[n]?.verdict === 'counts-only');
         return (
           <tr key={g.game} className={grey ? 'grey' : undefined}>
             <td className="sym">
@@ -122,6 +128,7 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
             </td>
             <td>
               {b ? short(b.row) : DASH}
+              {b ? <LearningTag l={g.learning[b.row]} /> : null}
               {b?.young ? (
                 <>
                   {' '}
@@ -141,6 +148,7 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
               ) : null}
               <span className="sub show-1col">
                 top 5: {g.top.map(short).join(', ') || DASH} ({topWhose(g)})
+                {flagged.length ? ` · no better than the frequencies: ${flagged.map(short).join(', ')}` : ''}
               </span>
             </td>
             <td className="num last-sm">
@@ -172,11 +180,19 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
             </td>
             <td className="hide-1col">
               <span className="chips">
-                {g.top.map((n) => (
-                  <Chip key={n} kind="model">
-                    {short(n)}
-                  </Chip>
-                ))}
+                {g.top.map((n) =>
+                  g.learning[n]?.verdict === 'counts-only' ? (
+                    // the chip and its tag wrap as one, so a tag never starts a line under another row's chip
+                    <span key={n} style={KEEP_TOGETHER}>
+                      <Chip kind="model">{short(n)}</Chip>
+                      <LearningTag l={g.learning[n]} />
+                    </span>
+                  ) : (
+                    <Chip key={n} kind="model">
+                      {short(n)}
+                    </Chip>
+                  ),
+                )}
               </span>
               <span className="sub">{topWhose(g)}</span>
             </td>

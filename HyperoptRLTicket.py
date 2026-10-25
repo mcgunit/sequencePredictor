@@ -248,7 +248,13 @@ def plain_rule_score(dataset_name, evaluation_days, returns, modelScores):
     """
     The reference every position study is read against: size 1 where the
     vote's call is up, 0 where it is not - the row's own fallback without a
-    policy. Same days, same money, same objective.
+    policy. Same days, same money, same objective. The vote is the model's
+    own (_voteTicket: the WeightedEnsemble voters, the market tie-break,
+    XGBoost and LightGBM as one voter), so since 25 Oct 2026 the stored days'
+    stuck deep-learning rows, baseline and aggregates no longer vote here
+    either, and the two boosting twins no longer vote twice - this reference
+    and the trials (objective_rl_position runs the model itself, its
+    upShare and consensus features too) follow production's rule.
     """
     model = RLPositionModel()
     bets_by_day = []
@@ -258,7 +264,7 @@ def plain_rule_score(dataset_name, evaluation_days, returns, modelScores):
         if ret is None or not rows:
             continue
         slots = len(rows[0]["predictions"][0])
-        ticket = model._voteTicket(rows, slots, modelScores)
+        ticket = model._voteTicket(rows, slots, modelScores, dataset_name)
         if ticket is None:
             continue
         bets_by_day.append(position_bets([1.0 if b >= model.k / 2 else 0.0 for b in ticket], ret))

@@ -340,19 +340,71 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
     return finish_trial(trial, run_backtest("markov", model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back))
 
 
+# MarkovMonteCarlo's chain: the (low, high) the study searches for its order and
+# for the count under which a transition is pruned. The week games search a
+# narrower box (25 Oct 2026, the owner's item 6). Markov._normalize_table drops
+# every transition whose recency-weighted count is under markovMcMinOccurences,
+# and a column whose current context has none left falls back to its plain
+# frequencies - the chain then plays no part. The week games are short: 223
+# (cryptoweek) and 425 (sharesweek) weekly draws, so the 90 weeks of the tuning
+# window are predicted from 133-222 and 335-424 draws. Counted on that window
+# with constant weights (the lowest any recency mode gives - linear and log only
+# raise the counts), the share of a week's columns whose current context keeps
+# a transition:
+#   order 1, minimum 1/2/3/4/5/6:  cryptoweek 100/99/92/69/47/21%, sharesweek 100/100/100/100/99/85%
+#   order 2, minimum 1/2/3:        cryptoweek 84/19/1%,             sharesweek 96/42/8%
+#   order 3, minimum 1/2:          cryptoweek 18/0%,                sharesweek 28/1%
+# Nearly every order-2 or order-3 transition (100 or 1,000 contexts per column,
+# ten next values each) is seen only once or twice in the whole history (97-100%
+# of those seen at all), so past a minimum of 1 the chain is pruned on most
+# columns at those orders - and the 1-3 x 1-20 box let the sampler settle
+# there: cryptoweek's study put 32 of its 45 trials at order 3, and its served
+# order 3 / minimum 20 (log recency) falls back on every column of every week
+# of the window, as the untuned order 1 / minimum 9 did on 96% of them (every
+# column of the week, 1% of the columns live) - the column frequencies, whose
+# per-slot mode is the OrderStatistics Baseline's ticket (one ticket for the 31
+# back-built weeks of 8 Mar - 4 Oct 2026). sharesweek's served order 1 /
+# minimum 1 is live on every week and stays inside its box. The week games
+# search order 1, with the minimum up to the largest count that keeps nine
+# columns in ten live: 3 on cryptoweek, 5 on sharesweek. Every other game keeps
+# the full box. Safe under the gate: the served parameters and the defaults
+# are re-scored on the same objective whatever the box (a served value outside
+# it is scored as is, TuningGate.evaluate_reference), so the fallback stays
+# served unless a live chain beats it - on cryptoweek's window of 25 Oct it
+# scored 0.655 against 0.44-0.57 for 26 points of the new box, scored read-only
+# by this objective, so it may stay a while. The studies keep their names - the
+# codebase starts a fresh study when the objective's scale changes
+# (<game>-rl_ticket_gated, <game>-<variant>_slot_bound), and this objective is
+# unchanged: Optuna accepts a narrower int range on a stored parameter (only its
+# kind and log flag must match), the older trials stay as sampler history and
+# the gate judges only this run's trials.
+MARKOV_MC_CHAIN_RANGES = {"markovMcOrder": (1, 3), "markovMcMinOccurences": (1, 20)}
+MARKOV_MC_WEEK_CHAIN_RANGES = {
+    "cryptoweek": {"markovMcOrder": (1, 1), "markovMcMinOccurences": (1, 3)},
+    "sharesweek": {"markovMcOrder": (1, 1), "markovMcMinOccurences": (1, 5)},
+}
+
+
+def markov_mc_chain_ranges(dataset_name):
+    """{key: (low, high)} of markovMcOrder and markovMcMinOccurences for this game's MarkovMonteCarlo study."""
+    return MARKOV_MC_WEEK_CHAIN_RANGES.get(dataset_name, MARKOV_MC_CHAIN_RANGES)
+
+
 def objective_markov_mc(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, years_back):
     is_positional = helpers.is_positional_game(dataset_name)
+    chain = markov_mc_chain_ranges(dataset_name)
 
     base = Markov()
     base.setDataPath(dataPath)
     base.setSoftMAxTemperature(trial.suggest_float('markovMcSoftMaxTemperature', 0.1, 1.0))
-    base.setMinOccurrences(trial.suggest_int('markovMcMinOccurences', 1, 20))
+    base.setMinOccurrences(trial.suggest_int('markovMcMinOccurences', *chain['markovMcMinOccurences']))
     base.setAlpha(trial.suggest_float('markovMcAlpha', 0.1, 1.0))
     base.setRecencyWeight(trial.suggest_float('markovMcRecencyWeight', 0.1, 2.0))
     base.setRecencyMode(trial.suggest_categorical('markovMcRecencyMode', ["linear", "log", "constant"]))
     base.setPairDecayFactor(trial.suggest_float('markovMcPairDecayFactor', 0.1, 1.0))
     base.setSmoothingFactor(trial.suggest_float('markovMcSmoothingFactor', 0.01, 1.0))
-    base.setMarkovOrder(trial.suggest_int('markovMcOrder', 1, 3))
+    # suggested even where the range is one value, so a written challenger carries its order
+    base.setMarkovOrder(trial.suggest_int('markovMcOrder', *chain['markovMcOrder']))
     base.setSortedPrediction(not is_positional)
 
     model = MarkovMonteCarlo(base)
@@ -852,6 +904,56 @@ STRATEGY_DISPLAY_NAMES = {
     "Garch": GARCH_NAME,
     "RegimeHmm": HMM_NAME,
 }
+
+
+def _self_check():
+    """
+    MarkovMonteCarlo's search box per game, without a backtest or a database
+    (in-memory studies, the backtest stubbed):
+        python3 -c 'import HyperoptStatistics; HyperoptStatistics._self_check()'
+    """
+    import warnings
+    module = globals()
+    saved = module["run_backtest"], module["finish_trial"]
+    module["run_backtest"] = lambda *args, **kwargs: {}
+    module["finish_trial"] = lambda trial, summary: float(trial.params["markovMcMinOccurences"])
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    try:
+        def objective(game):
+            return lambda trial: objective_markov_mc(trial, game, "/nonexistent", GAME_CONFIG[game], DEFAULT_DAYS, None)
+
+        def box(trial):
+            return {key: (trial.distributions[key].low, trial.distributions[key].high) for key in MARKOV_MC_CHAIN_RANGES}
+
+        for game, expected in (("cryptoweek", {"markovMcOrder": (1, 1), "markovMcMinOccurences": (1, 3)}),
+                               ("sharesweek", {"markovMcOrder": (1, 1), "markovMcMinOccurences": (1, 5)}),
+                               ("crypto", MARKOV_MC_CHAIN_RANGES), ("pick3", MARKOV_MC_CHAIN_RANGES), ("keno", MARKOV_MC_CHAIN_RANGES)):
+            study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=1))
+            study.optimize(objective(game), n_trials=3)
+            assert all(box(t) == expected for t in study.trials), (game, [box(t) for t in study.trials])
+        # a week game's existing study, filled under the old 1-3 x 1-20 box, continues under the narrow one:
+        # Optuna takes the narrower range, the sampler keeps the old trials as history, and every new trial -
+        # past TPE's ten start-up trials - stays inside the box and still records the order a written challenger needs
+        study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=1))
+        study.optimize(objective("crypto"), n_trials=12)
+        study.optimize(objective("cryptoweek"), n_trials=8)
+        new = study.trials[12:]
+        assert all(t.params["markovMcOrder"] == 1 and 1 <= t.params["markovMcMinOccurences"] <= 3 for t in new), [t.params for t in new]
+        # the gate re-scores what is served as it is, also outside the box (cryptoweek serves order 3 / minimum 20)
+        served = {"markovMcSoftMaxTemperature": 0.414, "markovMcMinOccurences": 20, "markovMcAlpha": 0.73,
+                  "markovMcRecencyWeight": 1.42, "markovMcRecencyMode": "log", "markovMcPairDecayFactor": 0.78,
+                  "markovMcSmoothingFactor": 0.37, "markovMcOrder": 3, "markovMcNumSimulations": 1900}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fixed = optuna.trial.FixedTrial(served)
+            assert objective("cryptoweek")(fixed) == 20.0 and fixed.params["markovMcOrder"] == 3
+    finally:
+        module["run_backtest"], module["finish_trial"] = saved
+        optuna.logging.set_verbosity(verbosity)
+    print("HyperoptStatistics self-check OK: the week games search MarkovMonteCarlo at order 1 with a minimum count up to "
+          "3 (cryptoweek) and 5 (sharesweek), every other game the full 1-3 x 1-20 box; an existing study continues under "
+          "the narrower box, and a served value outside it is still scored as it is")
 
 
 if __name__ == "__main__":

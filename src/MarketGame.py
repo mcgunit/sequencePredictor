@@ -6,10 +6,24 @@ Each market (crypto, shares) is one positional game: instrument = position,
 the next day's return bin = digit. A day's return per instrument is put
 into one of K quantile bins whose edges are fitted on that instrument's
 returns STRICTLY BEFORE the day (an expanding window, at least MIN_HISTORY
-returns), so the bins are equiprobable by construction, nothing about a day
-leaks into its own label, and the past never changes when a day is added -
-the yearly CSV files below are stable. Direction (up or down) is the
-two-bin reading of the same bins.
+returns), so nothing about a day leaks into its own label, and the past
+never changes when a day is added - the yearly CSV files below are stable.
+Direction (up or down) is the two-bin reading of the same bins.
+
+The bins are equally likely over the history each day is cut from, not
+within every stretch of it - this said "equiprobable by construction" until
+25 Oct 2026. Volatility drifts, and a day is binned against a past that was
+calmer or wilder than the day: over the whole game crypto's two outer bins
+hold about 6% of the days each and its two middle bins 12.6% each (a daily
+sd of 4-9% in the 2020-21 warm-up, 2-4% since 2023), shares' outer bins
+12.5% and middle bins 8.5% (a calm 2016-17 warm-up before a wilder
+2018-22); on the deep-learning training splits (the first 80% of the loaded
+history) crypto's outer bins hold 4-5% of the days and shares' 12-15%.
+The chance levels (MarketSettle.chance_levels, 1 in 10 for the exact bin)
+are the design target and approximately true: 1 in 10 is exact for a call
+made at random, while a call that keeps naming a bin its stretch over-fills
+beats it without any skill. The expanding window stays (the owner's
+decision of 25 Oct 2026); only this description changed.
 
 The game history is written where every lottery game keeps its history,
 data/trainingData/<market>/<market>-gamedata-NL-<year>.csv, in the same
@@ -79,7 +93,7 @@ CREATE TABLE IF NOT EXISTS game_days (
 # ---------------------------------------------------------------------------
 
 def quantile_edges(returns, k=K_BINS):
-    """The k-1 inner edges that cut `returns` into k equiprobable bins."""
+    """The k-1 inner edges that cut `returns` into k bins `returns` itself fills equally (a later stretch need not - see the module docstring)."""
     values = np.asarray(returns, dtype=float)
     if len(values) < k:
         raise ValueError(f"need at least {k} returns for {k} bins, got {len(values)}")
@@ -467,7 +481,7 @@ def _self_check():
 
     rng = np.random.default_rng(11)
 
-    # 1. Bins: equiprobable on the fitting sample, edges monotone, intervals tile the line.
+    # 1. Bins: equally filled by the sample they are cut from, edges monotone, intervals tile the line.
     sample = rng.standard_t(4, size=2000) * 0.02
     edges = quantile_edges(sample, 10)
     assert len(edges) == 9 and all(edges[i] < edges[i + 1] for i in range(8))
@@ -482,7 +496,12 @@ def _self_check():
     p = predicted_price(100.0, 7, edges)
     lo, hi = price_interval(100.0, 7, edges)
     assert lo < p < hi and price_interval(100.0, 0, edges)[0] is None and price_interval(100.0, 9, edges)[1] is None
-    print("bins: ten equiprobable quantile bins, monotone edges, intervals tile the line, prices follow")
+    # ...and only by that sample: a calmer stretch binned on a wilder past fills the middle bins (25 Oct 2026)
+    wild_then_calm = np.random.default_rng(25).standard_t(4, size=2000) * np.repeat([0.04, 0.01], 1000)   # own stream: rng stays as it was
+    late = np.bincount([bin_of(wild_then_calm[t], quantile_edges(wild_then_calm[:t], 10)) for t in range(1000, 2000)], minlength=10) / 1000
+    assert late[0] + late[9] < 0.1 and late[4] + late[5] > 0.3, late
+    print(f"bins: ten quantile bins filled equally by their own sample, monotone edges, intervals tile the line, prices follow; "
+          f"a calm stretch after a wild one put {late[0] + late[9]:.0%} of its days in the two outer bins (20% by design)")
 
     # 1b. Weeks: the aligned days of 2026-09-21 (Mon) .. 2026-10-04 (Sun) plus Monday 2026-10-05
     wk_days = [(date(2026, 9, 21) + timedelta(days=i)).isoformat() for i in range(15)]

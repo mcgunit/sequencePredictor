@@ -14,8 +14,9 @@ sold at the day's close, a fee on each leg), scaled by the size.
 
 Features, all in BIN space so they mean the same for every instrument and
 need no edges (one bin is one tenth of the instrument's own history):
-    upShare     share of the rows whose bin is in the upper half (5-9)
-    consensus   mean of (bin - 4.5) / 4.5 over the rows: -1 .. +1
+    upShare     share of the voters (below) whose bin is in the upper half (5-9)
+    consensus   mean of (bin - 4.5) / 4.5 over the voters: -1 .. +1
+                (both count XGBoost and LightGBM as one voter, half each, like the vote)
     garch       the GARCH Model's bin on the same scale (0 when absent)
     regime      the Regime HMM Model's bin on the same scale
     vote        the WeightedEnsemble Model's bin on the same scale, else the consensus
@@ -37,14 +38,25 @@ right answer for an uncertain call. Pure numpy, warm-started from the
 persisted policy, wall-clock capped: it runs inside the daily pipeline like
 the RL Ticket Model.
 
-The row's TICKET - the bins the hit rates are scored on - is the per-slot
-weighted vote over the other rows (Helpers.build_positional_vote_predictions,
-the WeightedEnsemble recipe), because this row predicts sizes, not bins; its
-own contribution is "positions": the size per instrument, which the
-settlement stores with the prediction and the paper books apply
-(MarketSettle.position_of). Without a trainable history and without a stored
-policy it falls back to the plain rule: size 1 where the vote is up, 0 where
-it is not - a row no better and no worse than the vote.
+The row's TICKET - the bins the hit rates are scored on - is the
+WeightedEnsemble Model's ticket, because this row predicts sizes, not bins:
+the per-slot weighted vote over the same voters (POSITIONAL_VOTE_DEFAULT_ROWS
+in src/VoteRows.py) by the same rule (VoteRows.positional_vote: the market
+tie-break, XGBoost and LightGBM as one voter); its own contribution is
+"positions": the size per instrument, which the settlement stores with the
+prediction and the paper books apply (MarketSettle.position_of). Without a
+trainable history and without a stored policy it falls back to the plain
+rule: size 1 where the vote is up, 0 where it is not - a row no better and
+no worse than the vote. Until 25 Oct 2026 the vote, upShare and consensus
+ran over every other row: the stuck deep-learning tickets, the constant
+OrderStatistics Baseline, the three near-identical Regime HMM rows and the
+aggregates outvoted the voters (on sharesweek the row replayed GNN's 34-run
+constant [9,9,0,9] on 9 runs), and the week games' sizes were taken from
+those polluted features. Those rows keep their own rows; they just do not
+vote here. XGBoost and LightGBM, one learner fitted twice on the markets,
+count as one voter in the ticket and in upShare and consensus alike. A
+policy saved under the old features is not loaded (FEATURE_VERSION): the
+row starts a fresh one.
 
     python3 -m src.RLPositionModel      # self-check on a synthetic history
 """
@@ -61,16 +73,23 @@ try:
     from src.Helpers import Helpers, MARKET_BINS
     from src.MarketModels import MarketHistory
     from src.MarketSettle import cash_pnl, STAKE, FEE_PER_LEG
+    from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, positional_vote, vote_shares
 except ImportError:  # imported from inside src/
     from Helpers import Helpers, MARKET_BINS
     from MarketModels import MarketHistory
     from MarketSettle import cash_pnl, STAKE, FEE_PER_LEG
+    from VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, positional_vote, vote_shares
 
 helpers = Helpers()
 
 ROW_NAME = "RL Position Model"
 SIZES = (0.0, 0.5, 1.0, 1.5, 2.0)
 FEATURES = ["upShare", "consensus", "garch", "regime", "vote", "yesterday", "recentAbs", "bias"]
+# What the features MEAN, stored with the policy: a policy saved under another
+# version was fitted on other inputs and is not warm-started from. 1 (the
+# unversioned files): upShare and consensus over every other row; 2 (25 Oct
+# 2026): over the voters only, XGBoost and LightGBM as one voter (half each).
+FEATURE_VERSION = 2
 RECENT = 5
 GARCH_ROW = "GARCH Model"
 REGIME_ROW = "Regime HMM Model"
@@ -153,12 +172,19 @@ class RLPositionModel:
         return {str(d): [float(v) for v in row] for d, row in zip(days, matrix)}
 
     # --- features --------------------------------------------------------------
-    def _features(self, rows, slots, yesterday, recent):
-        """(slots, len(FEATURES)) raw features from the day's rows and the realised bins before it."""
+    def _features(self, rows, slots, yesterday, recent, game=None):
+        """
+        (slots, len(FEATURES)) raw features from the day's rows and the
+        realised bins before it. upShare and consensus read the voters only
+        (POSITIONAL_VOTE_DEFAULT_ROWS, like the ticket), each voter with its
+        share of the game's vote (VoteRows.vote_shares: XGBoost and LightGBM
+        half each on a market, 25 Oct 2026); garch, regime and vote read their
+        own named rows.
+        """
         k = self.k
         out = np.zeros((slots, len(FEATURES)))
         named = {}
-        tickets = []
+        tickets = {}
         for row in rows:
             name = row.get("name")
             preds = row.get("predictions") or []
@@ -168,12 +194,15 @@ class RLPositionModel:
                 ticket = [int(v) for v in preds[0][:slots]]
             except (TypeError, ValueError):
                 continue
-            tickets.append(ticket)
+            if name in POSITIONAL_VOTE_DEFAULT_ROWS:
+                tickets[name] = ticket
             named[name] = ticket
+        shares = vote_shares(list(tickets), game)
         for slot in range(slots):
-            bins = [t[slot] for t in tickets]
-            up = float(np.mean([b >= k / 2 for b in bins])) if bins else 0.5
-            consensus = float(np.mean([_scaled(b, k) for b in bins])) if bins else 0.0
+            bins = [t[slot] for t in tickets.values()]
+            share = [shares[voter] for voter in tickets]
+            up = float(np.average([b >= k / 2 for b in bins], weights=share)) if bins else 0.5
+            consensus = float(np.average([_scaled(b, k) for b in bins], weights=share)) if bins else 0.0
             garch = _scaled(named[GARCH_ROW][slot], k) if GARCH_ROW in named else 0.0
             regime = _scaled(named[REGIME_ROW][slot], k) if REGIME_ROW in named else 0.0
             vote = _scaled(named[VOTE_ROW][slot], k) if VOTE_ROW in named else consensus
@@ -249,6 +278,10 @@ class RLPositionModel:
         try:
             with open(path, "r") as infile:
                 stored = json.load(infile)
+            if stored.get("featureVersion") != FEATURE_VERSION:
+                print(f"RLPositionModel: stored policy for {name} was fitted on feature version "
+                      f"{stored.get('featureVersion', 1)}, not {FEATURE_VERSION} - starting fresh")
+                return None
             theta = np.array(stored.get("theta"), dtype=float)
             mean = np.array(stored.get("featureMean"), dtype=float)
             std = np.array(stored.get("featureStd"), dtype=float)
@@ -265,14 +298,24 @@ class RLPositionModel:
         try:
             os.makedirs(self.modelPath, exist_ok=True)
             with open(self._policyPath(name), "w") as outfile:
-                json.dump({"game": name, "row": ROW_NAME, "features": FEATURES, "sizes": list(SIZES), "theta": theta.tolist(),
+                json.dump({"game": name, "row": ROW_NAME, "features": FEATURES, "featureVersion": FEATURE_VERSION,
+                           "sizes": list(SIZES), "theta": theta.tolist(),
                            "featureMean": [float(v) for v in mean], "featureStd": [float(v) for v in std], "report": report}, outfile, indent=2)
         except Exception as e:
             print(f"RLPositionModel: failed to persist the policy for {name}: {e}")
 
     # --- the row -----------------------------------------------------------------
-    def _voteTicket(self, rows, slots, modelScores):
-        vote = helpers.build_positional_vote_predictions([r for r in rows if r.get("name") != ROW_NAME], slots, model_scores=modelScores)
+    def _voteTicket(self, rows, slots, modelScores, game):
+        """
+        The WeightedEnsemble Model's ticket: the per-slot vote over the
+        voters only, with the market tie-break and XGBoost and LightGBM as one
+        voter (VoteRows.positional_vote, the call the served row makes) - the
+        same rule wherever the model runs (Predictor.py, HyperoptRLTicket.py),
+        so tuning and serving cannot drift apart. None when no voter has a
+        ticket.
+        """
+        voters = [r for r in rows if r.get("name") in POSITIONAL_VOTE_DEFAULT_ROWS]
+        vote = positional_vote(voters, slots, model_scores=modelScores, game=game)
         return [int(v) for v in vote["ticket"]] if vote and vote.get("ticket") else None
 
     def run(self, name, listOfDecodedPredictions, historyDir, dataPath, config=None):
@@ -296,9 +339,9 @@ class RLPositionModel:
         if not rows or slots <= 0:
             print(f"RLPositionModel: no rows with a ticket for {name} - no row")
             return None
-        ticket = self._voteTicket(rows, slots, config.get("modelScores"))
+        ticket = self._voteTicket(rows, slots, config.get("modelScores"), name)
         if ticket is None:
-            print(f"RLPositionModel: the rows cannot vote a ticket for {name} - no row")
+            print(f"RLPositionModel: the voters cannot vote a ticket for {name} - no row")
             return None
         plain = [1.0 if b >= self.k / 2 else 0.0 for b in ticket]
         if self.sitOut:
@@ -328,7 +371,7 @@ class RLPositionModel:
             for d, r, real in trainable:
                 before = [history[x] for x in ordered if x < d][-RECENT:]
                 yesterday = before[-1] if before else None
-                raws.append(self._features(r, slots, yesterday, before))
+                raws.append(self._features(r, slots, yesterday, before, name))
                 rets.append(returns[d][:slots])
             epochMeans = []
             if raws:
@@ -351,7 +394,7 @@ class RLPositionModel:
                 return {"name": ROW_NAME, "predictions": [ticket], "positions": plain}
             # today's state: the rows made for the coming day, the newest settled bins before it
             recent = [real for _, _, real in entries][-RECENT:]
-            today = self._normalise(self._features(rows, slots, recent[-1] if recent else None, recent), mean, std)
+            today = self._normalise(self._features(rows, slots, recent[-1] if recent else None, recent, name), mean, std)
             logits = today @ theta
             sizes = [float(SIZES[int(np.argmax(row))]) for row in logits]
             report = {"trainedAt": datetime.now().isoformat(timespec="seconds"), "warmStart": stored is not None, "trainingDays": len(raws),
@@ -381,18 +424,25 @@ def _self_check():
     slots, days, k = 4, 160, MARKET_BINS
     dates = [f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}" for i in range(days)]
     returns, dayfiles = {}, {}
+    voters = sorted(POSITIONAL_VOTE_DEFAULT_ROWS)
+    # rows that are not voters: a bloc of five identical constant tickets (the stuck DL rows, the baseline, an
+    # aggregate) that out-numbers the voters' agreement - an all-rows vote replayed such a bloc until 25 Oct 2026
+    stuck = ["GNN Model", "Autoencoder Model", "LSTM Base Model", "OrderStatistics Baseline", "MetaLearner Model"]
     for i, d in enumerate(dates):
         ret = rng.normal(0.0, 0.02, size=slots)
         returns[d] = [float(v) for v in ret]
-        # a day's rows: six "informed" rows that lean the right way, four noise rows, GARCH, HMM and the vote
+        # a day's rows: five "informed" voters that lean the right way, two noise voters, the stuck bloc, GARCH, HMM and the vote
         rows = []
-        for m in range(6):
-            rows.append({"name": f"Informed {m}", "predictions": [[int(7 if r > 0 else 2) if rng.random() < 0.8 else int(rng.integers(0, k)) for r in ret]]})
-        for m in range(4):
-            rows.append({"name": f"Noise {m}", "predictions": [[int(v) for v in rng.integers(0, k, size=slots)]]})
+        for name in voters[:5]:
+            rows.append({"name": name, "predictions": [[int(7 if r > 0 else 2) if rng.random() < 0.8 else int(rng.integers(0, k)) for r in ret]]})
+        for name in voters[5:]:
+            rows.append({"name": name, "predictions": [[int(v) for v in rng.integers(0, k, size=slots)]]})
+        for name in stuck:
+            rows.append({"name": name, "predictions": [[0, 9, 0, 9]]})
         rows.append({"name": GARCH_ROW, "predictions": [[int(5 if r > 0 else 4) for r in ret]]})
         rows.append({"name": REGIME_ROW, "predictions": [[int(6 if r > 0 else 3) for r in ret]]})
-        vote = helpers.build_positional_vote_predictions(rows, slots)
+        # the WeightedEnsemble Model as Predictor.py serves it: the voters, the market tie-break, XGBoost + LightGBM as one
+        vote = positional_vote([r for r in rows if r["name"] in POSITIONAL_VOTE_DEFAULT_ROWS], slots, game="crypto")
         rows.append({"name": VOTE_ROW, "predictions": [vote["ticket"]]})
         real = [min(k - 1, max(0, int(round(4.5 + r / 0.02 * 2.5)))) for r in ret]
         dayfiles[d] = {"realResult": real, "currentPrediction": rows}
@@ -414,6 +464,33 @@ def _self_check():
         # 1. features: an all-up day reads as up, yesterday and the wildness are read from the realised bins
         raw = model._features(dayfiles[dates[10]]["currentPrediction"], slots, dayfiles[dates[9]]["realResult"], [dayfiles[x]["realResult"] for x in dates[5:10]])
         assert raw.shape == (slots, len(FEATURES)) and np.all(raw[:, -1] == 1.0) and np.all((0 <= raw[:, 0]) & (raw[:, 0] <= 1))
+        # 1b. only the voters vote (25 Oct 2026): the ticket is the WeightedEnsemble Model's on every day, the stuck bloc
+        # moves neither the ticket nor upShare/consensus, and an all-rows vote would have replayed the bloc
+        replayed = 0
+        for d in dates:
+            dayRows = dayfiles[d]["currentPrediction"]
+            weTicket = next(r for r in dayRows if r["name"] == VOTE_ROW)["predictions"][0]
+            assert model._voteTicket(dayRows, slots, None, "crypto") == weTicket, d
+            allRows = helpers.build_positional_vote_predictions([r for r in dayRows if r["name"] != VOTE_ROW], slots, game="crypto")
+            replayed += sum(a == b for a, b in zip(allRows["ticket"], [0, 9, 0, 9]))
+        assert replayed > days * slots // 2, f"the stuck bloc should own most slots of an all-rows vote, it owned {replayed} of {days * slots}"
+        dayRows = dayfiles[dates[10]]["currentPrediction"]
+        context = (dayfiles[dates[9]]["realResult"], [dayfiles[x]["realResult"] for x in dates[5:10]])
+        assert np.array_equal(model._features(dayRows, slots, *context, "crypto"),
+                              model._features([r for r in dayRows if r["name"] not in stuck], slots, *context, "crypto"))
+        # the market tie-break: 1 against 6 goes to 6 (nearer the middle), 2 against 7 to the lower; GNN does not vote
+        tied = [{"name": "Markov Model", "predictions": [[1, 2]]}, {"name": "XGBoost Model", "predictions": [[6, 7]]}, {"name": "GNN Model", "predictions": [[1, 2]]}]
+        assert model._voteTicket(tied, 2, None, "crypto") == [6, 2], model._voteTicket(tied, 2, None, "crypto")
+        assert model._voteTicket([{"name": "GNN Model", "predictions": [[1, 2]]}], 2, None, "crypto") is None, "no voter, no ticket"
+        # 1c. XGBoost and LightGBM are one voter on a market (25 Oct 2026): their [1, 7] against Markov's [6, 2] is a tie
+        # per slot (half + half against one) that the tie-break settles, where it was 2 votes to 1 for their bins;
+        # upShare counts them as one voter too - (0 + 0) x 0.5 + 1 out of 2, not 1 out of 3
+        twins = [{"name": "XGBoost Model", "predictions": [[1, 7]]}, {"name": "LightGBM Model", "predictions": [[1, 7]]},
+                 {"name": "Markov Model", "predictions": [[6, 2]]}]
+        assert model._voteTicket(twins, 2, None, "crypto") == [6, 2], model._voteTicket(twins, 2, None, "crypto")
+        assert helpers.build_positional_vote_predictions(twins, 2, game="crypto")["ticket"] == [1, 7]
+        assert abs(model._features(twins, 2, None, [], "crypto")[0][0] - 0.5) < 1e-12
+        assert abs(model._features(twins, 2, None, [], "pick3")[0][0] - 1 / 3) < 1e-12
         # 2. the plain rule without history or policy
         today = dayfiles[dates[-1]]["currentPrediction"]
         plain = model.run("crypto", today, os.path.join(root, "nowhere"), root, {"returns": returns})
@@ -432,7 +509,7 @@ def _self_check():
         up_sizes, down_sizes = [], []
         for d in dates[-40:-1]:
             prev = [dayfiles[x]["realResult"] for x in dates if x < d][-RECENT:]
-            phi = model._normalise(model._features(dayfiles[d]["currentPrediction"], slots, prev[-1], prev), stored["mean"], stored["std"])
+            phi = model._normalise(model._features(dayfiles[d]["currentPrediction"], slots, prev[-1], prev, "crypto"), stored["mean"], stored["std"])
             chosen = [SIZES[int(np.argmax(l))] for l in phi @ stored["theta"]]
             for slot in range(slots):
                 (up_sizes if returns[d][slot] > 0 else down_sizes).append(chosen[slot])
@@ -448,12 +525,27 @@ def _self_check():
         assert idle["positions"] == [0.0] * slots and idle["predictions"] == again["predictions"] and model.lastReport == {"sitOut": True}, idle
         assert os.path.getmtime(os.path.join(model.modelPath, os.listdir(model.modelPath)[0])) == stamp, "a sit-out run does not retrain"
         model.setSitOut(False)
+        # 5c. a policy saved under the old features (no featureVersion: the files before 25 Oct 2026) is not
+        # warm-started from - the run trains a fresh one and saves it under FEATURE_VERSION, nobody deletes a file
+        path = model._policyPath("crypto")
+        with open(path, "r") as handle:
+            old = json.load(handle)
+        assert old.get("featureVersion") == FEATURE_VERSION, old.keys()
+        old.pop("featureVersion")
+        with open(path, "w") as handle:
+            json.dump(old, handle)
+        assert model._loadPolicy("crypto") is None
+        model.setEpochs(5)
+        model.run("crypto", today, historyDir, root, {"returns": returns, "cutoffDate": cutoff})
+        assert model.lastReport["warmStart"] is False and model._loadPolicy("crypto") is not None, model.lastReport
         # 6. the utility is concave in the size: for an uncertain call a middle size can win
         model.setRiskAversion(0.5)
         assert model._utility(2.0, 0.02) < 2 * model._utility(1.0, 0.02), "the quadratic term must bite"
         print(f"RLPositionModel self-check OK: {report['trainingDays']} synthetic days, utility {report['firstEpochMeanUtility']:.3f} -> "
               f"{report['lastEpochMeanUtility']:.3f} in {report['epochsRun']} epochs; mean size {np.mean(up_sizes):.2f} on up days, "
-              f"{np.mean(down_sizes):.2f} on down days; plain rule without history; cutoff respected; warm start")
+              f"{np.mean(down_sizes):.2f} on down days; plain rule without history; cutoff respected; warm start; "
+              f"only the voters vote (an all-rows vote took the stuck bloc's bin in {replayed} of {days * slots} slots); "
+              f"XGBoost and LightGBM are one voter; an old-feature policy starts fresh")
 
 
 if __name__ == "__main__":
