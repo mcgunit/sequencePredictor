@@ -1,15 +1,15 @@
 {
   "game": "crypto",
-  "trained_at": "2026-10-18T04:19:20.589716+00:00",
+  "trained_at": "2026-10-25T08:10:41.614388+00:00",
   "days": 300,
-  "table_days": 230,
+  "table_days": 237,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
     "declared": "2026-09-27",
     "note": "declared after the September 2026 objective, gate and cadence changes"
   },
-  "lockbox_days_withheld": 70,
+  "lockbox_days_withheld": 63,
   "versions": {
     "python": "3.10.12",
     "numpy": "1.26.4",
@@ -22,17 +22,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0652,
-          0.1087,
-          0.0652,
-          0.1304,
-          0.1739
+          0.0625,
+          0.125,
+          0.0833,
+          0.125,
+          0.1667
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1087,
-        "argmax_profit_per_day": -0.2304,
-        "train_days": 184,
-        "test_days": 46
+        "mean_top1": 0.1125,
+        "argmax_profit_per_day": -0.2542,
+        "train_days": 189,
+        "test_days": 48
       }
     },
     "crypto (v2)": {
@@ -40,17 +40,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1739,
-          0.0217,
-          0.2174,
-          0.0652,
-          0.2174
+          0.1458,
+          0.0833,
+          0.125,
+          0.125,
+          0.1667
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1391,
-        "argmax_profit_per_day": -0.2717,
-        "train_days": 184,
-        "test_days": 46
+        "mean_top1": 0.1292,
+        "argmax_profit_per_day": -0.3208,
+        "train_days": 189,
+        "test_days": 48
       }
     },
     "crypto (quantum kernel)": {
@@ -58,17 +58,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1087,
-          0.1304,
-          0.1304,
-          0.1522,
-          0.1739
+          0.1042,
+          0.125,
+          0.1458,
+          0.1875,
+          0.1458
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1391,
-        "argmax_profit_per_day": -0.2326,
-        "train_days": 184,
-        "test_days": 46
+        "mean_top1": 0.1417,
+        "argmax_profit_per_day": -0.1833,
+        "train_days": 189,
+        "test_days": 48
       }
     },
     "crypto (quantum vqc)": {
@@ -76,17 +76,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0652,
-          0.2174,
-          0.1087,
-          0.2174,
-          0.1957
+          0.0833,
+          0.125,
+          0.0625,
+          0.0833,
+          0.1875
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1609,
-        "argmax_profit_per_day": 0.1565,
-        "train_days": 184,
-        "test_days": 46
+        "mean_top1": 0.1083,
+        "argmax_profit_per_day": 0.0229,
+        "train_days": 189,
+        "test_days": 48
       }
     },
     "crypto (classical svm)": {
@@ -94,17 +94,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1522,
-          0.1304,
-          0.1739,
-          0.2174,
-          0.1522
+          0.0625,
+          0.1458,
+          0.1875,
+          0.2083,
+          0.125
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1652,
-        "argmax_profit_per_day": -0.2174,
-        "train_days": 184,
-        "test_days": 46
+        "mean_top1": 0.1458,
+        "argmax_profit_per_day": -0.4125,
+        "train_days": 189,
+        "test_days": 48
       }
     }
   }
