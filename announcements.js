@@ -17,6 +17,18 @@
 
 const ANNOUNCEMENTS = [
   {
+    id: '2026-10-26-models-retrained',
+    date: '2026-10-26',
+    level: 'minor',
+    audience: 'all',
+    title: 'Models that repeated the same ticket are retrained; a few rows change',
+    body: [
+      'Several deep-learning models had stopped learning from the recent draws and repeated the same ticket day after day. In Pick 3, the Transformer, UnifiedLstmTcn, Autoencoder and GNN rows kept giving 604, 504 or 204. On a fair draw there is nothing for them to learn, so they fell back to how often each digit came up in their training years. How they are retrained each day is now fixed. All of them train from scratch once on their game\'s next run, so their tickets change from then on. Every model is still tracked as before.',
+      'Also new: an LSTM Smoothed row runs next to LSTM Base. It is the same model, trained to be a little less sure of itself (label smoothing). The OrderStatistics Baseline (the most common value in each position) now keeps repeated digits on Pick 3 and Joker+, so its Pick 3 ticket goes from 804 to 800.',
+      'The SubsetEnsemble row of Pick 3 and EuroDreams turned out to copy one of its own members. It pauses for about a week, until the ensembles are re-tuned on Saturday 31 Oct. On EuroDreams it is the current number one, so that game\'s top 5 is different for the next two draws. On Crypto and Shares the combined vote and the regime models give different calls; the plan still follows the model with the best record.',
+    ],
+  },
+  {
     id: '2026-10-24-new-interface',
     date: '2026-10-24',
     level: 'major',
