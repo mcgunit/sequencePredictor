@@ -416,38 +416,39 @@
             "sit_out_reason": "served sizing +0.0853 beats the 0 of never betting"
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-18T00:40:46+00:00",
-            "window_days": 32,
-            "study_best": 0.048765682579655,
-            "margin": 0.0756336638598909,
+            "date": "2026-10-25T00:46:04+00:00",
+            "tuner": "HyperoptEnsemble",
+            "window_days": 33,
+            "study_best": 0.06966178327531475,
+            "margin": 0.0770048833913519,
             "decision": "kept",
             "run_trials": 256,
-            "study_trials": 512,
-            "reason": "challenger +0.0474 does not beat incumbent +0.0474 by 0.0756337 (margin 1 x the challenger's standard error 0.0756)",
-            "trial": 256,
-            "challenger": 0.0474132111401091,
-            "incumbent": 0.0474132111401091,
-            "default": -0.48120891252643966,
+            "study_trials": 768,
+            "reason": "challenger +0.0697 does not beat incumbent +0.0697 by 0.0770049 (margin 1 x the challenger's standard error 0.0770)",
+            "trial": 512,
+            "challenger": 0.06966178327531475,
+            "incumbent": 0.06966178327531475,
+            "default": -0.5440661993967383,
             "challenger_tuning": {
-                "score": 0.0474132111401091,
+                "score": 0.06966178327531475,
                 "kind": "subset_bound",
-                "days": 32,
-                "mean": 0.121875,
-                "score_se": 0.0756336638598909
+                "days": 33,
+                "mean": 0.14545454545454545,
+                "score_se": 0.0770048833913519
             },
             "incumbent_tuning": {
-                "score": 0.0474132111401091,
+                "score": 0.06966178327531475,
                 "kind": "subset_bound",
-                "days": 32,
-                "mean": 0.121875,
-                "score_se": 0.0756336638598909
+                "days": 33,
+                "mean": 0.14545454545454545,
+                "score_se": 0.0770048833913519
             },
             "default_tuning": {
-                "score": -0.48120891252643966,
+                "score": -0.5440661993967383,
                 "kind": "subset_bound",
-                "days": 32,
-                "mean": -0.16875000000000007,
-                "score_se": 0.3135526625264396
+                "days": 33,
+                "mean": -0.2515151515151516,
+                "score_se": 0.2936874115179503
             },
             "candidates": [
                 "Autoencoder Model",

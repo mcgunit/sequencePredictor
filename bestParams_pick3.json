@@ -660,38 +660,39 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-18T00:39:29+00:00",
+            "date": "2026-10-25T00:44:41+00:00",
+            "tuner": "HyperoptEnsemble",
             "window_days": 120,
             "study_best": -1.6841009624722807,
-            "margin": 1.302184295805614,
+            "margin": 1.1232944328268502,
             "decision": "kept",
             "run_trials": 8,
-            "study_trials": 40,
-            "reason": "challenger -1.6841 does not beat incumbent -2.1734 or default -1.6841 by 1.30218 (margin 1 x the challenger's standard error 1.3022)",
-            "trial": 32,
-            "challenger": -1.6841009624722807,
-            "incumbent": -2.1733709762732603,
-            "default": -1.6841009624722807,
+            "study_trials": 48,
+            "reason": "challenger -2.2388 does not beat incumbent -2.8680 or default -2.6982 by 1.12329 (margin 1 x the challenger's standard error 1.1233)",
+            "trial": 40,
+            "challenger": -2.23879443282685,
+            "incumbent": -2.8680271394202914,
+            "default": -2.698184451121575,
             "challenger_tuning": {
-                "score": -1.6841009624722807,
+                "score": -2.23879443282685,
                 "kind": "subset_bound",
                 "days": 120,
-                "mean": -0.38333333333333336,
-                "score_se": 1.302184295805614
+                "mean": -1.1166666666666667,
+                "score_se": 1.1232944328268502
             },
             "incumbent_tuning": {
-                "score": -2.1733709762732603,
+                "score": -2.8680271394202914,
                 "kind": "subset_bound",
                 "days": 120,
-                "mean": -1.0416666666666667,
-                "score_se": 1.1331765318288154
+                "mean": -1.8916666666666666,
+                "score_se": 0.9777493616425138
             },
             "default_tuning": {
-                "score": -1.6841009624722807,
+                "score": -2.698184451121575,
                 "kind": "subset_bound",
                 "days": 120,
-                "mean": -0.38333333333333336,
-                "score_se": 1.302184295805614
+                "mean": -1.4833333333333334,
+                "score_se": 1.215906673343797
             },
             "candidates": [
                 "LaplaceMonteCarlo Model",
