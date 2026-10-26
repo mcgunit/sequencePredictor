@@ -1,8 +1,8 @@
 {
   "game": "cryptoweek",
-  "trained_at": "2026-10-18T04:22:22.960658+00:00",
+  "trained_at": "2026-10-25T08:14:09.205283+00:00",
   "days": 300,
-  "table_days": 110,
+  "table_days": 111,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
@@ -22,17 +22,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1364,
-          0.1364,
-          0.1818,
-          0.1364,
-          0.2273
+          0.1304,
+          0.1304,
+          0.1739,
+          0.1304,
+          0.2174
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1636,
-        "argmax_profit_per_day": -0.2136,
+        "mean_top1": 0.1565,
+        "argmax_profit_per_day": -0.387,
         "train_days": 88,
-        "test_days": 22
+        "test_days": 23
       }
     },
     "cryptoweek (v2)": {
@@ -40,17 +40,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.2273,
-          0.2727,
-          0.0909,
-          0.0909,
-          0.2727
+          0.1304,
+          0.1304,
+          0.2174,
+          0.087,
+          0.2609
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1909,
-        "argmax_profit_per_day": 0.0955,
+        "mean_top1": 0.1652,
+        "argmax_profit_per_day": -0.2609,
         "train_days": 88,
-        "test_days": 22
+        "test_days": 23
       }
     },
     "cryptoweek (quantum kernel)": {
@@ -58,17 +58,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0909,
+          0.0435,
+          0.0435,
           0.0,
-          0.1364,
-          0.1818,
-          0.1818
+          0.087,
+          0.1739
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1182,
-        "argmax_profit_per_day": -0.2455,
+        "mean_top1": 0.0696,
+        "argmax_profit_per_day": -0.4348,
         "train_days": 88,
-        "test_days": 22
+        "test_days": 23
       }
     },
     "cryptoweek (quantum vqc)": {
@@ -76,17 +76,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0909,
-          0.3182,
-          0.0909,
-          0.0909,
-          0.2273
+          0.0435,
+          0.1304,
+          0.1304,
+          0.087,
+          0.2174
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1636,
-        "argmax_profit_per_day": -0.1136,
+        "mean_top1": 0.1217,
+        "argmax_profit_per_day": -0.2261,
         "train_days": 88,
-        "test_days": 22
+        "test_days": 23
       }
     },
     "cryptoweek (classical svm)": {
@@ -94,17 +94,17 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.3182,
-          0.0909,
-          0.0909,
-          0.0455,
-          0.2273
+          0.2174,
+          0.087,
+          0.087,
+          0.087,
+          0.0
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1545,
-        "argmax_profit_per_day": -0.3864,
+        "mean_top1": 0.0957,
+        "argmax_profit_per_day": -0.3783,
         "train_days": 88,
-        "test_days": 22
+        "test_days": 23
       }
     }
   }
