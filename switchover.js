@@ -1,8 +1,8 @@
 // The switch to the app (batch 6, 24 Oct 2026): the server-rendered pages retire at once, for every reader.
 //
 // redirects, mounted right after the sign-in middleware (so it knows the reader): every old page address answers with
-// its app page - the administrator's view or the user's, as the old page was - and the old handlers behind it are no
-// longer reached (removed in a later cleanup). 302 and no-store: the target depends on who asks, and a browser must not
+// its app page - the administrator's view or the user's, as the old page was; the old handlers were removed in
+// cleanup batch 6b (26 Oct 2026). 302 and no-store: the target depends on who asks, and a browser must not
 // keep it. Targets are built from known game names and checked dates only, never from what the address carried.
 //
 // finish(app), installed after every route: an unknown address answers 404 (JSON under the APIs, a page in the

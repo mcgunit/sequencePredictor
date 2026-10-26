@@ -15,8 +15,8 @@
 //   GET  /api/whats-new                       the notes the reader's audience may see, seen or not, and the tour
 //   POST /api/whats-new/seen|replay           mark notes seen (and the tour done); show the tour again
 //
-// The rules stay where they were, and the old pages' forms call the same functions, so the two can never disagree
-// while both are up: which job may run, what cancel and stop do (jobs.js runRefusal, runNow, cancelQueued, stopRun);
+// The rules stay where they were (the old pages' forms called the same functions until cleanup batch 6b, 26 Oct
+// 2026): which job may run, what cancel and stop do (jobs.js runRefusal, runNow, cancelQueued, stopRun);
 // what a service allows (services.js act, actionsFor); accounts and passwords, with their audit entries (auth.js
 // addUser, setUserPassword, deleteUser, changeOwnPassword); what a reader sees and has seen (whatsnew.js). The run
 // lines and usual durations are This week's (admin.js runLine, usualOf), read from the same log slices.
@@ -400,7 +400,7 @@ function whatsNewView(user) {
   return {
     open, audience: user.role === 'admin' ? 'admin' : 'all',
     unseen: open ? null : items.filter((a) => !a.seen).length, of: items.length,
-    // what the old pages would pop up now: the tour for an account that never finished it, else the unseen major notes
+    // what the app pops up now: the tour for an account that never finished it, else the unseen major notes
     pending: pending ? { kind: pending.kind, ids: pending.items.map((a) => a.id) } : null,
     tour: { done: open ? null : Boolean(state.tourDone), title: whatsnew.TOUR.title, intro: whatsnew.TOUR.intro,
       steps: whatsnew.tourSteps(user).map((x) => ({ title: x.title, body: x.body })) },
@@ -437,7 +437,7 @@ function install(app, options = {}) {
   const reply = (res, result, extra = {}) => (result.ok ? json(res, { ok: true, message: admin.noPaths(result.message), ...extra })
     : json(res, { error: admin.noPaths(result.message) }, result.status || 500));
 
-  // JSON bodies for these POSTs only (server.js parses its forms with express.urlencoded); a body that is not JSON is
+  // JSON bodies for these POSTs only (server.js parses the sign-in form with express.urlencoded); a body that is not JSON is
   // a JSON 400, never express's HTML error page.
   const parser = options.jsonBody || require('express').json({ limit: '16kb' });
   const jsonBody = (req, res, next) => parser(req, res, (err) => {

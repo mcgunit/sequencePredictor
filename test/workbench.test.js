@@ -1,19 +1,18 @@
 'use strict';
-// The admin Workbench (workbench.js), the scoring it shares with the old pages (draws.js) and the History ranking as
+// The admin Workbench (workbench.js), the scoring it reads (draws.js) and the History ranking as
 // it stood before each draw (rankhistory.js): every family's ticket scored on hand-made rows, the keno profit net as
 // the History ranking counts it, the git history of a temp repository read once per sha and cached in a file, the
 // cut-off of a draw, a version that does not parse skipped, the routes guarded and whitelisted, a point-in-time top
 // five that is not today's when the ranking changed, the coming draw on today's ranking, the market workbench's
-// sections on a hand-made record - and, when this checkout runs next to production, the figures of the old pages
-// (server.js /database/:folder and /database/:folder/:file, rendered from a copy of production's files) against the
-// API's, every view's size, and the market workbench against the old /markets pages. Production is only read: its
+// sections on a hand-made record - and, when this checkout runs next to production, every view on a copy of
+// production's files (its size, the month counts, the Top as it stood before each draw) and the market workbench
+// against markets.js's own view. Production is only read: its
 // files are copied to a temp dir, its git is read with log and show, the cache file goes to the temp dir.
 //   node test/workbench.test.js
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const Module = require('module');
 const { execFileSync } = require('child_process');
 const admin = require('../admin');
 const draws = require('../draws');
@@ -384,107 +383,18 @@ async function marketPart(app) {
 }
 
 // ===================================================================================================================
-// 4. production, read-only: the old pages' figures against the API, sizes, the market workbench against the old page
+// 4. production, read-only: every view on a copy of its files, sizes, the market workbench against markets.js
 // ===================================================================================================================
 const PROD_ROOT = '/root/sequencePredictor';
-// server.js from a copy, its side-effect modules stubbed (as test/pages.test.js); its data folder is a copy of production's
-function oldRenderer(root) {
-  fs.copyFileSync(path.join(__dirname, '..', 'server.js'), path.join(root, 'server.js'));
-  fs.mkdirSync(path.join(root, 'config'), { recursive: true });
-  const gets = [];
-  const noop = () => {};
-  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const stubs = {
-    express: Object.assign(() => ({ use: noop, set: noop, post: noop, get(p, ...h) { gets.push([p, h]); }, listen: () => ({ on: noop, close: noop }) }),
-      { urlencoded: () => noop, static: () => noop, json: () => noop }),
-    './config': { CONFIG_DIR: path.join(root, 'config'), INTERFACE: '127.0.0.1', PORT: 0, TRUST_PROXY: false, ADMIN_USER: null },
-    './auth': { middleware: (q, s, n) => n(), install: noop, misconfigured: () => false, enabled: () => true, escapeHtml: esc, requireAdmin: () => (q, s, n) => n(), csrfOk: () => false },
-    './council': { install: noop },
-    './services': { install: noop, startAll: noop, stopAll: noop, section: () => '' },
-    './jobs': { install: noop, section: () => '', start: noop, stop: noop, JOBS: [] },
-    './whatsnew': { install: noop, dialog: () => '', navLink: () => '' },
-  };
-  const original = Module.prototype.require;
-  const REPO = path.join(__dirname, '..');
-  Module.prototype.require = function stubbed(id) {
-    if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
-    if (id.startsWith('./') && this.filename === path.join(root, 'server.js')) return original.call(this, path.join(REPO, id));
-    return original.apply(this, arguments);
-  };
-  const listeners = ['SIGTERM', 'SIGINT', 'exit', 'uncaughtException', 'unhandledRejection'].map((e) => [e, process.listeners(e).slice()]);
-  try { require(path.join(root, 'server.js')); } finally {
-    Module.prototype.require = original;
-    listeners.forEach(([e, before]) => process.listeners(e).filter((l) => !before.includes(l)).forEach((l) => process.removeListener(e, l)));
-  }
-  return (route, params) => {
-    const layer = gets.find(([p]) => (Array.isArray(p) ? p.includes(route) : p === route));
-    let html = '';
-    const res = { send: (x) => { html = x; }, status() { return this; }, redirect: noop, set() { return this; }, json: noop, sendFile: noop };
-    layer[1][layer[1].length - 1]({ user: { name: 'admin', role: 'admin', open: false, csrf: 'x' }, params, query: {}, session: {}, originalUrl: route, get: () => '' }, res);
-    return html;
-  };
-}
-const text = (html) => html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-// the old folder page: per day file its line, per month its header
-function oldFolder(html) {
-  const days = {};
-  for (const m of html.matchAll(/<a href="\/database\/[^/"]+\/([^"]+)"[^>]*>📄 [^<]*<\/a>\s*<span[^>]*>([\s\S]*?)<\/span>\s*<\/li>/g)) days[draws.isoOfFile(m[1])] = text(m[2]);
-  const months = {};
-  for (const m of html.matchAll(/<span class="card-title">(\d{4}-\d{2})<\/span><span[^>]*>([^<]*)<\/span>/g)) months[m[1]] = text(m[2]);
-  return { days, months };
-}
-// the API's day line and month header in the old page's words
-const fmtProfit = (game, x) => (game === 'jokerplus' ? Number(x).toFixed(2) : String(x));
-function newDayLine(game, d) {
-  const b = d.best || { mains: 0, specials: 0, left: 0, right: 0, sign: 0 };
-  const supplement = draws.SPECIAL_COLUMN_COUNTS[game] || game === 'lotto';
-  const match = game === 'jokerplus' ? `Match: ${b.left}/${b.right} (${b.sign})` : `Match: ${b.mains}${supplement ? ` (${b.specials})` : ''}`;
-  const money = game === 'keno' || game === 'pick3' || game === 'jokerplus';
-  const stat = money ? (game === 'jokerplus' ? `${match} · ${fmtProfit(game, d.profit)} €` : `${fmtProfit(game, d.profit)} €`) : match;
-  return stat + (d.multi !== undefined ? ` · of 9: ${d.multi}` : '');
-}
-function newMonthLine(game, m) {
-  const b = m.best || { mains: 0, specials: 0, left: 0, right: 0, sign: 0 };
-  const supplement = draws.SPECIAL_COLUMN_COUNTS[game] || game === 'lotto';
-  const best = game === 'jokerplus' ? `Best Match: ${b.left}/${b.right} (${b.sign})` : `Best Match: ${b.mains}${supplement ? ` (${b.specials})` : ''}`;
-  if (game === 'jokerplus') return `Total: ${fmtProfit(game, m.profit)} € · ${best}`;
-  if (game === 'keno' || game === 'pick3') return `Total: ${fmtProfit(game, m.profit)} €`;
-  return best;
-}
-// the old draw page's Analysis table: per data row its cells' text
-function oldAnalysis(html) {
-  const start = html.indexOf('Analysis of Prediction');
-  const section = html.slice(start, html.indexOf('Next Draw Prediction', start));
-  const tableAt = section.indexOf('<table border="1">');
-  if (tableAt < 0) return [];   // "No predictions." (a game's first day)
-  const table = section.slice(tableAt, section.indexOf('</table>', tableAt));
-  return table.split('<tr').slice(1).filter((tr) => !/<th/.test(tr)).map((tr) => [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => text(m[1])));
-}
-function newAnalysis(game, body) {
-  const out = [];
-  body.rows.forEach((r) => r.tickets.forEach((t, j) => {
-    const cells = game === 'jokerplus' ? [...t.mains, ...(t.specials.length ? [t.signName] : [])] : [...t.mains, ...(t.specials || [])];
-    let hits;
-    if (game === 'jokerplus') hits = `${t.hits.left}/${t.hits.right} (${t.hits.sign})`;
-    else if (game === 'pick3') hits = `${t.hits.membership}`;
-    else if (t.hits.specials !== undefined) hits = `${t.hits.mains} (${t.hits.specials})${j === 0 && r.multiPick && r.multiPick.nine !== undefined ? ` · ${r.multiPick.nine}` : ''}`;
-    else hits = `${t.hits.mains}`;
-    const extras = j === 0 && r.multiPick ? r.multiPick.numbers : null;
-    out.push({ name: r.name, cells: cells.map(String), extras, hits, profit: t.profit === undefined ? undefined : `${fmtProfit(game, t.profit === null ? 0 : t.profit)} €` });
-  }));
-  return out;
-}
-
 async function partFour() {
   if (!fs.existsSync(path.join(PROD_ROOT, 'data', 'database', 'modelPerformance.json'))) return;
   const GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto', 'jokerplus', 'keno', 'pick3', 'crypto', 'cryptoweek', 'shares', 'sharesweek'];
   const root = path.join(tmp, 'prod');
-  // a copy of production's files: the old renderer and the API read the same bytes, whatever the daily run does meanwhile
+  // a copy of production's files: the API and markets.js read the same bytes, whatever the daily run does meanwhile
   GAMES.forEach((g) => fs.cpSync(path.join(PROD_ROOT, 'data', 'database', g), path.join(root, 'data', 'database', g), { recursive: true }));
   fs.copyFileSync(path.join(PROD_ROOT, 'data', 'database', 'modelPerformance.json'), path.join(root, 'data', 'database', 'modelPerformance.json'));
   fs.cpSync(path.join(PROD_ROOT, 'data', 'markets'), path.join(root, 'data', 'markets'), { recursive: true });
   if (fs.existsSync(path.join(PROD_ROOT, 'data', 'controls', 'markets'))) fs.cpSync(path.join(PROD_ROOT, 'data', 'controls', 'markets'), path.join(root, 'data', 'controls', 'markets'), { recursive: true });
-  const render = oldRenderer(root);
   const app = fakeApp();
   // the API on the copy; the ranking from production's git (read-only), its cache in the temp dir
   admin.install(app, { root: PROD_ROOT, dataDir: path.join(root, 'data'), rankCacheFile: path.join(tmp, 'prod-cache.json') });
@@ -497,39 +407,19 @@ async function partFour() {
     ok(body.length < 60 * 1024, `production ${url}: ${body.length} bytes, under 60 KB`);
     return r.body;
   };
-  let compared = { days: 0, months: 0, tickets: 0 };
   for (const game of GAMES) {
-    // the history: the newest three months, day by day and month by month, as the old page prints them
-    const old = oldFolder(render('/database/:folder', { folder: game }));
+    // the history: the newest three months, month by month
     const first = await get(`/api/admin/history/${game}`);
     for (const m of first.months.slice(0, 3)) {
       const body = m.days ? first : await get(`/api/admin/history/${game}?month=${m.month}`);
       const month = body.months.find((x) => x.month === m.month);
-      ok(newMonthLine(game, month) === old.months[m.month], `${game} ${m.month}: the month header "${old.months[m.month]}" = "${newMonthLine(game, month)}"`);
-      compared.months += 1;
-      month.days.forEach((d) => {
-        assert.strictEqual(newDayLine(game, d), old.days[d.date], `${game} ${d.date}: the day line`);
-        compared.days += 1; checks += 1;
-      });
       ok(month.draws === month.days.length && month.counted === month.draws && month.rows === month.days.reduce((s, d) => s + d.rows, 0),
         `${game} ${m.month}: the month counts its draws and rows (All)`);
     }
-    // the draws: the newest and two older ones, row by row and ticket by ticket
+    // the draws: the newest and two older ones, All and Top
     const files = workbench.dayFilesOf(path.join(root, 'data', 'database', game));
     for (const f of [files[0], files[Math.min(5, files.length - 1)], files[Math.min(40, files.length - 1)]]) {
-      const body = await get(`/api/admin/draw/${game}/${f.date}`);
-      const oldRows = oldAnalysis(render('/database/:folder/:file', { folder: game, file: f.file }));
-      const newRows = newAnalysis(game, body);
-      ok(oldRows.length === newRows.length, `${game} ${f.date}: ${oldRows.length} tickets on the old page, ${newRows.length} in the API`);
-      newRows.forEach((n, i) => {
-        const o = oldRows[i];
-        const money = n.profit !== undefined;
-        const hitsAt = o.length - (money ? 2 : 1);
-        const cellsOld = o.slice(2, 2 + n.cells.length);
-        assert.deepStrictEqual([o[0], cellsOld, o[hitsAt], money ? o[o.length - 1] : undefined], [n.name, n.cells, n.hits, n.profit], `${game} ${f.date} ticket ${i}`);
-        if (n.extras) assert.deepStrictEqual(o.slice(2 + n.cells.length, 2 + n.cells.length + 3), n.extras.map(String), `${game} ${f.date} ticket ${i}: the multi-pick cells`);
-        compared.tickets += 1; checks += 1;
-      });
+      await get(`/api/admin/draw/${game}/${f.date}`);
       const top = await get(`/api/admin/draw/${game}/${f.date}?scope=top`);
       ok(top.rows.length === (top.scope.none ? 0 : top.scope.top.length) && top.scope.top.length <= 5 && top.rows.every((r) => r.top && top.scope.top.includes(r.name)) && top.scope.rows === top.rows.length
         && (!top.figures || top.figures.rows === top.rows.length), `${game} ${f.date}, Top: ${top.rows.length} rows, ${top.scope.none ? top.scope.none.text : `ranked on ${top.scope.ranking.committedAt}`}`);
@@ -545,23 +435,25 @@ async function partFour() {
   const jokerTop = await get('/api/admin/history/jokerplus?scope=top');
   ok(jokerTop.ranking.first.committedAt === '2026-08-25T05:21:45Z' && jokerTop.ranking.firstOfGame && jokerTop.ranking.firstOfGame.committedAt.startsWith('2026-09-07'),
     `production: Joker+ entered the ranking after the first saved one, and the history says when: ${JSON.stringify(jokerTop.ranking.firstOfGame)}`);
-  console.log(`workbench on production: ${compared.days} day lines, ${compared.months} months, ${compared.tickets} tickets equal to the old pages`);
 
-  // the market workbench against the old /markets pages
+  // the market workbench against markets.js's reading of the same copy (describeMarket with the week game, the rows
+  // report and the regime log; pickPlan, pickWeek), as the retired /markets pages read it
+  const marketsDir = path.join(root, 'data', 'markets');
   for (const market of ['crypto', 'shares']) {
     const w = await get(`/api/admin/market/${market}/workbench`);
-    const html = render(`/markets/${market}`, {});
-    if (w.plan) ok(html.includes(`The table shows <b>${w.plan.model}</b>'s calls`), `${market}: Today's plan follows ${w.plan.model}, as the old page`);
-    if (w.week) ok(html.includes(`<b>${w.week.model}</b>'s calls for the week`), `${market}: the week card follows ${w.week.model}, as the old page`);
+    const weekRecord = markets.loadMarket(marketsDir, markets.WEEK_GAMES[market]);
+    const rec = markets.describeMarket(markets.loadMarket(marketsDir, market), { rows: markets.loadRows(path.join(root, 'data', 'controls'), market),
+      regimes: markets.loadRegimes(marketsDir, market), week: weekRecord ? markets.describeMarket(weekRecord) : null });
+    if (w.plan) ok(w.plan.model === markets.pickPlan(rec, market).model.name, `${market}: Today's plan follows ${w.plan.model}, as markets.pickPlan`);
+    if (w.week) ok(rec.week && w.week.model === markets.pickWeek(rec.week, market).model.name, `${market}: the week card follows ${w.week.model}, as markets.pickWeek`);
     const fd = w.followed.day;
     if (fd && fd.liveDays) {
-      const m = /Followed since <b>([^<]+)<\/b> \((\d+) [a-z]+, (\d+) positions?\):\s*<b[^>]*>([+-][\d.]+)/.exec(html);
-      ok(m && m[1] === fd.firstLive && Number(m[2]) === fd.liveDays && Number(m[3]) === fd.positions && Number(m[4]) === fd.total && fd.live.length === fd.liveDays
-        && w.plan.soFar.liveDays === fd.live.length, `${market}: Following the plan as the old page: ${m && m[0]}`);
+      const f = rec.trading && rec.trading.followed;
+      ok(f && fd.firstLive === f.firstLive && f.points.filter((p) => p.live).length === fd.liveDays && fd.positions === f.livePositions && fd.total === Number(f.liveTotal.toFixed(2))
+        && fd.live.length === fd.liveDays && w.plan.soFar.liveDays === fd.live.length, `${market}: Following the plan as the record: since ${fd.firstLive}, ${fd.liveDays} live, ${fd.positions} positions, ${fd.total}`);
     }
-    const modelsHtml = html.slice(html.indexOf('Models over '), html.indexOf('</table>', html.indexOf('Models over ')));
-    ok(modelsHtml.startsWith(`Models over ${w.scoredDays} scored day(s)`) && (modelsHtml.match(/<tr><td style="text-align:left; font-weight:bold;">/g) || []).length === w.models.length,
-      `${market}: the models table, ${w.models.length} rows over ${w.scoredDays} scored days, as the old page`);
+    ok(w.scoredDays === rec.scoredDays && w.models.length === rec.models.length,
+      `${market}: the models table, ${w.models.length} rows over ${w.scoredDays} scored days, as the record`);
     for (const rule of w.books.rules) {
       const b = await get(`/api/admin/market/${market}/workbench/books/${rule}`);
       const head = w.books.headline[rule.replace(/_ls$/, '') === rule ? rule : 'longShort'];

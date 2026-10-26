@@ -411,7 +411,7 @@ async function partTwo() {
   let council;
   try {
     council = require('../council');
-    council.install(app, { header: () => '', footer: () => '', escapeHtml: (t) => t });
+    council.install(app);
   } finally { Module.prototype.require = original; }
   const alice = { name: 'alice', role: 'user', open: false, csrf: 'tok-a' };
   const bob = { name: 'bob', role: 'user', open: false, csrf: 'tok-b' };
@@ -632,7 +632,7 @@ async function throughExpress(council) {
   const who = { admin: ADMIN, user: USER, alice: { name: 'alice', role: 'user', open: false, csrf: 'tok-a' } };
   real.use((req, res, next) => { req.user = who[req.get('x-test-user')]; next(); });
   lottery.install(real, { root: repo, dataDir: path.join(repo, 'data'), rankCacheFile: path.join(tmp, 'rank-cache.json') });
-  if (council) council.install(real, { header: () => '', footer: () => '', escapeHtml: (t) => t });
+  if (council) council.install(real);
   await new Promise((resolve) => {
     const server = real.listen(0, '127.0.0.1', async () => {
       const base = `http://127.0.0.1:${server.address().port}`;

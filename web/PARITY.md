@@ -1,8 +1,8 @@
-> Working checklist for the switch to the new app (batch 4, 22 Oct 2026). Built routes: /app/admin/games, /app/admin/games/:game, /app/admin/games/:game/:date (API /api/admin/history/:game, /api/admin/draw/:game/:date) and /app/admin/markets/:market (API /api/admin/market/:market/workbench); the route names proposed below (/admin/draws) were renamed while building. The final parity sign-off happens before the switch (batch 6). Section D (24 Oct 2026, batch 6) covers the rest of the old pages and holds the owner's sign-off list.
+> Working checklist for the switch to the new app (batch 4, 22 Oct 2026). Built routes: /app/admin/games, /app/admin/games/:game, /app/admin/games/:game/:date (API /api/admin/history/:game, /api/admin/draw/:game/:date) and /app/admin/markets/:market (API /api/admin/market/:market/workbench); the route names proposed below (/admin/draws) were renamed while building. The final parity sign-off happens before the switch (batch 6). Section D (24 Oct 2026, batch 6) covers the rest of the old pages and holds the owner's sign-off list. This file is now a record: the old pages and their code were removed in cleanup batch 6b (26 Oct 2026), and every old address redirects to its app page (switchover.js).
 
 # Workbench parity: old pages to the new app (batch 4)
 
-**How this was read.** Rendered with a copy of production `data/` (the run of 22 Oct 2026 09:04 UTC, commit `2eadd2bc`), read only, through server.js's own routes with the test/pages.test.js stubs and markets.js `install` (`page()` with `describeMarket`), as the administrator. Pages rendered:
+**How this was read.** Rendered with a copy of production `data/` (the run of 22 Oct 2026 09:04 UTC, commit `2eadd2bc`), read only, through server.js's own routes with the test/pages.test.js stubs and markets.js `install` (`page()` with `describeMarket`), as the administrator (those routes, that test, `install` and `page()` were removed in cleanup batch 6b). Pages rendered:
 - `/database/:folder` for all 11 folders.
 - `/database/:folder/:file` for the newest and the oldest file of each folder.
 - `/markets/crypto` and `/markets/shares`.
@@ -28,7 +28,7 @@ A new sidebar group, **Admin › Workbench**:
 | **Crypto**, **Shares** | `/admin/markets/crypto`, `/admin/markets/shares` | `/api/admin/markets/:market` | `/markets/:market` (the sidebar's "Market workbench" links move here) |
 
 **Server side**
-- **`draws.js`** (new) takes over the scoring that lives in server.js today: `splitRealResult`, `splitTicket`, `calculateProfit`, the jokerplus runs, sign and payout, multi-pick, zodiac, and the vote charts. The admin API and the next batch's user API both use it. Its tests go in `test/draws.test.js`.
+- **`draws.js`** (new) takes over the scoring that lived in server.js then: `splitRealResult`, `splitTicket`, `calculateProfit`, the jokerplus runs, sign and payout, multi-pick, zodiac, and the vote charts. The admin API and the next batch's user API both use it. Its tests go in `test/draws.test.js`.
 - **`rankingHistory.js`** (new) handles the point-in-time ranking (below). It follows the pattern in gates.js: `execFile` git with fixed arguments, cached per HEAD.
 
 **Components** go in `web/src/components/draws/`, with a `mode: 'admin' | 'user'` prop:

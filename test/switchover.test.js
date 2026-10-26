@@ -84,7 +84,7 @@ ok(r.next && r.status === null, 'the APIs pass on');
 const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf-8');
 const at = (needle) => server.indexOf(needle);
 ok(at('app.use(auth.middleware);') > 0 && at('app.use(switchover.redirects);') > at('app.use(auth.middleware);'), 'redirects after the sign-in middleware (they need the reader)');
-ok(at('app.use(switchover.redirects);') < at('council.install(app'), 'redirects before the first old page route (/council)');
+ok(at('app.use(switchover.redirects);') < at('council.install(app'), 'redirects before the first route (the Council API)');
 const routeCalls = [...server.matchAll(/^(?:app\.(?:get|post|use)\(|\w+\.install\(app)/gm)].map((m) => m.index);
 ok(at('switchover.finish(app);') > Math.max(...routeCalls), 'the 404 and error handlers after every route');
 

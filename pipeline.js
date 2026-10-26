@@ -1,6 +1,5 @@
-// pipeline.js - is the pipeline busy right now? Moved out of server.js on 24 Oct 2026, so the old pages' banner
-// (server.js pipelineBanner) and the app's Home and Lottery (lottery.js: `running` on /api/home and /api/lottery) read
-// the same answer.
+// pipeline.js - is the pipeline busy right now? Moved out of server.js on 24 Oct 2026 (the old pages' banner); the
+// app's Home and Lottery read it (lottery.js: `running` on /api/home and /api/lottery).
 //
 // Every Python entry point (Predictor.py, the five tuners, TrainMetaLearner) takes this one PID lock file in the repo
 // root, so it is the cheapest honest answer to "is a run in progress" - no scheduler needed, and it stays true when a

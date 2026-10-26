@@ -3,13 +3,13 @@
 // One admin comes from the environment (WEB_USER / WEB_PASSWORD, read in
 // config.js) and never touches the disk; further users live in
 // config/users.json (gitignored, salted scrypt hashes) and are managed by the
-// admin on /admin/users. Two roles: "admin" sees everything, "user" sees the
-// prediction and History pages. Sessions are a signed HttpOnly SameSite cookie
+// admin in the app (system.js, /api/admin/people). Two roles: "admin" sees
+// everything, "user" the user view. Sessions are a signed HttpOnly SameSite cookie
 // (HMAC-SHA256 with a secret from WEB_SESSION_SECRET or generated once into
 // config/session.secret), so no session store and no npm dependency is needed.
 // With WEB_USER / WEB_PASSWORD both unset, authentication is off (local
-// development): every page is open, the user page is read-only and shows a
-// notice. Exactly one of the two set is a configuration error (see
+// development): everything is open and accounts are read-only
+// (managementRefusal). Exactly one of the two set is a configuration error (see
 // misconfigured()) and the server refuses to start.
 //
 // The password travels in clear text in the login form, so the app should sit
@@ -22,7 +22,6 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const audit = require('./audit');
-const { help } = require('./help');   // the "?" the pages keep their explanations behind (13 Oct 2026)
 const shell = require('./shell');   // the server-side pages' look: sign-in, not found, server error
 
 const COOKIE_NAME = 'sp_session';
@@ -136,7 +135,7 @@ function isHttps(req) {
 }
 
 // A fresh sign-in gets a new token, issue time and absolute limit; a renewal
-// (existing given) keeps all three so forms rendered before the renewal keep
+// (existing given) keeps all three so the form token the app already holds keeps
 // working and a leaked cookie still dies at the absolute limit.
 function issueSession(req, res, name, role, existing = null) {
   const now = Date.now();
@@ -238,7 +237,7 @@ function safeNext(target) {
 // makes csrfOk() refuse every POST - which silently disabled every button on
 // the Jobs page (start a service, run a job) in local development. A token
 // minted once per process keeps csrfOk's shape and its protection (a
-// cross-origin page still cannot read it) while letting the forms work. It
+// cross-origin page still cannot read it) while letting the app's actions work. It
 // grants nothing: the open-access guards on user management are separate and
 // stay.
 const OPEN_ACCESS_CSRF = crypto.randomBytes(16).toString('hex');
@@ -270,25 +269,16 @@ function middleware(req, res, next) {
   next();
 }
 
-function requireAdmin(render) {
-  return (req, res, next) => {
-    if (req.user && req.user.role === 'admin') return next();
-    res.status(403).send(render.header('Forbidden', req.user) +
-      '<h1>Not allowed</h1><p>This page is for the administrator. <a href="/">Back to the home page</a>.</p>' + render.footer());
-  };
-}
-
 function csrfOk(req) {
   const body = req.body || {};
   return Boolean(req.user && req.user.csrf && typeof body._csrf === 'string' && safeEqual(body._csrf, req.user.csrf));
 }
 
-// --- account changes: one rule for the old forms and the app's JSON -----------
-// Each answers {ok, status, message}: status as the JSON routes (system.js) give
-// it - 400 a value that breaks a rule, 403 user management while authentication
-// is off, 404 no such user, 409 refused by what it found (the name is taken, it
-// is the administrator) - and the forms below redirect with the same message.
-// The audit entries are written here, so both ways leave the same trail.
+// --- account changes, for the app's JSON (system.js) ---------------------------
+// Each answers {ok, status, message}: status as the JSON routes give it - 400 a
+// value that breaks a rule, 403 user management while authentication is off,
+// 404 no such user, 409 refused by what it found (the name is taken, it is the
+// administrator). The audit entries are written here.
 const refuse = (status, message) => ({ ok: false, status, message });
 const isAdminName = (name) => String(name).toLowerCase() === String(config.ADMIN_USER).toLowerCase();
 
@@ -385,7 +375,7 @@ function changeOwnPassword(req, res, body) {
   return { ok: true, status: 200, message: 'Your password has been changed. Your other browsers have been signed out.', session };
 }
 
-// An account as the pages may show it: never the salt or the hash.
+// An account as the app may show it: never the salt or the hash.
 function publicUser(u) {
   return { name: u.name, role: u.role === 'admin' ? 'admin' : 'user', createdAt: u.createdAt || null, passwordChangedAt: u.passwordChangedAt || null,
     lastLoginAt: u.lastLoginAt || null, lastLoginIp: u.lastLoginIp || null, logins: Number.isFinite(u.logins) ? u.logins : null };
@@ -394,8 +384,8 @@ function listUsers() {
   return loadUsers().map(publicUser);
 }
 
-// --- pages ---------------------------------------------------------------------
-// The sign-in page, in the app's look (shell.js). It stays server-side: the app itself needs a session to load.
+// --- the sign-in page --------------------------------------------------------------
+// In the app's look (shell.js). It stays server-side: the app itself needs a session to load.
 function loginPage(error, next) {
   return shell.page('Sign in', `
   <h1>Predictor</h1>
@@ -410,128 +400,8 @@ function loginPage(error, next) {
   <p class="foot">Not advice: the models are not expected to beat the draw or the market, and this site measures whether they do.</p>`);
 }
 
-function usersPage(render, req, message, isError) {
-  const users = loadUsers();
-  const writable = enabled();
-  const csrf = `<input type="hidden" name="_csrf" value="${escapeHtml(req.user.csrf)}">`;
-  const rows = users.map((u) => `
-      <tr>
-        <td style="text-align: left; font-weight: bold;">${escapeHtml(u.name)}</td>
-        <td>user</td>
-        <td>${escapeHtml((u.createdAt || '').slice(0, 10))}</td>
-        <td>${u.lastLoginAt ? `${escapeHtml(shortTime(u.lastLoginAt))}<br><span style="color:#7f8c8d; font-size:0.85em;">${escapeHtml(u.lastLoginIp || '')} · ${u.logins || 1} sign-in(s)</span>` : '<span style="color:#888;">never</span>'}</td>
-        <td>${writable ? `
-          <form method="post" action="/admin/users/password" class="inline-form">${csrf}<input type="hidden" name="username" value="${escapeHtml(u.name)}">
-            <input type="password" name="password" placeholder="new password" minlength="${MIN_PASSWORD_LENGTH}" required><button type="submit" class="nav-btn">Set password</button></form>
-          <form method="post" action="/admin/users/delete" class="inline-form" onsubmit="return confirm('Delete this user?');">${csrf}<input type="hidden" name="username" value="${escapeHtml(u.name)}">
-            <button type="submit" class="nav-btn" style="background: #c0392b; border-color: #a93226;">Delete</button></form>` : '<span style="color: #888;">read-only while authentication is off</span>'}
-        </td>
-      </tr>`).join('');
-  const notice = !writable
-    ? '<p style="background: #fdf2e9; border: 1px solid #f5cba7; padding: 10px; border-radius: 6px;">Authentication is <b>off</b>: set <code>WEB_USER</code> and <code>WEB_PASSWORD</code> in the server\'s environment to require a login. Accounts can only be managed while it is on.</p>'
-    : `<p style="color: #7f8c8d; margin-bottom: 0;">Administrator: <b>${escapeHtml(config.ADMIN_USER)}</b> (from the environment). Changing a user's password ends that user's open sessions.</p>
-      ${help('Users below sign in with their own password and see the predictions and the History pages only.', 'about accounts')}`;
-  return render.header('Users', req.user) + `
-    <h1>Users</h1>
-    <p><a href="/admin/activity" class="nav-btn" style="text-decoration:none;">Recent activity →</a></p>
-    ${notice}
-    ${message ? `<p style="color: ${isError ? '#c0392b' : '#27ae60'}; font-weight: bold;">${escapeHtml(message)}</p>` : ''}
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Accounts</span><div class="card-icon">▼</div></div>
-      <div class="card-body">
-        <div class="table-wrapper"><table style="min-width: 0;">
-          <tr><th style="text-align: left;">User</th><th>Role</th><th>Created</th><th>Last seen</th><th>Actions</th></tr>
-          ${rows || '<tr><td colspan="5" style="color: #888;">No users yet.</td></tr>'}
-        </table></div>
-      </div>
-    </div>
-    ${writable ? `
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Add a user</span><div class="card-icon">▼</div></div>
-      <div class="card-body">
-        <form method="post" action="/admin/users/add" class="auth-form">${csrf}
-          <label>User name <span style="color: #7f8c8d; font-weight: normal;">(3-32 letters, digits, . _ -)</span><input name="username" pattern="[A-Za-z0-9._-]{3,32}" required></label>
-          <label>Password <span style="color: #7f8c8d; font-weight: normal;">(at least ${MIN_PASSWORD_LENGTH} characters)</span><input type="password" name="password" minlength="${MIN_PASSWORD_LENGTH}" required></label>
-          <button type="submit" class="nav-btn" style="background: #27ae60; border-color: #1e8449;">Add user</button>
-        </form>
-      </div>
-    </div>` : ''}` + render.footer();
-}
-
-
-function shortTime(iso) {
-  if (!iso) return '-';
-  return String(iso).replace('T', ' ').slice(0, 16) + ' UTC';
-}
-
-function activityTable(entries, showUser) {
-  if (!entries.length) return '<p style="color:#888;">Nothing recorded yet.</p>';
-  const rows = entries.map((entry) => `
-      <tr>
-        <td style="text-align:left; white-space:nowrap;">${escapeHtml(shortTime(entry.at))}</td>
-        ${showUser ? `<td style="text-align:left; font-weight:bold;">${escapeHtml(entry.user)}</td>` : ''}
-        <td style="text-align:left;">${escapeHtml(audit.label(entry.event))}${entry.detail ? ` <span style="color:#7f8c8d;">(${escapeHtml(entry.detail)})</span>` : ''}</td>
-        <td style="text-align:left;">${escapeHtml(entry.ip || '-')}</td>
-        <td style="text-align:left; color:#7f8c8d; font-size:0.85em;">${escapeHtml((entry.agent || '').slice(0, 60))}</td>
-      </tr>`).join('');
-  return `<div class="table-wrapper"><table style="min-width:0;">
-      <tr><th style="text-align:left;">When</th>${showUser ? '<th style="text-align:left;">User</th>' : ''}<th style="text-align:left;">What</th><th style="text-align:left;">From</th><th style="text-align:left;">Browser</th></tr>
-      ${rows}
-    </table></div>`;
-}
-
-// Every signed-in user gets this page: their own password, and the sign-ins
-// recorded for their name so they can see a session they did not start.
-function accountPage(render, req, message, isError) {
-  const user = req.user;
-  const csrf = `<input type="hidden" name="_csrf" value="${escapeHtml(user.csrf)}">`;
-  const isAdmin = user.role === 'admin';
-  const form = user.open
-    ? '<p style="background:#fdf2e9; border:1px solid #f5cba7; padding:10px; border-radius:6px;">Authentication is <b>off</b> on this server, so there is no password to change.</p>'
-    : isAdmin
-      ? `<p style="margin-top: 0;">The administrator signs in with <code>WEB_USER</code> and <code>WEB_PASSWORD</code> from the server's <code>.env</code> file, which is deliberately not editable from a web page: it is the credential that could change everyone else's.</p>
-        ${help('To change it, edit <code>.env</code> and restart the server (<code>pm2 restart sequencePredictor</code>). Every administrator session ends the moment the password changes.', 'how to change it')}`
-      : `<form method="post" action="/account/password" class="auth-form">${csrf}
-          <label>Current password<input type="password" name="current" autocomplete="current-password" required></label>
-          <label>New password <span style="color:#7f8c8d; font-weight:normal;">(at least ${MIN_PASSWORD_LENGTH} characters)</span><input type="password" name="password" minlength="${MIN_PASSWORD_LENGTH}" autocomplete="new-password" required></label>
-          <label>New password again<input type="password" name="confirm" minlength="${MIN_PASSWORD_LENGTH}" autocomplete="new-password" required></label>
-          <button type="submit" class="nav-btn" style="background:#27ae60; border-color:#1e8449;">Change my password</button>
-        </form>
-        <p style="color:#7f8c8d;">Changing it signs out your other browsers and keeps this one signed in.</p>`;
-
-  const history = user.open ? [] : audit.recent(15, user.name);
-  return render.header('Your account', user) + `
-    <h1>Your account</h1>
-    <p style="color:#7f8c8d;">Signed in as <b>${escapeHtml(user.name)}</b> - ${isAdmin ? 'administrator' : 'user'}.</p>
-    ${message ? `<p style="color:${isError ? '#c0392b' : '#27ae60'}; font-weight:bold;">${escapeHtml(message)}</p>` : ''}
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Password</span><div class="card-icon">▼</div></div>
-      <div class="card-body">${form}</div>
-    </div>
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)">
-        <div><span class="card-title">Your recent activity</span><span class="card-meta" style="margin-left:10px;">sign-ins and changes recorded for your name</span></div>
-        <div class="card-icon">▼</div>
-      </div>
-      <div class="card-body">${activityTable(history, false)}</div>
-    </div>` + render.footer();
-}
-
-function activityPage(render, req) {
-  return render.header('Activity', req.user) + `
-    <h1>Activity</h1>
-    <p style="color:#7f8c8d; margin-bottom:0;">Sign-ins, failed attempts and account changes, newest first.</p>
-    ${help(`Recorded in
-      <code>${escapeHtml(audit.FILE)}</code>, which is rotated at 2 MB with one older file kept, so it cannot grow without bound.
-      Addresses are the caller's as seen through the reverse proxy.`, 'where this is kept')}
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)"><span class="card-title">Last 200 events</span><div class="card-icon">▼</div></div>
-      <div class="card-body">${activityTable(audit.recent(200), true)}</div>
-    </div>` + render.footer();
-}
-
 // --- routes ----------------------------------------------------------------------
-function install(app, render) {
+function install(app) {
   app.get('/login', (req, res) => {
     if (!enabled()) return res.redirect('/');
     const session = readSession(req);
@@ -571,8 +441,8 @@ function install(app, render) {
     }
     clearFailures(req, username);
     if (role === 'user') {
-      // Last seen lives on the account itself, so the Users page can show it
-      // without reading the audit trail for every row.
+      // Last seen lives on the account itself, so the People page (system.js)
+      // can show it without reading the audit trail for every row.
       const users = loadUsers();
       const user = findUser(users, username);
       if (user) {
@@ -598,62 +468,14 @@ function install(app, render) {
   };
   app.post('/logout', logout);
   app.get('/logout', logout);
-
-  app.get('/account', (req, res) => {
-    res.send(accountPage(render, req, req.query.msg ? String(req.query.msg).slice(0, 200) : null, req.query.err === '1'));
-  });
-
-  // The form and the app's JSON route (system.js) share changeOwnPassword.
-  app.post('/account/password', (req, res) => {
-    if (!csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const result = changeOwnPassword(req, res, req.body);
-    res.redirect(`/account?msg=${encodeURIComponent(result.message)}${result.ok ? '' : '&err=1'}`);
-  });
-
-  const adminOnly = requireAdmin(render);
-  // In open mode the page is read-only (managementRefusal).
-  const writable = (req, res, next) => {
-    const off = managementRefusal();
-    return off ? res.status(off.status).send(off.message) : next();
-  };
-
-  app.get('/admin/activity', adminOnly, (req, res) => {
-    res.send(activityPage(render, req));
-  });
-
-  app.get('/admin/users', adminOnly, (req, res) => {
-    res.send(usersPage(render, req, req.query.msg ? String(req.query.msg).slice(0, 200) : null, req.query.err === '1'));
-  });
-
-  const back = (res, message, isError) => res.redirect(`/admin/users?msg=${encodeURIComponent(message)}${isError ? '&err=1' : ''}`);
-  const rejectCsrf = (res) => res.status(403).send('Invalid form token - reload the page and try again.');
-
-  // The forms and the app's JSON routes (system.js) share addUser,
-  // setUserPassword and deleteUser: same rules, messages and audit entries.
-  const answer = (res, result) => back(res, result.message, !result.ok);
-  app.post('/admin/users/add', adminOnly, writable, (req, res) => {
-    if (!csrfOk(req)) return rejectCsrf(res);
-    answer(res, addUser(req, (req.body || {}).username, (req.body || {}).password));
-  });
-
-  app.post('/admin/users/password', adminOnly, writable, (req, res) => {
-    if (!csrfOk(req)) return rejectCsrf(res);
-    answer(res, setUserPassword(req, (req.body || {}).username, (req.body || {}).password));
-  });
-
-  app.post('/admin/users/delete', adminOnly, writable, (req, res) => {
-    if (!csrfOk(req)) return rejectCsrf(res);
-    answer(res, deleteUser(req, (req.body || {}).username));
-  });
 }
 
-// requireAdmin / csrfOk / ensureConfigDir are exported for the other page
-// modules (council.js, jobs.js, services.js, system.js) so every one of them
-// gates and validates exactly like the user pages here; the account changes
-// for system.js, the app's JSON.
+// csrfOk is exported for the JSON routes (council.js, system.js), so every POST
+// checks the session's form token the same way; the account changes for
+// system.js, the app's JSON.
 module.exports = {
-  enabled, misconfigured, middleware, install, escapeHtml, safeNext, loginPage,
-  requireAdmin, csrfOk, ensureConfigDir, USERS_FILE, SECRET_FILE, CONFIG_DIR: config.CONFIG_DIR,
+  enabled, misconfigured, middleware, install, loginPage,
+  csrfOk, ensureConfigDir, USERS_FILE, SECRET_FILE, CONFIG_DIR: config.CONFIG_DIR,
   MIN_PASSWORD_LENGTH, USERNAME_RE, LOGIN_MAX_FAILURES, LOGIN_WINDOW_MS, adminName: () => (enabled() ? config.ADMIN_USER : null),
   managementRefusal, addUser, setUserPassword, deleteUser, ownPasswordRefusal, changeOwnPassword, listUsers,
 };

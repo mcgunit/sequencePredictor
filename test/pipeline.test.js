@@ -1,9 +1,9 @@
 'use strict';
-// pipeline.js: is a pipeline job holding process.lock, and which one (moved out of server.js on 24 Oct 2026). The old
-// pages' banner (server.js pipelineBanner) and the app's Home and Lottery (lottery.js `running`) read it. Here: no lock,
-// an empty or unreadable one, a stale one (the process is gone), every job by its script's name, an unknown script, the
-// real /proc for this test's own process, what a reader gets (the job's words and since when, never the pid or a path),
-// and that server.js reads this module instead of a copy of its own (server.js is never started here).
+// pipeline.js: is a pipeline job holding process.lock, and which one (moved out of server.js on 24 Oct 2026). The app's
+// Home and Lottery (lottery.js `running`) read it; the old pages' banner that read it too was removed in cleanup batch
+// 6b (26 Oct 2026). Here: no lock, an empty or unreadable one, a stale one (the process is gone), every job by its
+// script's name, an unknown script, the real /proc for this test's own process, what a reader gets (the job's words and
+// since when, never the pid or a path), and that lottery.js reads this module and no server file keeps a copy of its own.
 //   node test/pipeline.test.js
 const assert = require('assert');
 const fs = require('fs');
@@ -61,12 +61,12 @@ try {
   ok(JSON.stringify(pipeline.runningNow(lock, procOf({ 4242: 'python3\0Predictor.py\0' }))) === '{"what":"Today\'s predictions are being computed","since":"2026-10-24T03:15:00Z"}',
     'runningNow names the job as the old banner did');
 
-  // --- server.js reads this module (its banner and autoReload stay on the old pages) -----------------------------------
-  const server = fs.readFileSync(path.join(REPO, 'server.js'), 'utf-8');
-  ok(/const \{ pipelineStatus \} = require\('\.\/pipeline'\);/.test(server) && !/function pipelineStatus\(|const JOB_NAMES|const PIPELINE_LOCK/.test(server),
-    'server.js requires pipeline.js and keeps no copy of its own');
-  ok(/function pipelineBanner\(\) \{\s*const status = pipelineStatus\(\);/.test(server) && /autoReload\(60000\)/.test(server),
-    'server.js\'s banner still asks pipelineStatus() and reloads the old page every minute');
+  // --- lottery.js reads this module; no server file keeps a copy of its own --------------------------------------------
+  const source = (file) => fs.readFileSync(path.join(REPO, file), 'utf-8');
+  ok(/const pipeline = require\('\.\/pipeline'\);/.test(source('lottery.js')) && /pipeline\.runningNow\(/.test(source('lottery.js')),
+    'lottery.js requires pipeline.js and asks runningNow()');
+  ['server.js', 'lottery.js'].forEach((file) => ok(!/function pipelineStatus\(|const JOB_NAMES|const PIPELINE_LOCK/.test(source(file)),
+    `${file} keeps no copy of its own`));
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

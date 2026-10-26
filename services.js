@@ -10,17 +10,14 @@
 // through `setsid --fork` instead, by a module that can reuse the status,
 // logging and admin-page shape established here.
 //
-// Nothing here is reachable without a login: install() mounts its routes
-// after auth.middleware, and every action is admin-only, POST and CSRF
-// checked.
+// Nothing here is reachable without a login: the actions are asked for through
+// the app's JSON (system.js, /api/admin/services), mounted after
+// auth.middleware, administrator only, POST and CSRF checked.
 
 const { spawn } = require('child_process');
-const { help, autoReload } = require('./help');   // the "?" explanations; the reload waits while one is open
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-
-const auth = require('./auth');
 
 const LOG_DIR = path.join(__dirname, 'log');
 const LOG_MAX_BYTES = 10 * 1024 * 1024;   // rotate at 10MB, keep one old file
@@ -284,9 +281,9 @@ async function restart(service) {
   return Object.assign({}, started, { changed: Boolean(stopped.changed || started.changed) });
 }
 
-// --- actions: one rule for the old form and the app's JSON -------------------
-// Which buttons a service's state allows - the Jobs page greys the others, the
-// app shows the same: s is a status() entry (status, pid).
+// --- actions, for the app's JSON (system.js) ---------------------------------
+// Which buttons a service's state allows - the app's Jobs page greys the
+// others: s is a status() entry (status, pid).
 function actionsFor(s) {
   const managed = s.status !== 'external';
   return { start: s.status !== 'running' && s.status !== 'external', restart: managed, stop: managed && Boolean(s.pid) };
@@ -363,100 +360,4 @@ async function status() {
   }));
 }
 
-// --- page ------------------------------------------------------------------
-const BADGE = {
-  running: ['#27ae60', 'running'],
-  external: ['#2980b9', 'running (started outside the server)'],
-  restarting: ['#f39c12', 'restarting'],
-  stopped: ['#7f8c8d', 'stopped'],
-  disabled: ['#7f8c8d', 'autostart off'],
-  failed: ['#c0392b', 'failed'],
-};
-
-function since(at) {
-  if (!at) return '-';
-  const seconds = Math.round((Date.now() - at) / 1000);
-  if (seconds < 90) return `${seconds}s`;
-  if (seconds < 5400) return `${Math.round(seconds / 60)} min`;
-  return `${(seconds / 3600).toFixed(1)} h`;
-}
-
-function page(req, render, services, message, extra) {
-  const esc = auth.escapeHtml;
-  const csrf = `<input type="hidden" name="_csrf" value="${esc(req.user.csrf)}">`;
-  const cards = services.map((s) => {
-    const [colour, label] = BADGE[s.status] || ['#7f8c8d', s.status];
-    const can = actionsFor(s);
-    return `
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)">
-        <div>
-          <span class="card-title">${esc(s.name)}</span>
-          <span class="card-meta" style="margin-left: 10px; color: ${colour}; font-weight: bold;">${esc(label)}</span>
-          ${s.pid ? `<span class="card-meta" style="margin-left: 10px;">pid ${s.pid} · up ${since(s.since)}</span>` : ''}
-        </div>
-        <div class="card-icon">▼</div>
-      </div>
-      <div class="card-body">
-        ${help(esc(s.description), 'what this service does')}
-        <table style="min-width: 0; margin-bottom: 15px;">
-          <tr><th style="text-align:left;">Command</th><td style="text-align:left;"><code>${esc(s.command)}</code></td></tr>
-          <tr><th style="text-align:left;">Working directory</th><td style="text-align:left;"><code>${esc(s.cwd)}</code></td></tr>
-          <tr><th style="text-align:left;">Answers on</th><td style="text-align:left;">127.0.0.1:${s.port} ${s.healthy ? '<span style="color:#27ae60;">yes</span>' : '<span style="color:#c0392b;">no</span>'}</td></tr>
-          ${s.summary ? `<tr><th style="text-align:left;">Reported state</th><td style="text-align:left;">${esc(s.summary)}</td></tr>` : ''}
-          <tr><th style="text-align:left;">Restarts</th><td style="text-align:left;">${s.restarts}${s.lastExit ? ` · last exit ${s.lastExit.signal ? `signal ${esc(s.lastExit.signal)}` : `code ${s.lastExit.code}`} ${since(s.lastExit.at)} ago` : ''}</td></tr>
-          ${s.lastError ? `<tr><th style="text-align:left;">Last error</th><td style="text-align:left; color:#c0392b;">${esc(s.lastError)}</td></tr>` : ''}
-          <tr><th style="text-align:left;">Log</th><td style="text-align:left;"><code>${esc(s.logFile)}</code></td></tr>
-        </table>
-        <form method="post" action="/admin/jobs/action" class="inline-form">${csrf}
-          <input type="hidden" name="key" value="${esc(s.key)}">
-          <button type="submit" name="action" value="start" class="nav-btn"${can.start ? '' : ' disabled'}>Start</button>
-          <button type="submit" name="action" value="restart" class="nav-btn"${can.restart ? '' : ' disabled'}>Restart</button>
-          <button type="submit" name="action" value="stop" class="nav-btn" style="background:#c0392b; border-color:#a93226;"${can.stop ? '' : ' disabled'}>Stop</button>
-        </form>
-        ${s.status === 'external' ? '<p style="color:#7f8c8d;">This instance was started outside the server (by hand, or by the other checkout), so the buttons above cannot manage it.</p>' : ''}
-        <pre style="background:#2c3e50; color:#ecf0f1; padding:12px; border-radius:6px; overflow-x:auto; max-height:260px; font-size:0.85em;">${esc(s.log.join('\n') || 'no log yet')}</pre>
-      </div>
-    </div>`;
-  }).join('');
-
-  return render.header('Jobs', req.user) + `
-    <h1>Jobs</h1>
-    ${message ? `<p style="color:#27ae60; font-weight:bold;">${esc(message)}</p>` : ''}
-    <p style="color:#7f8c8d;">This page refreshes every 15 seconds, and waits while a "?" is open.</p>
-    ${help('What this server runs for you: the scheduled pipeline jobs (jobs.js) and the services it keeps up (below).', 'about this page')}
-    ${extra || ''}
-    <h2>Services</h2>
-    ${cards}
-    ${autoReload(15000)}` + render.footer();
-}
-
-// `extraSection` is an optional (req) => html callback rendered above the
-// services - jobs.js passes the scheduled pipeline jobs through it, so this
-// module keeps knowing nothing about the schedule.
-function install(app, render, extraSection) {
-  const adminOnly = auth.requireAdmin(render);
-
-  app.get('/admin/jobs', adminOnly, async (req, res) => {
-    let extra = '';
-    if (extraSection) {
-      try {
-        extra = await extraSection(req);
-      } catch (e) {
-        // A broken schedule section must not take the page that operates the
-        // services with it.
-        extra = `<p style="color:#c0392b;">The scheduled jobs could not be rendered: ${auth.escapeHtml(e.message)}</p>`;
-      }
-    }
-    res.send(page(req, render, await status(), req.query.msg ? String(req.query.msg).slice(0, 200) : null, extra));
-  });
-
-  // The form and the app's JSON route (system.js) share act(): same rule, same message.
-  app.post('/admin/jobs/action', adminOnly, async (req, res) => {
-    if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    const result = await act((req.body || {}).key, String((req.body || {}).action || ''), req.user.name);
-    res.redirect('/admin/jobs?msg=' + encodeURIComponent(result.message));
-  });
-}
-
-module.exports = { install, startAll, stopAll, status, act, actionsFor, ACTIONS, SERVICES };
+module.exports = { startAll, stopAll, status, act, actionsFor, ACTIONS, SERVICES };

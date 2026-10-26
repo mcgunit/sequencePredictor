@@ -4,8 +4,8 @@
 // One ranking for every page that says "the top models": the History ranking in
 // data/database/modelPerformance.json (Helpers.generate_model_performance_report), in its own order - the
 // established rows by the game's metric, the rows with fewer scored draws than the ranking minimum after them.
-// server.js (the next-prediction tables) and admin.js (the admin JSON) both read it from here, so the two never
-// name a different top five.
+// admin.js (the admin JSON), workbench.js and lottery.js (the users' Lottery and Home) all read it from here, so they
+// never name a different top five.
 'use strict';
 
 const fs = require('fs');
@@ -54,8 +54,8 @@ function rankingFor(databaseDir, game) {
   return rankingOf(loadReport(databaseDir), game);
 }
 
-// The names in a game's newest day file (data/database/<game>/YYYY-M-D.json, the newest date first, as server.js
-// dayFiles orders them): the next-prediction table /lottery shows today. Read once per change of that file; null
+// The names in a game's newest day file (data/database/<game>/YYYY-M-D.json, the newest date first): the
+// next-prediction table the Lottery shows today. Read once per change of that file; null
 // when the game has no day file (or it cannot be read).
 const todayCache = new Map();   // file -> {stamp, names}
 const dayNumber = (file) => {
@@ -81,7 +81,7 @@ function namesToday(databaseDir, game) {
 }
 
 // The users' top five of a game today: the first five ranked names that are in the newest day's table - the rows
-// /lottery shows a user (server.js tableSelection, the same topNames rule). A ranked row missing from today's table
+// the Lottery shows a user (the topNames rule). A ranked row missing from today's table
 // is passed over and the sixth comes in; without a day file it is the first five of the ranking.
 function usersTop(report, game, present) {
   return topNames(rankingOf(report, game), TOP_MODELS_SHOWN, Array.isArray(present) ? present : null);

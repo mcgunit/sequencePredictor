@@ -190,10 +190,9 @@ html.locked { overflow: hidden; scrollbar-gutter: stable; } /* a drawer is open:
 .card { scroll-margin-top: 16px; }
 @media (max-width: 860px) { .card { scroll-margin-top: calc(56px + env(safe-area-inset-top, 0px)); } }
 
-/* Sidebar: old pages marked with an arrow, nested anchors, the sign-out button */
+/* Sidebar: nested anchors, the sign-out button */
 nav.side a.sub.on { color: var(--accent); }
 nav.side a.sub2 { padding-left: 36px; }
-nav.side a .old, nav.side .pair .old { color: var(--faint); font-weight: 400; margin-left: 2px; }
 nav.side .pair { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; padding: 6px 10px 6px 24px; color: var(--muted); font-size: 13px; }
 nav.side .pair a { display: inline; padding: 0; color: var(--muted); font-weight: 400; border-radius: 4px; }
 nav.side .pair a:hover { background: none; color: var(--accent); }

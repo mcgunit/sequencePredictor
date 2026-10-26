@@ -1,9 +1,9 @@
 'use strict';
-// The System pages' JSON (system.js) and the rules it shares with the old forms (jobs.js runNow / cancelQueued /
-// stopRun, services.js act, auth.js addUser / setUserPassword / deleteUser / changeOwnPassword, whatsnew.js): the
-// guard (401 signed out, 403 for a user), the form token on every POST, each action's happy path and refusal, no
-// password hash or salt in any answer, and the old routes still working - on stand-ins only. Nothing here reads or
-// writes the checkout's config/ or log/, starts a process or probes a port:
+// The System pages' JSON (system.js) and the rules it calls (jobs.js runNow / cancelQueued / stopRun, services.js act,
+// auth.js addUser / setUserPassword / deleteUser / changeOwnPassword, whatsnew.js): the guard (401 signed out, 403
+// for a user), the form token on every POST, each action's happy path and refusal, and no password hash or salt in
+// any answer - on stand-ins only. Nothing here reads or writes the checkout's config/ or log/, starts a process or
+// probes a port:
 //   - config.js is a stand-in for every module that asks for it: config/ is a temp dir (users.json, audit.jsonl,
 //     user-state.json, scheduler.json), with a stand-in administrator;
 //   - jobs.js and services.js run as copies in temp dirs (their log/ and process.lock are the copies' own), with
@@ -132,7 +132,6 @@ function call(app, method, url, { user, body, headers = {} } = {}) {
 const BAD_JSON = Symbol('not json');
 // the JSON parser stand-in: the body arrives parsed, or as BAD_JSON for a body express.json would refuse
 const jsonBody = (req, res, next) => (req.body === BAD_JSON ? next({ type: 'entity.parse.failed' }) : next());
-const render = { header: (title) => `<header>${title}</header>`, footer: () => '<footer></footer>' };
 
 const ADMIN = { name: ADMIN_NAME, role: 'admin', open: false, csrf: 'tok-admin' };
 const USER = { name: 'reader', role: 'user', open: false, csrf: 'tok-user' };
@@ -311,10 +310,6 @@ const app = standIn();
 api.install(app, { dataDir: path.join(tmp, 'markets') });
 system.install(app, { root: JOBS_ROOT, jobs, services, jsonBody });
 admin.install(app, { root: JOBS_ROOT, jobs, services, audit });
-auth.install(app, render);
-services.install(app, render, jobs.section);
-jobs.install(app, render);
-whatsnew.install(app, render, auth);
 
 const ADMIN_GETS = ['/api/admin/jobs', `/api/admin/jobs/run/hyperoptBoost-${RUN2}/log`, '/api/admin/people'];
 const ADMIN_POSTS = ['/api/admin/jobs/run', '/api/admin/jobs/cancel', '/api/admin/jobs/stop', '/api/admin/services/councilApi/start',
@@ -617,31 +612,6 @@ async function main() {
     && (await call(app, 'GET', '/api/whats-new', { user: USER })).body.tour.done === false, 'replay: the tour shows again');
   ok((await call(app, 'POST', '/api/whats-new/seen', { user: OPEN, body: withToken(OPEN, { ids: [forAll[0].id] }) })).status === 409
     && (await call(app, 'GET', '/api/whats-new', { user: OPEN })).body.unseen === null, 'what\'s new: open access has no account to record against (409)');
-
-  // --- the old routes still work, through the same rules ---
-  const form = (url, who, body) => call(app, 'POST', url, { user: who, body: { ...body, _csrf: who.csrf } });
-  const oldAdd = await form('/admin/users/add', ADMIN, { username: 'dave', password: 'dave-password-1' });
-  ok(oldAdd.status === 302 && oldAdd.redirect === `/admin/users?msg=${encodeURIComponent('User dave added.')}` && lastEvent().event === 'user.added', 'old /admin/users/add: added, redirected with the message');
-  ok((await call(app, 'POST', '/admin/users/add', { user: ADMIN, body: { username: 'erin', password: 'erin-password-1' } })).status === 403, 'old form without a token: 403');
-  ok((await form('/admin/users/delete', ADMIN, { username: ADMIN_NAME })).redirect.includes(encodeURIComponent('cannot be deleted')) && (await form('/admin/users/password', ADMIN, { username: 'dave', password: 'dave-password-2' })).redirect.includes('changed')
-    && (await form('/admin/users/delete', ADMIN, { username: 'dave' })).redirect.includes(encodeURIComponent('User dave deleted.')), 'old user forms: the same refusals and changes');
-  const oldOwn = await form('/account/password', USER, { current: 'reader-password-2', password: 'reader-password-3', confirm: 'reader-password-3' });
-  ok(oldOwn.redirect.startsWith('/account?msg=') && !oldOwn.redirect.includes('err=1') && oldOwn.headers['Set-Cookie'], 'old /account/password: changed, a fresh session');
-  const oldUsers = await call(app, 'GET', '/admin/users', { user: ADMIN });
-  ok(oldUsers.text.includes('reader') && !usersOnDisk().some((u) => oldUsers.text.includes(u.hash) || oldUsers.text.includes(u.salt)), 'old /admin/users: renders, no hash');
-  ok((await call(app, 'GET', '/admin/activity', { user: ADMIN })).text.includes('account created') && (await call(app, 'GET', '/account', { user: USER })).text.includes('Your account'),
-    'old /admin/activity and /account render');
-  ok((await form('/admin/jobs/run', ADMIN, { key: 'featureControl' })).redirect === `/admin/jobs?msg=${encodeURIComponent('Weekly controls: irrelevant-feature control (meta-learners): queued, first in the queue')}`
-    && (await form('/admin/jobs/cancel', ADMIN, { key: 'featureControl' })).redirect === `/admin/jobs?msg=${encodeURIComponent('Weekly controls: irrelevant-feature control (meta-learners): removed from the queue')}`
-    && (await form('/admin/jobs/stop', ADMIN, { runId: 'x' })).redirect === `/admin/jobs?msg=${encodeURIComponent('that job is no longer running')}`, 'old job forms: run, cancel, stop');
-  ok((await form('/admin/jobs/action', ADMIN, { key: 'councilApi', action: 'stop' })).redirect === `/admin/jobs?msg=${encodeURIComponent('Council API: already stopped')}`
-    && (await form('/admin/jobs/action', ADMIN, { key: 'councilApi', action: 'dance' })).redirect === `/admin/jobs?msg=${encodeURIComponent('Council API: unknown action')}`
-    && (await form('/admin/jobs/action', ADMIN, { key: 'bingo', action: 'stop' })).redirect === `/admin/jobs?msg=${encodeURIComponent('unknown service')}`, 'old service form: the same messages');
-  const oldJobs = await call(app, 'GET', '/admin/jobs', { user: ADMIN });
-  ok(oldJobs.text.includes('Scheduled pipeline jobs') && oldJobs.text.includes('Council API') && /value="stop"[^>]*disabled/.test(oldJobs.text), 'old /admin/jobs renders, Stop greyed by the shared rule');
-  ok((await form('/whats-new/seen', USER, { id: [forAll[1].id] })).status === 302 && whatsnew.stateOf(USER).seen.includes(forAll[1].id)
-    && (await call(app, 'POST', '/whats-new/seen', { user: USER, body: { id: forAll[2].id } })).status === 403, 'old /whats-new/seen: recorded with the token, 403 without');
-  ok((await call(app, 'GET', '/whats-new', { user: USER })).text.includes('What&#39;s new') || (await call(app, 'GET', '/whats-new', { user: USER })).text.includes("What's new"), 'old /whats-new renders');
   ok(!spawned.some(([command]) => command === 'setsid'), 'still no job launched');
 
   // --- no hash or salt in any answer ---

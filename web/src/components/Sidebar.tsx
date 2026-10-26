@@ -7,16 +7,13 @@ import { readTheme, setTheme, type ThemeChoice } from '../theme';
 
 const NARROW = '(max-width: 860px)';
 
-// The menu as data. An item is a route of this app (to) or a server page (href, a full reload); a server
-// page that the app will replace carries the ↗ "old page" mark. The users see the five top items (Home, Lottery,
+// The menu as data: every item is a route of this app. The users see the five top items (Home, Lottery,
 // Crypto, Shares, Council: the slim app of 21-23 Oct 2026), and in the footer their account, What's new and Sign out;
 // the administrator the same and also This week (with its status dot) and the three groups, What's new among the
 // System items.
 interface Item {
   label: string;
   to?: string; // a route, possibly with an anchor (#q0)
-  href?: string;
-  old?: boolean;
   nested?: boolean; // an anchor inside the page above it
   prefix?: boolean; // "on" for the pages under it too (/admin/games/lotto/2026-10-21)
   links?: { label: string; to: string }[]; // one line, several routes (the market workbench: crypto, shares)
@@ -123,15 +120,6 @@ function NewCount({ n }: { n: number | null | undefined }) {
   );
 }
 
-function Old() {
-  return (
-    <span className="old">
-      <span aria-hidden="true">↗</span>
-      <span className="vh"> old page</span>
-    </span>
-  );
-}
-
 function ItemLink({ item, sub, pathname, hash, news, onNavigate }: { item: Item; sub: boolean; pathname: string; hash: string; news?: number | null; onNavigate: () => void }) {
   const cls = [sub ? 'sub' : '', item.nested ? 'sub2' : ''].filter(Boolean).join(' ');
   if (item.links) {
@@ -144,14 +132,6 @@ function ItemLink({ item, sub, pathname, hash, news, onNavigate }: { item: Item;
           </Link>
         ))}
       </div>
-    );
-  }
-  if (item.href) {
-    return (
-      <a className={cls || undefined} href={item.href}>
-        {item.label}
-        {item.old ? <Old /> : null}
-      </a>
     );
   }
   const [path, anchor = ''] = (item.to ?? '/').split('#');

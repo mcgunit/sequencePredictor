@@ -109,7 +109,7 @@ function closeAround(view, symbol, date) {
   const at = inst ? inst.closes.findIndex((p) => p[0] === date) : -1;
   return { before: at > 0 ? inst.closes[at - 1][1] : null, on: at >= 0 ? inst.closes[at][1] : null };
 }
-// the workbench's view of a market: its record with the week game, the rows report and the regime log (as markets.install)
+// the workbench's view of a market: its record with the week game, the rows report and the regime log
 function workbenchSource(dirs, market) {
   const week = markets.WEEK_GAMES[market];
   const files = [path.join(dirs.marketsDir, `${market}.json`), path.join(dirs.marketsDir, `${week}.json`),

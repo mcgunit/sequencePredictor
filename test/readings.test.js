@@ -159,15 +159,13 @@ ok(scheduleReading({ key: 'randomnessDiscrimination', name: 'Q2', startedAt: loc
   `a control re-run after Q0, or a Q0 past Tuesday 09:00, says the reading does not hold it and how to rebuild it: ${told.join(' / ')}`);
 
 // --- finish() itself, on a copy of jobs.js in a temp dir: a stand-in Q0 run that ended, adopted at start-up -------
-// The copy's own config, auth, help and readings are stand-in files next to it: its scheduler state, log and run files
+// The copy's own config and readings are stand-in files next to it: its scheduler state, log and run files
 // all live in the temp dir, the schedule is switched off (nothing is due or started), and the readings stand-in
 // records what it is asked - or throws.
 function copyOfJobs(behaviour) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-reading-'));
   fs.copyFileSync(path.join(REPO, 'jobs.js'), path.join(dir, 'jobs.js'));
   fs.writeFileSync(path.join(dir, 'config.js'), `module.exports = { CONFIG_DIR: ${JSON.stringify(path.join(dir, 'config'))} };`);
-  fs.writeFileSync(path.join(dir, 'auth.js'), 'module.exports = { escapeHtml: (t) => String(t), requireAdmin: () => (q, s, n) => n(), csrfOk: () => false };');
-  fs.writeFileSync(path.join(dir, 'help.js'), 'module.exports = { help: () => "" };');
   fs.writeFileSync(path.join(dir, 'readings.js'), `const calls = global.__readingCalls;
 module.exports = {
   buildReading: (o) => { calls.push(o); if (${JSON.stringify(behaviour)} === 'throw') throw new Error('records unreadable'); return { sunday: o.sunday }; },

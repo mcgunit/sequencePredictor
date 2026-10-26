@@ -10,9 +10,9 @@ import { useWhatsNew } from '../hooks/useWhatsNew';
 import NoteLink from './NoteLink';
 import Toast from './admin/Toast';
 
-// What the old pages pop up on whichever page a reader lands on (whatsnew.js dialog), in the app shell: the
+// What pops up on whichever page a reader lands on (the old pages' whatsnew.js dialog), in the app shell: the
 // introduction for an account that never finished it, else the unseen major notes (GET /api/whats-new's pending).
-// "Start using it" / "Got it" records them seen - the old pages read the same record; "Later" hides it until the app is
+// "Start using it" / "Got it" records them seen; "Later" hides it until the app is
 // loaded again. Not on What's new itself, which holds all of it.
 let later: string | null = null; // the pending set "Later" was pressed on, for this load of the app
 

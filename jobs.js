@@ -34,8 +34,6 @@ const fs = require('fs');
 const path = require('path');
 
 const config = require('./config');
-const auth = require('./auth');
-const { help } = require('./help');   // the "?" explanations (13 Oct 2026)
 
 const ROOT = __dirname;
 const LOG_DIR = path.join(ROOT, 'log');
@@ -169,7 +167,7 @@ const JOBS = [
     name: 'Weekly controls: irrelevant-feature control (meta-learners)',
     description: 'Refits every served meta-learner variant on the table the Saturday chain cached, with shuffled-copy noise '
                + 'columns appended: does any meta-learner give a provably irrelevant column stable importance, and which base '
-               + 'models matter more than noise does? Verdicts per game and variant on the History page '
+               + 'models matter more than noise does? Verdicts per game and variant on the Controls page '
                + '(IrrelevantFeatureControl.py, refits only - no backtest - about an hour for the seven lottery games together, '
                + 'almost all of it the VQC refits: one keno-sized VQC fit takes two to three minutes and each game gets four; the four market games (crypto, shares and their week games) '
                + 'join once the Saturday chain has cached their table - the week games from the chain of 10 Oct 2026; the noise columns are drawn from a fresh seed every week).',
@@ -183,7 +181,7 @@ const JOBS = [
                + 'newest 250 game days of crypto, shares and their week games, and scores every row by the mean log-score of the probability it gave '
                + 'the bin that then happened, with a paired bootstrap interval against GARCH: the reading that decides whether regimes '
                + 'add anything beyond volatility, before any hit rate or paper P&L is read (MarketRows.py, about ten minutes per '
-               + 'market; the verdicts on the Crypto and Shares pages).',
+               + 'market; the verdicts on the Controls page).',
     script: 'MarketRows.py', args: ['-g', 'crypto,shares,cryptoweek,sharesweek', '-d', '250'], log: 'marketRows.log', plan: CONTROLS_PLAN,
   },
   {
@@ -266,10 +264,6 @@ function humanDuration(seconds) {
   return `${(seconds / 3600).toFixed(1)} h`;
 }
 
-function since(at) {
-  return at ? humanDuration((Date.now() - at) / 1000) : '-';
-}
-
 function stamp(at) {
   if (!at) return '-';
   const d = new Date(at);
@@ -335,7 +329,7 @@ function rotateAll() {
 }
 
 // --- the shared lock --------------------------------------------------------
-// Mirrors what server.js shows in its banner: every Python entry point takes
+// The same lock pipeline.js reads for the app's run line: every Python entry point takes
 // this one PID lock, so it is the honest answer to "is the pipeline busy",
 // and it stays true for a job someone starts by hand in a terminal.
 function lockHolder() {
@@ -921,7 +915,7 @@ function stop() {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
-// --- status and page --------------------------------------------------------
+// --- status -----------------------------------------------------------------
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function nextDueText(job, now) {
   if (job.daily) return `${stamp(nextDaily(now, job.daily))} (daily ${pad(job.daily.hour)}:${pad(job.daily.minute)})`;
@@ -933,11 +927,10 @@ function lastRunOf(key) {
   return state.history.find((h) => h.key === key && !h.dry && !h.blocked) || null;
 }
 
-// --- the actions: one rule for the old forms and the app's JSON ----------------
+// --- the actions, for the app's JSON (system.js) --------------------------------
 // Each answers {ok, status, message}: status as the JSON routes give it - 400 a
 // request that names no job, 409 refused by the state it found (the schedule is
-// off, already queued, no longer running), 500 the system refused - and the old
-// form routes redirect with the same message, so the two can never disagree.
+// off, already queued, no longer running), 500 the system refused.
 
 // Why a job may not be started by hand now, or null: unknown, the schedule is
 // switched off (the Run now button is disabled then), or it is already running
@@ -999,8 +992,8 @@ function stopRun(runId, by, { kill = (pid, signal) => process.kill(pid, signal),
   }
 }
 
-// full: every kept run (HISTORY_KEPT) instead of the old page's newest 12, for
-// the app's Jobs page.
+// full: every kept run (HISTORY_KEPT) instead of the newest 12, for the app's
+// Jobs page.
 function status({ full = false } = {}) {
   const now = new Date();
   const holder = lockHolder();
@@ -1042,122 +1035,8 @@ function tail(file, lines) {
   }
 }
 
-const MODE_BADGE = {
-  on: ['#27ae60', 'running the schedule'],
-  dry: ['#f39c12', 'dry run - recording only'],
-  off: ['#c0392b', 'disabled'],
-};
-
-// Rendered into the admin Jobs page next to the supervised services, which is
-// where an operator already looks.
-function section(req) {
-  const esc = auth.escapeHtml;
-  const s = status();
-  const csrf = `<input type="hidden" name="_csrf" value="${esc(req.user.csrf)}">`;
-  const [colour, label] = MODE_BADGE[s.mode];
-
-  const running = s.current ? `
-    <p><b>${esc(s.current.name)}</b> is running - pid ${s.current.pid || 'starting'}, ${since(s.current.startedAt)} so far,
-       started because of ${esc(s.current.reason)}${s.current.sha ? ` at <code>${esc(s.current.sha)}</code>` : ''}.
-       <form method="post" action="/admin/jobs/stop" class="inline-form" style="display:inline;">${csrf}
-         <input type="hidden" name="runId" value="${esc(s.current.runId)}">
-         <button type="submit" class="nav-btn" style="background:#c0392b; border-color:#a93226;">Stop it</button>
-       </form></p>
-    <pre style="background:#2c3e50; color:#ecf0f1; padding:12px; border-radius:6px; overflow-x:auto; max-height:200px; font-size:0.85em;">${esc(s.current.log.join('\n') || 'no output yet')}</pre>`
-    : `<p style="color:#7f8c8d;">No scheduled job is running.${s.lock ? ` Something else holds <code>process.lock</code>: pid ${s.lock.pid}, ${esc(s.lock.script)}.` : ''}</p>`;
-
-  const queue = s.queue.length ? `
-    <h3 style="margin-bottom:6px;">Waiting</h3>
-    <table style="min-width:0;"><tr><th style="text-align:left;">Job</th><th style="text-align:left;">Queued</th><th style="text-align:left;">Why</th><th></th></tr>
-    ${s.queue.map((q) => `<tr>
-      <td style="text-align:left;">${esc(q.name)}</td>
-      <td style="text-align:left;">${since(q.queuedAt)} ago</td>
-      <td style="text-align:left;">${esc(q.reason)}</td>
-      <td><form method="post" action="/admin/jobs/cancel" class="inline-form">${csrf}
-        <input type="hidden" name="key" value="${esc(q.key)}">
-        <button type="submit" class="nav-btn">Cancel</button></form></td></tr>`).join('')}
-    </table>` : '';
-
-  const rows = s.jobs.map((job) => `
-    <tr>
-      <td style="text-align:left;"><b>${esc(job.name)}</b>${help(esc(job.description), 'what this job does', { inline: true })}</td>
-      <td style="text-align:left;"><code>${esc(job.command)}</code></td>
-      <td style="text-align:left;">${esc(job.next)}</td>
-      <td style="text-align:left;">${job.last
-        ? `${stamp(job.last.at)} · ${humanDuration(job.last.seconds)} · ${job.last.exit === 0
-            ? '<span style="color:#27ae60;">ok</span>'
-            : `<span style="color:#c0392b;">${job.last.exit === null ? esc(job.last.note || 'unknown') : `exit ${job.last.exit}`}</span>`}`
-        : '<span style="color:#7f8c8d;">not yet under this schedule</span>'}</td>
-      <td><form method="post" action="/admin/jobs/run" class="inline-form">${csrf}
-        <input type="hidden" name="key" value="${esc(job.key)}">
-        <button type="submit" class="nav-btn"${s.mode === 'off' ? ' disabled' : ''}>Run now</button></form></td>
-    </tr>`).join('');
-
-  const history = s.history.length ? `
-    <h3 style="margin-bottom:6px;">Recent runs</h3>
-    <table style="min-width:0;"><tr><th style="text-align:left;">When</th><th style="text-align:left;">Job</th><th style="text-align:left;">Took</th><th style="text-align:left;">Result</th><th style="text-align:left;">Why</th></tr>
-    ${s.history.map((h) => `<tr>
-      <td style="text-align:left;">${stamp(h.at)}</td>
-      <td style="text-align:left;">${esc(h.name)}${h.sha ? ` <code style="color:#7f8c8d;">${esc(h.sha)}</code>` : ''}</td>
-      <td style="text-align:left;">${h.dry ? '-' : humanDuration(h.seconds)}</td>
-      <td style="text-align:left;">${h.dry ? '<span style="color:#f39c12;">dry run - not started</span>'
-        : h.blocked ? `<span style="color:#f39c12;">waiting: ${esc(h.note || 'the lock is held')}</span>`
-        : h.exit === 0 ? '<span style="color:#27ae60;">ok</span>'
-        : `<span style="color:#c0392b;">${h.exit === null ? esc(h.note || h.error || 'unknown') : `exit ${h.exit}`}</span>`}</td>
-      <td style="text-align:left;">${esc(h.reason || '')}</td></tr>`).join('')}
-    </table>` : '';
-
-  return `
-    <div class="card expanded">
-      <div class="card-header" onclick="toggleCard(this)">
-        <div>
-          <span class="card-title">Scheduled pipeline jobs</span>
-          <span class="card-meta" style="margin-left:10px; color:${colour}; font-weight:bold;">${esc(label)}</span>
-          ${s.current ? `<span class="card-meta" style="margin-left:10px;">${esc(s.current.name)} · ${since(s.current.startedAt)}</span>` : ''}
-        </div>
-        <div class="card-icon">▼</div>
-      </div>
-      <div class="card-body">
-        ${help(`The daily predictor, the weekly tuning chain and the weekly control experiments, owned by this
-           server instead of crontab (README roadmap item 8). One job runs at a time, behind the same <code>process.lock</code> every Python
-           entry point takes; the chain starts when Saturday's predictor finishes and the controls when Sunday's does; a job launched here survives a deploy because it is reparented with
-           <code>setsid --fork</code>. Mode comes from ${esc(s.modeReason)} - create <code>config/scheduler.disabled</code> to stop the
-           schedule without a restart.`, 'how the schedule works')}
-        ${s.mode === 'dry' ? '<p style="color:#f39c12;"><b>Dry run.</b> The schedule only records what it would have started, so it is safe next to the crontab entries. Set <code>SCHEDULER=on</code> in .env and remove them to cut over. <i>Run now</i> still really runs a job.</p>' : ''}
-        ${running}
-        ${queue}
-        <h3 style="margin-bottom:6px;">The schedule</h3>
-        <table style="min-width:0;"><tr><th style="text-align:left;">Job</th><th style="text-align:left;">Command</th><th style="text-align:left;">Next</th><th style="text-align:left;">Last run</th><th></th></tr>${rows}</table>
-        ${history}
-      </div>
-    </div>`;
-}
-
-// --- routes -----------------------------------------------------------------
-function install(app, render) {
-  const adminOnly = auth.requireAdmin(render);
-  const back = (res, message) => res.redirect('/admin/jobs?msg=' + encodeURIComponent(message));
-
-  // The forms and the app's JSON routes (system.js) share runNow, cancelQueued
-  // and stopRun: same rules, same messages.
-  app.post('/admin/jobs/run', adminOnly, (req, res) => {
-    if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    return back(res, runNow((req.body || {}).key, req.user.name).message);
-  });
-
-  app.post('/admin/jobs/cancel', adminOnly, (req, res) => {
-    if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    return back(res, cancelQueued(String((req.body || {}).key || ''), req.user.name).message);
-  });
-
-  app.post('/admin/jobs/stop', adminOnly, (req, res) => {
-    if (!auth.csrfOk(req)) return res.status(403).send('Invalid form token - reload the page and try again.');
-    return back(res, stopRun((req.body || {}).runId, req.user.name).message);
-  });
-}
-
 module.exports = {
-  install, start, stop, status, section, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun,
+  start, stop, status, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun,
   // Pure schedule logic for test/jobs.test.js, plus the few entry points the
   // launch/adoption test drives directly (there is no other way to exercise
   // a reparented job without a browser and a real 12-hour tuner).

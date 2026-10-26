@@ -100,8 +100,7 @@ async function statusRoute() {
   const routes = {};
   try {
     const council = require('../council');
-    council.install({ get: (p, ...fns) => { routes[`GET ${p}`] = fns; }, post: (p, ...fns) => { routes[`POST ${p}`] = fns; } },
-      { header: () => '', footer: () => '', escapeHtml: (t) => t });
+    council.install({ get: (p, ...fns) => { routes[`GET ${p}`] = fns; }, post: (p, ...fns) => { routes[`POST ${p}`] = fns; } });
   } finally { Module.prototype.require = original; }
   const get = (url, user) => new Promise((resolve) => {
     const res = { statusCode: 200, headers: {}, body: undefined,

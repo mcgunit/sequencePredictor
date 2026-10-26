@@ -11,7 +11,7 @@ import { Failed, Loading, PageHead } from '../components/admin/States';
 
 // /whats-new, every signed-in reader's own: the notes their audience may see, newest first - the unseen ones open and
 // marked, the seen ones folded to their title - and the introduction, which can be read again. "Mark as seen" records
-// it against the account (the old pages read the same record), and the sidebar's count follows. A refusal also shows
+// it against the account, and the sidebar's count follows. A refusal also shows
 // as a toast at the foot of the screen: the button pressed may be far down the list.
 export default function WhatsNewPage() {
   const { view, error, refresh } = useWhatsNew('now');
@@ -90,7 +90,7 @@ function NoteCard({ n, sender }: { n: Note; sender: Sender }) {
 }
 
 // The introduction every account is shown once: readable again here. "Show it again" puts it back as unread (the app
-// and the old pages then open it once more, on the next page); "Mark as read" records it read.
+// then opens it once more, on the next page); "Mark as read" records it read.
 function TourCard({ view, sender }: { view: WhatsNewView; sender: Sender }) {
   const t = view.tour;
   const unread = t.done === false;

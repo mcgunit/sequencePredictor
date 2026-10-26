@@ -619,7 +619,7 @@ async function quotesFor(market, symbols) {
 function install(app, { dataDir }) {
   const json = (res, body, status = 200) => { res.set('Cache-Control', 'no-store'); res.status(status).json(body); };
   // open: open access (no login configured) - there is nobody to sign out, and the app says so. csrf: the session's
-  // form token, which every JSON POST of the app sends back as _csrf (system.js; the old forms carry the same token).
+  // form token, which every JSON POST of the app sends back as _csrf (system.js).
   // A cross-origin page cannot read this answer, so it cannot learn the token.
   app.get('/api/me', (req, res) => {
     json(res, { user: req.user ? { name: req.user.name, admin: req.user.role === 'admin', open: req.user.open === true } : null,
@@ -650,7 +650,7 @@ function installApp(app) {
   app.get(['/app', '/app/*'], (req, res) => {
     const index = path.join(dist, 'index.html');
     if (fs.existsSync(index)) { res.set('Cache-Control', 'no-store'); return res.sendFile(index); }
-    // in the sign-in look (shell.js): the old pages' chrome would link back here through the switch's redirects
+    // in the sign-in look (shell.js)
     res.status(503).send(shell.page('Not built', '<h1>The app is not built</h1><p class="sub">Run <code>npm run build:web</code> in the checkout and restart the server.</p>'));
   });
 }

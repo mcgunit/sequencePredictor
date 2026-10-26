@@ -26,7 +26,7 @@
 // ranking.js usersTop: the first five ranked rows that are in the game's newest day file - the five rows /lottery
 // shows a user; for a market game the five of its History game view).
 //
-// The figures are the ones the old History cards print (server.js generatePerformanceSummary,
+// The figures are the ones the old History cards printed (server.js generatePerformanceSummary,
 // generateMultiPickSummary, generateCombinationSummary, generateLagAnalysis, generateRandomnessWatch and the
 // feature-control card), built by pure functions below so the rules are testable (test/admin.test.js), with what
 // the admin plan lists as broken fixed at the source: a keno profit bound comes with the raw profit per bet and
@@ -1550,7 +1550,7 @@ function install(app, options = {}) {
   // reads git at the checkout's root; its cache goes to the server's own gitignored config/ unless the caller names a file
   workbench.install(app, { dirs, answerLater, games: { GAMES, UNIT, groupOf },
     rankCacheFile: options.rankCacheFile || path.join(__dirname, 'config', 'rankhistory-cache.json') });
-  // anything else under /api/admin is a JSON 404, never the old pages' HTML
+  // anything else under /api/admin is a JSON 404, never a page
   app.use('/api/admin', (req, res) => json(res, { error: 'not found' }, 404));
 }
 

@@ -1,6 +1,6 @@
 // draws.js - one draw of a game, scored (22 Oct 2026, admin batch 4: the workbench). The rules that read a drawn row
-// against the models' tickets moved here from server.js, so the old pages, the admin workbench (workbench.js) and the
-// users' Lottery (the next batch) score a ticket with one set of rules; below them, the pure builders of the
+// against the models' tickets moved here from server.js, so the admin workbench (workbench.js) and the users' Lottery
+// (lottery.js) score a ticket with one set of rules; below them, the pure builders of the
 // workbench's views: one ticket and one row scored, one day's figures (the old History day line), a game's months
 // (the old /database/:folder page), one draw's table (the old /database/:folder/:file page) and the votes under it.
 //
@@ -8,7 +8,8 @@
 // five rows ranked first before that draw (rankhistory.js, never today's ranking on a past draw); a user's view will
 // be built from the kept rows only, so a figure is always over the rows it says, and a hidden row is never sent.
 //
-// test/workbench.test.js checks the builders on hand-made days and against the old renderers on production's files.
+// test/workbench.test.js checks the builders on hand-made days and, next to production, the views built from a copy of
+// production's files.
 'use strict';
 
 // --- GAME SHAPES ---
@@ -75,13 +76,6 @@ function zodiacCode(value) {
 function zodiacName(value) {
   const code = zodiacCode(value);
   return code === null ? String(value) : ZODIAC[code];
-}
-
-// Joker+ rows are [d1..d6, zodiacCode]; for display the trailing code becomes
-// its name. Other games and mains-only 6-digit rows are returned untouched.
-function displayRow(row, game) {
-  if (game !== 'jokerplus' || !Array.isArray(row) || row.length !== 7) return row;
-  return row.slice(0, 6).concat([zodiacName(row[6])]);
 }
 
 // Leading/trailing runs of a Joker+ ticket against the drawn digits - the two
@@ -151,12 +145,6 @@ function jokerplusTicketProfit(ticket, realResult) {
     if (signMatch) payout += table.sign;
   }
   return payout - table.betCost;
-}
-
-// Joker+ profits carry half-euro cents (1.50 stake/refund), so they are shown
-// with two decimals; the other payout games keep their integer rendering.
-function formatProfit(value, game) {
-  return game === 'jokerplus' && typeof value === 'number' ? value.toFixed(2) : value;
 }
 
 // Frequency dict fed to the bar charts. The day JSON's numberFrequency pools
@@ -455,7 +443,7 @@ function scoreRow(game, model, realResult, split = splitRealResult(realResult, g
 // profit (keno, pick3, Joker+) summed row by row, and every other game's best ticket - the most main hits, then
 // specials (Joker+: L + R, then the sign; a market: hits by slot) - with lotto's best of nine. rows: the model rows
 // counted; tickets: their tickets (keno: the played sizes only, not the 20-number ranking); stake: what those tickets
-// cost on a money game. best is null for keno and pick3 (the old page shows their profit only) and with no row.
+// cost on a money game. best is null for keno and pick3 (the old page showed their profit only) and with no row.
 function dayFigures(game, day, keep = keepAll) {
   const realResult = Array.isArray(day && day.realResult) ? day.realResult : [];
   const rows = rowsOf(day && day.currentPrediction).filter((m) => keep(nameOf(m)));
@@ -621,7 +609,7 @@ function shapeOf(game, { slots = null } = {}) {
 
 module.exports = {
   SPECIAL_COLUMN_COUNTS, SPECIAL_LABELS, MARKET_GAMES, MONEY_GAMES, POSITIONAL_GAMES, MULTI_PICK, multiPickFor, multiHits, winChance,
-  ZODIAC, zodiacCode, zodiacName, displayRow, jokerplusRuns, jokerplusSignHit, PAYOUT_TABLE_JOKERPLUS, jokerplusTicketProfit, formatProfit,
+  ZODIAC, zodiacCode, zodiacName, jokerplusRuns, jokerplusSignHit, PAYOUT_TABLE_JOKERPLUS, jokerplusTicketProfit,
   chartFrequency, gameFromFolder, splitRealResult, splitTicket, PAYOUT_TABLE_KENO, KENO_SIZES, KENO_STAKE, kenoPlayed, kenoTicketProfit, PAYOUT_TABLE_PICK3, pick3Bets,
   calculateProfit, ticketStake, SCHEDULE_WINDOW, DAY_FILE, parseDayFileDate, nextDrawDate, isoOfFile, fileOfIso, nextDrawDay, weekdayOf,
   familyOf, scoreTicket, scoreRow, dayFigures, betterBest, resultOf, historyMonths, votesOf, multiPickLegend, shapeOf,

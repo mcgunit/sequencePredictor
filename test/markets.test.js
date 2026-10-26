@@ -1,6 +1,5 @@
-// The Crypto and Shares pages (markets.js): what the view model must keep true
-// and that the page renders from a settlement export. Runs on a fixture
-// written to a temp dir, never on data/.
+// The Crypto and Shares records (markets.js): what the view models, the books the plan and the week card
+// follow and the market clock must keep true. Runs on a fixture written to a temp dir, never on data/.
 //   node test/markets.test.js
 'use strict';
 const assert = require('assert');
@@ -119,13 +118,6 @@ ok(view.instruments[1].next.length === 0 && view.instruments[1].active === false
 ok(view.drawn.length === 1 && view.daily.length === 2, 'drawn models and the daily series pass through');
 ok(view.days.length === 2 && view.days[0].date === '2026-10-01' && view.days[0].instruments[1].bin === 0 && view.days[0].models[1].bins[1] === null,
   'the day records pass through, a malformed day is dropped, a missing bin stays null');
-ok(markets.intervalText(0, view.days[0].instruments[1].edges) === 'below -4.0%' && markets.intervalText(9, view.days[0].instruments[0].edges) === 'above +2.5%'
-  && markets.intervalText(6, view.days[0].instruments[0].edges) === '+0.3% to +0.9%' && markets.intervalText(4, []) === '-' && markets.intervalText(null, [0.1]) === '-',
-  'a bin reads as its return interval, open at the ends');
-ok(markets.signedPct(-0.00004) === '0.0%' && markets.signedPct(0.0123) === '+1.2%' && markets.signedPct(-0.0123, 2) === '-1.23%' && markets.signedPct(null) === '-', 'signed percentages never read -0.0%');
-ok(markets.binInterval(0, [1, 2])[0] === null && markets.binInterval(2, [1, 2])[1] === null && markets.binInterval(1, [1, 2]).join(',') === '1,2', 'bin intervals');
-ok(markets.gameViewLink('crypto', '2026-10-01') === '/database/crypto/2026-10-1.json' && markets.gameViewLink('shares', 'bad') === '/database/shares',
-  'the game view link uses the day file name without zero padding');
 ok(markets.describeDays(null).length === 0 && markets.describeDays([{ date: '2026-01-01', instruments: [] }]).length === 1, 'day records describe safely');
 ok(markets.describeDays([{ date: '2026-01-01', instruments: [null, { symbol: 'A' }], models: [null, 7, { bins: [1] }, { name: 'X', bins: [1] }] }])[0].models.length === 1
   && markets.describeDays([{ date: '2026-01-01', instruments: [null, { symbol: 'A' }], models: [] }])[0].instruments.length === 1,
@@ -149,22 +141,10 @@ ok(markets.describeRows(null) === null && markets.describeRows({ market: 'shares
 const better = markets.describeRows({ ...rowsRecord, rows: rowsRecord.rows.map((r) => (r.name === 'Markov Model' ? { ...r, vs_reference: interval(0.1, 0.02, 0.2, 'better') } : r)) });
 ok(better.betterThanReference.join(',') === 'Markov Model', 'a row whose interval against GARCH lies above zero is named');
 const regimes = markets.describeRegimes(regimeRecord, ['BTC', 'ETH']);
-// the HMM rows' feature set travels with the results (14 Oct 2026): the report's hmm_features, the regime log's features, the page's note
+// the HMM rows' feature set travels with the results (14 Oct 2026): the report's hmm_features and the regime log's features
 ok(rep.hmmFeatures === null && markets.describeRows({ ...rowsRecord, hmm_features: 'returns' }).hmmFeatures === 'returns' && regimes[0].features === null
    && markets.describeRegimes({ 'Regime HMM Model': [{ date: '2026-10-01', row: 'Regime HMM Model', regimes: 2, features: ['returns', 'vol'] }] }, ['BTC'])[0].features.join() === 'returns,vol',
    'the feature set is read from the report and the regime log when present');
-const plainHeader = (title) => `<html><title>${title}</title><body>`, plainFooter = () => '</body></html>';   // header/footer are defined further down
-const withFeatures = (set) => markets.page('crypto', markets.describeMarket(record, { rows: { ...rowsRecord, hmm_features: set },
-  regimes: { ...regimeRecord, 'Regime HMM Model': regimeRecord['Regime HMM Model'].map((e) => ({ ...e, features: set.split(',') })) } }), plainHeader, plainFooter, null);
-const returnsOnly = withFeatures('returns');
-ok(returnsOnly.includes('one tuned feature set, <b>returns</b>, shared on purpose') && returnsOnly.includes('a random walk with drift') && returnsOnly.includes('<td>returns</td>')
-   && returnsOnly.includes('<th title="the columns the row') && (returnsOnly.match(/a random walk with drift/g) || []).length === 2,
-   'on returns alone the page says what the Single row is, in the judging help and the regime card');
-const fullSet = withFeatures('returns,vol,mom');
-ok(fullSet.includes('<b>returns, vol, mom</b>') && fullSet.includes('linear regression of the returns') && !fullSet.includes('random walk with drift') && fullSet.includes('<td>returns, vol, mom</td>'),
-   'with volatility and momentum in the set the note says what Single is then');
-ok(!markets.page('crypto', markets.describeMarket(record, { rows: rowsRecord, regimes: regimeRecord }), plainHeader, plainFooter, null).includes('one tuned feature set'),
-   'without a recorded feature set the page says nothing about it');
 ok(regimes.length === 2 && regimes[0].row === 'Regime HMM Model' && regimes[0].date === '2026-10-01' && regimes[0].template === 3 && regimes[0].label === 'turbulent'
   && regimes[0].expected[0].symbol === 'BTC' && regimes[0].expected[1].value === -0.002 && regimes[0].history === 2,
   'the newest reading per row, with the instruments named');
@@ -172,177 +152,9 @@ ok(markets.describeRegimes(null, []).length === 0 && markets.describeRegimes({ u
 const full = markets.describeMarket(record, { rows: rowsRecord, regimes: regimeRecord });
 ok(full.rows && full.rows.rows.length === 4 && full.regimes.length === 2 && full.regimes[0].expected[1].symbol === 'ETH', 'the view carries the report and the readings');
 ok(markets.describeMarket(record).rows === null && markets.describeMarket(record).regimes.length === 0, 'without extras the view has neither');
-// --- formatting ---------------------------------------------------------------
-ok(markets.pct(0.1234) === '12.3%' && markets.pct(null) === '-' && markets.pct(0.5, 0) === '50%', 'percentages');
-ok(markets.money(0.0123) === '+0.0123' && markets.money(-0.5, 2) === '-0.50' && markets.money(undefined) === '-', 'signed money');
-ok(markets.price(84000.4) === '84000' && markets.price(83.456) === '83.46' && markets.price(2.34567) === '2.3457' && markets.price(null) === '-', 'prices by magnitude');
-
-// --- the page renders ---------------------------------------------------------
-const header = (title, user) => `<html><title>${title}</title><body>${user ? user.name : ''}`;
-const footer = () => '</body></html>';
-const html = markets.page('crypto', view, header, footer, { name: 'ann' });
-ok(html.includes('<title>Crypto predictor</title>') && html.includes('ann'), 'the page uses the shared header');
-ok(html.includes('Markov Model') && html.includes('15.0%') && html.includes('+12.34') && html.includes('>56%<') && html.includes('P&amp;L USDT') && !html.includes('+0.0123'),
-  'the models table shows rates, the win rate and the money, not the fraction');
-ok(html.includes('P&amp;L holding') && html.includes('>+15.50</td>') && html.includes('9 position(s), win rate 67%'), 'the models table carries the hold total with its details on hover');
-ok(html.includes(`data-view-for="ledger-crypto" data-view="daily"`) && html.includes(`data-view="hold"`) && html.includes('holding: +15.50 (Markov Model), buy-and-hold +2.10'), 'the book card toggles the two rules and names both bests');
-ok(html.includes('card-title">Paper trading') && html.includes('best book +12.34 USDT (Markov Model), the market +1.80') && html.includes("marketRender('ledger-crypto')")
-  && html.includes(`data-chart="ledger-crypto" data-model="Markov Model" checked`) && html.includes(`data-chart="ledger-crypto" data-model="Odd Model" onchange`)
-  && html.includes('100 USDT</b> a position and 0.10% fee on the buy and on the sell'),
-  'the paper-trading card names the rule, the best book against the market, and switches every model with the best on');
-const bookData = JSON.parse(html.match(/window\.marketData\['ledger-crypto'\] = (\{.*?\}); marketRender/s)[1]);
-ok(bookData.kind === 'ledger' && bookData.labels.join(',') === '2026-09-30,2026-10-01' && bookData.rules.daily.benchmark.join(',') === '-1.2,1.8' && bookData.rules.daily.series['Markov Model'].join(',') === '5.5,12.34'
-  && bookData.rules.daily.series['Odd Model'][0] === null && bookData.rules.hold.series['Markov Model'].join(',') === '5.6,15.5' && bookData.rules.hold.benchmark.join(',') === '-1.1,2.1'
-  && bookData.rules.hold.series['Odd Model'].join(',') === ',' && bookData.best === 'Markov Model',
-  'the book data is aligned to the settled days with the running totals of both rules');
-ok(!markets.page('crypto', markets.describeMarket({ ...record, trading: undefined }), header, footer, null).includes('card-title">Paper trading'), 'without a book there is no paper-trading card');
-ok(html.includes("marketRender('chart-crypto-BTC')") && html.includes("marketRender('chart-crypto-ETH')") && html.includes('daily-crypto')
-  && (html.match(/new Chart\(/g) || []).length === 2, 'one chart per instrument through the client, plus the daily chart');
-ok(html.includes('chartjs-plugin-zoom') && html.includes('hammer.min.js') && html.includes('Chart.register(window.ChartZoom)') && html.includes("wheel: { enabled: true }")
-  && html.includes(`onclick="marketRange('chart-crypto-BTC', 30)">1M<`) && html.includes(`onclick="marketReset('chart-crypto-BTC')"`) && html.includes('height:420px')
-  && html.includes("marketRender('chart-crypto-BTC')") && html.includes('.container { max-width: 1400px; }'),
-  'the instrument charts zoom and pan, have range buttons and a reset, are taller, and the page is wider');
-ok(html.includes(`data-view-for="chart-crypto-BTC" data-view="lines"`) && html.includes(`data-view="bars"`) && html.includes(`data-view="moves"`)
-  && html.includes(`data-chart="chart-crypto-BTC" data-model="Markov Model" checked`) && html.includes(`data-chart="chart-crypto-BTC" data-model="Odd Model" onchange`)
-  && !html.includes(`data-model="Odd Model" checked`) && html.includes('(best exact rate over the scored days)') && html.includes(`marketModels('chart-crypto-BTC', 'all')`),
-  'three views to toggle, a switch per model with only the best one on, and best/all/none links');
-const dataMatch = html.match(/window\.marketData\['chart-crypto-BTC'\] = (\{.*?\}); marketRender/s);
-const embedded = JSON.parse(dataMatch[1]);
-ok(embedded.labels.join(',') === '2026-09-29,2026-09-30,2026-10-01,next' && embedded.closes[3] === null && embedded.course['Markov Model'].join(',') === ',4,6,'
-  && embedded.next['Markov Model'].price === 84900 && embedded.best === 'Markov Model' && embedded.colours['Markov Model'] === markets.COLOURS[0] && embedded.lastClose === 84000,
-  'the embedded chart data is aligned to the labels with a trailing next slot standing on the newest game day\'s close');
-const many = markets.describeMarket({ ...record, models: Array.from({ length: 20 }, (_, i) => ({ name: `M${i}`, days: 1, exact_rate: 0.1 })), drawn_models: ['M0'], best_model: 'M0' });
-const manyHtml = markets.page('crypto', many, header, footer, null);
-const manyData = JSON.parse(manyHtml.match(/window\.marketData\['chart-crypto-BTC'\] = (\{.*?\}); marketRender/s)[1]);
-ok(new Set(Object.values(manyData.colours)).size === Object.keys(manyData.colours).length && Object.values(manyData.colours).every((c) => /^#[0-9a-f]{6}$/.test(c)),
-  'more models than the palette still get distinct hex colours');
-ok((markets.CHART_CLIENT_JS.match(/type: 'bar'/g) || []).length === 1 && markets.CHART_CLIENT_JS.includes("type: 'bar', grouped: false"),
-  'every bar dataset goes through the one helper that centres bars on their date');
-
-// --- the chart client runs in Node against a stubbed Chart ---------------------
-const vm = require('vm');
-const sandbox = { window: {}, document: { querySelectorAll: () => [], getElementById: () => ({ getContext: () => ({}) }) }, Math, Array, Object, parseInt, isFinite, console };
-sandbox.Chart = function (ctx, config) { this.config = config; this.data = config.data; this.options = config.options; sandbox.lastConfig = config; };
-sandbox.Chart.defaults = { plugins: { legend: { labels: { generateLabels: (chart) => chart.data.datasets.map((ds, i) => ({ text: ds.label, datasetIndex: i, fillStyle: 'x' })) }, onClick: () => {} } } };
-vm.createContext(sandbox);
-vm.runInContext(markets.CHART_CLIENT_JS, sandbox);
-const w = Object.assign(sandbox, { marketData: sandbox.window.marketData, marketState: sandbox.window.marketState });   // functions are globals of the context; data and state live on window
-const edgesFx = [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025];
-ok(Math.abs(w.marketRepresentative(6, edgesFx) - 0.006) < 1e-12 && Math.abs(w.marketRepresentative(9, edgesFx) - 0.03) < 1e-12
-  && Math.abs(w.marketRepresentative(0, edgesFx) + 0.035) < 1e-12 && w.marketInterval(0, edgesFx)[0] === null && w.marketInterval(9, edgesFx)[1] === null,
-  'the client turns a bin into a return exactly as MarketGame.representative_return does, open bins included');
-w.marketData.t = embedded;
-const linesModel = w.marketChartModel('t', 'lines', ['Markov Model']);
-ok(linesModel.datasets.length === 2 && linesModel.datasets[1].type === 'line' && linesModel.datasets[1].borderDash.join(',') === '3,3' && linesModel.datasets[1].model === 'Markov Model'
-  && linesModel.datasets[1].data[0] === null && Math.abs(linesModel.datasets[1].data[2] - 84000 * Math.exp(-0.004) * Math.exp(0.006)) < 1e-6 && Math.abs(linesModel.datasets[1].data[3] - 84900) < 1e-9,
-  'lines view: the dashed predicted course through the prices the bins stood for, the next-day price last');
-const priceModel = w.marketChartModel('t', 'bars', ['Markov Model']);
-ok(priceModel.datasets.length === 3 && priceModel.datasets[0].type === 'line' && priceModel.datasets[1].legendHidden === true && priceModel.datasets[2].label === 'Markov Model'
-  && priceModel.datasets[1].grouped === false && priceModel.datasets[2].grouped === false && priceModel.datasets[2].model === 'Markov Model' && priceModel.datasets[2].legendColour === markets.COLOURS[0]
-  && priceModel.datasets[2].data[0] === null && Math.abs(priceModel.datasets[2].data[2][0] - 84000 * Math.exp(-0.004)) < 1e-6
-  && Math.abs(priceModel.datasets[2].data[2][1] - 84000 * Math.exp(-0.004) * Math.exp(0.006)) < 1e-6 && priceModel.datasets[2].backgroundColor[2] === '#27ae60'
-  && Math.abs(priceModel.datasets[2].data[3][0] - 84000) < 1e-9 && Math.abs(priceModel.datasets[2].data[3][1] - 84900) < 1e-9
-  && Math.abs(priceModel.datasets[1].data[3][0] - 84500) < 1e-9 && Math.abs(priceModel.datasets[1].data[3][1] - 85300) < 1e-9,
-  'price view: centred bars from the previous game day\'s close to the bin\'s price, green when up, the band over the bin\'s interval, the next slot on the newest game day\'s close');
-const movesModel = w.marketChartModel('t', 'moves', ['Markov Model', 'Odd Model']);
-ok(movesModel.datasets.length === 5 && movesModel.datasets[0].label === 'real move' && Math.abs(movesModel.datasets[0].data[2] - 0.4) < 1e-9 && movesModel.datasets[0].data[3] === null
-  && movesModel.datasets[0].backgroundColor === 'rgba(44,62,80,0.75)' && movesModel.datasets[2].type === 'line' && movesModel.datasets[2].showLine === false && Math.abs(movesModel.datasets[2].data[2] - 0.6) < 1e-9
-  && Math.abs(movesModel.datasets[1].data[2][0] - 0.3) < 1e-9 && Math.abs(movesModel.datasets[1].data[2][1] - 0.9) < 1e-9
-  && movesModel.datasets[4].data[2] !== null && movesModel.datasets[4].data[1] === null && movesModel.percent === true,
-  'moves view: the real move as one dark bar in percent, each model\'s band as a floating bar and its middle as a dot');
-// Odd Model played bin 9, an open-ended bin: its band runs from the edge to the top of what the chart shows, beyond the bin's middle
-const openBand = movesModel.datasets[3].data[2];
-ok(Math.abs(openBand[0] - 2.5) < 1e-9 && openBand[1] > 3.0 && Math.abs(movesModel.datasets[4].data[2] - 3.0) < 1e-9, 'an open-ended bin\'s band reaches the edge of the chart, not a half-width stub');
-w.marketRender('t');
-const cfg = sandbox.lastConfig;
-ok(cfg && cfg.data.datasets.length === 1 && cfg.options.scales.y.title.text === 'USDT' && cfg.options.scales.y.beginAtZero === false && cfg.options.plugins.zoom === undefined
-  && cfg.options.scales.x.min === undefined && typeof cfg.options.plugins.tooltip.filter === 'function' && typeof cfg.options.plugins.legend.labels.generateLabels === 'function'
-  && w.marketState.t.view === 'lines',
-  'rendering with no model on draws the close alone in the default lines view; the price axis does not start at zero; four labels open unranged; tooltip and legend helpers are wired');
-const tip = cfg.options.plugins.tooltip;
-ok(tip.filter({ raw: null, dataset: {} }) === false && tip.filter({ raw: [1, 2], dataset: { legendHidden: true } }) === false && tip.filter({ raw: 5, dataset: {} }) === true
-  && tip.callbacks.label({ raw: [83663.4, 84168.9], dataset: { label: 'M' } }) === 'M: 83663 to 84169' && tip.callbacks.label({ raw: 84000.4, dataset: { label: 'BTC close' } }) === 'BTC close: 84000',
-  'tooltips skip empty rows and hidden bands and print floating bars as a readable range');
-w.marketState.t = { view: 'moves' }; w.marketRender('t');
-const tipPct = sandbox.lastConfig.options.plugins.tooltip;
-ok(tipPct.callbacks.label({ raw: [0.3, 0.8999999], dataset: { label: 'M' } }) === 'M: +0.30% to +0.90%' && sandbox.lastConfig.options.scales.y.beginAtZero === undefined,
-  'in the moves view tooltips read in percent and zero stays on the axis');
-w.marketData.book = bookData;
-const bookModel = w.marketChartModel('book', 'daily', ['Markov Model']);
-ok(bookModel.datasets.length === 2 && bookModel.datasets[0].label === 'market, bought every day' && bookModel.datasets[0].data.join(',') === '-1.2,1.8'
-  && bookModel.datasets[1].model === 'Markov Model' && bookModel.datasets[1].data.join(',') === '5.5,12.34' && bookModel.money === true && bookModel.yTitle.includes('USDT'),
-  'the book chart: the market dashed, each switched-on model\'s running total as a line');
-const holdModel = w.marketChartModel('book', 'hold', ['Markov Model']);
-ok(holdModel.datasets[0].label === 'market, buy and hold' && holdModel.datasets[0].data.join(',') === '-1.1,2.1' && holdModel.datasets[1].data.join(',') === '5.6,15.5' && holdModel.yTitle.includes('held while up')
-  && w.marketChartModel('book', 'lines', ['Markov Model']).datasets[1].data.join(',') === '5.5,12.34',
-  'the hold rule draws its own book and benchmark; an unknown rule falls back to the daily one');
-w.marketRender('book');
-ok(w.marketState.book.view === 'daily', 'a book opens on the daily rule');
-ok(sandbox.lastConfig.options.plugins.tooltip.callbacks.label({ raw: 12.345, dataset: { label: 'M' } }) === 'M: +12.35' && sandbox.lastConfig.options.scales.y.grid !== undefined,
-  'book tooltips read as signed money and the zero line is drawn');
-w.marketData.long = Object.assign({}, embedded, { labels: Array.from({ length: 40 }, (_, i) => `d${i}`), closes: Array.from({ length: 40 }, () => 1), edges: Array.from({ length: 40 }, () => null),
-  moves: Array.from({ length: 40 }, () => null), course: {} });
-w.marketRender('long');
-ok(sandbox.lastConfig.options.scales.x.min === 'd9' && sandbox.lastConfig.options.scales.x.max === 'd39', 'a longer history opens on its newest month');
-ok(html.includes('84900') && html.includes('84500 - 85300') && html.includes('below 81000'), 'the next-day table shows the price, a closed and an open interval');
-ok(html.includes('(inactive)'), 'an inactive instrument is marked');
-ok(html.includes('How a day becomes a draw') && html.includes('1. Two closes, one number') && html.includes('a candle is four prices')
-  && html.includes("BTC's previous close was 83663; on 2026-10-01 it closed at 84000, 337 higher, a move of <b>+0.40%</b>")
-  && html.includes('2. The number goes into one of 10 bins') && html.includes('Each pile is one bin') && html.includes("a +2% day lands in BTC's bin 8 but only in ETH's bin 7")
-  && html.includes('Worked example - 2026-10-01, the newest settled day</b> (settled:') && html.includes('letter-spacing:2px;">6 0<') && html.includes('/database/crypto/2026-10-1.json')
-  && html.includes('Markov Model had played') && html.includes('1 of 2 coins in the right bin (green), 0 more in a neighbouring bin')
-  && html.includes('Every day is one draw') && !html.includes('Every every') && html.includes('a 7 played on BTC is judged against BTC\'s own bin, and ETH landing in 7')
-  && html.includes("bin 6 on 2026-10-01 ran from +0.30% to +0.90%, which from the close of 83663 means a close\n      between about 83914 and 84419"),
-  'the explainer walks through closes, bins and draw with the newest day, the best ticket and a price range');
-ok((html.match(/the day fell here/g) || []).length === 2 && html.includes('Markov Model predicted this') && html.includes('<b>Green outline</b>: what Markov Model')
-  && html.includes('transform:translateX(50%)') && html.includes('>+0.3%</div>') && html.includes("BTC's bin 4 runs from -0.4% to 0.0%, while bin 0 is everything below -3.0%")
-  && html.includes('an inner bin is within one by luck 30% of the time, an end bin 20%') && html.includes('log return'),
-  'each instrument gets a strip of ten bins with its edges, the real move dark and the predicted bin outlined, and the caveats are stated');
-ok(markets.binOfMove(Math.log(1.02), [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025]) === 8 && markets.binOfMove(-1, [0]) === 0 && markets.binOfMove(1, [0]) === 1
-  && markets.intervalText(6, [-0.03, -0.02, -0.01, -0.004, 0.0, 0.003, 0.009, 0.015, 0.025], 2) === '+0.30% to +0.90%', 'a move finds its bin under the edges; intervals take a precision');
-ok(markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }), header, footer, null).includes('Every trading day is one draw'), 'the shares explainer names the trading day');
-ok(html.includes('Day by day') && html.includes('the newest 2 settled day(s)') && html.includes('+0.3% to +0.9%') && html.includes('title="bin 0: below -4.00% - the day fell here"') && html.includes('1/2</td>')
-  && (html.match(/<details style=/g) || []).length === 2 && html.includes('background:#2ecc71; color:white;" title="+0.3% to +0.9% - rule: long">6'),
-  'the day-by-day card lists each day as returns and bins, with every model\'s ticket inside');
-const twoSets = markets.page('crypto', markets.describeMarket({ ...record, days: [record.days[0], { date: '2026-09-29', best: null, exact_mean: null,
-  instruments: [{ symbol: 'BTC', return: 0.01, bin: 7, edges: [] }, { symbol: 'ETH', return: 0.0, bin: 4, edges: [] }, { symbol: 'SOL', return: -0.02, bin: 1, edges: [] }],
-  models: [{ name: 'Markov Model', bins: [7, 4, 2], exact: 2, adjacent: 3, direction: 2, positions: 3, pnl: 0.0, trades: 1 }] }] }), header, footer, null);
-ok(twoSets.includes('<th>SOL</th>') && (twoSets.match(/<th>BTC<\/th>/g) || []).length === 2, 'each day heads its model table with its own instruments');
-const noDays = markets.page('crypto', markets.describeMarket({ ...record, days: [] }), header, footer, null);
-ok(noDays.includes('How a day becomes a draw') && !noDays.includes('Worked example -') && noDays.includes('appears here after the first settled day') && !noDays.includes('card-title">Day by day') && !noDays.includes('<i>Day by day</i>'),
-  'without settled days the explainer is generic and there is no day-by-day card');
-const fullHtml = markets.page('crypto', full, header, footer, null);
-ok(fullHtml.includes('Rows that scored no day at all: Chronos Model (no forecast succeeded before the backtest).') && fullHtml.includes('Rows that failed on some days: XGBoost Model.')
-   && !fullHtml.includes('failed on some days: Chronos'), 'the rows card tells a row that scored no day apart from a row that failed on some days');
-ok(fullHtml.includes('Rows under a proper score') && fullHtml.includes('No row carries information beyond GARCH') && fullHtml.includes('(reference)')
-  && fullHtml.includes('no probabilities') && fullHtml.includes('-0.240 [-0.400, -0.100] worse') && fullHtml.includes('GARCH itself is above the uniform forecast'),
-  'the score card names the reference, the verdicts and the intervals');
-ok(fullHtml.includes('Regime reading') && fullHtml.includes('T3') && fullHtml.includes('turbulent') && fullHtml.includes('2 of 2 by volatility') && fullHtml.includes('ETH -0.20%'),
-  'the regime card shows the template, its label and the expected returns');
-const betterRows = { ...rowsRecord, rows: rowsRecord.rows.map((r) => (r.name === 'Markov Model' ? { ...r, vs_reference: interval(0.1, 0.02, 0.2, 'better') } : r)) };
-ok(markets.page('crypto', markets.describeMarket(record, { rows: betterRows }), header, footer, null).includes('Markov Model</b> carries information beyond GARCH'),
-  'a better row is named in the headline');
-ok(!html.includes('Rows under a proper score') && !html.includes('Regime reading'), 'without a report or a log there is neither card');
-const empty = markets.page('shares', null, header, footer, null);
-ok(empty.includes('No market record yet') && empty.includes('data/markets/shares.json'), 'without a record the page says what will fill it');
-const noModels = markets.page('shares', markets.describeMarket({ market: 'shares', instruments: [], models: [], chance: { exact: 0.1, adjacent: 0.28, direction: 0.5 } }), header, footer, null);
-ok(noModels.includes('no settled day yet'), 'without settled days the models table says so');
-const routes = {};
-markets.install({ get: (p, h) => { routes[p] = h; } }, { header, footer, dataDir: dir, controlsDir: controls });
-ok(Object.keys(routes).sort().join(',') === '/markets/crypto,/markets/shares', 'two routes are installed');
-let sent = '';
-routes['/markets/crypto']({ user: null }, { send: (h) => { sent = h; } });
-ok(sent.includes('Crypto predictor') && sent.includes('chart-crypto-BTC') && sent.includes('Rows under a proper score') && sent.includes('Regime reading'),
-  'the route renders the record, the report and the readings on disk');
-let moved = null; sent = '';
-routes['/markets/shares']({ user: { name: 'u', role: 'user', open: false } }, { send: (h) => { sent = h; }, redirect: (code, to) => { moved = [code, to]; } });
-ok(moved && moved[0] === 302 && moved[1] === '/app/shares' && sent === '', 'a user who is not the administrator is sent to the app page, never the workbench or its controls');
-routes['/markets/crypto']({ user: { name: 'admin', role: 'admin', open: false } }, { send: (h) => { sent = h; } });
-ok(sent.includes('Rows under a proper score'), 'the administrator gets the workbench');
-
 fs.rmSync(dir, { recursive: true, force: true });
 fs.rmSync(controls, { recursive: true, force: true });
-// when a call is judged (4 Oct 2026): the day a ticket is for and its close in Belgian time
+// --- when a call is judged (4 Oct 2026): the day a ticket is for and its close in Belgian time ---
 ok(markets.nextGameDay('crypto', '2026-10-02') === '2026-10-03' && markets.nextGameDay('crypto', '2026-10-31') === '2026-11-01' && markets.nextGameDay('crypto', '2026-12-31') === '2027-01-01', 'a crypto ticket is for the next calendar day');
 ok(markets.nextGameDay('shares', '2026-10-02') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-03') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-04') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-05') === '2026-10-06',
    'a shares ticket is for the next weekday - Friday, Saturday and Sunday all point at Monday');
@@ -350,58 +162,33 @@ ok(markets.nextGameDay('shares', '2026-11-25') === '2026-11-27' && markets.nextG
    && markets.nextGameDay('shares', '2026-07-02') === '2026-07-06', 'New York holidays are skipped: Thanksgiving, Christmas, the observed days');
 const perYear = (year) => [...markets.NYSE_CLOSED].filter((d) => d.startsWith(year)).length;
 ok(perYear('2026') === 10 && perYear('2027') === 10 && markets.NYSE_CLOSED.size === 20 && [...markets.NYSE_CLOSED].every((d) => ![0, 6].includes(new Date(d).getUTCDay())), 'the closure table has ten weekdays in each announced year');
-ok(markets.nextGameDay('crypto', 'soon') === null && markets.nextGameDay('crypto', '2026-02-30') === null && markets.nextGameDay('crypto', '2026-13-01') === null && markets.closeText('shares', null) === null, 'malformed and impossible dates give null, not a roll-over');
-ok(markets.appearedText('2026-10-03T08:29:00+00:00') === '10:29 Belgian time on Sat 03/10' && markets.appearedText('2026-10-03T08:29:00Z') === '10:29 Belgian time on Sat 03/10', `the ticket time in Belgian time: ${markets.appearedText('2026-10-03T08:29:00+00:00')}`);
-ok(markets.appearedText('2026-10-03T08:29:00') === null && markets.appearedText('2026-10-03') === null && markets.appearedText('garbage 2026') === null && markets.appearedText(null) === null, 'an offset-less, date-only or malformed time is not shown');
-ok(markets.closeText('crypto', '2026-10-03') === 'the close of 2026-10-03, which is 02:00 Belgian time in the night from Saturday to Sunday (00:00 UTC on 2026-10-04)', `crypto summer close: ${markets.closeText('crypto', '2026-10-03')}`);
-ok(markets.closeText('crypto', '2026-12-10') === 'the close of 2026-12-10, which is 01:00 Belgian time in the night from Thursday to Friday (00:00 UTC on 2026-12-11)', `crypto winter close: ${markets.closeText('crypto', '2026-12-10')}`);
-ok(markets.closeShort('crypto', '2026-10-24').startsWith('02:00 Belgian time in the night from Saturday to Sunday') && markets.closeShort('crypto', '2026-10-25').startsWith('01:00 Belgian time in the night from Sunday to Monday')
-   && markets.closeShort('crypto', '2027-03-27').startsWith('01:00 Belgian time in the night from Saturday to Sunday'), 'the Belgian clock-change nights are computed, not assumed');
-ok(markets.closeText('shares', '2026-10-05') === 'the New York close of 2026-10-05, which is 22:00 Belgian time on Monday 2026-10-05 (16:00 New York time)' && markets.closeShort('shares', '2026-12-10').startsWith('22:00 Belgian time on Thursday'),
-   `New York closes at 22:00 Belgian time in summer and in winter: ${markets.closeText('shares', '2026-10-05')}`);
-ok(markets.closeShort('shares', '2026-10-28').startsWith('21:00 Belgian time') && markets.closeShort('shares', '2027-03-16').startsWith('21:00 Belgian time') && markets.closeShort('shares', '2026-03-09').startsWith('21:00 Belgian time'),
-   `between the two clock changes New York closes at 21:00 Belgian time: ${markets.closeShort('shares', '2026-10-28')}`);
+ok(markets.nextGameDay('crypto', 'soon') === null && markets.nextGameDay('crypto', '2026-02-30') === null && markets.nextGameDay('crypto', '2026-13-01') === null && markets.closeMoment('shares', null) === null, 'malformed and impossible dates give null, not a roll-over');
+// the moments in Belgian time (brusselsText, as dayStatus and dayStatusWeek say them)
+const belgian = (moment) => markets.brusselsText(moment);
+ok(markets.brusselsText(new Date('2026-10-03T08:29:00Z'), true) === '10:29 Belgian time on Sat 03/10' && markets.brusselsText(new Date('bad')) === null && markets.brusselsText('2026-10-03') === null,
+   `a moment in Belgian time, with its date: ${markets.brusselsText(new Date('2026-10-03T08:29:00Z'), true)}`);
+ok(markets.closeMoment('crypto', '2026-10-03').toISOString() === '2026-10-04T00:00:00.000Z' && belgian(markets.closeMoment('crypto', '2026-10-03')) === '02:00 Belgian time'
+   && belgian(markets.closeMoment('crypto', '2026-12-10')) === '01:00 Belgian time', 'a crypto day closes at 00:00 UTC: 02:00 Belgian time in summer, 01:00 in winter');
+ok(belgian(markets.closeMoment('crypto', '2026-10-24')) === '02:00 Belgian time' && belgian(markets.closeMoment('crypto', '2026-10-25')) === '01:00 Belgian time'
+   && belgian(markets.closeMoment('crypto', '2027-03-27')) === '01:00 Belgian time', 'the Belgian clock-change nights are computed, not assumed');
+ok(belgian(markets.closeMoment('shares', '2026-10-05')) === '22:00 Belgian time' && belgian(markets.closeMoment('shares', '2026-12-10')) === '22:00 Belgian time',
+   `New York closes at 22:00 Belgian time in summer and in winter: ${belgian(markets.closeMoment('shares', '2026-10-05'))}`);
+ok(belgian(markets.closeMoment('shares', '2026-10-28')) === '21:00 Belgian time' && belgian(markets.closeMoment('shares', '2027-03-16')) === '21:00 Belgian time' && belgian(markets.closeMoment('shares', '2026-03-09')) === '21:00 Belgian time',
+   `between the two clock changes New York closes at 21:00 Belgian time: ${belgian(markets.closeMoment('shares', '2026-10-28'))}`);
 ok(markets.closeMoment('shares', '2026-10-05').toISOString() === '2026-10-05T20:00:00.000Z' && markets.closeMoment('shares', '2026-12-10').toISOString() === '2026-12-10T21:00:00.000Z'
    && markets.closeMoment('shares', '2026-03-09').toISOString() === '2026-03-09T20:00:00.000Z', 'the New York close as an instant, also in the US-only summer-time week');
-ok(markets.closeText('shares', '2026-11-27') === 'the New York close of 2026-11-27, which is 19:00 Belgian time on Friday 2026-11-27 (13:00 New York time, an early close)'
-   && markets.closeShort('shares', '2026-12-24').startsWith('19:00 Belgian time'), `an early close is said: ${markets.closeText('shares', '2026-11-27')}`);
-ok(markets.openText('shares', '2026-10-05') === '15:30 Belgian time on Monday 2026-10-05 (09:30 New York time)' && markets.openText('shares', '2026-10-28').startsWith('14:30 Belgian time')
-   && markets.openText('shares', '2026-11-27').startsWith('15:30 Belgian time') && markets.openText('crypto', '2026-10-05') === null, `the New York open is computed per date: ${markets.openText('shares', '2026-10-28')}`);
-ok(markets.openMoment('crypto', '2026-10-03').toISOString() === '2026-10-03T00:00:00.000Z' && markets.hoursInto('2026-10-03T08:29:00+00:00', 'crypto', '2026-10-03') === 8.5
-   && markets.hoursInto('2026-12-10T09:38:00+00:00', 'crypto', '2026-12-10') === 9.6 && markets.hoursInto('2026-10-02T23:00:00+00:00', 'crypto', '2026-10-03') === null && markets.hoursInto('bad', 'crypto', '2026-10-03') === null,
-   'hours into the predicted day, from the ticket time');
+ok(belgian(markets.closeMoment('shares', '2026-11-27')) === '19:00 Belgian time' && belgian(markets.closeMoment('shares', '2026-12-24')) === '19:00 Belgian time',
+   `an early close is 13:00 New York time: ${belgian(markets.closeMoment('shares', '2026-11-27'))}`);
+ok(belgian(markets.openMoment('shares', '2026-10-05')) === '15:30 Belgian time' && belgian(markets.openMoment('shares', '2026-10-28')) === '14:30 Belgian time'
+   && belgian(markets.openMoment('shares', '2026-11-27')) === '15:30 Belgian time', `the New York open is computed per date, also on an early-close day: ${belgian(markets.openMoment('shares', '2026-10-28'))}`);
+ok(markets.openMoment('crypto', '2026-10-03').toISOString() === '2026-10-03T00:00:00.000Z', 'a crypto day opens at 00:00 UTC');
 ok(markets.dayStatus('crypto', '2026-10-03', new Date('2026-10-03T09:00:00Z')) === 'the UTC day 2026-10-03 is running now, 9 hours in; it closes at 02:00 Belgian time'
    && markets.dayStatus('crypto', '2026-10-03', new Date('2026-10-04T05:00:00Z')).startsWith('the UTC day 2026-10-03 has already closed (02:00 Belgian time)')
    && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-03T09:00:00Z')) === 'the New York session of Monday 2026-10-05 has not opened yet - it opens at 15:30 Belgian time and closes at 22:00 Belgian time'
    && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T15:00:00Z')).includes('is running now, 1.5 hours in')
    && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T21:00:00Z')).includes('has already closed') && markets.dayStatus('crypto', 'bad', new Date()) === null, 'the day status follows the clock');
-const at = new Date('2026-10-02T09:00:00Z');   // 11:00 Belgian time on the day the fixture's ticket is for
-const timed = markets.page('crypto', view, header, footer, null, at);
-ok(timed.includes('is the call for 2026-10-02 - the candle after the last one drawn, not "tomorrow"; it was made after the close of 2026-10-01 and is judged at the close of 2026-10-02, which is 02:00 Belgian time in the night from Friday to Saturday (00:00 UTC on 2026-10-03)')
-   && timed.includes("Every model's call for 2026-10-02 (") && timed.includes('<b>Judged at</b> the close of 2026-10-02, which is 02:00 Belgian time'), 'the chart names the day the next call is for and when it is judged');
-ok(timed.includes('Right now the UTC day 2026-10-02 is running now, 9 hours in; it closes at 02:00 Belgian time.'), 'the judged line says where the day stands as the page is read');
-ok(timed.includes('a market order at 02:00 Belgian time in the night from Friday to Saturday (00:00 UTC on 2026-10-03), whatever the price then is') && timed.includes('<b>The sell is at the close, whatever the price</b> - it is not a limit order at the band')
-   && timed.includes('The call is scored close-to-close: right when the close lands in the band, whatever happened in between'), 'the judged line says when a reader sells to be compared like the model, and that a hit is not a gain');
-ok(timed.includes('Price drawn on the chart (bin middle)') && timed.includes('a hit is the close landing anywhere inside">Band</th>') && timed.includes('The two bins around zero can be "up" here'), 'the next-day table says which column decides a hit');
-ok(timed.includes('the newest ticket went up at 09:15 Belgian time on Fri 02/10') && timed.includes('That ticket is for the UTC day 2026-10-02 and is judged at the close of 2026-10-02, which is 02:00 Belgian time in the night from Friday to Saturday')
-   && timed.includes('the day it predicts was already 7.3 hours old'), 'the explainer names the ticket\'s time, its day and its close; the hours are computed');
-ok(timed.includes('a <i>game day</i>, for crypto simply one UTC day') && timed.includes('Results settle the morning after, when the day\'s candle has closed. A crypto day is the UTC day, so'), 'the intro and step 3 put the day on a clock and define a game day');
-ok(timed.includes('<b>Dark box</b>: where the day actually landed') && timed.includes('a predicted box next to the dark one is filled pale green (one off); further away it stays white') && timed.includes('green outlines mark the prediction only in these strips'), 'the strips say what their colours mean');
-ok(timed.includes('bought at the previous close (00:00 UTC, in the night before the ticket goes up) and sold at the day\'s own close') && timed.includes('eight to ten hours before the ticket is on this page') && !timed.includes('ten hours into') && timed.includes('two ways of trading them'), 'the paper card puts both legs on the clock and does not overstate the hours');
-ok(timed.includes('Record generated 2026-10-02T07:15:00+00:00 (09:15 Belgian time on Fri 02/10)'), 'the footer gives the export time in Belgian time too');
-const sharesHtml = markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }), header, footer, null, at);
-ok(sharesHtml.includes('is the call for 2026-10-02 - the candle after the last one drawn, not "tomorrow"; it was made after the close of 2026-10-01 and is judged at the New York close of 2026-10-02, which is 22:00 Belgian time on Friday 2026-10-02 (16:00 New York time)')
-   && sharesHtml.includes('<b>Judged at</b> the New York close of 2026-10-02')
-   && sharesHtml.includes('the New York session of Friday 2026-10-02 has not opened yet - it opens at 15:30 Belgian time'), 'the shares page names the New York close and the computed open');
-ok(sharesHtml.includes('15:30-22:00 Belgian time in most weeks (an hour earlier in the few weeks a year') && !sharesHtml.includes('21:00 in winter') && !sharesHtml.includes('at the earliest')
-   && sharesHtml.includes('with the gap to the next open still ahead, which nobody reading this can do'), 'the shares explainer and fill note are right about the hours and the gap');
-ok(markets.page('shares', markets.describeMarket({ ...record, market: 'shares', next: { ...record.next, made_on: '2028-01-03' } }), header, footer, null, at).includes('is the call for the next session, normally 2028-01-04'),
-   'a year the exchange has not announced is said to be normal, not certain');
-const badMade = markets.page('crypto', markets.describeMarket({ ...record, next: { ...record.next, made_on: 'bad', made_at: 'bad' } }), header, footer, null, at);
-ok(!badMade.includes('made after the close of bad') && !badMade.includes('When it is judged') && !badMade.includes('went up at'), 'a made_on or made_at that does not parse is dropped, not echoed');
-ok(!markets.page('crypto', markets.describeMarket({ ...record, next: undefined }), header, footer, null, at).includes('When it is judged'), 'without a next-day call there is no judged-at line');
 
-// 4 Oct 2026: the plan card, the open-to-close book for shares, the Background card
+// the open-to-close book for shares (4 Oct 2026), and the same rules with shorts on
 const sharesRecord = { ...record, market: 'shares',
   models: [{ ...record.models[0], open_total: 9.5, open_trades: 12, open_wins: 7, open_win_rate: 0.5833, open_per_trade: 0.7917 }, record.models[1]],
   trading: { ...record.trading, currency: 'USD', open_rule: 'open to close',
@@ -415,111 +202,32 @@ const shortedRecord = { ...sharesRecord,
 const sharesView = markets.describeMarket(sharesRecord);
 ok(sharesView.trading.open && sharesView.trading.open.models['Markov Model'].length === 2 && sharesView.trading.openRule === 'open to close' && sharesView.models[0].openTotal === 9.5
    && view.trading.open === null && view.models[0].openTotal === null, 'the open-to-close book is read when present and absent otherwise');
-const sharesPlan = markets.page('shares', sharesView, header, footer, null, at);   // 11:00 Belgian time on Fri 2 Oct, before New York opens
-const positions = (h, keys) => keys.map((k) => h.indexOf(k));
-ok(positions(sharesPlan, ['card-title">Today\'s plan', 'card-title">Paper trading', 'card-title">BTC - Bitcoin', 'card-title">Background']).every((i, n, a) => i >= 0 && (n === 0 || i > a[n - 1])),
-   'the page order is plan, book, charts, background');
-ok(!sharesPlan.includes('card-title">How a day becomes a draw') && sharesPlan.includes('<details class="bg-section" open><summary><b>How a day becomes a draw</b>') && sharesPlan.includes('<summary><b>Models over 12 scored day(s)</b>')
-   && sharesPlan.includes('<details class="bg-section"><summary><b>Day by day</b>') && sharesPlan.includes('<summary><b>Accuracy per day</b>') && (sharesPlan.match(/class="bg-section"/g) || []).length >= 4,
-   'the supporting cards are sections of the Background card, the explainer and the models table open');
-ok(/<b>One model's calls\.<\/b> The table shows <b>Markov Model<\/b>'s calls - one of the \d+ models on today's ticket, not a vote of them\. It is followed because its own paper book is the best under the <b>open to close<\/b> rule\./.test(sharesPlan)
-   && sharesPlan.includes('The model\'s book over the 12 settled sessions: +9.50 USD from 12 positions of 100 USD; buying every share every day under the same rule gave +3.00 USD (the book is 6.50 ahead of it). That is the model\'s record, not what a reader made; the pick can change tomorrow.')
-   && sharesPlan.includes('<b>Following this card so far.</b> Not counted yet - the record is written by the next morning\'s run.</p>') && !sharesPlan.includes('Following the plan</i> below')
-   && sharesPlan.includes('Models calling up<br><span style="font-weight:normal; color:#7f8c8d; font-size:0.85em;">context, not the decision</span></th>')
-   && sharesPlan.includes('a market order placed before 15:30 Belgian time on Friday 2026-10-02 (09:30 New York time) - it fills at the open')
-   && sharesPlan.includes('a market order in the last minutes before 22:00 Belgian time on Friday 2026-10-02 (16:00 New York time), or an at-the-close order if your broker offers one on US shares') && /<td>\d+ of \d+<\/td>/.test(sharesPlan)
-   && !/font-weight:bold;">ETH</.test(sharesPlan), 'the plan turns an up call into the two orders with their Belgian hours, active instruments only');
-ok(sharesPlan.includes('for 2026-10-02 - the New York session of Friday 2026-10-02 has not opened yet') && sharesPlan.includes('a hold built on them is decided one morning at a time') && sharesPlan.includes('it is not advice'),
-   'the plan card says where the day stands, how a hold is decided, and what it is not');
-const followedShares = markets.page('shares', markets.describeMarket({ ...sharesRecord, trading: { ...sharesRecord.trading, followed: { rule: 'open', min_trades: 10, first_live: '2026-10-01', total: 1.5, market_total: -2, live_total: 1.5, live_market: -2, live_days: 1, live_positions: 2,
-  points: [['2026-09-30', 'Markov Model', 'book', 2, 0, 0, false, 1.1], ['2026-10-01', 'Markov Model', 'book', 2, 1.5, 1.5, true, -2]] } } }), header, footer, null, at);
-ok(followedShares.includes('<b>Following this card so far.</b> Since 2026-10-01, 1 session: <b>+1.50 USD</b> on paper, filled at the open and the close; buying everything under the same rule gave -2.00 USD (this card is 3.50 ahead of it). The session-by-session record is in <i>Following the plan</i> below.')
-   && followedShares.includes('The model\'s book over the 12 settled sessions (1 of them back-built before 2026-10-01, the first session this card could be followed; 1 session followed since): +9.50 USD')
-   && followedShares.includes('Followed since <b>2026-10-01</b> (1 session, 2 positions)') && followedShares.includes('(the plan is 3.50 ahead of it)')
-   && followedShares.includes('card-title">Following the plan') && followedShares.indexOf('Following this card so far') < followedShares.indexOf('card-title">Following the plan'),
-   'with a followed record the plan card says what following it made, live sessions only, counts the back-built days, and points at the card below');
-const followedCrypto = markets.page('crypto', markets.describeMarket({ ...record, trading: { ...record.trading, followed: { rule: 'daily', min_trades: 10, first_live: '2026-10-01', total: -3, market_total: -5, live_total: -3, live_market: -5, live_days: 2, live_positions: 4,
-  points: [['2026-10-01', 'Markov Model', 'book', 2, -1, -1, true, -2], ['2026-10-02', 'Markov Model', 'book', 2, -2, -3, true, -3]] } } }), header, footer, null, at);
-ok(followedCrypto.includes('Since 2026-10-01, 2 days: <b>-3.00 USDT</b> on paper, bought at 00:00 UTC before the ticket was up - a real entry is later and at another price; buying everything under the same rule gave -5.00 USDT (this card is 2.00 ahead of it). The day-by-day record is in <i>Following the plan</i> below.'),
-   'the crypto line says the figure is paper at the 00:00 UTC price, on the line that carries it');
-const allBackBuilt = markets.page('shares', markets.describeMarket({ ...sharesRecord, trading: { ...sharesRecord.trading, followed: { rule: 'open', min_trades: 10, first_live: null, total: 1.5, market_total: -2, live_total: 0, live_market: 0, live_days: 0, live_positions: 0,
-  points: [['2026-09-30', 'Markov Model', 'book', 2, 0.5, 0.5, false, 1.1], ['2026-10-01', 'Markov Model', 'book', 2, 1, 1.5, false, -2]] } } }), header, footer, null, at);
-ok(allBackBuilt.includes('The model\'s book over the 12 settled sessions (2 of them back-built, before the first session this card could be followed): +9.50 USD') && !/back-built before null/.test(allBackBuilt)
-   && allBackBuilt.includes('<b>Following this card so far.</b> No live session counted yet - the first is counted after the next morning\'s run settles it. The session-by-session record is in <i>Following the plan</i> below.'),
-   'a record with no live day yet names no date and says the first live session is still to come');
-const noWeekCard = markets.page('crypto', markets.describeMarket(record, { week: markets.describeMarket({ ...record, market: 'cryptoweek', next: { ...record.next, made_on: undefined } }) }), header, footer, null, at);
-ok(!noWeekCard.includes('card-title">Week ahead') && !noWeekCard.includes('card-title">This week') && !noWeekCard.includes('week card (<i>') && !noWeekCard.includes('week card below'),
-   'a week view that renders no week card is not pointed at by the daily card');
-const during = markets.page('shares', sharesView, header, footer, null, new Date('2026-10-02T15:00:00Z'));
-ok(during.includes('a market order now, at the current price - the open (15:30 Belgian time on Friday 2026-10-02 (09:30 New York time)) is past; the New York session of Friday 2026-10-02 is running now, 1.5 hours in'), 'a running session says the open is past');
-const after = markets.page('shares', sharesView, header, footer, null, new Date('2026-10-02T21:00:00Z'));
-ok(after.includes('too late for this ticket - the day closed at 22:00 Belgian time; the next ticket is here after the next run, about 10:30'), 'a closed session says the ticket is spent');
-const downRecord = { ...sharesRecord, next: { ...sharesRecord.next, instruments: { ...sharesRecord.next.instruments,
-  BTC: { ...sharesRecord.next.instruments.BTC, predictions: sharesRecord.next.instruments.BTC.predictions.map((p) => (p.model === 'Markov Model' ? { ...p, bin: 2, direction: -1 } : p)) } } } };
-const downPlan = markets.page('shares', markets.describeMarket(downRecord), header, footer, null, at);
-ok(downPlan.includes('no new buy - the call is down (bin 2)') && !downPlan.includes('shorts it on paper') && downPlan.includes('if you still hold it from an earlier day\'s plan, sell at the close, 22:00 Belgian time'), 'a down call gives no buy and tells a holder to sell at the close; without short books no short is named');
-ok(sharesPlan.includes('data-view="open"') && sharesPlan.includes('P&amp;L open-close') && sharesPlan.includes('open to close: +9.50 (Markov Model), the market +3.00') && sharesPlan.includes('"open":{"benchmark":[1,3]')
-   && sharesPlan.includes('<b>Open to close</b>: bought at the session\'s own open') && sharesPlan.includes('three ways of trading them'), 'the shares book has the third rule, its column, its meta and its toggle');
-ok(/under the <b>daily round trip<\/b> rule\. The model's book over the \d+ settled days: \+12\.34 USDT from 25 positions of 100 USDT; buying every coin every day under the same rule gave \+1\.80 USDT \(the book is 10\.54 ahead of it\)\. That is the model's record/.test(timed)
-   && timed.includes('<b>Following this card so far.</b> Not counted yet - the record is written by the next morning\'s run.') && timed.includes('a market order now - the ticket went up at 09:15 Belgian time on Fri 02/10; the UTC day 2026-10-02 is running now, 9 hours in')
-   && timed.includes('<td class="order">a market order at 02:00 Belgian time in the night from Friday to Saturday (00:00 UTC on 2026-10-03), whatever the price then is</td>') && !timed.includes('data-view="open"') && !timed.includes('P&amp;L open-close'),
-   'the crypto plan follows the daily book, buys now, sells at the UTC close, and has no open-to-close book');
-ok(!markets.page('crypto', markets.describeMarket({ ...record, next: undefined }), header, footer, null, at).includes('card-title">Today\'s plan'), 'without a next-day call there is no plan card');
 
-const fewTrades = markets.page('shares', markets.describeMarket({ ...sharesRecord, models: [{ ...sharesRecord.models[0], open_trades: 3 }, sharesRecord.models[1]] }), header, footer, null, at);
-ok(fewTrades.includes('It is followed because no book has 10 positions yet under the <b>open to close</b> rule and it has the best exact rate over the ') && !fewTrades.includes('whose paper book is the best so far') && fewTrades.includes('the page follows the one with the best exact rate, until a book has 10 positions') && !fewTrades.includes('- USD'), 'a book with too few positions is not followed; the fallback says what picked the model');
-const summary = (sharesPlan.match(/<span class="card-meta" style="margin-left:10px;">([^<]*open a section)/) || [])[1] || '';
-ok(summary.startsWith('how a day becomes a draw - models - ') && summary.includes('day by day') && !summary.includes('proper score'), `the Background summary names the sections present and promises none that is absent: ${summary}`);
-const nasty = markets.page('crypto', markets.describeMarket({ ...record, models: [{ ...record.models[0], name: 'Evil</script><img src=x> Model' }] }), header, footer, null, at);
-ok(!nasty.includes('Evil</script>') && nasty.includes('Evil\\u003c/script>'), 'a model name cannot end an inline data script');
-
-// position sizes (the RL Position Model): the plan and the next-day table read the size, not the bin
+// position sizes (the RL Position Model): the view carries the size next to the bin
 const sizedRecord = { ...record, next: { ...record.next, instruments: { ...record.next.instruments,
   BTC: { ...record.next.instruments.BTC, predictions: record.next.instruments.BTC.predictions.map((p) => (p.model === 'Markov Model' ? { ...p, size: 1.5 } : p))
     .concat([{ model: 'RL Position Model', bin: 6, direction: 1, price: 84800, low: 84300, high: 85100, size: 0 }]) } } } };
-const sizedPlan = markets.page('crypto', markets.describeMarket(sizedRecord), header, footer, null, at);
-ok(sizedPlan.includes('up &#9650; &times;1.5</span>') && sizedPlan.includes('position size &times;1.5 (150 USDT at the paper stake) - a market order now'), 'a sized up call shows its size and the money it means');
-ok(sizedPlan.includes('<span style="color:#27ae60;">long &times;1.5</span>') && sizedPlan.includes('flat (size 0)'), 'the next-day table shows long with the size, and a size of 0 as flat');
-const zeroRecord = { ...record, next: { ...record.next, instruments: { ...record.next.instruments,
-  BTC: { ...record.next.instruments.BTC, predictions: record.next.instruments.BTC.predictions.map((p) => (p.model === 'Markov Model' ? { ...p, size: 0 } : p)) } } } };
-ok(markets.page('crypto', markets.describeMarket(zeroRecord), header, footer, null, at).includes('no new buy - the model sizes this coin at 0 today (its vote bin is 7)'), 'a sized call of 0 is a sit-out whatever the bin');
+const sizedView = markets.describeMarket(sizedRecord);
+ok(sizedView.instruments[0].next[0].size === 1.5 && sizedView.instruments[0].next[2].model === 'RL Position Model' && sizedView.instruments[0].next[2].size === 0, 'a sized call carries its size, a size of 0 included');
 ok(markets.describeMarket(record).instruments[0].next[0].size === null, 'a plain row has no size');
 
 // shorts in the paper books
 const shortedView = markets.describeMarket(shortedRecord);
 ok(shortedView.trading.short && Object.keys(shortedView.trading.short).sort().join() === 'daily,hold,open' && shortedView.trading.short.daily.models['Markov Model'][1].total === 4.25 && shortedView.trading.short.daily.sold[1].total === -4.1 && shortedView.trading.short.hold.sold.length === 0
    && shortedView.models[0].shortTotal === 4.25 && shortedView.models[0].shortHoldTotal === 3.1 && view.trading.short === null && view.models[0].shortTotal === null, 'the long-and-short books are read when present');
-const shorted = markets.page('shares', shortedView, header, footer, null, at);
-ok(shorted.includes('data-shorts="off"') && shorted.includes('data-shorts="on"') && shorted.includes("marketShorts('ledger-shares', true)") && shorted.includes('"daily_ls":{"benchmark":[-1.2,1.8],"sold":[-1.5,-4.1]') && shorted.includes('"open_ls":{"benchmark":[1,3]'),
-   'the book card has the shorts switch and the long-and-short rules share the market lines');
-ok(shorted.includes('P&amp;L long &amp; short (daily)</th>') && shorted.includes('20 position(s), win rate 55%, +0.21 per position; holding +3.10, open to close -1.20">+4.25</td>')
-   && shorted.includes('long and short (daily): +4.25 (Markov Model), buying everything +1.80, selling everything -4.10') && shorted.includes('<b>Shorts</b> (the switch)') && shorted.includes('selling what you do not own needs a margin or derivatives account')
-   && shorted.includes('the second dashed line is what <b>selling</b> everything gave') && shorted.includes('a paper short (the switch)') && shorted.includes('every down call as a paper short, which is never an order'),
-   'the models table, the card meta and the text carry the shorts');
-ok(!sharesPlan.includes('data-shorts=') && !sharesPlan.includes('P&amp;L long &amp; short'), 'a record without the short books shows no switch and no column');
-const downShorted = markets.page('shares', markets.describeMarket({ ...shortedRecord, next: downRecord.next }), header, footer, null, at);
-ok(downShorted.includes('no new buy - the call is down (bin 2); with shorts on, the open to close book shorts it on paper, which needs a margin or derivatives account - no order here') && !downShorted.includes('shorts are not scored yet'),
-   'a down call names the paper short and gives no order');
-ok(downShorted.includes('flat - short (paper) with shorts on</span>') && /<td>\d+ of \d+<\/td>/.test(downShorted) && downShorted.includes('a paper short with the shorts switch on)'), 'the next-day table and the day-by-day legend say what a lower-half bin is under each switch');
-// the switch and the rule buttons compose the view (marketRender returns early for an unknown chart id)
-sandbox.window.marketState = Object.assign(sandbox.window.marketState || {}, { b: { view: 'hold' } });
-sandbox.window.marketData = sandbox.window.marketData || {};
-w.marketShorts('b', true); ok(sandbox.window.marketState.b.view === 'hold_ls', `the switch keeps the rule: ${sandbox.window.marketState.b.view}`);
-w.marketRule('b', 'open'); ok(sandbox.window.marketState.b.view === 'open_ls', `the rule keeps the switch: ${sandbox.window.marketState.b.view}`);
-w.marketShorts('b', false); ok(sandbox.window.marketState.b.view === 'open', 'and back to long only');
 
-const youngSized = markets.page('shares', markets.describeMarket({ ...shortedRecord,
-  models: [shortedRecord.models[0], { ...shortedRecord.models[1], days: 2, short_total: 99, short_trades: 2, pnl_cash_total: 99, trades: 2 }],
-  next: { ...shortedRecord.next, instruments: { ...shortedRecord.next.instruments, BTC: { ...shortedRecord.next.instruments.BTC,
-    predictions: shortedRecord.next.instruments.BTC.predictions.concat([{ model: 'Odd Model', bin: 6, direction: 1, price: 84800, low: 84300, high: 85100, size: 1 }]) } } } }), header, footer, null, at);
-ok(youngSized.includes('long and short (daily): +4.25 (Markov Model)') && youngSized.includes('best book +12.34 USD (Markov Model)') && !youngSized.includes('+99.00 (Odd Model)'), 'a two-day sized row heads no book line');
-const sizedShort = markets.page('shares', markets.describeMarket({ ...shortedRecord,
-  models: [shortedRecord.models[0], { ...shortedRecord.models[1], days: 12, short_total: 1.0, short_trades: 2, short_win_rate: 1, short_per_trade: 0.5, short_hold_total: 1.0 }],
-  next: { ...shortedRecord.next, instruments: { ...shortedRecord.next.instruments, BTC: { ...shortedRecord.next.instruments.BTC,
-    predictions: shortedRecord.next.instruments.BTC.predictions.concat([{ model: 'Odd Model', bin: 6, direction: 1, price: 84800, low: 84300, high: 85100, size: 1 }]) } } } }), header, footer, null, at);
-ok(sizedShort.includes('a sized row: longs only, never shorts - its long-and-short books are its long-only books; 2 position(s)') && sizedShort.includes('+1.00 <span style="color:#7f8c8d;">(long only)</span>'), 'a sized row\'s long-and-short cell says it never shorts');
+// the followed-plan record (MarketSettle.followed_plan, 13 Oct 2026): live days apart from the back-built ones
+const followed = markets.describeMarket({ ...sharesRecord, trading: { ...sharesRecord.trading, followed: { rule: 'open', min_trades: 10, first_live: '2026-10-01', total: 1.5, market_total: -2, live_total: 1.5, live_market: -2, live_days: 1, live_positions: 2,
+  points: [['2026-09-30', 'Markov Model', 'book', 2, 0, 0, false, 1.1], ['2026-10-01', 'Markov Model', 'exact', 2, 1.5, 1.5, true, -2, { BTC: 1.5 }], ['short', 1], 'bad'] } } }).trading.followed;
+ok(followed && followed.rule === 'open' && followed.minTrades === 10 && followed.firstLive === '2026-10-01' && followed.liveTotal === 1.5 && followed.liveMarket === -2 && followed.liveDays === 1 && followed.livePositions === 2
+   && followed.points.length === 2 && followed.points[0].live === false && followed.points[1].live === true && followed.points[1].pickedBy === 'exact' && followed.points[1].market === -2
+   && followed.points[1].bySymbol.BTC === 1.5 && Object.keys(followed.points[0].bySymbol).length === 0 && view.trading.followed === null,
+   `the followed record keeps its live days, totals and per-instrument money; a malformed point is dropped: ${JSON.stringify(followed)}`);
+const backBuilt = markets.describeFollowed({ rule: 'daily', first_live: null, points: [['2026-09-30', null, null, 2, 0.5, 0.5, false, 1.1]] });
+ok(backBuilt.rule === 'daily' && backBuilt.firstLive === null && backBuilt.liveDays === 0 && backBuilt.points[0].model === null && markets.describeFollowed({ rule: 'x', points: 7 }) === null
+   && markets.describeFollowed({ rule: 'x', points: [] }).rule === 'daily', 'a record with no live day yet has no first live day; a record without points is none');
 
-// the week ahead (M5): the week game's call per instrument and the hold it plans, from the week record next to the daily one
+// the week game (M5): its view rides along with the daily one; the week's clock and its guarded book
 const weekRecord = { ...record, market: 'cryptoweek', newest_game_day: '2026-09-27',
   models: [{ ...record.models[0], days: 12, trades: 25, pnl_cash_total: 7.5 }, record.models[1]],
   instruments: [{ ...record.instruments[0], last_close: 83000, last_date: '2026-09-27', closes: [['2026-09-20', 82000], ['2026-09-27', 83000]], edges: [null, null], moves: [null, null], course: {} }, record.instruments[1]],
@@ -529,8 +237,27 @@ const weekRecord = { ...record, market: 'cryptoweek', newest_game_day: '2026-09-
 const weekView = markets.describeMarket(weekRecord);
 const withWeek = markets.describeMarket(record, { week: weekView });
 ok(withWeek.week && withWeek.week.market === 'cryptoweek' && markets.describeMarket(record).week === null && markets.describeMarket(record, { week: { nonsense: true } }).week === null, 'the week view rides along when it is a market view');
-const thursday = new Date('2026-10-01T09:00:00Z');   // 11:00 Belgian time, Thursday of the week the ticket is for
-const weekPage = markets.page('crypto', withWeek, header, footer, null, thursday);
+
+// the books Today's plan and the week card follow (pickPlan, pickWeek, read by api.js, admin.js and workbench.js): the
+// best book under the market's rule from MIN_PLAN_TRADES / MIN_WEEK_TRADES positions on; before that, the best exact rate
+const planOf = (rec, market) => markets.pickPlan(markets.describeMarket(rec), market);
+const weekOf = (rec, market) => markets.pickWeek(markets.describeMarket(rec), market);
+const cryptoPlan = planOf({ ...record, models: [record.models[0], { ...record.models[1], trades: 30, pnl_cash_total: 20 }] }, 'crypto');
+ok(markets.MIN_PLAN_TRADES === 10 && markets.MIN_WEEK_TRADES === 5 && cryptoPlan.model.name === 'Odd Model' && cryptoPlan.byBook === true && cryptoPlan.key === 'pnlCash'
+   && cryptoPlan.ruleName === 'daily round trip', 'crypto: the plan follows the best daily book with 10 positions, not the best exact rate');
+const youngPlan = planOf({ ...record, models: [{ ...record.models[0], trades: 9 }, { ...record.models[1], trades: 9, pnl_cash_total: 20 }] }, 'crypto');
+ok(youngPlan.model.name === 'Markov Model' && youngPlan.byBook === false, 'no daily book with 10 positions yet: the plan follows the best exact rate');
+const sharesPlan = planOf(sharesRecord, 'shares');
+ok(sharesPlan.model.name === 'Markov Model' && sharesPlan.byBook === true && sharesPlan.key === 'openTotal' && sharesPlan.ruleName === 'open to close'
+   && planOf({ ...sharesRecord, models: [{ ...sharesRecord.models[0], open_trades: 3 }, sharesRecord.models[1]] }, 'shares').byBook === false,
+   'shares: the plan follows the open-to-close book, not the daily one, and not before it has 10 positions');
+const cryptoWeek = markets.pickWeek(weekView, 'crypto');
+ok(cryptoWeek.model.name === 'Markov Model' && cryptoWeek.byBook === true && cryptoWeek.ruleName === 'weekly round trip', 'crypto: the week card follows the weekly book');
+const sharesWeekOf = (oddTrades) => weekOf({ ...weekRecord, market: 'sharesweek',
+  models: [{ ...weekRecord.models[0], open_total: 3.2, open_trades: 4 }, { ...weekRecord.models[1], open_total: 9, open_trades: oddTrades }] }, 'shares');
+ok(sharesWeekOf(5).model.name === 'Odd Model' && sharesWeekOf(5).byBook === true && sharesWeekOf(5).key === 'openTotal' && sharesWeekOf(5).ruleName === 'Monday open to Friday close'
+   && sharesWeekOf(4).model.name === 'Markov Model' && sharesWeekOf(4).byBook === false,
+   'shares: the week card follows the Monday open to Friday close book from 5 positions on, the best exact rate before');
 ok(markets.dayStatusWeek(new Date('2026-10-19T14:00:00Z'), new Date('2026-10-19T13:30:00Z'), new Date('2026-10-23T20:00:00Z')).startsWith('the week is running, 0.5 h in'), 'a week under a day old counts hours, not 0 days');
 ok(markets.dayStatusWeek(new Date('2026-10-20T13:40:00Z'), new Date('2026-10-19T13:30:00Z'), new Date('2026-10-23T20:00:00Z')).startsWith('the week is running, 1 day in'), 'one day in reads 1 day');
 {
@@ -539,64 +266,7 @@ ok(markets.dayStatusWeek(new Date('2026-10-20T13:40:00Z'), new Date('2026-10-19T
      && markets.describeGuarded(null) === null && markets.GUARD_SHOWN_FROM === '2026-10-26',
      `the guarded book is read for the Admin card, forward_from defaulting to 19 Oct: ${JSON.stringify(g)}`);
 }
-{
-  // the Admin card 'The guard on the week positions': guarded weeks only, newest first, the plain week joined by date,
-  // what the user pages count per week, totals over the guard's live weeks
-  const gWeek = markets.describeMarket({ ...weekRecord, trading: { ...weekRecord.trading,
-    followed: { rule: 'daily', points: [['2026-10-11', 'Markov Model', 'book', 4, -24.82, -24.82, true, -31.98], ['2026-10-25', 'Markov Model', 'book', 2, -5, -29.82, true, -10]] },
-    guarded: { rule: 'the guard', forward_from: '2026-10-19', points: [['2026-09-27', 'X', 1, 9, 9, true, 9, {}, [], false],
-      ['2026-10-11', 'Markov Model', 3, -3.5, -3.5, true, -31.98, {}, [], true], ['2026-10-25', 'Markov Model', 1, -2, -5.5, true, -10, {}, [], true],
-      ['2026-11-01', 'Markov Model', 1, 7, 1.5, false, 4, {}, [], true]] } } });
-  const gPage = markets.page('crypto', markets.describeMarket(record, { week: gWeek }), header, footer, null, thursday);
-  const at = gPage.indexOf('<summary><b>The guard on the week positions</b>');
-  const card = at < 0 ? '' : gPage.slice(at, gPage.indexOf('</table>', at)).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  ok(at > 0 && card.indexOf('2026-11-01') < card.indexOf('2026-10-25') && card.indexOf('2026-10-25') < card.indexOf('2026-10-11') && !card.includes('2026-09-27')
-     && /2026-10-11 Markov Model 3 -3\.50 -24\.82 -31\.98 user pages: plain week · booked after the fact/.test(card)
-     && /2026-10-25 Markov Model 1 -2\.00 -5\.00 -10\.00 user pages: plain week(?! ·)/.test(card)
-     && card.includes('user pages: not counted (not live) · guard not live')
-     && card.includes('Over the 2 live weeks: the guard -5.50, the plain week -29.82, buying everything -41.98')
-     && card.includes('the weeks ending before 2026-10-19 booked after the fact'),
-     `the Admin guard card: ${card.slice(0, 900)}`);
-}
-ok(weekPage.includes('card-title">This week') && weekPage.includes('the UTC week ending 2026-10-04 - the week is running, 3.4 days in; it closes at 02:00 Belgian time on Mon 05/10; 12 settled weeks'),
-   `the week card names the week and where it stands: ${(weekPage.match(/the UTC week ending[^<]*/) || [])[0]}`);
-ok(/<b>One model's calls\.<\/b> The table shows <b>Markov Model<\/b>'s calls for the week - one of the \d+ models on this week's ticket, not a vote of them\. It is followed because its weekly paper book is the best under the <b>weekly round trip<\/b> rule\./.test(weekPage)
-   && weekPage.includes('The model\'s book over the 12 settled weeks: +7.50 USDT from 25 positions of 100 USDT; buying every coin every week under the same rule gave +1.80 USDT (the book is 5.70 ahead of it). That is the model\'s record, not what a reader made; the model is re-picked when the week settles.')
-   && weekPage.includes('<b>Following this card so far.</b> Not counted yet - the record is written by the next morning\'s run.')
-   && weekPage.includes('<b>The call is judged once, at the week\'s close</b> - 02:00 Belgian time in the night from Sunday to Monday (00:00 UTC on 2026-10-05): right if the week\'s move lands in the predicted bin, one of ten; the sell is then, whatever the price.')
-   && weekPage.includes('The card follows a weekly book from 5 positions on (the daily plan asks 10), which is few - hence the months.') && weekPage.includes('it went up at 09:40 Belgian time on Mon 28/09') && weekPage.includes('it stands for the whole week - the week game makes no call between Monday and Sunday'),
-   'the week card says which book it follows, against what, and when the week is judged');
-ok(weekPage.includes('Sun close 83000 - the week base') && weekPage.includes('84200 - 85900<br>') && weekPage.includes('bin 7: +1.4% to +3.5% over the week') && weekPage.includes('<td>1 of 2</td>'), 'the band at the week\'s close as prices and as a move');
-ok(weekPage.includes('+1.2% after 3 closes (84000 on 2026-10-01) - below the band, which is checked only at the week\'s close'), `so far from the daily closes: ${(weekPage.match(/[+-]\d\.\d% after \d closes[^<]*/) || [])[0]}`);
-ok(weekPage.includes('the book\'s position has been open since 02:00 Belgian time on Mon 28/09 - the week is 3.4 days in, 87 hours left, and the call was for the whole week; a buy now runs only to the week\'s close')
-   && weekPage.includes('<td class="order">a market order at 02:00 Belgian time in the night from Sunday to Monday (00:00 UTC on 2026-10-05), whatever the price then is</td>'), 'mid-week the buy cell says the week is mostly gone; the sell is the UTC week\'s close');
-ok(positions(weekPage, ['card-title">Today\'s plan', 'card-title">This week', 'card-title">Paper trading']).every((i, n, a) => i >= 0 && (n === 0 || i > a[n - 1])), 'the week card sits between the plan and the book');
-ok(weekPage.includes('A hold planned once for the whole week is the other game, in the week card below (<i>This week</i>)') && weekPage.includes('The <b>Week ahead</b> card (<b>This week</b> once the week has started) is the second game')
-, 'the daily plan and the intro point at the week game');
-ok(markets.page('crypto', markets.describeMarket({ ...record, next: downRecord.next }, { week: weekView }), header, footer, null, thursday).includes('a position from the week card (<i>This week</i>) is not meant here'), 'a daily down call keeps the weekly position out of its sell note');
-// shares: made after Friday's close, the week is Monday's open to Friday's close; before Monday's open the buy is an order at the open
-const sharesWeek = markets.describeMarket({ ...weekRecord, market: 'sharesweek', newest_game_day: '2026-10-02',
-  models: [{ ...weekRecord.models[0], open_total: 3.2, open_trades: 6 }, weekRecord.models[1]],
-  trading: { ...weekRecord.trading, open: { models: { 'Markov Model': [['2026-09-25', 1.0, 1.0], ['2026-10-02', 2.2, 3.2]] }, benchmark: [['2026-09-25', 1.0, 1.0], ['2026-10-02', 2.0, 3.0]] } },
-  next: { ...weekRecord.next, made_on: '2026-10-02', made_at: '2026-10-03T08:38:00+00:00' } });
-const sharesWeekPage = markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }, { week: sharesWeek }), header, footer, null, new Date('2026-10-04T12:00:00Z'));
-ok(sharesWeekPage.includes('card-title">Week ahead') && sharesWeekPage.includes('the trading week ending 2026-10-09 - the week has not started yet - it starts at 15:30 Belgian time on Mon 05/10; 12 settled weeks')
-   && sharesWeekPage.includes('under the <b>Monday open to Friday close</b> rule. The model\'s book over the 12 settled weeks: +3.20 USD from 6 positions of 100 USD; buying every share every week under the same rule gave +3.00 USD (the book is 0.20 ahead of it).')
-   && sharesWeekPage.includes('in the week card below (<i>Week ahead</i>)') && sharesWeekPage.includes('every week those of the week card (<i>Week ahead</i>)') === sharesWeekPage.includes('card-title">Following the plan')
-   && sharesWeekPage.includes('<td class="order">a market order placed before 15:30 Belgian time on Monday 2026-10-05 (09:30 New York time) - it fills at the week\'s first open, where the book buys</td><td class="order">a market order in the last minutes before 22:00 Belgian time on Friday 2026-10-09 (16:00 New York time), or an at-the-close order if your broker offers one</td>')
-   && sharesWeekPage.includes('the week has not started</td>') && sharesWeekPage.includes('Fri close 83000 - the week base'),
-   `the shares week: Monday's open to Friday's close, in Belgian time: ${(sharesWeekPage.match(/One model's calls\.<\/b>[^.]*\./) || ['no follows'])[0].slice(0, 300)} | ${(sharesWeekPage.match(/the trading week ending[^<]*/) || ['no header'])[0]} | ${(sharesWeekPage.match(/<td class="order">a market order placed before[\s\S]{0,260}?<\/td><td class="order">[^<]*<\/td>/) || ['no orders'])[0].slice(0, 420)} | ${sharesWeekPage.includes('the week has not started</td>')} ${sharesWeekPage.includes('Fri close 83000 - the week base')}`);
-const weekFollowedView = markets.describeMarket({ ...weekRecord, trading: { ...weekRecord.trading, followed: { rule: 'daily', min_trades: 5, first_live: '2026-09-27', total: 2, market_total: 1, live_total: 2, live_market: 1, live_days: 1, live_positions: 3,
-  points: [['2026-09-20', 'Markov Model', 'book', 3, 0, 0, false, 0.5], ['2026-09-27', 'Markov Model', 'book', 3, 2, 2, true, 1]] } } });
-const weekFollowedPage = markets.page('crypto', markets.describeMarket(record, { week: weekFollowedView }), header, footer, null, thursday);
-ok(weekFollowedPage.includes('<b>Following this card so far.</b> 1 settled week (the one ending 2026-09-27): <b>+2.00 USDT</b> on paper, bought at Monday 00:00 UTC before the ticket was up - a real entry is later and at another price; buying everything under the same rule gave +1.00 USDT (this card is 1.00 ahead of it). This week is counted when it settles; a weekly book needs months of live weeks before it says anything about skill. The week-by-week record is in <i>Following the plan</i> below.')
-   && weekFollowedPage.includes('The model\'s book over the 12 settled weeks (1 of them back-built before the week ending 2026-09-27, the first week this card could be followed; 1 week followed since): +7.50 USDT') && weekFollowedPage.includes('Week to week - the week card (<i>This week</i>), weekly round trip')
-   && weekFollowedPage.includes('Followed for <b>1 week</b> (the week ending 2026-09-27, 3 positions)') && weekFollowedPage.includes('week to week, 1 week settled (the one ending 2026-09-27): +2.00 USDT (buying everything +1.00)') && weekFollowedPage.includes('Back-built weeks ending before 2026-09-27 (1)'),
-   'a week card with a followed record names the settled week by its end and says the figure is paper at Monday 00:00 UTC');
-const fewWeeks = markets.page('shares', markets.describeMarket({ ...record, market: 'shares' }, { week: markets.describeMarket({ ...weekRecord, market: 'sharesweek', next: { ...weekRecord.next, made_on: '2026-10-02' } }) }), header, footer, null, new Date('2026-10-04T12:00:00Z'));
-ok(fewWeeks.includes('It is followed because no weekly book has 5 positions yet and it has the best exact rate over the 12 settled weeks; the model is re-picked when the week settles.'), 'without a seasoned weekly book the week card follows the best exact rate and says so');
 ok(markets.weekEnd('crypto', '2026-10-04') === '2026-10-11' && markets.weekEnd('shares', '2026-10-02') === '2026-10-09' && markets.weekEnd('shares', '2026-12-18') === '2026-12-24' && markets.weekEnd('shares', '2026-11-20') === '2026-11-27' && markets.weekEnd('crypto', 'bad') === null,
    'the week ends on the next Sunday for crypto and on the week\'s last session for shares, holidays skipped');
-ok(!markets.page('crypto', markets.describeMarket(record), header, footer, null, thursday).includes('card-title">Week ahead'), 'without a week record there is no week card');
 
 console.log(`markets.js: ${passed} checks passed`);
