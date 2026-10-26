@@ -7,5 +7,6 @@
   "latent_dim": 16,
   "encoder_units": 64,
   "num_encoder_layers": 2,
-  "window_size": 20
+  "window_size": 20,
+  "weightsVersion": 2
 }

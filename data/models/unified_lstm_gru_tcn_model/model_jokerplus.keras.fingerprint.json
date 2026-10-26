@@ -11,5 +11,6 @@
   "num_tcn_layers": 2,
   "window_size": 20,
   "num_heads": 4,
-  "key_dim": 32
+  "key_dim": 32,
+  "weightsVersion": 2
 }

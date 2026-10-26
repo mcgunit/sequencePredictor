@@ -12,5 +12,6 @@
   "useFinalLSTMLayer": false,
   "window_size": 12,
   "num_heads": 2,
-  "key_dim": 16
+  "key_dim": 16,
+  "weightsVersion": 2
 }

@@ -7,5 +7,6 @@
   "num_gcn_layers": 3,
   "embedding_dim": 32,
   "window_size": 6,
-  "node_feature_count": 4
+  "node_feature_count": 4,
+  "weightsVersion": 2
 }
