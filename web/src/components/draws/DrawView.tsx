@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { dayYear, isNum, pct, stamp, weekday } from '../../format';
 import type { Draw, Row } from '../../workbench';
 import { Card } from '../admin/Card';
-import { FiguresLine } from './History';
+import { FiguresLine, liveMarksText } from './History';
 import MultiPickLegend from './MultiPickLegend';
 import ResultStrip from './ResultStrip';
 import ScopeLine, { ComingScopeLine } from './ScopeLine';
@@ -81,6 +81,13 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
       >
         <div className="card-b">
           <ScopeLine scope={s} mode={mode} />
+          {mode === 'user' && d.afterClose ? <p className="scopeline mut">{d.afterCloseText ?? 'Tickets for this draw were made after its sales closed - shown, not counted in the totals.'}</p> : null}
+          {mode === 'admin' && d.liveness?.marks ? (
+            <p className="scopeline">
+              Not live as stored: {liveMarksText(d.liveness.marks)} (lotteryLiveness.json; each row says why). The admin&apos;s live record scores a rewritten ticket as
+              it stood at the close{d.liveness.afterClose ? '; the users\' history shows this draw greyed and leaves it out of its totals' : ''}.
+            </p>
+          ) : null}
           {d.market && mode === 'admin' && d.market.exactMean !== null ? (
             <p className="scopeline">
               Exact rate over every row this day: {(d.market.exactMean * 100).toFixed(1)}%, chance 10%{d.market.best ? ` · most exact: ${d.market.best.replace(/ Model$/, '')}` : ''}.
@@ -119,12 +126,16 @@ export default function DrawView({ d, mode, drawHref, marketHref }: { d: Draw; m
           title={`Next draw${d.coming.date ? ` · ${comingText(d.coming.date)}` : ''}`}
           meta={[
             mode === 'user' ? `top ${d.coming.scope.rows} of ${d.coming.scope.of} models` : `${d.coming.scope.rows} of ${d.coming.scope.of} rows`,
+            d.coming.close ? `sales close ${d.coming.close.time}${d.coming.close.scheduled ? '' : ' (not a usual draw day)'}` : '',
             d.coming.madeAt ? `${mode === 'user' ? 'tickets made' : 'ticket'} ${stamp(d.coming.madeAt)}` : '',
           ]}
           flush
         >
           <div className="card-b">
             <ComingScopeLine scope={d.coming.scope} mode={mode} />
+            {d.coming.close?.afterClose ? (
+              <p className="scopeline">These tickets were made after sales closed ({d.coming.close.time}): for reading, not for playing.</p>
+            ) : null}
           </div>
           {d.coming.rows.length ? (
             <TicketTable

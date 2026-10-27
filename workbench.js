@@ -123,11 +123,75 @@ function workbenchSource(dirs, market) {
   });
 }
 
+// --- the live record: data/database/lotteryLiveness.json (src/Liveness.py, 27 Oct 2026) ---------------------------------
+// The lottery draws whose scored tickets were not all saved before the sales close, as the daily report judged them:
+// per draw the late rows ('all' or the names: back-built or late), the recovered ones (rewritten after the draw; the
+// report's live record scores the ticket that stood at the close, kept here), the duplicates (a second row of one
+// name) and, on a day git could not be read, the unchecked ones. Every draw not listed is live. null when the file is
+// missing (before the first run that wrote it, or a market game).
+const LIVENESS_FILE = 'lotteryLiveness.json';
+function livenessOf(dirs, game) {
+  const file = path.join(dirs.databaseDir, LIVENESS_FILE);
+  const all = cached(`liveness:${file}`, [file], () => readJson(file));
+  const g = all && all.games && typeof all.games === 'object' ? all.games[game] : null;
+  return g && typeof g === 'object' ? { checked: g.checked || null, draws: g.draws && typeof g.draws === 'object' ? g.draws : {} } : null;
+}
+const named = (field, name) => field === 'all' || (Array.isArray(field) && field.includes(name));
+// What the live record makes of one stored row of a draw, by the occurrence of its name in the draw's table (the
+// second of one name is a duplicate, whatever the file says): null for a live one, else {status: 'late' | 'recovered'
+// | 'duplicate' | 'unchecked', ...}: a late row's reason, first save and hours after the close; a recovered row's
+// commit, its time and the ticket that stood at the close.
+function rowLiveness(entry, name, occurrence) {
+  if (occurrence > 0) return { status: 'duplicate', reason: 'a second row of this name on the draw' };
+  if (!entry) return null;
+  if (named(entry.late, name)) {
+    // lateRows: the late rows the file names on this draw - it keeps one first save per draw, the earliest late row's,
+    // so with several rows added after the close it is not each row's own (27 Oct 2026 review)
+    return { status: 'late', reason: (entry.lateReasons && entry.lateReasons[name]) || entry.lateReason || null, close: entry.close || null,
+      firstSaved: entry.firstSaved || null, delayHours: num(entry.delayHours), lateRows: Array.isArray(entry.late) ? entry.late.length : null };
+  }
+  const rec = entry.recovered && entry.recovered.rows ? entry.recovered.rows[name] : null;
+  if (rec) return { status: 'recovered', close: entry.close || null, savedAt: entry.recovered.savedAt || null, commit: entry.recovered.commit || null, ticket: rec };
+  if (named(entry.unchecked, name)) return { status: 'unchecked', reason: 'git could not be read and no earlier check covers it' };
+  return null;
+}
+// One draw's rows (its currentPrediction, in the file's order) with what the live record makes of each.
+function drawLiveness(live, date, rows) {
+  const entry = live && live.draws ? live.draws[date] || null : null;
+  const seen = new Map();
+  return rows.map((m) => {
+    // the report scores a row with a name and a first ticket only (Helpers.py): an empty one is no draw of the row
+    if (!m.name || !Array.isArray(m.predictions[0]) || !m.predictions[0].length) return null;
+    const name = nameOf(m);
+    const occurrence = seen.get(name) || 0;
+    seen.set(name, occurrence + 1);
+    return rowLiveness(entry, name, occurrence);
+  });
+}
+// The marked rows among those a scope keeps, by status - {late, recovered, duplicate, unchecked} with the non-zero
+// ones only - or null when every kept row is live as stored. Over a game's draws with every row kept, a row's late,
+// duplicate and unchecked marks add up to its draws minus its live draws in the History ranking (modelPerformance.json)
+// and its recovered marks to its live.recovered: a recovered draw is in the live record, scored as it stood at the close.
+function liveMarksOf(marks, rows, keep) {
+  const out = {};
+  marks.forEach((m, i) => { if (m && keep && keep(nameOf(rows[i]))) out[m.status] = (out[m.status] || 0) + 1; });
+  return Object.keys(out).length ? out : null;
+}
+// The users' rule (the owner's decision, 27 Oct 2026): a draw any of whose shown rows' tickets were not out before the
+// sales close - back-built or late, or rewritten after the draw - is shown greyed and left out of the totals. (The
+// admin's live record scores a rewritten ticket as it stood at the close; the users' totals leave such a draw out.)
+const AFTER_CLOSE = ['late', 'recovered'];
+const afterCloseOf = (marks, rows, keep) => Boolean(keep) && marks.some((m, i) => m && AFTER_CLOSE.includes(m.status) && keep(nameOf(rows[i])));
+const AFTER_CLOSE_TEXT = 'Tickets for this draw were made after its sales closed - shown, not counted in the totals.';
+
 // --- the ranking a draw is read against ----------------------------------------------------------------------------
 // what a version of the History ranking is, for the line over a table: its commit, its generation, its metric
-const versionOut = (r) => ({ committedAt: r.version.committedAt, generatedAt: r.version.generatedAt, metric: r.metric, metricText: r.metricText, minDraws: r.minDraws });
+// (rankedOn 'live': a version ranked on the live record, 27 Oct 2026 - its metric's words say so)
+const versionOut = (r) => ({ committedAt: r.version.committedAt, generatedAt: r.version.generatedAt, metric: r.metric, metricText: r.metricText, minDraws: r.minDraws,
+  rankedOn: r.rankedOn || 'all' });
 const cutoffRule = () => ({ hour: rankhistory.CUTOFF_HOUR, zone: 'Europe/Brussels', weekGames: rankhistory.WEEK_GAMES,
-  text: `the newest ranking saved before ${rankhistory.CUTOFF_HOUR}:00 Brussels time on the draw's day (the week games: on the week's Monday)` });
+  text: `the newest ranking saved before ${rankhistory.CUTOFF_HOUR}:00 Brussels time on the draw's day, or before the draw's sales close when that `
+    + 'is earlier (src/drawClose.json: Keno, Pick3 and Joker+ close at 13:00 on Sundays; the week games: on the week\'s Monday)' });
 // the scope of a past draw: {keep, scope line} from the point-in-time top (rankhistory topAt)
 function scopeOfDraw(scope, t, presentCount) {
   const top = t.top ? new Set(t.top) : null;
@@ -145,15 +209,20 @@ function scopeOfDraw(scope, t, presentCount) {
 // without a recorded ranking has no figures and says why (ranking.none). A draw names the ranking version it was read
 // against by its index in `ranking.versions` (the versions the sent draws use). include (optional, date -> boolean):
 // the draws this history holds - the users' Lottery (lottery.js) leaves out the draws before the game's first saved
-// ranking, so they are not read, listed or counted at all.
-function historyView(dirs, game, scope, hist, extra = {}, month = null, now = new Date(), { include = null } = {}) {
+// ranking, so they are not read, listed or counted at all. afterClose (the users' Lottery): a draw any of whose kept
+// rows was not out before its sales close (afterCloseOf) is shown greyed and left out of the totals; without it (the
+// admin) every draw counts as stored and carries liveMarks, its kept rows not live as stored, by status (liveMarksOf).
+function historyView(dirs, game, scope, hist, extra = {}, month = null, now = new Date(), { include = null, afterClose = false } = {}) {
   const dir = path.join(dirs.databaseDir, game);
   const files = dayFilesOf(dir).filter((f) => !include || include(f.date));
   if (!files.length) return { error: include ? 'no draw of this game in this history yet' : 'no stored draw for this game', status: 404 };
+  const live = livenessOf(dirs, game);
   const entries = files.map(({ file, date }) => {
     const day = readDay(path.join(dir, file)) || { realResult: [], currentPrediction: [] };
     const t = hist.topAt(game, date, namesOf(day.currentPrediction));
-    return { date, day, keep: scopeOfDraw(scope, t, 0).keep, ranking: t };
+    const keep = scopeOfDraw(scope, t, 0).keep;
+    const marks = drawLiveness(live, date, day.currentPrediction);
+    return { date, day, keep, ranking: t, ...(afterClose ? { afterClose: afterCloseOf(marks, day.currentPrediction, keep) } : { liveMarks: liveMarksOf(marks, day.currentPrediction, keep) }) };
   });
   const months = draws.historyMonths(game, entries);
   const open = month === null ? months[0].month : month;
@@ -167,7 +236,10 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
     if (!index.has(sha)) {
       index.set(sha, versions.length);
       const v = versionOut(t.ranking);
-      metrics[v.metric] = v.metricText;
+      // the metric's words once per metric and basis: the versions from before the switch to the live record keep theirs
+      const key = v.rankedOn === 'live' ? `${v.metric}:live` : v.metric;
+      metrics[key] = v.metricText;
+      if (key !== v.metric) v.metricKey = key;
       delete v.metricText;
       versions.push(v);
     }
@@ -185,6 +257,8 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
     // first: the first saved ranking of any game (25 Aug 2026); firstOfGame: the first that ranks this game (a game can
     // have entered it later); error: a version git could not read (the draws it decides have no Top, ranking.none)
     ranking: { first: hist.first, firstOfGame: hist.firstOf ? hist.firstOf(game) : null, error: hist.error, cutoff: cutoffRule(), versions, metrics },
+    // how the draws' tickets were judged (null: no liveness file yet, or a market game - its days are judged by markets.js)
+    liveness: live ? { checked: live.checked, afterClose: afterClose ? AFTER_CLOSE_TEXT : null } : null,
   };
 }
 
@@ -212,7 +286,19 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
   const order = t.ranking ? t.ranking.names : null;
   const shown = keep ? day.currentPrediction.filter((m) => keep(nameOf(m))) : [];
   const rankOf = (names, name) => { const i = names ? names.indexOf(name) : -1; return i >= 0 ? i + 1 : null; };
-  const rows = shown.map((m) => ({ ...draws.scoreRow(game, m, day.realResult, split), rank: rankOf(order, nameOf(m)), top: Boolean(top && top.has(nameOf(m))) }));
+  // what the live record makes of each shown row (lotteryLiveness.json), its liveMark: null when live as stored; a
+  // recovered row with the ticket that stood at the close, scored against this draw
+  const live = livenessOf(dirs, game);
+  const marks = drawLiveness(live, date, day.currentPrediction);
+  const markOf = new Map(day.currentPrediction.map((m, i) => [m, marks[i]]));
+  const liveOut = (mark) => {
+    if (!mark) return null;
+    if (mark.status !== 'recovered') return mark;
+    const { ticket, ...rest } = mark;
+    return { ...rest, atClose: draws.scoreRow(game, { name: 'at the close', predictions: list(ticket && ticket.predictions), multiPick: ticket ? ticket.multiPick : null }, day.realResult, split) };
+  };
+  const rows = shown.map((m) => ({ ...draws.scoreRow(game, m, day.realResult, split), rank: rankOf(order, nameOf(m)), top: Boolean(top && top.has(nameOf(m))),
+    liveMark: liveOut(markOf.get(m)) }));
   const figures = keep ? draws.dayFigures(game, day, keep) : null;
   // the stored vote: this file's, or - missing in 35 old vikinglotto files - the previous file's numberFrequency, the same vote
   let stored = day.currentNumberFrequency && typeof day.currentNumberFrequency === 'object' && Object.keys(day.currentNumberFrequency).length ? day.currentNumberFrequency : null;
@@ -227,6 +313,12 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
     shape: draws.shapeOf(game, { slots }), result: draws.resultOf(game, day.realResult),
     scope: { ...line, rows: shown.length, tickets: figures ? figures.tickets : 0 },
     rows, figures,
+    // the shown rows not live as stored, by status (null: all live), and whether the users' rule greys the draw - judged
+    // on the draw's point-in-time five whatever the scope (27 Oct 2026 review: with All it read every row, so the admin
+    // page said "the users' history shows this draw greyed" for a late row outside the five, and for a draw before the
+    // game's first saved ranking, which the users' history never lists)
+    liveness: live ? { checked: live.checked, marks: liveMarksOf(marks, day.currentPrediction, keep),
+      afterClose: afterCloseOf(marks, day.currentPrediction, top ? (n) => top.has(n) : null), afterCloseText: AFTER_CLOSE_TEXT } : null,
     multiPick: day.currentPrediction.concat(day.newPrediction).some((m) => Array.isArray(m.multiPick) && m.multiPick.length) ? draws.multiPickLegend(game) : null,
     votes: draws.votesOf(game, shown, day.realResult, scope === 'all' ? stored : null, from),
     market: null, coming: null,
@@ -252,10 +344,17 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
     const keepNext = scope === 'top' ? new Set(todayTop) : null;
     const comingRows = nextRows.filter((m) => !keepNext || keepNext.has(nameOf(m)));
     const empty = draws.splitRealResult([], game);
+    const comingDate = draws.nextDrawDay(files.map((f) => f.file), files[at].file);
+    // the coming draw's sales close (src/drawClose.json): tickets made at or after it can be read, not played
+    const close = comingDate ? draws.salesClose(game, comingDate) : null;
+    const madeMs = day.madeAt ? Date.parse(isoUtc(day.madeAt)) : NaN;
     out.coming = {
-      date: draws.nextDrawDay(files.map((f) => f.file), files[at].file), madeAt: isoUtc(day.madeAt),
+      date: comingDate, madeAt: isoUtc(day.madeAt),
+      close: close ? { time: close.time, at: isoMs(close.at), scheduled: close.scheduled, afterClose: Number.isFinite(madeMs) && madeMs >= close.at } : null,
       scope: { scope, rows: comingRows.length, of: nextNames.length, top: todayTop,
-        ranking: today ? { today: true, generatedAt: isoUtc(report.generatedAt), metric: info ? info.metric : null, metricText: today.metric, minDraws: info ? num(info.minDrawsForRanking) : null } : null,
+        ranking: today ? { today: true, generatedAt: isoUtc(report.generatedAt), metric: info ? info.metric : null, metricText: today.metric,
+          // ranked on the live record (rankedOn 'live'): its guard is on live draws
+          minDraws: info ? num(info.rankedOn === 'live' && info.live ? info.live.minDrawsForRanking : info.minDrawsForRanking) : null } : null,
         none: scope === 'top' && !todayTop.length ? { code: today ? 'no-ranked-row' : 'not-ranked', text: today ? 'no row of this table is in today\'s ranking' : 'the game is not in today\'s ranking' } : null },
       rows: comingRows.map((m) => ({ ...draws.scoreRow(game, m, [], empty, split.mains), rank: rankOf(today ? today.names : null, nameOf(m)), top: todayTop.includes(nameOf(m)) })),
       votes: draws.votesOf(game, comingRows, [], scope === 'all' ? day.numberFrequency : null, 'file', split.mains),
@@ -633,5 +732,5 @@ function install(app, ctx) {
   }));
 }
 
-module.exports = { SCOPES, MARKETS, BOOK_RULES, isoDay, dayFilesOf, readDay, readFull, historyView, drawView, planOf, weekOf, followedOf, booksOf, bookSeries, instrumentOf,
-  modelsOf, guardOf, exampleOf, workbenchOf, workbenchSource, install };
+module.exports = { SCOPES, MARKETS, BOOK_RULES, LIVENESS_FILE, AFTER_CLOSE_TEXT, isoDay, dayFilesOf, readDay, readFull, livenessOf, drawLiveness, liveMarksOf,
+  afterCloseOf, historyView, drawView, planOf, weekOf, followedOf, booksOf, bookSeries, instrumentOf, modelsOf, guardOf, exampleOf, workbenchOf, workbenchSource, install };

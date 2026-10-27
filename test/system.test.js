@@ -275,7 +275,7 @@ const RUN4 = T('2026-10-19T21:00:00Z') + 2000;
 const history = [   // newest first, as jobs.js keeps it
   { at: NOW - 2 * 3600000, finishedAt: NOW - 3600000, key: 'predictor', name: 'Daily predictor', reason: 'schedule 09:00', seconds: 3600, exit: 0, sha: 'eee5555', pid: 11, note: null },
   { at: RUN3, finishedAt: RUN3 + 600000, key: 'hyperoptBoost', name: BOOST, reason: 'triggered', seconds: 600, exit: null, sha: 'ccc3333', pid: 12, note: 'the job disappeared without writing an exit code (killed?)' },
-  { at: T('2026-10-18T10:00:00Z'), finishedAt: T('2026-10-18T12:00:00Z'), key: 'nullControls', name: 'Weekly controls: null histories (Q0)', reason: 'x', seconds: 7200, exit: 1, sha: null, pid: 13, note: null },
+  { at: T('2026-10-18T10:00:00Z'), finishedAt: T('2026-10-18T12:00:00Z'), key: 'nullControls', name: 'Weekly controls: null histories (Q0 band, context)', reason: 'x', seconds: 7200, exit: 1, sha: null, pid: 13, note: null },
   { at: RUN2, finishedAt: RUN2 + 4200000, key: 'hyperoptBoost', name: BOOST, reason: 'triggered', seconds: 4200, exit: 0, sha: 'bbb2222', pid: 14, note: null },
   { at: T('2026-10-17T09:00:00Z'), key: 'weeklyTuning', name: 'Weekly tuning chain', reason: 'x', dry: true, occurrence: 'weeklyTuning@2026-W42' },
   { at: T('2026-10-16T09:00:00Z'), finishedAt: T('2026-10-16T15:00:00Z'), key: 'predictor', name: 'Daily predictor', reason: 'x', seconds: 21600, exit: null, blocked: true,
@@ -303,7 +303,7 @@ fs.writeFileSync(councilLog, [
   '20:03:07 INFO    council api on http://127.0.0.1:8099',
   '20:04:16 INFO    127.0.0.1 - "GET /endpoints HTTP/1.1" 200 -',
 ].join('\n') + '\n');
-ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 11, 'the copies log into their own temp dirs');
+ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 12, 'the copies log into their own temp dirs');
 
 // --- the app under test ------------------------------------------------------------------------------------------
 const app = standIn();
@@ -360,7 +360,7 @@ async function main() {
   const j = (await call(app, 'GET', '/api/admin/jobs', { user: ADMIN })).body;
   ok(j.mode.mode === 'dry' && j.lock.held && j.lock.pid === process.pid && j.lock.key === null && j.lock.ours === false && j.running === null
     && j.lock.script && !j.lock.script.includes('/'), `jobs: the mode, the lock and who holds it (not a job of the schedule, its script by file name), nothing running: ${j.lock.script}`);
-  ok(j.jobs.length === 11 && j.jobs.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every job may run now, its log named by file name only');
+  ok(j.jobs.length === 12 && j.jobs.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every job may run now, its log named by file name only');
   const boost = j.jobs.find((x) => x.key === 'hyperoptBoost');
   ok(boost.usual.median === 65 && boost.usual.n === 2 && boost.usual.basis === 'earlier runs in the job log' && boost.last.result === 'unknown' && boost.trigger.includes('Saturday'),
     `jobs: the usual duration is the median of the earlier successful runs in the log (60 and 70 min): ${JSON.stringify(boost.usual)}`);

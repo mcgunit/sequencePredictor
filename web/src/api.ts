@@ -394,7 +394,9 @@ export interface Interval {
   verdict: string; // 'better' | 'worse' | 'no difference'
 }
 
-// Q0: the null band (hits per draw on fair histories) and the ranked rows read against it
+// Q0 (27 Oct 2026): the daily report's row test (src/RowChance.py) - each row on its live draws against the fair draw
+// (lottery, exact) or its own tickets shuffled within blocks of 7 live days (markets), Holm over the card, and a fixed-length
+// verdict on new draws for a row that read p < 0.05. The null band (NullControls.py) is context only.
 // A control the band is not built from: its record is not there, or there but unreadable (caught half written)
 export interface MissingControl {
   mode: string;
@@ -411,35 +413,89 @@ export interface Q0Band {
   modes: { mode: string; at: string | null }[]; // each control record's own time (a band half rewritten on a Sunday mixes weeks)
   missing: MissingControl[]; // not empty: the band comes from one control only
 }
-export interface Q0Row {
+// A followed row's fresh record: from the Sunday it first read p < 0.05 (since), judged once on verdictLength new live
+// draws - running (the figures so far, no p), stopped (four weeks without a new live draw), confirmed (p < 0.01) or not
+export type FreshState = 'running' | 'stopped' | 'confirmed' | 'not confirmed';
+export interface Q0Fresh {
+  state: FreshState;
+  since: string | null; // the flag Sunday
+  flagDraws: number | null; // the live draws before it, that read p < 0.05
+  flagP: number | null;
+  flagMean: number | null;
+  flagNull: number | null;
+  verdictLength: number | null; // the new live draws the verdict is taken on
+  draws: number; // new live draws so far (may pass verdictLength: the verdict reads the first ones)
+  last: string | null; // the newest of them
+  verdictAt: string | null; // the draw the verdict was taken on
+  decidedOn: string | null; // the report's day that took it
+  p: number | null; // the verdict's (null while running)
+  mean: number | null; // the judged new draws' hits per draw (so far, while running)
+  null: number | null;
+}
+// One row's test on one line: its own hits per draw on its live draws, the null (fair or shuffled), its p and the
+// corrected p (Holm over the card's family; null outside it)
+export interface Q0Line {
   row: string;
-  hits: number | null;
-  draws: number | null;
-  live: number | null; // market games: days whose ticket was out before the close
-  notLive: number | null; // market games: back-built or late days
-  own: number | null; // the row's own level in the control the band comes from
-  weeks: number | null; // the overview's rows above the band: weeks in a row above it (the stored readings), null elsewhere and for a row above only against the live ranking, not in its Sunday's reading
+  mean: number | null;
+  live: number; // the live draws tested
+  notLive: number; // back-built or late (and a second row of one name on a draw)
+  null: number | null;
+  p: number | null;
+  pHolm: number | null;
+  inFamily: boolean; // at least minDraws live draws
+  recovered: number | null; // lottery: live draws whose ticket was rewritten after the draw, scored as it stood at the close
+  fresh: Q0Fresh | null;
+}
+export interface Q0Test {
+  method: 'exact' | 'permutation';
+  alpha: number;
+  verdictAlpha: number;
+  minDraws: number | null;
+  permutations: number | null;
+  block: number | null;
+  family: number; // rows with at least minDraws live draws
+  liveMax: number; // the most live draws of any row (the week games: too few until minDraws)
+  under: number; // raw p < alpha
+  expected: number; // what chance puts under alpha
+  holds: number; // corrected p < alpha
+  followed: number; // running + stopped
+  running: number;
+  stopped: number;
+  confirmed: number;
+  notConfirmed: number;
+  checkedThrough: string | null;
+  stored: string | null;
 }
 export interface Q0 {
   ranking: 'hits' | 'profit';
-  band: Q0Band | null;
-  rankedRows: number;
+  inTile: boolean; // false for the payout games: tested on hits, information only
+  test: Q0Test | null;
+  error: string | null; // why there is no test
+  lowest: Q0Line | null; // the family row with the lowest p
+  rows: Q0Line[]; // the rows the card names: under alpha, followed or judged
+  confirmed: string[];
+  followed: string[];
+  leader: { row: string; draws: number | null } | null; // payout games: the profit-bound leader
   allRows: number;
   minDraws: number;
-  best: (Q0Row & { clears: boolean | null }) | null;
-  leader: { row: string; draws: number | null } | null; // payout games: the profit-bound leader
-  // sameLength: every row above has the same record length; sameLive: the same live count (market games)
-  above: { n: number; longest: number | null; longestLive: number | null; sameLength: boolean | null; sameLive: boolean | null; inTile: boolean; rows: Q0Row[] };
+  band: Q0Band | null; // context only
+  bandUnreadable: boolean; // no band: a NullControls record is there but did not load
 }
-export type Q2Status = 'above' | 'within' | 'too few draws' | 'above band, not shuffled';
+// failed: a comparison scored fewer than 2 seeds, so the run has no band (never read as within)
+export type Q2Status = 'above' | 'within' | 'too few draws' | 'above band, not shuffled' | 'failed';
 export interface Q2 {
   status: Q2Status;
+  rule: number; // the verdict version it was read under: 1 = mean + 2 sd of 3 seeds (to 25 Oct 2026), 2 = bounds from the seed count
   real: number | null;
   threshold: number | null;
+  thresholdSe: number | null; // the threshold's own standard error (rule 2 only)
   shuffled: number | null;
+  shuffledThreshold: number | null; // the shuffled control's own bound (rule 2 only)
+  bandK: number | null; // k of the null bound, mean + k sd: from the seed count (rule 2 only)
   seeds: number | null;
   windowsTest: number | null;
   fewWindows: boolean;
+  minWindows: number | null; // the test windows the record was judged by: fewer read "too few draws"
   window: number | null;
   drawsCap: number | null; // the --draws the run asked for: at most the newest that many
   drawsUsed: number | null; // the draws the windows actually came from (short histories use fewer)
@@ -484,6 +540,12 @@ export interface MarketRows {
   betterThanReference: string[];
   noDifferenceVsReference: number;
   referenceVsUniform: Interval | null;
+  // against the frequencies (MarketRows.py, 26 Oct 2026; null / empty on a report from before): frequency is the baseline
+  // row every row is held against, frequencyVsUniform what knowing the frequencies alone scores against uniform
+  frequency: string | null;
+  betterThanFrequency: string[];
+  referenceVsFrequency: Interval | null;
+  frequencyVsUniform: Interval | null;
   errors: number;
   hmmFeatures: string | null;
   at: string | null;
@@ -493,8 +555,8 @@ export interface MarketRows {
 // week before read differently (null: no reading of that week - the first week on record); last: what it read then,
 // only when changed (null: no record that week); behind: the record is older than the newest part's (a run in progress);
 // noRunBefore: the week before has a reading, but this control's record in it was an older week's (it did not run then).
-// Q0 only: live - no reading of the record's own Sunday yet, so the state is the records against the live ranking;
-// sinceReading - the reading of its Sunday is the state, and today's ranking reads differently (rows added, dropped).
+// Q0 only: live - no reading of the record's own Sunday yet, so the state is the report on disk; sinceReading - the
+// reading of its Sunday is the state, and today's report reads differently (rows followed or confirmed added, dropped).
 export interface SinceReading {
   now: string; // the state against the live ranking
   added: string[];
@@ -511,6 +573,8 @@ export interface PartHistory {
   noRunBefore: boolean;
   live: boolean;
   sinceReading: SinceReading | null;
+  // Q2 only: the week before was read under another verdict rule (its rule and seeds), so the run of weeks starts again
+  ruleChanged: { rule: number; seeds: number | null } | null;
 }
 export interface GameHistory {
   q0: PartHistory | null;
@@ -540,8 +604,8 @@ export interface ControlsView {
   rankingAt: string | null;
   readings: ReadingsMeta | null;
   meta: {
-    q0: { rule: string; rows: Range | null; history: Range | null; seeds: Record<string, number[]> };
-    q2: { metric: string; axis: [number, number]; fewWindows: number; rule: string };
+    q0: { rule: string; test: string; under: string; holds: string; followed: string; headline: string; band: string; rows: Range | null; history: Range | null; seeds: Record<string, number[]> };
+    q2: { metric: string; axis: [number, number]; fewWindows: number | null; rule: string }; // fewWindows: the power rule, controlRules.json
     fc: { share: string; chanceShare: string; auc: string; variants: Record<string, string> };
     rows: { score: string; pnl: string };
   };
@@ -549,18 +613,24 @@ export interface ControlsView {
   groups: { name: GroupName; games: GameControls[] }[];
 }
 export interface ControlTiles {
+  // Q0 (27 Oct 2026): the headline is the rows confirmed on new draws in the hit-ranked games; the rest are this week's figures
   q0: {
-    rowsAbove: number;
-    games: number;
+    confirmed: number;
+    confirmedRows: { game: string; row: string }[];
+    holds: number;
+    under: number;
+    expected: number;
+    family: number;
+    followed: number;
+    stopped: number;
+    notConfirmed: number;
+    games: number; // hit-ranked games with a family
     hitRankedGames: number;
-    longest: Range | null;
-    longestLiveMarkets: Range | null;
-    withOwnLevel: number;
-    alternatives: { allGamesOnHits: { rowsAbove: number; games: number }; bestRowOnly: { games: string[] } };
-    noBand: string[]; // games compared on no band
-    oneControl: { game: string; from: string; missing: MissingControl[] }[]; // games whose band comes from one control only
-    from: string | null;
-    at: string | null;
+    tooFew: { game: string; liveMax: number; minDraws: number | null }[]; // tested, no row with enough live draws yet
+    payout: { games: string[]; under: number; expected: number; holds: number; followed: number; confirmed: number; notConfirmed: number };
+    noTest: { game: string; why: string | null }[];
+    at: string | null; // the report that ran the tests
+    band: { games: number; from: string | null; at: string | null; oneControl: { game: string; from: string; missing: MissingControl[] }[] }; // context
   };
   // missing: games with no record yet; unreadable: games whose record is there but could not be read - both out of the counts
   q2: {
@@ -568,7 +638,7 @@ export interface ControlTiles {
     of: number;
     aboveGames: string[];
     tooFewGames: string[];
-    aboveFewWindows: { game: string; windowsTest: number | null }[];
+    failedGames: string[]; // a run where a comparison scored fewer than 2 seeds: no reading
     seeds: Record<string, number[]>;
     missing: string[];
     unreadable: string[];
@@ -580,6 +650,8 @@ export interface ControlTiles {
     beatReference: number;
     games: number;
     referenceAboveUniform: number;
+    frequencyGames: number; // the games whose report holds the reference against the frequencies (26 Oct 2026 on)
+    referenceAboveFrequency: number;
     windows: { game: string; window: number | null; unit: string }[];
     missing: string[]; // every market game without a usable report, unreadable ones included
     unreadable: string[];
@@ -614,6 +686,8 @@ export interface Q2Full extends Q2 {
   shuffledMean: number | null;
   shuffledSd: number | null;
   thresholdExact: number | null;
+  shuffledK: number | null; // k of the shuffled control's bound (rule 2 only)
+  seedsScored: { real: number | null; null: number | null; shuffled: number | null } | null; // seeds whose suite scored (rule 2 only)
   perSeed: { real: number[]; null: number[]; shuffled: number[] };
   aboveBand: boolean;
   survivesShuffled: boolean;
@@ -645,6 +719,8 @@ export interface RowsTableRow {
   se: number | null;
   vsReference: Interval | null;
   vsUniform: Interval | null;
+  frequency: boolean; // the baseline the vs-frequencies column is taken against
+  vsFrequency: Interval | null;
   exact: number | null;
   adjacent: number | null;
   direction: number | null;
@@ -664,12 +740,13 @@ export interface ControlsGameView {
   unit: string;
   builtAt: string | null;
   rankingAt: string | null;
-  q0: Q0 & { modes: Record<string, Q0Mode> };
+  q0: Q0 & { table: Q0Line[]; modes: Record<string, Q0Mode> }; // table: every family row and every followed or judged row
   q2: Q2Full | null;
   fc: (Omit<Fc, 'variants'> & { rule: string | null; variants: FcVariantFull[] }) | null;
   // failed: the rows that failed in the report (admin.js rowsFull): why one scored no day, or how many days one raised on;
-  // floor: a probability under it is scored as it (the report's probability_floor)
-  rows: (MarketRows & { uniform: number | null; floor: number | null; table: RowsTableRow[]; failed: { row: string; reason: string | null; days: number | null }[] }) | null;
+  // floor: a probability under it is scored as it (the report's probability_floor); smoothing: the add-one the baselines'
+  // frequencies were counted with (null on a report from before 26 Oct 2026)
+  rows: (MarketRows & { uniform: number | null; floor: number | null; smoothing: number | null; table: RowsTableRow[]; failed: { row: string; reason: string | null; days: number | null }[] }) | null;
   regimes: Regime[] | null;
   errors: string[];
 }
@@ -682,24 +759,11 @@ export interface Measure {
   bound: string | null;
   against: string | null; // keno: a fair ticket (not money won); pick3, jokerplus: the payout table
 }
-export interface ModelsBand {
-  ceiling: number | null;
-  from: string;
-  rows: number | null;
-  history: number | null;
-  at: string | null;
-  greys: boolean; // false for the payout games: the band is information only there
-  missing: MissingControl[]; // not empty: the band comes from one control only
-}
-export interface BandMode {
-  best: number | null;
-  sd: number | null;
-  ceiling: number | null;
-  rows: number | null;
-  seeds: number | null;
-  history: number | null;
-  random: number | null;
-  at: string | null;
+// a game's Q0 row tests on the Models page (27 Oct 2026, in place of the band): nothing is greyed
+export interface ModelsChance {
+  test: Q0Test | null;
+  error: string | null;
+  inTile: boolean; // false for the payout games: information only
 }
 export interface SinceBest {
   row: string;
@@ -718,14 +782,17 @@ export interface SinceSummary {
 }
 export interface BestModel {
   row: string;
-  value: number | null;
-  draws: number | null;
+  value: number | null; // the ranking's value: the live record's when the game ranks on it (rankedOn 'live'), its figures below the same
+  draws: number | null; // every stored draw
   young: boolean;
+  allValue: number | null; // every stored draw's value beside a live one (null when the ranking reads every draw)
+  liveDraws: number | null; // the live draws the value is over (null when the ranking reads every draw)
   profitPerBet: number | null;
   bets: number | null;
   avgHits: number | null;
-  inBand: boolean;
   live: number | null;
+  recovered: number | null;
+  chance: Q0Line | null; // its Q0 row test (null: not tested)
 }
 // a market game: the row its users' page (Crypto, Shares) follows, by best book - not the History top five
 export interface Follows {
@@ -741,11 +808,12 @@ export interface ModelsGameSummary {
   unit: string;
   metric: string; // 'avg_hits' | 'profit_bound'
   measure: Measure;
-  minDraws: number;
+  minDraws: number; // the ranking's guard: on live draws when it ranks on the live record
+  rankedOn: 'live' | 'all'; // 'live' (lottery from 27 Oct 2026): only tickets saved before each draw's sales close
   rows: number;
   rankedRows: number;
   best: BestModel | null;
-  band: ModelsBand | null;
+  chance: ModelsChance;
   since: SinceSummary | null;
   top: string[];
   learning: Record<string, LearningCheck>; // the best row's and the top five's, by name; a row without one is not in it
@@ -776,15 +844,18 @@ export interface RankRow {
   rank: number;
   row: string;
   top: boolean;
-  value: number | null;
+  value: number | null; // the ranking's value: the live record's when the game ranks on it; its figures below the same
+  allValue: number | null; // every stored draw's value beside a live one (null when the ranking reads every draw)
+  liveDraws: number | null;
   profitPerBet: number | null;
   bets: number | null;
   avgHits: number | null;
   bestDay: number | null;
-  draws: number | null;
+  draws: number | null; // every stored draw
   live: number | null;
+  recovered: number | null;
   young: boolean;
-  inBand: boolean;
+  chance: Q0Line | null; // its Q0 row test (null: not tested)
   since: { value: number | null; draws: number | null; young: boolean } | null | undefined; // undefined: the game has no since record
   bySize: { size: number; profitPerBet: number | null; bets: number | null }[] | null;
   learning: LearningCheck | null; // null: not a deep-learning row, or none since 25 Oct 2026
@@ -824,6 +895,20 @@ export interface Combination {
   control: { shuffles: number | null; bestMean: number | null; bestP95: number | null; pValue: number | null; consistentWithLuck: boolean } | { error: string } | null;
   ranking: ComboLine[];
 }
+// A lottery game's liveness as the daily report judged it (src/Liveness.py, 27 Oct 2026)
+export interface GameLiveness {
+  checked: string | null; // 'stamp+git' | 'stamp only' (git could not be read) | 'unchecked' (no evidence: not ranked on it)
+  error: string | null;
+  draws: number | null; // scored draws judged
+  allLive: number | null; // draws whose every row was live as stored
+  allCounted: number | null; // draws with no row back-built or late (the recovered ones in)
+  rowsLive: number | null;
+  rowsRecovered: number | null;
+  rowsNotLive: number | null;
+  newestNotLive: string | null;
+  rewriteAudit: { rows: number | null; hitsAtClose: number | null; hitsStored: number | null };
+  unscheduled: string[];
+}
 export interface ModelsGameView {
   game: string;
   group: GroupName;
@@ -831,15 +916,18 @@ export interface ModelsGameView {
   builtAt: string | null;
   generatedAt: string | null;
   window: string;
+  rankedOn: 'live' | 'all';
   metric: string;
   measure: Measure;
-  minDraws: number;
+  minDraws: number; // the ranking's guard: on live draws when it ranks on the live record
+  allMinDraws: number; // every stored draw's guard
+  liveness: GameLiveness | null;
   scope: Scope;
   shown: number;
   of: number;
   top: string[];
   follows: Follows | null;
-  band: (ModelsBand & { modes: Record<string, BandMode> }) | null;
+  chance: ModelsChance; // the game's Q0 row tests (27 Oct 2026, in place of the band)
   since: { date: string | null; label: string; none: boolean; minDraws: number | null; bestModel: string | null; live: string | null } | null;
   rows: RankRow[];
   multiPick: MultiPick | null;
@@ -915,7 +1003,7 @@ export interface RandomnessMeta {
   ae: string;
   modelKl: string;
   q2: string;
-  fewWindows: number; // a Q2 record on fewer held-out windows is underpowered
+  fewWindows: number | null; // Q2's power rule (controlRules.json): a record on fewer held-out windows reads "too few draws"
 }
 export interface RandomnessLine {
   game: string;
@@ -1017,6 +1105,7 @@ export interface WeekTuner {
   games: number | null;
   marginZero: number;
   marginOneSe: number | null;
+  marginSeCounts: Record<string, number>; // records by their margin's k in standard errors ('1', '2.5'); {} from an older server
   replacedUnder1Se: number;
 }
 export interface MatrixGame {
@@ -1024,23 +1113,22 @@ export interface MatrixGame {
   group: GroupName;
   unit: string;
   errors: string[];
+  // Q0 (27 Oct 2026): the row test's cell; band - the NullControls records' times, for what that run wrote only
   q0: {
-    above: number;
-    ceiling: number | null;
-    longest: number | null;
-    longestLive: number | null;
-    sameLength: boolean | null;
-    sameLive: boolean | null;
+    test: Omit<Q0Test, 'alpha' | 'verdictAlpha' | 'permutations' | 'block' | 'running' | 'checkedThrough' | 'stored'> | null;
+    error: string | null;
+    confirmedRows: string[];
+    followedRows: string[];
     inTile: boolean;
     ranking: 'hits' | 'profit';
-    seeds: number | null;
-    at: string | null; // the record the band comes from
-    modes: { mode: string; at: string | null }[]; // each control record's own time
+    at: string | null; // the report that ran the tests
+    band: { at: string | null; modes: { mode: string; at: string | null }[] } | null;
+    bandUnreadable: boolean; // no band: a NullControls record is there but did not load
     history: PartHistory | null;
   } | null;
-  q2: { status: Q2Status; real: number | null; threshold: number | null; seeds: number | null; windowsTest: number | null; fewWindows: boolean; at: string | null; history: PartHistory | null } | null;
+  q2: { status: Q2Status; real: number | null; threshold: number | null; seeds: number | null; windowsTest: number | null; fewWindows: boolean; minWindows: number | null; at: string | null; history: PartHistory | null } | null;
   fc: { fits: number; inconclusive: number; ignored: number; failed: number; variants: number; at: string | null; history: PartHistory | null } | null;
-  rows: { beat: number; scored: number; reference: string; window: number | null; referenceVsUniform: string | null; at: string | null; history: PartHistory | null } | null;
+  rows: { beat: number; scored: number; reference: string; window: number | null; referenceVsUniform: string | null; referenceVsFrequency: string | null; at: string | null; history: PartHistory | null } | null;
   gates: { replaced: number; kept: number; reverted: number; notThisWeekend: number } | null;
 }
 export interface CouncilStatus {
@@ -1077,7 +1165,7 @@ export interface WeekView {
     tuners: (TuningTiles & { weekend: string | null; byTuner: WeekTuner[] }) | null;
   } & ControlTiles;
   runs: RunLine[];
-  matrix: { fewWindows: number; games: MatrixGame[] }; // fewWindows: Q2's power rule, under this many test windows
+  matrix: { fewWindows: number | null; games: MatrixGame[] }; // fewWindows: Q2's power rule, "too few draws" under this many test windows
   readings: ReadingsMeta | null;
   since: {
     from: string | null;
@@ -1092,7 +1180,7 @@ export interface WeekView {
 
 // GET /api/admin/tuning and /api/admin/tuning/:game - the champion/challenger gate's decisions of the newest weekend
 export interface TunerSummary {
-  tuner: string; // 'statistical' | 'boosting' | 'RL ticket' | 'ensemble' | 'quantum' | 'unattributed'
+  tuner: string; // 'statistical' | 'boosting' | 'RL ticket' | 'ensemble' | 'quantum' | 'keno sub-selections' | 'unattributed'
   job: string | null;
   n: number;
   replaced: number;
@@ -1100,6 +1188,7 @@ export interface TunerSummary {
   reverted: number;
   marginZero: number;
   marginOneSe: number;
+  marginSeCounts: Record<string, number>; // records by their margin's k in standard errors ('1', '2.5'); {} from an older server
   replacedUnder1Se: number;
   replacedUnder1SeVsBetterReference: number;
   games: number;
@@ -1156,6 +1245,10 @@ export interface GateRow {
   date: string | null;
   kind: string | null;
   windowDays: number | null;
+  // the lockbox days no score of the decision counts (since 26 Oct 2026; null before): out of windowDays ('window', a row
+  // tuner scores the other days), or out of the quantum tuner's score table before its holdout was cut ('table')
+  lockboxDays: number | null;
+  lockboxFrom: 'window' | 'table' | null;
   runTrials: number | null;
   studyTrials: number | null;
   default: GateSide;
@@ -1163,6 +1256,15 @@ export interface GateRow {
   challenger: GateSide;
   margin: number | null;
   marginSe: number | null;
+  // the k standard errors the tuner asked for (since 27 Oct 2026; null before): with k > 0 and no challenger SE the
+  // gate kept the incumbent for want of one
+  marginK: number | null;
+  // the margin of the revert's default-over-incumbent comparison (since 27 Oct 2026): 0 = none (statistical, RL,
+  // ensemble - the default is not picked from trials); null on an older record, whose revert took the margin
+  revertMargin: number | null;
+  // the RL Position row: whether the served sizing sits out, and why (null on every other row)
+  sitOut: boolean | null;
+  sitOutReason: string | null;
   bar: number | null;
   gainSe: number | null;
   gainBestSe: number | null;
@@ -1227,47 +1329,76 @@ const scopeOf = (v: unknown, fallback: Scope): Scope => (isScope(v) ? v : fallba
 const missingOf = (v: unknown): MissingControl[] => arr(v as unknown[]).filter(has).map((x) => ({ mode: str(o(x).mode), unreadable: bool(o(x).unreadable) }));
 const modesOf = (v: unknown): { mode: string; at: string | null }[] => arr(v as unknown[]).filter(has).map((x) => ({ mode: str(o(x).mode), at: ostr(o(x).at) }));
 
-function q0RowOf(v: unknown): Q0Row {
+const FRESH_STATES: FreshState[] = ['running', 'stopped', 'confirmed', 'not confirmed'];
+// a fresh state this page does not know is no fresh record: never a verdict it cannot read
+function q0FreshOf(v: unknown): Q0Fresh | null {
+  const f = o(v);
+  if (!FRESH_STATES.includes(f.state as FreshState)) return null;
+  return {
+    state: f.state as FreshState, since: ostr(f.since), flagDraws: opt(f.flagDraws), flagP: opt(f.flagP), flagMean: opt(f.flagMean), flagNull: opt(f.flagNull),
+    verdictLength: opt(f.verdictLength), draws: num(f.draws, 0), last: ostr(f.last), verdictAt: ostr(f.verdictAt), decidedOn: ostr(f.decidedOn),
+    p: opt(f.p), mean: opt(f.mean), null: opt(f.null),
+  };
+}
+function q0LineOf(v: unknown): Q0Line | null {
+  if (!has(v)) return null;
   const r = o(v);
-  return { row: str(r.row), hits: opt(r.hits), draws: opt(r.draws), live: opt(r.live), notLive: opt(r.notLive), own: opt(r.own), weeks: opt(r.weeks) };
+  return {
+    row: str(r.row), mean: opt(r.mean), live: num(r.live, 0), notLive: num(r.notLive, 0), null: opt(r.null), p: opt(r.p), pHolm: opt(r.pHolm), inFamily: bool(r.inFamily),
+    recovered: opt(r.recovered), fresh: has(r.fresh) ? q0FreshOf(r.fresh) : null,
+  };
+}
+const q0LinesOf = (v: unknown): Q0Line[] => arr(v as unknown[]).map(q0LineOf).filter((x): x is Q0Line => x !== null);
+function q0TestOf(v: unknown): Q0Test | null {
+  if (!has(v)) return null;
+  const t = o(v);
+  return {
+    method: t.method === 'permutation' ? 'permutation' : 'exact', alpha: num(t.alpha, 0.05), verdictAlpha: num(t.verdictAlpha, 0.01), minDraws: opt(t.minDraws),
+    permutations: opt(t.permutations), block: opt(t.block), family: num(t.family, 0), liveMax: num(t.liveMax, 0), under: num(t.under, 0), expected: num(t.expected, 0),
+    holds: num(t.holds, 0), followed: num(t.followed, 0), running: num(t.running, 0), stopped: num(t.stopped, 0), confirmed: num(t.confirmed, 0),
+    notConfirmed: num(t.notConfirmed, 0), checkedThrough: ostr(t.checkedThrough), stored: ostr(t.stored),
+  };
 }
 function q0Of(v: unknown): Q0 {
   const r = o(v);
   const b = o(r.band);
-  const a = o(r.above);
   return {
     ranking: r.ranking === 'profit' ? 'profit' : 'hits',
+    inTile: r.inTile !== false,
+    test: q0TestOf(r.test),
+    error: ostr(r.error),
+    lowest: q0LineOf(r.lowest),
+    rows: q0LinesOf(r.rows),
+    confirmed: strs(r.confirmed),
+    followed: strs(r.followed),
+    leader: has(r.leader) ? { row: str(o(r.leader).row), draws: opt(o(r.leader).draws) } : null,
+    allRows: num(r.allRows, 0),
+    minDraws: num(r.minDraws, 0),
     band: has(r.band)
       ? { ceiling: opt(b.ceiling), from: str(b.from), rows: opt(b.rows), seeds: opt(b.seeds), history: opt(b.history), metric: str(b.metric, 'hits per draw'), at: ostr(b.at), modes: modesOf(b.modes), missing: missingOf(b.missing) }
       : null,
-    rankedRows: num(r.rankedRows, 0),
-    allRows: num(r.allRows, 0),
-    minDraws: num(r.minDraws, 0),
-    best: has(r.best) ? { ...q0RowOf(r.best), clears: typeof o(r.best).clears === 'boolean' ? (o(r.best).clears as boolean) : null } : null,
-    leader: has(r.leader) ? { row: str(o(r.leader).row), draws: opt(o(r.leader).draws) } : null,
-    above: {
-      n: num(a.n, 0),
-      longest: opt(a.longest),
-      longestLive: opt(a.longestLive),
-      sameLength: typeof a.sameLength === 'boolean' ? a.sameLength : null,
-      sameLive: typeof a.sameLive === 'boolean' ? a.sameLive : null,
-      inTile: a.inTile !== false,
-      rows: arr(a.rows as unknown[]).map(q0RowOf),
-    },
+    bandUnreadable: bool(r.bandUnreadable),
   };
 }
-const Q2_STATUS: Q2Status[] = ['above', 'within', 'too few draws', 'above band, not shuffled'];
+const Q2_STATUS: Q2Status[] = ['above', 'within', 'too few draws', 'above band, not shuffled', 'failed'];
+// a status this page does not know is no reading: 'failed', never a clean 'within'
+const q2StatusOf = (v: unknown): Q2Status => (Q2_STATUS.includes(v as Q2Status) ? (v as Q2Status) : 'failed');
 function q2Of(v: unknown): Q2 | null {
   if (!has(v)) return null;
   const r = o(v);
   return {
-    status: Q2_STATUS.includes(r.status as Q2Status) ? (r.status as Q2Status) : 'within',
+    status: q2StatusOf(r.status),
+    rule: num(r.rule, 1),
     real: opt(r.real),
     threshold: opt(r.threshold),
+    thresholdSe: opt(r.thresholdSe),
     shuffled: opt(r.shuffled),
+    shuffledThreshold: opt(r.shuffledThreshold),
+    bandK: opt(r.bandK),
     seeds: opt(r.seeds),
     windowsTest: opt(r.windowsTest),
     fewWindows: bool(r.fewWindows),
+    minWindows: opt(r.minWindows),
     window: opt(r.window),
     drawsCap: opt(r.drawsCap),
     drawsUsed: opt(r.drawsUsed),
@@ -1317,6 +1448,10 @@ function rowsOf(v: unknown): MarketRows | null {
     betterThanReference: strs(r.betterThanReference),
     noDifferenceVsReference: num(r.noDifferenceVsReference, 0),
     referenceVsUniform: intervalOf(r.referenceVsUniform),
+    frequency: ostr(r.frequency),
+    betterThanFrequency: strs(r.betterThanFrequency),
+    referenceVsFrequency: intervalOf(r.referenceVsFrequency),
+    frequencyVsUniform: intervalOf(r.frequencyVsUniform),
     errors: num(r.errors, 0),
     hmmFeatures: ostr(r.hmmFeatures),
     at: ostr(r.at),
@@ -1330,6 +1465,7 @@ function partHistoryOf(v: unknown): PartHistory | null {
     state: str(r.state), sunday: ostr(r.sunday), weeks: num(r.weeks, 1), changed: typeof r.changed === 'boolean' ? r.changed : null, last: ostr(r.last), behind: bool(r.behind),
     noRunBefore: bool(r.noRunBefore), live: bool(r.live),
     sinceReading: has(r.sinceReading) ? { now: str(since.now), added: strs(since.added), dropped: strs(since.dropped), rankingAt: ostr(since.rankingAt) } : null,
+    ruleChanged: r.ruleChanged === true ? { rule: num(r.lastRule, 1), seeds: opt(r.lastSeeds) } : null,
   };
 }
 function gameHistoryOf(v: unknown): GameHistory {
@@ -1351,30 +1487,35 @@ function gameControlsOf(v: unknown): GameControls {
 function controlTilesOf(v: unknown): ControlTiles {
   const t = o(v);
   const [q0, q2, fc, rows] = [o(t.q0), o(t.q2), o(t.fc), o(t.rows)];
-  const alt = o(q0.alternatives);
+  const pay = o(q0.payout);
+  const band = o(q0.band);
   return {
     q0: {
-      rowsAbove: num(q0.rowsAbove, 0),
+      confirmed: num(q0.confirmed, 0),
+      confirmedRows: arr(q0.confirmedRows as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), row: str(o(x).row) })),
+      holds: num(q0.holds, 0),
+      under: num(q0.under, 0),
+      expected: num(q0.expected, 0),
+      family: num(q0.family, 0),
+      followed: num(q0.followed, 0),
+      stopped: num(q0.stopped, 0),
+      notConfirmed: num(q0.notConfirmed, 0),
       games: num(q0.games, 0),
       hitRankedGames: num(q0.hitRankedGames, 0),
-      longest: rangeOf(q0.longest),
-      longestLiveMarkets: rangeOf(q0.longestLiveMarkets),
-      withOwnLevel: num(q0.withOwnLevel, 0),
-      alternatives: {
-        allGamesOnHits: { rowsAbove: num(o(alt.allGamesOnHits).rowsAbove, 0), games: num(o(alt.allGamesOnHits).games, 0) },
-        bestRowOnly: { games: strs(o(alt.bestRowOnly).games) },
-      },
-      noBand: strs(q0.noBand),
-      oneControl: arr(q0.oneControl as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), from: str(o(x).from), missing: missingOf(o(x).missing) })),
-      from: ostr(q0.from),
+      tooFew: arr(q0.tooFew as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), liveMax: num(o(x).liveMax, 0), minDraws: opt(o(x).minDraws) })),
+      payout: { games: strs(pay.games), under: num(pay.under, 0), expected: num(pay.expected, 0), holds: num(pay.holds, 0), followed: num(pay.followed, 0),
+        confirmed: num(pay.confirmed, 0), notConfirmed: num(pay.notConfirmed, 0) },
+      noTest: arr(q0.noTest as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), why: ostr(o(x).why) })),
       at: ostr(q0.at),
+      band: { games: num(band.games, 0), from: ostr(band.from), at: ostr(band.at),
+        oneControl: arr(band.oneControl as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), from: str(o(x).from), missing: missingOf(o(x).missing) })) },
     },
     q2: {
       above: num(q2.above, 0),
       of: num(q2.of, 0),
       aboveGames: strs(q2.aboveGames),
       tooFewGames: strs(q2.tooFewGames),
-      aboveFewWindows: arr(q2.aboveFewWindows as unknown[]).map((x) => ({ game: str(o(x).game), windowsTest: opt(o(x).windowsTest) })),
+      failedGames: strs(q2.failedGames),
       seeds: seedsOf(q2.seeds),
       missing: strs(q2.missing),
       unreadable: strs(q2.unreadable),
@@ -1397,6 +1538,8 @@ function controlTilesOf(v: unknown): ControlTiles {
       beatReference: num(rows.beatReference, 0),
       games: num(rows.games, 0),
       referenceAboveUniform: num(rows.referenceAboveUniform, 0),
+      frequencyGames: num(rows.frequencyGames, 0),
+      referenceAboveFrequency: num(rows.referenceAboveFrequency, 0),
       windows: arr(rows.windows as unknown[]).filter(has).map((x) => ({ game: str(o(x).game), window: opt(o(x).window), unit: str(o(x).unit, 'days') })),
       missing: strs(rows.missing),
       unreadable: strs(rows.unreadable),
@@ -1415,8 +1558,9 @@ function normControls(raw: unknown): ControlsView {
     rankingAt: ostr(r.rankingAt),
     readings: readingsOf(r.readings),
     meta: {
-      q0: { rule: str(o(m.q0).rule), rows: rangeOf(o(m.q0).rows), history: rangeOf(o(m.q0).history), seeds: seedsOf(o(m.q0).seeds) },
-      q2: { metric: str(o(m.q2).metric), axis: axis.length === 2 ? [axis[0], axis[1]] : [0.5, 1], fewWindows: num(o(m.q2).fewWindows, 250), rule: str(o(m.q2).rule) },
+      q0: { rule: str(o(m.q0).rule), test: str(o(m.q0).test), under: str(o(m.q0).under), holds: str(o(m.q0).holds), followed: str(o(m.q0).followed),
+        headline: str(o(m.q0).headline), band: str(o(m.q0).band), rows: rangeOf(o(m.q0).rows), history: rangeOf(o(m.q0).history), seeds: seedsOf(o(m.q0).seeds) },
+      q2: { metric: str(o(m.q2).metric), axis: axis.length === 2 ? [axis[0], axis[1]] : [0.5, 1], fewWindows: opt(o(m.q2).fewWindows), rule: str(o(m.q2).rule) },
       fc: { share: str(o(m.fc).share), chanceShare: str(o(m.fc).chanceShare), auc: str(o(m.fc).auc), variants: Object.fromEntries(Object.entries(o(o(m.fc).variants)).map(([k, x]) => [k, str(x, k)])) },
       rows: { score: str(o(m.rows).score), pnl: str(o(m.rows).pnl) },
     },
@@ -1448,7 +1592,9 @@ function normControlsGame(raw: unknown, game: string): ControlsGameView {
     q2 = {
       ...q2Base, label: str(x.label), windowsTrain: opt(x.windowsTrain), features: opt(x.features),
       realMean: opt(x.realMean), realSd: opt(x.realSd), nullMean: opt(x.nullMean), nullSd: opt(x.nullSd), shuffledMean: opt(x.shuffledMean), shuffledSd: opt(x.shuffledSd),
-      thresholdExact: opt(x.thresholdExact), perSeed: { real: nums(ps.real), null: nums(ps.null), shuffled: nums(ps.shuffled) },
+      thresholdExact: opt(x.thresholdExact), shuffledK: opt(x.shuffledK),
+      seedsScored: has(x.seedsScored) ? { real: opt(o(x.seedsScored).real), null: opt(o(x.seedsScored).null), shuffled: opt(o(x.seedsScored).shuffled) } : null,
+      perSeed: { real: nums(ps.real), null: nums(ps.null), shuffled: nums(ps.shuffled) },
       aboveBand: bool(x.aboveBand), survivesShuffled: bool(x.survivesShuffled),
     };
   }
@@ -1473,12 +1619,14 @@ function normControlsGame(raw: unknown, game: string): ControlsGameView {
         ...rowsBase,
         uniform: opt(o(r.rows).uniform),
         floor: opt(o(r.rows).floor),
+        smoothing: opt(o(r.rows).smoothing),
         failed: arr(o(r.rows).failed as unknown[]).filter(has).map((x) => ({ row: str(o(x).row), reason: ostr(o(x).reason), days: opt(o(x).days) })),
         table: arr(o(r.rows).table as unknown[]).map((x) => {
           const w = o(x);
           return {
             row: str(w.row), kind: str(w.kind), reference: bool(w.reference), days: opt(w.days), logScore: opt(w.logScore), se: opt(w.se),
-            vsReference: intervalOf(w.vsReference), vsUniform: intervalOf(w.vsUniform), exact: opt(w.exact), adjacent: opt(w.adjacent), direction: opt(w.direction),
+            vsReference: intervalOf(w.vsReference), vsUniform: intervalOf(w.vsUniform), frequency: bool(w.frequency), vsFrequency: intervalOf(w.vsFrequency),
+            exact: opt(w.exact), adjacent: opt(w.adjacent), direction: opt(w.direction),
           };
         }),
       }
@@ -1489,7 +1637,7 @@ function normControlsGame(raw: unknown, game: string): ControlsGameView {
     unit: base.unit,
     builtAt: ostr(r.builtAt),
     rankingAt: ostr(r.rankingAt),
-    q0: { ...base.q0, modes },
+    q0: { ...base.q0, table: q0LinesOf(o(r.q0).table), modes },
     q2,
     fc,
     rows,
@@ -1507,10 +1655,9 @@ function measureOf(v: unknown): Measure {
   const m = o(v);
   return { unit: str(m.unit, 'hits per draw'), text: str(m.text), capEur: opt(m.capEur), bound: ostr(m.bound), against: ostr(m.against) };
 }
-function modelsBandOf(v: unknown): ModelsBand | null {
-  if (!has(v)) return null;
-  const b = o(v);
-  return { ceiling: opt(b.ceiling), from: str(b.from), rows: opt(b.rows), history: opt(b.history), at: ostr(b.at), greys: bool(b.greys), missing: missingOf(b.missing) };
+function modelsChanceOf(v: unknown): ModelsChance {
+  const c = o(v);
+  return { test: q0TestOf(c.test), error: ostr(c.error), inTile: c.inTile !== false };
 }
 function followsOf(v: unknown): Follows | null {
   if (!has(v)) return null;
@@ -1551,11 +1698,12 @@ function normModels(raw: unknown): ModelsView {
       const b = o(g.best);
       return {
         game, group: groupName(g.group, game), unit: unitOf(g.unit, game), metric: str(g.metric, 'avg_hits'), measure: measureOf(g.measure),
-        minDraws: num(g.minDraws, 0), rows: num(g.rows, 0), rankedRows: num(g.rankedRows, 0),
+        minDraws: num(g.minDraws, 0), rankedOn: g.rankedOn === 'live' ? 'live' : 'all', rows: num(g.rows, 0), rankedRows: num(g.rankedRows, 0),
         best: has(g.best)
-          ? { row: str(b.row), value: opt(b.value), draws: opt(b.draws), young: bool(b.young), profitPerBet: opt(b.profitPerBet), bets: opt(b.bets), avgHits: opt(b.avgHits), inBand: bool(b.inBand), live: opt(b.live) }
+          ? { row: str(b.row), value: opt(b.value), draws: opt(b.draws), young: bool(b.young), allValue: opt(b.allValue), liveDraws: opt(b.liveDraws), profitPerBet: opt(b.profitPerBet),
+              bets: opt(b.bets), avgHits: opt(b.avgHits), live: opt(b.live), recovered: opt(b.recovered), chance: q0LineOf(b.chance) }
           : null,
-        band: modelsBandOf(g.band),
+        chance: modelsChanceOf(g.chance),
         since: sinceSummaryOf(g.since),
         top: strs(g.top),
         learning: Object.fromEntries(Object.entries(o(g.learning)).flatMap(([k, x]) => {
@@ -1616,28 +1764,20 @@ function multiPickOf(v: unknown): MultiPick | null {
 function normModelsGame(raw: unknown, game: string, scope: Scope): ModelsGameView {
   const r = o(raw);
   const g = str(r.game, game);
-  const band = modelsBandOf(r.band);
   const s = o(r.since);
   return {
     game: g, group: groupName(r.group, g), unit: unitOf(r.unit, g), builtAt: ostr(r.builtAt), generatedAt: ostr(r.generatedAt), window: str(r.window, 'every scored draw'),
-    metric: str(r.metric, 'avg_hits'), measure: measureOf(r.measure), minDraws: num(r.minDraws, 0),
+    rankedOn: r.rankedOn === 'live' ? 'live' : 'all', metric: str(r.metric, 'avg_hits'), measure: measureOf(r.measure), minDraws: num(r.minDraws, 0),
+    allMinDraws: num(r.allMinDraws, num(r.minDraws, 0)), liveness: gameLivenessOf(r.liveness),
     scope: scopeOf(r.scope, scope), shown: num(r.shown, 0), of: num(r.of, 0), top: strs(r.top), follows: followsOf(r.follows),
-    band: band
-      ? {
-          ...band,
-          modes: Object.fromEntries(Object.entries(o(o(r.band).modes)).map(([k, x]) => {
-            const m = o(x);
-            return [k, { best: opt(m.best), sd: opt(m.sd), ceiling: opt(m.ceiling), rows: opt(m.rows), seeds: opt(m.seeds), history: opt(m.history), random: opt(m.random), at: ostr(m.at) }];
-          })),
-        }
-      : null,
+    chance: modelsChanceOf(r.chance),
     since: has(r.since) ? { date: ostr(s.date), label: str(s.label), none: bool(s.none), minDraws: opt(s.minDraws), bestModel: ostr(s.bestModel), live: ostr(s.live) } : null,
     rows: arr(r.rows as unknown[]).filter(has).map((x, i) => {
       const w = o(x);
       const since = w.since === undefined ? undefined : has(w.since) ? { value: opt(o(w.since).value), draws: opt(o(w.since).draws), young: bool(o(w.since).young) } : null;
       return {
-        rank: num(w.rank, i + 1), row: str(w.row), top: bool(w.top), value: opt(w.value), profitPerBet: opt(w.profitPerBet), bets: opt(w.bets),
-        avgHits: opt(w.avgHits), bestDay: opt(w.bestDay), draws: opt(w.draws), live: opt(w.live), young: bool(w.young), inBand: bool(w.inBand), since,
+        rank: num(w.rank, i + 1), row: str(w.row), top: bool(w.top), value: opt(w.value), allValue: opt(w.allValue), liveDraws: opt(w.liveDraws), profitPerBet: opt(w.profitPerBet), bets: opt(w.bets),
+        avgHits: opt(w.avgHits), bestDay: opt(w.bestDay), draws: opt(w.draws), live: opt(w.live), recovered: opt(w.recovered), young: bool(w.young), chance: q0LineOf(w.chance), since,
         bySize: Array.isArray(w.bySize) ? w.bySize.map((y) => ({ size: num(o(y).size, 0), profitPerBet: opt(o(y).profitPerBet), bets: opt(o(y).bets) })) : null,
         learning: learningCheckOf(w.learning),
       };
@@ -1645,6 +1785,15 @@ function normModelsGame(raw: unknown, game: string, scope: Scope): ModelsGameVie
     multiPick: multiPickOf(r.multiPick),
     combination: combinationOf(r.combination),
   };
+}
+
+function gameLivenessOf(v: unknown): GameLiveness | null {
+  if (!has(v)) return null;
+  const l = o(v);
+  const a = o(l.rewriteAudit);
+  return { checked: ostr(l.checked), error: ostr(l.error), draws: opt(l.draws), allLive: opt(l.allLive), allCounted: opt(l.allCounted), rowsLive: opt(l.rowsLive),
+    rowsRecovered: opt(l.rowsRecovered), rowsNotLive: opt(l.rowsNotLive), newestNotLive: ostr(l.newestNotLive),
+    rewriteAudit: { rows: opt(a.rows), hitsAtClose: opt(a.hitsAtClose), hitsStored: opt(a.hitsStored) }, unscheduled: strs(l.unscheduled) };
 }
 
 function lagMetaOf(v: unknown): LagMeta {
@@ -1694,7 +1843,7 @@ function normPhaseShiftGame(raw: unknown, game: string, scope: Scope): PhaseShif
 function randomnessMetaOf(v: unknown): RandomnessMeta {
   const m = o(v);
   const t = o(m.tripwires);
-  return { tripwires: { entropyBelow: opt(t.entropyBelow), klHistoryAbove: opt(t.klHistoryAbove), aeBelow: opt(t.aeBelow) }, window: str(m.window), ae: str(m.ae), modelKl: str(m.modelKl), q2: str(m.q2), fewWindows: num(m.fewWindows, 250) };
+  return { tripwires: { entropyBelow: opt(t.entropyBelow), klHistoryAbove: opt(t.klHistoryAbove), aeBelow: opt(t.aeBelow) }, window: str(m.window), ae: str(m.ae), modelKl: str(m.modelKl), q2: str(m.q2), fewWindows: opt(m.fewWindows) };
 }
 function randomnessLineOf(v: unknown, fallbackGame = ''): RandomnessLine {
   const r = o(v);
@@ -1765,19 +1914,26 @@ function matrixGameOf(v: unknown): MatrixGame {
   return {
     game, group: groupName(r.group, game), unit: unitOf(r.unit, game), errors: strs(r.errors),
     q0: has(r.q0)
-      ? { above: num(q0.above, 0), ceiling: opt(q0.ceiling), longest: opt(q0.longest), longestLive: opt(q0.longestLive), sameLength: typeof q0.sameLength === 'boolean' ? q0.sameLength : null,
-          sameLive: typeof q0.sameLive === 'boolean' ? q0.sameLive : null, inTile: q0.inTile !== false, ranking: q0.ranking === 'profit' ? 'profit' : 'hits', seeds: opt(q0.seeds),
-          at: ostr(q0.at), modes: modesOf(q0.modes), history: historyIn(r.q0) }
+      ? (() => {
+          const t = q0TestOf(q0.test);
+          const b = o(q0.band);
+          return {
+            test: t, error: ostr(q0.error), confirmedRows: strs(q0.confirmedRows), followedRows: strs(q0.followedRows), inTile: q0.inTile !== false,
+            ranking: q0.ranking === 'profit' ? ('profit' as const) : ('hits' as const), at: ostr(q0.at),
+            band: has(q0.band) ? { at: ostr(b.at), modes: modesOf(b.modes) } : null, bandUnreadable: bool(q0.bandUnreadable), history: historyIn(r.q0),
+          };
+        })()
       : null,
     q2: has(r.q2)
-      ? { status: Q2_STATUS.includes(q2.status as Q2Status) ? (q2.status as Q2Status) : 'within', real: opt(q2.real), threshold: opt(q2.threshold), seeds: opt(q2.seeds),
-          windowsTest: opt(q2.windowsTest), fewWindows: bool(q2.fewWindows), at: ostr(q2.at), history: historyIn(r.q2) }
+      ? { status: q2StatusOf(q2.status), real: opt(q2.real), threshold: opt(q2.threshold), seeds: opt(q2.seeds),
+          windowsTest: opt(q2.windowsTest), fewWindows: bool(q2.fewWindows), minWindows: opt(q2.minWindows), at: ostr(q2.at), history: historyIn(r.q2) }
       : null,
     fc: has(r.fc)
       ? { fits: num(fc.fits, 0), inconclusive: num(fc.inconclusive, 0), ignored: num(fc.ignored, 0), failed: num(fc.failed, 0), variants: num(fc.variants, 0), at: ostr(fc.at), history: historyIn(r.fc) }
       : null,
     rows: has(r.rows)
       ? { beat: num(rows.beat, 0), scored: num(rows.scored, 0), reference: str(rows.reference, 'GARCH Model'), window: opt(rows.window), referenceVsUniform: ostr(rows.referenceVsUniform),
+          referenceVsFrequency: ostr(rows.referenceVsFrequency),
           at: ostr(rows.at), history: historyIn(r.rows) }
       : null,
     gates: has(r.gates) ? { replaced: num(gates.replaced, 0), kept: num(gates.kept, 0), reverted: num(gates.reverted, 0), notThisWeekend: num(gates.notThisWeekend, 0) } : null,
@@ -1827,14 +1983,14 @@ function normWeek(raw: unknown): WeekView {
             byTuner: arr(tuners.byTuner as unknown[]).filter(has).map((x) => {
               const b = o(x);
               return { tuner: str(b.tuner), job: ostr(b.job), n: num(b.n, 0), replaced: num(b.replaced, 0), kept: num(b.kept, 0), reverted: num(b.reverted, 0), games: opt(b.games),
-                marginZero: num(b.marginZero, 0), marginOneSe: opt(b.marginOneSe), replacedUnder1Se: num(b.replacedUnder1Se, 0) };
+                marginZero: num(b.marginZero, 0), marginOneSe: opt(b.marginOneSe), marginSeCounts: countsOf(b.marginSeCounts), replacedUnder1Se: num(b.replacedUnder1Se, 0) };
             }),
           }
         : null,
       ...controlTilesOf(t),
     },
     runs: arr(r.runs as unknown[]).filter(has).map(runLineOf),
-    matrix: { fewWindows: num(o(r.matrix).fewWindows, 250), games: arr(o(r.matrix).games as unknown[]).filter(has).map(matrixGameOf) },
+    matrix: { fewWindows: opt(o(r.matrix).fewWindows), games: arr(o(r.matrix).games as unknown[]).filter(has).map(matrixGameOf) },
     readings: readingsOf(r.readings),
     since: {
       from: ostr(since.from),
@@ -1852,6 +2008,9 @@ function normWeek(raw: unknown): WeekView {
 }
 
 const rowsByGame = (v: unknown): Record<string, string[]> => Object.fromEntries(Object.entries(o(v)).map(([g, x]) => [g, strs(x)]));
+// {k: records} of a tuner's margin chips: counts only, a non-count dropped
+const countsOf = (v: unknown): Record<string, number> =>
+  Object.fromEntries(Object.entries(o(v)).filter((e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1]) && e[1] > 0));
 function normTuning(raw: unknown): TuningView {
   const r = o(raw);
   const h = o(r.history);
@@ -1864,7 +2023,7 @@ function normTuning(raw: unknown): TuningView {
       const run = o(b.run);
       return {
         tuner: str(b.tuner), job: ostr(b.job), n: num(b.n, 0), replaced: num(b.replaced, 0), kept: num(b.kept, 0), reverted: num(b.reverted, 0),
-        marginZero: num(b.marginZero, 0), marginOneSe: num(b.marginOneSe, 0), replacedUnder1Se: num(b.replacedUnder1Se, 0),
+        marginZero: num(b.marginZero, 0), marginOneSe: num(b.marginOneSe, 0), marginSeCounts: countsOf(b.marginSeCounts), replacedUnder1Se: num(b.replacedUnder1Se, 0),
         replacedUnder1SeVsBetterReference: num(b.replacedUnder1SeVsBetterReference, 0), games: num(b.games, 0), kinds: strs(b.kinds),
         aboveFair: num(b.aboveFair, 0), fairPerBet: rangeOf(b.fairPerBet),
         windowDays: rangeOf(b.windowDays), runTrials: rangeOf(b.runTrials), studyTrials: rangeOf(b.studyTrials),
@@ -1899,8 +2058,11 @@ function normTuningGame(raw: unknown, game: string): TuningGameView {
       return {
         row: str(w.row), tuner: str(w.tuner, 'unattributed'), by: ostr(w.by), decision: str(w.decision), thisWeekend: w.thisWeekend !== false, weekend: ostr(w.weekend), date: ostr(w.date),
         kind: ostr(w.kind), windowDays: opt(w.windowDays), runTrials: opt(w.runTrials), studyTrials: opt(w.studyTrials),
+        lockboxDays: opt(w.lockboxDays), lockboxFrom: w.lockboxFrom === 'window' || w.lockboxFrom === 'table' ? w.lockboxFrom : null,
         default: sideOf(w.default), incumbent: sideOf(w.incumbent), challenger: sideOf(w.challenger),
-        margin: opt(w.margin), marginSe: opt(w.marginSe), bar: opt(w.bar), gainSe: opt(w.gainSe), gainBestSe: opt(w.gainBestSe), gainBarSe: opt(w.gainBarSe),
+        margin: opt(w.margin), marginSe: opt(w.marginSe), marginK: opt(w.marginK), revertMargin: opt(w.revertMargin),
+        sitOut: typeof w.sitOut === 'boolean' ? w.sitOut : null, sitOutReason: ostr(w.sitOutReason),
+        bar: opt(w.bar), gainSe: opt(w.gainSe), gainBestSe: opt(w.gainBestSe), gainBarSe: opt(w.gainBarSe),
         history: arr(w.history as unknown[]).map((d) => (typeof d === 'string' && DECISION_LETTERS.includes(d) ? d : null)),
         why: ostr(w.why), family: ostr(w.family),
       };

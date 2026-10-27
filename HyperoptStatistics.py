@@ -26,7 +26,8 @@ from src.ModelFactory import BASE_MODEL_NAMES, build_models, prepare_foundation_
 from src.MarketModels import GARCH_NAME, HMM_NAME, LOG_FLOOR, MARKET_DEFAULTS, build_market_models
 from src.TuningScore import score_rows, score_bets_by_day, attrs_for_trial, describe
 from src.TuningGate import challenge, make_defaults, prune_keno_flags
-from src.Lockbox import load as load_lockbox, window_overlap as lockbox_overlap, describe as describe_lockbox
+from src.Lockbox import (load_or_warn as load_lockbox, split_rows as lockbox_split, window_counts as lockbox_window,
+                         describe as describe_lockbox, describe_withheld as describe_lockbox_withheld)
 from src.Command import Command
 from src.Helpers import Helpers, MARKET_GAMES
 from src.DataFetcher import DataFetcher
@@ -188,6 +189,47 @@ DEFAULT_DAYS = 90
 # and the untuned defaults, re-scored on the same window, by GATE_MARGIN.
 GATE_ENABLED = True
 GATE_MARGIN = 0.0
+# ... and by GATE_SE_MARGIN standard errors of its own score (TuningGate.challenge se_margin, 27 Oct 2026; until then
+# any gain replaced). Every game here is fair, so no parameter set can predict a draw, and the gaps a run's best of
+# 15 trials opens over the references are that null: on 24 Oct 30 of the 73 rows were replaced, every one by less
+# than one standard error (median 0.23 SE, largest 0.86 - keno MarkovBayesianEnhanched), four of them on the same
+# hit mean as the incumbent, winning on a smaller per-day spread alone. Over the five weekends 26 Sep - 24 Oct one SE
+# would have let 4 of about 242 row-weeks through (about 1.7%, all lotto, three of them the 13 Oct era change): about
+# one noise replacement per weekly run, the claim this margin makes - not a calibrated test of a best-of-15. It covers
+# every strategy of this script: the lottery rows, GARCH and the Regime HMM (on the market log-score; their recent
+# gaps were 0.06-0.47 SE, so they will mostly stay put) and KenoSubsetTuning (its own chain step runs this script).
+GATE_SE_MARGIN = 1.0
+# The revert's margin (TuningGate.challenge revert_margin, 27 Oct 2026): the untuned default is served back whenever
+# it scores above the incumbent, by no margin - the default is not picked from trials, so it carries no selection
+# luck, and on a game without skill going back to it costs nothing in expectation. Replayed on 26 Sep - 24 Oct under
+# the one-SE challenger margin, this revert serves the default back on 6, 4, 4, 7 and 0 rows a weekend - about as
+# often as the gate reverted before - where the challenger's margin on the revert too would have left 2, 1, 0, 2, 0.
+GATE_REVERT_MARGIN = 0.0
+# The lockbox (src/Lockbox.py, lockbox.json), set in __main__ - and by TuningControls.py, whose control histories
+# carry the real dates, so its band is scored on the same days. Module global like SERVED_KENO_SUBSETS: the trial
+# processes and the gate's reference children inherit it. Its days are backtested (each row is fitted on all
+# history before it, as the daily predictor does) but never scored: every value that decides what is served - the
+# trials, the gate's re-scores of the served parameters and the defaults, the standard error behind any margin,
+# modelScores, the keno subset day table - is on the window's other days (26 Oct 2026; until then this tuner only
+# warned, and 22 of lotto's 90 tuning draws were lockbox draws).
+LOCKBOX = None
+
+
+def withhold_lockbox(results, dates):
+    """The Backtester rows outside LOCKBOX (all of them without one); `dates` are the loader's, row "index" order."""
+    return lockbox_split(results, list(dates or []), LOCKBOX)[0]
+
+
+def lockbox_days(dataPath, game_cfg, days_to_rebuild, years_back=None):
+    """(withheld, scored): the days of this history's tuning window run_backtest withholds under LOCKBOX, and the rest."""
+    if not LOCKBOX:
+        return 0, None
+    probe = DataLoader()
+    probe.setDataPath(dataPath)
+    probe.setGameRange(game_cfg["min"], game_cfg["max"])
+    probe.setDrawSize(game_cfg["draw_size"])
+    probe.load_numbers(skipLastColumns=game_cfg["skip_last_columns"], years_back=years_back)
+    return lockbox_window(getattr(probe, "dates", []), days_to_rebuild, LOCKBOX)
 
 
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
@@ -259,6 +301,9 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
         print(f"Trial pruned: {e}")
         raise optuna.TrialPruned()
 
+    # The lockbox days were backtested but are not scored (see LOCKBOX): the summary and the objective are the
+    # window's other days. The loader's dates are read after the backtest - it reloaded the history it ran on.
+    results = withhold_lockbox(results, getattr(loader, "dates", []))
     summary = backtester.summarize(results)
     model_summary = dict(summary.get("models", {}).get(model_name, {}))
     model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional, game=dataset_name,
@@ -672,6 +717,10 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
         print(f"Keno ensemble day table not built ({e}) - KenoSubsetTuning is skipped this run")
         return {"subset_sizes": subset_sizes, "days": []}
 
+    # the table is what the subset trials and their gate references are scored on: its lockbox days are left out
+    # (26 Oct 2026), like the rows' own trials - an empty table skips KenoSubsetTuning in __main__
+    results = withhold_lockbox(results, getattr(loader, "dates", []))
+
     model_scores = bestParams.get("modelScores", {})
 
     def load_meta_artifact(filename):
@@ -684,6 +733,8 @@ def build_keno_ensemble_day_data(dataset_name, dataPath, game_cfg, days_to_rebui
             print(f"Failed to load {filename} for {dataset_name}, skipping its subset tuning: {e}")
             return None
 
+    # the artifacts Predictor.py serves next: the weekly chain runs this step right after TrainMetaLearner.py wrote
+    # them (26 Oct 2026; until then the chain's first job tuned the meta rows on last weekend's, then replaced them)
     artifacts = {row: load_meta_artifact(filename) for row, (filename, _mode, _temperature) in KENO_SUBSET_META_ROWS.items()}
 
     def rank_by_meta_artifact(artifact, row):
@@ -880,13 +931,27 @@ STRATEGIES = {
     # doesn't gate a run/skip flag, Predictor.py reads its tuned params
     # unconditionally whenever it builds a Keno subset. Keno-only: it's the
     # only game with sub-selections, so there is nothing to tune anywhere else.
-    "KenoSubsetTuning": {"objective": objective_keno_subset_tuning, "use_key": None, "games": ("keno",)},
+    # "default": False - its own, last step of the weekly chain since 26 Oct
+    # 2026 (jobs.js kenoSubsetTuning, runHyperopt.sh: -g keno -s
+    # KenoSubsetTuning), after TrainMetaLearner.py: its day table scores the
+    # five meta-learner artifacts the retrain writes (the quantum ones fitted
+    # on HyperoptQuantum.py's parameters) and the weighted vote on the
+    # statistical and XGBoost parameters and modelScores on disk. Inside this
+    # script's default run - the chain's first job - it read all of them a
+    # week old (this run's own gate outcomes are written after the game's last
+    # strategy, the boosting tuner and the retrain come later), and the
+    # retrain then replaced the artifacts the meta rows had just been tuned on.
+    "KenoSubsetTuning": {"objective": objective_keno_subset_tuning, "use_key": None, "games": ("keno",), "default": False},
     # The market rows (M4), market games only, judged by the proper score -
     # see objective_garch / objective_regime_hmm. Predictor.py reads the
     # tuned garch*/regimeHmm* keys through the same build_market_models call.
     "Garch": {"objective": objective_garch, "use_key": "useGarch", "games": tuple(sorted(MARKET_GAMES)), "model_score": False},
     "RegimeHmm": {"objective": objective_regime_hmm, "use_key": "useRegimeHmm", "games": tuple(sorted(MARKET_GAMES)), "model_score": False},
 }
+
+# What a run without -s tunes: every strategy but those marked "default": False (KenoSubsetTuning, a chain step of its
+# own - see above). Named with -s, it still runs; TuningControls.py reads STRATEGIES and skips it by name.
+DEFAULT_STRATEGIES = [name for name, strategy in STRATEGIES.items() if strategy.get("default", True)]
 
 # Maps a STRATEGIES key to the exact "name" Predictor.py gives that model's
 # prediction entry in listOfDecodedPredictions - so the per-model backtest
@@ -951,9 +1016,157 @@ def _self_check():
     finally:
         module["run_backtest"], module["finish_trial"] = saved
         optuna.logging.set_verbosity(verbosity)
+
+    _self_check_lockbox()
+    _self_check_gate()
+
+    # KenoSubsetTuning is a chain step of its own since 26 Oct 2026, after TrainMetaLearner.py (whose artifacts its day
+    # table scores): a plain run leaves it out and keeps every other strategy in its order, -s can still name it
+    assert "KenoSubsetTuning" in STRATEGIES and "KenoSubsetTuning" not in DEFAULT_STRATEGIES, DEFAULT_STRATEGIES
+    assert DEFAULT_STRATEGIES == [name for name in STRATEGIES if name != "KenoSubsetTuning"], DEFAULT_STRATEGIES
     print("HyperoptStatistics self-check OK: the week games search MarkovMonteCarlo at order 1 with a minimum count up to "
           "3 (cryptoweek) and 5 (sharesweek), every other game the full 1-3 x 1-20 box; an existing study continues under "
-          "the narrower box, and a served value outside it is still scored as it is")
+          "the narrower box, and a served value outside it is still scored as it is; the lockbox days are backtested but "
+          "never scored - by a trial, a gate reference or the keno subset day table; a plain run leaves KenoSubsetTuning "
+          "to its own chain step after the retrain; the gate's one-SE margin keeps the 24 Oct replacements out, and "
+          "--gate-se-margin 0 restores them; a default above the incumbent is served back without a margin")
+
+
+def _self_check_gate():
+    """
+    The gate's margins (27 Oct 2026) on five of production's 24 Oct records, through TuningGate.challenge with their own
+    scores (no backtest): (row, challenger, incumbent, default, the challenger's score_se). Each was replaced that day
+    at margin 0 - the first two on the incumbent's very hit mean (0.70 and 0.88 a draw), keno MarkovBayesianEnhanched
+    by the week's largest gap (0.86 SE), and the keno sub-selection and a Regime HMM row, the strategies the margin
+    covers through this script too. Under GATE_SE_MARGIN and GATE_REVERT_MARGIN none is replaced or reverted; with
+    se_margin 0 (--gate-se-margin 0) every one is replaced again, as it was. One 17 Oct record checks the revert's own
+    margin: a default above the incumbent is served back without the challenger's margin.
+    """
+    w43 = [("euromillions HybridStatisticalModel", 0.6251, 0.6235, 0.4289, 0.0749),
+           ("lotto Markov Model", 0.8006, 0.7886, 0.6235, 0.0771),
+           ("keno MarkovBayesianEnhanched Model", -0.1134, -0.1675, -0.1774, 0.0625),
+           ("keno KenoSubsetTuning", 0.3747, 0.3510, 0.1049, 0.1062),
+           ("shares Regime HMM Model", -2.2848, -2.2898, -2.3370, 0.0106)]
+
+    class Trial:
+        def __init__(self, value, se):
+            self.number, self.value, self.params = 1, value, {"knob": 2}
+            self.state = optuna.trial.TrialState.COMPLETE
+            self.user_attrs = {"tuning": {"score": value, "kind": "hits", "days": 90, "score_se": se}}
+
+    class Study:
+        def __init__(self, trial):
+            self.trial, self.best_value = trial, trial.value
+        def get_trials(self, deepcopy=False, states=None):
+            return [self.trial]
+
+    served = {"knob": 3}
+    for row, ch, inc, default, se in w43:
+        scores = {"incumbent": inc, "default": default}
+        def run(**margins):
+            return challenge(Study(Trial(ch, se)), set(), None, served, make_defaults({"knob": 1}, served), 10, row,
+                             evaluate=lambda params, role: scores[role], **margins)["decision"]
+        assert run(se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN) == "kept", row
+        assert run(se_margin=0.0) == "replaced", row
+
+    # ... and the revert's own margin (GATE_REVERT_MARGIN) on lotto MarkovBayesianEnhanched of 17 Oct: the run's best
+    # scored exactly the untuned default's +0.7552, 0.27 SE above the incumbent's +0.7307. Reverted that day at margin
+    # 0, and still reverted under the one-SE challenger margin with the margin-free revert; with the challenger's margin
+    # on the revert too (revert_margin None, the boosting and quantum tuners' rule) the weaker incumbent would stay
+    scores = {"incumbent": 0.7307, "default": 0.7552}
+    def revert(**margins):
+        return challenge(Study(Trial(0.7552, 0.0893)), set(), None, served, make_defaults({"knob": 1}, served), 10,
+                         "lotto MarkovBayesianEnhanched Model", evaluate=lambda params, role: scores[role], **margins)["decision"]
+    assert revert(se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN) == "reverted"
+    assert revert(se_margin=GATE_SE_MARGIN) == "kept" and revert(se_margin=0.0) == "reverted"
+
+
+def _self_check_lockbox():
+    """
+    The lockbox wiring (26 Oct 2026) on a stub Backtester and DataLoader: 100 dated draws, a 90-day window, 22 of its
+    days in the lockbox and every one of them a perfect day for the model - if any reached a score it would show.
+    """
+    import tempfile
+    import warnings
+    from datetime import timedelta
+    from src.Lockbox import parse
+
+    dates = [datetime(2026, 1, 1) + timedelta(days=i) for i in range(100)]
+    box = parse({"from": "2026-01-21", "to": "2026-02-11"})   # rows 20..41: 22 days of the window (rows 10..99)
+    locked = {i for i, when in enumerate(dates) if box["from"] <= when.date() <= box["to"]}
+    assert len(locked) == 22 and lockbox_window(dates, DEFAULT_DAYS, box) == (22, 68)
+
+    class StubLoader:
+        def setDataPath(self, path): pass
+        def setGameRange(self, low, high): pass
+        def setDrawSize(self, size): pass
+        def load_numbers(self, **kwargs):
+            self.dates = list(dates)
+            return [[1, 2, 3, 4, 5, 6]] * len(dates), None, None
+
+    class StubBacktester:
+        """Rows like Backtester.backtest's: a lockbox day hits all six, any other day one; the keno table's tickets too."""
+        def __init__(self, loader):
+            self.loader, self.names = loader, []
+        def add_model(self, name, model):
+            self.names.append(name)
+        def backtest(self, start_index=0, end_index=None, **kwargs):
+            self.loader.load_numbers()   # the real one reloads the history it runs on, dates included
+            rows = []
+            for i in range(start_index, end_index):
+                row = {"index": i, "actual": list(range(1, 21))}
+                for name in self.names:
+                    row[f"{name}_hits"] = 6 if i in locked else 1
+                    row[f"{name}_prediction"] = list(range(1, 21)) if i in locked else list(range(51, 71))
+                rows.append(row)
+            return rows
+        def summarize(self, results):
+            return {"models": {name: {"days": len(results)} for name in self.names}}
+
+    module = globals()
+    saved = {key: module[key] for key in ("Backtester", "DataLoader", "LOCKBOX", "SERVED_KENO_SUBSETS", "build_models",
+                                          "prepare_foundation_scores")}
+    module["Backtester"], module["DataLoader"] = StubBacktester, StubLoader
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    try:
+        lotto = GAME_CONFIG["lotto"]
+        module["LOCKBOX"] = None
+        assert lockbox_days("/nonexistent", lotto, DEFAULT_DAYS) == (0, None), "no lockbox: nothing withheld, nothing loaded"
+        open_box = run_backtest("markov", None, "lotto", "/nonexistent", lotto, [], DEFAULT_DAYS, None)["tuning"]
+        assert open_box["days"] == 90 and open_box["hits_mean"] > 1.0, open_box
+        module["LOCKBOX"] = box
+        assert lockbox_days("/nonexistent", lotto, DEFAULT_DAYS) == (22, 68), "the count __main__ logs and records"
+        tuning = run_backtest("markov", None, "lotto", "/nonexistent", lotto, [], DEFAULT_DAYS, None)["tuning"]
+        assert tuning["days"] == 68 and tuning["hits_mean"] == 1.0 and tuning["score_se"] == 0.0, tuning
+        # a gate reference is the objective driven by a FixedTrial (TuningGate.evaluate_reference): the same 68 days,
+        # so the incumbent, the default and the standard error a margin is taken in never see the lockbox either
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fixed = optuna.trial.FixedTrial({key: SERVED_DEFAULTS[key] for key in (
+                "markovSoftMaxTemperature", "markovMinOccurences", "markovAlpha", "markovRecencyWeight", "markovRecencyMode",
+                "markovPairDecayFactor", "markovSmoothingFactor", "markovBlendMode", "markovOrder", "markovTransitionMode")})
+            assert objective_markov(fixed, "lotto", "/nonexistent", lotto, DEFAULT_DAYS, None) == tuning["score"]
+            assert fixed.user_attrs["tuning"]["days"] == 68
+        # the keno subset day table: built on the same window, its lockbox days left out before any day is scored
+        module["SERVED_KENO_SUBSETS"] = [5, 6]
+        module["build_models"] = lambda *args, **kwargs: {"Markov Model": object()}
+        module["prepare_foundation_scores"] = lambda *args, **kwargs: None
+        here = os.getcwd()
+        with tempfile.TemporaryDirectory() as scratch:   # no bestParams_keno.json, no meta artifacts: the weighted row only
+            os.chdir(scratch)
+            try:
+                table = build_keno_ensemble_day_data("keno", "/nonexistent", GAME_CONFIG["keno"], DEFAULT_DAYS, None)
+                module["LOCKBOX"] = None
+                whole = build_keno_ensemble_day_data("keno", "/nonexistent", GAME_CONFIG["keno"], DEFAULT_DAYS, None)
+            finally:
+                os.chdir(here)
+        assert len(table["days"]) == 68 and len(whole["days"]) == 90, (len(table["days"]), len(whole["days"]))
+        assert all(day["weighted_ticket"] == list(range(51, 71)) for day in table["days"]), "a lockbox day reached the table"
+    finally:
+        for key, value in saved.items():
+            module[key] = value
+        optuna.logging.set_verbosity(verbosity)
 
 
 if __name__ == "__main__":
@@ -989,7 +1202,16 @@ if __name__ == "__main__":
             '--gate-margin', type=float, default=0.0,
             help='How much this run\'s best trial must beat the served parameters AND the untuned '
                  'defaults by - both re-scored on the same window - before it replaces them '
-                 '(src/TuningGate.py). 0 = any improvement.')
+                 '(src/TuningGate.py). 0 = any improvement beyond --gate-se-margin standard errors (the larger of the '
+                 'two margins applies).')
+        parser.add_argument(
+            '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
+            help='The margin in standard errors of the challenger\'s own score (since 27 Oct 2026). 0 = any gain '
+                 'replaces, the rule until then.')
+        parser.add_argument(
+            '--gate-revert-margin', type=float, default=GATE_REVERT_MARGIN,
+            help='How much the untuned defaults must score above the served parameters to be served back when the '
+                 'challenger is not written. 0 (default) = any amount: the defaults are not picked from trials.')
         parser.add_argument(
             '--no-gate', action='store_true',
             help='Write this run\'s best trial without comparing it to what is served. Never the '
@@ -1001,8 +1223,10 @@ if __name__ == "__main__":
         parser.add_argument(
             '-s', '--strategies',
             type=str,
-            default=",".join(STRATEGIES.keys()),
-            help='Comma-separated list of strategies, e.g. "PoissonMonteCarlo,Markov,..."'
+            default=",".join(DEFAULT_STRATEGIES),
+            help='Comma-separated list of strategies, e.g. "PoissonMonteCarlo,Markov,...". The default is every '
+                 'strategy but KenoSubsetTuning, which the weekly chain runs as its own step after '
+                 'TrainMetaLearner.py (-g keno -s KenoSubsetTuning).'
         )
         parser.add_argument(
             '-g', '--games',
@@ -1023,6 +1247,8 @@ if __name__ == "__main__":
         TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
         GATE_ENABLED = not args.no_gate
         GATE_MARGIN = float(args.gate_margin)
+        GATE_SE_MARGIN = float(args.gate_se_margin)
+        GATE_REVERT_MARGIN = float(args.gate_revert_margin)
         years_back = None  # None = all available data
 
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
@@ -1036,13 +1262,12 @@ if __name__ == "__main__":
 
         path = os.getcwd()
         optunaDatabase = "sqlite:///db.sqlite3"
-        # The lockbox is a warning here, never a reason to skip a game - and a
-        # malformed declaration is a warning too, said once, not a per-game failure.
-        try:
-            lockbox = load_lockbox(path)
-        except ValueError as e:
-            print(f"LOCKBOX WARNING: {e} - ignoring lockbox.json this run")
-            lockbox = None
+        # The lockbox's days are withheld from every score (LOCKBOX). A
+        # malformed declaration is a warning, said once - the run then is not
+        # lockbox-safe and the warning says so - not a per-game failure.
+        LOCKBOX = load_lockbox(path)
+        if LOCKBOX:
+            print(f"Tuning under the {describe_lockbox(LOCKBOX)}: its days are backtested but never scored")
 
         for dataset_name, game_cfg in GAME_CONFIG.items():
             if dataset_name not in games:
@@ -1093,20 +1318,18 @@ if __name__ == "__main__":
                 if "keno" in dataset_name:
                     print(f"Keno subset sizes served (use_<n>): {SERVED_KENO_SUBSETS}")
 
-                # The lockbox (src/Lockbox.py) is enforced on the meta-learner
-                # tables; the row tuners score on the newest draws by design,
-                # so an overlap is said out loud rather than silently tuned on.
-                if lockbox:
-                    probe = DataLoader()
-                    probe.setDataPath(dataPath)
-                    probe.setGameRange(game_cfg["min"], game_cfg["max"])
-                    probe.setDrawSize(game_cfg["draw_size"])
-                    probe.load_numbers(skipLastColumns=game_cfg["skip_last_columns"])
-                    inside = lockbox_overlap(getattr(probe, "dates", []), daysToRebuild, lockbox)
-                    if inside:
-                        print(f"LOCKBOX WARNING: {inside} of the {daysToRebuild} tuning days fall inside the "
-                              f"{describe_lockbox(lockbox)} - trials and gate references score on lockbox draws; "
-                              "keep the lockbox older than the window or shorten -d")
+                # The lockbox (src/Lockbox.py): how many of the window's days
+                # the objective withholds, for the log and the gate records.
+                # The window is not lengthened to make up for them - fewer
+                # scored days and a wider standard error until the overlap
+                # ages out (26 Oct 2026). A game left with no day to score is
+                # skipped, like the quantum tuner skips an empty table.
+                lockboxWithheld, scoredDays = lockbox_days(dataPath, game_cfg, daysToRebuild, years_back)
+                if LOCKBOX:
+                    print(describe_lockbox_withheld(dataset_name, LOCKBOX, lockboxWithheld, scoredDays))
+                    if lockboxWithheld and not scoredDays:
+                        print(f"Skipping {dataset_name}: every day of the {daysToRebuild}-day window falls inside the lockbox")
+                        continue
 
                 is_positional = helpers.is_positional_game(dataset_name)
                 profits = {}
@@ -1164,7 +1387,10 @@ if __name__ == "__main__":
 
                     # Champion/challenger (src/TuningGate.py): this run's best
                     # trial is written only if it beats the served parameters
-                    # and the untuned defaults, re-scored on this run's window.
+                    # and the untuned defaults, re-scored on this run's window,
+                    # by GATE_SE_MARGIN of its own standard errors; the defaults
+                    # are served back when they score above the served ones
+                    # (GATE_REVERT_MARGIN, 27 Oct 2026).
                     # Never study.best_params: the study's all-time best is the
                     # trial that caught the biggest payout (pick3 Markov's 21
                     # per bet and PoissonMonteCarlo's 42 are one and two
@@ -1173,7 +1399,8 @@ if __name__ == "__main__":
                     outcome = challenge(
                         study, known_trials, objective, existingData, make_defaults(SERVED_DEFAULTS, existingData),
                         timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
-                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild)
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild,
+                        lockbox_withheld=lockboxWithheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN)
                     print(outcome["summary"])
                     existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
                     if outcome["params"] is not None:

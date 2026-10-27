@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { MARKET_GAMES, type Follows, type Measure, type MissingControl } from '../../api';
-import { count, fixed, isNum, perUnit, short, signedFixed } from '../../format';
+import { MARKET_GAMES, type ControlTiles, type Follows, type Measure, type MissingControl, type Q0Fresh, type Q0Line } from '../../api';
+import { DASH, count, day, fixed, isNum, perUnit, short, signedFixed, stamp, weekday } from '../../format';
 
 // Small pieces the admin pages share: the game button that opens a drawer, a group row in a table, and the
 // words that put a figure's unit and window on its own line.
@@ -10,28 +10,18 @@ export const isMarketGame = (game: string) => MARKET_GAMES.includes(game);
 // "draws", "days", "trading days", "weeks" for a count other than one
 export const units = (unit: string) => `${perUnit(unit)}s`;
 
-// A row's record: its scored draws in the game's unit and, for a market game, how many of them were live
-// (the ticket out before the close). Back-built or late days never count as record length.
-export function recordText(draws: number | null, unit: string, live: number | null | undefined): string {
+// A row's record: its scored draws in the game's unit and how many of them were live - the ticket saved before the
+// draw's sales close (lottery since 27 Oct 2026; a ticket rewritten after the draw counts as it stood at the close,
+// recovered) or out before the close (markets). Back-built or late draws never count as record length. Without a
+// live record (a report from before, a game not judged) the draws alone.
+//   "48 draws · 41 live (8 as saved before the close, rewritten later), 7 back-built or late"
+export function recordText(draws: number | null, unit: string, live: number | null | undefined, recovered?: number | null): string {
   const n = count(draws, unit);
   if (!isNum(live) || !isNum(draws)) return n;
-  if (live >= draws) return `${n} · all live`;
+  const rec = isNum(recovered) && recovered > 0 ? ` (${recovered} as saved before the close, rewritten later)` : '';
+  if (live >= draws) return `${n} · all live${rec}`;
   if (live <= 0) return `${n} · none live (back-built or late)`;
-  return `${n} · ${live} live, ${draws - live} back-built or late`;
-}
-
-// The longest live record among the market rows above their band, per unit and naming its game - a day, a trading
-// day and a week are not one scale: "markets ≤ 20 live days (crypto), ≤ 14 live trading days (shares), ≤ 2 live weeks
-// (cryptoweek)"; '' with no market row above.
-export function liveRecordsText(games: { game: string; unit: string; longestLive: number | null }[]): string {
-  const top = new Map<string, { game: string; n: number }>();
-  games.forEach((g) => {
-    const n = g.longestLive ?? 0;
-    const was = top.get(g.unit);
-    if (!was || n > was.n) top.set(g.unit, { game: g.game, n });
-  });
-  const parts = [...top.entries()].map(([unit, x]) => `≤ ${x.n} live ${x.n === 1 ? perUnit(unit) : units(unit)} (${x.game})`);
-  return parts.length ? `markets ${parts.join(', ')}` : '';
+  return `${n} · ${live} live${rec}, ${draws - live} back-built or late`;
 }
 
 export function GameButton({ game, onOpen, label }: { game: string; onOpen: (game: string) => void; label?: string }) {
@@ -92,8 +82,9 @@ export function valueCell(g: { metric: string; unit: string; measure: Measure },
   return { main: signedFixed(value), sub: [against, `raw profit ${signedFixed(profitPerBet)} EUR per bet${bets !== null ? ` · ${bets} bets` : ''}`] };
 }
 
-// A Q0 band built from one control only - the rule takes the higher of synthetic and shuffled, so a band without
-// one of them can be lower than the rule's: "shuffled only (synthetic missing)". '' for a band from both.
+// The Q0 band (context since 27 Oct 2026: the best of 8 untuned rows on 120 fair draws, NullControls.py) built from one
+// control only - the rule takes the higher of synthetic and shuffled, so a band without one of them can be lower than
+// the rule's: "shuffled only (synthetic missing)". '' for a band from both.
 export function oneControlText(b: { from: string; missing: MissingControl[] }): string {
   if (!b.missing.length) return '';
   return `${b.from} only (${b.missing.map((m) => `${m.mode} ${m.unreadable ? 'unreadable' : 'missing'}`).join(', ')})`;
@@ -106,4 +97,65 @@ export const joinParts = (parts: (string | null | undefined | false)[], sep = ' 
 // file of draws ("1 draw behind the data file"; the old card's "behind the file").
 export function tableNote(f: { behind: number | null; positional: boolean }, unit: string): string {
   return joinParts([f.positional ? 'positional' : '', f.behind ? `${count(f.behind, unit)} behind the data file` : '']);
+}
+
+// --- Q0, the row tests (27 Oct 2026, src/RowChance.py) -----------------------------------------------------------
+// A p value as the cards print it: three decimals, "< 0.001" below; a corrected p two decimals (three under 0.01).
+export const pText = (p: number | null) => (!isNum(p) ? DASH : p < 0.001 ? '< 0.001' : p.toFixed(3));
+export const correctedText = (p: number | null) => (!isNum(p) ? DASH : p < 0.001 ? '< 0.001' : p < 0.01 ? p.toFixed(3) : p.toFixed(2));
+// what a row's hits are held against: a fair draw (lottery) or its own tickets shuffled (markets)
+export const nullWord = (method: string | null | undefined) => (method === 'permutation' ? 'shuffled' : 'fair');
+// "22 live draws", "1 live week"
+export const liveCount = (n: number | null, unit: string) => (isNum(n) ? `${n} live ${n === 1 ? perUnit(unit) : units(unit)}` : DASH);
+
+// One row's test on one line, its own figures next to its p (the plan-card trust rule: a p never stands next to an
+// all-draws average): "WeightedEnsemble 1.091 on 22 live draws vs fair 0.800 · p 0.058 · corrected 1.00". name false
+// leaves the row's name out (a table cell that has it); a row outside the family has no corrected p.
+export function chanceLine(r: Q0Line, unit: string, method: string | null | undefined, name = true): string {
+  return joinParts([
+    `${name ? `${short(r.row)} ` : ''}${fixed(r.mean)} on ${liveCount(r.live, unit)} vs ${nullWord(method)} ${fixed(r.null)}`,
+    `p ${pText(r.p)}`,
+    r.inFamily && isNum(r.pHolm) ? `corrected ${correctedText(r.pHolm)}` : '',
+  ]);
+}
+
+// A followed row's fresh record in one line: running ("followed since Sun 11 Oct · 4 of 28 new draws · so far 1.500 vs
+// fair 0.800, not a verdict"), stopped (no new live draw for four weeks), or its verdict ("confirmed on 28 new draws ·
+// 1.214 vs fair 0.800 · p 0.006 (needs < 0.01) · draw of 13 Feb"). A running row shows no p: read week after week, a
+// p would be a verdict taken whenever it dips.
+export function freshText(f: Q0Fresh, unit: string, method: string | null | undefined, verdictAlpha = 0.01): string {
+  const vs = `vs ${nullWord(method)}`;
+  const length = f.verdictLength ?? 0;
+  if (f.state === 'confirmed' || f.state === 'not confirmed') {
+    return joinParts([
+      `${f.state} on ${count(length, unit).replace(/^(\d+) /, '$1 new ')}`,
+      `${fixed(f.mean)} ${vs} ${fixed(f.null)}`,
+      `p ${pText(f.p)} (needs < ${verdictAlpha})`,
+      f.verdictAt ? `${perUnit(unit)} of ${day(f.verdictAt)}` : '',
+    ]);
+  }
+  const so = Math.min(f.draws, length);
+  return joinParts([
+    `followed since ${weekday(f.since)}`,
+    f.state === 'stopped' ? `stopped: no new live ${perUnit(unit)} for four weeks${f.last ? ` (last ${day(f.last)})` : ''}` : '',
+    `${so} of ${length} new ${length === 1 ? perUnit(unit) : units(unit)}`,
+    so ? `so far ${fixed(f.mean)} ${vs} ${fixed(f.null)}, not a verdict` : 'no new one yet',
+  ]);
+}
+
+// The Q0 tile's foot (the Controls and Week pages): under the rows confirmed on new draws in the hit-ranked games - the one
+// figure that counts - this week's figures, each with what chance gives next to it.
+export function q0TileFoot(t: ControlTiles['q0'], unitOf: (game: string) => string): string[] {
+  const p = t.payout;
+  return [
+    t.confirmedRows.length ? `confirmed: ${t.confirmedRows.map((x) => `${short(x.row)} (${x.game})`).join(', ')}` : '',
+    `${t.holds} hold this week (corrected for the rows compared) · ${t.under} under 5%, ≈${fixed(t.expected, 1)} by chance · ${t.followed} followed${t.stopped ? ` (${t.stopped} stopped)` : ''}`,
+    `${t.family} rows tested on live draws in ${t.games} of ${t.hitRankedGames} hit-ranked games`,
+    t.tooFew.length ? `too few live draws yet: ${t.tooFew.map((x) => `${x.game} ${x.liveMax} of ${count(x.minDraws, unitOf(x.game))}`).join(', ')}` : '',
+    t.noTest.length ? `no row test: ${t.noTest.map((x) => `${x.game}${x.why ? ` (${x.why})` : ''}`).join(', ')}` : '',
+    p.games.length
+      ? `payout games, on hits, not counted: ${p.under} under 5% (≈${fixed(p.expected, 1)}) · ${p.followed} followed · ${p.confirmed} confirmed`
+      : '',
+    `report ${stamp(t.at)}`,
+  ];
 }

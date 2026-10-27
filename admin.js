@@ -30,8 +30,8 @@
 // generateMultiPickSummary, generateCombinationSummary, generateLagAnalysis, generateRandomnessWatch and the
 // feature-control card), built by pure functions below so the rules are testable (test/admin.test.js), with what
 // the admin plan lists as broken fixed at the source: a keno profit bound comes with the raw profit per bet and
-// what the bound is measured against (a fair ticket), the Q0 band is compared hits with hits in every game, a
-// combination's p value travels with its value. Nothing here colours a number: each figure carries its window and
+// what the bound is measured against (a fair ticket), Q0 tests each row on its live draws against its own fair level
+// (27 Oct 2026; the null band is context), a combination's p value travels with its value. Nothing here colours a number: each figure carries its window and
 // unit, and the page decides how to show it. No raw record is ever sent.
 //
 // Every source file is read once per change (cache keyed by modification time and size): modelPerformance.json is
@@ -57,8 +57,6 @@ const isMarketGame = (game) => MARKET_GAMES.includes(game);
 // game's JSON is in this unit (the week games' "draws" are weeks, shares' are trading days).
 const UNIT = { lotto: 'draws', euromillions: 'draws', eurodreams: 'draws', vikinglotto: 'draws', jokerplus: 'days', pick3: 'days',
   keno: 'days', crypto: 'days', shares: 'trading days', cryptoweek: 'weeks', sharesweek: 'weeks' };
-// RandomnessDiscrimination's power_rule: a record is underpowered "below about 250 held-out windows"
-const FEW_WINDOWS = 250;
 // the feature-control variants by their short code, as on the mockup's dots
 const VARIANT_CODE = { logistic: 'lr', gradient_boosting: 'gb', quantum_kernel: 'qk', quantum_vqc: 'qv', classical_svm: 'svm' };
 // the Randomness watch tripwires (server.js generateRandomnessWatch): deliberately loose, an alarm and not a verdict
@@ -162,13 +160,13 @@ function readControls(dirs, game) {
   ];
   return { q0, q2, fc, rows, unreadable };
 }
-// The parts of a game's errors that come from files that did not load: a part with nothing to show (q2, fc,
-// rows), and Q0 when no control gave a band (a band from one control says so itself: band.missing).
+// The parts of a game's errors that come from files that did not load: a part with nothing to show (q2, fc, rows).
+// Q0 is no Sunday record since 27 Oct 2026: its error is a game without a row test (q0Of's error, named by the
+// overview), and a NullControls record that did not load only leaves the band's context out (q0.bandUnreadable, or
+// band.missing for a band from one control).
 function unreadableErrors(unreadable, view) {
   const parts = unreadable || [];
-  const out = ['q2', 'fc', 'rows'].filter((part) => parts.includes(part) && !view[part]);
-  if (!view.q0Band && parts.some((u) => u.startsWith('q0:'))) out.unshift('q0');
-  return out;
+  return ['q2', 'fc', 'rows'].filter((part) => parts.includes(part) && !view[part]);
 }
 // The controls a band is not built from, each with whether its file is there but did not load: a band from one
 // control (the other missing, or caught half written) is not the higher of the two the rule names.
@@ -210,70 +208,116 @@ function measureOf(game, metric) {
   if (metric === 'profit_per_bet') return { unit: 'EUR per bet', text: rankings.METRIC_TEXT.profit_per_bet, against: 'the payout table (money)' };
   return { unit: 'hits per draw', text: rankings.METRIC_TEXT.avg_hits };
 }
-// Market games: a row's live draws are the days whose ticket was out before the close, over its whole record - the
-// report's live_draws (Helpers.py, from 21 Oct 2026), so draws minus live = back-built or late days. A report written
-// before that has only the since record, which counts the same days but from the freeze date on: it stands in only
-// while the freeze is on or before the day the markets went live (27 Sep today); a later freeze would turn earlier
-// live days into back-built ones, so then the split is not shown.
+// A row's live draws over its whole record, so draws minus live = back-built or late: the report's live_draws. A market
+// game's are the days whose ticket was out before the close (Helpers.py, from 21 Oct 2026); a lottery game's the draws
+// whose ticket was saved before the sales close, a ticket rewritten after the draw counted as it stood at the close
+// (src/Liveness.py, from 27 Oct 2026: recoveredOf says how many) - a second row of one name on a draw is not live
+// either. A lottery game without them (a report from before, or one whose liveness could not be judged) shows no
+// split, nor does one whose liveness reads 'unchecked' (no git and no earlier check: its live_draws count every
+// unchecked draw as not live, which is no evidence of a back-built or late ticket; 27 Oct 2026 review). A market report
+// written before 21 Oct has only the since record, which counts the same days but from the freeze date on: it stands
+// in only while the freeze is on or before the day the markets went live (27 Sep today); a later freeze would turn
+// earlier live days into back-built ones, so then the split is not shown.
+const livenessUnchecked = (info) => Boolean(info && info.liveness && info.liveness.checked === 'unchecked');
 function liveOf(game, info) {
-  if (!isMarketGame(game) || !info) return () => undefined;
+  if (!info || (!isMarketGame(game) && livenessUnchecked(info))) return () => undefined;
   const byName = {};
   if (info.models.some((m) => m && num(m.live_draws) !== null)) {
     info.models.forEach((m) => { if (m) byName[m.name] = num(m.live_draws) || 0; });
     return (name) => (byName[name] === undefined ? 0 : byName[name]);
   }
+  if (!isMarketGame(game)) return () => undefined;
   if (!info.since || !Array.isArray(info.since.models) || !(String(info.since.date) <= MARKETS_STARTED)) return () => undefined;
   info.since.models.forEach((m) => { if (m) byName[m.name] = num(m.draws) || 0; });
   return (name) => (byName[name] === undefined ? 0 : byName[name]);
 }
+// A lottery row's live draws that were rewritten after the draw and are scored as they stood at the close (the
+// report's live.recovered); undefined without a live record, or with an 'unchecked' one (liveOf).
+function recoveredOf(info) {
+  const byName = {};
+  if (livenessUnchecked(info)) return () => undefined;
+  ((info && info.models) || []).forEach((m) => { if (m && m.live && typeof m.live === 'object' && num(m.live.recovered) !== null) byName[m.name] = num(m.live.recovered); });
+  return (name) => byName[name];
+}
+// What a game's ranking reads (the owner's decision 1, 27 Oct 2026): a lottery game whose report ranks on the live
+// record (rankedOn 'live': only the tickets saved before each draw's sales close count, Helpers.py) is read on each
+// row's live block - its value, figures and the 10-draw guard on live draws - with the all-draws value beside it;
+// every other game on every stored draw. A game whose liveness could not be judged is never ranked on it.
+function rankingBasis(info) {
+  const live = Boolean(info && info.rankedOn === 'live' && info.live && typeof info.live === 'object');
+  const of = (m) => (live ? (m && m.live && typeof m.live === 'object' ? m.live : {}) : m || {});
+  return { live, rankedOn: live ? 'live' : 'all', of, minDraws: num(live ? info.live.minDrawsForRanking : info && info.minDrawsForRanking) || 0,
+    draws: (m) => num(of(m).draws) || 0 };
+}
 
-// --- Q0: the null band ---------------------------------------------------------
-// Every game is compared hits with hits: the band is hits per draw on fair histories, so a payout game's rows are
-// read on their average hits too (never a euro figure next to a hits band), and stay out of the headline count
-// (inTile false) because their ranking reads a profit bound.
+// --- Q0: the per-row chance test -------------------------------------------------
+// Since 27 Oct 2026 (B3 of the 26 Oct weekly reading) Q0 is the daily report's row test (src/RowChance.py, read through
+// controls.describeChance): each row on its live draws, on the card's own hit scale, against the fair draw (lottery,
+// exact) or its own tickets shuffled within blocks of 7 live days (markets); Holm over the game's family (the rows with
+// minDrawsForRanking live draws); a row that read p < 0.05 on a Sunday is followed and judged once on as many new live
+// draws as flagged it (confirmed at p < 0.01). Until then a row was "above" when its hits over every stored draw beat
+// the game's band - which, under fair draws, put a lotto row above in 98% of weeks and re-read one record week after
+// week. The band (NullControls.py) stays as context (band, the drawer's chart); it labels, greys and counts nothing.
+// Only a CONFIRMED row counts anywhere a colour, chip, streak or headline appears; under 5% and holds are this week's
+// figures, each next to what chance puts there. A payout game is tested on hits too, information only (inTile false).
+// Every row line carries its own mean, live draws and null with its p (the plan-card trust rule).
 // unreadable: readControls' list, so a band from one control names the other and why it is not there
+const Q0_RULE = 'row test';
+const byP = (a, b) => (a.p === null ? 1 : a.p) - (b.p === null ? 1 : b.p) || a.row.localeCompare(b.row);
+function q0Lines(game, info, chance) {
+  const recovered = recoveredOf(info);
+  return (name) => {
+    const c = chance && chance.rows[name];
+    if (!c) return null;
+    const out = { row: name, mean: r3(c.mean), live: c.draws, notLive: c.notLive, null: r3(c.null), p: c.p, pHolm: c.pHolm, inFamily: c.inFamily };
+    if (recovered(name) !== undefined) out.recovered = recovered(name);
+    if (c.fresh) out.fresh = c.fresh;
+    return out;
+  };
+}
 function q0Of(game, reports, info, unreadable = []) {
   const band = controls.nullBand(reports || {});
   const mode = band ? band.modes[band.from] : null;
   const models = info ? info.models : [];
   const minDraws = info ? num(info.minDrawsForRanking) || 0 : 0;
-  const ranked = models.filter((m) => num(m.draws) !== null && m.draws >= minDraws);
   const payout = info ? info.metric !== 'avg_hits' : false;
-  const live = liveOf(game, info);
-  const perRow = band && reports[band.from] && reports[band.from].per_row_mean ? reports[band.from].per_row_mean : {};
-  const describe = (m) => {
-    const out = { row: m.name, hits: r3(m.avg_hits), draws: m.draws };
-    const l = live(m.name);
-    if (l !== undefined) { out.live = l; out.notLive = m.draws - l; }
-    // the row's own level in the control the band comes from: one record for both numbers
-    if (typeof perRow[m.name] === 'number') out.own = r3(perRow[m.name]);
-    return out;
-  };
-  const byHits = ranked.filter((m) => num(m.avg_hits) !== null).sort((a, b) => b.avg_hits - a.avg_hits);
-  const above = band ? byHits.filter((m) => m.avg_hits > band.ceiling) : [];
-  const lengths = above.map((m) => m.draws);
-  const lives = isMarketGame(game) ? above.map((m) => live(m.name) || 0) : [];
+  const chance = controls.describeChance(info);
+  const line = q0Lines(game, info, chance);
+  const lines = models.map((m) => line(m.name)).filter(Boolean);
+  const family = lines.filter((r) => r.inFamily && r.p !== null).sort(byP);
+  // the rows the card names: those under 5% this week, and every followed or confirmed row - a row judged not confirmed
+  // is counted (test.notConfirmed) and listed in the drawer, so the card does not grow with every verdict of the past
+  const named = lines.filter((r) => (r.inFamily && r.p !== null && r.p < chance.test.alpha) || (r.fresh && r.fresh.state !== 'not confirmed')).sort(byP);
   return {
-    ranking: payout ? 'profit' : 'hits',
-    // at: the record the band comes from; modes: every control record's own time (a band half rewritten on a Sunday
-    // mixes this week's and last week's)
+    ranking: payout ? 'profit' : 'hits', inTile: !payout,
+    // test: the game's summary; error: why there is no test (no ranking, a report from before, a lottery game whose
+    // liveness could not be judged, a test that failed) - never read as "none under"
+    test: chance ? chance.test : null, error: info ? chance.error : 'no ranking for this game yet',
+    lowest: family[0] || null,
+    rows: named,
+    confirmed: lines.filter((r) => r.fresh && r.fresh.state === 'confirmed').map((r) => r.row),
+    followed: lines.filter((r) => r.fresh && (r.fresh.state === 'running' || r.fresh.state === 'stopped')).map((r) => r.row),
+    leader: payout && models.length ? { row: models[0].name, draws: models[0].draws } : null,
+    allRows: models.length, minDraws,
+    // context only: at - the record the band comes from; modes - every control record's own time (what a NullControls
+    // run wrote is judged on both); unreadable - no band because a record is there but did not load
     band: band ? { ceiling: r3(band.ceiling), from: band.from, rows: mode.rows, seeds: mode.seeds, history: mode.days, metric: band.metric,
       at: isoUtc(mode.generatedAt), modes: Object.keys(band.modes).map((m) => ({ mode: m, at: isoUtc(band.modes[m].generatedAt) })),
       missing: bandMissing(band, unreadable) } : null,
-    rankedRows: ranked.length, allRows: models.length, minDraws,
-    best: byHits.length ? { ...describe(byHits[0]), clears: band ? byHits[0].avg_hits > band.ceiling : null } : null,
-    leader: payout && models.length ? { row: models[0].name, draws: models[0].draws } : null,
-    above: {
-      n: above.length,
-      longest: lengths.length ? Math.max(...lengths) : null,
-      longestLive: lives.length ? Math.max(...lives) : null,
-      sameLength: above.length ? new Set(lengths).size === 1 : null,
-      // the live counts on their own: rows of one record length can differ in how many of their days were live
-      sameLive: lives.length ? new Set(lives).size === 1 : null,
-      inTile: !payout,
-      rows: above.map(describe),
-    },
+    bandUnreadable: !band && (unreadable || []).some((u) => u.startsWith('q0:')),
   };
+}
+// The overview's Q0 without what only the drawer reads (the page stays well under its size: 11 games, every week): a
+// fresh record's flag figures and decision day, the band's ceiling - the overview keeps the band's basis and times (what
+// a NullControls run wrote), and the control a band from one is missing.
+const slimLine = (r) => (r && r.fresh ? { ...r, fresh: Object.fromEntries(Object.entries(r.fresh).filter(([k]) => !['flagP', 'flagMean', 'flagNull', 'decidedOn'].includes(k))) } : r);
+const slimQ0 = (q0) => ({ ...q0, lowest: slimLine(q0.lowest), rows: q0.rows.map(slimLine),
+  band: q0.band && { from: q0.band.from, rows: q0.band.rows, seeds: q0.band.seeds, history: q0.band.history, at: q0.band.at, modes: q0.band.modes, missing: q0.band.missing } });
+// The drawer's table: every family row and every followed or judged row, lowest p first.
+function q0Table(game, info) {
+  const chance = controls.describeChance(info);
+  const line = q0Lines(game, info, chance);
+  return (info ? info.models : []).map((m) => line(m.name)).filter((r) => r && ((r.inFamily && r.p !== null) || r.fresh)).sort(byP);
 }
 
 // --- Q2: the randomness discrimination -----------------------------------------
@@ -286,13 +330,19 @@ function q2DrawsUsed(record, window) {
   const test = num(shape.windows_test);
   return train === null || test === null || num(window) === null ? null : Math.round((train + test) / 2) + window - 1;
 }
+// status: controls.describeDiscrimination's - a record's own from 1 Nov 2026 on (verdict version 2), an older one's
+// derived from its flags - with 'failed' for a run where a comparison scored fewer than 2 seeds, never read as within.
+// rule: the verdict version it was read under (1 = mean + 2 sd of 3 seeds, 5 for the markets; 2 = the bounds from the
+// seed count). minWindows: the test windows the record was judged by - fewer read "too few draws" (fewWindows).
+// thresholdSe, shuffledThreshold and bandK (the k of the null bound) come with a version-2 record only, null before.
 function q2Of(record) {
   if (!record) return null;
   const d = controls.describeDiscrimination(record);
   return {
-    status: d.tooFew ? 'too few draws' : (d.evidence ? 'above' : (d.aboveBand ? 'above band, not shuffled' : 'within')),
-    real: r3(d.real), threshold: r3(d.threshold), shuffled: r3(d.shuffled),
-    seeds: d.repetitions, windowsTest: d.windowsTest, fewWindows: d.windowsTest !== null && d.windowsTest < FEW_WINDOWS,
+    status: d.status, rule: d.version,
+    real: r3(d.real), threshold: r3(d.threshold), thresholdSe: r3(d.thresholdSe), shuffled: r3(d.shuffled), shuffledThreshold: r3(d.shuffledThreshold),
+    bandK: r2(d.bandK),
+    seeds: d.repetitions, windowsTest: d.windowsTest, fewWindows: d.windowsTest !== null && d.windowsTest < d.fewWindows, minWindows: d.fewWindows,
     window: d.window, drawsCap: d.draws, drawsUsed: q2DrawsUsed(record, d.window), quantum: d.quantum, at: isoUtc(d.generatedAt),
   };
 }
@@ -320,19 +370,30 @@ function fcOf(record) {
   };
 }
 
-// --- market rows: the market rows against GARCH and uniform ---------------------------
+// --- market rows: the market rows against GARCH, uniform and the frequencies -----------
+// The scored rows are the model rows: since 26 Oct 2026 the baselines carry a log-score too (MarketRows.py), and
+// they are counted as baselines, never among the rows that beat something. frequency: the baseline every row is
+// held against for "more than the frequencies" (null on a report from before); frequencyVsUniform: what knowing the
+// frequencies alone scores against uniform - a row that beats uniform by no more than that has shown nothing else.
 function rowsOf(record) {
   if (!record) return null;
   const d = markets.describeRows(record);
-  const scored = d.rows.filter((r) => r.logScore !== null && !r.isReference);
+  const isBaseline = (r) => r.kind === 'baseline';
+  const scored = d.rows.filter((r) => r.logScore !== null && !r.isReference && !isBaseline(r));
   const ref = d.referenceRow;
+  const freq = d.frequencyRow;
+  const interval = (x) => (x ? { mean: r4(x.mean), lo: r4(x.lo), hi: r4(x.hi), verdict: x.verdict } : null);
   return {
     window: d.days, requested: d.requested, firstDay: d.firstDay, lastDay: d.lastDay, lockboxWithheld: d.lockboxWithheld,
-    reference: d.reference, rowsTotal: d.rows.length, rowsScored: scored.length, baselines: d.rows.filter((r) => r.logScore === null).length,
+    reference: d.reference, rowsTotal: d.rows.length, rowsScored: scored.length, baselines: d.rows.filter(isBaseline).length,
     betterThanUniform: scored.filter((r) => r.vsUniform && r.vsUniform.verdict === 'better').map((r) => r.name),
     betterThanReference: scored.filter((r) => r.vsReference && r.vsReference.verdict === 'better').map((r) => r.name),
     noDifferenceVsReference: scored.filter((r) => r.vsReference && r.vsReference.verdict === 'no difference').length,
-    referenceVsUniform: ref && ref.vsUniform ? { mean: r4(ref.vsUniform.mean), lo: r4(ref.vsUniform.lo), hi: r4(ref.vsUniform.hi), verdict: ref.vsUniform.verdict } : null,
+    referenceVsUniform: interval(ref && ref.vsUniform),
+    frequency: d.frequency,
+    betterThanFrequency: scored.filter((r) => r.vsFrequency && r.vsFrequency.verdict === 'better').map((r) => r.name),
+    referenceVsFrequency: interval(ref && ref.vsFrequency),
+    frequencyVsUniform: interval(freq && freq.vsUniform),
     errors: Object.keys(d.errors).length, hmmFeatures: d.hmmFeatures, at: isoUtc(d.generatedAt),
   };
 }
@@ -349,9 +410,15 @@ function guarded(errors, part, build) {
     return null;
   }
 }
-// a game's Q0 with no band and no rows, for a game whose Q0 could not be built
-const NO_Q0 = { ranking: 'hits', band: null, rankedRows: 0, allRows: 0, minDraws: 0, best: null, leader: null,
-  above: { n: 0, longest: null, longestLive: null, sameLength: null, sameLive: null, inTile: false, rows: [] } };
+// a game's Q0 with no test, no rows and no band, for a game whose Q0 could not be built
+const NO_Q0 = { ranking: 'hits', inTile: false, test: null, error: 'the row test could not be read', lowest: null, rows: [], confirmed: [], followed: [],
+  leader: null, allRows: 0, minDraws: 0, band: null, bandUnreadable: false };
+// One game's Q0 for the overview, the drawer and the readings: a game without a row test is named in errors ('q0').
+function q0Part(errors, game, input, info) {
+  const q0 = guarded(errors, 'q0', () => q0Of(game, input.q0, info, input.unreadable)) || NO_Q0;
+  if (!q0.test && !errors.includes('q0')) errors.push('q0');
+  return q0;
+}
 function controlsOverview(inputs, report, now = new Date()) {
   const games = {};
   GAMES.forEach((game) => {
@@ -359,18 +426,21 @@ function controlsOverview(inputs, report, now = new Date()) {
     const errors = [];
     games[game] = {
       game, unit: UNIT[game],
-      q0: guarded(errors, 'q0', () => q0Of(game, input.q0, gameInfo(report, game), input.unreadable)) || NO_Q0,
+      q0: slimQ0(q0Part(errors, game, input, gameInfo(report, game))),
       q2: guarded(errors, 'q2', () => q2Of(input.q2)),
       fc: guarded(errors, 'fc', () => fcOf(input.fc)),
       rows: isMarketGame(game) ? guarded(errors, 'rows', () => rowsOf(input.rows)) : null,
       errors,
     };
     const g = games[game];
-    unreadableErrors(input.unreadable, { q0Band: g.q0.band, q2: g.q2, fc: g.fc, rows: g.rows }).forEach((part) => { if (!errors.includes(part)) errors.push(part); });
+    unreadableErrors(input.unreadable, { q2: g.q2, fc: g.fc, rows: g.rows }).forEach((part) => { if (!errors.includes(part)) errors.push(part); });
   });
   const all = GAMES.map((g) => games[g]);
   const q0s = all.filter((g) => g.q0.band);
-  const hitRanked = q0s.filter((g) => g.q0.ranking === 'hits');
+  const tested = all.filter((g) => g.q0.test);
+  const headline = tested.filter((g) => g.q0.inTile);
+  const payout = tested.filter((g) => !g.q0.inTile);
+  const sum = (list, key) => list.reduce((s, g) => s + g.q0.test[key], 0);
   const q2s = all.filter((g) => g.q2);
   const inGroup = (name) => (g) => groupOf(g.game) === name;
   const fcs = all.filter((g) => g.fc);
@@ -379,27 +449,32 @@ function controlsOverview(inputs, report, now = new Date()) {
   const seedsOf = (list, pick) => [...new Set(list.map(pick).filter((x) => x !== null && x !== undefined))].sort((a, b) => a - b);
   const tiles = {
     q0: {
-      // the headline rule (plan decision 2 still open): every ranked row of the hit-ranked games against its game's band
-      rowsAbove: hitRanked.reduce((s, g) => s + g.q0.above.n, 0), games: hitRanked.filter((g) => g.q0.above.n).length, hitRankedGames: hitRanked.length,
-      longest: range(hitRanked.flatMap((g) => g.q0.above.rows.map((r) => r.draws))),
-      longestLiveMarkets: range(hitRanked.filter((g) => isMarketGame(g.game)).flatMap((g) => g.q0.above.rows.map((r) => r.live || 0))),
-      withOwnLevel: hitRanked.flatMap((g) => g.q0.above.rows).filter((r) => r.own !== undefined).length,
-      alternatives: {
-        allGamesOnHits: { rowsAbove: q0s.reduce((s, g) => s + g.q0.above.n, 0), games: q0s.filter((g) => g.q0.above.n).length },
-        bestRowOnly: { games: hitRanked.filter((g) => g.q0.best && g.q0.best.clears).map((g) => g.game) },
-      },
-      // the games compared on no band (no record, or one that could not be read): named, never counted as "none above"
-      noBand: all.filter((g) => !g.q0.band).map((g) => g.game),
-      // the games whose band comes from one control only (the other missing or unreadable): counted, and named
-      oneControl: all.filter((g) => g.q0.band && g.q0.band.missing.length).map((g) => ({ game: g.game, from: g.q0.band.from, missing: g.q0.band.missing })),
-      // the run: every Q0 record, both controls (a band's own time is the record it comes from)
-      from: earliest(q0Times), at: latest(q0Times),
+      // the headline (27 Oct 2026): the rows CONFIRMED on new draws in the hit-ranked games, the only figure that counts;
+      // holds, under 5% (with what chance puts there) and followed are this week's figures beside it
+      confirmed: headline.reduce((s, g) => s + g.q0.confirmed.length, 0),
+      confirmedRows: headline.flatMap((g) => g.q0.confirmed.map((row) => ({ game: g.game, row }))),
+      holds: sum(headline, 'holds'), under: sum(headline, 'under'), expected: r2(sum(headline, 'expected')), family: sum(headline, 'family'),
+      followed: sum(headline, 'followed'), stopped: sum(headline, 'stopped'), notConfirmed: sum(headline, 'notConfirmed'),
+      // games: the hit-ranked games with a family; tooFew: those tested whose rows have too few live draws yet (the week
+      // games until 10 live weeks), with the most live draws of a row and the minimum
+      games: headline.filter((g) => g.q0.test.family).length, hitRankedGames: all.filter((g) => g.q0.ranking === 'hits' && gameInfo(report, g.game)).length,
+      tooFew: headline.filter((g) => !g.q0.test.family).map((g) => ({ game: g.game, liveMax: g.q0.test.liveMax, minDraws: g.q0.test.minDraws })),
+      // the payout games, tested on hits: information only, out of every figure above
+      payout: { games: payout.map((g) => g.game), under: sum(payout, 'under'), expected: r2(sum(payout, 'expected')), holds: sum(payout, 'holds'),
+        followed: sum(payout, 'followed'), confirmed: payout.reduce((s, g) => s + g.q0.confirmed.length, 0), notConfirmed: sum(payout, 'notConfirmed') },
+      // the games with no row test, named with why: never counted as "none under"
+      noTest: all.filter((g) => !g.q0.test).map((g) => ({ game: g.game, why: g.q0.error })),
+      at: isoUtc(report && report.generatedAt),
+      // context: the NullControls band records (both controls; a band's own time is the record it comes from)
+      band: { games: q0s.length, from: earliest(q0Times), at: latest(q0Times),
+        oneControl: all.filter((g) => g.q0.band && g.q0.band.missing.length).map((g) => ({ game: g.game, from: g.q0.band.from, missing: g.q0.band.missing })) },
     },
     q2: {
       above: q2s.filter((g) => g.q2.status === 'above').length, of: q2s.length,
       aboveGames: q2s.filter((g) => g.q2.status === 'above').map((g) => g.game),
       tooFewGames: q2s.filter((g) => g.q2.status === 'too few draws').map((g) => g.game),
-      aboveFewWindows: q2s.filter((g) => g.q2.status === 'above' && g.q2.fewWindows).map((g) => ({ game: g.game, windowsTest: g.q2.windowsTest })),
+      // a run where a comparison scored fewer than 2 seeds: no reading, named so it is never counted as within
+      failedGames: q2s.filter((g) => g.q2.status === 'failed').map((g) => g.game),
       seeds: Object.fromEntries(GROUPS.map((grp) => [grp.name, seedsOf(q2s.filter(inGroup(grp.name)), (g) => g.q2.seeds)])),
       // the games out of the denominator, named: no record yet, or one that could not be read
       missing: all.filter((g) => !g.q2 && !g.errors.includes('q2')).map((g) => g.game), unreadable: all.filter((g) => !g.q2 && g.errors.includes('q2')).map((g) => g.game),
@@ -415,6 +490,9 @@ function controlsOverview(inputs, report, now = new Date()) {
     rows: {
       beatReference: rows.reduce((s, g) => s + g.rows.betterThanReference.length, 0), games: rows.length,
       referenceAboveUniform: rows.filter((g) => g.rows.referenceVsUniform && g.rows.referenceVsUniform.verdict === 'better').length,
+      // the games whose report holds the reference against the frequencies (26 Oct 2026 on), and in how many it beats them
+      frequencyGames: rows.filter((g) => g.rows.referenceVsFrequency).length,
+      referenceAboveFrequency: rows.filter((g) => g.rows.referenceVsFrequency && g.rows.referenceVsFrequency.verdict === 'better').length,
       windows: rows.map((g) => ({ game: g.game, window: g.rows.window, unit: g.unit })),
       missing: MARKET_GAMES.filter((g) => !games[g].rows),
       unreadable: MARKET_GAMES.filter((g) => !games[g].rows && games[g].errors.includes('rows')),
@@ -425,13 +503,26 @@ function controlsOverview(inputs, report, now = new Date()) {
     builtAt: isoUtc(now.toISOString()),
     rankingAt: isoUtc(report && report.generatedAt),
     meta: {
-      q0: { rule: 'best of the tracked rows on fair histories + 2 sd across seeds, the higher of synthetic and shuffled', metric: 'hits per draw',
+      q0: { rule: Q0_RULE, metric: 'hits per draw (week games: per week), on live draws',
+        test: 'each ranked row on its live draws: lottery against the exact fair-draw null (the hits a fair draw gives tickets of the same shape), '
+          + 'markets against its own tickets shuffled within blocks of 7 live days (weeks), outcomes fixed, 20,000 times; p one-sided; '
+          + 'Holm over the rows with at least minDraws live draws',
+        under: 'raw p < 0.05, next to what chance puts there (lottery: the sum of each row\'s discrete level; markets: rows x 0.05)',
+        holds: 'still under 0.05 after Holm\'s correction for the rows compared - a figure, never a colour or a streak',
+        followed: 'from the first Sunday a row\'s live record read p < 0.05; judged once on as many new live draws as flagged it (at least minDraws, '
+          + 'at most 52): confirmed at p < 0.01, not confirmed otherwise; stopped after four weeks without a new live draw',
+        headline: 'the confirmed rows of the hit-ranked games; the payout games are tested on hits, information only',
+        band: 'context only: the best of 8 untuned rows on 120 fair draws + 2 sd across seeds, the higher of synthetic and shuffled (NullControls.py)',
         rows: range(q0s.map((g) => g.q0.band.rows)), history: range(q0s.map((g) => g.q0.band.history)),
         seeds: Object.fromEntries(GROUPS.map((grp) => [grp.name, seedsOf(q0s.filter(inGroup(grp.name)), (g) => g.q0.band.seeds)])),
-        ranked: 'rows with at least minDraws scored draws; payout games compared on hits and left out of the headline count',
-        live: 'market games: live = days whose ticket was out before the close, over the whole record (live_draws); notLive = back-built or late days' },
-      q2: { metric: 'best AUC of the classifier suite, mean over seeds', axis: [0.5, 1.0], fewWindows: FEW_WINDOWS,
-        rule: 'above = real above the null mean + 2 sd and above the shuffled control; too few draws when the threshold is 0.8 or more' },
+        live: 'live = draws whose ticket was saved before the sales close, over the whole record (live_draws) - lottery: stamped or committed '
+          + 'before it, a ticket rewritten after the draw scored as it stood at the close (recovered); markets: out before the close; '
+          + 'notLive = back-built or late (and a second row of one name on a draw)' },
+      // rule: version 2 (the records from 1 Nov 2026 on); k comes from each record's own seed count, so it is not named
+      q2: { metric: 'best AUC of the classifier suite, mean over seeds', axis: [0.5, 1.0], fewWindows: controls.FEW_WINDOWS,
+        rule: 'above = the real mean above the null bound (null mean + k sd: the 97.7% bound for one fair run, k from the seed count: 2.19 at 20) '
+          + `and above the shuffled control's bound (shuffled mean + k sd, the same way); too few draws under ${controls.FEW_WINDOWS} test windows, `
+          + 'fixed by the history before the run; failed when a comparison scored fewer than 2 seeds' },
       fc: { share: "the noise columns' share of training importance", chanceShare: 'noise columns / (base-model columns + noise columns)',
         auc: '[held-out AUC without noise, with noise]', variants: Object.fromEntries(Object.entries(VARIANT_CODE).map(([k, c]) => [c, controls.VARIANT_LABELS[k] || k])) },
       rows: { score: 'mean log-score difference per draw against the reference (GARCH) and uniform, 95% interval', pnl: 'left out: price units' },
@@ -447,7 +538,9 @@ function controlsDrawer(game, input, report, regimesRecord = null, now = new Dat
   const reports = (input && input.q0) || {};
   const unreadable = (input && input.unreadable) || [];
   const errors = [];
-  const q0 = guarded(errors, 'q0', () => q0Of(game, reports, info, unreadable)) || NO_Q0;
+  const q0 = q0Part(errors, game, { q0: reports, unreadable }, info);
+  // every family row and every followed or judged row; the band's two controls in full, as context
+  const table = guarded(errors, 'q0', () => q0Table(game, info)) || [];
   const modes = guarded(errors, 'q0', () => buildModes(reports)) || {};
   const q2 = guarded(errors, 'q2', () => q2Full(input && input.q2));
   const fc = guarded(errors, 'fc', () => fcFull(input && input.fc));
@@ -455,10 +548,10 @@ function controlsDrawer(game, input, report, regimesRecord = null, now = new Dat
   const regimes = isMarketGame(game) ? guarded(errors, 'regimes', () => markets.describeRegimes(regimesRecord, null).map((r) => ({
     row: r.row, date: r.date, label: r.label, regimes: r.regimes, probability: r3(r.probability), volatilityRank: r.volatilityRank,
     template: r.template, features: r.features, history: r.history }))) : null;
-  unreadableErrors(unreadable, { q0Band: q0.band, q2, fc, rows }).forEach((part) => errors.push(part));
+  unreadableErrors(unreadable, { q2, fc, rows }).forEach((part) => errors.push(part));
   return {
     game, group: groupOf(game), unit: UNIT[game], builtAt: isoUtc(now.toISOString()), rankingAt: isoUtc(report && report.generatedAt),
-    q0: { ...q0, modes }, q2, fc, rows, regimes, errors: [...new Set(errors)],
+    q0: { ...q0, table, modes }, q2, fc, rows, regimes, errors: [...new Set(errors)],
   };
 }
 // the drawer's parts, each built on its own (controlsDrawer guards them one by one)
@@ -481,10 +574,14 @@ function q2Full(rec) {
   if (rec) {
     const v = rec.verdict || {};
     const shape = rec.shape || {};
-    q2 = { ...q2Of(rec), label: controls.describeDiscrimination(rec).label, metric: v.metric || null,
+    const d = controls.describeDiscrimination(rec);
+    // seedsScored: per comparison the seeds whose suite scored at all (version 2; under 2 in one of them is "failed")
+    const scored = v.seeds_scored && typeof v.seeds_scored === 'object' ? v.seeds_scored : null;
+    q2 = { ...q2Of(rec), label: d.label, metric: v.metric || null,
       windowsTrain: num(shape.windows_train), features: num(shape.features),
       realMean: r4(v.real_max_of_suite_mean), realSd: r4(v.real_max_of_suite_sd), nullMean: r4(v.null_max_of_suite_mean), nullSd: r4(v.null_max_of_suite_sd),
-      shuffledMean: r4(v.shuffled_max_of_suite_mean), shuffledSd: r4(v.shuffled_max_of_suite_sd), thresholdExact: r4(v.null_threshold_2sd),
+      shuffledMean: r4(v.shuffled_max_of_suite_mean), shuffledSd: r4(v.shuffled_max_of_suite_sd), thresholdExact: r4(d.threshold), shuffledK: r2(d.shuffledK),
+      seedsScored: scored ? { real: num(scored.real), null: num(scored.null), shuffled: num(scored.shuffled) } : null,
       perSeed: { real: list(v.per_seed_real).map(r4), null: list(v.per_seed_null).map(r4), shuffled: list(v.per_seed_shuffled).map(r4) },
       aboveBand: Boolean(v.above_null_band), survivesShuffled: Boolean(v.survives_marginals_control) };
   }
@@ -513,15 +610,17 @@ function rowsFull(record) {
   const interval = (x) => (x ? { mean: r4(x.mean), lo: r4(x.lo), hi: r4(x.hi), verdict: x.verdict } : null);
   // the rows that failed (C16 of the workbench parity): a count is days the row raised on, a text why it scored no day
   const failed = Object.keys(d.errors).sort().map((row) => (typeof d.errors[row] === 'string' ? { row, reason: d.errors[row] } : { row, days: num(d.errors[row]) }));
-  return { ...rowsOf(record), failed, uniform: r4(d.uniform), floor: d.floor,
-    table: d.rows.map((r) => ({ row: r.name, kind: r.kind, reference: r.isReference, days: r.days, logScore: r4(r.logScore), se: r4(r.se),
-      vsReference: interval(r.vsReference), vsUniform: interval(r.vsUniform), exact: r3(r.exact), adjacent: r3(r.adjacent), direction: r3(r.direction) })) };
+  // smoothing: the add-one the baselines' frequencies were counted with (null on a report from before 26 Oct 2026)
+  return { ...rowsOf(record), failed, uniform: r4(d.uniform), floor: d.floor, smoothing: d.frequencySmoothing,
+    table: d.rows.map((r) => ({ row: r.name, kind: r.kind, reference: r.isReference, frequency: r.isFrequency, days: r.days, logScore: r4(r.logScore), se: r4(r.se),
+      vsReference: interval(r.vsReference), vsUniform: interval(r.vsUniform), vsFrequency: interval(r.vsFrequency),
+      exact: r3(r.exact), adjacent: r3(r.adjacent), direction: r3(r.direction) })) };
 }
 
 // --- GET /api/admin/models -----------------------------------------------------------
-// The Best model per game card: the best row, its value with unit, its scored draws, the best since the freeze, the
-// Q0 band read on hits, and the five rows the users see (for a market game also the row its users' page follows),
-// with the learning check of the deep-learning rows among them.
+// The Best model per game card: the best row, its value with unit, its scored draws, the best since the freeze, its
+// Q0 row test (on its live draws, its own figures beside its p), and the five rows the users see (for a market game also
+// the row its users' page follows), with the learning check of the deep-learning rows among them.
 function sinceBestOf(report, info) {
   const declared = report && report.since ? report.since : null;
   const since = info && info.since ? info.since : null;
@@ -532,20 +631,14 @@ function sinceBestOf(report, info) {
   }
   return declared ? { date: declared.date, label: declared.label, none: true } : null;
 }
-// The Q0 band a game's ranking is read against: what the page shows, and whether a row's average hits are within
-// it (on the unrounded ceiling, as the old card). It greys rows only in the hit-ranked games; for the payout games it
-// is read on hits, information only.
-function bandForModels(reports, metric, unreadable = []) {
-  const band = controls.nullBand(reports || {});
-  if (!band) return { band: null, modes: null, within: () => false };
-  const mode = band.modes[band.from];
-  const greys = metric === 'avg_hits';
-  // both controls as the old card's band title gave them: the best row's mean +- sd across the fair histories
-  const modes = Object.fromEntries(Object.entries(band.modes).map(([name, m]) => [name, { best: r3(m.best), sd: r3(m.sd), ceiling: r3(m.ceiling),
-    rows: m.rows, seeds: m.seeds, history: m.days, random: r3(m.random), at: isoUtc(m.generatedAt) }]));
-  return { band: { ceiling: r3(band.ceiling), from: band.from, rows: mode.rows, history: mode.days, metric: band.metric, at: isoUtc(mode.generatedAt), greys,
-    missing: bandMissing(band, unreadable) },
-    modes, within: (hits) => greys && controls.withinBand(hits, band) };
+// A game's Q0 row tests for the Models page (27 Oct 2026, replacing the band, which greyed a row "within" it): the
+// game's summary (or why there is none) and each row's line - its mean, live draws and null with its p and corrected
+// p, and a followed row's fresh record. Nothing is greyed: greying every row that does not hold would grey nearly every
+// row every week (the owner's decision); the payout games' tests are on hits, information only (inTile false).
+function chanceForModels(game, info) {
+  const chance = controls.describeChance(info);
+  const line = q0Lines(game, info, chance);
+  return { chance: { test: chance ? chance.test : null, error: chance ? chance.error : null, inTile: info.metric === 'avg_hits' }, line };
 }
 // A deep-learning row's newest learning check (src/LearningCheck.py, 25 Oct 2026), as Helpers.py writes it on the
 // row's modelPerformance.json entry (learning_check, null for every other row and before that day): 'counts-only'
@@ -561,26 +654,35 @@ function learningOf(m) {
     inputBlind: c.inputBlind === true, windows: num(c.windows), date: typeof c.date === 'string' ? c.date : null };
 }
 // users: {today: {game: the names in its newest day file} (ranking.namesToday), so the top five are the users' five;
-// follows: {market game: the row its users' page follows} (followsOf)}
+// follows: {market game: the row its users' page follows} (followsOf)}. inputs (the control records) is read by nothing
+// since 27 Oct 2026 - the band left this page - and kept so the callers' shape holds.
 function modelsSummary(report, inputs = {}, { today = {}, follows = {} } = {}, now = new Date()) {
   const games = GAMES.filter((g) => gameInfo(report, g)).map((game) => {
     const info = gameInfo(report, game);
     const best = info.models[0];
-    const minDraws = num(info.minDrawsForRanking) || 0;
-    const { band, within } = bandForModels((inputs[game] || {}).q0, info.metric, (inputs[game] || {}).unreadable);
+    const basis = rankingBasis(info);
+    const minDraws = basis.minDraws;
+    const { chance, line } = chanceForModels(game, info);
     const live = liveOf(game, info);
+    const recovered = recoveredOf(info);
     const top = topOf(report, game, today[game]);
+    const bb = basis.of(best);
     // the learning check of each row the card names (the best row and the top five), by name; rows without one are left out
     const learning = {};
     info.models.filter((m) => m === best || top.includes(m.name)).forEach((m) => { const l = learningOf(m); if (l) learning[m.name] = l; });
     return {
-      game, group: groupOf(game), unit: UNIT[game], metric: info.metric, measure: measureOf(game, info.metric), minDraws,
-      rows: info.models.length, rankedRows: info.models.filter((m) => m.draws >= minDraws).length,
-      best: { row: best.name, value: num(best[info.metric]), draws: best.draws, young: best.draws < minDraws,
+      game, group: groupOf(game), unit: UNIT[game], metric: info.metric, measure: measureOf(game, info.metric), minDraws, rankedOn: basis.rankedOn,
+      rows: info.models.length, rankedRows: info.models.filter((m) => basis.draws(m) >= minDraws).length,
+      // value and its figures: the ranking's (the live record's when rankedOn is 'live'); allValue / allDraws: every
+      // stored draw's, beside it (null when the ranking already reads every draw)
+      best: { row: best.name, value: num(bb[info.metric]), draws: best.draws, young: basis.draws(best) < minDraws,
+        allValue: basis.live ? num(best[info.metric]) : null, liveDraws: basis.live ? basis.draws(best) : null,
         // a payout game's raw profit per bet next to its bound: keno's bound is against a fair ticket, not money won
-        profitPerBet: isMoney(info.metric) ? num(best.profit_per_bet) : null, bets: isMoney(info.metric) ? num(best.bets) : null,
-        avgHits: num(best.avg_hits), inBand: within(best.avg_hits), live: live(best.name) },
-      band,
+        profitPerBet: isMoney(info.metric) ? num(bb.profit_per_bet) : null, bets: isMoney(info.metric) ? num(bb.bets) : null,
+        avgHits: num(bb.avg_hits), live: live(best.name), recovered: recovered(best.name),
+        // its row test, on its live draws: its own mean, draws and null with its p (null when it was not tested)
+        chance: line(best.name) },
+      chance,
       since: sinceBestOf(report, info),
       top,
       learning,
@@ -591,12 +693,27 @@ function modelsSummary(report, inputs = {}, { today = {}, follows = {} } = {}, n
       combination: comboBrief(info),
     };
   });
-  return { builtAt: isoUtc(now.toISOString()), generatedAt: isoUtc(report && report.generatedAt), window: 'every scored draw',
+  return { builtAt: isoUtc(now.toISOString()), generatedAt: isoUtc(report && report.generatedAt),
+    window: 'every scored draw; a game ranked on the live record (rankedOn \'live\') reads the draws whose ticket was saved before the sales close',
     since: report && report.since ? report.since : null, topN: rankings.TOP_MODELS_SHOWN,
     groups: GROUPS.map((grp) => ({ name: grp.name, games: grp.games.filter((g) => games.some((x) => x.game === g)) })), games };
 }
 
 // --- GET /api/admin/models/:game ------------------------------------------------------
+// A lottery game's liveness as the report judged it (Helpers.py games[g].liveness, src/Liveness.py): how ('stamp+git',
+// 'stamp only' or 'unchecked'), why not with git, the scored draws, those live as stored in full, the rows live as
+// stored, recovered (rewritten after the draw, scored as they stood at the close) and not live, the newest draw with a
+// row not live, and the rewrite audit (the hits of the tickets at the close against the stored ones). null without.
+function livenessOf(info) {
+  const l = info && info.liveness;
+  if (!l || typeof l !== 'object') return null;
+  const audit = l.rewriteAudit && typeof l.rewriteAudit === 'object' ? l.rewriteAudit : {};
+  return { checked: typeof l.checked === 'string' ? l.checked : null, error: l.error ? noPaths(l.error) : null, draws: num(l.draws), allLive: num(l.allLive),
+    allCounted: num(l.allCounted), rowsLive: num(l.rowsLive), rowsRecovered: num(l.rowsRecovered), rowsNotLive: num(l.rowsNotLive),
+    newestNotLive: typeof l.newestNotLive === 'string' ? l.newestNotLive : null,
+    rewriteAudit: { rows: num(audit.rows), hitsAtClose: num(audit.hitsAtClose), hitsStored: num(audit.hitsStored) },
+    unscheduled: list(l.unscheduled).filter((d) => typeof d === 'string') };
+}
 function multiPickOf(info, keep) {
   const cfg = info.multi_pick;
   if (!cfg) return null;
@@ -648,24 +765,30 @@ function comboBrief(info) {
   const { ranking, ...brief } = c;
   return brief;
 }
+// input (one game's control records) is read by nothing since 27 Oct 2026, as in modelsSummary
 function modelsGame(report, game, scope = 'all', input = {}, { today = null, follows = null } = {}, now = new Date()) {
   const info = gameInfo(report, game);
   if (!info) return null;
   const top = topOf(report, game, today);
   const keep = (name) => scope !== 'top' || top.includes(name);
-  const minDraws = num(info.minDrawsForRanking) || 0;
-  const { band, modes, within } = bandForModels(input.q0, info.metric, input.unreadable);
+  const basis = rankingBasis(info);
+  const minDraws = basis.minDraws;
+  const { chance, line } = chanceForModels(game, info);
   const live = liveOf(game, info);
+  const recovered = recoveredOf(info);
   const since = info.since || null;
   const sinceByName = {};
   list(since && since.models).forEach((m) => { if (m) sinceByName[m.name] = m; });
   const rows = info.models.map((m, i) => {
     const sm = sinceByName[m.name];
+    const r = basis.of(m);
     const out = {
-      rank: i + 1, row: m.name, top: top.includes(m.name), value: num(m[info.metric]),
-      profitPerBet: info.metric === 'profit_bound' ? num(m.profit_per_bet) : null, bets: info.metric === 'profit_bound' ? num(m.bets) : null,
-      avgHits: num(m.avg_hits), bestDay: num(m.best_hits), draws: m.draws, live: live(m.name), young: m.draws < minDraws,
-      inBand: within(m.avg_hits),
+      rank: i + 1, row: m.name, top: top.includes(m.name), value: num(r[info.metric]),
+      // every stored draw's value beside the live one the ranking reads (null when it reads every draw)
+      allValue: basis.live ? num(m[info.metric]) : null, liveDraws: basis.live ? basis.draws(m) : null,
+      profitPerBet: info.metric === 'profit_bound' ? num(r.profit_per_bet) : null, bets: info.metric === 'profit_bound' ? num(r.bets) : null,
+      avgHits: num(r.avg_hits), bestDay: num(r.best_hits), draws: m.draws, live: live(m.name), recovered: recovered(m.name), young: basis.draws(m) < minDraws,
+      chance: line(m.name),
       since: since ? (sm ? { value: num(sm[info.metric]), draws: sm.draws, young: sm.draws < since.minDrawsForRanking } : null) : undefined,
       learning: learningOf(m),
     };
@@ -676,12 +799,17 @@ function modelsGame(report, game, scope = 'all', input = {}, { today = null, fol
     return out;
   }).filter((r) => keep(r.row));
   return {
-    game, group: groupOf(game), unit: UNIT[game], builtAt: isoUtc(now.toISOString()), generatedAt: isoUtc(report.generatedAt), window: 'every scored draw',
-    metric: info.metric, measure: measureOf(game, info.metric), minDraws, scope, shown: rows.length, of: info.models.length, top,
+    game, group: groupOf(game), unit: UNIT[game], builtAt: isoUtc(now.toISOString()), generatedAt: isoUtc(report.generatedAt),
+    window: basis.live ? 'the live record: draws whose ticket was saved before the sales close' : 'every scored draw', rankedOn: basis.rankedOn,
+    metric: info.metric, measure: measureOf(game, info.metric), minDraws, allMinDraws: num(info.minDrawsForRanking) || 0, scope, shown: rows.length, of: info.models.length, top,
+    // how the game's tickets were judged (src/Liveness.py; lottery only, null before 27 Oct 2026)
+    liveness: livenessOf(info),
     follows: isMarketGame(game) ? follows || null : undefined,
-    band: band ? { ...band, modes } : null,
+    chance,
     since: since ? { date: since.date, label: since.label, minDraws: since.minDrawsForRanking, bestModel: since.bestModel,
-      live: isMarketGame(game) ? 'only days whose ticket was out before the close' : null } : sinceBestOf(report, info),
+      live: isMarketGame(game) ? 'only days whose ticket was out before the close'
+        : (info.liveness && info.liveness.checked && info.liveness.checked !== 'unchecked' ? 'only tickets saved before the sales close (a rewritten one as it stood then)' : null) }
+      : sinceBestOf(report, info),
     rows,
     multiPick: multiPickOf(info, keep),
     // a set result over every established row: the scope does not filter it
@@ -793,7 +921,7 @@ const RANDOMNESS_META = { tripwires: { entropyBelow: ENTROPY_LOW, klHistoryAbove
   window: 'the newest scored draws (window); pick3 and Joker+ per digit position, averaged',
   // what the z is of, and which way is the alarm (server.js "AE anomaly")
   ae: `the most negative rolling z of its reconstruction NLL over the last ${AE_WINDOW} draws; strongly negative means the real draws became easy to reconstruct, a predictability spike`,
-  modelKl: 'KL(predicted || real) over the window; no reference value', q2: 'the weekly controlled test (Controls page)', fewWindows: FEW_WINDOWS };
+  modelKl: 'KL(predicted || real) over the window; no reference value', q2: 'the weekly controlled test (Controls page)', fewWindows: controls.FEW_WINDOWS };
 const randomnessGames = (report) => GAMES.filter((g) => { const info = gameInfo(report, g); return info && (info.randomnessWatch || info.anomalyWatch); });
 function randomnessSummary(report, q2Records = {}, now = new Date()) {
   return { builtAt: isoUtc(now.toISOString()), generatedAt: isoUtc(report && report.generatedAt), meta: RANDOMNESS_META,
@@ -815,8 +943,9 @@ function randomnessGame(report, game, scope = 'all', q2Record = null, today = nu
 // What data/readings/<sunday>.json holds (readings.js writes it when the Sunday plan's last job finishes; its CLI
 // rebuilds or backfills one): per game the four controls as they read that week, each part with its own record's
 // time. Built by the Controls page's own builders (q0Of, q2Of) and readers (controls.js, markets.js), so a reading
-// is what the page showed that week, kept: the Q0 rows above the band are read against the ranking on disk when the
-// reading is built (rankingAt), never a later one.
+// is what the page showed that week, kept: Q0's row tests are the ranking's on disk when the reading is built
+// (rankingAt, the report that ran them), never a later one. A Q0 part written from 1 Nov 2026 on carries rule 'row
+// test'; one without a rule was read under the band rule (until 25 Oct 2026) and reads 'band rule' (stateOf).
 const READING_VERSION = 1;
 const READING_FILE = /^(\d{4}-\d{2}-\d{2})\.json$/;
 const PARTS = ['q0', 'q2', 'fc', 'rows'];
@@ -827,13 +956,14 @@ const isoMs = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString().replace(
 // until Tuesday morning.
 const sundayOf = (at) => { const ms = Date.parse(at); return Number.isFinite(ms) ? brussels.lastWeekday(ms, 0) : null; };
 const interval = (x) => (x ? { mean: r4(x.mean), lo: r4(x.lo), hi: r4(x.hi), verdict: x.verdict } : null);
-// The time a part's record is from. Q0's is its older control record: on a Sunday Q0 rewrites a game's synthetic
-// record hours before its shuffled one, and a band built from one new record and one of last week's is not yet this
-// week's (a stored reading written before 21 Oct 2026 kept the newer time, so the modes are read, not q0.at).
+// The time a part's record is from. Q0's row tests are the report's that ran them (q0.at, rule 'row test'). A Q0 part
+// read under the band rule (no rule) is from its older control record: on a Sunday NullControls rewrote a game's
+// synthetic record hours before its shuffled one, and a band built from one new record and one of last week's was not
+// yet that week's (a stored reading written before 21 Oct 2026 kept the newer time, so the modes are read, not q0.at).
 const partAt = (part, entry) => {
   const x = entry && entry[part];
   if (!x) return null;
-  if (part === 'q0' && x.modes && Object.keys(x.modes).length) return earliest(Object.values(x.modes).map((m) => m && m.at));
+  if (part === 'q0' && !x.rule && x.modes && Object.keys(x.modes).length) return earliest(Object.values(x.modes).map((m) => m && m.at));
   return x.at || null;
 };
 
@@ -841,25 +971,35 @@ function readingOf(game, input, report) {
   const errors = [];
   const info = gameInfo(report, game);
   const q0 = guarded(errors, 'q0', () => {
+    // no ranking at all (no modelPerformance.json, or no rows for this game): nothing was tested - no part, never "none"
+    if (!info) return null;
     const v = q0Of(game, input.q0, info, input.unreadable);
-    if (!v.band) return null;
+    // the band's two control records, context only (named in notThisWeek when a NullControls run left last week's)
     const modes = {};
     Object.keys(input.q0 || {}).forEach((mode) => {
       const r = input.q0[mode];
       modes[mode] = { best: r4(r.best_row_mean), sd: r4(r.best_row_sd_across_seeds), ceiling: r3(Number(r.best_row_mean) + 2 * (Number(r.best_row_sd_across_seeds) || 0)),
         rows: r.rows_compared, seeds: Array.isArray(r.seeds) ? r.seeds.length : null, at: isoUtc(r.generated_at) };
     });
-    const { ceiling, from, rows, seeds, history, metric } = v.band;
-    return { band: { ceiling, from, rows, seeds, history, metric }, modes, ranking: v.ranking,
-      // above null: no ranking to read the band against (no modelPerformance.json, or no rows for this game) - never "none above"
-      rankedRows: info ? v.rankedRows : null, minDraws: info ? v.minDraws : null, above: info ? v.above.rows : null,
-      // the older of the two records: the band is this week's only once both are (partAt)
-      at: earliest(Object.values(modes).map((m) => m.at)) };
+    const t = v.test;
+    return { rule: Q0_RULE, at: isoUtc(report && report.generatedAt), ranking: v.ranking, inTile: v.inTile, error: v.error,
+      test: t ? { method: t.method, family: t.family, minDraws: t.minDraws, liveMax: t.liveMax, under: t.under, expected: t.expected, holds: t.holds,
+        followed: t.followed, stopped: t.stopped, confirmed: t.confirmed, notConfirmed: t.notConfirmed, checkedThrough: t.checkedThrough } : null,
+      // the rows the card named (under 5%, followed or judged), each with its own figures beside its p and its fresh state
+      rows: v.rows.map((r) => {
+        const out = { row: r.row, mean: r.mean, live: r.live, null: r.null, p: r.p, pHolm: r.pHolm };
+        if (r.fresh) Object.assign(out, { state: r.fresh.state, since: r.fresh.since, fresh: r.fresh.draws, of: r.fresh.verdictLength });
+        return out;
+      }),
+      band: v.band ? { ceiling: v.band.ceiling, from: v.band.from, rows: v.band.rows, seeds: v.band.seeds, history: v.band.history, metric: v.band.metric } : null,
+      modes };
   });
   const q2 = guarded(errors, 'q2', () => {
     const v = q2Of(input.q2);
-    return v && { status: v.status, real: v.real, shuffled: v.shuffled, threshold: v.threshold, seeds: v.seeds, windowsTest: v.windowsTest,
-      window: v.window, drawsUsed: v.drawsUsed, at: v.at };
+    // rule: the verdict version the status was read under (2 from the 1 Nov 2026 run on; a reading without it was read
+    // under 1) - a run of weeks stops at a change of rule (streakOf); thresholdSe and shuffledThreshold: version 2 only
+    return v && { status: v.status, rule: v.rule, real: v.real, shuffled: v.shuffled, shuffledThreshold: v.shuffledThreshold, threshold: v.threshold,
+      thresholdSe: v.thresholdSe, seeds: v.seeds, windowsTest: v.windowsTest, window: v.window, drawsUsed: v.drawsUsed, at: v.at };
   });
   const fc = guarded(errors, 'fc', () => {
     if (!input.fc) return null;
@@ -875,18 +1015,25 @@ function readingOf(game, input, report) {
   const rows = isMarketGame(game) ? guarded(errors, 'rows', () => {
     if (!input.rows) return null;
     const d = markets.describeRows(input.rows);
+    // each scored row against uniform and against the reference: mean log-score difference per draw of the game, 95%
+    // interval, verdict; against the column frequencies too from the 26 Oct 2026 reports on (left out before); a row's
+    // days only where they differ from the window
+    const entry = (r) => {
+      const out = { row: r.name, kind: r.kind, vsUniform: interval(r.vsUniform) };
+      if (!r.isReference) out.vsReference = interval(r.vsReference);
+      if (r.vsFrequency) out.vsFrequency = interval(r.vsFrequency);
+      if (r.days !== d.days) out.days = r.days;
+      return out;
+    };
+    const scored = d.rows.filter((r) => r.logScore !== null);
     return { window: d.days, requested: d.requested, lockboxWithheld: d.lockboxWithheld, firstDay: d.firstDay, lastDay: d.lastDay, reference: d.reference,
       at: isoUtc(d.generatedAt),
-      // the scored rows (the baselines carry no probability), each against uniform and against the reference: mean log-score
-      // difference per draw of the game, 95% interval, verdict; a row's days only where they differ from the window
-      rows: d.rows.filter((r) => r.logScore !== null).map((r) => {
-        const out = { row: r.name, kind: r.kind, vsUniform: interval(r.vsUniform) };
-        if (!r.isReference) out.vsReference = interval(r.vsReference);
-        if (r.days !== d.days) out.days = r.days;
-        return out;
-      }) };
+      // rows: the model rows, as every reading has held them (what beat the reference is read from these, week over week);
+      // baselines: random and the frequencies, scored since 26 Oct 2026 and kept apart so the rows stay comparable
+      rows: scored.filter((r) => r.kind !== 'baseline').map(entry), baselines: scored.filter((r) => r.kind === 'baseline').map(entry) };
   }) : null;
-  unreadableErrors(input.unreadable, { q0Band: q0 && q0.band, q2, fc, rows }).forEach((part) => { if (!errors.includes(part)) errors.push(part); });
+  if (q0 && !q0.test && !errors.includes('q0')) errors.push('q0');
+  unreadableErrors(input.unreadable, { q2, fc, rows }).forEach((part) => { if (!errors.includes(part)) errors.push(part); });
   return { unit: UNIT[game], q0, q2, fc, rows, errors };
 }
 // sunday: the week the reading is written for ('YYYY-MM-DD', a Sunday) - then every part whose record is from another
@@ -895,11 +1042,12 @@ function readingOf(game, input, report) {
 function weekReading(inputs, report, { sunday = null, now = new Date(), by = null, controls: source = null, note = null } = {}) {
   const games = {};
   GAMES.forEach((game) => { games[game] = readingOf(game, inputs[game] || {}, report); });
-  // every record's time: Q0 per control, the other parts one record each
+  // every record's time: Q0's row tests (the ranking's) and its band per control (context), the other parts one record each
   const times = GAMES.flatMap((game) => PARTS.flatMap((part) => {
     const x = games[game][part];
     if (!x) return [];
-    return part === 'q0' ? Object.keys(x.modes).map((mode) => ({ game, part: `q0 ${mode}`, at: x.modes[mode].at })) : [{ game, part, at: x.at }];
+    return part === 'q0' ? [{ game, part, at: x.at }, ...Object.keys(x.modes).map((mode) => ({ game, part: `q0 band ${mode}`, at: x.modes[mode].at }))]
+      : [{ game, part, at: x.at }];
   })).filter((t) => t.at);
   const reading = { version: READING_VERSION, sunday, builtAt: isoUtc(now.toISOString()), by, controls: source, note,
     rankingAt: isoUtc(report && report.generatedAt), from: earliest(times.map((t) => t.at)), to: latest(times.map((t) => t.at)) };
@@ -930,12 +1078,21 @@ function loadReadings(dir) {
   return { bySunday, sundays: [...bySunday.keys()], unreadable };
 }
 // What one control read in one game one week, as one comparable string; null when there is no record. Two weeks read
-// the same when the strings are equal: Q0 rows above the band or none; Q2's status; every feature-control variant's
-// verdict; which market rows beat the reference, and the reference against uniform.
+// the same when the strings are equal: Q0 the rows confirmed on new draws and the rows followed (27 Oct 2026 - never
+// "holds" or "under 5%", which re-read one record week after week), 'band rule' for a reading from before, so the run
+// of weeks starts again on Sun 1 Nov 2026; Q2's status; every feature-control variant's verdict; which market rows beat
+// the reference, and the reference against uniform.
+const q0Names = (x, states) => list(x.rows).filter((r) => states.includes(r.state)).map((r) => shortRow(r.row)).sort();
 function stateOf(part, entry) {
   const x = entry && entry[part];
   if (!x) return null;
-  if (part === 'q0') return x.above === null || x.above === undefined ? 'no ranking' : (x.above.length ? 'above' : 'none above');
+  if (part === 'q0') {
+    if (!x.rule) return 'band rule';
+    if (!x.test) return 'no row test';
+    const confirmed = q0Names(x, ['confirmed']);
+    const followed = q0Names(x, ['running', 'stopped']);
+    return `confirmed: ${confirmed.join(', ') || 'none'} · followed: ${followed.join(', ') || 'none'}`;
+  }
   if (part === 'q2') return x.status || null;
   if (part === 'fc') return list(x.variants).map((v) => `${v.key} ${VERDICT_SHORT[v.verdict] || v.verdict}`).join(' · ');
   if (part === 'rows') {
@@ -963,8 +1120,8 @@ function storedPart(stored, day, game, part) {
 // run - and whether the week before read differently: null when there is no reading of that week to compare with, and
 // `last` (what it read then; null = no record) only when it changed. weeks 1 with changed null is the first week on
 // record. Q0 is read against a ranking, and every stored reading is fixed at its own Sunday's: so once the reading of
-// the record's own Sunday is written, its state is that reading's (sinceReading: the rows today's ranking puts above
-// or below the band that it did not), and before that the records on disk against the live ranking stand in (live).
+// the record's own Sunday is written, its state is that reading's (sinceReading: the rows today's ranking follows or
+// has confirmed that it did not, and back), and before that the report on disk stands in (live).
 function streakOf(stored, game, part, entry) {
   const now = stateOf(part, entry);
   const sunday = sundayOf(partAt(part, entry));
@@ -974,33 +1131,32 @@ function streakOf(stored, game, part, entry) {
   const state = own ? stateOf(part, own) : now;
   const before = brussels.addDays(sunday, -7);
   const last = then(before);
+  // Q2's rule (q2.rule, the verdict version; a reading without one was read under 1): a week read under another rule
+  // is another measurement - 3 seeds (5 for the markets) and a 0.8 ceiling, against 20 seeds and the windows rule from
+  // 1 Nov 2026 - so the run of weeks stops there, and the change of rule is said apart (ruleChanged, with the rule and
+  // the seeds of the week before), whether or not the status changed with it
+  const ruleOf = (x) => num(x && x.q2 && x.q2.rule) || 1;
+  const sameRule = (day) => part !== 'q2' || ruleOf(storedPart(stored, day, game, part)) === ruleOf(entry);
   let weeks = 1;
-  for (let day = before; then(day) === state; day = brussels.addDays(day, -7)) weeks += 1;
+  for (let day = before; then(day) === state && sameRule(day); day = brussels.addDays(day, -7)) weeks += 1;
   const out = { state, sunday, weeks, changed: last === undefined ? null : last !== state };
   if (out.changed) out.last = last;
   if (last === undefined && stored.bySunday.has(before)) out.noRunBefore = true;
+  if (part === 'q2' && last) {
+    const prev = storedPart(stored, before, game, part);
+    if (ruleOf(prev) !== ruleOf(entry)) Object.assign(out, { ruleChanged: true, lastRule: ruleOf(prev), lastSeeds: num(prev.q2.seeds) });
+  }
   if (part === 'q0' && !own) out.live = true;
   if (own) {
-    const was = list(own.q0.above).map((r) => r.row);
-    const is = list(entry.q0.above).map((r) => r.row);
+    // the rows followed or confirmed, in the reading and in today's report
+    const watched = (x) => list(x.q0 && x.q0.rows).filter((r) => ['running', 'stopped', 'confirmed'].includes(r.state)).map((r) => r.row);
+    const was = watched(own);
+    const is = watched(entry);
     const added = is.filter((r) => !was.includes(r));
     const dropped = was.filter((r) => !is.includes(r));
     if (added.length || dropped.length || now !== state) out.sinceReading = { now, added, dropped, rankingAt: stored.bySunday.get(sunday).rankingAt || null };
   }
   return out;
-}
-// How many weeks in a row, ending at `sunday`, a row has been above its game's Q0 band. read: the reading of `sunday`
-// itself is stored (streakOf) - then the count starts there, and a row above only against the live ranking, not in
-// that reading, has no weeks (null); otherwise this week is the live one and the stored weeks before it count on.
-function rowWeeks(stored, game, row, sunday, read = false) {
-  const above = (day) => {
-    const x = storedPart(stored, day, game, 'q0');
-    return Boolean(x && Array.isArray(x.q0.above) && x.q0.above.some((r) => r.row === row));
-  };
-  if (read && !above(sunday)) return null;
-  let weeks = 1;
-  for (let day = brussels.addDays(sunday, -7); above(day); day = brussels.addDays(day, -7)) weeks += 1;
-  return weeks;
 }
 // current: weekReading of the records on disk (no sunday); stored: loadReadings. Per game, each part's streak, with
 // behind: true for a part whose record is older than the newest part's (the controls are overwritten while they run).
@@ -1015,17 +1171,12 @@ function historyOf(current, stored) {
   return { games: out, newest };
 }
 const readingsMeta = (stored, newest) => ({ stored: stored.sundays.length, sundays: stored.sundays.slice(-8), newestRecords: newest || null,
-  unreadable: stored.unreadable, rule: 'weeks: the weeks in a row, ending at the record\'s own Sunday, the control read the same in the stored readings (a missing week, or one whose reading holds an older record of the control, ends the run); changed: whether the week before read differently (null: no reading of that week); Q0: the state of the reading of its own Sunday once written (that Sunday\'s ranking), live before that' });
-// The Controls page with its history: each game's history per part, each Q0 row above the band with its weeks above.
+  unreadable: stored.unreadable, rule: 'weeks: the weeks in a row, ending at the record\'s own Sunday, the control read the same in the stored readings (a missing week, or one whose reading holds an older record of the control, ends the run); changed: whether the week before read differently (null: no reading of that week); Q0: the rows confirmed and the rows followed, the state of the reading of its own Sunday once written (that Sunday\'s report), live before that - a reading from before 1 Nov 2026 reads "band rule"; Q2: a week read under another verdict rule ends the run too (ruleChanged)' });
+// The Controls page with its history: each game's history per part. (Until 27 Oct 2026 each Q0 row above the band also
+// carried its weeks above it - one record re-read week after week; a row's evidence over time is its fresh record now.)
 function withHistory(view, current, stored) {
   const hist = historyOf(current, stored);
-  view.groups.forEach((grp) => grp.games.forEach((g) => {
-    g.history = hist.games[g.game];
-    const q0 = g.history.q0;
-    if (q0 && q0.sunday && g.q0 && g.q0.above && g.q0.above.rows.length) {
-      g.q0 = { ...g.q0, above: { ...g.q0.above, rows: g.q0.above.rows.map((r) => ({ ...r, weeks: rowWeeks(stored, g.game, r.row, q0.sunday, !q0.live) })) } };
-    }
-  }));
+  view.groups.forEach((grp) => grp.games.forEach((g) => { g.history = hist.games[g.game]; }));
   view.readings = readingsMeta(stored, hist.newest);
   return view;
 }
@@ -1197,18 +1348,31 @@ const countOf = (recs) => ({ n: recs.length, replaced: recs.filter((r) => r.deci
 // replacements whose challenger gained less than one of its own standard errors over the incumbent (gainSe), or over
 // the better of incumbent and default - the reference the margin is added to (gainBestSe)
 const under1Se = (recs, key) => recs.filter((r) => r.decision === 'replaced' && r[key] !== null && r[key] < 1).length;
-const atMarginZero = (recs) => recs.filter((r) => !(r.margin > 0)).length;
+// "any gain replaces": no margin used and none asked for - a record that asked for k standard errors and was kept for
+// want of a challenger SE (TuningGate fails closed since 27 Oct 2026) is not one
+const atMarginZero = (recs) => recs.filter((r) => !(r.margin > 0) && !(r.marginK > 0)).length;
+// the k of a decision's margin in the challenger's own standard errors: the margin used over the challenger's SE, else
+// the k the tuner asked for (marginK); null for a margin-0 record. {k: records} by k to two decimals ('1', '2.5'), for
+// the margin chips (the quantum tuner's 2.5 since 27 Oct 2026 - "1 SE" alone no longer covers every tuner)
+const kOf = (r) => (r.margin > 0 && r.marginSe !== null ? r.marginSe : (r.marginK > 0 ? r.marginK : null));
+const marginSeCountsOf = (recs) => {
+  const out = {};
+  recs.forEach((r) => { const k = kOf(r); if (k !== null) { const key = String(Math.round(k * 100) / 100); out[key] = (out[key] || 0) + 1; } });
+  return out;
+};
 const rowsBy = (recs, decision) => {
   const out = {};
   recs.filter((r) => r.decision === decision).forEach((r) => { (out[r.game] = out[r.game] || []).push(r.row); });
   return out;
 };
 const TUNING_META = {
-  decide: 'replaced when the challenger beats the better scored reference (incumbent, default) by the margin; reverted when the untuned default is served instead; kept otherwise (src/TuningGate.py decide)',
+  decide: 'replaced when the challenger beats the better scored reference (incumbent, default) by the margin - k standard errors of its own score: 1 for the statistical, keno sub-selection, boosting, RL ticket, RL position and ensemble tuners, 2.5 for quantum (since 27 Oct 2026; the statistical and RL tuners took any gain before, quantum 1); reverted when the challenger did not clear the default and the untuned default scores above the incumbent - by no margin for the statistical, keno sub-selection, RL and ensemble tuners (revertMargin 0: the default is not picked from trials), by the challenger\'s margin for boosting and quantum; kept otherwise, and always when the challenger has no standard error to take its margin in (src/TuningGate.py)',
   scores: 'each the gate\'s own score on the gate window: hits, positional, capped_profit, log_score and subset_bound are lower bounds (mean - 1 SE); holdout_hits and holdout_profit are means on the quantum tuner\'s holdout; a keno capped_profit score is the capped profit above a fair ticket (fairPerBet, its capped value per bet), not money won - profitPerBet is the raw, uncapped profit per bet in EUR',
-  margin: 'margin in score units; marginSe = margin / challenger SE (1 for the tuners that ask one SE, 0 for any gain)',
+  margin: 'margin in score units; marginSe = margin / challenger SE (1 for the tuners that ask one SE, 2.5 for quantum since 27 Oct 2026, 0 for any gain); marginK = the k the tuner asked for (since 27 Oct 2026, null before) - with marginK > 0 and no challenger SE the record was kept for want of one (with no challenger score at all: for want of a scored trial); revertMargin = the margin of the revert\'s default-over-incumbent comparison (0: none; null before 27 Oct 2026, when it was the margin); marginSeCounts = records by k',
+  sitOut: 'RL Position Model only: sitOut true - the served sizing takes no position, because its score (mean - 1 SE) is not above one of its own standard errors, i.e. its mean is not more than 2 SE above the 0 of never betting (since 27 Oct 2026; any score above 0 before); sitOutReason says why, with its mean sizes',
   gains: 'gainSe = (challenger - incumbent) / challenger SE; gainBestSe over the better reference; gainBarSe over the bar (better reference + margin), the one that decided',
   trials: 'runTrials: this run\'s scored trials; studyTrials: the study\'s completed trials the sampler was guided by',
+  lockbox: 'lockboxDays: the lockbox days no score of the decision counts (since 26 Oct 2026; null before) - out of windowDays when lockboxFrom is "window" (a row tuner scores the other days), out of the quantum tuner\'s score table before its holdout was cut when "table" (none in its window)',
   weekend: 'a decision belongs to the weekend of the Saturday on or before it (Brussels)',
   attribution: 'record: the record names its tuner (since 21 Oct 2026); family + commit / family + run: the row\'s tuner confirmed by the tuner commit that first carries the record, or the scheduler run holding its date; unattributed otherwise',
 };
@@ -1228,13 +1392,15 @@ function tuningSummary(records, hist, runs = [], missing = [], now = new Date())
     const recs = mine.filter((r) => r.tuner === tuner);
     if (tuner === 'unattributed' && !recs.length) return null;
     const spec = gates.TUNERS.find((t) => t.tuner === tuner);
+    // a step that joined the chain after this weekend (gates.TUNERS since) was not one of its tuners
+    if (spec && spec.since && weekend && weekend < spec.since && !recs.length) return null;
     const run = spec ? runs.filter((h) => h.key === spec.job && ran(h) && gates.weekendOf(h.at) === weekend).sort((x, y) => x.at - y.at).pop() || null : null;   // the latest, if run twice
     // the gate window per unit: one backtest "day" is a draw, a day, a trading day or a week, by game
     const windows = {};
     recs.filter((r) => r.windowDays !== null).forEach((r) => { (windows[UNIT[r.game]] = windows[UNIT[r.game]] || []).push(r.windowDays); });
     return {
       tuner, job: spec ? spec.job : null, ...countOf(recs), marginZero: atMarginZero(recs),
-      marginOneSe: recs.filter((r) => r.marginSe !== null && Math.abs(r.marginSe - 1) < 1e-6).length,
+      marginOneSe: recs.filter((r) => r.marginSe !== null && Math.abs(r.marginSe - 1) < 1e-6).length, marginSeCounts: marginSeCountsOf(recs),
       replacedUnder1Se: under1Se(recs, 'gainSe'), replacedUnder1SeVsBetterReference: under1Se(recs, 'gainBestSe'),
       games: new Set(recs.map((r) => r.game)).size, kinds: [...new Set(recs.map((r) => r.kind).filter(Boolean))],
       // the records whose capped-profit score is measured above a fair ticket (keno): its fair value per bet
@@ -1282,9 +1448,11 @@ function tuningGame(records, game, hist, now = new Date()) {
     rows: recs.map((r) => {
       const out = {
         row: r.row, tuner: r.tuner, by: r.attribution.by || null, decision: r.decision, thisWeekend: r.weekend === weekend, weekend: r.weekend, date: r.date,
-        kind: r.kind, windowDays: r.windowDays, runTrials: r.runTrials, studyTrials: r.studyTrials,
+        kind: r.kind, windowDays: r.windowDays, lockboxDays: r.lockboxDays, lockboxFrom: r.lockboxFrom, runTrials: r.runTrials, studyTrials: r.studyTrials,
         default: sideOf(r.default), incumbent: sideOf(r.incumbent), challenger: sideOf(r.challenger),
-        margin: r4(r.margin), marginSe: r2(r.marginSe), bar: r4(r.bar), gainSe: r2(r.gainSe), gainBestSe: r2(r.gainBestSe), gainBarSe: r2(r.gainBarSe),
+        margin: r4(r.margin), marginSe: r2(r.marginSe), marginK: r.marginK, revertMargin: r4(r.revertMargin),
+        bar: r4(r.bar), gainSe: r2(r.gainSe), gainBestSe: r2(r.gainBestSe), gainBarSe: r2(r.gainBarSe),
+        sitOut: r.sitOut, sitOutReason: r.sitOutReason,
         history: r.history,
       };
       if (r.script) out.script = r.script;
@@ -1304,7 +1472,7 @@ function signInsOf(events, fromMs, weekMs) {
   return { failed: count(fromMs, 'login.failed'), locked: count(fromMs, 'login.locked'), ok: count(fromMs, 'login.ok'),
     last7Days: { failed: count(weekMs, 'login.failed'), locked: count(weekMs, 'login.locked') }, scanned: events.length, oldestScanned: oldest };
 }
-// jobs: [{key, name, log, plan, daily}] (jobs.js JOBS); sched: config/scheduler.json; slices: {job key: log slices};
+// jobs: [{key, name, log, plan, daily, since}] (jobs.js JOBS); sched: config/scheduler.json; slices: {job key: log slices};
 // controlsView: controlsOverview with its history (withHistory); tuning: tuningSummary; live: what the running server
 // knows now - {lock, current, queue, council, events} - each missing when not known (null lock = free).
 function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, live = {}, now = new Date() }) {
@@ -1325,9 +1493,11 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
   }
   const sunday = brussels.addDays(saturday, 1);
   const lines = runs.map((h) => runLine(h, byKey[h.key], slices[h.key], history));
-  // what a weekend runs: the daily job on Saturday and on Sunday, every job of the two weekly plans once
+  // what a weekend runs: the daily job on Saturday and on Sunday, every job of the two weekly plans once - a job that
+  // joined its plan later (jobs.js since, a day) only in the weekends whose Saturday is that day or later, so a step
+  // added midweek does not stand as "no run" in the weekend before it existed
   const expected = [...(daily ? [{ key: daily.key, day: saturday }, { key: daily.key, day: sunday }] : []),
-    ...list(jobs).filter((j) => j.plan).map((j) => ({ key: j.key }))];
+    ...list(jobs).filter((j) => j.plan && !(j.since && saturday < j.since)).map((j) => ({ key: j.key }))];
   const missing = expected.filter((e) => !runs.some((h) => h.key === e.key && (!e.day || brussels.dayOf(h.at) === e.day)));
   const runningNow = currentRun && inWeekend(currentRun, byKey[currentRun.key], saturday) ? { key: currentRun.key, start: isoMs(currentRun.at) } : null;
   const isRunning = (e) => Boolean(runningNow) && runningNow.key === e.key && (!e.day || e.day === brussels.dayOf(currentRun.at));
@@ -1342,7 +1512,7 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
   const ct = controlsView.tiles;
   return {
     builtAt: isoUtc(now.toISOString()), tz: brussels.TZ,
-    // the ranking the Q0 rows above are read against (the Controls page's rankingAt)
+    // the report whose row tests Q0 shows (the Controls page's rankingAt)
     rankingAt: controlsView.rankingAt || null,
     weekend: { saturday, from: isoMs(brussels.instant(saturday)), until: isoMs(brussels.instant(brussels.addDays(saturday, 3), 9)) },
     tiles: {
@@ -1362,28 +1532,34 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
       tuners: tuning ? { weekend: tuning.weekend, ...tuning.tiles,
         // job: the scheduler job (a run's drawer finds its tuner's decisions); games and the margins for the Tuning card
         byTuner: tuning.byTuner.map((t) => ({ tuner: t.tuner, job: t.job, n: t.n, replaced: t.replaced, kept: t.kept, reverted: t.reverted, games: t.games,
-          marginZero: t.marginZero, marginOneSe: t.marginOneSe, replacedUnder1Se: t.replacedUnder1Se })) } : null,
+          marginZero: t.marginZero, marginOneSe: t.marginOneSe, marginSeCounts: t.marginSeCounts, replacedUnder1Se: t.replacedUnder1Se })) } : null,
       q0: ct.q0, q2: ct.q2, fc: ct.fc, rows: ct.rows,
     },
     runs: lines,
     matrix: {
       columns: ['q0', 'q2', 'fc', 'rows', 'gates'],
-      // RandomnessDiscrimination's power rule: a Q2 record on fewer test windows than this is underpowered
-      fewWindows: FEW_WINDOWS,
+      // Q2's power rule (controlRules.json): a record on fewer test windows than this reads "too few draws"
+      fewWindows: controls.FEW_WINDOWS,
       games: games.map((g) => {
         const h = g.history || {};
         const gate = gateOf[g.game];
         return {
           game: g.game, group: groupOf(g.game), unit: g.unit, errors: g.errors,
-          // at: the record the band comes from; modes: each control record's own time (what a run wrote is judged on both)
-          q0: g.q0.band ? { above: g.q0.above.n, ceiling: g.q0.band.ceiling, longest: g.q0.above.longest, longestLive: g.q0.above.longestLive,
-            sameLength: g.q0.above.sameLength, sameLive: g.q0.above.sameLive, inTile: g.q0.above.inTile, ranking: g.q0.ranking, seeds: g.q0.band.seeds,
-            at: g.q0.band.at, modes: g.q0.band.modes, history: h.q0 || null } : null,
+          // Q0 (27 Oct 2026): the cell is the row test's - built from its summary whether or not a band exists, at the
+          // report's time (the ranking it ran in); band: the NullControls records' times (at: the record the band comes
+          // from, modes: each control's), only for what a NullControls run wrote - context, never the cell
+          q0: { test: g.q0.test ? { method: g.q0.test.method, family: g.q0.test.family, minDraws: g.q0.test.minDraws, liveMax: g.q0.test.liveMax,
+            under: g.q0.test.under, expected: g.q0.test.expected, holds: g.q0.test.holds, followed: g.q0.test.followed, stopped: g.q0.test.stopped,
+            confirmed: g.q0.test.confirmed, notConfirmed: g.q0.test.notConfirmed } : null,
+            error: g.q0.error, confirmedRows: g.q0.confirmed, followedRows: g.q0.followed, inTile: g.q0.inTile, ranking: g.q0.ranking,
+            at: g.q0.test ? controlsView.rankingAt || null : null, band: g.q0.band ? { at: g.q0.band.at, modes: g.q0.band.modes } : null,
+            bandUnreadable: g.q0.bandUnreadable, history: h.q0 || null },
           q2: g.q2 ? { status: g.q2.status, real: g.q2.real, threshold: g.q2.threshold, seeds: g.q2.seeds, windowsTest: g.q2.windowsTest, fewWindows: g.q2.fewWindows,
-            at: g.q2.at, history: h.q2 || null } : null,
+            minWindows: g.q2.minWindows, at: g.q2.at, history: h.q2 || null } : null,
           fc: g.fc ? { fits: g.fc.fits, inconclusive: g.fc.inconclusive, ignored: g.fc.ignored, failed: g.fc.failed, variants: g.fc.variants.length, at: g.fc.at, history: h.fc || null } : null,
           rows: g.rows ? { beat: g.rows.betterThanReference.length, scored: g.rows.rowsScored, reference: g.rows.reference, window: g.rows.window,
-            referenceVsUniform: g.rows.referenceVsUniform ? g.rows.referenceVsUniform.verdict : null, at: g.rows.at, history: h.rows || null } : null,
+            referenceVsUniform: g.rows.referenceVsUniform ? g.rows.referenceVsUniform.verdict : null,
+            referenceVsFrequency: g.rows.referenceVsFrequency ? g.rows.referenceVsFrequency.verdict : null, at: g.rows.at, history: h.rows || null } : null,
           gates: gate ? { replaced: gate.replaced, kept: gate.kept, reverted: gate.reverted, notThisWeekend: gate.notThisWeekend } : null,
         };
       }),
@@ -1470,7 +1646,7 @@ function install(app, options = {}) {
     return { records: tuningRecords(current, hist, runs), hist, runs, missing: GAMES.filter((g) => files[g] === null) };
   };
   // the job list, from jobs.js when the server passes it (options.jobs); the week has no runs without it
-  const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily) }));
+  const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily), since: j.since || null }));
   const COUNCIL_WAIT_MS = 6000;   // services.js probes for up to 5 s
   // what the running server knows now: the lock, the running job and the queue (jobs.status), the Council API
   // (services.status, which probes its health), the audit events; each left out when its module was not passed
@@ -1505,12 +1681,12 @@ function install(app, options = {}) {
     if (!game) return { error: 'unknown game', status: 404 };
     return controlsDrawer(game, readControls(dirs, game), report(), readRegimes(dirs, game));
   }));
-  app.get('/api/admin/models', (req, res) => answer(res, () => (report() ? modelsSummary(report(), readAll(dirs), { today: todayAll(), follows: followsAll() }) : noReport)));
+  app.get('/api/admin/models', (req, res) => answer(res, () => (report() ? modelsSummary(report(), {}, { today: todayAll(), follows: followsAll() }) : noReport)));
   app.get('/api/admin/models/:game', (req, res) => answer(res, () => {
     const bad = badRequest(req);
     if (bad) return bad;
     if (!report()) return noReport;
-    return modelsGame(report(), gameOf(req), scopeOf(req), readControls(dirs, gameOf(req)), { today: todayOf(gameOf(req)), follows: readFollows(dirs, gameOf(req)) }) || { error: 'no ranking for this game yet', status: 404 };
+    return modelsGame(report(), gameOf(req), scopeOf(req), {}, { today: todayOf(gameOf(req)), follows: readFollows(dirs, gameOf(req)) }) || { error: 'no ranking for this game yet', status: 404 };
   }));
   app.get('/api/admin/phase-shift', (req, res) => answer(res, () => (report() ? phaseShiftSummary(report(), todayAll()) : noReport)));
   app.get('/api/admin/phase-shift/:game', (req, res) => answer(res, () => {

@@ -12,8 +12,10 @@ import { LotteryFailed, UserGamePicker, drawHref, fromTo, lotteryHref, userText 
 
 // /lottery/:game: the game's draws from its first saved ranking on, a folding card per month, newest first, all folded
 // (?month= opens that month: back from one of its draws). Every figure is over the five models ranked best
-// BEFORE each draw - the newest ranking saved before 15:00 Brussels time that day - never today's five; the draws before
-// the first saved ranking are left out, and one line says how many.
+// BEFORE each draw - the newest ranking saved before 15:00 Brussels time that day, or before its sales close when that
+// is earlier (13:00 on Sundays for Keno, Pick3 and Joker+) - never today's five; the draws before the first saved
+// ranking are left out, and one line says how many. A draw whose five's tickets were made after its sales close is
+// shown greyed and left out of the totals (27 Oct 2026, the owner's decision).
 const MONTH = /^\d{4}-\d{2}$/;
 
 export default function LotteryGamePage() {
@@ -60,7 +62,8 @@ export default function LotteryGamePage() {
       />
       <p className="statusline">
         <span>
-          <b>Each draw counts the 5 models ranked best before it</b> (the ranking saved before 15:00 Brussels time that day), never today&apos;s five.
+          <b>Each draw counts the 5 models ranked best before it</b> (the ranking saved before 15:00 Brussels time that day, or before its sales close when
+          that is earlier), never today&apos;s five. A draw whose tickets were made after its sales closed is shown greyed and not counted.
           {h.leftOut ? ` ${userText(h.leftOut.text)}` : ''}
         </span>
       </p>
@@ -105,9 +108,11 @@ function TotalCard({ h, t }: { h: UserHistory; t: HistoryTotal }) {
 }
 
 function totalLines(shape: Shape, t: HistoryTotal, unit: string): { main: string; sub: string[] } {
-  const over = `over ${count(t.counted, unit)}, each with the 5 ranked best before it`;
+  // the draws greyed for tickets made after the sales close are named on the same line as the count they are left out of
+  const leftOut = t.afterClose ? ` (${t.afterClose} left out: tickets made after the sales close)` : '';
+  const over = `over ${count(t.counted, unit)}${leftOut}, each with the 5 ranked best before it`;
   // a draw without a top 5 (a ranking that could not be read, no row of it ranked then): its own line says why
-  const n = t.draws - t.counted;
+  const n = t.draws - t.counted - t.afterClose;
   const notCounted = n > 0 ? [`${count(n, unit)} without a top 5 ${n === 1 ? 'is' : 'are'} not counted (${n === 1 ? 'its line says' : 'their lines say'} why)`] : [];
   if (shape.money) {
     const sub = [`net over ${t.tickets} ${t.tickets === 1 ? 'ticket' : 'tickets'} · stake ${eurU(t.stake)}`, over];

@@ -1,4 +1,4 @@
-import os, argparse, json, sys, time, shutil
+import os, argparse, json, math, sys, time, shutil
 # Pin the BLAS pools before numpy is imported: the REINFORCE updates are small
 # matrix ops, and with trials running in parallel (HyperoptRunner) every
 # process would otherwise spin up a 16-thread OpenBLAS pool and thrash the box.
@@ -15,6 +15,8 @@ from src.RLPositionModel import RLPositionModel, ROW_NAME as POSITION_ROW
 from src.MarketSettle import cash_pnl
 from src.TuningScore import score_bets_by_day, attrs_for_trial, describe
 from src.TuningGate import challenge, make_defaults
+from src.Lockbox import (load_or_warn as load_lockbox, covers as lockbox_covers, split_by_date as lockbox_split_days,
+                         describe as describe_lockbox, describe_withheld as describe_lockbox_withheld)
 from src.Helpers import Helpers
 from src.HyperoptRunner import (open_study, fail_stale_running_trials, has_completed_trials, optimize_study,
                                 install_sigterm_handler)
@@ -75,6 +77,35 @@ RL_POSITION_DEFAULTS = {
 # beats the served parameters and the untuned defaults, re-scored on the same days.
 GATE_ENABLED = True
 GATE_MARGIN = 0.0
+# Both gates (ticket and position) also take GATE_SE_MARGIN standard errors of the challenger's own score (TuningGate.
+# challenge se_margin, 27 Oct 2026; until then any gain replaced): on 17 and 24 Oct the ticket studies replaced 9 rows,
+# every one by 0.00-0.59 SE (and on 24 Oct lotto's challenger, incumbent and default all scored 0.7607 - a flat
+# objective), and at one SE none of the 12 ticket row-weeks would have been replaced. A margin also absorbs the
+# trials' own noise: training is capped by the wall clock (maxTrainSeconds 60) and trials run 15 at a time while the
+# references run alone, so the same knobs can score differently (the untuned default drifted 0.36 SE between the weeks).
+GATE_SE_MARGIN = 1.0
+# ... while the revert takes none (TuningGate.challenge revert_margin, 27 Oct 2026): the untuned default is served back
+# whenever it scores above the incumbent. Not because these scores are exact - they are not (above) - but because the
+# default is the unselected null: it is not picked from trials, and on a row without skill going back to it costs
+# nothing in expectation, so part of these reverts will be noise and that is harmless. Replayed: 5 ticket reverts on
+# 17 Oct (incumbents the ungated studies had written, which the defaults beat), 2 on 24 Oct.
+GATE_REVERT_MARGIN = 0.0
+# The position row's sit-out floor (position_sit_out, 27 Oct 2026, approved by the owner): the served sizing is
+# served only when its score - already the lower bound, mean minus one SE - is above SIT_OUT_SE_MARGIN of its own
+# standard errors, i.e. its mean money per position is more than two standard errors above the 0 of never betting.
+# Until then any bound above 0 served: on 24 Oct crypto served a sizing at +0.0084 with an SE of 0.0128 (mean size
+# 0.0225, t 1.66) after its incumbent had held the row at +3e-19 - a policy that bet on one day of 40, where the
+# bound is 0 by construction and "above 0" was decided by rounding. None of the eight market-weeks of 17 and 24 Oct
+# clears it (the served sizings' t was at most 1.66), so the row will mostly sit out. Picked from 15 trials, t > 2 is a
+# minimum bar, not a calibrated 2.3% test. No floor on the exposure: the mean size is recorded (over all positions and
+# over the non-zero ones) for the reader only.
+SIT_OUT_SE_MARGIN = 1.0
+# The lockbox (src/Lockbox.py), loaded in __main__ and handed to every study (26 Oct 2026; until then this tuner had
+# no lockbox code - 6 of vikinglotto's 40 ticket days were lockbox draws). Its days stay in the walk-forward: the
+# policy is retrained and warm-started through them as production does every day (fitting on history that holds
+# lockbox draws is allowed - the daily predictor does it), but they are never scored - not in a trial, not in the
+# gate's re-scores of the served and the default knobs, not in the plain rule the position studies are read against.
+# The window is not lengthened to make up for them.
 
 
 def is_running():
@@ -244,7 +275,7 @@ def position_bets(sizes, returns_of_day):
     return [float(size) * cash_pnl(float(ret)) for size, ret in zip(sizes, returns_of_day)]
 
 
-def plain_rule_score(dataset_name, evaluation_days, returns, modelScores):
+def plain_rule_score(dataset_name, evaluation_days, returns, modelScores, lockbox=None):
     """
     The reference every position study is read against: size 1 where the
     vote's call is up, 0 where it is not - the row's own fallback without a
@@ -254,11 +285,14 @@ def plain_rule_score(dataset_name, evaluation_days, returns, modelScores):
     stuck deep-learning rows, baseline and aggregates no longer vote here
     either, and the two boosting twins no longer vote twice - this reference
     and the trials (objective_rl_position runs the model itself, its
-    upShare and consensus features too) follow production's rule.
+    upShare and consensus features too) follow production's rule. The
+    lockbox days are not scored, as in the trials.
     """
     model = RLPositionModel()
     bets_by_day = []
     for fileDate, rows, _ in evaluation_days:
+        if lockbox_covers(lockbox, fileDate):
+            continue
         ret = returns.get(fileDate.strftime("%Y-%m-%d"))
         rows = [r for r in rows if r.get("predictions") and r["predictions"][0]]
         if ret is None or not rows:
@@ -272,7 +306,7 @@ def plain_rule_score(dataset_name, evaluation_days, returns, modelScores):
 
 
 def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, dataPath, policyDir,
-                          modelScores, maxTrainSeconds, returns):
+                          modelScores, maxTrainSeconds, returns, lockbox=None):
     """
     The position model's walk-forward (README item 4, M4): for each evaluation
     day D the policy is retrained with cutoffDate=D on the market's day JSONs
@@ -284,7 +318,8 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
     daily position only at double size on a ten-percent day but bites often
     on a week game, where ten-percent weeks are routine). The utility the policy trains on is
     not the objective: rlPositionRiskAversion is a knob here, the money is
-    what is scored.
+    what is scored. A lockbox day is walked through (the policy trains and
+    warm-starts on it) but not paid or scored (26 Oct 2026).
     """
     policyDir = os.path.join(policyDir, f"trial_{os.getpid()}")
     clear_folder(policyDir)
@@ -306,7 +341,7 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
             continue
         row = model.run(dataset_name, rows, historyDir, dataPath,
                         {"cutoffDate": fileDate, "modelScores": modelScores, "returns": returns})
-        if not row or not row.get("positions"):
+        if not row or not row.get("positions") or lockbox_covers(lockbox, fileDate):
             continue
         bets_by_day.append(position_bets(row["positions"], ret))
         sizes_taken.extend(float(s) for s in row["positions"])
@@ -317,26 +352,90 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
     # money net of fees; a sizing is served only when it beats that, which
     # is what sizing is for (tune_position's floor: rlPositionSitOut). The
     # mean size travels with the record so a reader can tell a sizing from a
-    # near sit-out.
+    # near sit-out - over every position, and (27 Oct 2026) over the ones it
+    # took: a policy betting size 1 on 8% of the instrument-days averages
+    # 0.08 like one betting 0.08 everywhere, and only the second is near-flat.
     tuning["mean_size"] = float(sum(sizes_taken) / len(sizes_taken)) if sizes_taken else None
+    taken = [s for s in sizes_taken if s > 0]
+    tuning["mean_nonzero_size"] = float(sum(taken) / len(taken)) if taken else None
     trial.set_user_attr("tuning", attrs_for_trial(tuning))
     print(f"Trial {trial.number}: {describe(tuning)}")
     return tuning["score"]
 
 
-def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase):
+def scored_days(dataset_name, evaluation_days, lockbox):
+    """
+    (withheld, scored) of a walk-forward window under the lockbox, logged in
+    the other tuners' words - the days are walked, only `scored` are scored.
+    """
+    withheld = len(lockbox_split_days(evaluation_days, lockbox)[1])
+    if lockbox:
+        print(describe_lockbox_withheld(dataset_name, lockbox, withheld, len(evaluation_days) - withheld))
+    return withheld, len(evaluation_days) - withheld
+
+
+def _number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def position_sit_out(served_score, served_tuning, enabled=True, previous=False, margin=0.0, se_margin=SIT_OUT_SE_MARGIN):
+    """
+    Whether the RL Position row sits out after the gate (rlPositionSitOut): (sit_out, reason, floor), with floor the
+    score the served sizing had to beat (None when nothing was compared). A policy that never bets scores exactly 0,
+    so the sit-out is a fourth reference the gate itself does not know. The served sizing - the challenger, the
+    default or the incumbent, whichever the gate serves - is served only when its score (the lower bound, mean minus
+    one SE) is above `margin` and above se_margin of its own standard errors (SIT_OUT_SE_MARGIN, 27 Oct 2026): with
+    se_margin 1 its mean money per position is more than two standard errors above 0. Fail closed: a sizing without
+    a standard error (None or 0: one day, no spread) sits out. se_margin 0 is the rule until then - any score above
+    `margin`. The gate disabled: the written sizing is served; nothing scored this run: the last setting (`previous`)
+    stays. The mean sizes in the reason are for the reader only - there is no floor on the exposure.
+    """
+    if not enabled:
+        return False, "gate disabled - the written sizing is served", None
+    if served_score is None:
+        # nothing was scored this run (no finite trial, an unscorable reference): the last decision stands
+        return bool(previous), f"no scored sizing this run - the sit-out setting stays {'on' if previous else 'off'}", None
+    tuning = served_tuning or {}
+    sizes = ""
+    if _number(tuning.get("mean_size")):
+        sizes = f" - mean size {tuning['mean_size']:.3f}" + (
+            f" ({tuning['mean_nonzero_size']:.3f} on the positions it took)" if _number(tuning.get("mean_nonzero_size")) else "")
+    if not se_margin or se_margin <= 0:
+        if served_score > margin:
+            return False, f"served sizing {served_score:+.4f} beats the 0 of never betting{sizes}", margin
+        return True, f"served sizing {served_score:+.4f} does not beat the 0 of never betting{sizes} - the row sits out", margin
+    se = tuning.get("score_se")
+    if not (_number(se) and se > 0):
+        return True, (f"served sizing {served_score:+.4f} has no standard error ({'none' if se is None else repr(se)}), "
+                      f"so its lead over the 0 of never betting cannot be measured{sizes} - the row sits out"), None
+    floor = max(margin, se_margin * se)
+    errors = "one standard error" if se_margin == 1 else f"{se_margin:g} standard errors"
+    # the mean in standard errors: the score is mean - 1 SE (TuningScore's penalty), so mean / SE = score / SE + 1
+    t = served_score / se + 1
+    lead = (f"its mean is {abs(t):.2f} standard errors {'above' if t >= 0 else 'below'} 0; "
+            f"it needs more than {floor / se + 1:.3g} above")
+    if served_score > floor:
+        return False, (f"served sizing {served_score:+.4f} (SE {se:.4f}) beats the 0 of never betting by more than "
+                       f"{errors} of its own: {lead}{sizes}"), floor
+    return True, (f"served sizing {served_score:+.4f} (SE {se:.4f}) does not beat the 0 of never betting by {errors} "
+                  f"of its own: {lead}{sizes} - the row sits out"), floor
+
+
+def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase, lockbox=None):
     """One market game's position study, gated, written to bestParams_<market>.json."""
     historyDir = os.path.join(path, "data", "database", dataset_name)
     dataPath = os.path.join(path, "data", "trainingData", dataset_name)
     returns = RLPositionModel()._loadReturns(dataPath)
     evaluation_days = [e for e in load_evaluation_days(historyDir, evaluationDayCount)
                        if e[0].strftime("%Y-%m-%d") in returns]
-    if len(evaluation_days) < MIN_EVALUATION_DAYS:
-        print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with rows, a result and a return "
-              f"(need at least {MIN_EVALUATION_DAYS})")
+    withheld, scored = scored_days(dataset_name, evaluation_days, lockbox)
+    if scored < MIN_EVALUATION_DAYS:
+        print(f"Skipping {dataset_name}: only {scored} day JSONs with rows, a result and a return"
+              f"{' outside the lockbox' if withheld else ''} (need at least {MIN_EVALUATION_DAYS})")
         return
     print(f"Evaluating the position model on {len(evaluation_days)} days "
-          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
+          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})"
+          + (f", {scored} of them scored" if withheld else ""))
     jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
     existingData = {}
     if os.path.exists(jsonBestParamsFilePath):
@@ -344,7 +443,7 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
             existingData = json.load(infile)
     modelScores = existingData.get("modelScores")
     maxTrainSeconds = existingData.get("rlPositionMaxTrainSeconds", 60)
-    plain = plain_rule_score(dataset_name, evaluation_days, returns, modelScores)
+    plain = plain_rule_score(dataset_name, evaluation_days, returns, modelScores, lockbox)
     print(f"  plain rule (size 1 where the vote is up): {describe(plain)}")
     shutil.rmtree(policyDir, ignore_errors=True)
     studyName = f"{dataset_name}-rl_position"
@@ -352,14 +451,15 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
     fail_stale_running_trials(study)
     known_trials = {t.number for t in study.get_trials(deepcopy=False)}
     objective = lambda trial: objective_rl_position(trial, dataset_name, evaluation_days, historyDir, dataPath,
-                                                    policyDir, modelScores, maxTrainSeconds, returns)
+                                                    policyDir, modelScores, maxTrainSeconds, returns, lockbox)
     studyStart = time.time()
     optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
     print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
     study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
     outcome = challenge(study, known_trials, objective, existingData, make_defaults(RL_POSITION_DEFAULTS, existingData),
                         timeout_seconds=len(evaluation_days) * (maxTrainSeconds + 5) + 120, label=studyName,
-                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days))
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days),
+                        lockbox_withheld=withheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN)
     print(outcome["summary"])
     record = outcome["record"]
     record["plain_rule"] = attrs_for_trial(plain)
@@ -367,22 +467,20 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
         existingData.update(outcome["params"])
     # The floor the gate itself does not know: a policy that never bets scores exactly 0, so the sit-out is a
     # fourth reference. When what the gate serves (the challenger, the default or the incumbent) does not beat
-    # it by the gate's margin, the row is served sitting out - the tuned knobs are still written, so the policy
-    # they describe is what the next run compares - and the record says so. Until 13 Oct 2026 the comment above
-    # promised this floor but nothing applied it: the 10 Oct gate served sizings below 0 on crypto and shares.
-    served_score = outcome["served_score"]
-    if not GATE_ENABLED:
-        sit_out, reason = False, "gate disabled - the written sizing is served"
-    elif served_score is None:
-        # nothing was scored this run (no finite trial, an unscorable reference): the last decision stands
-        sit_out = bool(existingData.get("rlPositionSitOut", False))
-        reason = f"no scored sizing this run - the sit-out setting stays {'on' if sit_out else 'off'}"
-    elif served_score > 0.0 + GATE_MARGIN:
-        sit_out, reason = False, f"served sizing {served_score:+.4f} beats the 0 of never betting"
-    else:
-        sit_out, reason = True, f"served sizing {served_score:+.4f} does not beat the 0 of never betting - the row sits out"
+    # it clearly - by one standard error of its own score on top of the bound since 27 Oct 2026 (position_sit_out)
+    # - the row is served sitting out - the tuned knobs are still written, so the policy they describe is what the
+    # next run compares - and the record says so. Until 13 Oct 2026 the comment above promised this floor but
+    # nothing applied it: the 10 Oct gate served sizings below 0 on crypto and shares.
+    served_tuning = outcome.get("served_tuning") or {}
+    sit_out, reason, floor = position_sit_out(outcome["served_score"], served_tuning, enabled=GATE_ENABLED,
+                                              previous=existingData.get("rlPositionSitOut", False), margin=GATE_MARGIN)
     record["sit_out"] = bool(sit_out)
     record["sit_out_reason"] = reason
+    # the score the served sizing had to beat (None: nothing compared), and its exposure - for the reader only
+    record["sit_out_floor"] = floor
+    record["sit_out_se_margin"] = SIT_OUT_SE_MARGIN
+    record["served_mean_size"] = served_tuning.get("mean_size")
+    record["served_mean_nonzero_size"] = served_tuning.get("mean_nonzero_size")
     existingData["rlPositionSitOut"] = bool(sit_out)
     print(f"  {dataset_name}-rl_position: {record['sit_out_reason']}")
     existingData.setdefault("tuningGate", {})[POSITION_ROW] = record
@@ -393,17 +491,20 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
     shutil.rmtree(policyDir, ignore_errors=True)
 
 
-def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase):
+def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
+                lockbox=None):
     """One lottery game's RL ticket study, gated, written to bestParams_<game>.json (a function since 13 Oct 2026)."""
     historyDir = os.path.join(path, "data", "database", dataset_name)
 
     evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
-    if len(evaluation_days) < MIN_EVALUATION_DAYS:
-        print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
-              f"a currentPrediction and a realResult (need at least {MIN_EVALUATION_DAYS})")
+    withheld, scored = scored_days(dataset_name, evaluation_days, lockbox)
+    if scored < MIN_EVALUATION_DAYS:
+        print(f"Skipping {dataset_name}: only {scored} day JSONs with both a currentPrediction and a realResult"
+              f"{' outside the lockbox' if withheld else ''} (need at least {MIN_EVALUATION_DAYS})")
         return
     print(f"Evaluating on {len(evaluation_days)} days "
-          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
+          f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})"
+          + (f", {scored} of them scored" if withheld else ""))
 
     jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
     existingData = {}
@@ -445,7 +546,7 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
                        historyDir=historyDir, numberRange=numberRange, kenoSubsetSizes=kenoSubsetSizes, \
                        maxTrainSeconds=maxTrainSeconds: objective_rl_ticket(
         trial, dataset_name, game_cfg, evaluation_days, historyDir,
-        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds)
+        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds, lockbox)
 
     studyStart = time.time()
     optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
@@ -458,12 +559,15 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
 
     # The champion/challenger gate (src/TuningGate.py, since 13 Oct 2026 for the ticket studies too):
     # this run's best trial replaces the served knobs only if it beats them and the untuned ones,
-    # both re-scored on this run's days with this objective; the untuned ones are served back when
-    # they beat both. Until then the study's all-time best was written, ungated.
+    # both re-scored on this run's days with this objective, by one standard error of its own score
+    # (GATE_SE_MARGIN, 27 Oct 2026); the untuned ones are served back when they score above the served
+    # ones and the challenger did not clear them (GATE_REVERT_MARGIN). Until 13 Oct the study's all-time
+    # best was written, ungated.
     outcome = challenge(study, known_trials, objective, existingData,
                         make_defaults(RL_TICKET_DEFAULTS, existingData),
                         timeout_seconds=len(evaluation_days) * (maxTrainSeconds + 5) + 120, label=studyName,
-                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days))
+                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days),
+                        lockbox_withheld=withheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN)
     print(outcome["summary"])
     existingData.setdefault("tuningGate", {})[TICKET_ROW] = outcome["record"]
     if outcome["params"] is not None:
@@ -479,7 +583,7 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
 
 
 def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyDir,
-                        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds):
+                        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds, lockbox=None):
     """
     Honest walk-forward over the pipeline's own day JSONs: for each evaluation
     day D the model is trained with cutoffDate=D (so it only ever sees days
@@ -487,6 +591,8 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     and its emitted ticket is scored against D's realResult. Trial value is
     the tuners' common lower-bound objective (rl_row_material, 13 Oct 2026;
     the plain mean per day before, which one straight or keno tier decided).
+    A lockbox day is walked through - the policy trains and warm-starts on
+    it - but its ticket is not scored (26 Oct 2026).
     """
     is_pick3 = "pick3" in dataset_name
     is_keno = "keno" in dataset_name
@@ -538,6 +644,8 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
         # purpose, since that is exactly production's online behavior: each
         # day retrains on top of yesterday's theta.
         rlRow = rlTicket.run(dataset_name, rows, historyDir, gameConfig)
+        if lockbox_covers(lockbox, fileDate):
+            continue
         bets, hits = rl_row_material(rlRow, realResult, drawSize, is_pick3, is_keno)
         bets_by_day.append(bets)
         if hits is not None:
@@ -551,6 +659,137 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     trial.set_user_attr("tuning", attrs_for_trial(tuning))
     print(f"Trial {trial.number}: {describe(tuning)}")
     return tuning["score"]
+
+
+def _self_check():
+    """
+    The lockbox wiring (26 Oct 2026) with stub RL models, no policy trained and no database:
+        python3 -c 'import HyperoptRLTicket; HyperoptRLTicket._self_check()'
+    Twelve lotto days, the first four in the lockbox and each a perfect ticket: the walk-forward runs the model on
+    all twelve (the policy warm-starts through the lockbox, as production does), the score sees the last eight only.
+    """
+    import tempfile
+    import warnings
+    from src.Lockbox import parse
+
+    box = parse({"from": "2026-01-01", "to": "2026-01-04"})
+    perfect, wrong = [1, 2, 3, 4, 5, 6], [11, 12, 13, 14, 15, 16]
+    days = [(datetime(2026, 1, d), [{"name": "Markov Model", "predictions": [perfect if d <= 4 else wrong]}],
+             perfect + [40]) for d in range(1, 13)]
+    assert scored_days("lotto", days, box) == (4, 8) and scored_days("lotto", days, None) == (0, 12)
+
+    class StubTicket:
+        """Plays the stored row's ticket and remembers the days it was run for."""
+        walked = []
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None    # the setters
+        def run(self, dataset_name, rows, historyDir, gameConfig):
+            StubTicket.walked.append(gameConfig["cutoffDate"])
+            return {"predictions": [rows[0]["predictions"][0]]}
+
+    module = globals()
+    saved = module["RLTicketModel"], module["RLPositionModel"]
+    module["RLTicketModel"] = StubTicket
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.ERROR)
+    try:
+        with tempfile.TemporaryDirectory() as policyDir, warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            def score(lockbox):
+                StubTicket.walked = []
+                trial = optuna.trial.FixedTrial(dict(RL_TICKET_DEFAULTS))
+                value = objective_rl_ticket(trial, "lotto", GAME_CONFIG["lotto"], days, policyDir, policyDir,
+                                            (1, 45), [], 60, lockbox)
+                return value, trial.user_attrs["tuning"], list(StubTicket.walked)
+            value, tuning, walked = score(None)
+            assert tuning["days"] == 12 and tuning["hits_mean"] == 2.0 and len(walked) == 12, tuning
+            value, tuning, walked = score(box)
+            assert tuning["days"] == 8 and tuning["hits_mean"] == 0.0 and value == 0.0, tuning
+            assert walked == [d[0] for d in days], "every day is walked, the lockbox's too"
+
+        # the position studies' plain rule, read against: a lockbox day pays nothing either way
+        class StubPosition:
+            k = 10
+            def _voteTicket(self, rows, slots, modelScores, game):
+                return rows[0]["predictions"][0]
+        module["RLPositionModel"] = StubPosition
+        market = [(datetime(2026, 1, d), [{"name": "Markov Model", "predictions": [[9, 9]]}], [9, 9]) for d in range(1, 13)]
+        returns = {when.strftime("%Y-%m-%d"): [0.05, 0.05] if when.day <= 4 else [-0.01, -0.01] for when, _, _ in market}
+        whole = plain_rule_score("crypto", market, returns, None)
+        held = plain_rule_score("crypto", market, returns, None, box)
+        assert whole["days"] == 12 and held["days"] == 8 and held["profit_per_bet"] < 0 < whole["profit_per_bet"], (whole, held)
+    finally:
+        module["RLTicketModel"], module["RLPositionModel"] = saved
+        optuna.logging.set_verbosity(verbosity)
+    _self_check_gate()
+    print("HyperoptRLTicket self-check OK: the lockbox days are walked through (the policy trains on them) but never "
+          "scored - not by a ticket trial, not by the position studies' plain rule; the gates take one standard error "
+          "and revert without a margin; the position row sits out unless its sizing's mean is over two standard errors "
+          "above 0 - every market of 24 Oct")
+
+
+def _self_check_gate():
+    """
+    The margins of 27 Oct 2026 on production's own gate records (bestParams of 17 and 24 Oct), no policy trained:
+    the ticket gate through TuningGate.challenge with the recorded scores, the position sit-out (position_sit_out) on
+    the served sides of 24 Oct.
+    """
+    class Trial:
+        def __init__(self, value, se):
+            self.number, self.value, self.params = 1, value, {"rlTicketEpochs": 50}
+            self.state = optuna.trial.TrialState.COMPLETE
+            self.user_attrs = {"tuning": {"score": value, "kind": "hits", "days": 40, "score_se": se}}
+
+    class Study:
+        def __init__(self, trial):
+            self.trial, self.best_value = trial, trial.value
+        def get_trials(self, deepcopy=False, states=None):
+            return [self.trial]
+
+    served = {"rlTicketEpochs": 20}
+    def gate(ch, se, inc, default, **margins):
+        scores = {"incumbent": inc, "default": default}
+        return challenge(Study(Trial(ch, se)), set(), None, served, make_defaults(RL_TICKET_DEFAULTS, served), 10, "self-check",
+                         evaluate=lambda params, role: scores[role], **margins)["decision"]
+    ours = {"se_margin": GATE_SE_MARGIN, "revert_margin": GATE_REVERT_MARGIN}
+    # euromillions, 17 Oct: replaced at margin 0 (+0.5542 over +0.4569, 0.81 SE); now kept out, and the untuned knobs
+    # (+0.4823), which score above the served ones, are served back - with the challenger's margin on the revert
+    # too the weaker incumbent would have stayed
+    assert gate(0.5542, 0.1208, 0.4569, 0.4823) == "replaced"
+    assert gate(0.5542, 0.1208, 0.4569, 0.4823, **ours) == "reverted"
+    assert gate(0.5542, 0.1208, 0.4569, 0.4823, se_margin=GATE_SE_MARGIN) == "kept"
+    # lotto, 24 Oct: challenger, incumbent and default all at +0.7607 - kept, whatever the margins
+    assert gate(0.7607, 0.1143, 0.7607, 0.7607, **ours) == "kept" and gate(0.7607, 0.1143, 0.7607, 0.7607) == "kept"
+    # vikinglotto, 24 Oct: replaced on 0.22 SE; now the default (+0.8096 over +0.7990) is served back
+    assert gate(0.8262, 0.1238, 0.7990, 0.8096) == "replaced" and gate(0.8262, 0.1238, 0.7990, 0.8096, **ours) == "reverted"
+
+    # the position sit-out on the served sides of 24 Oct (score, its tuning): none clears two standard errors
+    crypto = (0.008435, {"score_se": 0.012843, "mean_size": 0.0225})     # replaced and served today: mean 1.66 SE
+    single = (3.25e-19, {"score_se": 0.000898, "mean_size": 0.0025})     # its incumbent: one day of 40 with a bet
+    shares = (-0.041600, {"score_se": 0.018166, "mean_size": 0.025})     # below 0: sat out then, sits out now
+    cryptoweek = (0.195558, {"score_se": 0.346159, "mean_size": 0.228})  # kept and served: mean 1.56 SE
+    sharesweek = (0.085338, {"score_se": 0.155180, "mean_size": 0.159})  # replaced and served: mean 1.55 SE
+    for name, (score, tuning) in {"crypto": crypto, "its incumbent": single, "shares": shares,
+                                  "cryptoweek": cryptoweek, "sharesweek": sharesweek}.items():
+        sit_out, reason, floor = position_sit_out(score, tuning)
+        assert sit_out and floor == tuning["score_se"] and reason.endswith("the row sits out"), (name, reason)
+    # under the rule until 27 Oct (any bound above 0) crypto, cryptoweek and sharesweek were served - the single-day
+    # incumbent too, on rounding
+    assert [position_sit_out(s, t, se_margin=0.0)[0] for s, t in (crypto, single, shares, cryptoweek, sharesweek)] \
+        == [False, False, True, False, False]
+    sit_out, reason, floor = position_sit_out(0.25, {"score_se": 0.10, "mean_size": 0.30, "mean_nonzero_size": 0.60})
+    assert not sit_out and floor == 0.10 and "3.50 standard errors above 0; it needs more than 2 above" in reason \
+        and "0.600 on the positions it took" in reason, reason
+    sit_out, _, _ = position_sit_out(0.25, {"score_se": 0.10}, margin=0.3)
+    assert sit_out, "the gate's own margin, when larger, is the floor"
+    # fail closed: no standard error (none, or 0 - no spread), or no diagnostics at all, sits out
+    for tuning in ({"score_se": None, "mean_size": 0.5}, {"score_se": 0.0}, {}, None):
+        sit_out, reason, floor = position_sit_out(0.25, tuning)
+        assert sit_out and floor is None and "no standard error" in reason, (tuning, reason)
+    # the gate disabled serves the written sizing; nothing scored keeps the last setting
+    assert position_sit_out(-1.0, None, enabled=False)[0] is False
+    assert position_sit_out(None, None, previous=True)[:2] == (True, "no scored sizing this run - the sit-out setting stays on")
+    assert position_sit_out(None, None, previous=False)[0] is False
 
 
 if __name__ == "__main__":
@@ -599,11 +838,22 @@ if __name__ == "__main__":
         parser.add_argument(
             '--gate-margin', type=float, default=0.0,
             help='Every study (the lottery ticket studies and the market position studies): the challenger must '
-                 'beat the served parameters and the untuned defaults by this much to be written (src/TuningGate.py).')
+                 'beat the served parameters and the untuned defaults by this much to be written (src/TuningGate.py); '
+                 'the larger of this and --gate-se-margin standard errors applies.')
+        parser.add_argument(
+            '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
+            help="Every study: the margin in standard errors of the challenger's own score (since 27 Oct 2026). "
+                 "0 = any gain replaces, the rule until then. The position row's sit-out floor is SIT_OUT_SE_MARGIN, not this.")
+        parser.add_argument(
+            '--gate-revert-margin', type=float, default=GATE_REVERT_MARGIN,
+            help='How much the untuned knobs must score above the served ones to be served back when the challenger '
+                 'is not written. 0 (default) = any amount: the untuned knobs are not picked from trials.')
         parser.add_argument('--no-gate', action='store_true', help="Write each study's best trial of this run without the comparison")
         args = parser.parse_args()
         GATE_ENABLED = not args.no_gate
         GATE_MARGIN = float(args.gate_margin)
+        GATE_SE_MARGIN = float(args.gate_se_margin)
+        GATE_REVERT_MARGIN = float(args.gate_revert_margin)
 
         print_intro()
 
@@ -627,6 +877,12 @@ if __name__ == "__main__":
         # One shared scratch policy dir is enough: games run sequentially and
         # every trial clears it before use.
         policyDir = os.path.join(path, "data", "hyperOptCache", "rl_model")
+        # The lockbox's days are walked but never scored (the lockbox note
+        # above is_running). A malformed declaration is a warning, said once -
+        # the run then is not lockbox-safe and the warning says so.
+        lockbox = load_lockbox(path)
+        if lockbox:
+            print(f"Tuning under the {describe_lockbox(lockbox)}: its days are walked through but never scored")
 
         for dataset_name, game_cfg in GAME_CONFIG.items():
             if dataset_name not in games:
@@ -634,9 +890,11 @@ if __name__ == "__main__":
             try:
                 print(f"\n{dataset_name.capitalize()}")
                 if game_cfg.get("position"):
-                    tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase)
+                    tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
+                                  lockbox=lockbox)
                     continue
-                tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase)
+                tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
+                            lockbox=lockbox)
 
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")

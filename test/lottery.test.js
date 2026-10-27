@@ -209,9 +209,12 @@ async function partOne() {
   ok(lotto.coming.rows.map((r) => r.name).join() === TODAY.slice(0, 5).join() && lotto.coming.scope.top.join() === TODAY.slice(0, 5).join()
     && lotto.coming.scope.ranking.today === true && lotto.coming.scope.of === 8 && lotto.coming.rows.every((r) => r.top === undefined),
     `the coming draw: today's five in their order (${lotto.coming.rows.map((r) => r.name).join(', ')})`);
-  ok(lotto.next.date === '2026-10-13' && lotto.next.weekday === 'Tue' && lotto.next.time === null && lotto.next.madeAt === '2026-10-11T07:10:00Z' && lotto.next.past === true && lotto.next.today === false
+  // the sales close from src/drawClose.json (27 Oct 2026): this fixture's lotto draws on a Tuesday, a weekday the table
+  // does not list, so the game's earliest close stands in - 19:00, 17:00Z in summer time
+  ok(lotto.next.date === '2026-10-13' && lotto.next.weekday === 'Tue' && lotto.next.time === '19:00' && lotto.next.closeAt === '2026-10-13T17:00:00Z'
+    && lotto.next.afterClose === false && lotto.next.afterCloseText === null && lotto.next.madeAt === '2026-10-11T07:10:00Z' && lotto.next.past === true && lotto.next.today === false
     && JSON.stringify(lotto.coming.rows[0].multiPick) === '{"numbers":[16,17,18]}' && JSON.stringify(lotto.coming.rows[0].tickets[0].mains) === '[10,11,12,13,14,15]'
-    && lotto.multiPick.sizes.length === 4, 'the next draw on the game\'s schedule (no time: the records hold the date), its rows with the multi-pick 7th-9th and the legend once');
+    && lotto.multiPick.sizes.length === 4, 'the next draw on the game\'s schedule with its sales close, its rows with the multi-pick 7th-9th and the legend once');
   ok(lotto.last.date === '2026-10-10' && lotto.last.scope.top.join() === V2.slice(0, 5).join() && lotto.last.rows.map((r) => r.name).join() === V2.slice(0, 5).join()
     && lotto.last.figures.best.mains === 6 && lotto.last.figures.rows === 5 && lotto.last.rows[0].best.mains === 6 && lotto.last.rows[0].multi === 6
     && lotto.last.rows[1].best.mains === 2 && lotto.last.result.bonus[0] === 7,
@@ -265,10 +268,11 @@ async function partOne() {
   ok(jh.draws === 1 && jh.leftOut.draws === 1 && jh.leftOut.firstSaved === '2026-10-07' && jh.ranking.firstOfGame.committedAt === '2026-10-07T07:30:00Z'
     && (await get('/api/lottery/jokerplus/2026-10-06')).body.code === 'before-first',
     'Joker+ entered the ranking after the first of all: its history starts at its own first saved ranking');
-  // the lines say why by the rule itself - no ranking saved before 15:00 Brussels time on the draw's day - and when the
-  // first was saved (on production Joker+'s came at 18:56 on 7 Sep, after that day's cut-off: its 7 Sep draw is left out)
+  // the lines say why by the rule itself - no ranking saved before 15:00 Brussels time on the draw's day, or before its
+  // sales close when that is earlier (Joker+ on Sundays, 13:00) - and when the first was saved (on production Joker+'s
+  // came at 18:56 on 7 Sep, after that day's cut-off: its 7 Sep draw is left out); one draw names its own cut-off
   const jd = (await get('/api/lottery/jokerplus/2026-10-06')).body;
-  ok(jh.leftOut.text === '1 earlier draw is left out: no ranking of jokerplus had been saved before 15:00 Brussels time on its day (the first was saved on 2026-10-07 at 09:30; the first counted draw is 2026-10-07).'
+  ok(jh.leftOut.text === '1 earlier draw is left out: no ranking of jokerplus had been saved before 15:00 Brussels time (13:00 on Sundays, when sales close) on its day (the first was saved on 2026-10-07 at 09:30; the first counted draw is 2026-10-07).'
     && jd.error === 'no ranking of jokerplus had been saved before 15:00 Brussels time on this draw\'s day (the first was saved on 2026-10-07 at 09:30), so it is left out',
     `the left-out line and a left-out draw give the cut-off rule and the first save's time: ${jh.leftOut.text} / ${jd.error}`);
 
@@ -360,6 +364,58 @@ async function partOne() {
   const after = (await get('/api/lottery')).body;
   ok(after.running === null && withoutBuiltAt({ ...after, running: undefined }) === withoutBuiltAt({ ...overview, running: undefined }),
     'the lock gone: running is null again, and the rest of the answer is what it was');
+
+  // --- the sales close (the owner's decisions 2 and 3, 27 Oct 2026) ---------------------------------------------------
+  // data/database/lotteryLiveness.json as src/Liveness.py writes it: keno 7 Oct back-built (every row first saved after
+  // the close); lotto 7 Oct G's ticket rewritten after the draw (G is one of that draw's five), lotto 10 Oct Z's row
+  // added after the close (Z is in nobody's five); the keno coming tickets made after the coming draw's close
+  const liveFile = path.join(db, workbench.LIVENESS_FILE);
+  fs.writeFileSync(liveFile, JSON.stringify({ rule: 'x', schedule: 'src/drawClose.json', games: {
+    keno: { checked: 'stamp+git', checkedThrough: '2026-10-07', draws: { '2026-10-07': { close: '2026-10-07T17:00:00Z', ticketFile: '2026-10-6.json', late: 'all',
+      lateReason: 'first saved after the close', firstSaved: '2026-10-08T23:00:00Z', delayHours: 30 } } },
+    lotto: { checked: 'stamp+git', checkedThrough: '2026-10-10', draws: {
+      '2026-10-07': { close: '2026-10-07T17:00:00Z', ticketFile: '2026-10-6.json', recovered: { commit: 'abcdef12', savedAt: '2026-10-07T08:00:00Z',
+        rows: { 'G Model': { predictions: [[1, 2, 40, 41, 42, 43]], multiPick: [7, 8, 9] } } } },
+      '2026-10-10': { close: '2026-10-10T17:00:00Z', ticketFile: '2026-10-7.json', late: ['Z Model'], lateReason: 'row added after the close', firstSaved: '2026-10-11T07:00:00Z', delayHours: 14 } } } } }));
+  const kenoNewest = path.join(db, 'keno', '2026-10-7.json');
+  fs.writeFileSync(kenoNewest, JSON.stringify({ ...JSON.parse(fs.readFileSync(kenoNewest, 'utf-8')), madeAt: '2026-10-13T18:05:00+00:00' }));
+  try {
+    const kh2 = (await get('/api/lottery/keno')).body;
+    const k7 = kh2.months[0].days.find((x) => x.date === '2026-10-07');
+    ok(k7.afterClose === true && k7.profit === 145 && kh2.months[0].afterClose === 1 && kh2.months[0].counted === 1 && kh2.months[0].profit === -5
+      && kh2.total.afterClose === 1 && kh2.total.counted === 1 && kh2.total.profit === -5 && kh2.total.stake === 5 && kh2.draws === 2,
+      `keno 7 Oct, made after its sales close: shown greyed with its +145, out of the month and the whole total (-5 over the one counted draw): ${JSON.stringify(kh2.total)}`);
+    const kd7 = (await get('/api/lottery/keno/2026-10-07')).body;
+    ok(kd7.afterClose === true && kd7.afterCloseText === 'Tickets for this draw were made after its sales closed - shown, not counted in the totals.'
+      && kd7.figures.profit === 145 && kd7.rows.every((r) => r.liveMark === undefined) && kd7.liveness === undefined,
+      'the draw itself says so in one line; a user gets no per-row markers');
+    const kenoCard = (await get('/api/lottery')).body.games.find((g) => g.game === 'keno');
+    ok(kenoCard.last.date === '2026-10-07' && kenoCard.last.afterClose === true && kenoCard.next.date === '2026-10-13' && kenoCard.next.time === '20:00'
+      && kenoCard.next.afterClose === true && kenoCard.next.afterCloseText === 'These tickets were made after sales closed (20:00): for reading, not for playing.'
+      && (await get('/api/home')).body.lottery.find((g) => g.game === 'keno').last.afterClose === true,
+      `the card: the last draw greyed, the coming tickets made after the coming close (${kenoCard.next.time}) are for reading only: ${kenoCard.next.afterCloseText}`);
+    const lh2 = (await get('/api/lottery/lotto')).body;
+    const lline = (date) => lh2.months[0].days.find((x) => x.date === date);
+    ok(lline('2026-10-07').afterClose === true && !lline('2026-10-10').afterClose && !lline('2026-10-06').afterClose && lh2.total.afterClose === 1 && lh2.total.counted === 2
+      && lh2.total.best.mains === 6 && !mentions(lh2, 'Z Model'),
+      'lotto: a rewritten ticket among the five greys its draw (the users\' totals leave it out); a late row outside the five does not, and is not named');
+    // the admin's markers on the same draws: every row kept (All) - their counts are the rows' draws minus live draws
+    const hAll = workbench.historyView(dirs, 'lotto', 'all', full, {}, null, new Date());
+    const hTop = workbench.historyView(dirs, 'lotto', 'top', full, {}, null, new Date());
+    const at = (h, date) => h.months[0].days.find((x) => x.date === date);
+    ok(JSON.stringify(at(hAll, '2026-10-07').liveMarks) === '{"recovered":1}' && JSON.stringify(at(hAll, '2026-10-10').liveMarks) === '{"late":1}'
+      && at(hAll, '2026-10-06').liveMarks === undefined && at(hTop, '2026-10-10').liveMarks === undefined && at(hAll, '2026-10-07').afterClose === undefined
+      && hAll.months[0].counted === 4 && hAll.months[0].afterClose === 0,
+      'admin history: per draw the kept rows not live as stored, by status; the admin counts every stored draw');
+    const dAll = workbench.drawView(dirs, 'lotto', '2026-10-07', 'all', full, todays, {}, new Date());
+    const g7 = dAll.rows.find((r) => r.name === 'G Model');
+    ok(g7.liveMark.status === 'recovered' && g7.liveMark.commit === 'abcdef12' && g7.liveMark.atClose.tickets[0].hits.mains === 2 && g7.tickets[0].hits.mains === 6
+      && dAll.rows.filter((r) => r.liveMark).length === 1 && JSON.stringify(dAll.liveness.marks) === '{"recovered":1}',
+      'admin draw: the rewritten row with the ticket that stood at the close, scored (2 hits where the stored one has 6)');
+  } finally {
+    fs.rmSync(liveFile, { force: true });
+    writeDays();
+  }
 }
 
 // ===================================================================================================================
@@ -487,16 +543,25 @@ async function partTwo() {
 // ===================================================================================================================
 const PROD_ROOT = '/root/sequencePredictor';
 const GIT_REPORT = 'data/database/modelPerformance.json';
-// 15:00 Brussels on a day, found by asking Intl which UTC hour is 15:00 there (independent of brussels.js)
-function cutoffMs(date) {
-  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Brussels', hour: '2-digit', hour12: false });
-  for (const h of [12, 13, 14]) { const ms = Date.parse(`${date}T${String(h).padStart(2, '0')}:00:00Z`); if (fmt.format(ms) === '15') return ms; }
-  throw new Error(`no 15:00 Brussels on ${date}`);
+// A Brussels wall time on a day, found by asking Intl which UTC hour shows it there (independent of brussels.js)
+function brusselsMs(date, hour, minute = 0) {
+  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit', hour12: false });
+  const want = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  for (let h = 0; h < 24; h += 1) { const ms = Date.parse(`${date}T${String(h).padStart(2, '0')}:${want.slice(3)}:00Z`); if (fmt.format(ms) === want) return ms; }
+  throw new Error(`no ${want} Brussels on ${date}`);
+}
+// a draw's cut-off: 15:00 Brussels, or its sales close when earlier (src/drawClose.json read here, not through draws.js)
+const DRAW_CLOSE = JSON.parse(fs.readFileSync(path.join(REPO, 'src', 'drawClose.json'), 'utf-8')).games;
+function cutoffMs(game, date) {
+  const table = DRAW_CLOSE[game] || {};
+  const time = table[['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(`${date}T12:00:00Z`).getUTCDay()]] || Object.values(table).sort()[0];
+  const fifteen = brusselsMs(date, 15);
+  return time ? Math.min(fifteen, brusselsMs(date, ...time.split(':').map(Number))) : fifteen;
 }
 // the five ranked before a draw, read from git directly: the newest version committed before the cut-off that parses
 // (a version that does not parse was never shown); its order, the names present in the draw's table, the first five
 function independentTop(root, commits, game, date, present) {
-  const cut = cutoffMs(date);
+  const cut = cutoffMs(game, date);
   for (const c of commits.filter((x) => x.at < cut).sort((a, b) => b.at - a.at)) {
     let report;
     try { report = JSON.parse(execFileSync('git', ['-C', root, 'show', `${c.sha}:${GIT_REPORT}`], { maxBuffer: 64 * 1024 * 1024 }).toString()); } catch (e) { continue; }
@@ -535,6 +600,10 @@ async function partThree() {
   fs.symlinkSync(path.join(PROD_ROOT, '.git'), path.join(root, '.git'));
   lottery.GAMES.forEach((g) => fs.cpSync(path.join(PROD_ROOT, 'data', 'database', g), path.join(root, 'data', 'database', g), { recursive: true }));
   fs.copyFileSync(path.join(PROD_ROOT, GIT_REPORT), path.join(root, GIT_REPORT));
+  // the liveness file once production has one (src/Liveness.py, from 27 Oct 2026): a greyed draw must be one it lists
+  const prodLive = path.join(PROD_ROOT, 'data', 'database', workbench.LIVENESS_FILE);
+  const liveDraws = fs.existsSync(prodLive) ? JSON.parse(fs.readFileSync(prodLive, 'utf-8')).games : {};
+  if (fs.existsSync(prodLive)) fs.copyFileSync(prodLive, path.join(root, 'data', 'database', workbench.LIVENESS_FILE));
   fs.cpSync(path.join(PROD_ROOT, 'data', 'markets'), path.join(root, 'data', 'markets'), { recursive: true });
   const app = fakeApp();
   lottery.install(app, { root, dataDir: path.join(root, 'data'), rankCacheFile: path.join(tmp, 'prod-rank-cache.json') });
@@ -575,10 +644,13 @@ async function partThree() {
     const files = workbench.dayFilesOf(path.join(root, 'data', 'database', game));
     const h = await get(`/api/lottery/${game}`);
     const listed = h.months.flatMap((m) => (m.days || []).map((d) => d.date));
-    ok(h.draws + h.leftOut.draws === files.length && listed.every((d) => cutoffMs(d) > firstSaved) && h.total.counted <= h.draws
-      && files.filter((f) => cutoffMs(f.date) <= firstSaved).length <= h.leftOut.draws,
+    ok(h.draws + h.leftOut.draws === files.length && listed.every((d) => cutoffMs(game, d) > firstSaved) && h.total.counted + h.total.afterClose <= h.draws
+      && files.filter((f) => cutoffMs(game, f.date) <= firstSaved).length <= h.leftOut.draws,
       `production ${game}: ${h.draws} draws from ${h.leftOut.firstCounted}, ${h.leftOut.draws} left out - none before the first saved ranking listed`);
     ok(h.months.every((m) => m.rowsMax === null || m.rowsMax <= 5), `production ${game}: at most five rows a draw`);
+    const greyed = h.months.flatMap((m) => (m.days || []).filter((d) => d.afterClose).map((d) => d.date));
+    ok(greyed.every((d) => liveDraws[game] && liveDraws[game].draws && liveDraws[game].draws[d]) && h.total.afterClose >= greyed.length,
+      `production ${game}: the draws greyed for tickets made after the sales close are listed in ${workbench.LIVENESS_FILE} (${greyed.length} in the open month)`);
     const pick = [h.total.to, h.leftOut.firstCounted, listed[Math.floor(listed.length / 2)]].filter(Boolean);
     for (const date of [...new Set(pick)]) {
       const d = await get(`/api/lottery/${game}/${date}`);

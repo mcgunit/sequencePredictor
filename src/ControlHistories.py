@@ -38,9 +38,18 @@ their "fair process" is the efficient-market prior - a geometric random walk.
              equally likely in every stretch, the real ones only over the
              history each day is cut from (src/MarketGame.py; until 25 Oct
              2026 this called the two "as equiprobable" as each other).
-  shuffled   the real game days reordered, bins AND returns together: every
-             bin frequency and the returns' marginal survive, volatility
-             clustering and momentum die with the order.
+  shuffled   the real game days' returns reordered (the returns before the
+             first kept game day - the warm-up, and with `recent` the game
+             days before the window - stay in place) and cut into bins by the
+             same causal rule: the returns' marginal and the cross-section of
+             a day survive, volatility clustering, momentum and the drift of
+             volatility across the game days die with the order. The bin
+             frequencies are not kept: a market's are made by the order of
+             its volatility. Until 26 Oct 2026 the days were reordered bins
+             AND returns together, each day keeping the bins its returns were
+             cut with in their original place, which the shuffled past's own
+             edges disagreed with on a seventh to over a quarter of the slots
+             (control_market says more).
 Both carry their own <market>-returns.tsv next to the bins, so the rows that
 model returns (src/MarketModels.py) run on a control as they run on the real
 history.
@@ -235,8 +244,9 @@ def synthetic_row(rng, cfg, positional, trailing, special_count, skip_last):
 def control_market(game, mode, seed, recent=None, source=None):
     """
     A market game's control history: (dates, draws, returns days, returns
-    matrix, symbols). The draws are the kept game days' bins (real, re-cut
-    from a geometric random walk, or reordered), the returns are the
+    matrix, symbols). The draws are the kept game days' bins (real, or cut
+    by the game's causal rule from a geometric random walk or from the real
+    returns reordered - causal_bins), the returns are the
     matching <market>-returns.tsv content - every aligned day, the warm-up
     before the first game day included, so the market rows can be fitted on
     the control exactly as on the real history.
@@ -261,26 +271,56 @@ def control_market(game, mode, seed, recent=None, source=None):
     if mode == "synthetic":
         mean, sd = matrix.mean(axis=0), matrix.std(axis=0)
         synthetic = rng.normal(0.0, 1.0, size=matrix.shape) * sd + mean
-        # a week game is cut after MIN_WEEK_HISTORY weeks, a daily market after MIN_HISTORY days (history_needed)
-        cut = {day["date"]: day["bins"] for day in cut_game(days, synthetic, k=K_BINS, min_history=history_needed(game))}
-        missing = [d for d in kept_dates if d not in cut]
-        if missing:
-            raise ValueError(f"{game}: {len(missing)} game day(s) have no cut under the returns file (first {missing[0]}) - "
-                             "the game files and the returns file disagree; MarketsDaily.py --no-fetch rewrites both")
-        return kept_dates, [list(cut[d]) for d in kept_dates], list(days), synthetic, list(symbols)
+        return kept_dates, causal_bins(game, days, synthetic, kept_dates), list(days), synthetic, list(symbols)
 
     if mode == "shuffled":
+        # The permutation is still the seed's only draw, so a seed reorders
+        # the same days it did before 26 Oct 2026; only the bins changed.
         order = rng.permutation(len(rows))
-        draws = [[_as_int(v) for v in rows[i][1]] for i in order]
         shuffled = matrix.copy()
         for target_date, source_i in zip(kept_dates, order):
             source_date = rows[source_i][0]
             if target_date not in index or source_date not in index:
                 raise ValueError(f"{game}: game day {target_date} or {source_date} is missing from the returns file")
             shuffled[index[target_date]] = matrix[index[source_date]]
-        return kept_dates, draws, list(days), shuffled, list(symbols)
+        # Re-cut from the shuffled returns, as the synthetic walk is (26 Oct
+        # 2026). Until then each day carried the bins its returns had been cut
+        # with in their ORIGINAL place - edges from the returns before the
+        # original date - so a shuffled day's bins disagreed with the edges
+        # its own shuffled past gives: agreement with a causal re-cut over the
+        # last 120 game days was 0.72-0.76 on crypto, 0.82-0.86 on shares,
+        # 0.73-0.84 on cryptoweek and 0.82-0.86 on sharesweek (the 25 Oct
+        # run's five seeds; the synthetic control 1.000). The rows that turn
+        # returns into bins (GARCH, the Regime HMM rows:
+        # MarketModels.edges_for_next_day) were scored against edges they
+        # never saw; the frequency rows read bins only and were not hurt.
+        # What survives now is the returns' marginal, exactly; the bin
+        # frequencies do not, and should not: a market's bin frequencies are
+        # made by the ORDER of its volatility (a calm stretch binned against a
+        # wild past over-fills the middle bins, src/MarketGame.py), which is
+        # what this control exists to destroy. Q2 reads the bins only, so its
+        # market "marginals control" moved with them (over its 1000-draw
+        # window the bin shares by a total variation of 0.006-0.035).
+        return kept_dates, causal_bins(game, days, shuffled, kept_dates), list(days), shuffled, list(symbols)
 
     raise ValueError(f"unknown control mode {mode}")
+
+
+def causal_bins(game, days, matrix, kept_dates):
+    """
+    The kept game days' bins cut from `matrix` by the game's own causal rule
+    (MarketGame.cut_game: day t's edges are the quantiles of the returns
+    before t, from history_needed(game) on - MIN_WEEK_HISTORY weeks for a
+    week game, MIN_HISTORY days for a daily market). The one cut both
+    generated market controls go through, so a control's bins are always
+    what its own returns file says they are, as on the real history.
+    """
+    cut = {day["date"]: day["bins"] for day in cut_game(days, matrix, k=K_BINS, min_history=history_needed(game))}
+    missing = [d for d in kept_dates if d not in cut]
+    if missing:
+        raise ValueError(f"{game}: {len(missing)} game day(s) have no cut under the returns file (first {missing[0]}) - "
+                         "the game files and the returns file disagree; MarketsDaily.py --no-fetch rewrites both")
+    return [list(cut[d]) for d in kept_dates]
 
 
 def _read_rows_from(folder):
@@ -316,7 +356,9 @@ def control_draws(game, mode, seed, recent=None):
     a standard deviation of 13.5 against the real 9.1, chi-square p < 0.0001,
     i.e. a control that no longer shares the marginals it exists to preserve.
     Cutting first and shuffling inside the window keeps "same draws, same
-    frequencies, different order" true.
+    frequencies, different order" true - for a lottery game; a market's
+    shuffled control reorders the window's returns and re-cuts their bins
+    (control_market, 26 Oct 2026), so its bin frequencies move a little.
     """
     if helpers.is_market_game(game):
         dates, draws, _, _, _ = control_market(game, mode, seed, recent=recent)
@@ -351,8 +393,9 @@ def build_control_dataset(game, mode, seed, root=None, recent=None):
     Writes one control history as CSVs that Helpers.load_data reads exactly
     like the real ones, and returns (directory, number of draws). Same dates
     in the same order: only the numbers are replaced (synthetic) or reordered
-    (shuffled), so anything date-derived is identical and each control
-    differs from the real history in exactly one respect.
+    (shuffled; for a market the returns are reordered and the bins re-cut
+    from them, control_market), so anything date-derived is identical and
+    each control differs from the real history in exactly one respect.
     """
     header, rows = read_real_rows(game)
     if recent:
@@ -380,11 +423,12 @@ def build_control_dataset(game, mode, seed, root=None, recent=None):
 if __name__ == "__main__":
     # Self-check on a temporary market (no real data touched): the synthetic
     # control is a random walk with the real volatility and equiprobable bins,
-    # the shuffled control keeps bins and returns together, both round-trip
-    # through the control folder with their returns file.
+    # the shuffled control reorders whole days of returns and re-cuts their
+    # bins by the causal rule (26 Oct 2026), both round-trip through the
+    # control folder with their returns file.
     #   python3 -m src.ControlHistories
     import tempfile
-    from src.MarketGame import write_game_csv, read_game_csv, bin_of, quantile_edges
+    from src.MarketGame import write_game_csv, read_game_csv, bin_of, quantile_edges, MIN_WEEK_HISTORY
     rng = np.random.default_rng(5)
     with tempfile.TemporaryDirectory() as tmp:
         n_days, n_pos = 600, 4
@@ -415,17 +459,38 @@ if __name__ == "__main__":
         assert [bin_of(s_matrix[t, p], quantile_edges(s_matrix[:t, p], 10)) for p in range(n_pos)] == s_draws[-1]
         assert control_market("shares", "synthetic", 1, source=source)[1] == s_draws and control_market("shares", "synthetic", 2, source=source)[1] != s_draws
 
+        # the shuffled control (26 Oct 2026): the window's game days reordered as whole days, their bins re-cut from the
+        # reordered returns by the game's causal rule - not carried over from the real cut
         h_dates, h_draws, h_days, h_matrix, _ = control_market("shares", "shuffled", 3, source=source, recent=200)
-        assert len(h_dates) == 200 and h_dates == real_dates[-200:]
-        assert sorted(map(tuple, h_draws)) == sorted(map(tuple, real_draws[-200:])) and h_draws != real_draws[-200:]
-        # bins and returns moved together: each shuffled day's returns are a real day's returns whose bins are that day's bins
-        real_by_bins = {}
-        for d, b in zip(real_dates, real_draws):
-            real_by_bins.setdefault(tuple(b), []).append(idx[d])
-        for target_date, draw in zip(h_dates, h_draws):
-            assert any(np.allclose(h_matrix[idx[target_date]], matrix[i]) for i in real_by_bins[tuple(draw)])
-        assert np.allclose(h_matrix[:idx[h_dates[0]]], matrix[:idx[h_dates[0]]]), "the warm-up rows stay in place"
+        assert len(h_dates) == 200 and h_dates == real_dates[-200:] and h_days == days
+        first = idx[h_dates[0]]
+        assert np.allclose(h_matrix[:first], matrix[:first]), "the warm-up and the game days before the window stay in place"
+        order = np.random.default_rng(3).permutation(200)
+        assert np.allclose(h_matrix[first:], matrix[first:][order]), "the permutation is the seed's only draw: a seed reorders the days it always did"
         assert np.allclose(np.sort(h_matrix[:, 0]), np.sort(matrix[:, 0])), "the returns' marginal survives"
+        recut = {d["date"]: d["bins"] for d in cut_game(h_days, h_matrix, k=K_BINS, min_history=MIN_HISTORY)}
+        assert h_draws == [recut[d] for d in h_dates], "the shuffled bins are the causal re-cut of the shuffled returns"
+        t = idx[h_dates[-1]]
+        assert [bin_of(h_matrix[t, p], quantile_edges(h_matrix[:t, p], 10)) for p in range(n_pos)] == h_draws[-1]
+        # the construction before 26 Oct 2026 - each day kept the bins its returns were cut with in their real place -
+        # disagrees with that re-cut on this market's alternating volatility (on 8% of the slots; on the production
+        # markets 14-28% over the last 120 days)
+        carried = [real_draws[-200:][i] for i in order]
+        assert np.mean(np.array(carried) == np.array(h_draws)) < 0.97, np.mean(np.array(carried) == np.array(h_draws))
+        assert h_draws != real_draws[-200:] and control_market("shares", "shuffled", 3, source=source, recent=200)[1] == h_draws
+        # the whole history shuffled: every game day re-cut against its shuffled past, the warm-up untouched
+        a_dates, a_draws, a_days, a_matrix, _ = control_market("shares", "shuffled", 4, source=source)
+        recut = {d["date"]: d["bins"] for d in cut_game(a_days, a_matrix, k=K_BINS, min_history=MIN_HISTORY)}
+        assert a_dates == real_dates and a_draws == [recut[d] for d in a_dates]
+        assert np.allclose(a_matrix[:MIN_HISTORY], matrix[:MIN_HISTORY]) and not np.allclose(a_matrix, matrix)
+        # a week game re-cuts after MIN_WEEK_HISTORY weeks (history_needed), as its real cut does: with the daily
+        # MIN_HISTORY its first game days would have no cut and causal_bins would raise
+        week_source = os.path.join(tmp, "sharesweek")
+        write_game_csv(cut_game(days[:300], matrix[:300], k=K_BINS, min_history=MIN_WEEK_HISTORY), week_source, "sharesweek")
+        write_returns_file(days[:300], matrix[:300], ["A", "B", "C", "D"], week_source, "sharesweek")
+        w_dates, w_draws, w_days, w_matrix, _ = control_market("sharesweek", "shuffled", 5, source=week_source)
+        recut = {d["date"]: d["bins"] for d in cut_game(w_days, w_matrix, k=K_BINS, min_history=MIN_WEEK_HISTORY)}
+        assert len(w_dates) == 300 - MIN_WEEK_HISTORY and w_draws == [recut[d] for d in w_dates]
 
         # through the folder, as NullControls builds it
         directory = os.path.join(tmp, "controls", "shares", "synthetic-seed1")
@@ -455,5 +520,6 @@ if __name__ == "__main__":
     assert control_seed("7") == 7 and control_seed(3) == 3
     assert repetitions_for("crypto", 3, 5) == 5 and repetitions_for("cryptoweek", 3, 5) == 5 and repetitions_for("lotto", 3, 5) == 3 and repetitions_for("crypto", 3) == 3
     print("ControlHistories self-check OK: a market's synthetic control is a matched random walk with equiprobable bins and no "
-          "volatility clustering, its shuffled control moves bins and returns together, both carry their returns file; "
+          "volatility clustering, its shuffled control reorders whole days of returns and its bins are their causal re-cut, "
+          "both carry their returns file; "
           "lotto's controls start at the 6-of-45 game")

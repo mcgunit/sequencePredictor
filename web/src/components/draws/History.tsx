@@ -36,9 +36,26 @@ export function FiguresLine({ shape, figures, mode }: { shape: Shape; figures: P
   );
 }
 
+// The live record's marks of a draw's rows in scope, in words (the admin; 27 Oct 2026): "2 back-built or late · 1
+// rewritten, scored as it stood at the close"
+const MARK_WORDS: Record<string, [string, string]> = {
+  late: ['back-built or late', 'back-built or late'],
+  recovered: ['rewritten after the draw (scored as it stood at the close)', 'rewritten after the draw (scored as they stood at the close)'],
+  duplicate: ['a second row of one name', 'second rows of one name'],
+  unchecked: ['not checked', 'not checked'],
+};
+export function liveMarksText(marks: Record<string, number> | null): string {
+  if (!marks) return '';
+  return Object.entries(marks)
+    .map(([k, n]) => `${n} ${(MARK_WORDS[k] ?? [k, k])[n === 1 ? 0 : 1]}`)
+    .join(' · ');
+}
+
 export function DayRow({ d, shape, mode, scope, version, first, href }: { d: DayLine; shape: Shape; mode: Mode; scope: 'all' | 'top'; version: RankVersion | null; first: string | null; href: string }) {
+  // a users' draw whose tickets were made after its sales close: shown greyed, out of the totals (27 Oct 2026)
+  const late = mode === 'user' && d.afterClose;
   return (
-    <div className="dl">
+    <div className={late ? 'dl grey' : 'dl'}>
       <div className="d">
         <Link to={href}>{dayYear(d.date)}</Link>
         <small>{d.weekday}</small>
@@ -48,6 +65,8 @@ export function DayRow({ d, shape, mode, scope, version, first, href }: { d: Day
         <span className="fig">
           <FiguresLine shape={shape} figures={d.figures} mode={mode} />
           {mode === 'admin' && scope === 'top' && version ? <small>top 5 by {version.metricText}, ranking saved {stamp(version.committedAt ?? version.generatedAt)}</small> : null}
+          {mode === 'admin' && d.liveMarks ? <small>not live as stored: {liveMarksText(d.liveMarks)}</small> : null}
+          {late ? <small>Tickets for this draw were made after its sales closed - shown, not counted in the totals.</small> : null}
         </span>
       ) : (
         <span className="fig mut">{scope === 'top' ? noneShort(d.none, first) : 'no scored row'}</span>
@@ -73,8 +92,11 @@ function monthLine(m: Month, shape: Shape, unit: string, scope: 'all' | 'top', m
   } else if (m.counted) {
     parts.push(`${drawsText}, no scored row`);
   }
-  if (scope === 'top' && m.counted && m.counted < m.draws) parts.push(`${m.counted} of ${count(m.draws, unit)} with a recorded ranking`);
-  if (!m.counted) parts.push(scope === 'top' ? `${count(m.draws, unit)}, none with a recorded ranking` : `${count(m.draws, unit)}, no row in scope`);
+  // users: draws whose tickets were made after the sales close are shown greyed and left out of these totals
+  const ranked = m.counted + m.afterClose;
+  if (m.afterClose) parts.push(`${count(m.afterClose, unit)} left out: tickets made after the sales close`);
+  if (scope === 'top' && ranked && ranked < m.draws) parts.push(`${ranked} of ${count(m.draws, unit)} with a recorded ranking`);
+  if (!ranked) parts.push(scope === 'top' ? `${count(m.draws, unit)}, none with a recorded ranking` : `${count(m.draws, unit)}, no row in scope`);
   return parts;
 }
 

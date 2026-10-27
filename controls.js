@@ -1,10 +1,16 @@
-// controls.js - reads the outputs of the two weekly control experiments for the
-// History page and turns them into the two numbers the page shows:
+// controls.js - reads the outputs of the control experiments for the admin
+// pages and turns them into the numbers the pages show:
 //
-//   Q0  NullControls.py            -> data/controls/results/<game>-<mode>.json
-//       What the BEST of the tracked rows scores on a history with nothing in
-//       it. The band under which a row on the "Best model per game" card has
-//       not shown anything a leaderboard over noise would not show.
+//   Q0  src/RowChance.py           -> modelPerformance.json, per game and per model "chance"
+//       Since 27 Oct 2026 the daily report's row test: each ranked row on its
+//       live draws against the fair draw (lottery, exact) or its own tickets
+//       shuffled within blocks of 7 live days (markets), Holm over the card,
+//       and a fixed-length verdict on new draws for a row that read p < 0.05.
+//       NullControls.py            -> data/controls/results/<game>-<mode>.json
+//       What the BEST of 8 untuned rows scores on 120 fair draws: the old band,
+//       context only since 27 Oct 2026 (the Controls drawer) - it knows neither
+//       a row's record length nor its own fair level, so nothing is labelled,
+//       greyed or counted on it any more.
 //   Q2  RandomnessDiscrimination.py -> data/controls/discrimination/<game>-w<N>.json
 //       Whether a classifier suite separates real draw windows from fair
 //       simulated ones better than the same suite separates two fair
@@ -24,6 +30,9 @@ const fs = require('fs');
 const path = require('path');
 
 const MODES = ['synthetic', 'shuffled'];
+// Q2's power rule: a record on fewer held-out windows than this reads "too few draws". One number, shared with
+// RandomnessDiscrimination.py through controlRules.json (27 Oct 2026); admin.js takes it from here.
+const FEW_WINDOWS = require('./controlRules.json').q2.few_windows;
 
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (e) { return null; }
@@ -41,10 +50,10 @@ function loadNullControls(dir, game) {
 }
 
 // The band: the mean over control histories of the best row's score, plus two
-// standard deviations across them - the rule RandomnessDiscrimination's
-// verdict applies to its null comparison - taken over whichever control is
-// higher (shuffled usually is: the marginals survive there). A row at or below
-// it is "within the band": the best of N worthless rows scores that much.
+// standard deviations across them, taken over whichever control is higher
+// (shuffled usually is: the marginals survive there) - what the best of N
+// worthless rows scores: the selection effect, shown as context next to the
+// row tests (until 27 Oct 2026 a row at or below it was "within the band").
 function nullBand(reports) {
   const modes = Object.keys(reports || {});
   if (!modes.length) return null;
@@ -71,10 +80,41 @@ function nullBand(reports) {
   return { ceiling, from, modes: per, metric: per[from].metric, generatedAt: generatedAt || null };
 }
 
-function withinBand(value, band) {
-  if (!band || value === null || value === undefined) return false;
-  const v = Number(value);
-  return Number.isFinite(v) && v <= band.ceiling;
+// The row tests of one game, as the daily report wrote them (src/RowChance.py, 27 Oct 2026): test, the game's summary
+// (or, without one, error: why there is no test - a report from before, a game whose liveness could not be judged, a
+// test that failed); rows, each model's block by name. Numbers that are not numbers read null, never NaN; a fresh state
+// this reader does not know drops the fresh block rather than claim one. null without a ranking for the game.
+const ALPHA = 0.05;
+const VERDICT_ALPHA = 0.01;
+const FRESH_STATES = ['running', 'stopped', 'confirmed', 'not confirmed'];
+const date = (x) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null);
+function freshOf(f) {
+  if (!f || typeof f !== 'object' || !FRESH_STATES.includes(f.state)) return null;
+  return { state: f.state, since: date(f.since), flagDraws: num(f.flagDraws), flagP: num(f.flagP), flagMean: num(f.flagMean), flagNull: num(f.flagNull),
+    verdictLength: num(f.verdictLength), draws: num(f.draws) || 0, last: date(f.last), verdictAt: date(f.verdictAt), decidedOn: date(f.decidedOn),
+    p: num(f.p), mean: num(f.mean), null: num(f.null) };
+}
+function describeChance(info) {
+  if (!info || !Array.isArray(info.models)) return null;
+  const c = info.chance && typeof info.chance === 'object' ? info.chance : null;
+  const error = !c ? 'not in this report - written before 27 Oct 2026, or its test failed' : (c.error ? String(c.error) : null);
+  const test = c && !error ? {
+    method: c.method === 'permutation' ? 'permutation' : 'exact', alpha: num(c.alpha) ?? ALPHA, verdictAlpha: num(c.verdictAlpha) ?? VERDICT_ALPHA,
+    minDraws: num(c.minDraws), permutations: num(c.permutations), block: num(c.block), family: num(c.family) || 0, liveMax: num(c.liveMax) || 0,
+    under: num(c.under) || 0, expected: num(c.expected) || 0, holds: num(c.holds) || 0, followed: num(c.followed) || 0, running: num(c.running) || 0,
+    stopped: num(c.stopped) || 0, confirmed: num(c.confirmed) || 0, notConfirmed: num(c.notConfirmed) || 0,
+    checkedThrough: date(c.checkedThrough), stored: typeof c.stored === 'string' ? c.stored : null,
+  } : null;
+  const rows = {};
+  if (test) {
+    info.models.forEach((m) => {
+      const b = m && m.chance;
+      if (!b || typeof b !== 'object') return;
+      rows[m.name] = { draws: num(b.draws) || 0, notLive: num(b.notLive) || 0, mean: num(b.mean), null: num(b.null), nullSd: num(b.nullSd), p: num(b.p),
+        pHolm: num(b.pHolm), inFamily: b.inFamily === true, last: date(b.last), fresh: freshOf(b.fresh) };
+    });
+  }
+  return { test, error, rows };
 }
 
 // --- Q2 ---------------------------------------------------------------------
@@ -92,28 +132,52 @@ function loadDiscrimination(dir, game) {
   return records[0];
 }
 
+// The statuses a record reads (admin.js q2Of, the readings' Q2 state): RandomnessDiscrimination.STATUSES.
+const Q2_STATUSES = ['above', 'above band, not shuffled', 'within', 'too few draws', 'failed'];
+const Q2_LABELS = {
+  above: 'ABOVE both controls',
+  'above band, not shuffled': 'above the band, but no better than the shuffled control',
+  within: 'within the null band',
+  'too few draws': 'too few draws',
+  failed: 'failed: a comparison scored fewer than 2 seeds',
+};
+
+// Evidence needs both: clearing the null band AND beating the shuffled history, otherwise the classifier is reading
+// marginals a fair process reproduces anyway. A record written from 1 Nov 2026 on (verdict version 2) carries its
+// status, computed by RandomnessDiscrimination.compute_verdict - read as it is, one source of truth. An older record
+// (version 1: mean + 2 sd of 3 seeds, 5 for the markets, and the bare shuffled mean) has its status derived here from
+// its flags, with one rule of version 2 applied to it too: too few draws under FEW_WINDOWS held-out windows, a property
+// of the history and not of the run - so the 25 Oct 2026 eurodreams "above" on 150 windows reads "too few draws". A
+// record without a window count falls back to its own flag, or to the band rule it was written under (0.8 or more).
 function describeDiscrimination(record) {
   const v = record.verdict;
+  const version = num(v.version) || 1;
   const aboveBand = Boolean(v.above_null_band);
   const survivesMarginals = Boolean(v.survives_marginals_control);
-  // Evidence needs both: clearing the null band AND beating the shuffled
-  // history, otherwise the classifier is reading marginals a fair process
-  // reproduces anyway.
-  // An underpowered record (RandomnessDiscrimination.POWER_CEILING: the null band's ceiling at 0.8 or more)
-  // can show nothing either way; older records without the flag are read by the same rule.
-  const threshold = num(v.null_threshold_2sd);
-  const tooFew = v.too_few_draws === undefined ? (threshold !== null && threshold >= 0.8) : Boolean(v.too_few_draws);
-  const evidence = aboveBand && survivesMarginals && !tooFew;
+  const windowsTest = num(v.windows_test !== undefined ? v.windows_test : (record.shape || {}).windows_test);   // older records carry it in shape only
+  const threshold = num(v.null_threshold !== undefined ? v.null_threshold : v.null_threshold_2sd);
+  // the windows the record was judged by: its own (version 2), else today's rule
+  const fewWindows = num(v.few_windows) ?? FEW_WINDOWS;
+  let status;
+  if (version >= 2) {
+    // a status this reader does not know is no reading: never a clean "within"
+    status = Q2_STATUSES.includes(v.status) ? v.status : 'failed';
+  } else {
+    const tooFew = windowsTest !== null ? windowsTest < fewWindows
+      : (v.too_few_draws === undefined ? (threshold !== null && threshold >= 0.8) : Boolean(v.too_few_draws));
+    status = tooFew ? 'too few draws' : (aboveBand && survivesMarginals ? 'above' : (aboveBand ? 'above band, not shuffled' : 'within'));
+  }
   return {
-    evidence, aboveBand, survivesMarginals, tooFew,
-    windowsTest: num(v.windows_test !== undefined ? v.windows_test : (record.shape || {}).windows_test),   // older records carry it in shape only
-    real: v.real_max_of_suite_mean, realSd: v.real_max_of_suite_sd,
-    nullMean: v.null_max_of_suite_mean, nullSd: v.null_max_of_suite_sd,
-    threshold: v.null_threshold_2sd, shuffled: v.shuffled_max_of_suite_mean,
+    status, version, evidence: status === 'above', aboveBand, survivesMarginals, tooFew: status === 'too few draws', failed: status === 'failed',
+    windowsTest, fewWindows,
+    real: num(v.real_max_of_suite_mean), realSd: num(v.real_max_of_suite_sd),
+    nullMean: num(v.null_max_of_suite_mean), nullSd: num(v.null_max_of_suite_sd),
+    shuffled: num(v.shuffled_max_of_suite_mean), shuffledSd: num(v.shuffled_max_of_suite_sd),
+    // version 2: the threshold's standard error, k of each bound and the shuffled control's own bound (null before)
+    threshold, thresholdSe: num(v.null_threshold_se), bandK: num(v.band_k), shuffledK: num(v.shuffled_k), shuffledThreshold: num(v.shuffled_threshold),
     window: record.window, repetitions: record.repetitions, draws: record.draws,
     quantum: Boolean(record.quantum), generatedAt: record.generated_at || null,
-    label: tooFew ? 'too few draws' : (evidence ? 'ABOVE the null band'
-      : (aboveBand ? 'above the band, but no better than the shuffled control' : 'within the null band')),
+    label: Q2_LABELS[status],
   };
 }
 
@@ -173,5 +237,5 @@ function describeFeatureControl(record) {
   };
 }
 
-module.exports = { MODES, loadNullControls, nullBand, withinBand, loadDiscrimination, describeDiscrimination,
+module.exports = { MODES, FEW_WINDOWS, Q2_STATUSES, FRESH_STATES, loadNullControls, nullBand, describeChance, loadDiscrimination, describeDiscrimination,
   VARIANT_LABELS, loadFeatureControl, describeFeatureControl };

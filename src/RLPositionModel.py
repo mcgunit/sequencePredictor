@@ -345,9 +345,12 @@ class RLPositionModel:
             return None
         plain = [1.0 if b >= self.k / 2 else 0.0 for b in ticket]
         if self.sitOut:
-            # the Saturday gate found no sizing that beats not betting: the row still shows the vote's ticket (its
-            # bins are scored like every row's), but takes no position; the stored policy is left as it is
-            print(f"RLPositionModel [{name}]: sitting out - the tuning gate found no sizing above the 0 of never betting (rlPositionSitOut)")
+            # the Saturday gate found no sizing that clearly beats not betting - since 27 Oct 2026 the served sizing's
+            # mean must be more than two standard errors above 0 (HyperoptRLTicket.position_sit_out): the row still
+            # shows the vote's ticket (its bins are scored like every row's), but takes no position; the stored
+            # policy is left as it is
+            print(f"RLPositionModel [{name}]: sitting out - the tuning gate found no sizing that beats the 0 of never "
+                  f"betting by one standard error of its own score (rlPositionSitOut)")
             self.lastReport = {"sitOut": True}
             return {"name": ROW_NAME, "predictions": [ticket], "positions": [0.0] * len(ticket)}
         try:

@@ -23,7 +23,8 @@ from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
 from src.BoostingBase import apply_boosting_params, BOOSTING_PARAM_SUFFIXES
 from src.TuningScore import score_rows, attrs_for_trial, describe
 from src.TuningGate import challenge, make_defaults, prune_keno_flags
-from src.Lockbox import load as load_lockbox, window_overlap as lockbox_overlap, describe as describe_lockbox
+from src.Lockbox import (load_or_warn as load_lockbox, split_rows as lockbox_split, window_counts as lockbox_window,
+                         describe as describe_lockbox, describe_withheld as describe_lockbox_withheld)
 from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
@@ -149,6 +150,32 @@ def served_keno_subsets(model_name):
     return sizes or None
 
 
+# The lockbox (src/Lockbox.py, lockbox.json), set in __main__; a module global like SERVED_KENO_SUBSETS so the trial
+# processes and the gate's reference children inherit it. Its days are backtested - each refit block is fitted on
+# all history before it, as the daily predictor fits on everything - but never scored: the trials, the pruner's
+# partial scores, the gate's re-scores of the served parameters and the defaults and the standard error behind its
+# margin are all on the window's other days (26 Oct 2026; until then this tuner only warned - 22 of the 90 tuning
+# draws of euromillions, lotto and eurodreams were lockbox draws, 12 of vikinglotto's).
+LOCKBOX = None
+
+
+def withhold_lockbox(results, dates):
+    """The Backtester rows outside LOCKBOX (all of them without one); `dates` are the loader's, row "index" order."""
+    return lockbox_split(results, list(dates or []), LOCKBOX)[0]
+
+
+def lockbox_days(dataPath, game_cfg, days_to_rebuild, years_back=None):
+    """(withheld, scored): the days of this history's tuning window run_backtest withholds under LOCKBOX, and the rest."""
+    if not LOCKBOX:
+        return 0, None
+    probe = DataLoader()
+    probe.setDataPath(dataPath)
+    probe.setGameRange(game_cfg["min"], game_cfg["max"])
+    probe.setDrawSize(game_cfg["draw_size"])
+    probe.load_numbers(skipLastColumns=game_cfg["skip_last_columns"], years_back=years_back)
+    return lockbox_window(getattr(probe, "dates", []), days_to_rebuild, LOCKBOX)
+
+
 def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, days_to_rebuild, years_back,
                  max_seconds=None, refit_every=1, num_workers=None, trial=None):
     """
@@ -189,16 +216,25 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
 
     # Streaming pruning: after every completed day the partial summary is
     # scored with the SAME function the final value uses and reported to
-    # Optuna; PercentilePruner (see __main__) then stops a trial that sits in
+    # Optuna; PercentilePruner (boost_pruner) then stops a trial that sits in
     # the bottom quartile after half the window. Pruned trials are recorded
     # as PRUNED - never as a bad score - so the ranking of finished trials is
-    # untouched.
+    # untouched. Pruning decides which trials finish, so it sees only the
+    # scored days too: the step is the number of days outside the lockbox
+    # completed so far, and a lockbox day reports nothing (26 Oct 2026; with
+    # no lockbox in the window the step is the day count, as before).
     positional = helpers.is_positional_game(dataset_name)
     progress_callback = None
     if trial is not None:
+        reported = [0]
+
         def progress_callback(iteration, rows):
-            partial = score_rows(rows, model_name, payout=has_payout, positional=positional, game=dataset_name)
-            trial.report(partial["score"], step=iteration)
+            scored = withhold_lockbox(rows, getattr(loader, "dates", []))
+            if len(scored) <= reported[0]:
+                return
+            reported[0] = len(scored)
+            partial = score_rows(scored, model_name, payout=has_payout, positional=positional, game=dataset_name)
+            trial.report(partial["score"], step=len(scored))
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
@@ -218,6 +254,9 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
         special_column_count=game_cfg["special_column_count"]
     )
 
+    # The lockbox days were backtested but are not scored (see LOCKBOX). The loader's dates are read after the
+    # backtest - it reloaded the history it ran on.
+    results = withhold_lockbox(results, getattr(loader, "dates", []))
     summary = backtester.summarize(results)
     model_summary = dict(summary.get("models", {}).get(model_name, {}))
     model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional,
@@ -298,7 +337,18 @@ CATBOOST_BORDER_COUNT = 254
 # percentile (0 disables pruning) - set from the CLI in __main__.
 REFIT_EVERY = 7
 REFIT_BLOCKS = 5  # the block count the budget, threads and parallelism were calibrated for
-PRUNE_PERCENTILE = 25.0
+# Optuna's PercentilePruner(p) KEEPS the top p percent: on a maximising study it
+# compares a trial's best partial score with the (100 - p)th percentile of the
+# completed trials at that step and prunes below it (optuna 4.3.0,
+# pruners/_percentile.py). 75 keeps the top three quarters - it stops the
+# bottom quartile, which is what this tuner always meant. Until 26 Oct 2026 the
+# value was 25: it kept only the top quarter, so of the 24 Oct run's 540
+# evaluated trials (36 studies x 15; the cost gate's 14 skips not counted) 224
+# were stopped by the pruner against 314 completed (7 of the 36 studies
+# finished 3 or fewer), and the gate chose among far fewer finished trials than
+# --trials promised. Replayed on that run's own intermediate values, 75 prunes
+# 59 of those 224 at the step they were stopped.
+PRUNE_PERCENTILE = 75.0
 # Pruning only after half the window has been scored and only once this many
 # trials have COMPLETED, so a good configuration with an unlucky first week is
 # never judged against too little evidence.
@@ -544,18 +594,118 @@ STRATEGY_DISPLAY_NAMES = {
 }
 
 
-def boost_pruner(days_to_rebuild):
+def boost_pruner(scored_days):
     """
-    Conservative by construction - bottom quartile only, only after half the
-    window, only once PRUNE_MIN_COMPLETED_TRIALS trials completed. Built per
-    process (trial processes included), never persisted.
+    Conservative by construction - bottom quartile only (PRUNE_PERCENTILE 75
+    keeps the top 75%), only after half the window, only once
+    PRUNE_MIN_COMPLETED_TRIALS trials completed. `scored_days` is the window
+    the steps count: its days outside the lockbox (run_backtest's
+    progress_callback), so "half the window" is half of what is scored.
+    Built per process (trial processes included), never persisted.
     """
     if PRUNE_PERCENTILE <= 0:
         return optuna.pruners.NopPruner()
     return optuna.pruners.PercentilePruner(
         PRUNE_PERCENTILE,
         n_startup_trials=PRUNE_MIN_COMPLETED_TRIALS,
-        n_warmup_steps=max(1, days_to_rebuild // 2))
+        n_warmup_steps=max(1, scored_days // 2))
+
+
+def _self_check():
+    """
+    The pruner's direction and the lockbox wiring, without a fit or a database (in-memory studies, a stub Backtester
+    and DataLoader):  python3 -c 'import HyperoptBoost; HyperoptBoost._self_check()'
+    """
+    import warnings
+    from datetime import timedelta
+    from src.Lockbox import parse
+
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.ERROR)
+    module = globals()
+    saved = {key: module[key] for key in ("Backtester", "DataLoader", "LOCKBOX", "PRUNE_PERCENTILE")}
+    try:
+        # 1. PercentilePruner(p) keeps the top p%: eight completed trials at 0.1..0.8 on the step checked, a partial
+        #    score of 0.2 is the bottom quartile (pruned), 0.3 and 0.5 are not - at the 25 used until 26 Oct 2026,
+        #    0.5 (above the median) was pruned too
+        def pruned_at(percentile, partial):
+            module["PRUNE_PERCENTILE"] = percentile
+            study = optuna.create_study(direction="maximize", pruner=boost_pruner(10))
+            for k in range(8):
+                study.add_trial(optuna.trial.create_trial(value=0.1 * (k + 1), intermediate_values={6: 0.1 * (k + 1)}))
+            trial = study.ask()
+            trial.report(partial, step=6)
+            return trial.should_prune()
+        assert saved["PRUNE_PERCENTILE"] == 75.0, saved["PRUNE_PERCENTILE"]
+        assert pruned_at(75.0, 0.2) and not pruned_at(75.0, 0.3) and not pruned_at(75.0, 0.5)
+        assert pruned_at(25.0, 0.5) and not pruned_at(25.0, 0.7), "optuna's percentile is the share KEPT on a maximising study"
+        assert boost_pruner(68)._n_warmup_steps == 34, "the warm-up is half the scored days"
+        module["PRUNE_PERCENTILE"] = saved["PRUNE_PERCENTILE"]
+
+        # 2. the lockbox: 100 dated draws, a 90-day window with 22 lockbox days (rows 20..41), each a perfect day
+        dates = [datetime(2026, 1, 1) + timedelta(days=i) for i in range(100)]
+        box = parse({"from": "2026-01-21", "to": "2026-02-11"})
+        locked = {i for i, when in enumerate(dates) if box["from"] <= when.date() <= box["to"]}
+
+        class StubLoader:
+            def setDataPath(self, path): pass
+            def setGameRange(self, low, high): pass
+            def setDrawSize(self, size): pass
+            def load_numbers(self, **kwargs):
+                self.dates = list(dates)
+                return [[1, 2, 3, 4, 5]] * len(dates), None, None
+
+        class StubBacktester:
+            def __init__(self, loader):
+                self.loader = loader
+            def add_model(self, name, model):
+                self.name = name
+            def backtest(self, start_index=0, end_index=None, progress_callback=None, **kwargs):
+                self.loader.load_numbers()
+                rows = []
+                for i in range(start_index, end_index):
+                    rows.append({"index": i, "actual": [1, 2, 3, 4, 5], f"{self.name}_hits": 5 if i in locked else 1})
+                    if progress_callback is not None:
+                        progress_callback(len(rows), rows)
+                return rows
+            def summarize(self, results):
+                return {"models": {self.name: {"days": len(results)}}}
+
+        class StepTrial:
+            """Records what the pruner would be told; never prunes."""
+            def __init__(self):
+                self.steps = []
+            def report(self, value, step):
+                self.steps.append(step)
+            def should_prune(self):
+                return False
+
+        module["Backtester"], module["DataLoader"] = StubBacktester, StubLoader
+        cfg = GAME_CONFIG["euromillions"]
+        module["LOCKBOX"] = None
+        steps = StepTrial()
+        whole = run_backtest("xgboost", None, "euromillions", "/nonexistent", cfg, [], 90, None, trial=steps)["tuning"]
+        assert whole["days"] == 90 and whole["hits_mean"] > 1.0 and steps.steps == list(range(1, 91)), (whole, steps.steps[:5])
+        module["LOCKBOX"] = box
+        assert lockbox_days("/nonexistent", cfg, 90) == (22, 68)
+        steps = StepTrial()
+        tuning = run_backtest("xgboost", None, "euromillions", "/nonexistent", cfg, [], 90, None, trial=steps)["tuning"]
+        assert tuning["days"] == 68 and tuning["hits_mean"] == 1.0 and tuning["score_se"] == 0.0, tuning
+        # the pruner hears one step per scored day, numbered by scored days - a lockbox day reports nothing
+        assert steps.steps == list(range(1, 69)), steps.steps
+        # a gate reference (FixedTrial: no study, so no cost gate, and a pruner that never prunes) scores the same days
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fixed = optuna.trial.FixedTrial({f"xgBoost{suffix}": default for suffix, _, default in BOOSTING_PARAM_SUFFIXES})
+            assert STRATEGIES["XGBoost"]["objective"](fixed, "euromillions", "/nonexistent", cfg, 90, None) == tuning["score"]
+            assert fixed.user_attrs["tuning"]["days"] == 68
+    finally:
+        for key, value in saved.items():
+            module[key] = value
+        optuna.logging.set_verbosity(verbosity)
+    print("HyperoptBoost self-check OK: the pruner stops the bottom quartile (75 keeps the top 75%; 25 kept only the top "
+          "quarter); the lockbox days are backtested but never scored - not by a trial, not by the pruner's steps, not "
+          "by a gate reference")
 
 
 if __name__ == "__main__":
@@ -625,9 +775,11 @@ if __name__ == "__main__":
                  'equal to --days = one fit per trial. Same cadence for every trial and for the '
                  'gate\'s references, so the ranking is unaffected.')
         parser.add_argument(
-            '--prune-percentile', type=float, default=25.0,
-            help='Optuna PercentilePruner threshold: stop a trial whose partial score after half the '
-                 'window is in the bottom N%% of completed trials (needs 5 completed trials first). '
+            '--prune-percentile', type=float, default=PRUNE_PERCENTILE,
+            help='Optuna PercentilePruner percentile: the share of trials KEPT. After half the scored '
+                 'window a trial whose best partial score so far is below the top N%% of the completed trials\' '
+                 'scores at that day is stopped (needs 5 completed trials first). Default 75 = the bottom quartile is '
+                 'stopped (until 26 Oct 2026 the default was 25, which stopped all but the top quarter). '
                  '0 disables pruning.')
         parser.add_argument(
             '--catboost-border-count', type=int, default=254,
@@ -701,13 +853,12 @@ if __name__ == "__main__":
 
         path = os.getcwd()
         optunaDatabase = "sqlite:///db.sqlite3"
-        # The lockbox is a warning here, never a reason to skip a game - and a
-        # malformed declaration is a warning too, said once, not a per-game failure.
-        try:
-            lockbox = load_lockbox(path)
-        except ValueError as e:
-            print(f"LOCKBOX WARNING: {e} - ignoring lockbox.json this run")
-            lockbox = None
+        # The lockbox's days are withheld from every score (LOCKBOX). A
+        # malformed declaration is a warning, said once - the run then is not
+        # lockbox-safe and the warning says so - not a per-game failure.
+        LOCKBOX = load_lockbox(path)
+        if LOCKBOX:
+            print(f"Tuning under the {describe_lockbox(LOCKBOX)}: its days are backtested but never scored")
 
         for dataset_name, game_cfg in GAME_CONFIG.items():
             if dataset_name not in games:
@@ -751,20 +902,19 @@ if __name__ == "__main__":
                 if "keno" in dataset_name:
                     print(f"Keno subset sizes served (use_<n>): {SERVED_KENO_SUBSETS}")
 
-                # The lockbox (src/Lockbox.py) is enforced on the meta-learner
-                # tables; the row tuners score on the newest draws by design,
-                # so an overlap is said out loud rather than silently tuned on.
-                if lockbox:
-                    probe = DataLoader()
-                    probe.setDataPath(dataPath)
-                    probe.setGameRange(game_cfg["min"], game_cfg["max"])
-                    probe.setDrawSize(game_cfg["draw_size"])
-                    probe.load_numbers(skipLastColumns=game_cfg["skip_last_columns"])
-                    inside = lockbox_overlap(getattr(probe, "dates", []), daysToRebuild, lockbox)
-                    if inside:
-                        print(f"LOCKBOX WARNING: {inside} of the {daysToRebuild} tuning days fall inside the "
-                              f"{describe_lockbox(lockbox)} - trials and gate references score on lockbox draws; "
-                              "keep the lockbox older than the window or shorten -d")
+                # The lockbox (src/Lockbox.py): how many of the window's days
+                # the objective withholds, for the log, the gate records and
+                # the pruner's warm-up (half the SCORED days). The window is
+                # not lengthened to make up for them - fewer scored days and a
+                # wider standard error until the overlap ages out (26 Oct
+                # 2026). A game left with no day to score is skipped.
+                lockboxWithheld, scoredDays = lockbox_days(dataPath, game_cfg, daysToRebuild, years_back)
+                if LOCKBOX:
+                    print(describe_lockbox_withheld(dataset_name, LOCKBOX, lockboxWithheld, scoredDays))
+                    if lockboxWithheld and not scoredDays:
+                        print(f"Skipping {dataset_name}: every day of the {daysToRebuild}-day window falls inside the lockbox")
+                        continue
+                pruneDays = scoredDays if scoredDays else daysToRebuild
 
                 profits = {}
 
@@ -782,7 +932,7 @@ if __name__ == "__main__":
 
                     studyName = f"{dataset_name}_{strategy_name}"
                     parallel = parallel_trials_for(strategy["objective"].prefix, daysToRebuild)
-                    pruner_factory = lambda days=daysToRebuild: boost_pruner(days)
+                    pruner_factory = lambda days=pruneDays: boost_pruner(days)
 
                     study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory())
                     fail_stale_running_trials(study)
@@ -831,7 +981,7 @@ if __name__ == "__main__":
                         study, known_trials, objective, existingData, make_defaults(code_defaults, existingData),
                         timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
                         margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild,
-                        se_margin=GATE_SE_MARGIN)
+                        se_margin=GATE_SE_MARGIN, lockbox_withheld=lockboxWithheld)
                     print(outcome["summary"])
                     existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
                     if outcome["params"] is not None:

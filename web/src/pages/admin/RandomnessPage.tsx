@@ -92,7 +92,7 @@ function WatchCard({ d, onOpen }: { d: RandomnessView; onOpen: (g: string) => vo
           </thead>
           <tbody>
             {groups.map((grp) => (
-              <Lines key={grp.name} name={grp.name} games={grp.games} fewWindows={d.meta.fewWindows} onOpen={onOpen} />
+              <Lines key={grp.name} name={grp.name} games={grp.games} onOpen={onOpen} />
             ))}
           </tbody>
         </table>
@@ -101,7 +101,7 @@ function WatchCard({ d, onOpen }: { d: RandomnessView; onOpen: (g: string) => vo
   );
 }
 
-function Lines({ name, games, fewWindows, onOpen }: { name: string; games: RandomnessLine[]; fewWindows: number; onOpen: (g: string) => void }) {
+function Lines({ name, games, onOpen }: { name: string; games: RandomnessLine[]; onOpen: (g: string) => void }) {
   return (
     <>
       <GroupRow cols={6}>{name}</GroupRow>
@@ -141,7 +141,7 @@ function Lines({ name, games, fewWindows, onOpen }: { name: string; games: Rando
                 {fixed(g.q2.real)} vs {fixed(g.q2.threshold)}
                 <span className="sub">
                   {g.q2.status} · {g.q2.seeds ?? DASH} seeds
-                  {g.q2.fewWindows ? ` · ${g.q2.windowsTest ?? DASH} test windows (under ${fewWindows})` : ''}
+                  {g.q2.fewWindows ? ` · ${g.q2.windowsTest ?? DASH} test windows (under ${g.q2.minWindows ?? DASH})` : ''}
                 </span>
               </>
             ) : (
@@ -218,9 +218,13 @@ function RandomnessDrawer({ game, meta, onClose }: { game: string; meta: Randomn
           <Section title="Q2 randomness" aside={d.q2 ? <Chip kind={d.q2.status === 'above' ? 'hi' : d.q2.status === 'too few draws' ? 'dim' : 'flat'}>{d.q2.status}</Chip> : null}>
             {d.q2 ? (
               <p className="line">
-                <b>{fixed(d.q2.real)}</b> vs threshold <b>{fixed(d.q2.threshold)}</b> (null {fixed(d.q2.nullMean)} ± {fixed(d.q2.nullSd)}, + 2 sd) · shuffled{' '}
-                {fixed(d.q2.shuffled)} · {d.q2.seeds ?? DASH} seeds · {d.q2.windowsTest ?? DASH} test windows{d.q2.fewWindows ? ` (under ${meta.fewWindows}: underpowered)` : ''} ·{' '}
-                {stamp(d.q2.at)}
+                {/* k: the record's own, from its seed count (rule 2, 1 Nov 2026 on); 2 under the old rule */}
+                <b>{fixed(d.q2.real)}</b> vs threshold <b>{fixed(d.q2.threshold)}</b>
+                {d.q2.thresholdSe !== null ? ` ± ${fixed(d.q2.thresholdSe)}` : ''} (null {fixed(d.q2.nullMean)} ± {fixed(d.q2.nullSd)}, +{' '}
+                {d.q2.bandK !== null ? fixed(d.q2.bandK, 2) : d.q2.rule >= 2 ? DASH : '2'} sd) · shuffled {fixed(d.q2.shuffled)}
+                {d.q2.shuffledThreshold !== null ? `, bound ${fixed(d.q2.shuffledThreshold)}` : ''} · {d.q2.seeds ?? DASH} seeds · {d.q2.windowsTest ?? DASH} test windows
+                {d.q2.fewWindows ? ` (under ${d.q2.minWindows ?? DASH}: too few draws)` : ''}
+                {d.q2.status === 'failed' ? ' · failed: a comparison scored under 2 seeds' : ''} · {stamp(d.q2.at)}
               </p>
             ) : (
               <p className="line">No Q2 record for this game yet.</p>

@@ -43,19 +43,25 @@ const ostr = (v: unknown): string | null => (typeof v === 'string' && v ? v : nu
 export const USER_GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto', 'jokerplus', 'pick3', 'keno'];
 export const isUserGame = (s: unknown): s is string => typeof s === 'string' && USER_GAMES.includes(s);
 
-// The coming draw: its date on the game's own schedule (the records hold no time of day), and when its tickets were made
+// The coming draw: its date on the game's own schedule, its sales close (src/drawClose.json, 27 Oct 2026: "13:00",
+// Brussels time) and when its tickets were made - afterClose when that was at or after the close: then they are for
+// reading, not for playing, and afterCloseText says so
 export interface NextDraw {
   date: string | null;
   weekday: string | null;
-  time: string | null;
+  time: string | null; // the sales close, Brussels time
   past: boolean; // the date has gone and no newer run has scored it yet
   today: boolean; // the date is today's in Brussels
   madeAt: string | null;
+  closeAt: string | null;
+  afterClose: boolean;
+  afterCloseText: string | null;
 }
 function nextOf(v: unknown): NextDraw | null {
   if (!has(v)) return null;
   const n = o(v);
-  return { date: ostr(n.date), weekday: ostr(n.weekday), time: ostr(n.time), past: n.past === true, today: n.today === true, madeAt: ostr(n.madeAt) };
+  return { date: ostr(n.date), weekday: ostr(n.weekday), time: ostr(n.time), past: n.past === true, today: n.today === true, madeAt: ostr(n.madeAt),
+    closeAt: ostr(n.closeAt), afterClose: n.afterClose === true, afterCloseText: ostr(n.afterCloseText) };
 }
 
 // A pipeline job holding process.lock (pipeline.js), on /api/lottery and /api/home: the job in the old banner's words and
@@ -90,6 +96,7 @@ export interface LastDraw {
   rows: LastRow[];
   leftOut: string | null; // "no ranking of jokerplus had been saved before 15:00 Brussels time that day (the first was saved on …)"
   none: { code: string; text: string } | null; // no top 5 and not left out: the saved rankings could not be read just now
+  afterClose: boolean; // a ticket of its five was made after the draw's sales close: shown, out of the totals
 }
 export interface GameCard {
   game: string;
@@ -121,6 +128,7 @@ function lastOf(v: unknown): LastDraw | null {
     }),
     leftOut: ostr(l.leftOut),
     none: noneOf(l.none),
+    afterClose: l.afterClose === true,
   };
 }
 function cardOf(v: unknown): GameCard {
@@ -146,6 +154,7 @@ export interface HistoryTotal {
   to: string | null;
   draws: number;
   counted: number;
+  afterClose: number; // draws shown greyed, their tickets made after the sales close: out of every total
   rows: number; // row-draws, summed over the counted draws: not a count of rows
   tickets: number;
   profit: number | null;
@@ -170,7 +179,7 @@ export function normUserHistory(raw: unknown, game: string): UserHistory {
   return {
     ...normHistory(raw, game, 'top'),
     total: has(r.total)
-      ? { from: ostr(t.from), to: ostr(t.to), draws: num(t.draws, 0), counted: num(t.counted, 0), rows: num(t.rows, 0), tickets: num(t.tickets, 0),
+      ? { from: ostr(t.from), to: ostr(t.to), draws: num(t.draws, 0), counted: num(t.counted, 0), afterClose: num(t.afterClose, 0), rows: num(t.rows, 0), tickets: num(t.tickets, 0),
           profit: opt(t.profit), stake: opt(t.stake), best: bestOf(t.best), multi: opt(t.multi) }
       : null,
     leftOut: has(r.leftOut) ? { draws: num(l.draws, 0), firstSaved: ostr(l.firstSaved), firstCounted: ostr(l.firstCounted), text: str(l.text) } : null,
@@ -188,7 +197,7 @@ export interface HomeGame {
   rows: number; // today's five shown on the Lottery page
   ranking: (RankVersion & { today: true }) | null;
   none: { code: string; text: string } | null;
-  last: { date: string | null; rows: number; figures: DayFigures | null; none: { code: string; text: string } | null; leftOut: string | null } | null;
+  last: { date: string | null; rows: number; figures: DayFigures | null; none: { code: string; text: string } | null; leftOut: string | null; afterClose: boolean } | null;
 }
 export interface MarketHeadline {
   market: string;
@@ -224,7 +233,7 @@ function homeGameOf(v: unknown): HomeGame {
   return {
     game, unit: str(g.unit, 'draws'), empty: ostr(g.empty), shape: shapeOf(g.shape, game), next: nextOf(g.next),
     top: has(g.top) ? rowOf(g.top) : null, rows: num(g.rows, 0), ranking: ranking ? { ...ranking, today: true } : null, none: noneOf(g.none),
-    last: has(g.last) ? { date: ostr(l.date), rows: num(l.rows, 0), figures: figuresOf(l.figures), none: noneOf(l.none), leftOut: ostr(l.leftOut) } : null,
+    last: has(g.last) ? { date: ostr(l.date), rows: num(l.rows, 0), figures: figuresOf(l.figures), none: noneOf(l.none), leftOut: ostr(l.leftOut), afterClose: l.afterClose === true } : null,
   };
 }
 const TITLE: Record<string, string> = { crypto: 'Crypto', shares: 'Shares' };

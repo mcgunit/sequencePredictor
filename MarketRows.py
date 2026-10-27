@@ -22,9 +22,26 @@ rates (exact, adjacent, direction), the reliability of each row's
 probabilities bin by bin, and the P&L of the fixed rule with the real
 returns are reported next to it - as information, after the score.
 
+The three baseline rows are scored the same way (26 Oct 2026; until then
+they carried tickets but no probabilities, so the table could not say
+whether a row beat them): random gives every bin 1/K; column_frequency
+gives each position its bins' counts over the game days STRICTLY BEFORE
+the scored day - the history the Backtester builds the baseline tickets
+from - plus one per bin (add-one, so no bin is impossible; the smoothing
+is stated in the record); global_frequency the same counts pooled over the
+positions. Beating uniform is not skill on its own: the bins are equally
+likely over the whole history, not within every stretch of it (see
+src/MarketGame.py), and a row that only knows which bins the period
+favours beats uniform without forecasting anything. So every row also
+gets vs_frequency - the paired interval of its daily log-score minus
+column_frequency's - and only that one credits a row for more than the
+frequencies.
+
 The lockbox days (lockbox.json) leave the table before scoring, as
 everywhere else. A probability below 1e-4 is scored as 1e-4 (a proper score
 needs a finite log; the floor is stated in the record).
+
+    python3 -c "import MarketRows; MarketRows._self_check()"   # the scoring on synthetic days, no backtest
 
     python3 MarketRows.py                            # crypto and shares, newest 250 game days
     python3 MarketRows.py -g crypto -d 60 --market-only
@@ -68,6 +85,12 @@ helpers = Helpers()
 DEFAULT_DAYS = 250
 BOOTSTRAP = 2000
 BASELINE_ROWS = ("random", "global_frequency", "column_frequency")
+# The baselines' probabilities (26 Oct 2026): add-one smoothing on the bin
+# counts, and the row every other row is held against for "more than the
+# frequencies" (vs_frequency) - the per-position one, as specific as the
+# per-slot forecast every row gives.
+FREQUENCY_SMOOTHING = 1.0
+FREQUENCY_REFERENCE = "column_frequency"
 RESULT_DIR = os.path.join("data", "controls", "markets")
 
 
@@ -79,6 +102,39 @@ def result_path(root, market):
 def day_edges(history, upto):
     """The edges the game day at returns-row `upto` was cut with: quantiles of the rows before it."""
     return [quantile_edges(history[:upto, pos], K_BINS) for pos in range(history.shape[1])]
+
+
+def baseline_position_scores(draws_before, positions, k=K_BINS, smoothing=FREQUENCY_SMOOTHING):
+    """
+    The three baseline rows' per-slot probabilities ({bin: p} per position)
+    for one game day, from `draws_before` - the game's draws STRICTLY BEFORE
+    that day, drawn order (numbers[:i], the rows the Backtester counts the
+    baseline tickets over: every earlier day, no window):
+      random:           1/K per bin, the forecast behind a uniform pick;
+      column_frequency: each position's own bin counts, plus `smoothing`
+                        per bin, normalised;
+      global_frequency: the counts pooled over the positions, the same
+                        distribution in every slot.
+    With the smoothing no bin gets probability 0, so a baseline never needs
+    the log floor. An empty history leaves every slot uniform (the
+    Backtester's tickets fall back to bin 0 there; a forecast has no
+    reason to). A value outside 0..k-1 is not a bin and is not counted.
+    """
+    draws = np.asarray(draws_before, dtype=int)
+    draws = draws[:, :positions] if draws.ndim == 2 and len(draws) else np.zeros((0, positions), dtype=int)
+
+    def distribution(values):
+        values = values[(values >= 0) & (values < k)]
+        counts = np.bincount(values, minlength=k)[:k].astype(float) + smoothing
+        total = counts.sum()
+        return {b: (float(counts[b] / total) if total > 0 else 1.0 / k) for b in range(k)}
+
+    pooled = distribution(draws.ravel())
+    return {
+        "random": [{b: 1.0 / k for b in range(k)} for _ in range(positions)],
+        "global_frequency": [dict(pooled) for _ in range(positions)],
+        "column_frequency": [distribution(draws[:, pos]) for pos in range(positions)],
+    }
 
 
 def bootstrap_interval(values, rng, resamples=BOOTSTRAP):
@@ -104,17 +160,22 @@ def verdict(interval):
     return "no difference"
 
 
-def score_rows(results, dates, history, day_index, model_names, k=K_BINS, fee=FEE, floor=LOG_FLOOR):
+def score_rows(results, dates, history, day_index, model_names, k=K_BINS, fee=FEE, floor=LOG_FLOOR, game_numbers=None):
     """
     Per row: the daily mean log-score, hit rates, direction, the fixed
     rule's P&L with the real returns, and the reliability by bin. `day_index`
-    maps a game date to its row in the returns history.
+    maps a game date to its row in the returns history. `game_numbers` is
+    the game history the Backtester ran on (the same load, oldest first):
+    the baselines' probabilities are counted from its rows before each day
+    (baseline_position_scores); without it they get none, as before 26 Oct
+    2026.
     """
     per_row = {}
     names = list(model_names) + list(BASELINE_ROWS)
     for name in names:
         per_row[name] = {"log": {}, "exact": 0, "adjacent": 0, "direction": 0, "positions": 0, "days": 0,
-                         "trades": 0, "pnl": 0.0, "predicted_mass": np.zeros(k), "realised": np.zeros(k), "scored_positions": 0}
+                         "trades": 0, "pnl": 0.0, "predicted_mass": np.zeros(k), "realised": np.zeros(k), "scored_positions": 0,
+                         "history_mismatch": 0}
     for row in results:
         i = row.get("index")
         date = dates[i] if isinstance(i, int) and 0 <= i < len(dates) else None
@@ -127,6 +188,17 @@ def score_rows(results, dates, history, day_index, model_names, k=K_BINS, fee=FE
         actual = [int(v) for v in row.get("actual_ordered") or row.get("actual") or []]
         if len(actual) != history.shape[1]:
             continue
+        baseline_slots = {}
+        if game_numbers is not None and 0 <= i < len(game_numbers):
+            # The day's own draw has to be row i of the history the counts come
+            # from: if the two loads disagreed, the counts would be off by a day
+            # and could hold the day itself. Then the baselines get no
+            # probability that day, and the count goes into the record's errors.
+            if [int(v) for v in game_numbers[i][:len(actual)]] == actual:
+                baseline_slots = baseline_position_scores(game_numbers[:i], len(actual), k)
+            else:
+                for name in BASELINE_ROWS:
+                    per_row[name]["history_mismatch"] += 1
         for name in names:
             entry = per_row[name]
             prediction = row.get(f"{name}_prediction")
@@ -143,7 +215,7 @@ def score_rows(results, dates, history, day_index, model_names, k=K_BINS, fee=FE
                     if p >= k / 2:
                         entry["trades"] += 1
                         entry["pnl"] += float(real_returns[pos]) - fee
-            slots = row.get(f"{name}_position_scores")
+            slots = row.get(f"{name}_position_scores") or baseline_slots.get(name)
             if slots and len(slots) == len(actual):
                 probabilities = helpers.normalize_position_scores(slots)
                 logs = []
@@ -162,9 +234,20 @@ def score_rows(results, dates, history, day_index, model_names, k=K_BINS, fee=FE
     return per_row
 
 
-def summarise(per_row, reference, rng, k=K_BINS):
+def summarise(per_row, reference, rng, k=K_BINS, frequency=FREQUENCY_REFERENCE):
+    """
+    One record per row: the mean log-score and three paired intervals over
+    days - vs_uniform (log 1/K), vs_reference (GARCH) and vs_frequency (the
+    column_frequency baseline, 26 Oct 2026: beating uniform can be knowing
+    the period's bins, beating this is more than that). A difference is
+    taken only over the days both rows scored. vs_frequency resamples from
+    its own generator, spawned from `rng` without drawing from it, so the
+    other two intervals of a model row stay what the same seed gave before.
+    """
     uniform = math.log(1.0 / k)
     reference_log = per_row.get(reference, {}).get("log", {})
+    frequency_log = per_row.get(frequency, {}).get("log", {})
+    frequency_rng = rng.spawn(1)[0]
     out = []
     for name, entry in per_row.items():
         if entry["days"] == 0 and not entry["log"]:
@@ -172,13 +255,14 @@ def summarise(per_row, reference, rng, k=K_BINS):
         logs = entry["log"]
         days = sorted(logs)
         common = [d for d in days if d in reference_log]
+        common_frequency = [d for d in days if d in frequency_log]
         record = {
             "name": name,
             "kind": "market" if name in MARKET_MODEL_NAMES else ("baseline" if name in BASELINE_ROWS else "base"),
             "days": int(entry["days"]), "scored_days": len(days),
             "log_score": float(np.mean([logs[d] for d in days])) if days else None,
             "log_score_se": float(np.std([logs[d] for d in days], ddof=1) / math.sqrt(len(days))) if len(days) > 1 else None,
-            "vs_uniform": None, "vs_reference": None,
+            "vs_uniform": None, "vs_reference": None, "vs_frequency": None,
             "exact_rate": entry["exact"] / entry["positions"] if entry["positions"] else None,
             "adjacent_rate": entry["adjacent"] / entry["positions"] if entry["positions"] else None,
             "direction_rate": entry["direction"] / entry["positions"] if entry["positions"] else None,
@@ -192,6 +276,9 @@ def summarise(per_row, reference, rng, k=K_BINS):
         if common and name != reference:
             record["vs_reference"] = bootstrap_interval([logs[d] - reference_log[d] for d in common], rng)
             record["vs_reference"]["verdict"] = verdict(record["vs_reference"])
+        if common_frequency and name != frequency:
+            record["vs_frequency"] = bootstrap_interval([logs[d] - frequency_log[d] for d in common_frequency], frequency_rng)
+            record["vs_frequency"]["verdict"] = verdict(record["vs_frequency"])
         n = entry["scored_positions"]
         if n:
             record["reliability"] = {"predicted": [float(v / n) for v in entry["predicted_mass"]],
@@ -272,8 +359,14 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
               f"{next(r[f'{name}_error'] for r in results if f'{name}_error' in r)}")
 
     rng = np.random.default_rng(seed)
-    per_row = score_rows(results, dates, history, day_index, model_names)
+    # `numbers` is the load the Backtester made its own of (same loader, same
+    # columns): the baselines' frequencies are counted from it day by day
+    per_row = score_rows(results, dates, history, day_index, model_names, game_numbers=numbers)
     rows = summarise(per_row, GARCH_NAME, rng)
+    for name in BASELINE_ROWS:
+        if per_row[name]["history_mismatch"]:
+            errors[name] = per_row[name]["history_mismatch"]
+            print(f"{market}: {name} got no probability on {errors[name]} day(s) - the backtest's draw was not the game history's row")
     # A row that scored no day at all is a defect, not a quiet absence: it
     # goes into errors (the page lists those names) and into the log.
     reported = {r["name"] for r in rows}
@@ -290,6 +383,9 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
         "days_requested": days, "days_scored": len(results), "first_day": scored_dates[0] if scored_dates else None,
         "last_day": scored_dates[-1] if scored_dates else None, "k": K_BINS, "uniform_log_score": math.log(1.0 / K_BINS),
         "probability_floor": LOG_FLOOR, "reference": GARCH_NAME, "fee": FEE, "bootstrap_resamples": BOOTSTRAP,
+        # the baselines' probabilities (26 Oct 2026): counts over every game day before the scored one, plus this per bin;
+        # vs_frequency holds each row against frequency_reference
+        "frequency_reference": FREQUENCY_REFERENCE, "frequency_smoothing": FREQUENCY_SMOOTHING,
         "market_only": bool(market_only), "rows": rows, "errors": errors, "foundation_days": foundation,
         "lockbox": lockbox_json(lockbox), "lockbox_days_withheld": len(locked),
         "backtest_seconds": round(elapsed, 1), "instruments": history_source.symbols,
@@ -301,17 +397,98 @@ def run_market(market, cfg, root, days, market_only, lockbox, seed):
         json.dump(record, handle, indent=1)
 
     print(f"\n{market}: {len(results)} days scored in {elapsed:.0f}s; uniform = {record['uniform_log_score']:.3f}")
-    print(f"{'row':<30}{'log-score':>10}{'vs GARCH':>42}{'exact':>8}{'adjacent':>10}{'direction':>10}{'trades':>8}{'P&L':>9}")
+    print(f"{'row':<30}{'log-score':>10}{'vs GARCH':>42}{'vs column frequency':>42}{'exact':>8}{'adjacent':>10}{'direction':>10}{'trades':>8}{'P&L':>9}")
+    interval_text = lambda x: f"{x['mean']:+.3f} [{x['lo']:+.3f}, {x['hi']:+.3f}] {x['verdict']}" if x else "-"
     for r in rows:
-        ref = r["vs_reference"]
-        ref_text = "reference" if r["name"] == GARCH_NAME else (
-            f"{ref['mean']:+.3f} [{ref['lo']:+.3f}, {ref['hi']:+.3f}] {ref['verdict']}" if ref else "-")
+        ref_text = "reference" if r["name"] == GARCH_NAME else interval_text(r["vs_reference"])
+        frequency_text = "reference" if r["name"] == FREQUENCY_REFERENCE else interval_text(r["vs_frequency"])
         pct = lambda v: f"{v * 100:5.1f}%" if v is not None else "    -"
         log_text = f"{r['log_score']:+.3f}" if r["log_score"] is not None else "-"
-        print(f"{r['name']:<30}{log_text:>10}{ref_text:>42}"
+        print(f"{r['name']:<30}{log_text:>10}{ref_text:>42}{frequency_text:>42}"
               f"{pct(r['exact_rate']):>8}{pct(r['adjacent_rate']):>10}{pct(r['direction_rate']):>10}{r['trades']:>8}{r['pnl_return']:>+9.4f}")
     print(f"Record written to {os.path.relpath(result_path(root, market), root)}")
     return record
+
+
+def _self_check():
+    """
+    The scoring on a synthetic game, no backtest and no data/ (26 Oct 2026):
+    the baselines' probabilities are counted from the days before each day
+    only, with the add-one floor; every row gets vs_frequency against
+    column_frequency; and the intervals a model row had before keep their
+    values for the same seed.
+        python3 -c "import MarketRows; MarketRows._self_check()"
+    """
+    k = K_BINS
+
+    # the counts on a hand-sized history: 2 slots, add-one, no bin at zero
+    tiny = baseline_position_scores([[0, 1], [0, 2], [1, 1], [12, 1]], 2, k=3)   # 12 is no bin: not counted
+    close = lambda a, b: abs(a - b) < 1e-12
+    assert all(close(tiny["column_frequency"][0][b], p) for b, p in {0: 3 / 6, 1: 2 / 6, 2: 1 / 6}.items()), tiny["column_frequency"][0]
+    assert all(close(tiny["column_frequency"][1][b], p) for b, p in {0: 1 / 7, 1: 4 / 7, 2: 2 / 7}.items()), tiny["column_frequency"][1]
+    assert all(close(tiny["global_frequency"][s][b], p) for s in (0, 1) for b, p in {0: 3 / 10, 1: 5 / 10, 2: 2 / 10}.items()), tiny["global_frequency"]
+    assert all(close(p, 1 / 3) for slot in tiny["random"] for p in slot.values())
+    empty = baseline_position_scores([], 2, k=3)
+    assert all(close(p, 1 / 3) for name in BASELINE_ROWS for slot in empty[name] for p in slot.values()), "no history: uniform"
+
+    # A game whose slot 0 sits in bins 4-5 and slot 1 in bin 7 - except on the
+    # scored day 35, when slot 1 draws bin 2 for the first time. Its own day
+    # must not be in its counts: column_frequency then gives bin 2 exactly
+    # the add-one share 1/(35 + K), not 2/(36 + K).
+    n, first = 40, 30
+    rng = np.random.default_rng(0)
+    numbers = np.array([[4 + (d % 2), 7] for d in range(n)])
+    numbers[35, 1] = 2
+    returns = rng.normal(0, 0.02, size=(n, 2))
+    dates = [f"2026-01-{d + 1:02d}" if d < 31 else f"2026-02-{d - 30:02d}" for d in range(n)]
+    day_index = {d: i for i, d in enumerate(dates)}
+    uniform_slot = {b: 1.0 / k for b in range(k)}
+    results = []
+    for i in range(first, n):
+        actual = [int(v) for v in numbers[i]]
+        oracle = [{b: (0.9 if b == a else 0.1 / (k - 1)) for b in range(k)} for a in actual]
+        copy = baseline_position_scores(numbers[:i], 2)["column_frequency"]
+        row = {"index": i, "actual_ordered": actual,
+               GARCH_NAME + "_position_scores": [uniform_slot, uniform_slot], GARCH_NAME + "_prediction": [5, 5],
+               "Oracle Model_position_scores": oracle, "Oracle Model_prediction": actual,
+               "Copy Model_position_scores": copy, "Copy Model_prediction": [4, 7]}
+        for name in BASELINE_ROWS:
+            row[f"{name}_prediction"] = [4, 7]          # tickets only, as the Backtester stores them
+        results.append(row)
+    names = [GARCH_NAME, "Oracle Model", "Copy Model"]
+
+    per_row = score_rows(results, dates, returns, day_index, names, game_numbers=numbers)
+    day35 = dates[35]
+    expected35 = (math.log(baseline_position_scores(numbers[:35], 2)["column_frequency"][0][int(numbers[35, 0])]) + math.log(1.0 / (35 + k))) / 2
+    assert close(per_row["column_frequency"]["log"][day35], expected35), (per_row["column_frequency"]["log"][day35], expected35)
+    assert all(close(v, math.log(1.0 / k)) for v in per_row["random"]["log"].values()), "random is uniform every day"
+    assert len(per_row["column_frequency"]["log"]) == n - first and per_row["column_frequency"]["history_mismatch"] == 0
+
+    rows = {r["name"]: r for r in summarise(per_row, GARCH_NAME, np.random.default_rng(1))}
+    assert all(rows[b]["kind"] == "baseline" and rows[b]["log_score"] is not None for b in BASELINE_ROWS)
+    assert rows[FREQUENCY_REFERENCE]["vs_frequency"] is None and rows[GARCH_NAME]["vs_reference"] is None
+    assert rows[FREQUENCY_REFERENCE]["vs_uniform"]["verdict"] == "better", "a concentrated game: the frequencies beat uniform"
+    assert rows[GARCH_NAME]["vs_frequency"]["verdict"] == "worse", "uniform forecasts lose to the frequencies"
+    assert rows["Oracle Model"]["vs_frequency"]["verdict"] == "better"
+    assert close(rows["Copy Model"]["vs_frequency"]["mean"], 0.0) and rows["Copy Model"]["vs_frequency"]["verdict"] == "no difference"
+    assert rows["random"]["vs_frequency"]["verdict"] == "worse" and close(rows["random"]["vs_uniform"]["mean"], 0.0)
+
+    # the model rows' other intervals are the ones the same seed gave before the baselines were scored
+    before = {r["name"]: r for r in summarise(score_rows(results, dates, returns, day_index, names), GARCH_NAME, np.random.default_rng(1))}
+    assert all(before[b]["log_score"] is None for b in BASELINE_ROWS), "without the game history the baselines carry no probability"
+    for name in names:
+        assert before[name]["vs_uniform"] == rows[name]["vs_uniform"] and before[name]["vs_reference"] == rows[name]["vs_reference"], name
+
+    # a backtest draw that is not the history's row: no baseline probability that day, counted
+    shifted = numbers.copy()
+    shifted[33, 0] = 9
+    off = score_rows(results, dates, returns, day_index, names, game_numbers=shifted)
+    assert off["column_frequency"]["history_mismatch"] == 1 and dates[33] not in off["column_frequency"]["log"]
+    assert len(off["column_frequency"]["log"]) == n - first - 1
+
+    print(f"MarketRows self-check OK: baselines scored from the days before each day (add-one), "
+          f"column frequency {rows[FREQUENCY_REFERENCE]['log_score']:+.3f} vs uniform {math.log(1.0 / k):+.3f}, "
+          f"vs_frequency credits only the row that beats it")
 
 
 def main():

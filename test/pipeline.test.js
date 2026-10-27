@@ -2,7 +2,8 @@
 // pipeline.js: is a pipeline job holding process.lock, and which one (moved out of server.js on 24 Oct 2026). The app's
 // Home and Lottery (lottery.js `running`) read it; the old pages' banner that read it too was removed in cleanup batch
 // 6b (26 Oct 2026). Here: no lock, an empty or unreadable one, a stale one (the process is gone), every job by its
-// script's name, an unknown script, the real /proc for this test's own process, what a reader gets (the job's words and
+// script's name, the keno sub-selection step by its script and arguments (it runs the statistical tuner's script since
+// 26 Oct 2026), an unknown script, the real /proc for this test's own process, what a reader gets (the job's words and
 // since when, never the pid or a path), and that lottery.js reads this module and no server file keeps a copy of its own.
 //   node test/pipeline.test.js
 const assert = require('assert');
@@ -47,6 +48,16 @@ try {
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0SomethingElse.py\0' })).what === 'A pipeline job is running', 'an unknown script: a pipeline job is running');
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: '/usr/bin/python3\0/root/sequencePredictor/HyperoptBoost.py\0' })).what === 'Weekly tuning: boosting models',
     'a script started by its full path is still named');
+
+  // --- a step that runs another step's script, by its job (jobs.js jobOfCmdline: the script and its arguments) ---------
+  const jobKeys = require('../jobs').JOBS.map((j) => j.key);
+  ok(Object.keys(pipeline.STEP_NAMES).join() === 'kenoSubsetTuning' && Object.keys(pipeline.STEP_NAMES).every((key) => jobKeys.includes(key)),
+    'one step is named by its job rather than its script, and it is a job of the schedule');
+  const keno = pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0-g\0keno\0-s\0KenoSubsetTuning\0' }));
+  ok(keno && keno.what === 'Weekly tuning: keno sub-selections', `the keno step (HyperoptStatistics.py -g keno -s KenoSubsetTuning) is not the statistical models: "${keno && keno.what}"`);
+  ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0' })).what === 'Weekly tuning: statistical models'
+    && pipeline.pipelineStatus(lock, procOf({ 4242: '/usr/bin/python3\0/root/sequencePredictor/HyperoptStatistics.py\0-g\0keno\0' })).what === 'Weekly tuning: statistical models',
+    'the statistical job, and a hand run of its script with other arguments, are still the statistical models');
 
   // --- the real /proc: this test's own process ------------------------------------------------------------------------
   writeLock(`${process.pid}\n`);

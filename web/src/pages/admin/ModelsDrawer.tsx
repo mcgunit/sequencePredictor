@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { getAdminModelsGame, type Combination, type LearningCheck, type ModelsGameView, type MultiPick, type RankRow } from '../../api';
+import { getAdminModelsGame, type Combination, type GameLiveness, type LearningCheck, type ModelsGameView, type MultiPick, type RankRow } from '../../api';
 import { DASH, cap, count, day, fixed, isNum, perUnit, plural, range, share, short, signedFixed, stamp } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useScope } from '../../hooks/useUrlState';
@@ -8,11 +8,11 @@ import Chip from '../../components/admin/Chip';
 import { Scroll } from '../../components/admin/Card';
 import ScopeSwitch from '../../components/admin/ScopeSwitch';
 import { Failed, Loading } from '../../components/admin/States';
-import { boundWord, isMarketGame, oneControlText, recordText, sinceValue, topWhose, units, valueCell } from './bits';
+import { boundWord, chanceLine, freshText, isMarketGame, recordText, sinceValue, topWhose, units, valueCell } from './bits';
 
 // One game's ranking (GET /api/admin/models/:game?scope=all|top): every row, or its top five, with its
-// value, record, since-freeze value and average hits or best day; the lotto multi-pick table; the best
-// combination, whose value always travels with its control's p value.
+// value, record, since-freeze value and average hits or best day, and its Q0 row test on its own line; the lotto
+// multi-pick table; the best combination, whose value always travels with its control's p value.
 export default function ModelsDrawer({ game, onClose }: { game: string; onClose: () => void }) {
   const [scope, setScope] = useScope();
   const load = useLoad(() => getAdminModelsGame(game, scope), [game, scope]);
@@ -39,10 +39,11 @@ export default function ModelsDrawer({ game, onClose }: { game: string; onClose:
 function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope: 'all' | 'top'; setScope: (s: 'all' | 'top') => void; busy: boolean }) {
   const [sizes, setSizes] = useState<string | null>(null);
   const hits = d.metric === 'avg_hits';
-  const band = d.band;
-  const market = isMarketGame(d.game);
+  const t = d.chance.test;
+  // the since record counts live draws only: a market game's days, a lottery game's tickets saved before the close
+  const liveSince = Boolean(d.since && d.since.live);
+  const live = d.rankedOn === 'live';
   const since = d.since && !d.since.none ? d.since : null;
-  const modes = band ? Object.entries(band.modes) : [];
   const checked = d.rows.filter((r) => r.learning);
   const flagged = checked.filter((r) => r.learning?.verdict === 'counts-only').length;
   return (
@@ -60,32 +61,40 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
       <p className="line">
         {hits ? (
           <>
-            Value: <b>average hits per {perUnit(d.unit)}</b> over every scored {perUnit(d.unit)}; ranked from {count(d.minDraws, d.unit)}, shorter records are
-            marked &ldquo;short record&rdquo;.
+            Value: <b>average hits per {perUnit(d.unit)}</b> over {live ? `the live record: the ${units(d.unit)} whose ticket was saved before the sales close` : `every scored ${perUnit(d.unit)}`};
+            ranked from {count(d.minDraws, d.unit)}{live ? ' live' : ''}, shorter records are marked &ldquo;short record&rdquo;.
           </>
         ) : (
           <>
             Value: <b>{d.measure.text}</b>
             {d.measure.bound ? `, ${d.measure.bound}` : ''}
-            {d.measure.capEur !== null ? `, capped at ${d.measure.capEur} EUR` : ''}, measured against {d.measure.against ?? DASH}. The raw profit per bet stands
-            under it; ranked from {count(d.minDraws, d.unit)}, shorter records are marked &ldquo;short record&rdquo;.
+            {d.measure.capEur !== null ? `, capped at ${d.measure.capEur} EUR` : ''}, measured against {d.measure.against ?? DASH}
+            {live ? `, over the live record: the ${units(d.unit)} whose ticket was saved before the sales close` : ''}. The raw profit per bet stands under it; ranked
+            from {count(d.minDraws, d.unit)}{live ? ' live' : ''}, shorter records are marked &ldquo;short record&rdquo;.
           </>
         )}
+        {live
+          ? ` Ranked on the live record since 27 Oct 2026 (the owner's decision): a ticket rewritten after the draw is scored as it stood at the close; every stored ${perUnit(d.unit)}'s value stands under the live one (ranked from ${count(d.allMinDraws, d.unit)} there). The users' Top 5 follows this order.`
+          : ''}
       </p>
-      {band ? (
-        <p className="line">
-          Q0 band <b>{fixed(band.ceiling)}</b> hits per {perUnit(d.unit)} ({band.from} control, {stamp(band.at)}): the best of {band.rows ?? DASH} control rows on fair
-          histories of {count(band.history, d.unit)}, not this ranking
-          {band.greys ? '; rows within it are greyed.' : '; read on average hits: information only.'}{' '}
-          {modes.map(([name, m]) => `${name} best ${fixed(m.best)} ± ${fixed(m.sd)} over ${m.seeds ?? DASH} seeds`).join(' · ')}
-          {band.missing.length ? ` · ${oneControlText(band)}: the rule takes the higher of synthetic and shuffled, so this band can be lower than the rule's.` : ''}
-        </p>
-      ) : null}
+      {d.liveness ? <LivenessLine l={d.liveness} unit={d.unit} /> : null}
+      <p className="line">
+        {t ? (
+          <>
+            Q0 chance (under each row): its hits per {perUnit(d.unit)} on its live {units(d.unit)} against{' '}
+            {t.method === 'permutation' ? `its own tickets shuffled within blocks of ${t.block ?? 7} live ${units(d.unit)}` : 'what fair draws give its own tickets'}, p
+            and - for the {t.family} rows with ≥ {count(t.minDraws, d.unit)} live - corrected for the rows compared (Holm).{' '}
+            {t.family ? `${t.under} under 5%, ≈${fixed(t.expected, 2)} by chance; ${t.holds} hold; ${t.followed} followed, ${t.confirmed} confirmed on new ${units(d.unit)}.` : `No row has ${count(t.minDraws, d.unit)} live yet.`}{' '}
+            Only a confirmed row has shown something; nothing here is greyed{d.chance.inTile ? '' : ', and for this payout game the test is on hits, information only'}.
+          </>
+        ) : (
+          `Q0 chance: no row test (${d.chance.error ?? 'not in the report'}).`
+        )}
+      </p>
       {since ? (
         <p className="line">
           Since {day(since.date)} ({since.label}): from {count(since.minDraws, d.unit)}
           {since.live ? `, ${since.live}` : ''}; best {short(since.bestModel)}.
-          {band ? ` The Q0 band is not applied to this column: the best of the rows over a few ${units(d.unit)} clears it by luck.` : ''}
         </p>
       ) : null}
       <p className="line">
@@ -115,7 +124,7 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
           <tbody>
             {d.rows.map((r) => (
               <Fragment key={r.row}>
-                <RankLine d={d} r={r} market={market} sizesOpen={sizes === r.row} onSizes={() => setSizes((x) => (x === r.row ? null : r.row))} />
+                <RankLine d={d} r={r} liveSince={liveSince} sizesOpen={sizes === r.row} onSizes={() => setSizes((x) => (x === r.row ? null : r.row))} />
                 {sizes === r.row && r.bySize ? <SizesRow r={r} /> : null}
               </Fragment>
             ))}
@@ -126,21 +135,58 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
   );
 }
 
-// a cell of a row greyed by the Q0 band that the band does not apply to (Since)
-const NOT_GREYED = { color: 'var(--fg)' };
+// A lottery game's liveness, as the daily report judged it (src/Liveness.py, 27 Oct 2026): how many draws were live as
+// stored, how many more with a ticket rewritten after the draw (the live record scores the ticket that stood at the close,
+// and the audit says what the rewrites changed), the rows back-built or late and the newest, and how it was judged. The
+// counts are the draw pages' markers.
+function LivenessLine({ l, unit }: { l: GameLiveness; unit: string }) {
+  const how =
+    l.checked === 'stamp+git'
+      ? 'judged by the tickets\' stamps and git'
+      : l.checked === 'stamp only'
+        ? `git could not be read (${l.error ?? DASH}): judged by the stamps and the last check`
+        : `not judged (${l.error ?? 'no evidence'}): every row counts as not live and the ranking stays on every stored ${perUnit(unit)}`;
+  // not judged, or 'unchecked' (no git and no earlier check): no counts - an unchecked row is no evidence of a late ticket
+  if (l.draws === null || l.checked === 'unchecked') {
+    return <p className="line">Live record: {how}.</p>;
+  }
+  const rewritten = (l.allCounted ?? 0) - (l.allLive ?? 0);
+  const a = l.rewriteAudit;
+  // each count with what it is over in its own sentence (27 Oct 2026 review: the rewritten rows' count stood next to
+  // the draws rewritten with no other row late, though most of those rows sit on draws with a late row as well)
+  const parts = [
+    `Live record (${how}): ${l.allCounted ?? DASH} of ${count(l.draws, unit)} with every row in it - ${l.allLive ?? DASH} live as stored${
+      rewritten > 0 ? `, ${rewritten} with a ticket rewritten after the draw, scored as it stood at the close` : ''}.`,
+    l.rowsRecovered
+      ? `${plural(l.rowsRecovered, 'row')} rewritten after the draw in all, scored as they stood at the close: ${a.hitsAtClose ?? DASH} hits, where the rewrites score ${a.hitsStored ?? DASH}.`
+      : '',
+    l.rowsNotLive
+      ? `${plural(l.rowsNotLive, 'row')} not live (back-built or late, or a second row of one name) on ${count((l.draws ?? 0) - (l.allCounted ?? 0), unit)}, newest ${
+        l.newestNotLive ? day(l.newestNotLive) : DASH}; every later ${perUnit(unit)} has every row in the live record.`
+      : 'No row back-built or late.',
+    `The users' history leaves a ${perUnit(unit)} out of its totals when a ticket of its five was not out before the close, a rewritten one included.`,
+    l.unscheduled.length ? `${count(l.unscheduled.length, unit)} on a weekday src/drawClose.json does not list: check the schedule.` : '',
+  ];
+  return <p className="line">{parts.filter(Boolean).join(' ')}</p>;
+}
 
-function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: RankRow; market: boolean; sizesOpen: boolean; onSizes: () => void }) {
+function RankLine({ d, r, liveSince, sizesOpen, onSizes }: { d: ModelsGameView; r: RankRow; liveSince: boolean; sizesOpen: boolean; onSizes: () => void }) {
   const hits = d.metric === 'avg_hits';
   const v = valueCell(d, r.value, r.profitPerBet, r.bets);
-  const grey = Boolean(d.band?.greys && r.inBand);
+  // its Q0 test on its own line (its live mean, draws and null with its p), and a followed row's new draws
+  const t = d.chance.test;
+  const chance = t && r.chance && r.chance.p !== null ? `Q0: ${chanceLine(r.chance, d.unit, t.method, false)}` : '';
+  const fresh = t && r.chance?.fresh ? freshText(r.chance.fresh, d.unit, t.method, t.verdictAlpha) : '';
   const sinceText = r.since === undefined ? '' : r.since === null ? 'no draw since' : hits ? fixed(r.since.value) : signedFixed(r.since.value);
   // a profit bound says what it is measured against under the number, as the Value column does
   const sinceBound = r.since && !hits ? boundWord(d) : '';
-  const sinceSub = r.since ? `${count(r.since.draws, d.unit)}${market ? ' live' : ''}${r.since.young ? ' · few' : ''}${sinceBound ? ` · ${sinceBound}` : ''}` : '';
+  const sinceSub = r.since ? `${count(r.since.draws, d.unit)}${liveSince ? ' live' : ''}${r.since.young ? ' · few' : ''}${sinceBound ? ` · ${sinceBound}` : ''}` : '';
+  // ranked on the live record: every stored draw's value under the live one
+  const allText = r.allValue !== null ? `every ${perUnit(d.unit)} ${hits ? fixed(r.allValue) : signedFixed(r.allValue)}` : '';
   const last = hits ? (r.bestDay === null ? DASH : `${r.bestDay} ${r.bestDay === 1 ? 'hit' : 'hits'}`) : fixed(r.avgHits);
   const lastSub = hits ? `on one ${perUnit(d.unit)}` : `best ${perUnit(d.unit)} ${r.bestDay ?? DASH}`;
   return (
-    <tr className={grey ? 'grey' : undefined}>
+    <tr>
       <td className="rk">{r.rank}</td>
       <td className="w-name">
         {short(r.row)}
@@ -152,10 +198,11 @@ function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: 
             <Chip kind="dim">short record</Chip>
           </>
         ) : null}
-        {grey ? <span className="sub">within the band</span> : null}
+        {chance ? <span className="sub">{chance}</span> : null}
+        {fresh ? <span className="sub">{fresh}</span> : null}
         <span className="sub show-sm">
-          {recordText(r.draws, d.unit, market ? r.live : null)}
-          {sinceText ? ` · since ${r.since ? sinceValue(d, r.since.value) : sinceText}${r.since ? ` (${count(r.since.draws, d.unit)}${market ? ' live' : ''}${r.since.young ? ' · few' : ''})` : ''}` : ''} ·{' '}
+          {recordText(r.draws, d.unit, r.live, r.recovered)}
+          {sinceText ? ` · since ${r.since ? sinceValue(d, r.since.value) : sinceText}${r.since ? ` (${count(r.since.draws, d.unit)}${liveSince ? ' live' : ''}${r.since.young ? ' · few' : ''})` : ''}` : ''} ·{' '}
           {hits ? `best ${last}` : `avg hits ${last}`}
         </span>
         {r.bySize ? (
@@ -169,13 +216,18 @@ function RankLine({ d, r, market, sizesOpen, onSizes }: { d: ModelsGameView; r: 
       <td className="num last-sm">
         <b>{v.main}</b>
         {hits ? null : <span className="sub">{`raw ${signedFixed(r.profitPerBet)} · ${r.bets ?? DASH} bets`}</span>}
+        {allText ? <span className="sub">{allText}</span> : null}
       </td>
       <td className="num hide-sm">
         {count(r.draws, d.unit)}
-        {market && r.live !== null && r.draws !== null ? <span className="sub">{r.live >= r.draws ? 'all live' : `${r.live} live`}</span> : null}
+        {r.live !== null && r.draws !== null ? (
+          <span className="sub">
+            {r.live >= r.draws ? 'all live' : `${r.live} live`}
+            {r.recovered ? `, ${r.recovered} as saved before the close` : ''}
+          </span>
+        ) : null}
       </td>
-      {/* the band is not applied to Since, so a row greyed by the band leaves this cell in plain colour */}
-      <td className="num hide-sm" style={grey ? NOT_GREYED : undefined}>
+      <td className="num hide-sm">
         {sinceText || DASH}
         {sinceSub ? <span className="sub">{sinceSub}</span> : null}
       </td>

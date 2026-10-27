@@ -1,7 +1,8 @@
-// The rules the History page applies to the weekly control experiments
-// (controls.js): the Q0 band under the "Best model per game" card and the Q2
-// verdict on the "Randomness watch" card. Fixtures are the 21 Sept 2026
-// production-shaped records, written to a temp dir so the readers run too.
+// The rules the admin pages apply to the control experiments (controls.js):
+// Q0's row tests as the daily report writes them (27 Oct 2026, src/RowChance.py)
+// with the old band read as context, the Q2 verdict on the "Randomness watch"
+// card, the feature control. Fixtures are production-shaped records, written to
+// a temp dir so the readers run too.
 //   node test/controls.test.js
 'use strict';
 const assert = require('assert');
@@ -48,10 +49,32 @@ write('results/eurodreams-synthetic.json', { report: { best_row_mean: 'n/a', row
 ok(Object.keys(controls.loadNullControls(dir, 'eurodreams')).length === 0, 'a record with a non-numeric best row is not a control');
 ok(controls.nullBand({ synthetic: { best_row_mean: 0.5, seeds: [1] } }).ceiling === 0.5, 'a single seed has no spread: the ceiling is the best row itself');
 
-ok(controls.withinBand(1.0, band) && controls.withinBand(0.5, band), 'a row at or under the ceiling is within the band');
-ok(!controls.withinBand(1.01, band), 'a row above the ceiling is not');
-ok(!controls.withinBand(null, band) && !controls.withinBand(undefined, band) && !controls.withinBand('x', band), 'no value, not within');
-ok(!controls.withinBand(0.1, null), 'no band, nothing is within it');
+ok(controls.withinBand === undefined, 'the band labels nothing since 27 Oct 2026: no "within the band" rule is exported');
+
+// The row tests (src/RowChance.py): the blocks of the 27 Oct 2026 report on a scratch clone of production, as written
+const lottoChance = { method: 'exact', alpha: 0.05, verdictAlpha: 0.01, minDraws: 10, permutations: null, block: null, family: 27, liveMax: 75, under: 1,
+  expected: 1.1, holds: 0, followed: 3, running: 3, stopped: 0, confirmed: 0, notConfirmed: 0, checkedThrough: '2026-10-25', stored: 'written' };
+const autoencoder = { draws: 16, notLive: 0, mean: 1.1875, null: 0.8, nullSd: 0.196, p: 0.03892, inFamily: true, pHolm: 1.0, last: '2026-10-24',
+  fresh: { since: '2026-10-18', flagDraws: 14, flagP: 0.01972, flagMean: 1.2857, flagNull: 0.8, verdictLength: 14, draws: 2, last: '2026-10-24', state: 'running',
+    verdictAt: null, decidedOn: null, p: null, mean: 0.5, null: 0.8 } };
+const markov = { draws: 74, notLive: 25, mean: 0.8919, null: 0.8541, nullSd: 0.0936, p: 0.3655, inFamily: true, pHolm: 1.0, last: '2026-10-24' };
+const info = { metric: 'avg_hits', minDrawsForRanking: 10, chance: lottoChance,
+  models: [{ name: 'Autoencoder Model', draws: 16, chance: autoencoder }, { name: 'Markov Model', draws: 99, chance: markov }, { name: 'New Model', draws: 2 },
+    { name: 'Odd Model', draws: 30, chance: { ...markov, p: 'n/a', fresh: { ...autoencoder.fresh, state: 'maybe' } } }] };
+const dc = controls.describeChance(info);
+ok(dc.error === null && dc.test.family === 27 && dc.test.under === 1 && dc.test.expected === 1.1 && dc.test.method === 'exact' && dc.test.checkedThrough === '2026-10-25',
+  `the game's summary as written: ${JSON.stringify(dc.test)}`);
+ok(dc.rows['Autoencoder Model'].p === 0.03892 && dc.rows['Autoencoder Model'].fresh.state === 'running' && dc.rows['Autoencoder Model'].fresh.verdictLength === 14
+  && dc.rows['Markov Model'].notLive === 25 && dc.rows['Markov Model'].fresh === null && dc.rows['New Model'] === undefined,
+  'each row\'s block by name: its p, its live and not-live draws, a followed row\'s fresh record; a row without a block has none');
+ok(dc.rows['Odd Model'].p === null && dc.rows['Odd Model'].fresh === null, 'a p that is not a number reads null, a fresh state this reader does not know drops the fresh record');
+const before = controls.describeChance({ metric: 'avg_hits', models: [{ name: 'A Model', draws: 40 }] });
+ok(before.test === null && before.error === 'not in this report - written before 27 Oct 2026, or its test failed' && Object.keys(before.rows).length === 0, 'a report from before 27 Oct 2026: no test, said why');
+const unchecked = controls.describeChance({ metric: 'avg_hits', chance: { method: 'exact', error: 'liveness not checked: git failed', family: 0 },
+  models: [{ name: 'A Model', draws: 40, chance: markov }] });
+ok(unchecked.test === null && unchecked.error === 'liveness not checked: git failed' && Object.keys(unchecked.rows).length === 0,
+  'a lottery game whose liveness could not be judged: no test, its reason, no row read as tested');
+ok(controls.describeChance(null) === null && controls.FRESH_STATES.join() === 'running,stopped,confirmed,not confirmed', 'no ranking, nothing; the fresh states');
 
 // --- Q2 ---------------------------------------------------------------------
 const verdict = (over) => Object.assign({
@@ -76,7 +99,7 @@ ok(controls.loadDiscrimination(dir, 'keno') === null && controls.loadDiscriminat
 ok(controls.loadDiscrimination(path.join(dir, 'nowhere'), 'lotto') === null, 'a missing folder is no record');
 
 const d20 = controls.describeDiscrimination(newest);
-ok(d20.evidence && d20.aboveBand && d20.survivesMarginals && d20.label === 'ABOVE the null band', 'above band + beats shuffled = evidence');
+ok(d20.evidence && d20.aboveBand && d20.survivesMarginals && d20.status === 'above' && d20.label === 'ABOVE both controls', 'above band + beats shuffled = evidence');
 ok(d20.real === 0.74 && d20.threshold === 0.7169 && d20.window === 20 && d20.quantum === false, 'the description carries the numbers');
 const d10 = controls.describeDiscrimination(JSON.parse(fs.readFileSync(path.join(dir, 'discrimination', 'lotto-w10.json'))));
 ok(!d10.evidence && d10.label === 'within the null band', 'inside the band is no evidence, whatever the shuffled control says');
@@ -90,9 +113,55 @@ const dTooFew = controls.describeDiscrimination({ game: 'x', verdict: verdict({ 
 ok(!dTooFew.evidence && dTooFew.tooFew && dTooFew.windowsTest === 106 && dTooFew.label === 'too few draws',
   'an underpowered record is no evidence even above both controls, and says why');
 const dOldTooFew = controls.describeDiscrimination({ game: 'x', shape: { windows_test: 148 }, verdict: verdict({ above_null_band: false, null_threshold_2sd: 0.8934 }) });
-ok(dOldTooFew.tooFew && dOldTooFew.label === 'too few draws' && dOldTooFew.windowsTest === 148, 'an older record without the flag is read by the band rule (0.8 or more), its window count from its shape');
+ok(dOldTooFew.tooFew && dOldTooFew.label === 'too few draws' && dOldTooFew.windowsTest === 148, 'an older record without the flag is read by the windows rule, its window count from its shape');
 ok(controls.describeDiscrimination({ game: 'x', verdict: verdict({ null_threshold_2sd: 0.8934 }) }).windowsTest === null, 'no shape, no window count');
 ok(!controls.describeDiscrimination({ game: 'x', verdict: verdict({ null_threshold_2sd: 0.7515 }) }).tooFew, 'a band under 0.8 is powered');
+ok(controls.describeDiscrimination({ game: 'x', verdict: verdict({ null_threshold_2sd: 0.7515, too_few_draws: true }) }).tooFew
+  && !controls.describeDiscrimination({ game: 'x', verdict: verdict({ null_threshold_2sd: 0.8934, too_few_draws: false }) }).tooFew,
+  'an older record without a window count keeps its own flag');
+
+// Q2's power rule from 27 Oct 2026: one number, shared with RandomnessDiscrimination.py through controlRules.json, and
+// applied to the older (version 1) records too where their window count is known - a property of the history
+const RULES = require('../controlRules.json');
+ok(controls.FEW_WINDOWS === RULES.q2.few_windows && Number.isInteger(controls.FEW_WINDOWS) && controls.FEW_WINDOWS > 0, 'the power rule is controlRules.json\'s');
+// the 25 Oct 2026 eurodreams record: version 1 read it "above" (0.704 against 0.687, 3 seeds) on 150 test windows
+const eurodreams25 = { game: 'eurodreams', window: 10, draws: 1000, repetitions: 3, shape: { windows_train: 452, windows_test: 150, features: 40 },
+  verdict: verdict({ real_max_of_suite_mean: 0.7042, real_max_of_suite_sd: 0.147, null_max_of_suite_mean: 0.5535, null_max_of_suite_sd: 0.0668,
+    shuffled_max_of_suite_mean: 0.6948, null_threshold_2sd: 0.687, above_null_band: true, survives_marginals_control: true, too_few_draws: false, windows_test: 150 }) };
+const de = controls.describeDiscrimination(eurodreams25);
+ok(de.status === 'too few draws' && de.tooFew && !de.evidence && de.version === 1 && de.fewWindows === controls.FEW_WINDOWS && de.threshold === 0.687 && de.thresholdSe === null,
+  `a version-1 "above" on 150 test windows reads too few draws: ${JSON.stringify([de.status, de.fewWindows])}`);
+const v1 = (over) => controls.describeDiscrimination({ game: 'x', shape: { windows_test: 496 }, verdict: verdict(over) });
+ok(v1({ above_null_band: true, survives_marginals_control: true, too_few_draws: false }).status === 'above' && v1({}).status === 'within'
+  && v1({ above_null_band: true, survives_marginals_control: false }).status === 'above band, not shuffled'
+  && v1({ above_null_band: true, survives_marginals_control: true, too_few_draws: true }).status === 'above',
+  'a version-1 record on enough windows keeps what its flags said; the windows decide too few, not its old flag');
+ok(v1({}).version === 1 && v1({}).bandK === null && v1({}).shuffledThreshold === null, 'a version-1 record has none of the version-2 numbers');
+// the edge, as compute_verdict draws it: FEW_WINDOWS test windows are enough, one fewer is too few
+const atEdge = (windows) => controls.describeDiscrimination({ game: 'x', shape: { windows_test: windows }, verdict: verdict({ above_null_band: true, survives_marginals_control: true }) }).status;
+ok(atEdge(controls.FEW_WINDOWS) === 'above' && atEdge(controls.FEW_WINDOWS - 1) === 'too few draws', `${controls.FEW_WINDOWS} test windows are enough, ${controls.FEW_WINDOWS - 1} are too few`);
+// a version-2 record (1 Nov 2026 on) carries its own status and the numbers it was read from: read as they are
+const v2 = (over) => ({ version: 2, status: 'within', metric: 'best AUC of the classifier suite, per repetition',
+  real_max_of_suite_mean: 0.567, real_max_of_suite_sd: 0.05, null_max_of_suite_mean: 0.576, null_max_of_suite_sd: 0.044,
+  shuffled_max_of_suite_mean: 0.588, shuffled_max_of_suite_sd: 0.059, seeds_scored: { real: 20, null: 20, shuffled: 20 }, band_coverage: 0.97725,
+  band_k: 2.193, shuffled_k: 2.193, null_threshold: 0.6725, null_threshold_se: 0.0185, shuffled_threshold: 0.7174,
+  above_null_band: false, survives_marginals_control: false, too_few_draws: false, few_windows: 250, windows_test: 496, ...over });
+const dv2 = controls.describeDiscrimination({ game: 'lotto', window: 10, repetitions: 20, shape: { windows_test: 496 }, verdict: v2({}) });
+ok(dv2.status === 'within' && dv2.version === 2 && dv2.threshold === 0.6725 && dv2.thresholdSe === 0.0185 && dv2.bandK === 2.193 && dv2.shuffledK === 2.193
+  && dv2.shuffledThreshold === 0.7174 && dv2.fewWindows === 250 && dv2.label === 'within the null band',
+  `version 2: the threshold from null_threshold, its error, k and the shuffled bound pass through: ${JSON.stringify(dv2)}`);
+const crypto2 = controls.describeDiscrimination({ game: 'crypto', verdict: v2({ status: 'above', real_max_of_suite_mean: 0.938, above_null_band: true, survives_marginals_control: true }) });
+ok(crypto2.status === 'above' && crypto2.evidence && crypto2.label === 'ABOVE both controls', 'version 2: above both controls');
+ok(controls.describeDiscrimination({ game: 'x', verdict: v2({ status: 'within', above_null_band: true, survives_marginals_control: true }) }).status === 'within',
+  'version 2: the record\'s status is the one source, the flags are not read again');
+const failed = controls.describeDiscrimination({ game: 'x', verdict: v2({ status: 'failed', real_max_of_suite_mean: null, null_threshold: null, null_threshold_se: null, band_k: null }) });
+ok(failed.status === 'failed' && failed.failed && !failed.tooFew && !failed.evidence && failed.threshold === null && failed.real === null && /^failed/.test(failed.label),
+  'version 2: a run where a comparison scored fewer than 2 seeds reads failed, never within');
+ok(controls.describeDiscrimination({ game: 'x', verdict: v2({ status: 'something new' }) }).status === 'failed', 'a status this reader does not know is no reading');
+ok(controls.describeDiscrimination({ game: 'x', verdict: v2({ status: 'too few draws', few_windows: 500, too_few_draws: true }) }).fewWindows === 500
+  && controls.describeDiscrimination({ game: 'x', verdict: v2({ status: 'too few draws', few_windows: 500 }) }).tooFew,
+  'version 2: the windows the record was judged by are its own, not today\'s');
+ok(controls.Q2_STATUSES.every((s) => typeof s === 'string') && controls.Q2_STATUSES.length === 5 && controls.Q2_STATUSES.includes('failed'), 'five statuses, failed among them');
 
 // --- irrelevant-feature control ---------------------------------------------
 fs.mkdirSync(path.join(dir, 'features'));

@@ -3,7 +3,9 @@
 //
 // One ranking for every page that says "the top models": the History ranking in
 // data/database/modelPerformance.json (Helpers.generate_model_performance_report), in its own order - the
-// established rows by the game's metric, the rows with fewer scored draws than the ranking minimum after them.
+// established rows by the game's metric, the rows with fewer scored draws than the ranking minimum after them. A
+// lottery game ranked on the live record (games[g].rankedOn 'live', 27 Oct 2026: only the tickets saved before each
+// draw's sales close count) is in that order already; its metric's words say so (metricTextOf).
 // admin.js (the admin JSON), workbench.js and lottery.js (the users' Lottery and Home) all read it from here, so they
 // never name a different top five.
 'use strict';
@@ -16,11 +18,15 @@ const REPORT_FILE = 'modelPerformance.json';
 // the metric a game's ranking reads, in words
 const METRIC_TEXT = { profit_bound: 'capped profit per bet (lower bound)', profit_per_bet: 'profit per bet', avg_hits: 'average hits' };
 
+// What a game's ranking reads, in words - with the live record's rule when it ranks on it
+const LIVE_TEXT = ' over the tickets saved before each draw\'s sales close';
+const metricTextOf = (metric, rankedOn) => (METRIC_TEXT[metric] || METRIC_TEXT.avg_hits) + (rankedOn === 'live' ? LIVE_TEXT : '');
+
 // The ranking of one game in a parsed report: {names (in order), metric (in words)}, or null when the game has none.
 function rankingOf(report, game) {
   const info = report && report.games && report.games[game];
   if (!info || !Array.isArray(info.models) || !info.models.length) return null;
-  return { names: info.models.map((m) => String(m.name)), metric: METRIC_TEXT[info.metric] || METRIC_TEXT.avg_hits };
+  return { names: info.models.map((m) => String(m.name)), metric: metricTextOf(info.metric, info.rankedOn) };
 }
 
 // The first n names of a ranking - the users' top five. With `present` (the names a day's table has), the first n
@@ -87,4 +93,4 @@ function usersTop(report, game, present) {
   return topNames(rankingOf(report, game), TOP_MODELS_SHOWN, Array.isArray(present) ? present : null);
 }
 
-module.exports = { TOP_MODELS_SHOWN, METRIC_TEXT, rankingOf, topNames, loadReport, rankingFor, namesToday, usersTop };
+module.exports = { TOP_MODELS_SHOWN, METRIC_TEXT, metricTextOf, rankingOf, topNames, loadReport, rankingFor, namesToday, usersTop };

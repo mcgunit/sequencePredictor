@@ -25,7 +25,10 @@ same random/global-frequency/column-frequency baselines):
              and only the time order is destroyed. A row that beats this
              control is using time, which is the one thing a fair draw cannot
              offer. A row that does not is reading frequencies that a fair
-             process reproduces anyway.
+             process reproduces anyway. A market game's shuffled control
+             reorders whole days of returns and, since 26 Oct 2026, re-cuts
+             their bins by the causal rule (src/ControlHistories.py): the
+             returns' marginal is preserved, the bin frequencies move a little.
 
 WHAT THIS VERSION DOES NOT DO. The full control the roadmap describes also
 re-runs the hyperopt on the control history, which measures the selection

@@ -12,6 +12,10 @@
 // production's files.
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const brussels = require('./brussels');
+
 // --- GAME SHAPES ---
 // Mirrors Predictor.py's SPECIAL_COLUMN_COUNTS: how many trailing values of a
 // full result/ticket row are special numbers (euromillions stars, eurodreams
@@ -356,6 +360,26 @@ const nextDrawDay = (files, anchorFile) => isoOfDate(nextDrawDate(files.map(pars
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const weekdayOf = (iso) => WEEKDAYS[new Date(`${iso}T12:00:00Z`).getUTCDay()];
 
+// --- SALES CLOSE ---
+// src/drawClose.json (27 Oct 2026): a lottery draw's sales close per game and weekday, Brussels wall time - the table
+// src/Liveness.py judges a ticket by (saved after its draw's close, it could not be played and counts out of the live
+// record) and rankhistory.js cuts a draw's point-in-time ranking at. Read once when this module loads.
+const DRAW_CLOSE = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'src', 'drawClose.json'), 'utf-8')); } catch (e) { return null; }
+})();
+// The sales close of a game's draw on an ISO day: {time: '13:00' (Brussels), at (epoch ms), scheduled}; a weekday the
+// table does not list gets the game's earliest close with scheduled false, as Liveness.close_instant. null for a game
+// the table does not list (the markets: their close is markets.js's) or a day that is not one.
+function salesClose(game, iso) {
+  const table = DRAW_CLOSE && DRAW_CLOSE.games ? DRAW_CLOSE.games[game] : null;
+  if (!table || !brussels.isDay(String(iso))) return null;
+  const listed = table[weekdayOf(iso)];
+  const time = listed || Object.values(table).sort()[0];
+  if (!/^\d{2}:\d{2}$/.test(String(time))) return null;
+  const [hour, minute] = time.split(':').map(Number);
+  return { time, at: brussels.instant(iso, hour, minute), scheduled: Boolean(listed) };
+}
+
 // --- the workbench's builders ------------------------------------------------------------------------------
 // How a game's tickets are read: 'lotto' (six mains, the bonus supplements), 'specials' (mains and specials apart:
 // euromillions, eurodreams, vikinglotto), 'jokerplus' (runs from either end and the sign), 'keno' (a ranking of 20
@@ -511,10 +535,13 @@ function resultOf(game, realResult) {
 }
 
 // A game's months, the old /database/:folder page: entries [{date (ISO), day (the parsed file), keep (the scope's
-// filter, or null when the scope has no rows for that draw), ranking (what the scope says about it)}], newest first.
-// Months newest first, each with its draws newest first and its totals over the same rows: the profit and stake
-// summed, the best line of the month; draws: every stored draw of the month, counted: those with rows in scope (with
-// Top, the draws that have a ranking recorded before them) - every total is over the counted draws only.
+// filter, or null when the scope has no rows for that draw), ranking (what the scope says about it), liveMarks (the
+// kept rows not live as stored, by status: the admin's markers), afterClose (the users' rule: a kept row's
+// ticket was not out before the sales close)}], newest first. Months newest first, each with its draws newest first
+// and its totals over the same rows: the profit and stake summed, the best line of the month; draws: every stored
+// draw of the month, counted: those with rows in scope (with Top, the draws that have a ranking recorded before
+// them) and not afterClose - every total is over the counted draws only; afterClose: the draws shown greyed with
+// their figures, left out of the totals (27 Oct 2026).
 function historyMonths(game, entries) {
   const family = familyOf(game);
   const money = MONEY_GAMES.includes(game);
@@ -524,12 +551,17 @@ function historyMonths(game, entries) {
     const month = e.date.slice(0, 7);
     if (!current || current.month !== month) {
       // rows: summed over the counted draws (row-draws); rowsMin / rowsMax: the rows of one counted draw, the header's words
-      current = { month, draws: 0, counted: 0, rows: 0, rowsMin: null, rowsMax: null, tickets: 0, ...(money ? { profit: 0, stake: 0 } : {}), best: null, multi: null, days: [] };
+      current = { month, draws: 0, counted: 0, afterClose: 0, rows: 0, rowsMin: null, rowsMax: null, tickets: 0, ...(money ? { profit: 0, stake: 0 } : {}), best: null, multi: null, days: [] };
       months.push(current);
     }
     const line = { date: e.date, weekday: weekdayOf(e.date), result: resultOf(game, e.day && e.day.realResult) };
     current.draws += 1;
-    if (e.keep) {
+    if (e.liveMarks) line.liveMarks = e.liveMarks;
+    if (e.keep && e.afterClose) {
+      // shown with its figures, greyed, out of every total
+      Object.assign(line, dayFigures(game, e.day, e.keep), { afterClose: true });
+      current.afterClose += 1;
+    } else if (e.keep) {
       const f = dayFigures(game, e.day, e.keep);
       Object.assign(line, f);
       current.counted += 1;
@@ -611,6 +643,6 @@ module.exports = {
   SPECIAL_COLUMN_COUNTS, SPECIAL_LABELS, MARKET_GAMES, MONEY_GAMES, POSITIONAL_GAMES, MULTI_PICK, multiPickFor, multiHits, winChance,
   ZODIAC, zodiacCode, zodiacName, jokerplusRuns, jokerplusSignHit, PAYOUT_TABLE_JOKERPLUS, jokerplusTicketProfit,
   chartFrequency, gameFromFolder, splitRealResult, splitTicket, PAYOUT_TABLE_KENO, KENO_SIZES, KENO_STAKE, kenoPlayed, kenoTicketProfit, PAYOUT_TABLE_PICK3, pick3Bets,
-  calculateProfit, ticketStake, SCHEDULE_WINDOW, DAY_FILE, parseDayFileDate, nextDrawDate, isoOfFile, fileOfIso, nextDrawDay, weekdayOf,
+  calculateProfit, ticketStake, SCHEDULE_WINDOW, DAY_FILE, parseDayFileDate, nextDrawDate, isoOfFile, fileOfIso, nextDrawDay, weekdayOf, DRAW_CLOSE, salesClose,
   familyOf, scoreTicket, scoreRow, dayFigures, betterBest, resultOf, historyMonths, votesOf, multiPickLegend, shapeOf,
 };

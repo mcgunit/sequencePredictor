@@ -21,38 +21,60 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 11, 'eleven jobs: the daily predictor, the six of the weekly tuning chain and the four control experiments');
+ok(jobs.JOBS.length === 12, 'twelve jobs: the daily predictor, the seven steps of the weekly tuning chain and the four control experiments');
 ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true',
   'the daily job is Predictor.py -a true, exactly as runPredictor.sh had it');
 ok(byKey.predictor.daily.hour === 9 && byKey.predictor.daily.minute === 0, 'the predictor keeps its 09:00 slot');
-ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner',
+ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner,kenoSubsetTuning',
   'the weekly chain keeps the order runHyperopt.sh documented');
 ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,featureControl,marketRows,nullControls',
-  'the control plan runs Q2 (an hour), the feature control (refits, about an hour), the market rows report (minutes), then Q0 (hours)');
+  'the control plan runs Q2 (about 80 minutes), the feature control (refits, about an hour), the market rows report (minutes), then the Q0 band (hours, context since 27 Oct 2026)');
+ok(byKey.nullControls.name === 'Weekly controls: null histories (Q0 band, context)' && /context only/i.test(byKey.nullControls.description) && !/greyed under/.test(byKey.nullControls.description),
+  'the null-histories job is named for what it writes since 27 Oct 2026: the Q0 band, context - Q0 itself is the daily report\'s row test');
 ok(jobs.JOBS.every((j) => !j.plan || PLANS[j.plan]), 'every planned job belongs to a known plan');
 ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'),
   'the quantum tuner must run before the retrain - that is why the retrain is weekly at all');
-ok(CHAIN_KEYS[CHAIN_KEYS.length - 1] === 'trainMetaLearner', 'the meta-learner retrain stays last');
+// The keno sub-selection tuning scores the artifacts the retrain writes (26 Oct 2026): after it, and last - the
+// statistical tuner's plain run leaves that strategy out (HyperoptStatistics DEFAULT_STRATEGIES, its self-check)
+ok(CHAIN_KEYS.indexOf('trainMetaLearner') === CHAIN_KEYS.length - 2 && CHAIN_KEYS[CHAIN_KEYS.length - 1] === 'kenoSubsetTuning',
+  'the meta-learner retrain is followed only by the keno sub-selection tuning, which scores its artifacts');
+ok(byKey.kenoSubsetTuning.script === 'HyperoptStatistics.py' && byKey.kenoSubsetTuning.args.join(' ') === '-g keno -s KenoSubsetTuning'
+  && byKey.hyperoptStatistics.args.length === 0, 'the keno step runs one strategy of the statistical tuner on keno; the statistical job runs its default list');
+// A job that joined its plan later says since when (a day): This week (admin.js weekView) does not expect it of an
+// earlier weekend, so the weekend of 24 Oct 2026 does not list the keno step as not run
+ok(byKey.kenoSubsetTuning.since === '2026-10-26' && jobs.JOBS.filter((j) => j.since).every((j) => j.plan && /^\d{4}-\d{2}-\d{2}$/.test(j.since)),
+  'the keno step joined the chain on 26 Oct 2026; only a planned job carries a since, and it is a day');
 ok(byKey.nullControls.args.includes('-d') && byKey.nullControls.args.includes('both') && byKey.randomnessDiscrimination.args.includes('-w'),
   'the controls run with an explicit window, both control kinds and every game');
 ok(['nullControls', 'randomnessDiscrimination', 'featureControl'].every((k) => byKey[k].args[1].split(',').length === 11
   && byKey[k].args[1].endsWith('crypto,shares,cryptoweek,sharesweek')), 'every control covers the seven lottery games and the four market games');
 ok(byKey.marketRows.args.join(' ') === '-g crypto,shares,cryptoweek,sharesweek -d 250', 'the market rows report scores the four market games over an explicit window');
+// Q2 on 20 seeds for every game from 1 Nov 2026 (B2 of the 26 Oct reading): three, five for the markets, left its null
+// band to the luck of the seeds; the market games get the same 20, so no --market-repetitions (NullControls keeps its own)
+ok(byKey.randomnessDiscrimination.args.join(' ') === '-g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek -w 10 -n 20 --seed weekly'
+  && !byKey.randomnessDiscrimination.args.includes('--market-repetitions') && byKey.nullControls.args.includes('--market-repetitions'),
+  `Q2 runs 20 repetitions for every game, the market games included: ${byKey.randomnessDiscrimination.args.join(' ')}`);
+ok(/80 minutes/.test(byKey.randomnessDiscrimination.description), 'the Jobs page says how long Q2 takes now');
 ok(byKey.featureControl.args.includes('-r') && byKey.featureControl.args.includes('-k'), 'the feature control runs with explicit repeats and noise columns');
 
 // The shell scripts stay as the hand-run path, so they must not drift from
-// the schedule: same scripts, same order, or one of the two is wrong.
+// the schedule: same commands, same logs, same order, or one of the two is
+// wrong. Matched on the whole line - script, arguments and log - since two
+// steps run HyperoptStatistics.py (26 Oct 2026): by script alone the keno
+// step would be found at the statistical job's line.
 const shell = (name) => fs.readFileSync(path.join(__dirname, '..', name), 'utf-8');
 const runHyperopt = shell('runHyperopt.sh');
 ok(shell('runPredictor.sh').includes('python3 Predictor.py -a true'),
   'runPredictor.sh still runs what the predictor job runs');
-const orderInShell = CHAIN_KEYS.map((key) => runHyperopt.indexOf(`python3 ${byKey[key].script}`));
-ok(orderInShell.every((i) => i > 0), 'every chain job appears in runHyperopt.sh');
+const lineOf = (job) => `python3 ${[job.script, ...job.args].join(' ')} >> /root/sequencePredictor/log/${job.log} 2>&1`;
+const orderInShell = CHAIN_KEYS.map((key) => runHyperopt.indexOf(lineOf(byKey[key])));
+ok(orderInShell.every((i) => i > 0), 'every chain job appears in runHyperopt.sh with its arguments and its log');
 ok(orderInShell.every((pos, i) => i === 0 || pos > orderInShell[i - 1]),
   'the chain runs in runHyperopt.sh order - if one moves, both must move');
-const controlsInShell = CONTROL_KEYS.map((key) => runHyperopt.indexOf(`python3 ${byKey[key].script}`));
+const controlsInShell = CONTROL_KEYS.map((key) => runHyperopt.indexOf(lineOf(byKey[key])));
+ok(controlsInShell.every((i) => i > 0), 'every control job appears in runHyperopt.sh with its arguments and its log');
 ok(controlsInShell.every((i) => i > orderInShell[orderInShell.length - 1]) && controlsInShell.every((pos, i) => i === 0 || pos > controlsInShell[i - 1]),
-  'the hand-run path runs the controls after the retrain, in the plan order');
+  'the hand-run path runs the controls after the chain\'s last step (the keno sub-selection tuning), in the plan order');
 
 jobs.JOBS.forEach((job) => {
   ok(fs.existsSync(path.join(__dirname, '..', job.script)), `${job.key}: ${job.script} exists in the repo`);
@@ -61,6 +83,20 @@ jobs.JOBS.forEach((job) => {
 });
 ok(new Set(jobs.JOBS.map((j) => j.log)).size === jobs.JOBS.length, 'every job writes to its own log');
 ok(jobs.JOBS.filter((j) => j.daily).length === 1, 'only the predictor runs on a clock');
+
+// Who holds process.lock, from its command line: the step whose script and arguments it carries, so the keno step
+// is not read as the statistical job (system.js would call the schedule's own run a stranger's lock)
+{
+  const { jobOfCmdline } = jobs._internals;
+  ok(jobs.jobOfCmdline === jobOfCmdline, 'exported for pipeline.js too, which names the running step by it');
+  const keyOf = (cmdline) => (jobOfCmdline(cmdline) || { key: null }).key;
+  ok(keyOf('python3 HyperoptStatistics.py -g keno -s KenoSubsetTuning') === 'kenoSubsetTuning', 'the lock of the keno step names the keno step');
+  ok(keyOf('python3 HyperoptStatistics.py') === 'hyperoptStatistics', 'the statistical job is still the statistical job');
+  ok(keyOf('/usr/bin/python3 /root/sequencePredictor/HyperoptStatistics.py -g lotto') === 'hyperoptStatistics',
+    'a hand run with its own arguments is the job that runs the script without any');
+  ok(keyOf('python3 Predictor.py -a true') === 'predictor' && keyOf('python3 Predictor.py') === 'predictor', 'the predictor, with or without its arguments');
+  ok(keyOf('python3 HyperoptDeepLearning.py') === null, 'a script no job runs is no job');
+}
 
 // --- the weekly control experiments: their own Sunday plan ------------------
 // Measurements of the rows, never inputs to them, and hours long: started by
@@ -166,12 +202,12 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
   'after today\'s slot the next one is tomorrow');
 
 
-// --- what the two control jobs say and do on the Jobs page -----------------
+// --- what the control jobs say and do on the Jobs page -----------------
 {
   const { nextDueText, planBaseline } = jobs._internals;
   const anyNow = at('2026-09-26T20:00:00');
   ok(CONTROL_KEYS.every((k) => nextDueText(byKey[k], anyNow) === "when Sunday's predictor finishes"),
-    'the two control jobs say Sunday on the Jobs page, from the plan table');
+    'the control jobs say Sunday on the Jobs page, from the plan table');
   ok(CHAIN_KEYS.every((k) => nextDueText(byKey[k], anyNow) === "when Saturday's predictor finishes"), 'the chain jobs still say Saturday');
   // Every scheduled entry point takes process.lock, or the scheduler's "one
   // job at a time behind the same lock" promise is void for it.

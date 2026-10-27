@@ -206,7 +206,22 @@ GATE_MARGIN = 0.0
 # alone. Both objectives carry a standard error since 14 Oct 2026 - the
 # positional score through TuningScore, the hits score as the standard
 # error of the per-day hits.
-GATE_SE_MARGIN = 1.0
+# 2.5 since 27 Oct 2026 (1 until then): a quantum score is one fit, and a
+# fit is mostly its seed - the training subsample (always active: 5,310-
+# 12,390 table rows against maxTrainSamples of 1,000-4,000) and, for the
+# VQC, its initial angles and batch order. One configuration refitted with
+# other seeds on production's 25 Oct tables moved by a median 0.88 SE
+# (kernel), 0.97 (SVM) and 0.84 (VQC), while seed-averaged configurations
+# differed by 0-0.59 SE; the defaults moved 1.28 SE from one week to the
+# next. So at one SE the gate replaced on seed luck: 34-46% of the rows a
+# week in a simulation on fair-game data, and the 15 replacements of 18 Oct
+# lost a median 1.41 SE when re-scored on 25 Oct (the three that had won by
+# 2 SE or more, 3.44 - lotto QuantumMetaLearner from +2.36 SE to -5.21).
+# At 2.5 SE the same simulation replaces 2-5% per row-week - still seed luck
+# when it happens (no configuration predicts a fair draw), but rarely. The
+# revert keeps the challenger's margin (revert_margin None): a margin-free
+# revert here would compare two single fits, a coin flip on the seed.
+GATE_SE_MARGIN = 2.5
 
 # (study suffix, factory bound to that variant's bestParams keys, search space)
 VARIANTS = [
@@ -226,8 +241,9 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
     the expensive part (XGBoost genuinely trains per day) while the tunables
     only affect the quantum classifier fitted on top, so re-collecting per
     trial or per study would multiply minutes of work for identical tables.
-    Returns (results, model_names, main_actual_key) or None when the game has
-    no usable data.
+    Returns (results, model_names, main_actual_key, lockbox_withheld) or None
+    when the game has no usable data; lockbox_withheld is how many table days
+    the lockbox took out (0 without one), for the gate's records.
 
     The positional games (Pick3, Joker+ - Helpers.is_positional_game) collect
     the POSITIONAL table instead (positional base models, game=<name> so the
@@ -305,6 +321,7 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
     # The lockbox (src/Lockbox.py): its days are never tuned on. They leave
     # the table here, before either 75/25 day split - the flat one below and
     # the positional one of Pick3 and Joker+, which returns early.
+    locked = []
     if lockbox:
         results, locked = lockbox_split(results, list(getattr(loader, "dates", [])), lockbox)
         print(f"{dataset_name}: {describe_lockbox(lockbox)} - {len(locked)} table day(s) withheld from tuning, "
@@ -314,7 +331,7 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
             return None
 
     if is_positional:
-        return results, model_names, "actual_ordered"
+        return results, model_names, "actual_ordered", len(locked)
 
     # Tune on the MAIN-number table only, labeled with the same actual_main
     # key subtlety TrainMetaLearner relies on: for special-column games the
@@ -326,7 +343,7 @@ def collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=None):
     # from it), the main table carries far more days x numbers of signal, and
     # the ticket-level hits metric below only exists for the main draw.
     main_actual_key = "actual_main" if game_cfg["special_column_count"] > 0 else "actual"
-    return results, model_names, main_actual_key
+    return results, model_names, main_actual_key, len(locked)
 
 
 def build_day_split(results, model_names, game_cfg, main_actual_key):
@@ -548,7 +565,7 @@ def tune_game(dataset_name, game_cfg, path, days_back, n_trials, parallel, trial
     collected = collect_score_table(dataset_name, game_cfg, path, days_back, lockbox=lockbox)
     if collected is None:
         return
-    results, model_names, main_actual_key = collected
+    results, model_names, main_actual_key, lockboxWithheld = collected
 
     if len(results) < MIN_EVALUATION_DAYS:
         print(f"Skipping {dataset_name}: only {len(results)} backtest days collected "
@@ -615,11 +632,18 @@ def tune_game(dataset_name, game_cfg, path, days_back, n_trials, parallel, trial
         # holdout windows - against the served parameters and the untuned
         # defaults, both re-scored on this run's holdout by this objective.
         # Until 14 Oct 2026 this run's best trial was written as it was.
+        # The margin is GATE_SE_MARGIN (2.5 SE since 27 Oct 2026), and the
+        # revert takes the same one (revert_margin None, see GATE_SE_MARGIN).
         outcome = challenge(study, known_trials, objective, existingData,
                             make_defaults(QUANTUM_DEFAULTS[variant_name], existingData),
                             timeout_seconds=trialTimeout + 60, label=studyName,
-                            margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=n_test_days, se_margin=GATE_SE_MARGIN)
+                            margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=n_test_days, se_margin=GATE_SE_MARGIN,
+                            lockbox_withheld=lockboxWithheld, revert_margin=None)
         print(outcome["summary"])
+        # The lockbox days left the score table before the 75/25 split (collect_score_table, 26 Oct 2026), so the
+        # count is the table's: the holdout - window_days - is cut from the days left and holds none of them, unlike
+        # a row tuner's window, which the withheld days are counted out of. The record says which.
+        outcome["record"]["lockbox_withheld_from"] = "table"
         if variant_name == "classical_svm":
             # what the "default" reference was scored with, since it is not what an untuned row serves (see QUANTUM_DEFAULTS)
             outcome["record"]["default_note"] = "classicalSvm_gamma 0.25 stands in for sklearn's \"scale\" in the default reference, and is served on a revert"
@@ -684,7 +708,8 @@ if __name__ == "__main__":
         parser.add_argument('--no-gate', action='store_true', help="Write each study's best trial of this run without the comparison")
         parser.add_argument(
             '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
-            help="The margin in standard errors of the challenger's own score; the larger of this and --gate-margin applies")
+            help="The margin in standard errors of the challenger's own score; the larger of this and --gate-margin "
+                 "applies. 2.5 since 27 Oct 2026 (1 until then): a single fit moves about 0.9 SE with its seed alone")
         parser.add_argument(
             '-g', '--games',
             type=str,

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { DASH, isNum, money, pct, rate, short, unsigned } from '../../format';
-import { binInterval, type DrawResult, type MarketDay, type Row, type Shape, type Ticket } from '../../workbench';
+import { DASH, isNum, money, pct, rate, short, stamp, unsigned } from '../../format';
+import { binInterval, type DrawResult, type LiveMark, type MarketDay, type Row, type Shape, type Ticket } from '../../workbench';
 import { Legend, Scroll } from '../admin/Card';
 import Chip from '../admin/Chip';
 import { specialsLabel, type Mode } from './text';
@@ -29,6 +29,25 @@ const plural = (n: number | null | undefined, one: string, many = `${one}s`) => 
 const CELL: Record<string, string> = { m: 'hm', l: 'hm', s: 'hm', b: 'hb', z: 'hb', r: 'hr', a: 'ha' };
 const ordinal = (n: number) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
 
+// What the live record makes of a row on this draw (the admin; src/Liveness.py, 27 Oct 2026), in words: "back-built or
+// late (first saved after the close): first saved Sat 13 Jun 08:49, 232.8 h after the Wed 3 Jun 18:00 sales close";
+// "rewritten after the draw: the live record scores the ticket saved Thu 21 May 09:06 (c284c5b5): 3 7 12 … · 1 hit"
+function liveMarkText(mark: LiveMark): string {
+  if (mark.status === 'duplicate') return 'a second row of this name on the draw: not live';
+  if (mark.status === 'unchecked') return `not checked: ${mark.reason ?? 'no evidence'}`;
+  if (mark.status === 'late') {
+    // the file keeps one first save per draw: with several rows added after the close it is the earliest's, said so
+    const saved = isNum(mark.lateRows) && mark.lateRows > 1 ? `the earliest of the draw's ${mark.lateRows} late rows saved` : 'first saved';
+    const when = mark.firstSaved ? `${saved} ${stamp(mark.firstSaved)}${isNum(mark.delayHours) ? `, ${mark.delayHours} h after the ${stamp(mark.close)} sales close` : ''}` : `after the ${stamp(mark.close)} sales close`;
+    return `back-built or late${mark.reason ? ` (${mark.reason})` : ''}: ${when}`;
+  }
+  const t = mark.atClose?.tickets[0];
+  const numbers = t ? [...t.mains, ...(t.specials ?? [])].join(' ') : DASH;
+  const h = t?.hits;
+  const hits = !h ? DASH : isNum(h.left) ? `${h.left}/${h.right ?? 0} (L/R)` : isNum(h.positional) ? `${h.positional} in place` : plural(h.mains, 'hit');
+  return `rewritten after the draw: the live record scores the ticket saved ${stamp(mark.savedAt)}${mark.commit ? ` (${mark.commit})` : ''}: ${numbers} · ${hits}`;
+}
+
 function NameCell({ row, mode, ranked, showTop, rankWhose, first }: { row: Row; mode: Mode; ranked: boolean; showTop: boolean; rankWhose: string; first: boolean }) {
   if (!first) return <td className="mdl mut">{short(row.name)}</td>;
   return (
@@ -41,6 +60,7 @@ function NameCell({ row, mode, ranked, showTop, rankWhose, first }: { row: Row; 
         </>
       ) : null}
       {mode === 'admin' && ranked ? <span className="sub">{row.rank ? `#${row.rank} ${rankWhose}` : `not ${rankWhose}`}</span> : null}
+      {mode === 'admin' && row.liveMark ? <span className="sub">{liveMarkText(row.liveMark)}</span> : null}
     </td>
   );
 }
@@ -245,13 +265,13 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) =>
+            {rows.map((row, ri) =>
               row.tickets.map((t, i) => {
                 const h = hitsOf(shape, row, t, market, mode);
                 const m = market?.models[row.name];
                 const ranking = keno && t.kind === 'ranking';
                 return (
-                  <tr key={`${row.name}-${i}`} className={i === 0 ? 'first' : undefined}>
+                  <tr key={`${ri}-${row.name}-${i}`} className={i === 0 ? 'first' : undefined}>
                     <NameCell row={row} mode={mode} ranked={ranked} showTop={showTop} rankWhose={rankWhose} first={i === 0} />
                     <td className="rk">{keno ? (ranking ? 'ranking' : t.mains.length) : i + 1}</td>
                     {bodyCells(shape, row, t, i, cols, result, market, mode)}

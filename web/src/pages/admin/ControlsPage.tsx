@@ -1,6 +1,6 @@
 import { Fragment, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getAdminControls, type ControlsView, type GameControls, type PartHistory, type Q0Row } from '../../api';
+import { getAdminControls, type ControlsView, type GameControls, type PartHistory } from '../../api';
 import { DASH, count, dayYear, fixed, perUnit, range, short, signedFixed, span, stamp, weekday } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useDrawerParam } from '../../hooks/useUrlState';
@@ -9,15 +9,16 @@ import { Card, Legend, Scroll } from '../../components/admin/Card';
 import Chip from '../../components/admin/Chip';
 import DotStrip, { Axis, ticks } from '../../components/admin/DotStrip';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
-import Streak, { historyNote, ordinal, readingNote, streakWords } from '../../components/admin/Streak';
+import Streak, { historyNote, readingNote, streakWords } from '../../components/admin/Streak';
 import ControlsDrawer, { chanceText } from './ControlsDrawer';
-import { GameButton, GroupRow, earliest, isMarketGame, joinParts, latest, liveRecordsText, oneControlText, recordText, seedsText, tableNote, units } from './bits';
+import { GameButton, GroupRow, chanceLine, earliest, freshText, isMarketGame, joinParts, latest, pText, q0TileFoot, seedsText, tableNote, units } from './bits';
 
-// /admin/controls: the four Sunday controls for all 11 games on one page (Q0 null band, Q2 randomness,
-// feature control, market rows), games grouped Lottery / Markets, and per game a drawer with all four in
-// full (?game=lotto). Every figure carries its unit and its record's time; nothing is coloured as good or bad. Each
-// control carries its run of weeks from the weekly readings (data/readings/<sunday>.json): a grey "3rd week" for a
-// state that holds, a coloured "new this week" only where it reads differently from the week before.
+// /admin/controls: the four controls for all 11 games on one page (Q0 row tests, Q2 randomness, feature control,
+// market rows), games grouped Lottery / Markets, and per game a drawer with all four in full (?game=lotto). Every
+// figure carries its unit and its record's time; nothing is coloured as good or bad. Each control carries its run of
+// weeks from the weekly readings (data/readings/<sunday>.json): a grey "3rd week" for a state that holds, a coloured
+// "new this week" only where it reads differently from the week before. Q0 is the daily report's row test since
+// 27 Oct 2026 (the other three are the Sunday controls); its old null band is context in the drawer.
 export default function ControlsPage() {
   const load = useLoad(getAdminControls, []);
   const drawer = useDrawerParam();
@@ -42,8 +43,9 @@ export default function ControlsPage() {
   const d = load.data;
   const t = d.tiles;
   const all = d.groups.flatMap((g) => g.games);
-  const from = earliest([t.q0.from, t.q2.from, t.fc.from, t.rows.from]);
-  const to = latest([t.q0.at, t.q2.at, t.fc.at, t.rows.at]);
+  // the Sunday controls' span: Q0's band records (context) with the other three; Q0's row tests are the daily report's
+  const from = earliest([t.q0.band.from, t.q2.from, t.fc.from, t.rows.from]);
+  const to = latest([t.q0.band.at, t.q2.at, t.fc.at, t.rows.at]);
   const note = historyNote(d.readings, all.flatMap((g) => [g.history.q0, g.history.q2, g.history.fc, g.history.rows]));
   return (
     <div className="admin">
@@ -65,13 +67,6 @@ export default function ControlsPage() {
 function Tiles({ d }: { d: ControlsView }) {
   const t = d.tiles;
   const games = d.groups.flatMap((g) => g.games);
-  const hitRanked = games.filter((g) => g.q0.band && g.q0.ranking === 'hits' && g.q0.above.n > 0);
-  // the longest record among the rows above, per side: a lottery game's draws, a market game's live part only, per unit
-  const lottery = hitRanked.filter((g) => !isMarketGame(g.game)).sort((a, b) => (b.q0.above.longest ?? 0) - (a.q0.above.longest ?? 0))[0];
-  const records = [
-    lottery ? `lottery ≤ ${count(lottery.q0.above.longest, lottery.unit)}` : '',
-    liveRecordsText(hitRanked.filter((g) => isMarketGame(g.game)).map((g) => ({ game: g.game, unit: g.unit, longestLive: g.q0.above.longestLive }))),
-  ].filter(Boolean).join(' · ');
   const q2Above = (group: string) => d.groups.find((g) => g.name === group)?.games.filter((g) => g.q2?.status === 'above').length ?? 0;
   const rowsGames = games.filter((g) => g.rows);
   const scored = rowsGames.reduce((s, g) => s + (g.rows?.rowsScored ?? 0), 0);
@@ -82,29 +77,11 @@ function Tiles({ d }: { d: ControlsView }) {
     if (w.window !== null) byUnit.set(w.unit, [...(byUnit.get(w.unit) ?? []), w.window]);
   });
   const windows = [...byUnit.entries()].map(([unit, xs]) => `${range({ min: Math.min(...xs), max: Math.max(...xs) })} ${units(unit)}`).join(' · ');
-  // the Q0 run spans Sunday into Monday (Brussels time); records more than a day apart are two weeks' runs mixed
-  const q0Mixed = Boolean(t.q0.from && t.q0.at && Date.parse(t.q0.at) - Date.parse(t.q0.from) > 24 * 3600 * 1000);
-  // a game out of a tile's count, named: no record yet, or one that is there but could not be read
-  const unreadable = (part: string) => (game: string) => (games.find((g) => g.game === game)?.errors.includes(part) ? `${game} (unreadable)` : game);
   const absent = (missing: string[], bad: string[], what: string) =>
     joinParts([missing.length ? `no ${what}: ${missing.join(', ')}` : '', bad.length ? `unreadable: ${bad.join(', ')}` : '']);
   return (
     <div className="kpis k4">
-      <Tile
-        href="#q0"
-        label="Q0 null band"
-        value={String(t.q0.rowsAbove)}
-        unit="rows above band"
-        foot={[
-          `${t.q0.games} of ${t.q0.hitRankedGames} hit-ranked games`,
-          t.q0.noBand.length ? `no band, not compared: ${t.q0.noBand.map(unreadable('q0')).join(', ')}` : '',
-          t.q0.oneControl.length ? `band from one control: ${t.q0.oneControl.map((x) => `${x.game} ${oneControlText(x)}`).join(', ')}` : '',
-          records,
-          `rule open: ${t.q0.alternatives.allGamesOnHits.rowsAbove} with payout games · ${t.q0.alternatives.bestRowOnly.games.length} best rows only`,
-          `bands ${span(t.q0.from, t.q0.at)}${q0Mixed ? ' · mixed weeks: run in progress' : ''}`,
-          `ranking ${stamp(d.rankingAt)}`,
-        ]}
-      />
+      <Q0Tile d={d} />
       <Tile
         href="#q2"
         label="Q2 randomness"
@@ -113,8 +90,8 @@ function Tiles({ d }: { d: ControlsView }) {
         foot={[
           joinParts([`lottery ${q2Above('Lottery')}`, seedsText(t.q2.seeds.Lottery), `markets ${q2Above('Markets')}`, seedsText(t.q2.seeds.Markets)]),
           absent(t.q2.missing, t.q2.unreadable, 'record'),
-          ...t.q2.aboveFewWindows.map((w) => `${w.game} above on ${w.windowsTest ?? DASH} test windows (under ${d.meta.q2.fewWindows})`),
-          t.q2.tooFewGames.length ? `${t.q2.tooFewGames.length} too few draws (${t.q2.tooFewGames.join(', ')})` : '',
+          t.q2.tooFewGames.length ? `${t.q2.tooFewGames.length} too few draws, under ${d.meta.q2.fewWindows ?? DASH} test windows (${t.q2.tooFewGames.join(', ')})` : '',
+          t.q2.failedGames.length ? `${t.q2.failedGames.length} failed: a comparison scored under 2 seeds (${t.q2.failedGames.join(', ')})` : '',
           span(t.q2.from, t.q2.at),
         ]}
       />
@@ -138,11 +115,20 @@ function Tiles({ d }: { d: ControlsView }) {
           joinParts([`${t.rows.games} games`, windows]),
           absent(t.rows.missing.filter((g) => !t.rows.unreadable.includes(g)), t.rows.unreadable, 'report'),
           `${reference} beats uniform in ${t.rows.referenceAboveUniform} of ${t.rows.games}`,
+          t.rows.frequencyGames ? `${reference} beats the frequencies in ${t.rows.referenceAboveFrequency} of ${t.rows.frequencyGames}` : '',
           span(t.rows.from, t.rows.at),
         ]}
       />
     </div>
   );
+}
+
+// The Q0 tile (27 Oct 2026): the rows confirmed on new draws in the hit-ranked games, this week's figures under it
+// (q0TileFoot, shared with the Week page).
+function Q0Tile({ d }: { d: ControlsView }) {
+  const t = d.tiles.q0;
+  const unitOf = (game: string) => d.groups.flatMap((g) => g.games).find((g) => g.game === game)?.unit ?? 'draws';
+  return <Tile href="#q0" label="Q0 row tests" value={String(t.confirmed)} unit="confirmed on new draws" foot={q0TileFoot(t, unitOf)} />;
 }
 
 // --- week over week ----------------------------------------------------------------------
@@ -155,30 +141,6 @@ function StreakSub({ h, what }: { h: PartHistory | null; what?: string }) {
   ) : null;
 }
 
-// The rows above the band by their weeks above it: "3rd week: LSTM Base, Transformer"; rows new above this week are
-// coloured, but only when the week before has a reading to compare with (compared) - else every row is a first week.
-function AboveWeeks({ rows, compared }: { rows: Q0Row[]; compared: boolean }) {
-  const counted = rows.filter((r) => r.weeks !== null);
-  const fresh = compared ? counted.filter((r) => r.weeks === 1) : [];
-  const byWeeks = new Map<number, string[]>();
-  counted.filter((r) => (r.weeks ?? 0) >= 2).forEach((r) => byWeeks.set(r.weeks as number, [...(byWeeks.get(r.weeks as number) ?? []), short(r.row)]));
-  if (!fresh.length && !byWeeks.size) return null;
-  return (
-    <span className="sub">
-      {fresh.length ? (
-        <>
-          <Chip kind="chg">{fresh.length} new above</Chip> {fresh.map((r) => short(r.row)).join(', ')}
-          {byWeeks.size ? ' · ' : ''}
-        </>
-      ) : null}
-      {[...byWeeks.entries()]
-        .sort((a, b) => b[0] - a[0])
-        .map(([w, names]) => `${ordinal(w)} week above: ${names.join(', ')}`)
-        .join(' · ')}
-    </span>
-  );
-}
-
 // --- Q0 -------------------------------------------------------------------------------
 function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void }) {
   const m = d.meta.q0;
@@ -186,46 +148,47 @@ function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
   return (
     <Card
       id="q0"
-      title="Q0 null band"
+      title="Q0 chance per row"
       flush
       help={
         <>
-          Band: the best of the tracked rows on fair histories plus 2 sd across seeds, from whichever control is higher, synthetic or shuffled; its time is that
-          control&apos;s own record. A band from one control only (the other&apos;s record missing, or there but unreadable) is marked as such: it can be
-          lower than the rule&apos;s. Best row: the ranked row with the most hits per draw, with its record; for market games the days whose ticket was not out
-          before the close (back-built or late) are counted apart. Above: ranked rows ({'≥'} their game&apos;s minimum draws) whose hits per draw beat their
-          game&apos;s band, and the longest record among them. Own level: the row&apos;s own mean on the fair histories in the control the band comes from, only
-          for rows the control runs (on narrow screens it is in the game&apos;s drawer). jokerplus, pick3 and keno rank on a profit bound; here they are compared
-          on hits, and they stay out of the headline count. The rule is still open: {tile.rowsAbove} rows on the hit-ranked games,{' '}
-          {tile.alternatives.allGamesOnHits.rowsAbove} if the payout games count on hits, {tile.alternatives.bestRowOnly.games.length} if only each game&apos;s best
-          row counts. Weeks, on every card: a control&apos;s run of weeks in the stored weekly readings, ending at its record&apos;s Sunday - a grey &quot;3rd
-          week&quot; while it reads the same, a coloured &quot;new this week&quot; with what it read before when it changed (here: rows above, or none above;
-          under Above, how many weeks each row has been above). A week whose reading holds an older record of the control (it did not run that week) ends
-          the run. Q0 is read against a ranking: its weeks come from the readings, each fixed at its own Sunday&apos;s ranking, never a later one; the count
-          is against the ranking on disk, and under Above a line names the rows where the two differ (+ above only now, − above only in the reading).
+          Each row is tested on its own live draws (the ticket saved before the sales close; a lottery ticket rewritten after the draw counts as it
+          stood at the close), on this card&apos;s hit scale. Lottery: the chance that fair draws give tickets of the same shapes (6 or 7 numbers, distinct
+          digits, Joker+ runs, numbers that cannot be drawn) at least as many hits over as many draws, computed exactly - the row&apos;s fair level is its
+          own, not one band for the game. Markets: the row&apos;s own tickets shuffled among its own live days within blocks of 7 consecutive live days (weeks
+          for the week games), the outcomes fixed, 20,000 times. A row that calls the same bins every day scores the same shuffled and cannot pass, and the
+          bins a few days favour - the stretch&apos;s bin mix and the drift of its volatility regime - stay with those days, so they do not count. What it
+          does not remove: a row that times the regime within a week can still pass; that is real, but it carries no direction, and the market rows&apos;
+          score against GARCH (the Market rows card) stays the reference for it. Under 5%: rows with p &lt; 0.05; with m rows, fair draws put about the
+          figure next to it there every week by chance alone. Holds: still under 5% after the Holm correction for the m rows compared - on fair draws a card
+          shows one about one week in thirty, so it is a figure, not a colour or a streak. Followed: from the first Sunday a row&apos;s live record read p
+          &lt; 0.05, its new live draws are kept apart and judged once, after as many of them as flagged it (at least 10, at most 52): confirmed when p
+          &lt; 0.01, not confirmed otherwise; stopped after four weeks without a new live draw. Only a confirmed row counts - in the tile, the colours and
+          the weeks. A row is tested once it has 10 live draws, days or weeks (the week games: about mid December 2026). jokerplus, pick3 and keno rank on a
+          profit bound; they are tested on hits here, information only, out of the tile. Each p stands
+          with the row&apos;s own hits per draw, live draws and null on its line. The old null band - the best of 8 untuned rows on 120 fair draws - is
+          context in a game&apos;s drawer; nothing is read against it. Weeks, on every card: a control&apos;s run of weeks in the stored weekly readings, ending
+          at its record&apos;s Sunday - a grey &quot;3rd week&quot; while it reads the same, a coloured &quot;new this week&quot; with what it read before
+          when it changed (here: the rows confirmed and the rows followed). A reading from before 1 Nov 2026 was read under the band rule, so Q0&apos;s weeks
+          start again then.
         </>
       }
-      meta={[
-        'hits per draw (week games: per week)',
-        `best of ${range(m.rows)} rows + 2 sd on fair histories of ${range(m.history)} draws, days or weeks`,
-        span(tile.from, tile.at),
-        `ranking ${stamp(d.rankingAt)}`,
-      ]}
+      meta={['hits per draw (week games: per week), on live draws', "p one-sided; Holm at 5% over each game's rows", `report ${stamp(tile.at)}`, m.band ? 'band: context only' : '']}
     >
       <Scroll>
         <table className="tbl">
           <thead>
             <tr>
               <th>Game</th>
-              <th className="hide-sm">Band</th>
-              <th>Best row</th>
-              <th className="last-1col">Above</th>
-              <th className="hide-1col">Own level</th>
+              <th>Lowest p</th>
+              <th className="hide-sm">Under 5%</th>
+              <th className="last-1col">Holds</th>
+              <th className="hide-1col">New draws</th>
             </tr>
           </thead>
           <tbody>
             {d.groups.map((grp) => (
-              <Q0Group key={grp.name} name={grp.name} seeds={m.seeds[grp.name]} games={grp.games} headline={tile.rowsAbove} rankingAt={d.rankingAt} onOpen={onOpen} />
+              <Q0Group key={grp.name} name={grp.name} games={grp.games} rankingAt={d.rankingAt} onOpen={onOpen} />
             ))}
           </tbody>
         </table>
@@ -234,109 +197,87 @@ function Q0Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
   );
 }
 
-function Q0Group({
-  name,
-  seeds,
-  games,
-  headline,
-  rankingAt,
-  onOpen,
-}: {
-  name: string;
-  seeds: number[] | undefined;
-  games: GameControls[];
-  headline: number;
-  rankingAt: string | null;
-  onOpen: (g: string) => void;
-}) {
+function Q0Group({ name, games, rankingAt, onOpen }: { name: string; games: GameControls[]; rankingAt: string | null; onOpen: (g: string) => void }) {
   return (
     <>
-      <GroupRow cols={5}>
-        {name}
-        {seeds?.length ? ` · ${seedsText(seeds)}` : ''}
-      </GroupRow>
+      <GroupRow cols={5}>{name}</GroupRow>
       {games.map((g) => {
         const q = g.q0;
-        const b = q.band;
+        const t = q.test;
         const payout = q.ranking === 'profit';
-        const market = isMarketGame(g.game);
-        const owned = q.above.rows.filter((r) => r.own !== null);
-        // no band: nothing was compared, which is not "none above"
-        const noBand = g.errors.includes('q0') ? 'record unreadable' : 'no band yet';
+        const under = q.rows.filter((r) => r.inFamily && r.p !== null && r.p < (t?.alpha ?? 0.05));
+        const fresh = q.rows.filter((r) => r.fresh);
+        const head = (
+          <td className="sym">
+            <GameButton game={g.game} onOpen={onOpen} />
+            {payout ? <span className="sub">tested on hits; ranks on profit · information only</span> : null}
+            {/* its weeks: the rows confirmed and followed read the same ("3rd week"), or what changed */}
+            <StreakSub h={g.history.q0} />
+            {readingNote(g.history.q0, rankingAt) ? <span className="sub">{readingNote(g.history.q0, rankingAt)}</span> : null}
+          </td>
+        );
+        // no test: nothing was compared, which is never "none under"
+        if (!t) {
+          return (
+            <tr key={g.game}>
+              {head}
+              <td colSpan={4} className="mut">
+                no row test: {q.error ?? 'not in the report'}
+              </td>
+            </tr>
+          );
+        }
+        if (!t.family) {
+          return (
+            <tr key={g.game}>
+              {head}
+              <td colSpan={4} className="mut">
+                too few live {units(g.unit)}: {t.liveMax} of {t.minDraws ?? DASH} - no row is tested before it has {count(t.minDraws, g.unit)} live
+              </td>
+            </tr>
+          );
+        }
+        const low = q.lowest;
         return (
           <tr key={g.game}>
-            <td className="sym">
-              <GameButton game={g.game} onOpen={onOpen} />
-              {payout ? <span className="sub">compared on hits; ranks on profit</span> : null}
-              <StreakSub h={g.history.q0} what={g.history.q0?.state ?? ''} />
-              {/* the phone line keeps what the band is built on and when, as the hidden Band column does */}
-              <span className="sub show-sm">
-                {b
-                  ? joinParts([`band ${fixed(b.ceiling)}`, oneControlText(b) || b.from, `best of ${b.rows ?? DASH} rows, histories of ${count(b.history, g.unit)}`, weekday(b.at)])
-                  : noBand}
-              </span>
-            </td>
-            <td className="hide-sm">
-              {b ? (
-                <>
-                  <b>{fixed(b.ceiling)}</b>
-                  <span className="sub">
-                    {oneControlText(b) || b.from} · {b.rows ?? DASH} rows · histories of {count(b.history, g.unit)} · {stamp(b.at)}
-                  </span>
-                </>
-              ) : (
-                <span className="mut">{noBand}</span>
-              )}
-            </td>
+            {head}
             <td>
-              {q.best ? (
+              {low ? (
                 <>
-                  <b>{fixed(q.best.hits)}</b> {short(q.best.row)}
-                  <span className="sub">{recordText(q.best.draws, g.unit, market ? q.best.live : null)}</span>
+                  <b>p {pText(low.p)}</b> {short(low.row)}
+                  <span className="sub">{chanceLine(low, g.unit, t.method, false)}</span>
                 </>
               ) : (
                 <span className="mut">{DASH}</span>
               )}
+              <span className="sub">
+                {t.family} of {q.allRows} rows with ≥ {count(t.minDraws, g.unit)} live
+              </span>
+              <span className="sub show-sm">
+                {t.under} under 5%, ≈{fixed(t.expected, 2)} by chance · {t.holds} hold
+              </span>
               {q.leader ? <span className="sub">profit-bound leader: {short(q.leader.row)}</span> : null}
             </td>
+            <td className="hide-sm">
+              <b>{t.under}</b> of {t.family} <span className="mut">· ≈{fixed(t.expected, 2)} by chance</span>
+              {under.map((r) => (
+                <span key={r.row} className="sub">
+                  {chanceLine(r, g.unit, t.method)}
+                </span>
+              ))}
+            </td>
             <td className="last-1col">
-              {!b ? (
-                <>
-                  <span className="fnt">{DASH}</span>
-                  <span className="sub">no band: not compared</span>
-                </>
-              ) : (
-                <>
-                  <b>{q.above.n}</b> of {q.rankedRows}
-                  <span className="sub">
-                    {q.above.n === 0
-                      ? 'none above'
-                      : `longest ${count(q.above.longest, g.unit)}${market ? `, ${q.above.sameLive ? '' : '≤'}${q.above.longestLive ?? 0} live` : ''}`}
-                    {payout && q.above.n ? ` · not in the tile's ${headline}` : ''}
-                  </span>
-                  {readingNote(g.history.q0, rankingAt) ? <span className="sub">{readingNote(g.history.q0, rankingAt)}</span> : null}
-                  <AboveWeeks rows={q.above.rows} compared={g.history.q0 ? g.history.q0.changed !== null : false} />
-                </>
-              )}
+              <b>{t.holds}</b> of {t.family}
+              {/* no bare corrected p here: each row's sits on its own line, with its figures (the plan-card trust rule) */}
+              <span className="sub">under 5% after the correction for the {t.family} rows compared</span>
             </td>
             <td className="hide-1col">
-              {!b ? (
-                <span className="sub">no band: not compared</span>
-              ) : q.above.n === 0 ? (
-                <span className="fnt">{DASH}</span>
-              ) : owned.length ? (
-                <>
-                  <b>{owned.length}</b> of {q.above.n}
-                  <span className="sub">
-                    {owned.map((r) => `${short(r.row)} ${fixed(r.own)}`).join(' · ')} · {b?.from} control
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="mut">none of {q.above.n}</span>
-                  <span className="sub">the control does not run them</span>
-                </>
-              )}
+              {t.followed} followed · {t.confirmed} confirmed · {t.notConfirmed} not
+              {fresh.map((r) => (r.fresh ? (
+                <span key={r.row} className="sub">
+                  {short(r.row)}: {freshText(r.fresh, g.unit, t.method, t.verdictAlpha)}
+                </span>
+              ) : null))}
             </td>
           </tr>
         );
@@ -346,7 +287,9 @@ function Q0Group({
 }
 
 // --- Q2 -------------------------------------------------------------------------------
-const Q2_CHIP: Record<string, 'hi' | 'dim' | 'flat'> = { above: 'hi', 'too few draws': 'dim', within: 'flat', 'above band, not shuffled': 'flat' };
+const Q2_CHIP: Record<string, 'hi' | 'dim' | 'flat'> = { above: 'hi', 'too few draws': 'dim', within: 'flat', 'above band, not shuffled': 'flat', failed: 'flat' };
+// "± 0.019" after a threshold read under rule 2 (27 Oct 2026); nothing after an older one, which has no error
+const pmText = (x: number | null) => (x === null ? '' : ` ± ${fixed(x)}`);
 
 function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void }) {
   const [lo, hi] = d.meta.q2.axis;
@@ -362,13 +305,16 @@ function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
       flush
       help={
         <>
-          Dot: how well the classifiers tell the real draws from fair synthetic ones (best AUC of the suite, mean over seeds). Tick: the threshold, the null mean
-          + 2 sd, where the null is fair draws against fair draws; the shaded part is the null band. Hollow dot: the real draws reordered, which keeps every
-          frequency and destroys time order. A game is above when its dot is right of the tick and right of the hollow dot. A threshold of 0.8 or more means too
-          few draws to judge; the record&apos;s own power rule puts that case below about {d.meta.q2.fewWindows} test windows, so a game above on fewer windows is
-          read with that in mind. {seedsText(d.tiles.q2.seeds.Lottery)} for lottery games, {seedsText(d.tiles.q2.seeds.Markets)} for markets: a band on few seeds is wide and moves from week to week.
-          The suite: logistic regression, an RBF SVM, a random forest, gradient boosting and a small network, plus a quantum kernel and a VQC unless the run
-          skipped them (a game&apos;s drawer says which).
+          Dot: how well the classifiers tell the real draws from fair synthetic ones (best AUC of the suite, mean over seeds). Tick: the threshold, the highest
+          AUC one more run of fair draws against fair draws should reach - the null mean + k sd, the 97.7% bound for one run, with k from the seed count (2.19
+          at 20 seeds, wider on fewer); the short line through it is its own uncertainty (± its standard error), the shaded part the null band. Hollow dot: the
+          real draws reordered, which keeps every frequency and destroys time order (for a market the returns are reordered and the bins re-cut from them, so
+          its bin frequencies move a little); the faint tick is its bound, worked out the same way. A game is above when its dot is right of both ticks. Too few
+          draws: under {d.meta.q2.fewWindows ?? DASH} test windows, fixed by the history&apos;s length before the run - the band there is too wide to show
+          anything. Failed: a comparison scored fewer than 2 seeds, so there is no band. A record from before 1 Nov 2026 was read under the old rule (null mean
+          + 2 sd of 3 seeds, 5 for the markets) and has no ± and no shuffled bound. {seedsText(d.tiles.q2.seeds.Lottery)} for lottery games,{' '}
+          {seedsText(d.tiles.q2.seeds.Markets)} for markets. The suite: logistic regression, an RBF SVM, a random forest, gradient boosting and a small network,
+          plus a quantum kernel and a VQC unless the run skipped them (a game&apos;s drawer says which).
         </>
       }
       meta={[
@@ -383,6 +329,8 @@ function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
               { mark: 'dot', label: 'real' },
               { mark: 'hol', label: 'shuffled' },
               { mark: 'tick', label: 'threshold' },
+              { mark: 'se', label: '± its error' },
+              { mark: 'tick own', label: 'shuffled bound' },
               { mark: 'zone', label: 'null band' },
             ]}
           />
@@ -415,6 +363,14 @@ function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
                 );
               }
               const few = q.status === 'too few draws';
+              const se = q.thresholdSe;
+              // the caveat first on the line that carries the numbers: why this record cannot be read as above or within
+              const why =
+                q.status === 'too few draws'
+                  ? `too few draws · ${q.windowsTest ?? DASH} test windows (under ${q.minWindows ?? DASH})`
+                  : q.status === 'failed'
+                    ? 'failed: a comparison scored under 2 seeds'
+                    : '';
               return (
                 <div key={g.game} className={few ? 'q2r dim' : 'q2r'}>
                   <span className="g">
@@ -426,19 +382,25 @@ function Q2Card({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void })
                     scale={scale}
                     dim={few}
                     grid={grid.map((x) => x.at)}
-                    spans={[{ from: lo, to: q.threshold, kind: 'zone' }]}
+                    spans={[
+                      { from: lo, to: q.threshold, kind: 'zone' },
+                      { from: q.threshold !== null && se !== null ? q.threshold - se : null, to: q.threshold !== null && se !== null ? q.threshold + se : null, kind: 'se' },
+                    ]}
                     marks={[
                       { at: q.threshold, kind: 'tick' },
+                      { at: q.shuffledThreshold, kind: 'tickOwn' },
                       { at: q.shuffled, kind: 'hollow' },
                       { at: q.real, kind: 'dot' },
                     ]}
-                    label={`${g.game}: real ${fixed(q.real)}, threshold ${fixed(q.threshold)}, shuffled ${fixed(q.shuffled)}`}
+                    label={`${g.game}: real ${fixed(q.real)}, threshold ${fixed(q.threshold)}${pmText(se)}, shuffled ${fixed(q.shuffled)}${q.shuffledThreshold !== null ? `, its bound ${fixed(q.shuffledThreshold)}` : ''}`}
                   />
                   <span className="txt">
                     <b>{fixed(q.real)}</b> vs {fixed(q.threshold)}
+                    {pmText(se)}
                     <small>
-                      shuffled {fixed(q.shuffled)} · {q.seeds ?? DASH} seeds · {q.windowsTest ?? DASH} test windows
-                      {q.fewWindows ? ` (under ${d.meta.q2.fewWindows})` : ''}
+                      {why ? `${why} · ` : ''}shuffled {fixed(q.shuffled)}
+                      {q.shuffledThreshold !== null ? `, bound ${fixed(q.shuffledThreshold)}` : ''} · {q.seeds ?? DASH} seeds
+                      {q.status === 'too few draws' ? '' : ` · ${q.windowsTest ?? DASH} test windows`}
                     </small>
                   </span>
                 </div>
@@ -644,7 +606,9 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
       help={
         <>
           Each row&apos;s mean log-score difference per day (per week for the week games) against {reference}, the reference, and against uniform, with a 95%
-          interval. A row beats {reference} only when the whole interval is above zero. The last column shows {reference} itself against uniform. Window: the
+          interval. A row beats {reference} only when the whole interval is above zero. Beating uniform can be no more than knowing which bins the period
+          favoured, so each row is also held against the frequencies - each instrument&apos;s bins as often as they came up before the day - and is credited
+          only when it beats those too. The last column shows {reference} itself against uniform and against the frequencies. Window: the
           days (trading days for shares, weeks for the week games) scored; the lockbox days were withheld from those asked for. Profit and loss is left out: it
           is in price units, unlike every other figure here.
         </>
@@ -677,6 +641,7 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
                 <th className="hide-sm">Window</th>
                 <th>Beat uniform</th>
                 <th className="hide-sm">Beat {reference}</th>
+                <th className="hide-sm">Beat the frequencies</th>
                 <th className="w-strip">
                   {reference} vs uniform
                   <Axis scale={scale} ticks={axis} />
@@ -692,7 +657,7 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
                       <td className="sym">
                         <GameButton game={g.game} onOpen={onOpen} />
                       </td>
-                      <td colSpan={4} className="mut">
+                      <td colSpan={5} className="mut">
                         {g.errors.includes('rows') ? 'report unreadable' : 'no report yet'}
                       </td>
                     </tr>
@@ -718,10 +683,31 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
                       <span className="sub show-sm">
                         beat {reference}: {r.betterThanReference.length} of {r.rowsScored} · {r.noDifferenceVsReference} no difference
                       </span>
+                      {r.frequency ? (
+                        <span className="sub show-sm">
+                          beat the frequencies: {r.betterThanFrequency.length} of {r.rowsScored}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="hide-sm">
                       <b>{r.betterThanReference.length}</b> of {r.rowsScored}
                       <span className="sub">{r.noDifferenceVsReference} no difference</span>
+                    </td>
+                    <td className="hide-sm">
+                      {/* the frequencies: the column-frequency baseline (MarketRows.py, 26 Oct 2026); a report from before has none */}
+                      {r.frequency ? (
+                        <>
+                          <b>{r.betterThanFrequency.length}</b> of {r.rowsScored}
+                          {r.betterThanFrequency.length ? <span className="sub">{r.betterThanFrequency.map(short).join(', ')}</span> : null}
+                          {r.frequencyVsUniform ? (
+                            <span className="sub">
+                              the frequencies alone vs uniform: {signedFixed(r.frequencyVsUniform.mean)} · {r.frequencyVsUniform.verdict}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="mut">not in this report</span>
+                      )}
                     </td>
                     <td className="w-strip mid">
                       {ref ? (
@@ -739,6 +725,12 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
                           <span className="sub">
                             {signedFixed(ref.mean)} ({signedFixed(ref.lo)} to {signedFixed(ref.hi)}) per {perUnit(g.unit)} · {ref.verdict}
                           </span>
+                          {r.referenceVsFrequency ? (
+                            <span className="sub">
+                              vs the frequencies: {signedFixed(r.referenceVsFrequency.mean)} ({signedFixed(r.referenceVsFrequency.lo)} to{' '}
+                              {signedFixed(r.referenceVsFrequency.hi)}) · {r.referenceVsFrequency.verdict}
+                            </span>
+                          ) : null}
                         </>
                       ) : (
                         <span className="mut">{DASH}</span>

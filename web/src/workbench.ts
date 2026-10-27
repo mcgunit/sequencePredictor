@@ -96,7 +96,9 @@ export function versionOf(v: unknown, metrics: Record<string, string> = {}): Ran
   if (!has(v)) return null;
   const r = o(v);
   const metric = str(r.metric);
-  return { committedAt: ostr(r.committedAt), generatedAt: ostr(r.generatedAt), metric, metricText: str(r.metricText, metrics[metric] ?? metric.replace(/_/g, ' ')), minDraws: opt(r.minDraws) };
+  // metricKey: a version ranked on the live record names its words apart ('avg_hits:live'), so older versions keep theirs
+  const key = str(r.metricKey, metric);
+  return { committedAt: ostr(r.committedAt), generatedAt: ostr(r.generatedAt), metric, metricText: str(r.metricText, metrics[key] ?? metric.replace(/_/g, ' ')), minDraws: opt(r.minDraws) };
 }
 
 // --- GET /api/admin/history/:game ------------------------------------------------------------------------------------
@@ -121,11 +123,16 @@ export interface DayLine {
   figures: DayFigures | null; // null: no rows in scope (Top before a ranking existed)
   version: number | null; // index into History.ranking.versions
   none: string | null; // why there is no Top: 'before-first' | 'not-ranked' | 'no-ranked-row' | 'unavailable'
+  // the admin: the rows in scope not live as stored, by status (late, recovered, duplicate, unchecked; 27 Oct 2026)
+  liveMarks: Record<string, number> | null;
+  // the users: a ticket of the five was made after the draw's sales close - shown greyed, out of the totals
+  afterClose: boolean;
 }
 export interface Month {
   month: string; // YYYY-MM
   draws: number;
-  counted: number; // draws with rows in scope; the totals are over these only
+  counted: number; // draws with rows in scope (users: and not greyed); the totals are over these only
+  afterClose: number; // the users: draws shown greyed, their tickets made after the sales close, out of the totals
   rows: number; // summed over the counted draws (row-draws), not a count of rows
   rowsMin: number | null; // the rows of one counted draw, fewest and most
   rowsMax: number | null;
@@ -156,13 +163,20 @@ export interface History {
     versions: RankVersion[];
     metrics: Record<string, string>;
   };
+  // the draws' tickets judged against their sales close (lotteryLiveness.json); null for the markets and before 27 Oct 2026.
+  // afterClose: the users' line for a greyed draw
+  liveness: { checked: string | null; afterClose: string | null } | null;
 }
+const countsOf = (v: unknown): Record<string, number> | null => {
+  const out = Object.fromEntries(Object.entries(o(v)).filter(([, n]) => opt(n) !== null).map(([k, n]) => [k, n as number]));
+  return Object.keys(out).length ? out : null;
+};
 function dayLineOf(v: unknown): DayLine {
   const d = o(v);
   const r = o(d.ranking);
   return {
     date: str(d.date), weekday: str(d.weekday), result: resultOf(d.result), figures: figuresOf(d),
-    version: opt(r.v), none: ostr(r.none),
+    version: opt(r.v), none: ostr(r.none), liveMarks: countsOf(d.liveMarks), afterClose: bool(d.afterClose),
   };
 }
 export function normHistory(raw: unknown, game: string, scope: Scope): History {
@@ -178,7 +192,7 @@ export function normHistory(raw: unknown, game: string, scope: Scope): History {
     months: arr(r.months).filter(has).map((x) => {
       const m = o(x);
       return {
-        month: str(m.month), draws: num(m.draws, 0), counted: num(m.counted, 0), rows: num(m.rows, 0), rowsMin: opt(m.rowsMin), rowsMax: opt(m.rowsMax), tickets: num(m.tickets, 0),
+        month: str(m.month), draws: num(m.draws, 0), counted: num(m.counted, 0), afterClose: num(m.afterClose, 0), rows: num(m.rows, 0), rowsMin: opt(m.rowsMin), rowsMax: opt(m.rowsMax), tickets: num(m.tickets, 0),
         profit: opt(m.profit), stake: opt(m.stake), best: bestOf(m.best), multi: opt(m.multi),
         days: Array.isArray(m.days) ? m.days.map(dayLineOf) : null,
       };
@@ -191,6 +205,7 @@ export function normHistory(raw: unknown, game: string, scope: Scope): History {
       versions: arr(rk.versions).map((x) => versionOf(x, metrics)).filter((x): x is RankVersion => x !== null),
       metrics,
     },
+    liveness: has(r.liveness) ? { checked: ostr(o(r.liveness).checked), afterClose: ostr(o(r.liveness).afterClose) } : null,
   };
 }
 
@@ -208,12 +223,36 @@ export interface Ticket {
   profit: number | null;
   bets: { straight: number; consolation: number; box: number; frontPair: number; backPair: number } | null;
 }
+// What the live record makes of a stored row of a draw (src/Liveness.py, lotteryLiveness.json, 27 Oct 2026; the admin
+// only): late - back-built, or the row added after the close, with when it was first saved; recovered - rewritten after
+// the draw, the live record scoring the ticket that stood at the close (atClose, scored against this draw); duplicate -
+// a second row of one name on the draw; unchecked - git could not be read and no earlier check covers it.
+export interface LiveMark {
+  status: 'late' | 'recovered' | 'duplicate' | 'unchecked';
+  reason: string | null;
+  close: string | null; // the draw's sales close
+  firstSaved: string | null; // late: the draw's earliest late row's first save (one per draw in the file)
+  delayHours: number | null;
+  lateRows: number | null; // late: the late rows the file names on the draw (null: every row) - over 1, firstSaved is the earliest's
+  savedAt: string | null; // recovered: when the ticket that stood at the close was committed
+  commit: string | null;
+  atClose: Row | null;
+}
 export interface Row {
   name: string;
   rank: number | null; // place in the ranking the draw is read against
   top: boolean; // in that draw's point-in-time five (the coming draw: today's)
   tickets: Ticket[];
   multiPick: { numbers: number[]; mark: string; nine: number | null } | null; // lotto: the 7th-9th numbers
+  liveMark: LiveMark | null; // null: live as stored (or not judged)
+}
+const LIVE_MARKS: LiveMark['status'][] = ['late', 'recovered', 'duplicate', 'unchecked'];
+function liveMarkOf(v: unknown): LiveMark | null {
+  if (!has(v)) return null;
+  const m = o(v);
+  if (!LIVE_MARKS.includes(m.status as LiveMark['status'])) return null;
+  return { status: m.status as LiveMark['status'], reason: ostr(m.reason), close: ostr(m.close), firstSaved: ostr(m.firstSaved), delayHours: opt(m.delayHours),
+    lateRows: opt(m.lateRows), savedAt: ostr(m.savedAt), commit: ostr(m.commit), atClose: has(m.atClose) ? rowOf(m.atClose) : null };
 }
 function ticketOf(v: unknown): Ticket {
   const t = o(v);
@@ -236,6 +275,7 @@ export function rowOf(v: unknown): Row {
   return {
     name: str(r.name), rank: opt(r.rank), top: bool(r.top), tickets: arr(r.tickets).filter(has).map(ticketOf),
     multiPick: has(r.multiPick) && nums(mp.numbers).length ? { numbers: nums(mp.numbers), mark: str(mp.mark), nine: opt(mp.nine) } : null,
+    liveMark: liveMarkOf(r.liveMark),
   };
 }
 
@@ -310,9 +350,23 @@ export interface DrawScope {
   ranking: RankVersion | null;
   none: { code: string; text: string } | null;
 }
+// A lottery draw's sales close (src/drawClose.json, 27 Oct 2026): Brussels time, the instant, whether its weekday is in
+// the schedule (not: the game's earliest close stands in), and whether the coming tickets were made at or after it
+export interface SalesClose {
+  time: string;
+  at: string | null;
+  scheduled: boolean;
+  afterClose: boolean;
+}
+export function salesCloseOf(v: unknown): SalesClose | null {
+  if (!has(v)) return null;
+  const c = o(v);
+  return { time: str(c.time), at: ostr(c.at), scheduled: c.scheduled !== false, afterClose: bool(c.afterClose) };
+}
 export interface Coming {
   date: string | null; // the next draw on the game's own schedule
   madeAt: string | null;
+  close: SalesClose | null; // a lottery draw's sales close; null for the markets
   scope: { scope: Scope; rows: number; of: number; top: string[]; ranking: (RankVersion & { today: true }) | null; none: { code: string; text: string } | null };
   rows: Row[];
   votes: Votes;
@@ -345,6 +399,11 @@ export interface Draw {
   market: MarketDay | null;
   coming: Coming | null;
   scoredIn: string | null;
+  // the admin: the shown rows not live as stored, by status, and whether the users' rule greys the draw
+  liveness: { checked: string | null; marks: Record<string, number> | null; afterClose: boolean; afterCloseText: string | null } | null;
+  // the users: a ticket of the five was made after the draw's sales close - shown, out of the totals
+  afterClose: boolean;
+  afterCloseText: string | null;
 }
 export const noneOf = (v: unknown) => (has(v) ? { code: str(o(v).code), text: str(o(v).text) } : null);
 // the pieces of a draw the users' Lottery (lottery.ts) also reads on its own: whose rows a past draw's table shows, whose
@@ -384,13 +443,18 @@ export function normDraw(raw: unknown, game: string, date: string, scope: Scope)
     market: marketDayOf(r.market),
     coming: has(r.coming)
       ? {
-          date: ostr(c.date), madeAt: ostr(c.madeAt),
+          date: ostr(c.date), madeAt: ostr(c.madeAt), close: salesCloseOf(c.close),
           scope: comingScopeOf(c.scope, scope),
           rows: arr(c.rows).filter(has).map(rowOf),
           votes: votesOf(c.votes),
         }
       : null,
     scoredIn: ostr(r.scoredIn),
+    liveness: has(r.liveness)
+      ? { checked: ostr(o(r.liveness).checked), marks: countsOf(o(r.liveness).marks), afterClose: bool(o(r.liveness).afterClose), afterCloseText: ostr(o(r.liveness).afterCloseText) }
+      : null,
+    afterClose: bool(r.afterClose) || (has(r.liveness) && bool(o(r.liveness).afterClose)),
+    afterCloseText: ostr(r.afterCloseText) ?? (has(r.liveness) ? ostr(o(r.liveness).afterCloseText) : null),
   };
 }
 

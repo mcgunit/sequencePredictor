@@ -1,5 +1,6 @@
 // readings.js - the week's reading (21 Oct 2026, the owner's decision): data/readings/<sunday>.json, one summary per
-// weekend of the four Sunday controls for every game - Q0's band, its basis and the rows above it; Q2's real,
+// weekend of the four Sunday controls for every game - Q0's row tests as the report on disk ran them (27 Oct 2026: under
+// 5% against what chance puts there, holds, the rows followed and confirmed on new draws; the band as context), Q2's real,
 // shuffled and threshold AUC with its seeds and test windows; each feature-control variant's verdict, noise ratio
 // and held-out AUC; every market row against uniform and against GARCH - each part with its own record's time.
 // data/controls/ is gitignored and overwritten every Sunday; a reading is not: it is tracked in git (the daily
@@ -9,9 +10,12 @@
 // jobs.js writes it when the Sunday plan's last job (nullControls) finishes, whatever its exit code. The CLI rebuilds
 // a week or backfills one from a copy of that week's records:
 //   node readings.js --controls <dir> --sunday YYYY-MM-DD [--database <dir>] [--out <dir>] [--note <text>]
-// --database: the data/database folder whose modelPerformance.json the Q0 rows are read against, by default this
+// --database: the data/database folder whose modelPerformance.json holds the Q0 row tests, by default this
 // checkout's. For a backfill that is the ranking as it stood that Sunday (git show <commit>:data/database/
 // modelPerformance.json into a folder), never today's: a later ranking read against an old band is hindsight.
+// The Q2 records are read by today's controls.js: rebuilt from a week before 1 Nov 2026 (verdict rule 1), a record is
+// re-judged by the windows rule of 27 Oct 2026 - cryptoweek on 18 Oct reads "too few draws" where the stored reading
+// says "above" - so rebuild such a week only to replace a reading that is missing or broken.
 //
 // What a reading holds is built by admin.js weekReading - the Controls page's own builders - so it is what the page
 // showed that week. Nothing here colours or judges a number.
@@ -83,10 +87,27 @@ function parseArgs(argv) {
   return out;
 }
 const f3 = (x) => (x === null || x === undefined ? '-' : Number(x).toFixed(3));
-// one line per game, to check a reading against its records by eye
+// "±0.019" after a figure that has an error, nothing after one that does not (a Q2 record read under rule 1)
+const pm3 = (x) => (x === null || x === undefined ? '' : `±${f3(x)}`);
+// one line per game, to check a reading against its records by eye. Q0 (27 Oct 2026): the row tests - under 5% next to
+// what chance puts there, holds, followed, confirmed - with the band as context; a reading from before reads "band rule"
+const f2 = (x) => (x === null || x === undefined ? '-' : Number(x).toFixed(2));
+function q0Line(q, unit) {
+  if (!q) return 'Q0 none';
+  const band = q.band ? ` (band ${f3(q.band.ceiling)}, context)` : '';
+  if (!q.rule) return `Q0 band rule: ${Array.isArray(q.above) ? `${q.above.length} above` : 'no ranking'}${band}`;
+  const t = q.test;
+  if (!t) return `Q0 no row test (${q.error || 'not in the report'})${band}`;
+  if (!t.family) return `Q0 too few live ${unit}: ${t.liveMax} of ${t.minDraws}${band}`;
+  return `Q0 ${t.under} of ${t.family} under 5% (≈${f2(t.expected)} by chance), ${t.holds} hold, ${t.followed} followed, ${t.confirmed} confirmed${band}`;
+}
 function describeGame(game, g) {
-  const q0 = !g.q0 ? 'Q0 none' : `Q0 ${g.q0.above === null ? 'no ranking' : `${g.q0.above.length} above`} ${f3(g.q0.band.ceiling)} (${g.q0.band.from}, ${g.q0.band.seeds} seeds)`;
-  const q2 = !g.q2 ? 'Q2 none' : `Q2 ${g.q2.status} ${f3(g.q2.real)} vs ${f3(g.q2.threshold)} (shuffled ${f3(g.q2.shuffled)}, ${g.q2.seeds} seeds, ${g.q2.windowsTest} test windows)`;
+  const q0 = q0Line(g.q0, g.unit);
+  // Q2: the threshold with its standard error and the shuffled control against its own bound from rule 2 (1 Nov 2026) on
+  // (", bound": the real mean is what is held against it, as on the Controls page - not the shuffled mean)
+  const shuffledBound = g.q2 && g.q2.shuffledThreshold !== null && g.q2.shuffledThreshold !== undefined ? `, bound ${f3(g.q2.shuffledThreshold)}` : '';
+  const q2 = !g.q2 ? 'Q2 none' : `Q2 ${g.q2.status} ${f3(g.q2.real)} vs ${f3(g.q2.threshold)}${pm3(g.q2.thresholdSe)} (shuffled ${f3(g.q2.shuffled)}${shuffledBound}, `
+    + `${g.q2.seeds} seeds, ${g.q2.windowsTest} test windows, rule ${g.q2.rule || 1})`;
   const fc = !g.fc ? 'FC none' : `FC ${g.fc.variants.map((v) => `${v.key} ${v.verdict}`).join(', ')}`;
   const rows = !g.rows ? '' : ` | rows ${g.rows.rows.filter((r) => r.vsReference && r.vsReference.verdict === 'better').length} of ${g.rows.rows.length - 1} beat ${g.rows.reference} over ${g.rows.window} ${g.unit}`;
   return `  ${game}: ${q0} | ${q2} | ${fc}${rows}${g.errors.length ? ` | unreadable: ${g.errors.join(', ')}` : ''}`;

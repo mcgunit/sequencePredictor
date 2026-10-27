@@ -562,8 +562,10 @@ class Helpers():
         2026) and a missed run's day rebuilt the morning after were predicted
         after their draw: a since.json date before them would count them as
         the frozen design's record, which they are not (14 Oct 2026). None
-        for a lottery game, whose stored days are all predicted before their
-        draw. `root` is the data/database folder.
+        for a lottery game: its draws are judged row by row, not by the day
+        (src/Liveness.py, 27 Oct 2026 - until then this said every stored
+        lottery day was predicted before its draw, and 2,851 of 12,170 scored
+        rows were back-built or late). `root` is the data/database folder.
         """
         if not is_market_game(game):
             return None
@@ -594,18 +596,66 @@ class Helpers():
         return round(float(score), 3) if score is not None and math.isfinite(score) else None
 
     def generate_model_performance_report(self, databaseDir, outputFileName="modelPerformance.json",
-                                          combinationShuffles=100, since=None):
+                                          combinationShuffles=100, since=None, rankOnLive=True):
         """
         Scans every game folder under databaseDir and writes a per-game,
         per-model performance summary over ALL scored history (each file's
         currentPrediction vs its realResult), for the web UI's History page.
 
+        The live record (27 Oct 2026, src/Liveness.py): a lottery row's draw
+        counts in it when its ticket was saved before the draw's sales close
+        (stamped or committed before it), and a ticket rewritten after the
+        draw is scored as it stood at the close (recovered); back-built and
+        late tickets, and a second row of one name on a draw, are left out.
+        Per model "live_draws" and "live" (the same aggregates over the live
+        record), per game "live" (its ranking, the shape of "since"),
+        "liveness" (how it was judged, the counts, the rewrite audit) and,
+        with rankOnLive, "rankedOn": "live" - the models are then ORDERED by
+        the live block (same metric, the 10-draw guard on live draws), so
+        the users' Top 5 (ranking.js) and the point-in-time History ranking
+        (rankhistory.js) follow it; every pre-existing per-model field stays
+        the all-draws figure, and the combination search keeps the all-draws
+        order. A game whose liveness could not be judged at all ("unchecked":
+        no git, no stamp, no previous verdict) is never ranked on it, so a
+        one-day git failure never becomes the users' point-in-time history;
+        a game whose judging failed loses its live blocks, never the report.
+        Market games keep their day-level check (live_draws, below). The
+        per-draw verdicts go to data/database/lotteryLiveness.json
+        (Liveness.write_detail), one log line per game says what was found.
+
         `since` (src/Since.py, since.json at the repository root) adds a
         second ranking per game under "since": the same aggregates over the
         stored days on or after the declared date only - the forward record
         of a frozen design, ranked with the same metric and the same
-        minimum-draws guard. Nothing is rebuilt: the stored days were all
-        predicted before their draw, the date is a filter.
+        minimum-draws guard. Nothing is rebuilt; the date is a filter over the
+        live record (the tickets that stood at their close: lottery row by
+        row, a market day by its ticket time).
+
+        Q0, the per-row chance test (src/RowChance.py, 27 Oct 2026): per model
+        "chance" - its live draws and the rest (notLive), its hits per draw on
+        them against the fair draw's (lottery, exact) or its own tickets
+        shuffled within blocks of 7 live days (markets), p and Holm's
+        corrected p over the game's family (the rows with minDrawsForRanking
+        live draws), and for a followed row its "fresh" record and verdict -
+        per game "chance" (method, family, under, the count chance puts
+        there, holds, followed, confirmed); the followed rows and verdicts are
+        kept in data/database/rowChance.json (first write wins). A lottery
+        game whose liveness could not be judged gets a "chance" with an error
+        and no row test; a failure costs these fields, never the report.
+
+        dayTable (in memory, for the combination search and the row tests):
+        each scored day's "rows" are the stored tickets as scored; its
+        "liveRows" the live record's - {name: the row as the live record
+        scored it: the stored ticket, or for a recovered one the ticket that
+        stood at the close} - or None when the game's liveness could not be
+        judged. Each stored row carries "live" (in the live record; None when
+        not judged), "liveness" ('live', 'recovered', 'late', 'duplicate',
+        'unchecked'; markets 'live' / 'late'; None when not judged) and, when
+        recovered, "atClose" (that row's live entry: ticket, hits, profit).
+        A name with two rows on one draw keeps the LAST in "rows" (as before)
+        while the live record scored the FIRST (the second is a duplicate):
+        its flags are the first's, so the ticket the live record scored is
+        always liveRows[name], never rows[name] (euromillions 16 Jan 2026).
 
         Next to the single-row ranking, each game gets a "combinations"
         section (_build_combination_report): the best SET of established
@@ -650,10 +700,71 @@ class Helpers():
             # "since" blocks below need at least one such day.
             report["since"] = {"date": since["since"].isoformat(), "label": since["label"]}
 
+        # The lottery liveness scan (src/Liveness.py): git checked once, one deadline for every game. A failure here
+        # costs the live blocks, never the report.
+        livenessScan, livenessFailure, livenessJudged, livenessErrors = None, None, {}, {}
+        try:
+            try:
+                from src import Liveness
+            except ImportError:  # imported from within src/
+                import Liveness
+            report["liveness"] = {"rule": Liveness.RULE, "schedule": "src/drawClose.json",
+                                  "file": f"data/database/{Liveness.DETAIL_FILE}"}
+            livenessScan = Liveness.Scan(databaseDir)
+        except Exception as e:
+            livenessFailure = f"the liveness scan could not start ({e.__class__.__name__}: {e})"
+            print(f"liveness: {livenessFailure}")
+        # Q0, the per-row chance test (src/RowChance.py, 27 Oct 2026): the followed rows and their verdicts kept in
+        # data/database/rowChance.json, read once here and written after the last game. A file that cannot be read is
+        # never written over: that run tests the rows and keeps nothing (None).
+        chanceStore, chanceFailure = None, None
+        try:
+            try:
+                from src import RowChance
+            except ImportError:  # imported from within src/
+                import RowChance
+            chanceStore = RowChance.read_store(databaseDir)
+            if chanceStore is None:
+                print(f"row chance: {RowChance.FILE_NAME} is there but cannot be read - nothing is kept this run")
+        except Exception as e:
+            chanceFailure = f"{e.__class__.__name__}: {e}"
+            print(f"row chance: could not start ({chanceFailure})")
+        chanceToday = date.today()
+        chanceDirty = False
+
+        # Every lottery game judged here, before any game is scored, so the scan's one deadline covers the git reading
+        # alone (27 Oct 2026 review: judged game by game in the loop below, the deadline also ran through the scoring
+        # and combination search of the games before - 13 s of its 60 on production's history before vikinglotto's
+        # turn, so a slow day would have sent the last games to "stamp only" with git working).
+        if livenessScan is not None:
+            for game in sorted(os.listdir(databaseDir)):
+                if is_market_game(game) or not os.path.isdir(os.path.join(databaseDir, game)):
+                    continue
+                try:
+                    livenessJudged[game] = livenessScan.judge(game)
+                except Exception as e:
+                    livenessErrors[game] = f"{e.__class__.__name__}: {e}"
+
         for game in sorted(os.listdir(databaseDir)):
             gameDir = os.path.join(databaseDir, game)
             if not os.path.isdir(gameDir):
                 continue
+
+            # This game's live record. Markets: the days whose ticket was out before the close
+            # (_days_predicted_before_draw). Lottery: the verdict per (draw, row), judged above - None and an error
+            # when it could not be judged.
+            judged, liveError, liveDays = None, None, None
+            if is_market_game(game):
+                liveDays = self._days_predicted_before_draw(game, databaseDir)
+            elif livenessScan is None:
+                liveError = livenessFailure
+            else:
+                judged = livenessJudged.get(game)
+                liveError = livenessErrors.get(game)
+            liveStats = {}                      # the live record's per-row aggregates (lottery)
+            liveTally = {"draws": 0, "allLive": 0, "allCounted": 0, "live": 0, "recovered": 0, "notLive": 0,
+                         "newestNotLive": None, "auditRows": 0, "hitsAtClose": 0, "hitsStored": 0}
+            recoveredDraws = {}                 # name -> recovered draws in the live record
 
             hasPayout = "keno" in game or "pick3" in game or is_jokerplus(game)
             # Games with a modeled special pool get their own special-hit
@@ -671,6 +782,136 @@ class Helpers():
             # runs to, the run itself came after it - for the admin pages:
             # name -> (date, label).
             learningChecks = {}
+
+            # One model row of one draw, scored: its hits, special and bonus hits, lotto multi-pick, the payout
+            # games' bets - added to statsTable[name] (the per-row aggregates) and kept in rowsTable[name] (the day's
+            # row record). The all-history record and the live record (27 Oct 2026: the recovered tickets swapped in,
+            # the late ones left out) are both scored here, so they cannot drift apart.
+            def scoreRow(model, realResult, statsTable, rowsTable):
+                name = model.get("name")
+                predictions = model.get("predictions") or []
+                entry = statsTable.setdefault(name, {
+                    "draws": 0, "hits_total": 0, "best_hits": 0,
+                    "special_hits_total": 0,
+                    "profit_total": 0.0, "bets": 0,
+                    "by_size": {},          # keno: {ticket size: {"bets", "profit_total"}}
+                    "bets_by_day": [],      # payout games: per scored draw the row's bets, for the ranking bound
+                })
+
+                mainTicket = predictions[0]
+                # Main hits only: slicing both ticket and realResult keeps
+                # star/dream/viking hits from inflating the average -
+                # those come from a much smaller special range and aren't
+                # comparable. Lotto's bonus follows the real tier rules:
+                # it supplements a partial match ("5 (1)"), so it counts
+                # into special_hits by matching the ticket itself, never
+                # into the main average.
+                realMainCount, specialCount = self.main_special_split(game, realResult)
+                ticketMains, ticketSpecials = self.split_ticket(mainTicket, realMainCount, specialCount)
+                ticketMainSet = set(map(int, ticketMains))
+                if is_jokerplus(game):
+                    # Positional runs, not a set intersection: digits
+                    # repeat within a Joker+ draw and only the leading/
+                    # trailing consecutive matches pay.
+                    leftRun, rightRun = self.jokerplus_runs(ticketMains, realResult[:realMainCount])
+                    hits = leftRun + rightRun
+                elif is_market_game(game):
+                    # a bin in the right instrument's slot; a bin is not a
+                    # number, so a set intersection would count noise
+                    hits = sum(1 for p, a in zip(ticketMains, realResult[:realMainCount]) if int(p) == int(a))
+                else:
+                    hits = len(ticketMainSet & set(map(int, realResult[:realMainCount])))
+                entry["draws"] += 1
+                entry["hits_total"] += hits
+                entry["best_hits"] = max(entry["best_hits"], hits)
+                if specialCount > 0:
+                    realSpecials = set(map(int, realResult[realMainCount:realMainCount + specialCount]))
+                    entry["special_hits_total"] += len(set(map(int, ticketSpecials)) & realSpecials)
+                realBonus = set(map(int, realResult[realMainCount + specialCount:]))
+                if realBonus:
+                    entry["special_hits_total"] += len(ticketMainSet & realBonus)
+
+                # Lotto multi-pick (src/MultiPick.py): the row's 7th-9th
+                # numbers, scored as a system play - hits among all nine
+                # against the six drawn mains, a "win" being 3 or more of
+                # them (the smallest prize that needs no bonus number; the
+                # bonus ranks are not scored), per extra number whether it
+                # hit - next to the same for the six alone over the SAME
+                # draws, so the arithmetic rise and the model's share of
+                # it can be told apart.
+                multiCfg = multi_pick_config(game)
+                extras = [int(v) for v in (model.get("multiPick") or [])] if multiCfg else []
+                if multiCfg and extras:
+                    realMainSet = set(map(int, realResult[:realMainCount]))
+                    allHits = len((ticketMainSet | set(extras)) & realMainSet)
+                    multi = entry.setdefault("multi_pick", {"draws": 0, "hits_total": 0, "base_hits_total": 0, "wins": 0, "base_wins": 0,
+                                                            "extra_hits": [0] * multiCfg["extra"]})
+                    multi["draws"] += 1
+                    multi["hits_total"] += allHits
+                    multi["base_hits_total"] += hits        # the six's main hits on the same draw
+                    multi["wins"] += int(allHits >= multiCfg["min_hits"])
+                    multi["base_wins"] += int(hits >= multiCfg["min_hits"])
+                    for index, number in enumerate(extras[:multiCfg["extra"]]):
+                        multi["extra_hits"][index] += int(number in realMainSet)
+
+                rowProfit, rowBets, playable, betList = 0.0, 0, [], []
+                if "keno" in game:
+                    # Profit exists only for playable 5-10-number subsets,
+                    # not the full 20-number ticket.
+                    for ticket in predictions:
+                        profit = self.keno_ticket_profit(ticket, realResult)
+                        if profit is not None:
+                            entry["profit_total"] += profit
+                            entry["bets"] += 1
+                            rowProfit += profit
+                            rowBets += 1
+                            betList.append((float(profit), len(ticket)))
+                            playable.append([int(n) for n in ticket])
+                            bySize = entry["by_size"].setdefault(len(ticket), {"bets": 0, "profit_total": 0.0})
+                            bySize["bets"] += 1
+                            bySize["profit_total"] += profit
+                elif "pick3" in game:
+                    profit = self.pick3_ticket_profit(mainTicket, realResult)
+                    if profit is not None:
+                        entry["profit_total"] += profit
+                        entry["bets"] += 1
+                        rowProfit += profit
+                        rowBets += 1
+                        betList.append(float(profit))
+                elif is_jokerplus(game):
+                    # One 1.50 EUR ticket per draw on the 7-value row
+                    # (digits + sign); a 6-digit row scores sign-unknown.
+                    profit = self.jokerplus_ticket_profit(mainTicket, realResult)
+                    if profit is not None:
+                        entry["profit_total"] += profit
+                        entry["bets"] += 1
+                        rowProfit += profit
+                        rowBets += 1
+                        betList.append(float(profit))
+                if betList:
+                    entry["bets_by_day"].append(betList)
+
+                # Same numbers again, per (row, day) for the portfolio
+                # search. Two rows sharing a name on one day (euromillions
+                # 16 Jan 2026 has one) keep the last one here while the
+                # totals above count both; the live record counts the first
+                # only (Liveness: "duplicate row").
+                rowsTable[name] = rowRecord = {
+                    "mainTicket": list(mainTicket),
+                    # a market ticket keeps its slot order: the portfolio
+                    # control scores it slot by slot (a set would lose the
+                    # slots and fail the identity check)
+                    "mains": [int(v) for v in ticketMains] if is_market_game(game) else sorted(ticketMainSet),
+                    # the ticket as scored, in order and with its repeats (the Q0 row test's fair-draw null: Joker+'s
+                    # positions, lotto's 6 or 7 numbers; src/RowChance.py, 27 Oct 2026)
+                    "ticketMains": [int(v) for v in ticketMains],
+                    "hits": hits,
+                    "profit": rowProfit if rowBets else None,
+                    "bets": rowBets,
+                    "bet_list": betList,
+                    "playable": playable,
+                }
+                return rowRecord
 
             for fileName in os.listdir(gameDir):
                 if not fileName.endswith(".json"):
@@ -711,140 +952,92 @@ class Helpers():
                 }
                 dayTable.append(dayRecord)
 
+                seen, statuses, dayStatuses = {}, {}, []
+                dayKey = self._day_key(dayDate) if dayDate is not None else None
+                # the live record's rows of this day; None when the game's liveness could not be judged
+                liveRows = {} if judged is not None else None
                 for model in scoredModels:
                     name = model.get("name")
                     predictions = model.get("predictions") or []
                     if not name or not predictions or not predictions[0]:
                         continue
+                    scoreRow(model, realResult, stats, dayRecord["rows"])
+                    occurrence = seen.get(name, 0)
+                    seen[name] = occurrence + 1
+                    if liveRows is None:
+                        continue
+                    try:
+                        status, liveModel = Liveness.ticket_for(judged, dayKey, name, occurrence, model)
+                        if liveModel is not None:
+                            liveRow = scoreRow(liveModel, realResult, liveStats, liveRows)
+                            if status == "recovered":
+                                recoveredDraws[name] = recoveredDraws.get(name, 0) + 1
+                                liveTally["auditRows"] += 1
+                                liveTally["hitsAtClose"] += liveRow["hits"]
+                                liveTally["hitsStored"] += dayRecord["rows"][name]["hits"]
+                        statuses.setdefault(name, status)
+                        dayStatuses.append(status)
+                    except Exception as e:
+                        # one ticket that cannot be scored costs this game's live blocks, never the report
+                        liveError = f"{e.__class__.__name__}: {e}"
+                        judged, liveRows = None, None
+                        print(f"liveness {game}: the live record could not be scored ({liveError})")
+                if liveDays is not None:
+                    # a market day is live as a whole (its ticket time against the close)
+                    liveRows = dayRecord["rows"] if dayKey in liveDays else {}
+                    statuses = {name: ("live" if liveRows else "late") for name in dayRecord["rows"]}
+                elif liveRows is not None and dayStatuses:
+                    liveTally["draws"] += 1
+                    liveTally["live"] += dayStatuses.count("live")
+                    liveTally["recovered"] += dayStatuses.count("recovered")
+                    notLive = len(dayStatuses) - dayStatuses.count("live") - dayStatuses.count("recovered")
+                    liveTally["notLive"] += notLive
+                    liveTally["allLive"] += int(all(x == "live" for x in dayStatuses))
+                    liveTally["allCounted"] += int(not notLive)
+                    if notLive and dayKey and (liveTally["newestNotLive"] is None or dayKey > liveTally["newestNotLive"]):
+                        liveTally["newestNotLive"] = dayKey
+                dayRecord["liveRows"] = liveRows
+                # the stored rows' verdicts, for the row tests (one entry per name, as "rows" keeps them)
+                for name, row in dayRecord["rows"].items():
+                    row["live"] = (name in liveRows) if liveRows is not None else None
+                    row["liveness"] = statuses.get(name) if liveRows is not None else None
+                    if row["liveness"] == "recovered":
+                        row["atClose"] = liveRows[name]
 
-                    entry = stats.setdefault(name, {
-                        "draws": 0, "hits_total": 0, "best_hits": 0,
-                        "special_hits_total": 0,
-                        "profit_total": 0.0, "bets": 0,
-                        "by_size": {},          # keno: {ticket size: {"bets", "profit_total"}}
-                        "bets_by_day": [],      # payout games: per scored draw the row's bets, for the ranking bound
-                    })
+            if not is_market_game(game) and judged is None:
+                # the judging or the live scoring failed: no live record for this game at all, never half of one
+                for day in dayTable:
+                    day["liveRows"] = None
+                    for row in day["rows"].values():
+                        row["live"] = row["liveness"] = None
+                        row.pop("atClose", None)
 
-                    mainTicket = predictions[0]
-                    # Main hits only: slicing both ticket and realResult keeps
-                    # star/dream/viking hits from inflating the average -
-                    # those come from a much smaller special range and aren't
-                    # comparable. Lotto's bonus follows the real tier rules:
-                    # it supplements a partial match ("5 (1)"), so it counts
-                    # into special_hits by matching the ticket itself, never
-                    # into the main average.
-                    realMainCount, specialCount = self.main_special_split(game, realResult)
-                    ticketMains, ticketSpecials = self.split_ticket(mainTicket, realMainCount, specialCount)
-                    ticketMainSet = set(map(int, ticketMains))
-                    if is_jokerplus(game):
-                        # Positional runs, not a set intersection: digits
-                        # repeat within a Joker+ draw and only the leading/
-                        # trailing consecutive matches pay.
-                        leftRun, rightRun = self.jokerplus_runs(ticketMains, realResult[:realMainCount])
-                        hits = leftRun + rightRun
-                    elif is_market_game(game):
-                        # a bin in the right instrument's slot; a bin is not a
-                        # number, so a set intersection would count noise
-                        hits = sum(1 for p, a in zip(ticketMains, realResult[:realMainCount]) if int(p) == int(a))
-                    else:
-                        hits = len(ticketMainSet & set(map(int, realResult[:realMainCount])))
-                    entry["draws"] += 1
-                    entry["hits_total"] += hits
-                    entry["best_hits"] = max(entry["best_hits"], hits)
-                    if specialCount > 0:
-                        realSpecials = set(map(int, realResult[realMainCount:realMainCount + specialCount]))
-                        entry["special_hits_total"] += len(set(map(int, ticketSpecials)) & realSpecials)
-                    realBonus = set(map(int, realResult[realMainCount + specialCount:]))
-                    if realBonus:
-                        entry["special_hits_total"] += len(ticketMainSet & realBonus)
+            # Lotto counts here too: its bonus supplements land in
+            # special_hits_total, so the "(M)" average exists for it.
+            hasSupplement = gameSpecialCount > 0 or ("lotto" in game and "vikinglotto" not in game)
 
-                    # Lotto multi-pick (src/MultiPick.py): the row's 7th-9th
-                    # numbers, scored as a system play - hits among all nine
-                    # against the six drawn mains, a "win" being 3 or more of
-                    # them (the smallest prize that needs no bonus number; the
-                    # bonus ranks are not scored), per extra number whether it
-                    # hit - next to the same for the six alone over the SAME
-                    # draws, so the arithmetic rise and the model's share of
-                    # it can be told apart.
-                    multiCfg = multi_pick_config(game)
-                    extras = [int(v) for v in (model.get("multiPick") or [])] if multiCfg else []
-                    if multiCfg and extras:
-                        realMainSet = set(map(int, realResult[:realMainCount]))
-                        allHits = len((ticketMainSet | set(extras)) & realMainSet)
-                        multi = entry.setdefault("multi_pick", {"draws": 0, "hits_total": 0, "base_hits_total": 0, "wins": 0, "base_wins": 0,
-                                                                "extra_hits": [0] * multiCfg["extra"]})
-                        multi["draws"] += 1
-                        multi["hits_total"] += allHits
-                        multi["base_hits_total"] += hits        # the six's main hits on the same draw
-                        multi["wins"] += int(allHits >= multiCfg["min_hits"])
-                        multi["base_wins"] += int(hits >= multiCfg["min_hits"])
-                        for index, number in enumerate(extras[:multiCfg["extra"]]):
-                            multi["extra_hits"][index] += int(number in realMainSet)
-
-                    rowProfit, rowBets, playable, betList = 0.0, 0, [], []
-                    if "keno" in game:
-                        # Profit exists only for playable 5-10-number subsets,
-                        # not the full 20-number ticket.
-                        for ticket in predictions:
-                            profit = self.keno_ticket_profit(ticket, realResult)
-                            if profit is not None:
-                                entry["profit_total"] += profit
-                                entry["bets"] += 1
-                                rowProfit += profit
-                                rowBets += 1
-                                betList.append((float(profit), len(ticket)))
-                                playable.append([int(n) for n in ticket])
-                                bySize = entry["by_size"].setdefault(len(ticket), {"bets": 0, "profit_total": 0.0})
-                                bySize["bets"] += 1
-                                bySize["profit_total"] += profit
-                    elif "pick3" in game:
-                        profit = self.pick3_ticket_profit(mainTicket, realResult)
-                        if profit is not None:
-                            entry["profit_total"] += profit
-                            entry["bets"] += 1
-                            rowProfit += profit
-                            rowBets += 1
-                            betList.append(float(profit))
-                    elif is_jokerplus(game):
-                        # One 1.50 EUR ticket per draw on the 7-value row
-                        # (digits + sign); a 6-digit row scores sign-unknown.
-                        profit = self.jokerplus_ticket_profit(mainTicket, realResult)
-                        if profit is not None:
-                            entry["profit_total"] += profit
-                            entry["bets"] += 1
-                            rowProfit += profit
-                            rowBets += 1
-                            betList.append(float(profit))
-                    if betList:
-                        entry["bets_by_day"].append(betList)
-
-                    # Same numbers again, per (row, day) for the portfolio
-                    # search. Two rows sharing a name on one day (should not
-                    # happen) keep the last one here while the totals above
-                    # count both.
-                    dayRecord["rows"][name] = {
-                        "mainTicket": list(mainTicket),
-                        # a market ticket keeps its slot order: the portfolio
-                        # control scores it slot by slot (a set would lose the
-                        # slots and fail the identity check)
-                        "mains": [int(v) for v in ticketMains] if is_market_game(game) else sorted(ticketMainSet),
-                        "hits": hits,
-                        "profit": rowProfit if rowBets else None,
-                        "bets": rowBets,
-                        "bet_list": betList,
-                        "playable": playable,
-                    }
-
-            models = []
-            for name, entry in stats.items():
+            def aggregate(entry):
+                """A row's figures over the draws in entry (the all-history record or the live one), in the report's
+                field order."""
                 avgHits = entry["hits_total"] / entry["draws"] if entry["draws"] else 0.0
                 profitPerBet = entry["profit_total"] / entry["bets"] if entry["bets"] else None
                 avgSpecialHits = None
-                # Lotto counts here too: its bonus supplements land in
-                # special_hits_total, so the "(M)" average exists for it.
-                hasSupplement = gameSpecialCount > 0 or ("lotto" in game and "vikinglotto" not in game)
                 if hasSupplement and entry["draws"]:
                     avgSpecialHits = round(entry["special_hits_total"] / entry["draws"], 3)
+                return {
+                    "draws": entry["draws"],
+                    "avg_hits": round(avgHits, 3),
+                    # payout games: what the ranking reads (profit_bound, 13 Oct 2026)
+                    "profit_bound": self._profit_bound(entry["bets_by_day"]) if hasPayout else None,
+                    "avg_special_hits": avgSpecialHits,
+                    "best_hits": entry["best_hits"],
+                    "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
+                    "profit_per_bet": round(profitPerBet, 3) if profitPerBet is not None else None,
+                    "bets": entry["bets"],
+                }
+
+            models = []
+            for name, entry in stats.items():
                 multi = entry.get("multi_pick")
                 multiOut = None
                 if multi and multi["draws"]:
@@ -858,15 +1051,7 @@ class Helpers():
                     }
                 models.append({
                     "name": name,
-                    "draws": entry["draws"],
-                    "avg_hits": round(avgHits, 3),
-                    # payout games: what the ranking reads (profit_bound, 13 Oct 2026)
-                    "profit_bound": self._profit_bound(entry["bets_by_day"]) if hasPayout else None,
-                    "avg_special_hits": avgSpecialHits,
-                    "best_hits": entry["best_hits"],
-                    "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
-                    "profit_per_bet": round(profitPerBet, 3) if profitPerBet is not None else None,
-                    "bets": entry["bets"],
+                    **aggregate(entry),
                     # keno: the same two numbers per ticket size the row played, so the sizes can be read apart (7 Oct 2026)
                     "profit_by_size": ({str(size): {"bets": v["bets"], "profit_total": round(v["profit_total"], 2),
                                                     "profit_per_bet": round(v["profit_total"] / v["bets"], 3)}
@@ -904,13 +1089,14 @@ class Helpers():
             established = sorted([m for m in models if m["draws"] >= minDraws], key=sortKey, reverse=True)
             young = sorted([m for m in models if m["draws"] < minDraws], key=sortKey, reverse=True)
             models = established + young
+            # the order every stored draw gives: the combination search keeps it whatever the ranking reads
+            allDrawsOrder = models
 
             # A market row's live draws over its whole record: the days whose
             # ticket was out before the close (_days_predicted_before_draw),
             # counted without the since date, so declaring a later freeze does
             # not turn earlier live days into "back-built or late" ones on the
             # admin pages (admin.js reads it; 21 Oct 2026).
-            liveDays = self._days_predicted_before_draw(game, databaseDir)
             if liveDays is not None:
                 liveCounts = {}
                 for day in dayTable:
@@ -920,12 +1106,79 @@ class Helpers():
                 for m in models:
                     m["live_draws"] = liveCounts.get(m["name"], 0)
 
+            # A lottery row's live record (src/Liveness.py, 27 Oct 2026): the draws whose ticket was saved before
+            # the sales close, a rewritten ticket scored as it stood at the close. live_draws = live + recovered;
+            # draws - live_draws = the back-built or late draws (and a duplicate row's second ticket), so the admin
+            # draw pages' markers add up to it.
+            liveBlock = livenessBlock = None
+            rankedOn = None
+            if judged is not None:
+                liveModels = []
+                for m in models:
+                    entry = liveStats.get(m["name"])
+                    figures = aggregate(entry) if entry and entry["draws"] else {
+                        "draws": 0, "avg_hits": None, "profit_bound": None, "avg_special_hits": None, "best_hits": None,
+                        "profit_total": None, "profit_per_bet": None, "bets": 0}
+                    m["live_draws"] = figures["draws"]
+                    m["live"] = {"draws": figures["draws"], "recovered": recoveredDraws.get(m["name"], 0),
+                                 "not_live": m["draws"] - figures["draws"],
+                                 **{k: v for k, v in figures.items() if k != "draws"}}
+                    if figures["draws"]:
+                        liveModels.append({"name": m["name"], **{k: m["live"][k] for k in (
+                            "draws", "recovered", "avg_hits", "best_hits", "profit_total", "profit_per_bet", "profit_bound", "bets")}})
+                liveValue = lambda m: (m.get(metric) if m.get(metric) is not None else float("-inf"))
+                if liveModels:
+                    # the same shape and order rule as "since": the 10-draw guard on live draws, then the metric
+                    liveMinDraws = min(10, max(m["draws"] for m in liveModels))
+                    liveModels = (sorted([m for m in liveModels if m["draws"] >= liveMinDraws], key=liveValue, reverse=True)
+                                  + sorted([m for m in liveModels if m["draws"] < liveMinDraws], key=liveValue, reverse=True))
+                    liveBlock = {"metric": metric, "minDrawsForRanking": liveMinDraws, "bestModel": liveModels[0]["name"],
+                                 "models": liveModels}
+                livenessBlock = {
+                    "checked": judged["checked"], "error": judged["error"],
+                    "draws": liveTally["draws"], "allLive": liveTally["allLive"], "allCounted": liveTally["allCounted"],
+                    "rowsLive": liveTally["live"], "rowsRecovered": liveTally["recovered"], "rowsNotLive": liveTally["notLive"],
+                    "newestNotLive": liveTally["newestNotLive"],
+                    # the rewritten rows: the hits of the ticket that stood at the close against the stored ticket's
+                    # (rows of one draw share its result: read it per draw, not per row)
+                    "rewriteAudit": {"rows": liveTally["auditRows"], "hitsAtClose": liveTally["hitsAtClose"],
+                                     "hitsStored": liveTally["hitsStored"]},
+                    "unscheduled": judged["unscheduled"],
+                }
+                print(f"liveness {game}: {liveTally['draws']} draws, {liveTally['allLive']} fully live; "
+                      f"{liveTally['recovered']} rows recovered, {liveTally['notLive']} back-built or late; "
+                      f"newest not live {liveTally['newestNotLive'] or 'none'} ({judged['checked']}"
+                      f"{'; ' + judged['error'] if judged['error'] else ''})")
+                if judged["unscheduled"]:
+                    print(f"liveness {game}: {len(judged['unscheduled'])} draw(s) on a weekday src/drawClose.json does not "
+                          f"list ({', '.join(judged['unscheduled'][-3:])}): the earliest close was used - check the schedule")
+                # Owner's decision 1 (27 Oct 2026): rank on the live record - never on an unchecked one, which would
+                # freeze a one-day git failure into the users' point-in-time ranking
+                if rankOnLive and liveBlock and judged["checked"] != "unchecked":
+                    liveOrder = lambda m: (m["live"].get(metric) if m["live"].get(metric) is not None else float("-inf"))
+                    models = (sorted([m for m in models if m["live"]["draws"] >= liveBlock["minDrawsForRanking"]], key=liveOrder, reverse=True)
+                              + sorted([m for m in models if m["live"]["draws"] < liveBlock["minDrawsForRanking"]], key=liveOrder, reverse=True))
+                    rankedOn = "live"
+                elif rankOnLive:
+                    print(f"liveness {game}: the ranking stays on every stored draw ("
+                          f"{'liveness unchecked: ' + (judged['error'] or 'no evidence') if judged['checked'] == 'unchecked' else 'no live draw yet'})")
+            elif not is_market_game(game):
+                livenessBlock = {"checked": "unchecked", "error": liveError or "not judged"}
+                print(f"liveness {game}: not judged ({livenessBlock['error']}) - no live record; the ranking stays on every stored draw")
+
             report["games"][game] = {
                 "metric": metric,
                 "minDrawsForRanking": minDraws,
                 "bestModel": models[0]["name"],
                 "models": models,
             }
+            if rankedOn:
+                # models and bestModel follow the live block; minDrawsForRanking stays the all-draws guard
+                report["games"][game]["rankedOn"] = rankedOn
+            if liveBlock:
+                report["games"][game]["live"] = liveBlock
+            if livenessBlock:
+                report["games"][game]["liveness"] = livenessBlock
             multiCfg = multi_pick_config(game)
             if multiCfg:
                 # the chance levels every multi-pick figure above is read against
@@ -939,19 +1192,21 @@ class Helpers():
                 }
 
             # The forward record: the same per-row aggregates over the days
-            # on or after the declared date, from the day table just built.
-            # A market game's day counts only if it was predicted before its
-            # draw (_days_predicted_before_draw): the back-built history the
-            # market games started with sits after the declared date.
+            # on or after the declared date, from the day table just built -
+            # over the live record (27 Oct 2026: every game; until then the
+            # market games' days predicted before their draw only, lottery
+            # every stored row): a market day whose ticket was out before its
+            # close (the back-built history the market games started with sits
+            # after the declared date), a lottery row whose ticket stood at
+            # the close. A lottery game whose liveness could not be judged
+            # (or reads "unchecked") keeps every stored row here, as before.
             if since:
                 sinceStats = {}
-                forward_days = self._days_predicted_before_draw(game, databaseDir)
+                liveSince = liveDays is not None or (judged is not None and judged["checked"] != "unchecked")
                 for day in dayTable:
                     if not since_on_or_after(since, day["date"]):
                         continue
-                    if forward_days is not None and self._day_key(day["date"]) not in forward_days:
-                        continue
-                    for name, row in day["rows"].items():
+                    for name, row in (day["liveRows"] if liveSince else day["rows"]).items():
                         entry = sinceStats.setdefault(name, {"draws": 0, "hits_total": 0, "best_hits": 0,
                                                              "profit_total": 0.0, "bets": 0, "bets_by_day": []})
                         entry["draws"] += 1
@@ -984,14 +1239,74 @@ class Helpers():
                         "models": sinceModels,
                     }
 
+            # Q0, the per-row chance test (src/RowChance.py, 27 Oct 2026): each row on its live draws - the live
+            # record just built (liveRows: a lottery ticket saved before the sales close, a rewritten one as it stood
+            # then; a market day out before its close) - against the exact fair-draw null (lottery) or its own tickets
+            # shuffled within blocks of 7 live days (markets); Holm over the rows with minDrawsForRanking live draws;
+            # the followed rows and their verdicts read from and kept in rowChance.json. Per model "chance", per game
+            # "chance". A lottery game whose liveness could not be judged is not tested (no live record to test on);
+            # one judged without git is tested and keeps nothing. A failure here costs these fields, never the report.
+            if chanceFailure is None and game in RowChance.GAMES:
+                started = datetime.now()
+                try:
+                    if liveDays is None and (judged is None or judged["checked"] == "unchecked"):
+                        why = liveError or (judged or {}).get("error") or "no evidence"
+                        gameChance, rowsChance, keep = RowChance.unchecked(game, f"liveness not checked: {why}"), {}, None
+                    else:
+                        chanceDays = [{"date": day["date"], "result": day["resultMains"],
+                                       "live": {name: {"ticket": row["ticketMains"], "hits": row["hits"]} for name, row in day["liveRows"].items()}}
+                                      for day in dayTable if day["date"] is not None and day["liveRows"] is not None]
+                        persist = chanceStore is not None and (liveDays is not None or judged["checked"] == "stamp+git")
+                        rowsChance, gameChance, keep = RowChance.game_chance(
+                            game, chanceDays, [{"name": m["name"], "draws": m["draws"]} for m in models], minDraws, chanceToday,
+                            stored=(chanceStore or {}).get("games", {}).get(game), freeze=since["since"] if since else None, persist=persist)
+                        if persist and keep is not None:
+                            chanceStore["games"][game] = keep
+                            chanceDirty = True
+                        elif not persist:
+                            # why nothing was kept: the page says so next to the tests
+                            gameChance["stored"] = ("read only: liveness judged without git" if chanceStore is not None
+                                                    else f"read only: {RowChance.FILE_NAME} could not be read")
+                    for m in models:
+                        if m["name"] in rowsChance:
+                            m["chance"] = rowsChance[m["name"]]
+                    report["games"][game]["chance"] = gameChance
+                    print(f"row chance {game}: " + (gameChance["error"] if gameChance.get("error") else
+                          f"{gameChance['family']} rows tested on live draws ({gameChance['method']}), {gameChance['under']} under "
+                          f"{RowChance.ALPHA} (about {gameChance['expected']} by chance), {gameChance['holds']} hold, "
+                          f"{gameChance['followed']} followed, {gameChance['confirmed']} confirmed, {gameChance['notConfirmed']} not "
+                          f"({gameChance['stored']}, {(datetime.now() - started).total_seconds():.1f} s)"))
+                except Exception as e:
+                    for m in models:
+                        m.pop("chance", None)
+                    report["games"][game].pop("chance", None)
+                    print(f"row chance {game}: the test failed ({e.__class__.__name__}: {e}) - no chance fields for this game")
+
             # Portfolio search over the established rows (roadmap item 2):
             # which SET of rows is worth playing together, with a shuffled-
             # history control against the multiple-comparisons effect.
             try:
                 report["games"][game]["combinations"] = self._build_combination_report(
-                    game, dayTable, models, hasPayout, minDraws, shuffles=combinationShuffles)
+                    game, dayTable, allDrawsOrder, hasPayout, minDraws, shuffles=combinationShuffles)
             except Exception as e:
                 print(f"Combination report failed for {game}: {e}")
+
+        # The followed rows and their verdicts (src/RowChance.py): written only when one changed, like the liveness file.
+        if chanceDirty and chanceStore is not None:
+            try:
+                if RowChance.write_store(databaseDir, chanceStore):
+                    print(f"row chance: {RowChance.FILE_NAME} updated")
+            except Exception as e:
+                print(f"row chance: {RowChance.FILE_NAME} could not be written ({e.__class__.__name__}: {e})")
+
+        # The per-draw verdicts the admin draw pages and the users' history read (src/Liveness.write_detail): written
+        # only when a verdict changed, so a rerun without a new draw leaves the file - and git - as it was.
+        if livenessJudged:
+            try:
+                if Liveness.write_detail(databaseDir, livenessJudged, previous=livenessScan.previous):
+                    print(f"liveness: {Liveness.DETAIL_FILE} updated")
+            except Exception as e:
+                print(f"liveness: {Liveness.DETAIL_FILE} could not be written ({e.__class__.__name__}: {e})")
 
         # ------------------------------------------------------------------
         # Phase-shift (lag) analysis: score each file's newPrediction not only

@@ -710,6 +710,8 @@ details.note-c.fresh { border-color: var(--accent); }
 .dl .d a { color: var(--accent); text-decoration: none; }
 .dl .d a:hover { text-decoration: underline; }
 .dl .d small { display: block; color: var(--muted); font-weight: 400; font-size: var(--fs-xs); }
+/* a draw shown but left out of the totals: its tickets were made after the sales close (27 Oct 2026) */
+.dl.grey .fig, .dl.grey .fig b, .dl.grey .d a { color: var(--muted); }
 .fig { font-size: var(--fs-sm); min-width: 0; }
 .fig b { font-weight: 600; }
 .fig small { display: block; color: var(--muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }

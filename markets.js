@@ -78,34 +78,48 @@ const num = (x) => {
 };
 
 // The weekly report's rows, ready to print: log-scores, the interval and
-// verdict against GARCH and against uniform, hit rates and the fixed rule's
-// P&L with the real returns. Sorted best log-score first, rows without a
-// probability (the baselines) last.
+// verdict against GARCH, against uniform and against the column frequencies,
+// hit rates and the fixed rule's P&L with the real returns. Sorted best
+// log-score first, rows without a probability last. Since 26 Oct 2026 the
+// baselines carry probabilities too (random 1 in K, the frequencies counted
+// over the days before), so they sort among the rows, and vsFrequency says
+// whether a row beats what knowing the bins' frequencies alone scores; a
+// report from before has no vsFrequency (null) and baselines without a score.
+// The summary lists (betterThanReference, betterThanFrequency) name model
+// rows only: a baseline beating GARCH is read from its own row.
 function describeRows(record) {
   if (!record) return null;
   const uniform = num(record.uniform_log_score);
   const interval = (x) => (x && num(x.mean) !== null ? { mean: num(x.mean), lo: num(x.lo), hi: num(x.hi), verdict: String(x.verdict || ''), days: num(x.days) } : null);
+  const frequency = record.frequency_reference ? String(record.frequency_reference) : null;
   const rows = (record.rows || []).map((r) => ({
     name: String(r.name), kind: String(r.kind || 'base'), days: num(r.days), scoredDays: num(r.scored_days),
     logScore: num(r.log_score), se: num(r.log_score_se),
-    vsReference: interval(r.vs_reference), vsUniform: interval(r.vs_uniform),
+    vsReference: interval(r.vs_reference), vsUniform: interval(r.vs_uniform), vsFrequency: interval(r.vs_frequency),
     exact: num(r.exact_rate), adjacent: num(r.adjacent_rate), direction: num(r.direction_rate),
     trades: num(r.trades), pnl: num(r.pnl_return), pnlPerTrade: num(r.pnl_per_trade),
     isReference: String(r.name) === String(record.reference),
+    isFrequency: frequency !== null && String(r.name) === frequency,
   }));
   rows.sort((a, b) => {
     if ((a.logScore === null) !== (b.logScore === null)) return a.logScore === null ? 1 : -1;
     if (a.logScore !== null && b.logScore !== null && a.logScore !== b.logScore) return b.logScore - a.logScore;
     return (b.exact || 0) - (a.exact || 0);
   });
+  // the model rows, in the sorted order (the summary lists below name them best log-score first, as before)
+  const models = rows.filter((r) => r.kind !== 'baseline');
   const reference = rows.find((r) => r.isReference) || null;
   return {
     market: record.market, generatedAt: record.generated_at || null, days: num(record.days_scored), requested: num(record.days_requested),
     firstDay: record.first_day || null, lastDay: record.last_day || null, uniform, reference: String(record.reference || ''),
     referenceRow: reference, floor: num(record.probability_floor), rows, lockboxWithheld: num(record.lockbox_days_withheld) || 0,
     hmmFeatures: record.hmm_features ? String(record.hmm_features) : null,   // the feature set the three Regime HMM rows ran on (MarketRows, 14 Oct 2026)
-    betterThanReference: rows.filter((r) => r.vsReference && r.vsReference.verdict === 'better').map((r) => r.name),
+    // the baseline vsFrequency is taken against, its row, and the add-one the baselines' counts were smoothed with
+    frequency, frequencyRow: rows.find((r) => r.isFrequency) || null, frequencySmoothing: num(record.frequency_smoothing),
+    betterThanReference: models.filter((r) => r.vsReference && r.vsReference.verdict === 'better').map((r) => r.name),
+    betterThanFrequency: models.filter((r) => r.vsFrequency && r.vsFrequency.verdict === 'better').map((r) => r.name),
     referenceAboveUniform: !!(reference && reference.vsUniform && reference.vsUniform.verdict === 'better'),
+    referenceAboveFrequency: !!(reference && reference.vsFrequency && reference.vsFrequency.verdict === 'better'),
     errors: record.errors && typeof record.errors === 'object' ? record.errors : {},
   };
 }

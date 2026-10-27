@@ -86,7 +86,7 @@ function summary(c: GameCard): string[] {
   const l = c.last;
   if (!l) return parts;
   if (l.leftOut) parts.push(`last draw ${weekday(l.date)}: left out`);
-  else if (l.figures) parts.push(`last draw ${weekday(l.date)}, its top ${l.figures.rows}: ${lastFigure(c.shape, l)}`);
+  else if (l.figures) parts.push(`last draw ${weekday(l.date)}, its top ${l.figures.rows}: ${lastFigure(c.shape, l)}${l.afterClose ? ' (not counted: tickets made after the sales close)' : ''}`);
   return parts;
 }
 function lastFigure(shape: Shape, l: LastDraw): string {
@@ -136,6 +136,7 @@ function GameCardView({ c, open, onToggle }: { c: GameCard; open: boolean; onTog
             </div>
             <ComingScopeLine scope={s} mode="user" />
             {c.next?.madeAt ? <p className="scopeline">Tickets made {stamp(c.next.madeAt)}.</p> : null}
+            {c.next?.afterClose ? <p className="scopeline">{c.next.afterCloseText}</p> : null}
           </div>
           {c.coming.rows.length ? (
             <TicketTable shape={c.shape} rows={c.coming.rows} result={null} market={null} mode="user" ranked={s.ranking !== null} showTop={false} rankWhose="in today's ranking" />
@@ -180,6 +181,7 @@ function LastSection({ c, l }: { c: GameCard; l: LastDraw }) {
         ) : (
           <>
             {l.scope ? <ScopeLine scope={l.scope} mode="user" /> : null}
+            {l.afterClose ? <p className="scopeline mut">Tickets for this draw were made after its sales closed - shown, not counted in the totals.</p> : null}
             {l.figures ? <FiguresLine shape={c.shape} figures={l.figures} mode="user" /> : null}
           </>
         )}

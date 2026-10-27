@@ -12,17 +12,19 @@ const JOB_LABEL: Record<string, string> = {
   hyperoptEnsemble: 'Tuning: ensemble',
   hyperoptQuantum: 'Tuning: quantum',
   trainMetaLearner: 'Retrain: meta-learner',
+  kenoSubsetTuning: 'Tuning: keno sub-selections',
   randomnessDiscrimination: 'Control: Q2',
   featureControl: 'Control: feature (FC)',
   marketRows: 'Control: market rows',
-  nullControls: 'Control: Q0',
+  nullControls: 'Control: Q0 band (context)',
 };
 export const jobLabel = (key: string, name?: string) => JOB_LABEL[key] ?? name ?? key;
 
-// The control a Sunday job writes, as the matrix names its parts.
+// The control a Sunday job writes, as the matrix names its parts. The NullControls job writes Q0's band, context only
+// since 27 Oct 2026 (Q0's row tests are the daily report's): its run is judged on the band's records, never on the cell.
 export type Part = 'q0' | 'q2' | 'fc' | 'rows';
 export const CONTROL_PART: Record<string, Part> = { nullControls: 'q0', randomnessDiscrimination: 'q2', featureControl: 'fc', marketRows: 'rows' };
-export const PART_LABEL: Record<Part, string> = { q0: 'Q0', q2: 'Q2', fc: 'Feature control', rows: 'Market rows' };
+export const PART_LABEL: Record<Part, string> = { q0: 'Q0 band (context)', q2: 'Q2', fc: 'Feature control', rows: 'Market rows' };
 
 // A run's address in the URL (?run=): its job and its start, which no two runs share.
 export const runId = (r: { key: string; start: string | null }) => `${r.key}@${r.start ?? ''}`;
@@ -60,9 +62,10 @@ export function usualBasis(u: Usual | null): string {
 // What a Sunday control run wrote, read from the records on disk now: a game's record whose time lies inside the
 // run (a minute of slack) was written by it; one from before its start was not (the job skipped or failed that game,
 // so last week's record is still there); one after its end was rewritten since (a later run, by hand). A game with
-// no record at all, or one that could not be read, is none. Q0 writes two records a game (synthetic, shuffled): each
-// is judged, and a game's line is the record that is not from the run, named by its mode - a band built from a new
-// record and a stale one is not this run's.
+// no record at all, or one that could not be read, is none. NullControls writes two band records a game (synthetic,
+// shuffled): each is judged on the cell's band times (q0.band - not q0.at, the row test's report), and a game's line is
+// the record that is not from the run, named by its mode - a band built from a new record and a stale one is not this
+// run's.
 const SLACK_MS = 60 * 1000;
 type How = 'this run' | 'before this run' | 'after this run' | 'no record' | 'unreadable';
 export interface Written {
@@ -85,10 +88,11 @@ export function controlOutputs(run: RunLine, games: MatrixGame[], builtAt: strin
   const lines = games
     .filter((g) => part !== 'rows' || g.group === 'Markets')
     .map((g): Written => {
-      const cell = g[part];
-      const at = cell ? cell.at : null;
-      if (!at) return { game: g.game, at: null, how: g.errors.includes(part) ? 'unreadable' : 'no record' };
-      const modes = part === 'q0' && g.q0 ? g.q0.modes.filter((m): m is { mode: string; at: string } => Boolean(m.at)) : [];
+      const band = part === 'q0' ? g.q0?.band ?? null : null;
+      const at = part === 'q0' ? (band ? band.at : null) : g[part]?.at ?? null;
+      const unreadable = part === 'q0' ? Boolean(g.q0?.bandUnreadable) : g.errors.includes(part);
+      if (!at) return { game: g.game, at: null, how: unreadable ? 'unreadable' : 'no record' };
+      const modes = band ? band.modes.filter((m): m is { mode: string; at: string } => Boolean(m.at)) : [];
       const off = modes.map((m) => ({ ...m, how: howOf(m.at) })).sort((a, b) => Number(b.how === 'before this run') - Number(a.how === 'before this run')).find((m) => m.how !== 'this run');
       if (off) return { game: g.game, at: off.at, how: off.how, mode: off.mode };
       return { game: g.game, at, how: howOf(at) };

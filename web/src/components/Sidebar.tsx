@@ -37,7 +37,7 @@ const ADMIN_GROUPS: Group[] = [
     label: 'Controls',
     items: [
       { label: 'All controls', to: '/admin/controls' },
-      { label: 'Q0 null band', to: '/admin/controls#q0', nested: true },
+      { label: 'Q0 row tests', to: '/admin/controls#q0', nested: true },
       { label: 'Q2 randomness', to: '/admin/controls#q2', nested: true },
       { label: 'Feature control', to: '/admin/controls#fc', nested: true },
       { label: 'Market rows', to: '/admin/controls#rows', nested: true },

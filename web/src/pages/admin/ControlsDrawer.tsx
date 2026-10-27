@@ -6,12 +6,13 @@ import Chip from '../../components/admin/Chip';
 import { Legend, Scroll } from '../../components/admin/Card';
 import DotStrip, { Axis, niceScale, type Scale } from '../../components/admin/DotStrip';
 import { Failed, Loading } from '../../components/admin/States';
-import { isMarketGame, oneControlText, recordText, tableNote, units } from './bits';
+import { correctedText, freshText, isMarketGame, liveCount, nullWord, oneControlText, pText, tableNote, units } from './bits';
 import { hmmFeaturesText } from '../../components/draws/text';
 
-// One game's four controls in full (GET /api/admin/controls/:game): Q0 with both fair-history controls and
-// each row's own level, Q2 per seed, the feature-control variants as numbers, and for a market game the rows
-// against the reference and uniform with the regimes.
+// One game's four controls in full (GET /api/admin/controls/:game): Q0's row tests, every tested row with its p and its
+// fresh record (the old null band below them as context, with both fair-history controls and each row's own level), Q2
+// per seed, the feature-control variants as numbers, and for a market game the rows against the reference and uniform
+// with the regimes.
 export default function ControlsDrawer({ game, onClose }: { game: string; onClose: () => void }) {
   const load = useLoad(() => getAdminControlsGame(game), [game]);
   const d = load.kind === 'ok' ? load.data : null;
@@ -20,7 +21,7 @@ export default function ControlsDrawer({ game, onClose }: { game: string; onClos
       title={game}
       sub={
         d
-          ? `${d.group} · all four controls · ${weekday(d.q2?.at ?? d.q0.band?.at ?? null)} · Brussels time`
+          ? `${d.group} · all four controls · ${weekday(d.q2?.at ?? d.q0.band?.at ?? null)} · report ${stamp(d.rankingAt)} · Brussels time`
           : isMarketGame(game)
             ? 'Markets · all four controls'
             : 'Lottery · all four controls'
@@ -43,52 +44,132 @@ export default function ControlsDrawer({ game, onClose }: { game: string; onClos
 
 const BASELINES = ['random', 'global_frequency', 'column_frequency'];
 
+// Q0 (27 Oct 2026): every row the test reads - the family, lowest p first, and any followed or judged row - each with
+// its own figures on its line; then the old band as context, nothing read against it.
 function Q0Section({ d }: { d: ControlsGameView }) {
   const q = d.q0;
-  const b = q.band;
-  const modes = Object.entries(q.modes);
-  const market = isMarketGame(d.game);
-  const rows = q.above.n ? q.above.rows : q.best ? [q.best] : [];
-  const { scale, ticks } = niceScale([
-    ...modes.flatMap(([, m]) => [m.random, m.best !== null && m.sd !== null ? m.best - 2 * m.sd : m.best, m.ceiling]),
-    ...rows.map((r) => r.hits),
-  ]);
-  // every row the control runs, with its own level in each control, baselines last
-  const names = [...new Set(modes.flatMap(([, m]) => Object.keys(m.perRow)))].sort((x, y) => Number(BASELINES.includes(x)) - Number(BASELINES.includes(y)) || x.localeCompare(y));
-  const owned = q.above.rows.filter((r) => r.own !== null);
-  const perUnitText = `hits per ${perUnit(d.unit)}`;
+  const t = q.test;
+  const vs = nullWord(t?.method);
   return (
     <Section
-      title="Q0 null band"
+      title="Q0 chance per row"
       aside={
-        b ? (
+        t && t.family ? (
           <>
-            <Chip kind={q.above.n ? 'hi' : 'flat'}>{q.above.n ? `${q.above.n} rows above ${fixed(b.ceiling)}` : `none above ${fixed(b.ceiling)}`}</Chip>
-            {b.missing.length ? <Chip kind="dim">one control only</Chip> : null}
+            <Chip kind="flat">
+              {t.under} of {t.family} under 5% · ≈{fixed(t.expected, 2)} by chance
+            </Chip>
+            <Chip kind="flat">{t.holds} hold</Chip>
+            {/* only a confirmed row is coloured */}
+            <Chip kind={t.confirmed ? 'hi' : 'flat'}>
+              {t.confirmed} confirmed · {t.followed} followed
+            </Chip>
           </>
         ) : (
-          <Chip kind="dim">{d.errors.includes('q0') ? 'record unreadable' : 'no band yet'}</Chip>
+          <Chip kind="dim">{!t ? 'no row test' : `too few live ${units(d.unit)}`}</Chip>
         )
       }
     >
-      {b ? (
-        <p className="line">
-          Band <b>{fixed(b.ceiling)}</b> {perUnitText} from the {b.from} control · {b.rows ?? DASH} rows · {b.seeds ?? DASH} seeds · histories of {count(b.history, d.unit)} ·
-          records {modes.map(([name, m]) => `${name} ${stamp(m.at)}`).join(', ')}
-          {b.missing.length
-            ? ` · ${oneControlText(b)}: the rule takes the higher of synthetic and shuffled, so this band can be lower than the rule's`
-            : ''}{' '}
-          · ranking {stamp(d.rankingAt)}, {q.rankedRows} of {q.allRows} rows with ≥ {count(q.minDraws, d.unit)}
-        </p>
+      {!t ? (
+        <p className="line">No row test for this game in the report of {stamp(d.rankingAt)}: {q.error ?? 'not in the report'}.</p>
       ) : (
-        <p className="line">{d.errors.includes('q0') ? 'The Q0 record could not be read.' : 'No Q0 record for this game yet.'}</p>
-      )}
-      {q.ranking === 'profit' ? (
         <p className="line">
-          Ranks on a profit bound; compared here on average hits, so no euro figure sits next to the band.
-          {q.leader ? ` Profit-bound leader: ${short(q.leader.row)} (${count(q.leader.draws, d.unit)}).` : ''}
+          {t.method === 'permutation'
+            ? `Each row's hits per ${perUnit(d.unit)} on its live ${units(d.unit)} against its own tickets shuffled among them within blocks of ${t.block ?? 7}, the outcomes fixed (${t.permutations ?? DASH} permutations): the bins a few ${units(d.unit)} favour stay with them; a row that times the volatility regime within a block can still pass.`
+            : `Each row's hits per ${perUnit(d.unit)} on its live ${units(d.unit)} against what fair draws give its own tickets, computed exactly.`}{' '}
+          {t.family
+            ? `${t.family} of ${q.allRows} rows have ≥ ${count(t.minDraws, d.unit)} live and are compared (Holm over them).`
+            : `No row has ${count(t.minDraws, d.unit)} live yet (the most: ${t.liveMax}): none is tested.`}{' '}
+          {q.ranking === 'profit' ? `Ranks on a profit bound: tested on hits, information only${q.leader ? `; profit-bound leader ${short(q.leader.row)}` : ''}. ` : ''}
+          Followed rows: Sundays tested through {weekday(t.checkedThrough)}
+          {t.stored?.startsWith('read only') ? `, nothing kept this run (${t.stored.replace(/^read only:?\s*/, '') || 'read only'})` : ''}. Report {stamp(d.rankingAt)}.
         </p>
+      )}
+      {q.table.length ? (
+        <Scroll>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Row</th>
+                <th className="num hide-sm">Live</th>
+                <th className="num">Hits per {perUnit(d.unit)}</th>
+                <th className="num hide-sm">{vs}</th>
+                <th className="num">p</th>
+                <th className="num hide-sm">Corrected</th>
+                <th className="hide-sm">New {units(d.unit)}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.table.map((r) => (
+                <tr key={r.row}>
+                  <td className="w-name">
+                    {short(r.row)}
+                    <span className="sub show-sm">
+                      {liveCount(r.live, d.unit)} vs {vs} {fixed(r.null)}
+                      {r.inFamily ? ` · corrected ${correctedText(r.pHolm)}` : ''}
+                    </span>
+                    {r.fresh ? <span className="sub show-sm">{freshText(r.fresh, d.unit, t?.method, t?.verdictAlpha)}</span> : null}
+                  </td>
+                  <td className="num hide-sm">
+                    {r.live}
+                    {r.notLive || r.recovered ? (
+                      <span className="sub">
+                        {[r.recovered ? `${r.recovered} as saved before the close` : '', r.notLive ? `+${r.notLive} not live` : ''].filter(Boolean).join(' · ')}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="num">{fixed(r.mean)}</td>
+                  <td className="num hide-sm">{fixed(r.null)}</td>
+                  <td className="num">
+                    <b>{pText(r.p)}</b>
+                  </td>
+                  <td className="num hide-sm">{r.inFamily ? correctedText(r.pHolm) : <span className="mut">not compared</span>}</td>
+                  <td className="hide-sm">
+                    {r.fresh ? freshText(r.fresh, d.unit, t?.method, t?.verdictAlpha) : <span className="fnt">{DASH}</span>}
+                    {r.fresh?.flagP !== null && r.fresh ? (
+                      <span className="sub">
+                        flagged on {count(r.fresh.flagDraws, d.unit)}: {fixed(r.fresh.flagMean)} vs {vs} {fixed(r.fresh.flagNull)}, p {pText(r.fresh.flagP)}
+                      </span>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Scroll>
       ) : null}
+      <BandContext d={d} />
+    </Section>
+  );
+}
+
+// The old Q0 band, as context only: the best of 8 untuned rows on 120 fair draws plus 2 sd across seeds - what a
+// leaderboard over noise reaches, the selection effect. No row is read against it.
+function BandContext({ d }: { d: ControlsGameView }) {
+  const q = d.q0;
+  const b = q.band;
+  const modes = Object.entries(q.modes);
+  const { scale, ticks } = niceScale(modes.flatMap(([, m]) => [m.random, m.best !== null && m.sd !== null ? m.best - 2 * m.sd : m.best, m.ceiling]));
+  // every row the control runs, with its own level in each control, baselines last
+  const names = [...new Set(modes.flatMap(([, m]) => Object.keys(m.perRow)))].sort((x, y) => Number(BASELINES.includes(x)) - Number(BASELINES.includes(y)) || x.localeCompare(y));
+  const perUnitText = `hits per ${perUnit(d.unit)}`;
+  return (
+    <>
+      <p className="line" style={{ marginTop: 12 }}>
+        <b>Context: the null band</b> - the best of the untuned rows on fair histories, the selection effect (NullControls.py); no row is read against
+        it.{' '}
+        {b ? (
+          <>
+            Band {fixed(b.ceiling)} {perUnitText} from the {b.from} control · {b.rows ?? DASH} rows · {b.seeds ?? DASH} seeds · histories of {count(b.history, d.unit)} ·
+            records {modes.map(([name, m]) => `${name} ${stamp(m.at)}`).join(', ')}
+            {b.missing.length ? ` · ${oneControlText(b)}: the rule takes the higher of synthetic and shuffled, so this band can be lower than the rule's` : ''}.
+          </>
+        ) : q.bandUnreadable ? (
+          'Its record could not be read.'
+        ) : (
+          'No band record for this game yet.'
+        )}
+      </p>
       {b && modes.length ? (
         <>
           <div className="lanes">
@@ -107,7 +188,7 @@ function Q0Section({ d }: { d: ControlsGameView }) {
                 </span>
                 <DotStrip
                   scale={scale}
-                  grid={ticks.map((t) => t.at)}
+                  grid={ticks.map((x) => x.at)}
                   spans={[{ from: m.best !== null && m.sd !== null ? m.best - 2 * m.sd : null, to: m.ceiling, kind: 'se' }]}
                   marks={[
                     { at: m.random, kind: 'diamond' },
@@ -122,79 +203,51 @@ function Q0Section({ d }: { d: ControlsGameView }) {
                 </span>
               </div>
             ))}
-            {rows.map((r) => (
-              <div className="lane" key={r.row}>
-                <span className="lab">
-                  {short(r.row)}
-                  <small>{recordText(r.draws, d.unit, market ? r.live : null)}</small>
-                </span>
-                <DotStrip
-                  scale={scale}
-                  grid={ticks.map((t) => t.at)}
-                  marks={[
-                    { at: b.ceiling, kind: 'tick' },
-                    { at: r.hits, kind: 'dot' },
-                  ]}
-                  label={`${short(r.row)}: ${fixed(r.hits)} ${perUnitText} over ${count(r.draws, d.unit)}`}
-                />
-                <span className="val">
-                  <b>{fixed(r.hits)}</b>
-                </span>
-              </div>
-            ))}
           </div>
           <Legend
             items={[
               { mark: 'hol', label: 'control best' },
               { mark: 'se', label: '± 2 sd' },
               { mark: 'dia', label: 'random baseline' },
-              { mark: 'dot', label: q.above.n ? 'ranked row above' : 'best ranked row' },
               { mark: 'tick', label: `band ${fixed(b.ceiling)}` },
               { mark: 'tick own', label: 'this control’s ceiling' },
             ]}
           />
         </>
       ) : null}
-      {q.above.n ? (
-        <p className="line">
-          {owned.length
-            ? `${owned.length} of the ${q.above.n} rows above ${owned.length === 1 ? 'has' : 'have'} an own level (${owned.map((r) => `${short(r.row)} ${fixed(r.own)}`).join(', ')}, ${b?.from} control).`
-            : `None of the ${q.above.n} rows above has an own level: the control does not run them.`}{' '}
-          Own levels of the rows it runs, mean {perUnitText} on the fair histories:
-        </p>
-      ) : names.length ? (
-        <p className="line">Own levels of the rows the control runs, mean {perUnitText} on the fair histories:</p>
-      ) : null}
       {names.length ? (
-        <Scroll>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Row</th>
-                {modes.map(([name]) => (
-                  <th key={name} className="num">
-                    {name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {names.map((n) => (
-                <tr key={n}>
-                  <td>
-                    {BASELINES.includes(n) ? n.replace(/_/g, ' ') : short(n)}
-                    {BASELINES.includes(n) ? <span className="tag">baseline</span> : null}
-                  </td>
-                  {modes.map(([name, m]) => (
-                    <td key={name} className="num">
-                      {fixed(m.perRow[n])}
-                    </td>
+        <>
+          <p className="line">Own levels of the rows the control runs, mean {perUnitText} on the fair histories:</p>
+          <Scroll>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  {modes.map(([name]) => (
+                    <th key={name} className="num">
+                      {name}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Scroll>
+              </thead>
+              <tbody>
+                {names.map((n) => (
+                  <tr key={n}>
+                    <td>
+                      {BASELINES.includes(n) ? n.replace(/_/g, ' ') : short(n)}
+                      {BASELINES.includes(n) ? <span className="tag">baseline</span> : null}
+                    </td>
+                    {modes.map(([name, m]) => (
+                      <td key={name} className="num">
+                        {fixed(m.perRow[n])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Scroll>
+        </>
       ) : null}
       {modes.length ? (
         <p className="line" style={{ marginTop: 8 }}>
@@ -202,7 +255,7 @@ function Q0Section({ d }: { d: ControlsGameView }) {
           {modes.map(([, m]) => fixed(m.selectionGain)).join(' / ')}.
         </p>
       ) : null}
-    </Section>
+    </>
   );
 }
 
@@ -220,14 +273,18 @@ function Q2Section({ d }: { d: ControlsGameView }) {
     { name: 'shuffled', what: 'real draws reordered', values: q.perSeed.shuffled, mean: q.shuffledMean, sd: q.shuffledSd, kind: 'smallHollow' },
     { name: 'null', what: 'fair vs fair draws', values: q.perSeed.null, mean: q.nullMean, sd: q.nullSd, kind: 'null' },
   ];
-  const { scale, ticks } = niceScale([...lanes.flatMap((l) => [...l.values, l.mean]), q.thresholdExact ?? q.threshold]);
   const threshold = q.thresholdExact ?? q.threshold;
+  const { scale, ticks } = niceScale([...lanes.flatMap((l) => [...l.values, l.mean]), threshold, q.shuffledThreshold]);
+  // rule 2 (the records from 1 Nov 2026 on): k from the record's own seed count, the threshold's error, the shuffled
+  // control's own bound; rule 1: mean + 2 sd and the bare shuffled mean. A failed rule-2 run has no k: a dash, not "2"
+  const k = q.bandK !== null ? fixed(q.bandK, 2) : q.rule >= 2 ? DASH : '2';
+  const scored = q.seedsScored;
   return (
     <Section
       title="Q2 randomness"
       aside={
-        q.status === 'too few draws' ? (
-          <Chip kind="dim">too few draws</Chip>
+        q.status === 'too few draws' || q.status === 'failed' ? (
+          <Chip kind={q.status === 'failed' ? 'flat' : 'dim'}>{q.status}</Chip>
         ) : (
           <>
             <Chip kind={q.aboveBand ? 'hi' : 'flat'}>{q.aboveBand ? 'above the band' : 'within the band'}</Chip>
@@ -237,11 +294,22 @@ function Q2Section({ d }: { d: ControlsGameView }) {
       }
     >
       <p className="line">
-        <b>{fixed(q.real)}</b> vs threshold <b>{fixed(q.threshold)}</b> (null mean + 2 sd) · windows of {q.window ?? DASH} · the newest{' '}
-        {q.drawsUsed !== null ? count(q.drawsUsed, d.unit) : `${count(q.drawsCap, d.unit)} at most`}
+        <b>{fixed(q.real)}</b> vs threshold <b>{fixed(q.threshold)}</b>
+        {q.thresholdSe !== null ? ` ± ${fixed(q.thresholdSe)}` : ''}{' '}
+        {q.rule >= 2 ? `(null mean + ${k} sd: the 97.7% bound for one fair run, from ${scored?.null ?? q.seeds ?? DASH} seeds)` : '(null mean + 2 sd, the rule before 1 Nov 2026)'} ·
+        windows of {q.window ?? DASH} · the newest {q.drawsUsed !== null ? count(q.drawsUsed, d.unit) : `${count(q.drawsCap, d.unit)} at most`}
         {q.drawsUsed !== null && q.drawsCap !== null && q.drawsUsed < q.drawsCap ? ` (of ${q.drawsCap} asked: the history is shorter)` : ''} ·{' '}
-        {q.windowsTrain ?? DASH} train / {q.windowsTest ?? DASH} test windows{q.fewWindows ? ' (under 250: underpowered)' : ''} · {q.features ?? DASH} features ·{' '}
+        {q.windowsTrain ?? DASH} train / {q.windowsTest ?? DASH} test windows
+        {q.fewWindows ? ` (under ${q.minWindows ?? DASH}: too few draws, fixed by the history before the run)` : ''} · {q.features ?? DASH} features ·{' '}
         {q.seeds ?? DASH} seeds · {q.quantum ? 'quantum suite included' : 'classical suite only'} · {stamp(q.at)}
+      </p>
+      <p className="line">
+        {q.rule >= 2
+          ? `Shuffled control: bound ${fixed(q.shuffledThreshold)} (shuffled mean + ${q.shuffledK !== null ? fixed(q.shuffledK, 2) : DASH} sd, the same bound from its own seeds) - above needs the real mean past it as well as past the threshold.`
+          : 'Shuffled control under the old rule: the real mean against the shuffled mean itself.'}
+        {q.status === 'failed'
+          ? ` Failed: a comparison scored fewer than 2 seeds${scored ? ` (real ${scored.real ?? DASH}, null ${scored.null ?? DASH}, shuffled ${scored.shuffled ?? DASH} of ${q.seeds ?? DASH})` : ''}, so there is no band - the run's log says why.`
+          : ''}
       </p>
       <div className="lanes">
         <div className="lane axrow">
@@ -259,7 +327,11 @@ function Q2Section({ d }: { d: ControlsGameView }) {
               scale={scale}
               grid={ticks.map((t) => t.at)}
               spans={[{ from: l.mean !== null && l.sd !== null ? l.mean - l.sd : null, to: l.mean !== null && l.sd !== null ? l.mean + l.sd : null, kind: 'se' }]}
-              marks={[...l.values.map((v) => ({ at: v, kind: l.kind })), { at: threshold, kind: 'tick' as const }]}
+              marks={[
+                ...l.values.map((v) => ({ at: v, kind: l.kind })),
+                { at: threshold, kind: 'tick' as const },
+                ...(l.name === 'shuffled' ? [{ at: q.shuffledThreshold, kind: 'tickOwn' as const }] : []),
+              ]}
               label={`${l.name}: ${l.values.map((v) => fixed(v)).join(', ')}`}
             />
             <span className="val">
@@ -273,6 +345,7 @@ function Q2Section({ d }: { d: ControlsGameView }) {
           { mark: 'dot sm', label: 'one seed' },
           { mark: 'se', label: 'mean ± 1 sd' },
           { mark: 'tick', label: `threshold ${fixed(threshold)}` },
+          ...(q.shuffledThreshold !== null ? [{ mark: 'tick own', label: `shuffled bound ${fixed(q.shuffledThreshold)}` }] : []),
         ]}
       />
     </Section>
@@ -437,6 +510,7 @@ function RowsSection({ d }: { d: ControlsGameView }) {
                 ? ` · ${r.window + r.lockboxWithheld} backtested of ${r.requested} asked: the game is shorter and keeps its earliest ${units(d.unit)} as history`
                 : ` of ${r.requested ?? DASH} asked`}{' '}
               · reference {reference} · uniform log-score {signedFixed(r.uniform)} per {perUnit(d.unit)}
+              {r.frequency ? ` · frequencies: ${r.frequency.replace(/_/g, ' ')}` : ''}
               {r.hmmFeatures ? ` · HMM features ${r.hmmFeatures}` : ''} · {stamp(r.at)}
             </p>
             <Scroll>
@@ -449,6 +523,7 @@ function RowsSection({ d }: { d: ControlsGameView }) {
                       <Axis scale={scale} ticks={ticks} />
                     </th>
                     <th className="last-sm">vs uniform</th>
+                    <th className="hide-sm">vs frequencies</th>
                     <th className="hide-sm">Hit rates</th>
                   </tr>
                 </thead>
@@ -458,6 +533,7 @@ function RowsSection({ d }: { d: ControlsGameView }) {
                       <td className="w-name">
                         {short(x.row).replace(/_/g, ' ')}
                         {x.reference ? <span className="tag">reference</span> : null}
+                        {x.frequency ? <span className="tag">the frequencies</span> : null}
                         {x.kind ? <span className="tag">{ROW_KIND[x.kind] ?? x.kind}</span> : null}
                         <span className="sub">{x.logScore === null ? 'no log-score' : `log-score ${signedFixed(x.logScore)} ± ${fixed(x.se)}`}</span>
                         <span className="sub show-sm">
@@ -484,6 +560,15 @@ function RowsSection({ d }: { d: ControlsGameView }) {
                         {x.vsUniform ? (
                           <span className="sub">
                             {signedFixed(x.vsUniform.lo)} to {signedFixed(x.vsUniform.hi)} · {x.vsUniform.verdict}
+                          </span>
+                        ) : null}
+                        {x.vsFrequency ? <span className="sub show-sm">vs frequencies {signedFixed(x.vsFrequency.mean)} · {x.vsFrequency.verdict}</span> : null}
+                      </td>
+                      <td className="hide-sm">
+                        {x.vsFrequency ? signedFixed(x.vsFrequency.mean) : x.frequency ? <span className="mut">the frequencies</span> : DASH}
+                        {x.vsFrequency ? (
+                          <span className="sub">
+                            {signedFixed(x.vsFrequency.lo)} to {signedFixed(x.vsFrequency.hi)} · {x.vsFrequency.verdict}
                           </span>
                         ) : null}
                       </td>
@@ -530,10 +615,17 @@ function RowsSection({ d }: { d: ControlsGameView }) {
             <details className="help">
               <summary>How to read this table</summary>
               <p>
-              Mean log-score difference per {perUnit(d.unit)} against {reference} and against uniform, with a 95% interval: a row beats {reference} only when the
-              whole interval is above zero.{r.floor !== null ? ` A probability under ${r.floor} is scored as ${r.floor}.` : ''} Hit rates over the same{' '}
-              {units(d.unit)}: the exact bin, the bin or a neighbour, and the direction. Profit and loss is left out (price units). Market rows are the market
-              models, lottery rows the lottery models run on this market, baselines the random and frequency picks.
+              Mean log-score difference per {perUnit(d.unit)} against {reference}, against uniform and against the frequencies, with a 95% interval: a row
+              beats {reference} only when the whole interval is above zero.{r.floor !== null ? ` A probability under ${r.floor} is scored as ${r.floor}.` : ''} Hit
+              rates over the same {units(d.unit)}: the exact bin, the bin or a neighbour, and the direction. Profit and loss is left out (price units). Market
+              rows are the market models, lottery rows the lottery models run on this market, baselines the random and frequency picks.
+              </p>
+              <p>
+              In reports from 26 Oct 2026 on, the baselines are scored like every row: random gives every bin the same chance; column frequency gives each
+              instrument&apos;s bins a chance in proportion to how often they came up on the {units(d.unit)} before
+              {r.smoothing !== null ? `, counting ${r.smoothing} extra for every bin so that none is impossible` : ''}; global frequency does the same with
+              the counts of all instruments together. Beating uniform can be no more than knowing which bins the period favoured - the frequencies do that
+              without forecasting anything - so a row has shown something only when its interval against the frequencies (column frequency) is above zero too.
               </p>
               <p>
               The two ablation rows say what the Regime HMM&apos;s regimes are made of: if the full row is not better than ZeroMean, the regimes carry variance

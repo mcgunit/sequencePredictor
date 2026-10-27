@@ -8,11 +8,17 @@ the draws predicted AFTER the freeze, and the "since" ranking is exactly
 that: the same per-row aggregates, restricted to stored days on or after a
 declared date, ranked with the same metric and the same minimum-draws guard.
 Nothing is rebuilt or overwritten; the date is a filter over the days that
-were predicted before their draw - for a market game literally so: a day
-counts only if its ticket was out before the day's close
+were predicted before their draw - for a market game: a day counts only if
+its ticket was out before the day's close
 (Helpers._days_predicted_before_draw, on MarketSettle.ticket_times), which
 leaves out the back-built history the market games started with on 1 and
 5 Oct 2026 and any day a missed run rebuilt the morning after (14 Oct 2026).
+
+Since 27 Oct 2026 the days are the live record's (src/Liveness.py): a
+lottery row counts when its ticket was saved before the draw's sales close
+(a ticket rewritten after the draw as it stood at the close), the market
+games' days as above. Every lottery row of the since record from 27 Sep
+2026 was live; the newest back-built lottery draw is 10 Sep 2026.
 
 Declared by hand in since.json at the repository root - no file, no since
 ranking:
@@ -103,7 +109,10 @@ if __name__ == "__main__":
     os.rmdir(os.path.join(bad_root, FILE_NAME)); os.rmdir(bad_root)
     check(parse({"since": "2026-09-27", "label": ["a", "list"]})["label"] == "['a', 'list']", "a non-string label becomes text")
 
-    # The report itself: fake day files, one row scored on both sides of the date.
+    # The report itself: fake lotto day files (Wed and Sat draws), one row scored on both sides of the date. Each file
+    # carries the next draw's ticket (newPrediction) and its madeAt stamp, as Predictor writes them: the folder is no
+    # git checkout, so the stamps alone tell a live ticket (src/Liveness.py, "stamp only"; 27 Oct 2026 - unstamped,
+    # every row would be "unchecked"). The ticket for 7 Oct was stamped after that draw's 19:00 close: left out.
     import shutil
     import sys
     import tempfile
@@ -112,26 +121,41 @@ if __name__ == "__main__":
     root = tempfile.mkdtemp(prefix="since-")
     game_dir = os.path.join(root, "lotto")
     os.makedirs(game_dir)
-    days = [("2026-9-20", [1, 2, 3, 4, 5, 6, 7]), ("2026-9-26", [1, 2, 3, 4, 5, 6, 7]),
-            ("2026-9-27", [1, 2, 3, 4, 5, 6, 7]), ("2026-9-28", [1, 2, 3, 4, 5, 6, 7])]
-    for name, real in days:
-        # row A: 3 hits before the date, 6 after; row B: the reverse
-        after = name >= "2026-9-27"
-        a = [1, 2, 3, 40, 41, 42] if not after else [1, 2, 3, 4, 5, 6]
-        b = [1, 2, 3, 4, 5, 6] if not after else [1, 2, 3, 40, 41, 42]
+    # (day, the stamp of the file: when the next draw's ticket was made)
+    days = [("2026-9-23", "2026-09-24T08:00:00+00:00"), ("2026-9-26", "2026-09-27T08:00:00+00:00"),
+            ("2026-9-30", "2026-10-01T08:00:00+00:00"), ("2026-10-3", "2026-10-07T20:00:00+00:00"),
+            ("2026-10-7", "2026-10-08T08:00:00+00:00")]
+
+    def tickets(name):
+        # row A: 3 hits before the date, 6 after - and 0 on the late 7 Oct draw; row B: the reverse, 6 on 7 Oct
+        if name == "2026-10-7":
+            a, b = [40, 41, 42, 43, 44, 45], [1, 2, 3, 4, 5, 6]
+        elif _to_date(name) >= date(2026, 9, 27):
+            a, b = [1, 2, 3, 4, 5, 6], [1, 2, 3, 40, 41, 42]
+        else:
+            a, b = [1, 2, 3, 40, 41, 42], [1, 2, 3, 4, 5, 6]
+        return [{"name": "A Model", "predictions": [a]}, {"name": "B Model", "predictions": [b]}]
+
+    for index, (name, made) in enumerate(days):
+        following = days[index + 1][0] if index + 1 < len(days) else None
         with open(os.path.join(game_dir, f"{name}.json"), "w") as handle:
-            json.dump({"realResult": real, "currentPrediction": [{"name": "A Model", "predictions": [a]},
-                                                                {"name": "B Model", "predictions": [b]}]}, handle)
+            json.dump({"realResult": [1, 2, 3, 4, 5, 6, 7], "currentPrediction": tickets(name),
+                       "newPrediction": tickets(following) if following else [], "madeAt": made}, handle)
     Helpers().generate_model_performance_report(root, combinationShuffles=0, since=s)
     report = json.load(open(os.path.join(root, "modelPerformance.json")))
     lotto = report["games"]["lotto"]
-    check(lotto["bestModel"] in ("A Model", "B Model") and lotto["models"][0]["draws"] == 4, "all-history ranking unchanged")
+    check(lotto["bestModel"] in ("A Model", "B Model") and lotto["models"][0]["draws"] == 5, "all-history ranking unchanged")
     since_block = lotto.get("since")
     check(since_block and since_block["date"] == "2026-09-27" and since_block["label"] == "freeze", f"since block present: {since_block and list(since_block)}")
     check(since_block["models"][0]["name"] == "A Model" and since_block["models"][0]["draws"] == 2
-          and since_block["models"][0]["avg_hits"] == 6.0, f"since ranking counts only the days from the date: {since_block['models'][0]}")
+          and since_block["models"][0]["avg_hits"] == 6.0,
+          f"since ranking counts only the live days from the date - the late 7 Oct draw left out: {since_block['models'][0]}")
     check(since_block["minDrawsForRanking"] == 2 and since_block["metric"] == "avg_hits", "same guard and metric as the full ranking")
     check(report["since"] == {"date": "2026-09-27", "label": "freeze"}, "the declaration is recorded at report level")
+    check(lotto["liveness"]["checked"] == "stamp only" and all(m["live_draws"] == 3 and m["live"]["not_live"] == 2 for m in lotto["models"]),
+          f"live: the three stamped draws; not: the first (no ticket file before it) and the late one: {lotto['liveness']}")
+    check(lotto.get("rankedOn") == "live" and lotto["live"]["bestModel"] == "A Model" and lotto["bestModel"] == "A Model",
+          f"ranked on the live record: {lotto.get('rankedOn')} {lotto.get('live')}")
     Helpers().generate_model_performance_report(root, combinationShuffles=0, since=None)
     report = json.load(open(os.path.join(root, "modelPerformance.json")))
     check("since" not in report["games"]["lotto"] and "since" not in report, "no declaration, no block, no marker")
@@ -161,7 +185,7 @@ if __name__ == "__main__":
                        "currentPrediction": [{"name": "A Model", "predictions": [a]}, {"name": "B Model", "predictions": [b]}]}, handle)
     live = Helpers._days_predicted_before_draw("crypto", market_root)
     check(live == {"2026-10-01", "2026-10-02"}, f"the days whose ticket was out before the close: {sorted(live)}")
-    check(Helpers._days_predicted_before_draw("lotto", market_root) is None, "a lottery game has no such filter")
+    check(Helpers._days_predicted_before_draw("lotto", market_root) is None, "a lottery game is judged row by row (src/Liveness.py), not by the day")
     Helpers().generate_model_performance_report(market_root, combinationShuffles=0, since=parse({"since": "2026-09-01", "label": "freeze"}))
     report = json.load(open(os.path.join(market_root, "modelPerformance.json")))
     crypto = report["games"]["crypto"]

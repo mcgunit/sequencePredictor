@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { getAdminModels, type Combination, type ModelsGameSummary, type ModelsView } from '../../api';
-import { DASH, count, day, fixed, perUnit, short, signedFixed, stamp, weekday } from '../../format';
+import { DASH, count, day, fixed, perUnit, short, signedFixed, stamp } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useDrawerParam } from '../../hooks/useUrlState';
 import { Card, Scroll } from '../../components/admin/Card';
 import Chip from '../../components/admin/Chip';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 import ModelsDrawer, { LearningTag } from './ModelsDrawer';
-import { GameButton, GroupRow, isMarketGame, oneControlText, recordText, sinceValue, topWhose, valueCell } from './bits';
+import { GameButton, GroupRow, chanceLine, freshText, isMarketGame, pText, recordText, sinceValue, topWhose, valueCell } from './bits';
 
 // /admin/models: the Best model per game card of the old History page, one row per game, with its top five (a
 // lottery game's are the rows the users see today; a market game's users' page follows its best book); a game's drawer (?game=lotto) holds its whole ranking with the All / Top 5 switch, the lotto
@@ -54,16 +54,19 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
       flush
       help={
         <>
-          Best row: the first row of the game&apos;s History ranking over every scored draw, with its record (market games: the live days apart from the
-          back-built or late ones). Lotto, EuroMillions, EuroDreams, Vikinglotto and the market games rank on average hits; jokerplus, pick3 and keno on a capped
+          Best row: the first row of the game&apos;s History ranking, with its record: the live draws apart from the back-built or late ones. The lottery games
+          rank on the live record since 27 Oct 2026 (the owner&apos;s decision): only the tickets saved before each draw&apos;s sales close count, a ticket
+          rewritten after the draw as it stood at the close (&ldquo;as saved before the close&rdquo;), with every stored draw&apos;s value under the live one;
+          the market games rank on every scored draw. Lotto, EuroMillions, EuroDreams, Vikinglotto and the market games rank on average hits; jokerplus, pick3 and keno on a capped
           profit bound, the mean minus 1 SE per bet: keno&apos;s bound is measured against a fair ticket of its size (0 is a fair ticket, not money won), so the raw
           profit per bet stands under it. Keno is tuned by this bound; pick3 and jokerplus are tuned by slot hits, with the bound only a tie-breaker. Until 13 Oct
           2026 the payout games ranked on the raw profit per bet, on which one winning ticket could crown a row. Since: the best row of the forward record from
           the design freeze, the same ranking over the draws on or after the declared date, with its own minimum of draws (the date is a filter, nothing is
           rebuilt); &ldquo;no record since&rdquo; until a game&apos;s first draw on or after the date is scored, &ldquo;not declared&rdquo; until a date is set in
-          since.json. Q0 band: hits per draw on fair histories; a hit-ranked row within it is no better than the best of the control rows by chance, and for
-          the payout games it is information only. The band is not applied to Since: it is measured over long control histories, and the best of the rows
-          over a few draws clears it by luck. Top 5: for a lottery game the five rows a user sees today, the first five ranked rows in the newest day&apos;s table
+          since.json. Q0 chance (27 Oct 2026): the best row tested on its own live draws - lottery against what fair draws give its own tickets, markets
+          against its own tickets shuffled within blocks of 7 live days - with its hits per draw, live draws and null on the p&apos;s line, the p corrected
+          for the rows compared (Holm), how many of the game&apos;s rows are under 5% next to what chance puts there, and, for a followed row, its record on new
+          draws: only a row confirmed there has shown something. Nothing is greyed. For the payout games the test is on hits, information only. Top 5: for a lottery game the five rows a user sees today, the first five ranked rows in the newest day&apos;s table
           (a ranked row missing from it is passed over); for a market game the first five of its History game view, while the users&apos; Crypto and Shares pages
           follow the row named under them, by best book. No better than the frequencies (deep-learning rows, from 25 Oct 2026): on the newest day it ran, the
           row&apos;s validation loss did not get below that of the training split&apos;s frequencies per position by more than an output that ignores its input
@@ -81,7 +84,7 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
               <th>Best row</th>
               <th className="num last-sm">Value</th>
               <th className="hide-sm">Since {since ?? DASH}</th>
-              <th className="hide-sm last-1col">Q0 band</th>
+              <th className="hide-sm last-1col">Q0 chance</th>
               <th className="hide-1col">Top 5</th>
             </tr>
           </thead>
@@ -96,8 +99,6 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
   );
 }
 
-// a cell of a row greyed by the Q0 band that the band does not apply to (Since)
-const NOT_GREYED = { color: 'var(--fg)' };
 const KEEP_TOGETHER = { display: 'inline-flex', alignItems: 'center', maxWidth: '100%' };
 
 function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSummary[]; onOpen: (g: string) => void }) {
@@ -107,21 +108,29 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
       {games.map((g) => {
         const b = g.best;
         const v = b ? valueCell(g, b.value, b.profitPerBet, b.bets) : null;
+        // ranked on the live record: the value is the live one, every stored draw's under it
+        const allText = b && b.allValue !== null ? `live record · every ${perUnit(g.unit)} ${g.metric === 'avg_hits' ? fixed(b.allValue) : signedFixed(b.allValue)}` : '';
         const s = g.since;
         // a profit bound carries what it is measured against on its own line (keno: a fair ticket, not money won); no
         // since record at all means no date is declared in since.json
         const sinceText = !s ? 'not declared' : s.none || !s.best ? 'no record since' : `${short(s.best.row)} ${sinceValue(g, s.best.value)}`;
-        // the since record counts only live days in a market game (Since.py)
-        const sinceSub = s && s.best ? `${count(s.best.draws, g.unit)}${isMarketGame(g.game) ? ' live' : ''}${s.best.tooFew ? ' · too few' : ''} · ranked from ${count(s.minDraws, g.unit)}` : '';
-        const band = g.band;
-        const bandSub = band ? (band.greys ? (b?.inBand ? 'best row within the band' : 'best row above the band') : `on hits, information only · best row ${fixed(b?.avgHits)}`) : '';
-        // what the band is built on: the best of a few control rows on long fair histories, not this ranking
-        const bandBasis = band ? `best of ${band.rows ?? DASH} rows · fair histories of ${count(band.history, g.unit)}` : '';
-        const grey = Boolean(band?.greys && b?.inBand);
+        // the since record counts only live draws: a market game's days, a lottery game's tickets saved before the close (Since.py)
+        const liveSince = isMarketGame(g.game) || g.rankedOn === 'live';
+        const sinceSub = s && s.best ? `${count(s.best.draws, g.unit)}${liveSince ? ' live' : ''}${s.best.tooFew ? ' · too few' : ''} · ranked from ${count(s.minDraws, g.unit)}` : '';
+        // the best row's Q0 test: its p with its own figures, the card's count against chance, a followed row's new draws
+        const t = g.chance.test;
+        const c = b?.chance ?? null;
+        const tested = Boolean(t && c && c.inFamily && c.p !== null);
+        const notTested = !t
+          ? `no row test: ${g.chance.error ?? 'not in the report'}`
+          : !tested
+            ? `not tested: ${c ? c.live : 0} of ${count(t.minDraws, g.unit)} live`
+            : '';
+        const cardText = t && t.family ? `${t.under} of ${t.family} rows under 5% · ≈${fixed(t.expected, 1)} by chance` : '';
         // the top five rows whose newest learning check reads no better than the frequencies
         const flagged = g.top.filter((n) => g.learning[n]?.verdict === 'counts-only');
         return (
-          <tr key={g.game} className={grey ? 'grey' : undefined}>
+          <tr key={g.game}>
             <td className="sym">
               <GameButton game={g.game} onOpen={onOpen} />
               <span className="sub">{g.metric === 'avg_hits' ? 'average hits' : 'profit bound'}</span>
@@ -135,17 +144,15 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
                   <Chip kind="dim">short record</Chip>
                 </>
               ) : null}
-              {b ? <span className="sub">{recordText(b.draws, g.unit, b.live)}</span> : null}
+              {b ? <span className="sub">{recordText(b.draws, g.unit, b.live, b.recovered)}</span> : null}
               <span className="sub show-sm">
                 since: {sinceText}
                 {sinceSub ? ` (${sinceSub})` : ''}
               </span>
-              {band ? (
-                <span className="sub show-sm">
-                  band {fixed(band.ceiling)} · {bandSub} · {bandBasis} · {oneControlText(band) ? `${oneControlText(band)} · ` : ''}
-                  {weekday(band.at)}
-                </span>
-              ) : null}
+              <span className="sub show-sm">
+                Q0: {tested && c && t ? chanceLine(c, g.unit, t.method, false) : notTested}
+                {!g.chance.inTile ? ' · on hits, information only' : ''}
+              </span>
               <span className="sub show-1col">
                 top 5: {g.top.map(short).join(', ') || DASH} ({topWhose(g)})
                 {flagged.length ? ` · no better than the frequencies: ${flagged.map(short).join(', ')}` : ''}
@@ -158,25 +165,27 @@ function BestGroup({ name, games, onOpen }: { name: string; games: ModelsGameSum
                   {x}
                 </span>
               ))}
+              {allText ? <span className="sub">{allText}</span> : null}
             </td>
-            {/* the band is not applied to Since, so a row greyed by the band leaves this cell in plain colour */}
-            <td className="hide-sm" style={grey ? NOT_GREYED : undefined}>
+            <td className="hide-sm">
               {sinceText}
               {sinceSub ? <span className="sub">{sinceSub}</span> : null}
             </td>
             <td className="hide-sm last-1col">
-              {band ? (
+              {tested && c && t ? (
                 <>
-                  <b>{fixed(band.ceiling)}</b> <span className="mut">hits per {perUnit(g.unit)}</span>
-                  <span className="sub">{bandSub}</span>
-                  <span className="sub">{bandBasis}</span>
+                  <b>p {pText(c.p)}</b> <span className="mut">alone</span>
+                  <span className="sub">{chanceLine(c, g.unit, t.method, false)}</span>
                   <span className="sub">
-                    {oneControlText(band) || band.from} · {weekday(band.at)}
+                    {c.pHolm !== null && c.pHolm < t.alpha ? 'holds' : 'does not hold'} after the correction for the {t.family} rows compared
                   </span>
                 </>
               ) : (
-                <span className="mut">no band yet</span>
+                <span className="mut">{notTested}</span>
               )}
+              {cardText ? <span className="sub">{cardText}</span> : null}
+              {c?.fresh && t ? <span className="sub">{freshText(c.fresh, g.unit, t.method, t.verdictAlpha)}</span> : null}
+              {!g.chance.inTile && t ? <span className="sub">on hits, information only</span> : null}
             </td>
             <td className="hide-1col">
               <span className="chips">

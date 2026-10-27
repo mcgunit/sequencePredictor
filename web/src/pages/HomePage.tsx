@@ -110,7 +110,7 @@ function GameLine({ g }: { g: HomeGame }) {
     : l.leftOut
       ? `last draw ${day(l.date)}: left out, ${userText(l.leftOut)}`
       : l.figures
-        ? `last draw ${day(l.date)}: ${figureText(g.shape, l.figures, `the ${l.figures.rows} ranked best before it`)}`
+        ? `last draw ${day(l.date)}: ${figureText(g.shape, l.figures, `the ${l.figures.rows} ranked best before it`)}${l.afterClose ? ' (not counted: tickets made after the sales close)' : ''}`
         : `last draw ${day(l.date)}: no top 5${l.none ? ` (${prettyDates(l.none.text)})` : ''}`;
   return (
     <div className="hgame">

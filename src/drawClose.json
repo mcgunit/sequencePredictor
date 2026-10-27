@@ -1,0 +1,22 @@
+{
+  "about": "The sales close of every lottery draw, per game and weekday, as Brussels wall time (src/Liveness.py close_instant turns it into an instant, DST included; draws.js and rankhistory.js read the same file). A ticket saved after its draw's close could not have been played: the report counts it out of the live record (Helpers.generate_model_performance_report, 27 Oct 2026).",
+  "timezone": "Europe/Brussels",
+  "source": "The National Lottery's draw API (natlot): a draw's drawTime is its sales close - closeTime equals drawTime and wagers stop 1 second before it (wagerCloseTime = drawTime - 1 s); the results follow 17-100 minutes later.",
+  "checked": {
+    "overAYear": {"games": ["lotto", "eurodreams", "keno", "pick3"], "from": "2025-10-01", "to": "2026-10-26",
+                  "draws": {"lotto": 112, "eurodreams": 112, "keno": 391, "pick3": 391},
+                  "result": "every draw on its weekday's time below (re-checked 27 Oct 2026)"},
+    "sixWeeksOnly": {"games": ["euromillions", "vikinglotto", "jokerplus"], "from": "2026-09-17", "to": "2026-10-26",
+                     "draws": {"euromillions": 11, "vikinglotto": 5, "jokerplus": 40},
+                     "result": "every draw on its weekday's time below; the API answered a longer range for these three with an HTML page, so check them again over a year when it answers"}
+  },
+  "games": {
+    "lotto": {"Wed": "19:00", "Sat": "19:00"},
+    "vikinglotto": {"Wed": "18:00"},
+    "euromillions": {"Tue": "20:00", "Fri": "20:00"},
+    "eurodreams": {"Mon": "20:00", "Thu": "20:00"},
+    "keno": {"Mon": "20:00", "Tue": "20:00", "Wed": "19:00", "Thu": "20:00", "Fri": "20:00", "Sat": "19:00", "Sun": "13:00"},
+    "pick3": {"Mon": "20:00", "Tue": "20:00", "Wed": "19:00", "Thu": "20:00", "Fri": "20:00", "Sat": "19:00", "Sun": "13:00"},
+    "jokerplus": {"Mon": "20:00", "Tue": "20:00", "Wed": "19:00", "Thu": "20:00", "Fri": "20:00", "Sat": "19:00", "Sun": "13:00"}
+  }
+}

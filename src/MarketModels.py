@@ -412,6 +412,28 @@ class GarchModel:
 # A Gaussian hidden Markov model, EM written out
 # ---------------------------------------------------------------------------
 
+# The smallest normal double. A scaled forward/backward normaliser below it has
+# lost the step to underflow (0, or a denormal with too few bits left), and the
+# pass is redone in log space - see GaussianHMM._forward.
+_TINY = np.finfo(float).tiny
+
+
+def _logsumexp(a, axis=None, keepdims=False):
+    """
+    log(sum(exp(a))) along `axis`, shifted by the slice maximum so nothing
+    over- or underflows; a slice that is all -inf (no state can get there)
+    gives -inf, not NaN. numpy only: scipy.special.logsumexp costs ~90 us a
+    call, five times this, and the log-space passes call it twice a step.
+    """
+    m = np.max(a, axis=axis, keepdims=True)
+    m[~np.isfinite(m)] = 0.0
+    with np.errstate(divide="ignore"):
+        out = np.log(np.exp(a - m).sum(axis=axis, keepdims=True)) + m
+    if keepdims:
+        return out
+    return float(out.ravel()[0]) if axis is None else out.squeeze(axis=axis)
+
+
 def _log_gaussian(X, mean, cov):
     """log N(x; mean, cov) for every row of X; jitter added until the Cholesky factor exists."""
     d = X.shape[1]
@@ -436,6 +458,27 @@ class GaussianHMM:
     forward-backward passes. Optional constraints, applied exactly in the
     M-step: `zero_mean_dims` keeps those coordinates' means at zero and
     `block` = (dims_a, dims_b) zeroes the covariance between the two groups.
+
+    A scaled pass that underflows is redone in log space (26 Oct 2026). The
+    emissions are scaled by the row's best state before exp, and a scaled
+    posterior holds nothing below the smallest normal double (~1e-308): it
+    becomes exactly 0. On a short window in many dimensions EM can end with
+    an absorbing regime while the other regimes' filtered probabilities sit
+    hundreds of nats below it - in the 10 Oct cryptoweek tuning study (trial
+    6, K=4) at -891 to -1058 nats when the training slice ended - so
+    select_regimes' validation pass started one-hot on the absorbing regime,
+    and the first week 750-1215 nats less likely under it than under the
+    best regime summed the scaled step to 0: 0/0, then math.log(0), and the
+    ValueError dropped K=4 from the comparison instead of scoring it. Two of
+    the 18 Oct week-game null controls hit the same; in a forecast's own fit
+    it would have errored the day out of the tuner's objective. In log space
+    the step's normaliser is always finite. _forward (the filter and the
+    validation score) also redoes a pass that flushed a state the chain can
+    reach (_flushed), and select_regimes scores the validation slice inside
+    one pass, so nothing is cut off at the boundary (review, 26 Oct 2026):
+    trial 6's K=4 scores -4047 nats there, not -79627. Ordinary inputs never
+    reach the log-space path and stay bit-identical; the passes that do on
+    the served fits agree with the scaled numbers to ~1e-12.
     """
 
     def __init__(self, n_states, n_iter=100, tol=1e-5, min_covar=1e-4, shrinkage=0.1, zero_mean_dims=None, block=None, seed=0):
@@ -457,7 +500,42 @@ class GaussianHMM:
         return np.column_stack([_log_gaussian(X, self.means[k], self.covars[k]) for k in range(self.K)])
 
     def _forward(self, logB, start=None):
-        """Scaled forward pass: (filtered posteriors T x K, per-step log normalisers)."""
+        """Forward pass: (filtered posteriors T x K, per-step log normalisers) - scaled, or in log space where scaling underflows or flushed a reachable state."""
+        scaled = self._forward_scaled(logB, start)
+        if scaled is not None and not self._flushed(scaled[0], self.startprob if start is None else start):
+            return scaled
+        log_alpha, logc = self._forward_log(logB, start)
+        return np.exp(log_alpha), logc
+
+    def _flushed(self, alpha, start):
+        """
+        True when a scaled forward pass flushed a state the chain can reach:
+        one the start's support leads to through positive transitions - its
+        filtered probability is positive however small - came out below the
+        smallest normal double. The pass has then lost it for good, and rows
+        that later favour it go unnoticed while every normaliser stays a
+        normal double: the 10 Oct trial 6 window (skipRows 35-54, K=4) scored
+        its validation slice 4539 nats too low that way, a regime at ~1e-385
+        after the 1e-144 transition into it, then favoured by ~120 nats a
+        week (review, 26 Oct 2026). Only _forward checks it: in EM's E-step
+        the same flush fires on 2-5% of the served fits' E-steps (63% on
+        trial 6), was harmless in every one sampled, and would send them all
+        to the slower log-space pass.
+        """
+        small = alpha < _TINY
+        if not small.any():
+            return False
+        step = self.transmat > 0
+        support = np.asarray(start, dtype=float) > 0
+        for t in range(len(alpha)):
+            if t:
+                support = support @ step
+            if (small[t] & support).any():
+                return True
+        return False
+
+    def _forward_scaled(self, logB, start=None):
+        """The scaled forward pass; None as soon as a step's normaliser underflows (the caller redoes the pass in log space)."""
         T, K = logB.shape
         shift = logB.max(axis=1)
         B = np.exp(logB - shift[:, None])
@@ -465,17 +543,48 @@ class GaussianHMM:
         logc = np.empty(T)
         a = (self.startprob if start is None else start) * B[0]
         c = a.sum()
+        if not c >= _TINY:       # also catches NaN
+            return None
         alpha[0] = a / c
         logc[0] = math.log(c) + shift[0]
         A = self.transmat
         for t in range(1, T):
             a = (alpha[t - 1] @ A) * B[t]
             c = a.sum()
+            if not c >= _TINY:
+                return None
             alpha[t] = a / c
             logc[t] = math.log(c) + shift[t]
         return alpha, logc
 
-    def _backward(self, logB):
+    def _forward_log(self, logB, start=None):
+        """
+        The forward pass in log space: (log filtered posteriors T x K, per-step
+        log normalisers), the normaliser logsumexp(log(alpha[t-1] @ A) + logB[t])
+        done per state so a regime with a posterior far below double range
+        keeps it. Finite whenever the emissions are: the predicted state
+        distribution sums to one, so some state always carries mass. A
+        non-finite emission or an empty start raises ValueError (what a
+        failed fit raises), never NaN.
+        """
+        T, K = logB.shape
+        with np.errstate(divide="ignore"):
+            logA = np.log(self.transmat)
+            log_pred = np.log(np.asarray(self.startprob if start is None else start, dtype=float))
+        log_alpha = np.empty((T, K))
+        logc = np.empty(T)
+        for t in range(T):
+            if t:
+                log_pred = _logsumexp(log_alpha[t - 1][:, None] + logA, axis=0)
+            la = log_pred + logB[t]
+            logc[t] = _logsumexp(la)
+            if not math.isfinite(logc[t]):
+                raise ValueError(f"HMM forward pass: no state can emit row {t} (non-finite emission or start)")
+            log_alpha[t] = la - logc[t]
+        return log_alpha, logc
+
+    def _backward_scaled(self, logB):
+        """The scaled backward pass: (beta T x K, rows normalised; the shifted emissions B); beta None when a step underflows."""
         T, K = logB.shape
         B = np.exp(logB - logB.max(axis=1)[:, None])
         beta = np.empty((T, K))
@@ -483,8 +592,74 @@ class GaussianHMM:
         A = self.transmat
         for t in range(T - 2, -1, -1):
             b = A @ (B[t + 1] * beta[t + 1])
-            beta[t] = b / b.sum()
+            s = b.sum()
+            if not s >= _TINY:
+                return None, B
+            beta[t] = b / s
         return beta, B
+
+    def _backward_log(self, logB):
+        """
+        The backward pass in log space, each row normalised like the scaled
+        one's. Finite everywhere whenever the emissions are: the last row is
+        log 1 = 0 and every row of the transition matrix sums to one, so
+        each state reaches some state with a finite log beta at every step.
+        """
+        T, K = logB.shape
+        with np.errstate(divide="ignore"):
+            logA = np.log(self.transmat)
+        log_beta = np.zeros((T, K))
+        for t in range(T - 2, -1, -1):
+            lb = _logsumexp(logA + (logB[t + 1] + log_beta[t + 1])[None, :], axis=1)
+            log_beta[t] = lb - _logsumexp(lb)
+        return log_beta
+
+    def _expectations(self, logB):
+        """
+        The E-step: (state posteriors T x K, expected transition counts K x K -
+        None for one state -, log likelihood). The scaled passes, exactly as
+        before 26 Oct 2026, whenever every normaliser they divide by is a
+        normal double and the counts come out finite; otherwise the same
+        three quantities from the log-space passes (_expectations_log).
+        """
+        scaled = self._forward_scaled(logB)
+        if scaled is None:
+            return self._expectations_log(logB)
+        alpha, logc = scaled
+        beta, B = self._backward_scaled(logB)
+        if beta is None:
+            return self._expectations_log(logB)
+        gamma = alpha * beta
+        occupancy = gamma.sum(axis=1, keepdims=True)
+        if not occupancy.min() >= _TINY:
+            return self._expectations_log(logB)
+        gamma /= occupancy
+        xi = None
+        if self.K > 1:
+            w = B[1:] * beta[1:]
+            norm = np.einsum("ti,ij,tj->t", alpha[:-1], self.transmat, w)
+            if not norm.min() >= _TINY:
+                return self._expectations_log(logB)
+            with np.errstate(over="ignore", invalid="ignore"):
+                xi = self.transmat * ((alpha[:-1] / norm[:, None]).T @ w)
+            if not np.isfinite(xi).all():     # T terms of up to 1/norm each can still overflow
+                return self._expectations_log(logB)
+        return gamma, xi, float(logc.sum())
+
+    def _expectations_log(self, logB):
+        """The E-step from the log-space passes: posteriors and transition counts normalised per step by logsumexp."""
+        log_alpha, logc = self._forward_log(logB)
+        log_beta = self._backward_log(logB)
+        log_gamma = log_alpha + log_beta
+        gamma = np.exp(log_gamma - _logsumexp(log_gamma, axis=1, keepdims=True))
+        xi = None
+        if self.K > 1:
+            with np.errstate(divide="ignore"):
+                logA = np.log(self.transmat)
+            log_xi = log_alpha[:-1, :, None] + logA[None, :, :] + (logB[1:] + log_beta[1:])[:, None, :]
+            log_xi -= _logsumexp(log_xi, axis=(1, 2), keepdims=True)
+            xi = np.exp(log_xi).sum(axis=0)
+        return gamma, xi, float(logc.sum())
 
     def _constrain(self):
         if self.zero_mean_dims:
@@ -544,16 +719,9 @@ class GaussianHMM:
         self.converged = False
         for iteration in range(1, self.n_iter + 1):
             logB = self._emission(X)
-            alpha, logc = self._forward(logB)
-            beta, B = self._backward(logB)
-            gamma = alpha * beta
-            gamma /= gamma.sum(axis=1, keepdims=True)
-            loglik = float(logc.sum())
+            gamma, xi, loglik = self._expectations(logB)
             # M-step
             if self.K > 1:
-                w = B[1:] * beta[1:]
-                norm = np.einsum("ti,ij,tj->t", alpha[:-1], self.transmat, w)
-                xi = self.transmat * ((alpha[:-1] / norm[:, None]).T @ w)
                 rows = xi.sum(axis=1, keepdims=True)
                 self.transmat = np.where(rows > 0, xi / np.where(rows > 0, rows, 1.0), 1.0 / self.K)
             self.startprob = np.clip(gamma[0], 1e-12, None)
@@ -592,7 +760,12 @@ class GaussianHMM:
         return alpha[-1], float(logc.sum())
 
     def predictive_loglik(self, X_new, start):
-        """One-step-ahead predictive log likelihood of X_new, continuing from a state distribution `start` (already propagated)."""
+        """
+        One-step-ahead predictive log likelihood of X_new, continuing from a
+        state distribution `start` (already propagated). A start built from
+        filter()'s posterior has lost every state below ~1e-308; that is why
+        select_regimes scores its validation slice inside one pass instead.
+        """
         _, logc = self._forward(self._emission(np.asarray(X_new, dtype=float)), start=start)
         return float(logc.sum())
 
@@ -812,13 +985,22 @@ class RegimeHmmModel:
         V = min(self.validation, T // 3)
         if lo >= hi or T - V < 60 or V < 20:
             return lo, {}
-        train, valid = Z[:T - V], Z[T - V:]
+        train = Z[:T - V]
         scores = {}
         for K in range(lo, hi + 1):
             try:
                 hmm = self._fit(train, K, return_dims, feature_dims, restarts=1)
-                last, _ = hmm.filter(train)
-                predictive = hmm.predictive_loglik(valid, start=last @ hmm.transmat)
+                # The validation rows' one-step-ahead log likelihoods are their
+                # normalisers in one forward pass over training and validation
+                # rows together (review, 26 Oct 2026). Filtering the training
+                # slice and continuing from last @ A, as until then, cut every
+                # regime below ~1e-308 to exactly 0 at the boundary: trial 6's
+                # K=4 had three at -891 to -1058 nats there and scored -79627
+                # nats instead of -4047. The same numbers otherwise - the
+                # emissions are row by row and the recursion is the same; a
+                # pass _flushed sends to log space moves them by ~1e-12.
+                _, logc = hmm._forward(hmm._emission(Z))
+                predictive = float(logc[T - V:].sum())
                 scores[K] = {"predictive": predictive, "params": hmm.n_params(), "score": predictive - self.penalty * hmm.n_params()}
             except (ValueError, np.linalg.LinAlgError):
                 continue
@@ -850,7 +1032,20 @@ class RegimeHmmModel:
         last, loglik = hmm.filter(Z)
         weights = last @ hmm.transmat
         f = (next_features - centre[feature_dims]) / scale[feature_dims] if feature_dims else np.zeros(0)
-        locs, sds, log_w = [], [], np.log(np.clip(weights, 1e-300, None))
+        # The exact log of the predicted regime weights (26 Oct 2026): a regime
+        # the fitted chain cannot reach tomorrow (no positive transition into
+        # it from a regime it may be in today) has weight 0 and stays at -inf.
+        # The 1e-300 floor this replaces put it at -691 nats, so next-day
+        # features 700+ nats likelier under it than under the reachable
+        # regimes would have handed the mixture to a regime the model calls
+        # impossible. A weight also reads 0 when it is merely below ~1e-308
+        # (filter() cuts its posterior off there): -inf then understates it
+        # where the floor overstated it, and only next-day features ~700+
+        # nats apart tell the two apart. The weights sum to one, so one is
+        # positive and the shift below stays finite.
+        with np.errstate(divide="ignore"):
+            log_w = np.log(weights)
+        locs, sds = [], []
         for k in range(K):
             mu, cov = hmm.means[k], hmm.covars[k]
             if feature_dims:
@@ -1046,6 +1241,7 @@ def build_market_models(dataPath, bestParams=None, state_dir=None, regime_log=No
 
 def _self_check():
     import tempfile
+    import warnings
     try:
         from src.MarketGame import cut_game, write_game_csv, write_returns_file
     except ImportError:
@@ -1151,6 +1347,120 @@ def _self_check():
     assert np.array_equal(free.covars[0], free.covars[1]), "a start with free means must stay the shared global covariance"
     print(f"HMM zero-mean on returns only: variance regimes decoded at {accuracy_v:.1%}, row K={variance_fc['K']} "
           f"weights {np.round(variance_fc['weights'], 3).tolist()} (not uniform); free-mean starts unchanged")
+
+    # 4c. The 0/0 of the 10 Oct tuning study and the 18 Oct week-game controls
+    # (26 Oct 2026): a fitted chain sitting in an absorbing regime meets a row
+    # ~1250 nats likelier under a regime it can no longer reach (there the
+    # start was one-hot because the other regimes had been cut off at double
+    # range, see GaussianHMM). The scaled step summed to 0 (RuntimeWarning),
+    # math.log(0) raised, and select_regimes dropped that K instead of
+    # scoring it. The step now runs in log space and gives the closed form,
+    # without a warning.
+    trap = GaussianHMM(2)
+    trap.startprob = np.array([0.5, 0.5])
+    trap.transmat = np.array([[0.9, 0.1], [0.0, 1.0]])     # regime 1 absorbing: EM keeps a 0 at 0
+    trap.means = np.array([[0.0], [50.0]])
+    trap.covars = np.array([[[1.0]], [[1.0]]])
+    sitting = np.array([0.0, 1.0])
+    assert trap._forward_scaled(trap._emission(np.array([[50.0], [0.0]])), start=sitting) is None, "the trap must underflow the scaled step"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        predictive = trap.predictive_loglik(np.array([[50.0], [0.0], [50.0]]), start=sitting)
+        filtered, _ = trap.filter(np.array([[0.0], [0.0], [50.0], [50.0], [0.0]]))
+    exact = -1.5 * math.log(2 * math.pi) - 0.5 * 50.0 ** 2       # three rows in regime 1, one of them 50 sd out
+    assert abs(predictive - exact) < 1e-9, (predictive, exact)
+    assert np.isfinite(filtered).all() and abs(filtered.sum() - 1) < 1e-12 and filtered[1] > 0.999, filtered
+    # The E-step on the same trap against brute force over all 2^5 state paths:
+    # posteriors, expected transition counts and the log likelihood exact.
+    X_trap = np.array([[0.0], [0.3], [50.0], [49.0], [0.0]])
+    logB_trap = trap._emission(X_trap)
+    assert trap._forward_scaled(logB_trap) is None
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        gamma_t, xi_t, loglik_t = trap._expectations(logB_trap)
+    with np.errstate(divide="ignore"):
+        log_start, log_A = np.log(trap.startprob), np.log(trap.transmat)
+    paths = np.array(np.meshgrid(*[[0, 1]] * len(X_trap), indexing="ij")).reshape(len(X_trap), -1).T
+    log_paths = np.array([log_start[p[0]] + sum(log_A[p[t - 1], p[t]] for t in range(1, len(p)))
+                          + sum(logB_trap[t, p[t]] for t in range(len(p))) for p in paths])
+    log_total = _logsumexp(log_paths)
+    weight = np.exp(log_paths - log_total)
+    gamma_bf = np.array([[weight[paths[:, t] == k].sum() for k in range(2)] for t in range(len(X_trap))])
+    xi_bf = np.array([[sum(weight[(paths[:, t] == i) & (paths[:, t + 1] == j)].sum() for t in range(len(X_trap) - 1))
+                       for j in range(2)] for i in range(2)])
+    assert abs(loglik_t - log_total) < 1e-9 and np.allclose(gamma_t, gamma_bf, atol=1e-12) and np.allclose(xi_t, xi_bf, atol=1e-12), \
+        (loglik_t, log_total, gamma_t, gamma_bf, xi_t, xi_bf)
+    # A pass that loses a regime it can reach with no normaliser underflowing
+    # (review, 26 Oct 2026): regimes 0 and 2 absorbing, a row 2000 nats
+    # against regime 2, then rows 200 nats a row in its favour. Every scaled
+    # step's normaliser is e^-200, a normal double, yet the scaled pass has
+    # flushed regime 2 and scores only regime 0's path; _forward redoes it
+    # in log space and gives the two-path closed form.
+    flush = GaussianHMM(3)
+    flush.startprob = np.array([0.5, 0.0, 0.5])
+    flush.transmat = np.array([[1.0, 0.0, 0.0], [1 / 3, 1 / 3, 1 / 3], [0.0, 0.0, 1.0]])
+    flush.means = np.array([[0.0], [40.0], [-40.0]])
+    flush.covars = np.ones((3, 1, 1))
+    logB_flush = flush._emission(np.array([[30.0]] + [[-25.0]] * 14))
+    scaled_flush = flush._forward_scaled(logB_flush)
+    assert scaled_flush is not None and flush._flushed(scaled_flush[0], flush.startprob), "the scaled pass must flush regime 2 without underflowing"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _, logc_flush = flush._forward(logB_flush)
+    two_paths = _logsumexp(math.log(0.5) + logB_flush[:, [0, 2]].sum(axis=0))
+    assert abs(logc_flush.sum() - two_paths) < 1e-9 and two_paths - scaled_flush[1].sum() > 700, (logc_flush.sum(), two_paths, scaled_flush[1].sum())
+    # ...and select_regimes scores its validation slice inside one pass: 59
+    # rows neutral between regimes 0 and 2, the 2000-nat row ending the
+    # training slice, 20 validation rows for regime 2. Filtering the training
+    # rows and continuing from last @ A (until 26 Oct) cut regime 2 off at
+    # the boundary and scored the slice ~2000 nats too low.
+    picker = RegimeHmmModel(variant="full", regimes=(2, 3), features=("returns",), validation=20, penalty=0.0)
+    picker._fit = lambda *args, **kwargs: flush
+    Z_pick = np.array([[-20.0]] * 59 + [[30.0]] + [[-25.0]] * 20)
+    logB_pick = flush._emission(Z_pick)
+    exact_pick = (_logsumexp(math.log(0.5) + logB_pick[:, [0, 2]].sum(axis=0))
+                  - _logsumexp(math.log(0.5) + logB_pick[:60][:, [0, 2]].sum(axis=0)))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _, pick_scores = picker.select_regimes(Z_pick, [0], [])
+        handoff = flush.predictive_loglik(Z_pick[60:], start=flush.filter(Z_pick[:60])[0] @ flush.transmat)
+    assert abs(pick_scores[2]["predictive"] - exact_pick) < 1e-9 and exact_pick - handoff > 1500, (pick_scores, exact_pick, handoff)
+    # The row's mixture keeps a regime the chain cannot reach at weight 0: the
+    # fit is stuck in absorbing regime 1, and tomorrow's known momentum sits
+    # ~1000 nats out under it - the old 1e-300 floor handed the whole mixture
+    # to regime 0. The filter's pass over the history underflows too.
+    stuck = RegimeHmmModel(variant="full", regimes=(2, 2), features=("returns", "mom"), mom_lookback=5)
+    hist = np.random.default_rng(26).standard_normal((200, 1)) * 0.02     # own stream, like 3b
+    X_s, next_s, _, rd_s, fd_s = build_features(hist, stuck.features, stuck.vol_lookback, stuck.mom_lookback)
+    _, centre_s, scale_s = stuck._standardise(X_s, rd_s)
+    f_s = float((next_s[0] - centre_s[fd_s[0]]) / scale_s[fd_s[0]])
+    stuck_hmm = GaussianHMM(2)
+    stuck_hmm.startprob, stuck_hmm.transmat = np.array([0.0, 1.0]), np.array([[0.5, 0.5], [0.0, 1.0]])
+    stuck_hmm.means = np.array([[0.0, f_s], [0.0, f_s + 1.0]])
+    stuck_hmm.covars = np.array([np.eye(2), np.diag([1.0, 5e-4])])
+    stuck._fit = lambda *args, **kwargs: stuck_hmm
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        stuck_fc = stuck.forecast(hist)
+        stuck_probs = stuck.bin_probabilities(hist)
+    assert stuck_fc["weights"].tolist() == [0.0, 1.0], stuck_fc["weights"]
+    assert np.isfinite(stuck_probs).all() and abs(stuck_probs.sum() - 1) < 1e-9, stuck_probs
+    # Ordinary inputs never reach the log-space path (their numbers are the
+    # scaled passes', as before), and the two paths agree on them.
+    logB_ok = hmm._emission(X)
+    assert hmm._forward_scaled(logB_ok) is not None and hmm._backward_scaled(logB_ok)[0] is not None
+    assert not hmm._flushed(hmm._forward_scaled(logB_ok)[0], hmm.startprob)
+    gamma_s, xi_s, loglik_s = hmm._expectations(logB_ok)
+    gamma_l, xi_l, loglik_l = hmm._expectations_log(logB_ok)
+    alpha_s, logc_s = hmm._forward(logB_ok)
+    log_alpha_l, logc_l = hmm._forward_log(logB_ok)
+    gaps = (np.abs(gamma_s - gamma_l).max(), np.abs(xi_s - xi_l).max() / xi_s.max(), abs(loglik_s - loglik_l) / abs(loglik_s),
+            np.abs(alpha_s - np.exp(log_alpha_l)).max(), np.abs(logc_s - logc_l).max())
+    assert max(gaps) < 1e-10, gaps
+    print(f"HMM underflow: an absorbing regime meeting a row 50 sd out scores {predictive:.1f} nats (closed form {exact:.1f}) "
+          f"instead of 0/0; the E-step matches brute force over 32 paths; a pass that flushed a reachable regime and the "
+          f"validation score are exact ({pick_scores[2]['predictive']:.0f} nats, the old handoff {handoff:.0f}); an unreachable "
+          f"regime keeps weight 0 in the mixture; on ordinary rows the log-space passes agree with the scaled ones to {max(gaps):.0e}")
 
     # 5. Conditional Gaussian against a brute-force sample.
     Sigma = np.array([[1.0, 0.6, 0.2], [0.6, 1.0, 0.1], [0.2, 0.1, 1.0]])

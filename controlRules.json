@@ -1,0 +1,6 @@
+{
+  "q2": {
+    "few_windows": 250,
+    "about": "Q2 (RandomnessDiscrimination.py): a record with fewer held-out windows than this (test windows, both classes together) reads 'too few draws'. Set by the history's length, --draws and --window before any classifier runs, never by an AUC: under it the fair-vs-fair band is too wide to show anything. Read by RandomnessDiscrimination.py and controls.js (the admin pages through admin.js); every record from the 1 Nov 2026 run on stores the value it was judged by (verdict.few_windows), so changing this never re-labels one of those silently; an older record (verdict version 1, which stores none) is read by the value here. Since 27 Oct 2026."
+  }
+}

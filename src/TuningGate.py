@@ -23,6 +23,15 @@ its parameters stayed. Two things change here:
      parameters scored 0.77 against the code default's 0.82) - a gate that
      only ever writes challengers would have kept serving the worse set.
 
+The challenger's margin is taken in standard errors of its own score
+(se_margin) by every tuner since 27 Oct 2026, the statistical and RL ones
+included: on games no parameter can predict, a run's best of 15 trials sits
+above the references by selection alone (the statistical tuner replaced 30
+of 73 rows on 24 Oct, every one by less than one standard error). The revert
+has a margin of its own (revert_margin): the untuned default is not picked
+from trials, so where the tuner says so it is served back whenever it scores
+above the incumbent, without the challenger's margin.
+
 The references are scored by the strategy's own Optuna objective driven by an
 optuna.trial.FixedTrial, so the incumbent goes through exactly the code that
 scored the trials (same model configuration, subsets, timeout and
@@ -202,7 +211,8 @@ def _scored(result):
 
 
 def challenge(study, known_numbers, objective, served, defaults, timeout_seconds, label,
-              margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0, tuner=None):
+              margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0, tuner=None,
+              lockbox_withheld=None, revert_margin=None):
     """
     Runs the gate for one strategy after its study was optimised.
 
@@ -221,18 +231,45 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      outside keno (whose scores moved to the fair-ticket scale
                      on 7 Oct) its winners of 3 Oct lost 0.07 on average when
                      re-scored a week later, more than 11 of its 20 winning
-                     margins outside keno on 10 Oct.
+                     margins outside keno on 10 Oct. Every tuner sets one
+                     since 27 Oct 2026 (statistical, RL and ensemble 1, quantum
+                     2.5). Recorded as the record's "margin_se". With
+                     se_margin > 0 a challenger without a standard error (None:
+                     a one-day score; 0: no spread at all) cannot have its
+                     margin measured and is never written: the incumbent is
+                     kept and nothing is reverted (fail closed, 27 Oct 2026;
+                     until then the margin silently fell back to `margin`, 0
+                     for most tuners, so any gain replaced).
+      revert_margin  the margin of the revert's default-over-incumbent
+                     comparison. None (boosting, quantum): the challenger's
+                     margin, as before 27 Oct 2026. 0 (statistical, RL ticket,
+                     RL position, ensemble): the default is served back
+                     whenever it scores above the incumbent - it is not picked
+                     from trials, so it carries no selection luck, and on a row
+                     without skill reverting to the unselected default costs
+                     nothing in expectation. Recorded as "revert_margin" (the
+                     value used).
       tuner          the name recorded as the record's "tuner"; by default
                      the running script's ("HyperoptStatistics"), which is
                      how every tuner calls this
+      lockbox_withheld  how many of the window_days the objective withheld
+                     as lockbox days (src/Lockbox.py), recorded as the
+                     record's "lockbox_days_withheld" - every score here,
+                     the references' included, is then on the other days.
+                     None (an older caller) leaves the key out. The quantum
+                     tuner passes its score table's count instead (taken out
+                     before its holdout was cut) and marks the record
+                     lockbox_withheld_from "table" (26 Oct 2026).
 
     Returns a dict: decision ("replaced" | "reverted" | "kept"), replace and
     reverted (bools), reason, params (the dict to write - the challenger's
     trial params, the untuned defaults, or None), challenger / incumbent /
     default scores (None = unscored),
     served_score (the score of what is served after this decision, for
-    modelScores; None when unknown), trial (the challenger's number), record
-    (for bestParams["tuningGate"]) and summary (log lines).
+    modelScores; None when unknown), served_tuning (that side's diagnostics -
+    its score_se, a position study's mean_size; None when there are none or
+    no trial was scored), trial (the challenger's number), record (for
+    bestParams["tuningGate"]) and summary (log lines).
     """
     if evaluate is None:
         def evaluate(params, role):
@@ -240,7 +277,14 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
 
     record = {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "tuner": tuner or _caller_script(),
-              "window_days": window_days}
+              "window_days": window_days,
+              # the margin the tuner asked for, in the challenger's own standard errors (27 Oct 2026): "margin" is
+              # the one used, in score units; an admin page reads k from here rather than inferring it
+              "margin_se": json_safe(float(se_margin or 0.0))}
+    if lockbox_withheld is not None:
+        # the row tuners score only the window's days outside the lockbox (26 Oct 2026): window_days minus these
+        # is what the challenger and both references were scored on (their *_tuning "days" say it per side)
+        record["lockbox_days_withheld"] = int(lockbox_withheld)
     try:
         record["study_best"] = json_safe(float(study.best_value))
     except Exception:  # no completed trial in the whole study
@@ -252,7 +296,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                        "challenger": None, "incumbent": None, "default": None,
                        "challenger_tuning": None, "incumbent_tuning": None, "default_tuning": None})
         return {"replace": False, "reason": record["reason"], "params": None, "challenger": None,
-                "incumbent": None, "default": None, "served_score": None, "trial": None,
+                "incumbent": None, "default": None, "served_score": None, "served_tuning": None, "trial": None,
                 "record": record, "summary": f"  {label}: no finitely scored trial this run - parameters kept"}
 
     best = max(trials, key=lambda t: t.value)
@@ -262,11 +306,17 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     notes = []
     # the margin in the challenger's own standard errors, when asked for and known
     score_se = (tuning or {}).get("score_se")
-    if se_margin and _finite(score_se):
+    has_se = _finite(score_se) and score_se > 0
+    if se_margin and has_se:
         if se_margin * score_se > margin:
             notes.append(f"margin {se_margin:g} x the challenger's standard error {score_se:.4f}")
         margin = max(margin, se_margin * score_se)
+    # asked for a margin in standard errors but the challenger has none (fail closed, 27 Oct 2026): nothing it could
+    # be measured against - the incumbent stays, whatever the scores (see se_margin above)
+    no_se = bool(enabled and se_margin and se_margin > 0 and not has_se)
     record["margin"] = json_safe(float(margin))
+    rm = margin if revert_margin is None else float(revert_margin)
+    record["revert_margin"] = json_safe(float(rm))
 
     incumbent_tuning = default_tuning = None
     default_params = None
@@ -299,6 +349,13 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
         else:
             default, default_tuning = _scored(evaluate(default_params, "default"))
         replace, reason = decide(challenger, incumbent, default, margin)
+        if no_se:
+            # the references are still scored above: the record shows them, and the kept incumbent's score is
+            # what modelScores carries
+            replace = False
+            reason = (f"no standard error - kept: challenger {_fmt(challenger)} has "
+                      + ("none" if score_se is None else f"score_se {score_se!r}")
+                      + f", so its margin of {se_margin:g} standard error{'' if se_margin == 1 else 's'} cannot be measured")
 
     # The third outcome: the untuned defaults beat the incumbent and the
     # challenger did not beat them, so they are served. Only when something
@@ -317,10 +374,15 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     # default value) kept an incumbent worse than both - three rows a week
     # on 3 and 10 Oct 2026. On a tie the default is served: the challenger
     # did not earn its replacement, and both beat what was served.
+    # The default-over-incumbent comparison takes revert_margin (rm) since 27 Oct 2026: 0 for the tuners whose
+    # challengers now need a margin of one standard error, so a default that scores above the incumbent is served
+    # back as before - it is not a selected trial; the other clauses keep the challenger's margin. A default that
+    # only ties the incumbent never reverts it. A challenger without a standard error under se_margin reverts
+    # nothing either (no_se: fail closed, the incumbent is kept).
     revert = False
-    if not replace and enabled and default_params is not None and is_tuned(param_names, served) \
+    if not replace and not no_se and enabled and default_params is not None and is_tuned(param_names, served) \
             and _finite(default) and not challenger > default + margin \
-            and (incumbent is None or default > incumbent + margin or challenger > incumbent + margin):
+            and (incumbent is None or default > incumbent + rm or challenger > incumbent + margin):
         revert = True
         by = f" by {margin:g}" if margin else ""
         if default > challenger + margin:
@@ -329,14 +391,22 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
             versus = f"ties challenger {_fmt(challenger)}"
         else:
             versus = f"is not beaten by challenger {_fmt(challenger)}{by}"
-        reason = (f"default {_fmt(default)} {versus}"
-                  + ((f" and beats incumbent {_fmt(incumbent)}{by}" if default > incumbent + margin
-                      else f" - the challenger beats incumbent {_fmt(incumbent)}{by}") if incumbent is not None else " (incumbent unscored)")
-                  + " - reverted to the untuned defaults")
+        if incumbent is None:
+            versus_incumbent = " (incumbent unscored)"
+        elif default > incumbent + rm and revert_margin is not None and not rm:
+            versus_incumbent = f" and scores above incumbent {_fmt(incumbent)} (no margin: the default is not picked from trials)"
+        elif default > incumbent + rm:
+            versus_incumbent = f" and beats incumbent {_fmt(incumbent)}" + (f" by {rm:g}" if rm else "")
+        else:
+            versus_incumbent = f" - the challenger beats incumbent {_fmt(incumbent)}{by}"
+        reason = f"default {_fmt(default)} {versus}{versus_incumbent} - reverted to the untuned defaults"
 
     served_score = challenger if replace else (default if revert else incumbent)
     if served_score is not None and not math.isfinite(served_score):
         served_score = None  # a -inf weight would reach modelScores and the JSON file
+    # what is served now, with its standard error and (a position study) its mean size - the RL position sit-out
+    # reads both (HyperoptRLTicket.position_sit_out); a copy, so a caller cannot change the record through it
+    served_tuning = attrs_for_trial(tuning if replace else (default_tuning if revert else incumbent_tuning))
     record.update({
         "decision": "replaced" if replace else ("reverted" if revert else "kept"),
         # how much choosing went into the challenger: this run's finite
@@ -361,7 +431,8 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     return {"replace": replace, "reverted": revert, "decision": record["decision"], "reason": record["reason"],
             "params": params,
             "challenger": challenger, "incumbent": incumbent, "default": default,
-            "served_score": served_score, "trial": best.number, "record": record, "summary": "\n".join(lines)}
+            "served_score": served_score, "served_tuning": served_tuning, "trial": best.number, "record": record,
+            "summary": "\n".join(lines)}
 
 
 if __name__ == "__main__":
@@ -432,6 +503,47 @@ if __name__ == "__main__":
     out = challenge(se_study, known, None, served, make_defaults(table, served), 10, "t",
                     evaluate=scorer({"incumbent": -0.47, "default": -0.43}), se_margin=1.0)
     check(out["decision"] == "reverted" and out["served_score"] == -0.43 and "the challenger beats incumbent" in out["reason"], out["reason"])
+    check(out["record"]["margin_se"] == 1.0 and out["record"]["revert_margin"] == 0.05, f"k and the revert's margin recorded: {out['record']}")
+
+    # 0b. the revert's own margin (27 Oct 2026). The challenger (-0.4, SE 0.05) does not clear the incumbent (-0.45) by
+    #     one SE, and the default (-0.43) scores above the incumbent by less than one: with the challenger's margin
+    #     (revert_margin None, boosting and quantum) that is kept; with revert_margin 0 the default is served back
+    dse = make_defaults(table, served)
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.45, "default": -0.43}), se_margin=1.0)
+    check(out["decision"] == "kept" and out["record"]["revert_margin"] == 0.05, f"revert at the challenger's margin -> kept: {out['reason']}")
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.45, "default": -0.43}), se_margin=1.0, revert_margin=0.0)
+    check(out["decision"] == "reverted" and out["served_score"] == -0.43 and out["record"]["revert_margin"] == 0.0
+          and "scores above incumbent -0.4500 (no margin: the default is not picked from trials)" in out["reason"], f"revert_margin 0 -> reverted: {out['reason']}")
+    check(out["params"] == {"xEstimators": 100, "xDepth": 3, "m_use_5": True, "m_use_6": False}, f"the defaults are written: {out['params']}")
+    # ... a default that only ties the incumbent never reverts it, margin or not; the challenger still needs its margin
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.45, "default": -0.45}), se_margin=1.0, revert_margin=0.0)
+    check(out["decision"] == "kept", f"default tying the incumbent -> kept: {out['reason']}")
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.47, "default": -0.9}), se_margin=1.0, revert_margin=0.0)
+    check(out["decision"] == "replaced", f"the challenger's own margin is unchanged by revert_margin: {out['reason']}")
+
+    # 0c. fail closed (27 Oct 2026): asked for a margin in standard errors, a challenger without one (None: a one-day
+    #     score; 0: no spread) is never written and reverts nothing - the references are still scored and recorded
+    for no_se in (None, 0.0):
+        bare = FakeStudy(old + [new[0], FakeTrial(3, -0.4, new[1].params, attrs={"tuning": dict(new[1].user_attrs["tuning"], score_se=no_se)}), new[2]])
+        out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -0.2}), se_margin=1.0, revert_margin=0.0)
+        check(out["decision"] == "kept" and out["params"] is None and out["reason"].startswith("no standard error - kept")
+              and out["incumbent"] == -1.0 and out["default"] == -0.2 and out["served_score"] == -1.0, f"score_se {no_se!r} -> kept: {out['reason']}")
+        out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -0.9}))
+        check(out["decision"] == "replaced", f"score_se {no_se!r} without se_margin: any gain, as before")
+        out = challenge(bare, known, None, served, dse, 10, "t", enabled=False, evaluate=scorer({}), se_margin=1.0)
+        check(out["replace"], f"score_se {no_se!r}, gate disabled: written as the disabled gate always writes")
+
+    # 0d. served_tuning: the diagnostics of what is served after the decision (the RL position sit-out reads its
+    #     score_se and mean size); None on a run without a scored trial
+    dg = {"incumbent": {"score": -0.45, "score_se": 0.02, "mean_size": 0.3}, "default": {"score": -0.43, "score_se": 0.04, "mean_size": 0.2}}
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.45, "default": -0.43}, dg), se_margin=1.0)
+    check(out["decision"] == "kept" and out["served_tuning"] == dg["incumbent"] and out["served_tuning"] is not out["record"]["incumbent_tuning"], f"kept -> the incumbent's: {out['served_tuning']}")
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.45, "default": -0.43}, dg), se_margin=1.0, revert_margin=0.0)
+    check(out["decision"] == "reverted" and out["served_tuning"] == dg["default"], f"reverted -> the default's: {out['served_tuning']}")
+    out = challenge(se_study, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -0.6, "default": -0.9}, dg), se_margin=1.0)
+    check(out["decision"] == "replaced" and out["served_tuning"]["score"] == -0.4 and out["served_tuning"]["score_se"] == 0.05, f"replaced -> the challenger's: {out['served_tuning']}")
+    out = challenge(FakeStudy(old + [new[2]]), known, None, served, dse, 10, "t", evaluate=scorer({}), se_margin=1.0)
+    check(out["served_tuning"] is None and out["record"]["margin_se"] == 1.0, "no scored trial: nothing served is described")
     calls.clear()
 
     # 1. the challenger is this run's best COMPLETED trial, not the study's all-time best
@@ -519,6 +631,17 @@ if __name__ == "__main__":
     check(not out["replace"] and out["params"] is None and out["trial"] is None
           and out["record"]["decision"] == "kept", "no new trial -> kept")
     check("tuner" in out["record"], "a record without a scored trial still names its tuner")
+
+    # 7b. the lockbox days the objective withheld are recorded (26 Oct 2026), also when nothing was scored this run;
+    #     an older caller that does not pass them gets no key rather than a misleading 0
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t", window_days=90, lockbox_withheld=22,
+                    evaluate=scorer({"incumbent": -1.0, "default": -0.9}))
+    check(out["record"]["lockbox_days_withheld"] == 22 and out["record"]["window_days"] == 90, f"withheld days recorded: {out['record']}")
+    out = challenge(FakeStudy(old + [new[2]]), known, None, served, make_defaults(table, served), 10, "t", lockbox_withheld=0,
+                    evaluate=scorer({}))
+    check(out["record"].get("lockbox_days_withheld") == 0 and out["record"]["decision"] == "kept", "recorded without a scored trial too")
+    out = challenge(study, known, None, served, make_defaults(table, served), 10, "t", evaluate=scorer({"incumbent": -1.0}))
+    check("lockbox_days_withheld" not in out["record"], "no count given, no key")
 
     # 8. gate disabled
     calls.clear()

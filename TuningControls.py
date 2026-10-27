@@ -25,8 +25,12 @@ Like with like, or not at all: the maximum of n trials grows with n, so the
 band is only comparable when the control studies ran the same number of
 trials on the same window as the gate record was made with (-t and -d default
 to the weekly tuner's DEFAULT_TRIALS / DEFAULT_DAYS; a record made with other
-values gets no verdict, and says why). Even then the band is a FLOOR on the
-selection effect: the weekly study is warm - its sampler is guided by every
+values gets no verdict, and says why). The lockbox days are withheld here as
+in the tuner (HyperoptStatistics.LOCKBOX, 26 Oct 2026 - the control keeps the
+real dates, so they are the same days), and a gate record that withheld
+another number of them - one made before that date withheld none - gets no
+verdict either. Even then the band is a FLOOR on the selection effect: the
+weekly study is warm - its sampler is guided by every
 completed trial of earlier weeks (the record's study_trials) - while a
 control study starts cold, and a guided search finds a lucky window more
 surely than a random one.
@@ -56,6 +60,7 @@ import optuna
 
 from src.ControlHistories import build_control_dataset, CONTROL_ROOT
 from src.HyperoptRunner import install_sigterm_handler
+from src.Lockbox import load_or_warn as load_lockbox, describe_withheld as describe_lockbox_withheld
 from src.TuningGate import make_defaults, reference_params
 from src.TuningScore import describe
 
@@ -130,23 +135,35 @@ def real_gain(served, display_name):
         return {"challenger": challenger, "default": default, "incumbent": record.get("incumbent"),
                 "decision": record.get("decision"), "date": record.get("date"), "gain": challenger - default,
                 "window_days": record.get("window_days") or tuning.get("days"),
+                # None: a record from before 26 Oct 2026, when the tuner still scored the window's lockbox days
+                "lockbox_days_withheld": record.get("lockbox_days_withheld"),
                 "run_trials": record.get("run_trials"), "study_trials": record.get("study_trials")}
     return None
 
 
-def comparable(real, days, trials):
-    """Why the real gain may not be held against this band, or None when it may."""
+def comparable(real, days, trials, withheld=0):
+    """
+    Why the real gain may not be held against this band, or None when it may.
+    `withheld`: the lockbox days the control studies did not score (the
+    tuner's own LOCKBOX rule - the control histories keep the real dates, so
+    the same days). The gate record must have withheld as many, or the two
+    gains are bounds over different numbers of days (26 Oct 2026).
+    """
     if not real:
         return "no gate record for this row"
     reasons = []
     if real.get("window_days") and int(real["window_days"]) != int(days):
         reasons.append(f"window {days} here vs {real['window_days']} in the gate record")
+    real_withheld = real.get("lockbox_days_withheld")
+    if int(real_withheld or 0) != int(withheld or 0):
+        reasons.append(f"{int(withheld or 0)} lockbox day(s) withheld here vs {int(real_withheld or 0)} in the gate record"
+                       + (" (made before the tuner withheld them, 26 Oct 2026)" if real_withheld is None else ""))
     if real.get("run_trials") and int(trials) < int(real["run_trials"]):
         reasons.append(f"{trials} trials here vs {real['run_trials']} in the gate run")
     return "; ".join(reasons) or None
 
 
-def summarise(per_seed, real, days, trials):
+def summarise(per_seed, real, days, trials, withheld=0):
     gains = [r["gain"] for r in per_seed if r and r.get("gain") is not None]
     if not gains:
         return {"gain_mean": None, "gain_sd": None, "band": None, "seeds": 0, "real": real, "real_gain": None,
@@ -155,7 +172,7 @@ def summarise(per_seed, real, days, trials):
     sd = statistics.stdev(gains) if len(gains) > 1 else 0.0
     band = mean + 2 * sd
     real_gain_value = real["gain"] if real else None
-    reason = comparable(real, days, trials)
+    reason = comparable(real, days, trials, withheld)
     return {"gain_mean": round(mean, 4), "gain_sd": round(sd, 4), "band": round(band, 4), "seeds": len(gains),
             "real": real, "real_gain": round(real_gain_value, 4) if real_gain_value is not None else None,
             "above_band": (real_gain_value > band) if real_gain_value is not None and reason is None else None,
@@ -175,9 +192,15 @@ def run(game, mode, seeds, days, trials, wanted, recent, path):
     record = {"game": game, "mode": mode, "days": days, "trials": trials, "seeds": list(seeds), "recent": recent or 0,
               "generated_at": datetime.now().isoformat(timespec="seconds"), "strategies": {}}
     per_strategy = {name: [] for name in names}
+    withheld = 0
     for seed in seeds:
         directory, rows = build_control_dataset(game, mode, seed, recent=recent)
         print(f"\n{game} / {mode} / seed {seed}: control history of {rows} draws at {os.path.relpath(directory)}")
+        if HS.LOCKBOX:
+            # the tuner's objective withholds the lockbox days of the window (HS.LOCKBOX), here as on the real
+            # history - the control keeps the real dates, so the band is a bound over the gate's own days
+            withheld, scored = HS.lockbox_days(directory, cfg, days)
+            print("  " + describe_lockbox_withheld(game, HS.LOCKBOX, withheld, scored))
         for name in names:
             print(f"  {name}: {trials} trials on {days} days")
             result = tune_on_control(game, name, directory, cfg, days, trials, seed, served)
@@ -189,10 +212,11 @@ def run(game, mode, seeds, days, trials, wanted, recent, path):
             default = "n/a" if result["default"] is None else f"{result['default']:+.4f}"
             print(f"    best {result['best']:+.4f} | default {default} | tuning gain {gain} "
                   f"({result['seconds']}s) | {describe(result['best_tuning'])}")
+    record["lockbox_days_withheld"] = withheld
 
     for name in names:
         display = HS.STRATEGY_DISPLAY_NAMES.get(name, name)
-        summary = summarise(per_strategy[name], real_gain(served, display), days, trials)
+        summary = summarise(per_strategy[name], real_gain(served, display), days, trials, withheld)
         summary["per_seed"] = per_strategy[name]
         record["strategies"][display] = summary
 
@@ -232,6 +256,9 @@ def main():
     seeds = list(range(args.seed, args.seed + max(1, args.repetitions)))
     wanted = [s.strip() for s in args.strategies.split(",") if s.strip()]
     optuna.logging.set_verbosity(optuna.logging.WARNING)
+    # The weekly tuner's lockbox rule (26 Oct 2026): its objective scores only the window's days outside the lockbox,
+    # so the control studies do the same - set once here, inherited by every objective call (HyperoptStatistics.LOCKBOX)
+    HS.LOCKBOX = load_lockbox(os.getcwd())
 
     records = []
     for game in games:

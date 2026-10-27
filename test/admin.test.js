@@ -1,7 +1,7 @@
 'use strict';
 // The admin section's JSON (admin.js) and the shared History ranking (ranking.js): the guard (401 signed out, 403 for
 // a user, through for the administrator), every route's shape on hand-made records written to a temp dir, the rules
-// the builders apply (Q0 hits with hits, the live split, the keno bound against a fair ticket, the combination's p
+// the builders apply (Q0's row tests with the band as context, the live split, the keno bound against a fair ticket, the combination's p
 // value, the lag trail, the tripwires, the top-five scope), the cache by file change, the ranking against the one
 // server.js used before it moved, and - when the checkout runs next to production - every view on production's own
 // files, read-only, with its size.
@@ -87,6 +87,14 @@ const learningCheck = (verdict, valLoss, baselineLoss, margin, sameTicket, date 
 const lagHistory = (lags) => lags.map((lag, i) => ({ run: `2026-10-${String(i + 1).padStart(2, '0')}`, lag, avg_hits: 1 + i / 100, n: 80 + i, z: 2 + i / 10, profile_mean: 0.8, metric: 'main_hits' }));
 const lag = (lags) => { const h = lagHistory(lags); const counts = {}; h.forEach((r) => { counts[r.lag] = (counts[r.lag] || 0) + 1; }); const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   return { peak: h[h.length - 1], history: h, runs: h.length, lag_counts: counts, consensus_lag: Number(best[0]), consensus_runs: best[1], best_lag: h[h.length - 1].lag }; };
+// Q0's row tests as the daily report writes them (src/RowChance.py, 27 Oct 2026): a game's summary and each row's block.
+// lotto: B confirmed on new draws and the one row that holds, A followed (running), C under 5% only, E judged not confirmed,
+// Young too short to be compared; keno (a payout game: information only) K2 followed; crypto L under 5% on its live days.
+const fresh = (state, since, length, draws, extra = {}) => ({ since, flagDraws: length, flagP: 0.03, flagMean: 1.4, flagNull: 0.8, verdictLength: length, draws, last: '2026-10-17',
+  state, verdictAt: null, decidedOn: null, p: null, mean: draws ? 1.5 : null, null: draws ? 0.8 : null, ...extra });
+const tested = (draws, notLive, mean, nul, p, pHolm, extra = {}) => ({ chance: { draws, notLive, mean, null: nul, nullSd: 0.1, p, inFamily: pHolm !== null, pHolm, last: '2026-10-17', ...extra } });
+const summary = (method, over) => ({ method, alpha: 0.05, verdictAlpha: 0.01, minDraws: 10, permutations: method === 'permutation' ? 20000 : null, block: method === 'permutation' ? 7 : null,
+  family: 0, liveMax: 0, under: 0, expected: 0, holds: 0, followed: 0, running: 0, stopped: 0, confirmed: 0, notConfirmed: 0, checkedThrough: '2026-10-18', stored: 'written', ...over });
 const report = {
   generatedAt: '2026-10-21T08:48:01', since: { date: '2026-09-27', label: 'September 2026 design freeze' },
   games: {
@@ -96,12 +104,16 @@ const report = {
         // A collapsed onto the frequencies (input-blind), C learns, D carries a verdict LearningCheck.py never writes, Young
         // memorises (worse than the frequencies, its ticket follows its input) and is outside the top five
         lottoRow('A Model', 14, 1.3, 3, { multi_pick: { draws: 4, avg_hits: 1.5, base_avg_hits: 1.25, win_rate: 0.25, base_win_rate: 0, extra_hit_rates: [0.25, 0, 0] },
-          ...learningCheck('counts-only', 2.30331, 2.3034, 0.004, 1.0) }),
-        lottoRow('B Model', 30, 1.2, 4), lottoRow('C Model', 90, 1.0, 3, learningCheck('learns', 2.2501, 2.3034, 0.004, 0.31)),
-        lottoRow('D Model', 90, 0.9, 3, learningCheck('maybe', 2.3, 2.3, 0, 0.5)), lottoRow('E Model', 90, 0.85, 2, { learning_check: null }),
-        lottoRow('F Model', 90, 0.8, 2, { multi_pick: { draws: 4, avg_hits: 1, base_avg_hits: 1, win_rate: 0, base_win_rate: 0, extra_hit_rates: [0, 0, 0] } }),
-        lottoRow('Young Model', 3, 2, 3, learningCheck('counts-only', 3.5212, 2.3034, 0.004, 0.0472, '2026-10-24')),
+          ...learningCheck('counts-only', 2.30331, 2.3034, 0.004, 1.0), ...tested(14, 0, 1.3, 0.8, 0.021, 0.126, { fresh: fresh('running', '2026-10-11', 10, 4) }) }),
+        lottoRow('B Model', 30, 1.2, 4, tested(30, 0, 1.2, 0.8, 0.004, 0.024, { fresh: fresh('confirmed', '2026-09-13', 12, 20, { verdictAt: '2026-10-10', decidedOn: '2026-10-12', p: 0.006 }) })),
+        lottoRow('C Model', 90, 1.0, 3, { ...learningCheck('learns', 2.2501, 2.3034, 0.004, 0.31), ...tested(80, 10, 1.0, 0.85, 0.04, 0.16) }),
+        lottoRow('D Model', 90, 0.9, 3, { ...learningCheck('maybe', 2.3, 2.3, 0, 0.5), ...tested(80, 10, 0.9, 0.85, 0.3, 0.9) }),
+        lottoRow('E Model', 90, 0.85, 2, { learning_check: null, ...tested(80, 10, 0.85, 0.85, 0.5, 1,
+          { fresh: fresh('not confirmed', '2026-06-07', 30, 60, { verdictAt: '2026-08-29', decidedOn: '2026-10-21', p: 0.5, mean: 0.8 }) }) }),
+        lottoRow('F Model', 90, 0.8, 2, { multi_pick: { draws: 4, avg_hits: 1, base_avg_hits: 1, win_rate: 0, base_win_rate: 0, extra_hit_rates: [0, 0, 0] }, ...tested(80, 10, 0.8, 0.85, 0.7, 1) }),
+        lottoRow('Young Model', 3, 2, 3, { ...learningCheck('counts-only', 3.5212, 2.3034, 0.004, 0.0472, '2026-10-24'), ...tested(3, 0, 2, 0.8, 0.02, null) }),
       ],
+      chance: summary('exact', { family: 6, liveMax: 80, under: 3, expected: 0.27, holds: 1, followed: 1, running: 1, confirmed: 1, notConfirmed: 1 }),
       multi_pick: { extra: 3, draw: 6, min_hits: 3, grid_price: 1.5, per_extra_chance: 0.13333, chance: { 6: { win: 0.02383, grids: 1, price: 1.5 }, 9: { win: 0.08395, grids: 84, price: 126 } }, rows_with_extras: 2 },
       since: { date: '2026-09-27', label: 'September 2026 design freeze', metric: 'avg_hits', minDrawsForRanking: 6, bestModel: 'B Model',
         models: [{ name: 'B Model', draws: 6, avg_hits: 2, best_hits: 4 }, { name: 'A Model', draws: 6, avg_hits: 1.5, best_hits: 3 }] },
@@ -121,9 +133,11 @@ const report = {
       metric: 'profit_bound', minDrawsForRanking: 10, bestModel: 'K1 Model',
       models: [
         { name: 'K1 Model', draws: 48, avg_hits: 6.02, profit_bound: 0.117, best_hits: 11, profit_total: -22, profit_per_bet: -0.195, bets: 113,
-          profit_by_size: { 5: { bets: 13, profit_total: -11, profit_per_bet: -0.846 }, 10: { bets: 48, profit_total: -16, profit_per_bet: -0.333 } } },
-        { name: 'K2 Model', draws: 300, avg_hits: 6.3, profit_bound: 0.04, best_hits: 12, profit_total: 80, profit_per_bet: 0.15, bets: 560, profit_by_size: null },
+          profit_by_size: { 5: { bets: 13, profit_total: -11, profit_per_bet: -0.846 }, 10: { bets: 48, profit_total: -16, profit_per_bet: -0.333 } }, ...tested(48, 0, 6.02, 5.71, 0.2, 0.4) },
+        { name: 'K2 Model', draws: 300, avg_hits: 6.3, profit_bound: 0.04, best_hits: 12, profit_total: 80, profit_per_bet: 0.15, bets: 560, profit_by_size: null,
+          ...tested(250, 50, 6.3, 5.71, 0.03, 0.06, { fresh: fresh('running', '2026-10-04', 52, 14) }) },
       ],
+      chance: summary('exact', { family: 2, liveMax: 250, under: 1, expected: 0.09, followed: 1, running: 1 }),
       combinations: { metric: 'profit_per_draw', minDrawsForRanking: 10, candidateRows: ['K1 Model', 'K2 Model'], evaluated: 1,
         best: { members: ['K1 Model', 'K2 Model'], size: 2, how: 'pair', draws: 48, profit_per_bet: 1.2, profit_per_draw: 44.4, win_day_rate: 0.24, avg_hits: 6, best_hits: 11, value: 44.4 },
         ranking: [{ members: ['K1 Model', 'K2 Model'], size: 2, how: 'pair', draws: 48, profit_per_bet: 1.2, profit_per_draw: 44.4, win_day_rate: 0.24, avg_hits: 6, best_hits: 11, value: 44.4 }],
@@ -131,7 +145,9 @@ const report = {
     },
     crypto: {
       metric: 'avg_hits', minDrawsForRanking: 10, bestModel: 'L Model',
-      models: [lottoRow('L Model', 20, 1.25, 3), lottoRow('M Model', 50, 0.94, 3), lottoRow('N Model', 50, 0.5, 2)],
+      models: [lottoRow('L Model', 20, 1.25, 3, tested(20, 0, 1.25, 0.9, 0.03, 0.06)), lottoRow('M Model', 50, 0.94, 3, tested(20, 30, 0.9, 0.85, 0.3, 0.3)),
+        lottoRow('N Model', 50, 0.5, 2, { chance: { draws: 0, notLive: 50, inFamily: false } })],
+      chance: summary('permutation', { family: 2, liveMax: 20, under: 1, expected: 0.1 }),
       since: { date: '2026-09-27', label: 'September 2026 design freeze', metric: 'avg_hits', minDrawsForRanking: 10, bestModel: 'L Model',
         models: [{ name: 'L Model', draws: 20, avg_hits: 1.25 }, { name: 'M Model', draws: 20, avg_hits: 0.9 }] },
       anomalyWatch: { date: '2026-10-17', latest_z: -3.5, min_z_recent: -3.5, alert: true },
@@ -227,47 +243,118 @@ const lost = request(app, '/api/admin/nothing', ADMIN);
 ok(lost.statusCode === 404 && lost.body.error === 'not found', 'any other /api/admin path is a JSON 404');
 ok(request(app, '/api/admin/nothing', USER).statusCode === 403, 'and a user never learns which paths exist');
 
-// controls: grouped, every game, the Q0 rules
+// controls: grouped, every game, the Q0 row tests (27 Oct 2026) with the band as context
 const c = request(app, '/api/admin/controls', ADMIN).body;
 ok(c.groups.map((g) => g.name).join() === 'Lottery,Markets' && c.groups[0].games.length === 7 && c.groups[1].games.length === 4, 'controls: 11 games, grouped Lottery / Markets');
 const cg = Object.fromEntries(c.groups.flatMap((g) => g.games).map((g) => [g.game, g]));
-ok(cg.lotto.q0.band.ceiling === 1.126 && cg.lotto.q0.band.from === 'synthetic' && cg.lotto.q0.band.seeds === 3 && cg.lotto.q0.band.history === 120 && cg.lotto.q0.band.at === '2026-10-18T10:11:55Z',
-  `Q0: the band, its control, seeds, history and its own record's time: ${JSON.stringify(cg.lotto.q0.band)}`);
-ok(cg.lotto.q0.above.n === 2 && cg.lotto.q0.above.rows.map((r) => r.row).join() === 'A Model,B Model' && cg.lotto.q0.rankedRows === 6 && cg.lotto.q0.above.longest === 30,
-  'Q0: the ranked rows (minimum draws) above the band, the longest record among them');
+ok(cg.lotto.q0.band.ceiling === undefined && cg.lotto.q0.band.from === 'synthetic' && cg.lotto.q0.band.seeds === 3 && cg.lotto.q0.band.history === 120 && cg.lotto.q0.band.at === '2026-10-18T10:11:55Z'
+  && cg.lotto.q0.band.modes.length === 2, `Q0: the band as context - its control, seeds, history and its records' times; its ceiling only in the drawer: ${JSON.stringify(cg.lotto.q0.band)}`);
+const lq = cg.lotto.q0;
+ok(lq.test.family === 6 && lq.test.under === 3 && lq.test.expected === 0.27 && lq.test.holds === 1 && lq.lowest.row === 'B Model' && lq.lowest.p === 0.004
+  && lq.rows.map((r) => r.row).join() === 'B Model,A Model,C Model' && lq.confirmed.join() === 'B Model' && lq.followed.join() === 'A Model' && lq.error === null,
+  `Q0: the game's test; the rows named are those under 5%, followed or confirmed, lowest p first (E, judged not confirmed, only counted): ${JSON.stringify(lq.rows.map((r) => r.row))}`);
+ok(lq.rows[1].fresh.flagP === undefined && lq.rows[1].fresh.decidedOn === undefined && lq.rows[1].fresh.since === '2026-10-11',
+  'the overview leaves a fresh record\'s flag figures to the drawer');
+const A = lq.rows.find((r) => r.row === 'A Model');
+ok(A.mean === 1.3 && A.live === 14 && A.null === 0.8 && A.p === 0.021 && A.pHolm === 0.126 && A.fresh.state === 'running' && A.fresh.verdictLength === 10 && A.fresh.draws === 4
+  && lq.rows.every((r) => r.mean !== undefined && r.live !== undefined && r.null !== undefined) && !lq.rows.some((r) => r.row === 'Young Model'),
+  'Q0: each row line carries its own mean, live draws and null beside its p (the trust rule); a row outside the family is not named under 5%');
+ok(lq.above === undefined && lq.best === undefined && lq.rankedRows === undefined, 'Q0: no "above the band" anywhere');
 ok(cg.lotto.unit === 'draws' && cg.crypto.unit === 'days' && cg.cryptoweek.unit === 'weeks' && cg.shares.unit === 'trading days', 'every game says what one of its draws is');
-ok(cg.keno.q0.ranking === 'profit' && cg.keno.q0.above.n === 1 && cg.keno.q0.above.inTile === false && cg.keno.q0.leader.row === 'K1 Model' && cg.keno.q0.above.rows[0].hits === 6.3,
-  'Q0: a payout game is compared hits with hits, names its profit-bound leader without a euro figure and stays out of the headline count');
-const L = cg.crypto.q0.above.rows.find((r) => r.row === 'M Model');
-ok(L && L.live === 20 && L.notLive === 30 && L.own === 0.642 && cg.crypto.q0.above.longestLive === 20, `Q0: a market row's live and back-built draws, and its own control level: ${JSON.stringify(L)}`);
-ok(cg.lotto.q0.above.rows[0].live === undefined, 'Q0: a lottery row has no live split (every draw was predicted before it)');
-ok(c.tiles.q0.rowsAbove === 4 && c.tiles.q0.rowsAbove === c.groups.flatMap((g) => g.games).filter((g) => g.q0.ranking === 'hits').reduce((s, g) => s + g.q0.above.n, 0)
-  && c.tiles.q0.alternatives.allGamesOnHits.rowsAbove === 5 && c.tiles.q0.alternatives.bestRowOnly.games.join() === 'lotto,crypto', `Q0 tile: the count equals the rows of the cards (${c.tiles.q0.rowsAbove})`);
-ok(cg.lotto.q2.status === 'above' && cg.lotto.q2.seeds === 3 && cg.lotto.q2.windowsTest === 496 && cg.crypto.q2.fewWindows === true && c.tiles.q2.aboveFewWindows[0].game === 'crypto',
-  'Q2: status, seeds and test windows; an above on fewer than 250 windows is named');
+ok(cg.keno.q0.ranking === 'profit' && cg.keno.q0.inTile === false && cg.keno.q0.leader.row === 'K1 Model' && cg.keno.q0.followed.join() === 'K2 Model' && cg.keno.q0.test.under === 1,
+  'Q0: a payout game is tested on hits, names its profit-bound leader without a euro figure and stays out of the headline');
+const L = cg.crypto.q0.rows.find((r) => r.row === 'L Model');
+ok(L && L.live === 20 && L.notLive === 0 && cg.crypto.q0.test.method === 'permutation' && !cg.crypto.q0.rows.some((r) => r.row === 'M Model' || r.row === 'N Model'),
+  `Q0: a market row tested on its live days; rows over 5% are left out of the card: ${JSON.stringify(L)}`);
+const headline = c.groups.flatMap((g) => g.games).filter((g) => g.q0.test && g.q0.inTile);
+ok(c.tiles.q0.confirmed === 1 && JSON.stringify(c.tiles.q0.confirmedRows) === '[{"game":"lotto","row":"B Model"}]'
+  && c.tiles.q0.confirmed === headline.reduce((s, g) => s + g.q0.confirmed.length, 0) && c.tiles.q0.under === 4 && c.tiles.q0.expected === 0.37 && c.tiles.q0.holds === 1
+  && c.tiles.q0.followed === 1 && c.tiles.q0.notConfirmed === 1 && c.tiles.q0.family === 8 && c.tiles.q0.games === 2 && c.tiles.q0.hitRankedGames === 2,
+  `Q0 tile: the confirmed rows of the hit-ranked games, this week's figures beside them, counted from the cards: ${JSON.stringify(c.tiles.q0)}`);
+ok(JSON.stringify(c.tiles.q0.payout) === '{"games":["keno"],"under":1,"expected":0.09,"holds":0,"followed":1,"confirmed":0,"notConfirmed":0}',
+  'Q0 tile: the payout games apart, information only');
+// a payout game's confirmed row is counted apart and never in the tile's headline (27 Oct 2026 review)
+const kenoConfirmed = JSON.parse(JSON.stringify(report));
+kenoConfirmed.games.keno.models[1].chance.fresh = fresh('confirmed', '2026-08-02', 52, 52, { verdictAt: '2026-10-10', decidedOn: '2026-10-12', p: 0.004 });
+const kc = admin.controlsOverview({}, kenoConfirmed).tiles.q0;
+ok(kc.confirmed === 1 && kc.confirmedRows.every((x) => x.game !== 'keno') && kc.payout.confirmed === 1,
+  `Q0 tile: a payout game's confirmed row stays out of the headline: ${JSON.stringify({ confirmed: kc.confirmed, payout: kc.payout })}`);
+// Q2's power rule (controlRules.json, 27 Oct 2026) applies to the older records too: crypto's version-1 "above" on 106
+// test windows reads "too few draws", so no tile names an above on too few windows any more; lotto's 3-seed "above" on
+// 496 windows keeps what its flags said (rule 1) until a version-2 record replaces it
+const FEW = require('../controlRules.json').q2.few_windows;
+ok(cg.lotto.q2.status === 'above' && cg.lotto.q2.seeds === 3 && cg.lotto.q2.windowsTest === 496 && cg.lotto.q2.rule === 1 && cg.lotto.q2.thresholdSe === null
+  && cg.crypto.q2.status === 'too few draws' && cg.crypto.q2.fewWindows === true && cg.crypto.q2.minWindows === FEW
+  && c.tiles.q2.tooFewGames.join() === 'crypto' && c.tiles.q2.failedGames.length === 0 && c.tiles.q2.aboveFewWindows === undefined && c.tiles.q2.above === 1,
+  `Q2: status, seeds and test windows; a version-1 above on fewer than ${FEW} windows reads too few draws`);
+ok(c.meta.q2.fewWindows === FEW && !/0\.8/.test(c.meta.q2.rule) && c.meta.q2.rule.includes(`under ${FEW} test windows`), `Q2 meta: the power rule from controlRules.json: ${c.meta.q2.rule}`);
 ok(cg.lotto.q2.drawsUsed === 1000 && cg.crypto.q2.drawsUsed === 212 && cg.crypto.q2.drawsCap === 1000,
   `Q2: the draws the windows came from, (train + test) / 2 + window - 1, apart from the 1000 asked: ${cg.crypto.q2.drawsUsed}`);
-ok(c.tiles.q0.noBand.includes('euromillions') && !c.tiles.q0.noBand.includes('lotto') && c.tiles.rows.missing.join() === 'shares,cryptoweek,sharesweek',
-  'the tiles name the games with no band and the market games with no rows report');
+ok(c.tiles.q0.noTest.some((x) => x.game === 'euromillions' && x.why === 'no ranking for this game yet') && !c.tiles.q0.noTest.some((x) => x.game === 'lotto')
+  && cg.euromillions.errors.includes('q0') && !cg.lotto.errors.includes('q0') && c.tiles.rows.missing.join() === 'shares,cryptoweek,sharesweek',
+  'the tiles name the games with no row test (never "none under") and the market games with no rows report');
 ok(cg.lotto.fc.fits === 1 && cg.lotto.fc.ignored === 1 && cg.lotto.fc.chanceShare === 0.25 && cg.lotto.fc.tableRows === 275 && cg.lotto.fc.lockboxRows === 25 && cg.lotto.fc.variants[0].key === 'lr' && cg.lotto.fc.variants[0].share === 0.3117,
   'FC: the verdict counts, the chance share 3 / (9 + 3), the table and lockbox rows in draws');
 ok(cg.crypto.rows.window === 231 && cg.crypto.rows.rowsScored === 1 && cg.crypto.rows.betterThanUniform.join() === 'Chronos Model' && cg.crypto.rows.betterThanReference.length === 0
   && cg.crypto.rows.referenceVsUniform.mean === 0.0923 && cg.lotto.rows === null, 'market rows: the window, the rows against uniform and GARCH; a lottery game has none');
 const drawer = request(app, '/api/admin/controls/crypto', ADMIN).body;
 ok(drawer.q0.modes.shuffled.perRow['M Model'] === 0.642 && drawer.q2.perSeed.real.length === 0 && drawer.rows.table.length === 3 && drawer.regimes[0].label === 'calm', 'the drawer: the modes, the rows table and the regime reading');
+ok(drawer.q0.table.map((r) => r.row).join() === 'L Model,M Model' && drawer.q0.table[1].notLive === 30 && drawer.q0.band.from === 'shuffled' && drawer.q0.band.ceiling === 0.8,
+  'the drawer: every row of the family, lowest p first, with its not-live draws; the band as context');
+const lottoTable = request(app, '/api/admin/controls/lotto', ADMIN).body.q0.table;
+ok(lottoTable.map((r) => r.row).join() === 'B Model,A Model,C Model,D Model,E Model,F Model' && lottoTable.find((r) => r.row === 'E Model').fresh.state === 'not confirmed',
+  'the lottery drawer: the whole family, the judged row with its verdict; the short row is not compared');
 // the Market rows help names the probability floor, each row's kind and the Regime HMM feature set (the old markets page's C16 / C17)
 ok(drawer.rows.floor === 0.001 && drawer.rows.table.map((x) => x.kind).join() === 'market,foundation,baseline' && drawer.rows.hmmFeatures === 'returns' && drawer.q2.quantum === true,
   `the drawer: the probability floor, each row's kind, the HMM feature set and the Q2 quantum flag: ${JSON.stringify([drawer.rows.floor, drawer.rows.table.map((x) => x.kind)])}`);
 const lottoDrawer = request(app, '/api/admin/controls/lotto', ADMIN).body;
 ok(lottoDrawer.q2.perSeed.real.length === 3 && lottoDrawer.fc.variants[1].above[0] === 'C Model' && lottoDrawer.rows === null && lottoDrawer.regimes === null, 'the lottery drawer: per seed, the variants in full, no market parts');
 
+// The 26 Oct 2026 report (MarketRows.py): the baselines carry a log-score and every row is held against the column
+// frequencies (vs_frequency). The fixture above is a report from before: its new parts read null or empty.
+ok(cg.crypto.rows.frequency === null && cg.crypto.rows.betterThanFrequency.length === 0 && cg.crypto.rows.referenceVsFrequency === null
+  && cg.crypto.rows.frequencyVsUniform === null && cg.crypto.rows.baselines === 1 && drawer.rows.smoothing === null && drawer.rows.table.every((x) => x.vsFrequency === null)
+  && c.tiles.rows.frequencyGames === 0 && c.tiles.rows.referenceAboveFrequency === 0, 'market rows: a report from before 26 Oct 2026 has no frequency parts');
+const iv = (mean, lo, hi, verdict) => ({ mean, lo, hi, days: 231, verdict });
+const freqRecord = { market: 'crypto', generated_at: '2026-11-01T09:54:09+00:00', days_requested: 250, days_scored: 231, first_day: '2026-03-01', last_day: '2026-10-31',
+  uniform_log_score: -2.3026, probability_floor: 0.0001, reference: 'GARCH Model', frequency_reference: 'column_frequency', frequency_smoothing: 1, lockbox_days_withheld: 19, errors: {},
+  rows: [
+    { name: 'GARCH Model', kind: 'market', days: 231, log_score: -2.208, vs_uniform: iv(0.095, 0.07, 0.12, 'better'), vs_reference: null, vs_frequency: iv(0.027, 0.01, 0.045, 'better') },
+    { name: 'Chronos Model', kind: 'base', days: 231, log_score: -2.228, vs_uniform: iv(0.074, 0.05, 0.1, 'better'), vs_reference: iv(-0.02, -0.03, -0.01, 'worse'), vs_frequency: iv(0.007, -0.01, 0.02, 'no difference') },
+    { name: 'column_frequency', kind: 'baseline', days: 231, log_score: -2.235, vs_uniform: iv(0.0676, 0.0476, 0.087, 'better'), vs_reference: iv(-0.027, -0.045, -0.01, 'worse'), vs_frequency: null },
+    { name: 'global_frequency', kind: 'baseline', days: 231, log_score: -2.236, vs_uniform: iv(0.066, 0.045, 0.086, 'better'), vs_reference: iv(-0.028, -0.05, -0.01, 'worse'), vs_frequency: iv(0.011, 0.004, 0.019, 'better') },
+    { name: 'Regime HMM Model', kind: 'market', days: 231, log_score: -2.246, vs_uniform: iv(0.057, 0.03, 0.08, 'better'), vs_reference: iv(-0.038, -0.05, -0.02, 'worse'), vs_frequency: iv(-0.011, -0.03, 0.01, 'no difference') },
+    { name: 'random', kind: 'baseline', days: 231, log_score: -2.3026, vs_uniform: iv(0, 0, 0, 'no difference'), vs_reference: iv(-0.095, -0.12, -0.07, 'worse'), vs_frequency: iv(-0.068, -0.087, -0.048, 'worse') },
+  ] };
+const fr = admin.rowsOf(freqRecord);
+ok(fr.rowsScored === 2 && fr.baselines === 3 && fr.betterThanUniform.join() === 'Chronos Model,Regime HMM Model' && fr.betterThanFrequency.length === 0 && fr.betterThanReference.length === 0
+  && fr.frequency === 'column_frequency' && fr.referenceVsFrequency.verdict === 'better' && fr.frequencyVsUniform.mean === 0.0676,
+  `market rows: two rows beat uniform, neither beats the frequencies, and a baseline beating another (global over column) is no row that beats them: ${JSON.stringify(fr)}`);
+const fo = admin.controlsOverview({ crypto: { rows: freqRecord } }, report).tiles.rows;
+ok(fo.frequencyGames === 1 && fo.referenceAboveFrequency === 1 && fo.beatReference === 0, 'the tile: GARCH beats the frequencies in 1 of the 1 game with the new report');
+const fd = admin.controlsDrawer('crypto', { rows: freqRecord }, report).rows;
+const fdRow = (name) => fd.table.find((x) => x.row === name);
+ok(fd.smoothing === 1 && fd.table.length === 6 && fdRow('column_frequency').logScore === -2.235 && fdRow('column_frequency').frequency === true && fdRow('column_frequency').vsFrequency === null
+  && fdRow('Chronos Model').vsFrequency.verdict === 'no difference' && fdRow('random').vsFrequency.mean === -0.068 && fd.table[2].row === 'column_frequency',
+  'the drawer: every row with its interval against the frequencies, the baselines scored and sorted among the rows by log-score');
+const fread = admin.weekReading({ crypto: { rows: freqRecord } }, report).games.crypto.rows;
+ok(fread.rows.map((r) => r.row).join() === 'GARCH Model,Chronos Model,Regime HMM Model' && fread.rows[0].vsFrequency.verdict === 'better' && fread.rows[0].vsReference === undefined
+  && fread.baselines.map((r) => r.row).join() === 'column_frequency,global_frequency,random' && fread.baselines[0].vsFrequency === undefined && fread.baselines[2].vsUniform.verdict === 'no difference'
+  && admin.stateOf('rows', { rows: fread }) === 'beat GARCH: none · GARCH vs uniform: better',
+  `the reading: the model rows as before (now with vs the frequencies), the scored baselines apart, the week-over-week state over the model rows: ${JSON.stringify(fread)}`);
+const oldRead = admin.weekReading({ crypto: { rows: { ...freqRecord, frequency_reference: undefined, rows: freqRecord.rows.map(({ vs_frequency, ...r }) => (r.kind === 'baseline' ? { ...r, log_score: null } : r)) } } }, report).games.crypto.rows;
+ok(oldRead.rows.length === 3 && oldRead.rows.every((r) => r.vsFrequency === undefined) && oldRead.baselines.length === 0, 'the reading of a report from before: no vsFrequency, no scored baselines');
+
 // models: the summary and one game
 const m = request(app, '/api/admin/models', ADMIN).body;
 const mk = m.games.find((g) => g.game === 'keno');
-ok(mk.best.value === 0.117 && mk.best.profitPerBet === -0.195 && /fair ticket/.test(mk.measure.against) && mk.band.greys === false,
-  'keno: the bound comes with the raw profit per bet and what it is measured against; the hits band greys nothing');
+ok(mk.best.value === 0.117 && mk.best.profitPerBet === -0.195 && /fair ticket/.test(mk.measure.against) && mk.chance.inTile === false && mk.band === undefined,
+  'keno: the bound comes with the raw profit per bet and what it is measured against; its row test is on hits, information only');
 const ml = m.games.find((g) => g.game === 'lotto');
-ok(ml.top.join() === 'A Model,B Model,C Model,D Model,E Model' && ml.since.best.row === 'B Model' && ml.best.inBand === false && m.topN === 5, 'the summary: the five users see, the best since the freeze');
+ok(ml.top.join() === 'A Model,B Model,C Model,D Model,E Model' && ml.since.best.row === 'B Model' && ml.best.inBand === undefined && m.topN === 5, 'the summary: the five users see, the best since the freeze');
+ok(ml.best.chance.row === 'A Model' && ml.best.chance.mean === 1.3 && ml.best.chance.live === 14 && ml.best.chance.null === 0.8 && ml.best.chance.p === 0.021
+  && ml.best.chance.pHolm === 0.126 && ml.best.chance.fresh.state === 'running' && ml.chance.test.under === 3 && ml.chance.error === null && ml.chance.inTile === true,
+  'the summary: the best row\'s test on its live draws, its own mean, draws and null beside its p (the all-draws value never stands alone next to it)');
 ok(m.games.find((g) => g.game === 'crypto').top.join() === 'L Model,N Model' && request(app, '/api/admin/models/crypto?scope=top', ADMIN).body.rows.map((r) => r.row).join() === 'L Model,N Model',
   'the top rows are those in the newest day\'s table: a ranked row missing from it is passed over, as on the users\' pages');
 const mc = m.games.find((g) => g.game === 'crypto');
@@ -277,8 +364,10 @@ ok(mc.best.live === 20 && cm.rows.find((r) => r.row === 'M Model').live === 20 &
 const all = request(app, '/api/admin/models/lotto', ADMIN).body;
 const top = request(app, '/api/admin/models/lotto?scope=top', ADMIN).body;
 ok(all.scope === 'all' && all.shown === 7 && all.of === 7 && top.scope === 'top' && top.shown === 5 && top.rows.every((r) => r.top) && top.of === 7, 'scope: every row, or the top five only');
-ok(all.rows.find((r) => r.row === 'Young Model').young === true && all.rows.find((r) => r.row === 'D Model').inBand === true && all.rows.find((r) => r.row === 'A Model').inBand === false,
-  'the young and in-band flags of the old ranking');
+ok(all.rows.find((r) => r.row === 'Young Model').young === true && all.rows.every((r) => r.inBand === undefined) && all.band === undefined
+  && all.rows.find((r) => r.row === 'D Model').chance.p === 0.3 && all.rows.find((r) => r.row === 'Young Model').chance.inFamily === false
+  && all.rows.find((r) => r.row === 'Young Model').chance.pHolm === null && all.chance.test.family === 6,
+  'the young flag; no greying any more - each row its test line, a short row outside the family without a corrected p');
 ok(all.multiPick.rows.length === 2 && top.multiPick.rows.length === 1 && all.multiPick.chance[9] === 0.08395, 'multi-pick: the rows with extras, filtered by the scope; the exact chance');
 ok(all.combination.control.pValue === 0.188 && all.combination.control.consistentWithLuck === true && all.combination.beatsBestSingle === null, 'combination: the p value travels with the value; "beats" only for profit');
 const kg = request(app, '/api/admin/models/keno', ADMIN).body;
@@ -303,7 +392,7 @@ unlabelled.games.lotto.models.forEach((x) => { delete x.learning_check; });
 const plain = admin.modelsGame(unlabelled, 'lotto');
 const labelled = admin.modelsGame(report, 'lotto');
 const plainLotto = admin.modelsSummary(unlabelled).games.find((g) => g.game === 'lotto');
-ok(JSON.stringify(plain.rows.map((r) => [r.rank, r.row, r.value, r.top, r.inBand])) === JSON.stringify(labelled.rows.map((r) => [r.rank, r.row, r.value, r.top, r.inBand]))
+ok(JSON.stringify(plain.rows.map((r) => [r.rank, r.row, r.value, r.top, r.chance])) === JSON.stringify(labelled.rows.map((r) => [r.rank, r.row, r.value, r.top, r.chance]))
   && plain.top.join() === labelled.top.join() && plainLotto.best.row === ml.best.row && plainLotto.top.join() === ml.top.join() && Object.keys(plainLotto.learning).length === 0
   && plain.rows.every((r) => r.learning === null), 'the label moves no row: the same ranking, values, best row and top five without it');
 
@@ -323,8 +412,9 @@ ok(JSON.stringify(psl.commonLags) === JSON.stringify([{ lag: 4, rows: 1, tracked
   `phase shift: the common lags count every row's most frequent peak, with the tracked ones apart: ${JSON.stringify(psl.commonLags)}`);
 const rw = request(app, '/api/admin/randomness', ADMIN).body;
 const rl = rw.games.find((g) => g.game === 'lotto'); const rc = rw.games.find((g) => g.game === 'crypto');
-ok(rl.status === 'watch' && rl.reasons.join() === 'entropy,q2' && rl.q2.real === 0.59 && rc.reasons.join() === 'ae,q2' && rc.window === null && rw.games.length === 2,
-  'randomness: which tripwire is up, the Q2 verdict next to it; a market game with the autoencoder only');
+ok(rl.status === 'watch' && rl.reasons.join() === 'entropy,q2' && rl.q2.real === 0.59 && rc.reasons.join() === 'ae' && rc.q2.status === 'too few draws' && rc.window === null && rw.games.length === 2,
+  'randomness: which tripwire is up, the Q2 verdict next to it (too few draws is no Q2 reason); a market game with the autoencoder only');
+ok(rw.meta.fewWindows === FEW && rc.q2.minWindows === FEW && rl.q2.label === 'ABOVE both controls', 'randomness: the power rule from controlRules.json, the label of an above');
 const rlg = request(app, '/api/admin/randomness/lotto?scope=top', ADMIN).body;
 ok(rlg.models.map((r) => r.row).join() === 'A Model,C Model' && rlg.of === 3 && rlg.topMissing.join() === 'B Model,D Model,E Model',
   'randomness: the model KL rows, lowest first, the top scope, and the top rows with no KL row named');
@@ -348,6 +438,65 @@ const laterFreeze = JSON.parse(JSON.stringify(report));
 laterFreeze.games.crypto.since.date = '2026-11-02';
 ok(admin.modelsGame(laterFreeze, 'crypto').rows.every((r) => r.live === undefined), 'a later freeze without live_draws: no live split rather than a wrong one');
 
+// a lottery row's live record (src/Liveness.py, 27 Oct 2026): live_draws (live as stored + recovered), live.recovered,
+// and - when the report ranks on it (rankedOn 'live', the owner's decision 1) - the live value as the ranking value
+// with every stored draw's beside it, the 10-draw guard on live draws. A report without it shows no split.
+const lotLive = {
+  generatedAt: '2026-10-27T09:00:00', games: { vikinglotto: {
+    metric: 'avg_hits', minDrawsForRanking: 10, bestModel: 'Meta Model', rankedOn: 'live',
+    live: { metric: 'avg_hits', minDrawsForRanking: 10, bestModel: 'Meta Model', models: [] },
+    liveness: { checked: 'stamp+git', error: null, draws: 48, allLive: 32, allCounted: 40, rowsLive: 418, rowsRecovered: 67, rowsNotLive: 57, newestNotLive: '2026-06-10',
+      rewriteAudit: { rows: 67, hitsAtClose: 42, hitsStored: 57 }, unscheduled: [] },
+    // the row tests on the live record (the 26 Oct 2026 production figures: Bayes 0.878 on 41 live draws, p 0.166)
+    chance: summary('exact', { family: 2, liveMax: 41, under: 0, expected: 0.36 }),
+    models: [
+      { name: 'Meta Model', draws: 10, avg_hits: 1.0, best_hits: 2, live_draws: 10, live: { draws: 10, recovered: 0, not_live: 0, avg_hits: 1.0, best_hits: 2 },
+        ...tested(10, 0, 1.0, 0.75, 0.2, 0.33) },
+      { name: 'Bayes Model', draws: 48, avg_hits: 1.021, best_hits: 3, live_draws: 41, live: { draws: 41, recovered: 8, not_live: 7, avg_hits: 0.878, best_hits: 3 },
+        ...tested(41, 7, 0.878, 0.75, 0.166, 0.33) },
+      { name: 'New Model', draws: 12, avg_hits: 1.5, best_hits: 3, live_draws: 4, live: { draws: 4, recovered: 0, not_live: 8, avg_hits: 1.25, best_hits: 2 },
+        ...tested(4, 8, 1.25, 0.75, 0.3, null) },
+    ] } },
+};
+const vq = admin.controlsDrawer('vikinglotto', { q0: { synthetic: { best_row_mean: 0.86, best_row_sd_across_seeds: 0.07, generated_at: '2026-10-25T10:00:00', rows_compared: 8,
+  seeds: [1, 2, 3], days: 120 } } }, lotLive).q0;
+const vBayes = vq.table.find((r) => r.row === 'Bayes Model');
+ok(vBayes && vBayes.live === 41 && vBayes.notLive === 7 && vBayes.recovered === 8 && vBayes.mean === 0.878 && vq.table.length === 2 && vq.rows.length === 0 && vq.band.ceiling === 1,
+  `Q0: a lottery row tested on its live draws (the recovered ones as they stood at the close), its back-built or late ones apart; over 5%, not named on the card: ${JSON.stringify(vBayes)}`);
+const vm = admin.modelsGame(lotLive, 'vikinglotto');
+const vrow = (name) => vm.rows.find((r) => r.row === name);
+ok(vm.rankedOn === 'live' && vm.minDraws === 10 && vrow('Bayes Model').value === 0.878 && vrow('Bayes Model').allValue === 1.021 && vrow('Bayes Model').liveDraws === 41
+  && vrow('Bayes Model').draws === 48 && vrow('Bayes Model').live === 41 && vrow('Bayes Model').recovered === 8 && vrow('Bayes Model').young === false
+  && vrow('New Model').young === true && vrow('New Model').value === 1.25 && vrow('New Model').allValue === 1.5 && /saved before the sales close/.test(vm.window),
+  'models: ranked on the live record - the live value, every stored draw\'s beside it, the guard on live draws (12 stored, 4 live: short)');
+ok(vm.liveness.checked === 'stamp+git' && vm.liveness.rowsRecovered === 67 && vm.liveness.rewriteAudit.hitsAtClose === 42 && vm.liveness.newestNotLive === '2026-06-10',
+  'models: the game\'s liveness line - how it was judged, the rows recovered and their audit, the newest not live');
+const vs = admin.modelsSummary(lotLive).games.find((g) => g.game === 'vikinglotto');
+ok(vs.rankedOn === 'live' && vs.best.row === 'Meta Model' && vs.best.value === 1.0 && vs.best.allValue === 1.0 && vs.best.live === 10 && vs.rankedRows === 2,
+  'the overview: the best row by the live record, its all-draws value beside it, ranked rows counted on live draws');
+const noLive = JSON.parse(JSON.stringify(lotLive));
+delete noLive.games.vikinglotto.rankedOn;
+noLive.games.vikinglotto.models.forEach((m) => { delete m.live_draws; delete m.live; });
+const nm = admin.modelsGame(noLive, 'vikinglotto');
+ok(nm.rankedOn === 'all' && nm.rows.every((r) => r.live === undefined && r.recovered === undefined && r.allValue === null) && vrow('Bayes Model').value !== nm.rows.find((r) => r.row === 'Bayes Model').value,
+  'a lottery report without a live record (before 27 Oct, or not judged): every stored draw, no split');
+// a live record that reads 'unchecked' (no git, no earlier check: every unchecked draw counted not live) is no evidence
+// of back-built or late tickets: no split, in the models nor in Q0
+const uncheckedLive = JSON.parse(JSON.stringify(lotLive));
+delete uncheckedLive.games.vikinglotto.rankedOn;
+uncheckedLive.games.vikinglotto.liveness.checked = 'unchecked';
+uncheckedLive.games.vikinglotto.since = { date: '2026-09-27', label: 'September 2026 design freeze', metric: 'avg_hits', minDrawsForRanking: 10, bestModel: 'Bayes Model',
+  models: [{ name: 'Bayes Model', draws: 12, avg_hits: 1.1, best_hits: 3 }] };
+// the report tests nothing on an unchecked record (Helpers.py: a chance block with its reason, no row block)
+uncheckedLive.games.vikinglotto.chance = { method: 'exact', alpha: 0.05, verdictAlpha: 0.01, error: 'liveness not checked: git failed', family: 0 };
+uncheckedLive.games.vikinglotto.models.forEach((m) => { delete m.chance; });
+const um = admin.modelsGame(uncheckedLive, 'vikinglotto');
+const uq = admin.q0Of('vikinglotto', { synthetic: { best_row_mean: 0.86, best_row_sd_across_seeds: 0.07, generated_at: '2026-10-25T10:00:00', rows_compared: 8, seeds: [1, 2, 3], days: 120 } },
+  uncheckedLive.games.vikinglotto);
+ok(um.rankedOn === 'all' && um.rows.every((r) => r.live === undefined && r.recovered === undefined && r.chance === null) && um.since.live === null && um.liveness.checked === 'unchecked'
+  && um.chance.test === null && um.chance.error === 'liveness not checked: git failed' && uq.test === null && uq.error === 'liveness not checked: git failed' && uq.rows.length === 0,
+  'an unchecked live record: no live split ("back-built or late" would be a claim without evidence) and no row test, the line says why');
+
 // one broken record costs its own cell, never the page
 const broken = admin.readAll(admin.resolveDirs({ dataDir }));
 broken.crypto = { ...broken.crypto, rows: { market: 'crypto', rows: [null] } };
@@ -368,13 +517,40 @@ ok(cutGames.lotto.errors.join() === 'q2,fc' && cutGames.crypto.errors.join() ===
   `a half-written record is named unreadable, apart from the games with no record yet: ${JSON.stringify(cutGames.lotto.errors)}`);
 ok(JSON.stringify(cutGames.lotto.q0.band.missing) === '[{"mode":"synthetic","unreadable":true}]' && cutGames.lotto.q0.band.from === 'shuffled'
   && JSON.stringify(cg.keno.q0.band.missing) === '[{"mode":"shuffled","unreadable":false}]' && cg.lotto.q0.band.missing.length === 0
-  && cut.tiles.q0.oneControl.map((x) => x.game).join() === 'lotto,keno,crypto',
-  'a band from one control names the other and why it is not there; the tile names the games');
+  && cut.tiles.q0.band.oneControl.map((x) => x.game).join() === 'lotto,keno,crypto' && cutGames.lotto.q0.test.family === 6 && !cutGames.lotto.errors.includes('q0'),
+  'a band from one control (context) names the other and why it is not there; the tile names the games; the row test is untouched by it');
 const cutDrawer = admin.controlsDrawer('lotto', admin.readControls(cutDirs, 'lotto'), report);
 ok(cutDrawer.errors.join() === 'q2,fc' && cutDrawer.q0.band.missing[0].unreadable === true, 'the drawer: the same parts unreadable, the band from one control');
-ok(admin.modelsGame(report, 'lotto', 'all', admin.readControls(cutDirs, 'lotto')).band.missing[0].mode === 'synthetic', 'the Models band says it comes from one control');
+// no band record read at all: only the context goes (bandUnreadable), never Q0 itself - it is the report's row test
+const noBandDir = path.join(tmp, 'noband');
+fs.cpSync(cutDir, noBandDir, { recursive: true });
+fs.writeFileSync(path.join(noBandDir, 'results/lotto-shuffled.json'), '{"report": {"best_row_mean": ');
+const noBand = admin.controlsOverview(admin.readAll(admin.resolveDirs({ dataDir, controlsDir: noBandDir })), report).groups[0].games.find((g) => g.game === 'lotto');
+ok(noBand.q0.band === null && noBand.q0.bandUnreadable === true && !noBand.errors.includes('q0') && noBand.q0.test.under === 3,
+  'both band records unreadable: the band (context) is missing and said so; Q0 is no error');
+ok(admin.modelsGame(report, 'lotto', 'all', admin.readControls(cutDirs, 'lotto')).band === undefined, 'the Models page has no band any more');
 const brokenQ2 = { ...broken.lotto, q2: { ...broken.lotto.q2, verdict: { ...broken.lotto.q2.verdict, per_seed_real: 5 } } };
 ok(admin.controlsDrawer('lotto', brokenQ2, report).q2.perSeed.real.length === 0, 'a per-seed field that is not a list reads as none');
+// a version-2 Q2 record (the 1 Nov 2026 run on, RandomnessDiscrimination.compute_verdict): its own status, the threshold
+// with its standard error, k of both bounds, the seeds each comparison scored; a failed run reads failed - in the tile
+// too - and never within
+const q2v2 = (over) => ({ ...broken.lotto.q2, repetitions: 20, seeds: Array.from({ length: 20 }, (_, i) => 2026440001 + i), generated_at: '2026-11-01T10:17:37',
+  verdict: { version: 2, status: 'within', metric: 'best AUC of the classifier suite, per repetition', real_max_of_suite_mean: 0.5671, real_max_of_suite_sd: 0.0502,
+    null_max_of_suite_mean: 0.5762, null_max_of_suite_sd: 0.0441, shuffled_max_of_suite_mean: 0.5881, shuffled_max_of_suite_sd: 0.0589,
+    seeds_scored: { real: 20, null: 20, shuffled: 20 }, band_coverage: 0.97725, band_k: 2.193, shuffled_k: 2.193, null_threshold: 0.6729, null_threshold_se: 0.0186,
+    shuffled_threshold: 0.7173, per_seed_real: [0.58, 0.55], per_seed_null: [0.57, 0.6], per_seed_shuffled: [0.59, 0.6],
+    above_null_band: false, survives_marginals_control: false, too_few_draws: false, few_windows: FEW, windows_test: 496, ...over } });
+const d2 = admin.controlsDrawer('lotto', { ...broken.lotto, q2: q2v2({}) }, report).q2;
+ok(d2.status === 'within' && d2.rule === 2 && d2.threshold === 0.673 && d2.thresholdExact === 0.6729 && d2.thresholdSe === 0.019 && d2.bandK === 2.19 && d2.shuffledK === 2.19
+  && d2.shuffledThreshold === 0.717 && JSON.stringify(d2.seedsScored) === '{"real":20,"null":20,"shuffled":20}' && d2.seeds === 20 && d2.minWindows === FEW && d2.label === 'within the null band',
+  `the drawer: a version-2 record's threshold, its error, k and the shuffled bound: ${JSON.stringify(d2)}`);
+ok(admin.controlsDrawer('lotto', brokenQ2, report).q2.seedsScored === null && admin.controlsDrawer('lotto', brokenQ2, report).q2.bandK === null, 'a version-1 record has none of them');
+const failedQ2 = { ...broken, lotto: { ...broken.lotto, q2: q2v2({ status: 'failed', real_max_of_suite_mean: null, real_max_of_suite_sd: null, null_threshold: null, null_threshold_se: null,
+  band_k: null, shuffled_threshold: null, seeds_scored: { real: 20, null: 1, shuffled: 20 } }) } };
+const failedView = admin.controlsOverview(failedQ2, report);
+const fl = failedView.groups[0].games.find((g) => g.game === 'lotto').q2;
+ok(fl.status === 'failed' && fl.real === null && fl.threshold === null && failedView.tiles.q2.failedGames.join() === 'lotto' && failedView.tiles.q2.above === 0
+  && admin.weekReading(failedQ2, report).games.lotto.q2.status === 'failed', 'a failed Q2 run reads failed on the card, in the tile and in the reading');
 const brokenSince = JSON.parse(JSON.stringify(report));
 brokenSince.games.lotto.since.models = { a: 1 };
 ok(admin.modelsSummary(brokenSince).games.length === 3 && admin.modelsGame(brokenSince, 'lotto').rows.length === 7, 'a since record whose models are not a list');
@@ -416,8 +592,10 @@ const storedWeek = (sunday, change) => {
   change(r.games);
   return readings.writeReading(r, { outDir: readingsDir });
 };
-storedWeek('2026-10-11', (g) => { g.lotto.q0.above = g.lotto.q0.above.filter((r) => r.row === 'A Model'); g.lotto.q2.status = 'within'; g.crypto.rows = null; });
-storedWeek('2026-10-04', (g) => { g.lotto.q0.above = []; });
+// 11 Oct: lotto's A not followed yet (B confirmed already); 4 Oct: a reading written under the band rule (no q0.rule), as
+// the stored readings of 18 and 25 Oct 2026 are - Q0's weeks start again at the first reading of the row tests
+storedWeek('2026-10-11', (g) => { g.lotto.q0.rows = g.lotto.q0.rows.filter((r) => r.row !== 'A Model'); g.lotto.q2.status = 'within'; g.crypto.rows = null; });
+storedWeek('2026-10-04', (g) => { Object.values(g).forEach((x) => { if (x.q0) { delete x.q0.rule; x.q0.above = []; } }); });
 fs.writeFileSync(path.join(readingsDir, '2026-10-25.json'), '{"version": 1, "sunday": "2026-10-');
 fs.writeFileSync(path.join(readingsDir, '2026-10-20.json'), JSON.stringify({ version: 1, sunday: '2026-10-20', games: {} }));
 const stored = admin.loadReadings(readingsDir);
@@ -425,16 +603,22 @@ ok(stored.sundays.join() === '2026-10-04,2026-10-11' && stored.unreadable.join()
 
 const ch = request(app, '/api/admin/controls', ADMIN).body;
 const hg = Object.fromEntries(ch.groups.flatMap((g) => g.games).map((g) => [g.game, g]));
-ok(JSON.stringify(hg.lotto.history.q0) === '{"state":"above","sunday":"2026-10-18","weeks":2,"changed":false,"live":true}',
-  `Q0 above for the 2nd week (4 Oct read none above); no reading of 18 Oct yet, so against the live ranking: ${JSON.stringify(hg.lotto.history.q0)}`);
-ok(hg.lotto.q0.above.rows.map((r) => `${r.row}:${r.weeks}`).join() === 'A Model:2,B Model:1', 'each row above the band says for how many weeks in a row');
+ok(JSON.stringify(hg.lotto.history.q0) === '{"state":"confirmed: B · followed: A","sunday":"2026-10-18","weeks":1,"changed":true,"last":"confirmed: B · followed: none","live":true}',
+  `Q0: the rows confirmed and followed - A followed since last week is the change; no reading of 18 Oct yet, so the report on disk: ${JSON.stringify(hg.lotto.history.q0)}`);
+ok(hg.lotto.q0.rows.every((r) => r.weeks === undefined), 'no row carries a "kth week" any more: one record re-read week after week is no streak');
 ok(JSON.stringify(hg.lotto.history.q2) === '{"state":"above","sunday":"2026-10-18","weeks":1,"changed":true,"last":"within"}',
   'a change from last week carries what it read then - the only thing the page colours');
 ok(hg.lotto.history.fc.state === 'lr fit · qk ignored' && hg.lotto.history.fc.weeks === 3 && hg.lotto.history.fc.changed === false && hg.lotto.history.fc.last === undefined,
   'a state that holds every week: its count of weeks, no change, nothing to colour');
 ok(hg.crypto.history.rows.state === 'beat GARCH: none · GARCH vs uniform: better' && hg.crypto.history.rows.changed === true && hg.crypto.history.rows.last === null
-  && hg.keno.history.q0.weeks === 3 && hg.euromillions.history.q0 === null && hg.lotto.history.rows === undefined,
-  'a record where last week had none is a change (last: null); a game without records has no history; a lottery game no rows');
+  && hg.keno.history.q0.weeks === 2 && hg.keno.history.q0.state === 'confirmed: none · followed: K2' && hg.euromillions.history.q0 === null && hg.lotto.history.rows === undefined,
+  'a record where last week had none is a change (last: null); Q0 counts back to the reading under the band rule and no further; a game without a ranking has no history; a lottery game no rows');
+ok(admin.stateOf('q0', stored.bySunday.get('2026-10-04').games.keno) === 'band rule' && admin.stateOf('q0', { q0: { rule: 'row test', test: null, rows: [] } }) === 'no row test',
+  'a stored reading without a Q0 rule reads "band rule" (the streak restarts on Sun 1 Nov 2026); a reading without a test says so');
+const fromBand = admin.streakOf({ bySunday: new Map([['2026-10-11', JSON.parse(JSON.stringify(stored.bySunday.get('2026-10-04')))]]) }, 'keno', 'q0',
+  admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report).games.keno);
+ok(fromBand.weeks === 1 && fromBand.changed === null && fromBand.noRunBefore === true,
+  `a band-rule reading dated by its band records of another week is no reading of Q0 that week: ${JSON.stringify(fromBand)}`);
 ok(ch.readings.stored === 2 && ch.readings.unreadable.length === 2 && ch.readings.newestRecords === '2026-10-18', 'the page says how many weeks it reads, and which files it could not');
 ok(JSON.stringify(admin.streakOf({ bySunday: new Map([['2026-10-04', stored.bySunday.get('2026-10-04')]]) }, 'lotto', 'q2', admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report).games.lotto))
   === '{"state":"above","sunday":"2026-10-18","weeks":1,"changed":null}', 'a missing week ends the run and leaves nothing to compare: weeks 1, changed null');
@@ -447,12 +631,15 @@ midRun.games.lotto.q2 = { ...midRun.games.lotto.q2, at: '2026-10-25T08:48:16Z' }
 const mh = admin.historyOf(midRun, stored);
 ok(mh.newest === '2026-10-25' && mh.games.lotto.q2.sunday === '2026-10-25' && mh.games.lotto.q0.behind === true && mh.games.lotto.q2.behind === undefined,
   'mid-run on a Sunday: the cells still from last week are marked behind');
-// Q0 rewrites a game's synthetic record hours before its shuffled one: half rewritten, the band is still last week's
-ok(midRun.games.lotto.q0.at === '2026-10-18T10:11:55Z', 'a reading\'s Q0 time is the older of its two control records');
+// Q0's time is the report that ran the row tests (27 Oct 2026); a reading under the band rule is still dated by its older
+// band record - NullControls rewrote a game's synthetic record hours before its shuffled one, so half rewritten, it was last week's
+ok(midRun.games.lotto.q0.at === '2026-10-21T08:48:01Z' && midRun.games.lotto.q0.rule === 'row test', 'a reading\'s Q0 time is the report\'s');
 const halfQ0 = JSON.parse(JSON.stringify(midRun));
+delete halfQ0.games.lotto.q0.rule;
 halfQ0.games.lotto.q0.modes.synthetic.at = '2026-10-25T10:11:55Z';
 const hh = admin.historyOf(halfQ0, stored);
-ok(hh.games.lotto.q0.sunday === '2026-10-18' && hh.games.lotto.q0.behind === true, `a band half rewritten is behind, not this week's: ${JSON.stringify(hh.games.lotto.q0)}`);
+ok(hh.games.lotto.q0.sunday === '2026-10-18' && hh.games.lotto.q0.behind === true && hh.games.lotto.q0.state === 'band rule',
+  `a band-rule reading half rewritten is behind, not this week's: ${JSON.stringify(hh.games.lotto.q0)}`);
 
 // a stored week whose reading holds an older record of a control (it failed or skipped the game that Sunday, so last
 // week's record was still on disk) is no reading of that control: it ends the run, it is not one more week
@@ -461,7 +648,6 @@ const r11 = staleStored.bySunday.get('2026-10-11');
 r11.games.lotto.q2 = { ...staleStored.bySunday.get('2026-10-04').games.lotto.q2 };
 r11.games.lotto.fc = { ...staleStored.bySunday.get('2026-10-04').games.lotto.fc };
 r11.games.lotto.q0 = JSON.parse(JSON.stringify(staleStored.bySunday.get('2026-10-04').games.lotto.q0));
-r11.games.lotto.q0.above = [{ row: 'A Model' }];
 const cur18 = admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report);
 const sf = admin.streakOf(staleStored, 'lotto', 'fc', cur18.games.lotto);
 ok(JSON.stringify(sf) === '{"state":"lr fit · qk ignored","sunday":"2026-10-18","weeks":1,"changed":null,"noRunBefore":true}',
@@ -469,37 +655,54 @@ ok(JSON.stringify(sf) === '{"state":"lr fit · qk ignored","sunday":"2026-10-18"
 ok(admin.streakOf(staleStored, 'lotto', 'q2', cur18.games.lotto).changed === null && admin.streakOf(staleStored, 'lotto', 'q0', cur18.games.lotto).weeks === 1,
   'the same for Q2 and Q0');
 const staleView = admin.withHistory(admin.controlsOverview(admin.readAll(admin.resolveDirs({ dataDir })), report), cur18, staleStored);
-ok(staleView.groups[0].games[0].q0.above.rows.map((r) => `${r.row}:${r.weeks}`).join() === 'A Model:1,B Model:1', 'a row above in a stale Q0 copy gets no extra week');
+ok(staleView.groups[0].games[0].history.q0.weeks === 1 && staleView.groups[0].games[0].history.q0.noRunBefore === true, 'a stale Q0 copy gets no extra week');
 
-// Q0 once the reading of its own Sunday is stored: the state and the rows' weeks are that reading's (that Sunday's
-// ranking), never today's; where today's ranking reads the band differently is said apart (sinceReading)
+// Q2's rule (27 Oct 2026): a reading stores the verdict version its status was read under (q2.rule; none = 1). The week
+// after a change of rule is another measurement - 3 seeds against 20 - so the run of weeks stops there, and the change
+// is said (ruleChanged, with the rule and the seeds of the week before) whether the status changed with it or not
+ok(stored.bySunday.get('2026-10-11').games.lotto.q2.rule === 1 && stored.bySunday.get('2026-10-11').games.lotto.q2.thresholdSe === null
+  && cur18.games.lotto.q2.rule === 1 && cur18.games.lotto.q2.shuffledThreshold === null, 'a reading of a version-1 record holds rule 1 and none of the version-2 numbers');
+const v2Now = (status) => ({ ...cur18.games.lotto, q2: { ...cur18.games.lotto.q2, status, rule: 2, seeds: 20, thresholdSe: 0.019 } });
+const ruled = admin.streakOf(stored, 'lotto', 'q2', v2Now('above'));
+ok(JSON.stringify(ruled) === '{"state":"above","sunday":"2026-10-18","weeks":1,"changed":true,"last":"within","ruleChanged":true,"lastRule":1,"lastSeeds":3}',
+  `the first week under rule 2: what changed, and that the week before was read under rule 1 on 3 seeds: ${JSON.stringify(ruled)}`);
+const steady = admin.streakOf(stored, 'lotto', 'q2', v2Now('within'));
+ok(steady.weeks === 1 && steady.changed === false && steady.ruleChanged === true
+  && admin.streakOf(stored, 'lotto', 'q2', { ...cur18.games.lotto, q2: { ...cur18.games.lotto.q2, status: 'within' } }).weeks === 2,
+  'the same status under a new rule starts a new run (weeks 1, unchanged); under the same rule it counts on (2nd week)');
+const unruled = { ...stored, bySunday: new Map([...stored.bySunday].map(([day, r]) => { const x = JSON.parse(JSON.stringify(r)); delete x.games.lotto.q2.rule; return [day, x]; })) };
+ok(admin.streakOf(unruled, 'lotto', 'q2', cur18.games.lotto).ruleChanged === undefined && admin.streakOf(unruled, 'lotto', 'q2', v2Now('above')).ruleChanged === true,
+  'a reading written before 27 Oct 2026 has no rule: it was read under rule 1');
+ok(admin.streakOf(stored, 'lotto', 'fc', cur18.games.lotto).ruleChanged === undefined, 'only Q2 has a rule');
+
+// Q0 once the reading of its own Sunday is stored: the state is that reading's (that Sunday's report), never today's;
+// where today's report follows or confirms other rows is said apart (sinceReading)
 const r18 = admin.weekReading(admin.readAll(admin.resolveDirs({ dataDir })), report, { sunday: '2026-10-18' });
-r18.games.lotto.q0.above = r18.games.lotto.q0.above.filter((r) => r.row === 'A Model');
+r18.games.lotto.q0.rows = r18.games.lotto.q0.rows.filter((r) => r.row !== 'A Model');
 r18.rankingAt = '2026-10-18T08:47:31Z';
 const withOwn = { ...stored, bySunday: new Map([...stored.bySunday, ['2026-10-18', r18]]) };
 const own = admin.streakOf(withOwn, 'lotto', 'q0', cur18.games.lotto);
-ok(JSON.stringify(own) === '{"state":"above","sunday":"2026-10-18","weeks":2,"changed":false,"sinceReading":{"now":"above","added":["B Model"],"dropped":[],"rankingAt":"2026-10-18T08:47:31Z"}}',
-  `Q0 reads its own Sunday's reading, the live ranking's extra row said apart: ${JSON.stringify(own)}`);
-r18.games.lotto.q0.above = [];
+ok(JSON.stringify(own) === '{"state":"confirmed: B · followed: none","sunday":"2026-10-18","weeks":2,"changed":false,"sinceReading":{"now":"confirmed: B · followed: A","added":["A Model"],"dropped":[],"rankingAt":"2026-10-18T08:47:31Z"}}',
+  `Q0 reads its own Sunday's reading, the report's newly followed row said apart: ${JSON.stringify(own)}`);
+r18.games.lotto.q0.rows = [];
 const flipped = admin.streakOf(withOwn, 'lotto', 'q0', cur18.games.lotto);
-ok(flipped.state === 'none above' && flipped.changed === true && flipped.last === 'above' && flipped.sinceReading.now === 'above' && flipped.sinceReading.added.join() === 'A Model,B Model',
-  'a later ranking never turns a stored "none above" into "above": the change is the readings\' own');
-r18.games.lotto.q0.above = [{ row: 'A Model' }];
+ok(flipped.state === 'confirmed: none · followed: none' && flipped.changed === true && flipped.last === 'confirmed: B · followed: none'
+  && flipped.sinceReading.now === 'confirmed: B · followed: A' && flipped.sinceReading.added.join() === 'B Model,A Model',
+  'a later report never rewrites a stored reading: the change is the readings\' own');
 const ownView = admin.withHistory(admin.controlsOverview(admin.readAll(admin.resolveDirs({ dataDir })), report), cur18, withOwn);
-ok(ownView.groups[0].games[0].q0.above.rows.map((r) => `${r.row}:${r.weeks}`).join() === 'A Model:2,B Model:null',
-  'a row above only against the live ranking has no weeks; the others count from the reading of their Sunday');
+ok(ownView.groups[0].games[0].history.q0.sinceReading.added.join() === 'B Model,A Model', 'the page carries the same history');
 
-// a market row's live count gets its own "≤": rows of one length can differ in live days
+// the band (context) names each control record's time
 const lives = admin.q0Of('crypto', { synthetic: { best_row_mean: 1, best_row_sd_across_seeds: 0.1, generated_at: '2026-10-18T10:00:00', rows_compared: 5, seeds: [1, 2, 3], days: 100 } },
-  { metric: 'avg_hits', minDrawsForRanking: 10, models: [{ name: 'A Model', avg_hits: 2, draws: 50, live_draws: 20 }, { name: 'B Model', avg_hits: 2.1, draws: 50, live_draws: 17 }] });
-ok(lives.above.sameLength === true && lives.above.sameLive === false && lives.above.longestLive === 20 && lives.band.modes.length === 1 && lives.band.modes[0].at === '2026-10-18T10:00:00Z',
-  'Q0: the same record length, different live counts; the band names each control record\'s time');
+  { metric: 'avg_hits', minDrawsForRanking: 10, models: [{ name: 'A Model', avg_hits: 2, draws: 50, live_draws: 20 }] });
+ok(lives.band.modes.length === 1 && lives.band.modes[0].at === '2026-10-18T10:00:00Z' && lives.test === null && lives.error === 'not in this report - written before 27 Oct 2026, or its test failed',
+  'Q0: the band names each control record\'s time; a report without row tests has no test, and says so');
 
 // the runs: three jobs, the scheduler's history and their logs
 const TEST_JOBS = [
   { key: 'predictor', name: 'Daily predictor', log: 'predictor.log', daily: { hour: 9, minute: 0 } },
   { key: 'hyperoptStatistics', name: 'Weekly tuning: statistical models', log: 'hyperoptStatistics.log', plan: 'weeklyTuning' },
-  { key: 'nullControls', name: 'Weekly controls: null histories (Q0)', log: 'nullControls.log', plan: 'weeklyControls' },
+  { key: 'nullControls', name: 'Weekly controls: null histories (Q0 band, context)', log: 'nullControls.log', plan: 'weeklyControls' },
 ];
 const Z = (iso) => Date.parse(iso);
 const runOf = (key, startIso, minutes, exit = 0, extra = {}) => ({ at: Z(startIso), finishedAt: Z(startIso) + minutes * 60000, key, name: key, reason: 'test', seconds: minutes * 60, exit, sha: 'abc12345', ...extra });
@@ -522,7 +725,7 @@ writeLog('hyperoptStatistics.log', [
   slice('Weekly tuning: statistical models', '2026-10-10 08:52:22', ['LOCKBOX: 2 days withheld', 'LOCKBOX: again', '/x/foo.py:12: UserWarning: careful'], 0, 7200),
   slice('Weekly tuning: statistical models', '2026-10-17 09:00:01', ['LOCKBOX: 1 day withheld', '/src/MarketModels.py:448: RuntimeWarning: invalid value encountered in divide',
     'Traceback (most recent call last):', '  the gate: standard error 0.0883', 'TF-TRT Warning: Could not find TensorRT'], 0, 18000)]);
-writeLog('nullControls.log', [slice('Weekly controls: null histories (Q0)', '2026-10-18 10:00:01', ['/src/MarketModels.py:448: RuntimeWarning: invalid value'], 1, 45600)]);
+writeLog('nullControls.log', [slice('Weekly controls: null histories (Q0 band, context)', '2026-10-18 10:00:01', ['/src/MarketModels.py:448: RuntimeWarning: invalid value'], 1, 45600)]);
 writeLog('predictor.log', ['2026-10-12', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21']
   .map((d) => slice('Daily predictor', `${d} 07:00:02`, ['saving_lib.py:1: UserWarning: keras', ...(d === '2026-10-21' ? ['Traceback (most recent call last):'] : [])], 0, 6000)));
 ok(admin.slicesOf('=== scheduler: J started 2026-10-18 10:00:01 UTC ===\nZeroDivisionError: x\n=== scheduler: J started 2026-10-18 11:00:01 abc UTC ===\nstill running').map((s) => `${s.status}:${Object.keys(s.sig)}`).join('|')
@@ -640,6 +843,87 @@ async function phaseTwo() {
     'keno: a capped-profit side carries the fair ticket it is measured above and its raw profit per bet; a hits side neither');
   // mid-chain on Saturday: the tuners that have not written yet count no gate, with no margin to speak of
   ok(t.byTuner.find((x) => x.tuner === 'boosting').n === 0 && t.byTuner.find((x) => x.tuner === 'boosting').marginZero === 0, 'a tuner with no decision this weekend: n 0');
+  // the keno sub-selection step, its own job since 26 Oct 2026: its KenoSubsetTuning record says HyperoptStatistics like the
+  // statistical job's and commits as "statistical", so the row tells them apart - the keno step's from the day it joined
+  // the chain, the statistical job's before (that job tuned the row until then)
+  const ms31 = Z('2026-10-31T21:40:00Z');
+  const k31 = { ...kenoGate, date: '2026-10-31T21:40:00+00:00', tuner: 'HyperoptStatistics' };
+  const k24 = { ...kenoGate, date: '2026-10-24T12:17:00+00:00', tuner: 'HyperoptStatistics' };
+  const m31 = { ...kenoGate, date: '2026-10-31T10:16:00+00:00', tuner: 'HyperoptStatistics' };
+  ok(gates.familyOf('KenoSubsetTuning', ms31) === 'keno sub-selections' && gates.familyOf('KenoSubsetTuning', Z('2026-10-24T12:17:00Z')) === 'statistical'
+    && gates.tunerOfScript('HyperoptStatistics', 'KenoSubsetTuning', ms31) === 'keno sub-selections' && gates.tunerOfScript('HyperoptStatistics', 'Markov Model', ms31) === 'statistical'
+    && gates.tunerOfScript('/x/HyperoptStatistics.py') === 'statistical' && gates.tunerOfJob('kenoSubsetTuning') === 'keno sub-selections',
+    'the keno step by its row from 26 Oct 2026 on, the statistical job by its script; the keno job is the keno step');
+  ok(gates.attribute('KenoSubsetTuning', k31).tuner === 'keno sub-selections' && gates.attribute('KenoSubsetTuning', k24).tuner === 'statistical'
+    && gates.attribute('KenoSubsetTuning', { ...k31, tuner: undefined }, { carrier: { tuner: 'statistical' } }).by === 'family + commit',
+    'a KenoSubsetTuning record: the keno step\'s since it runs on its own, the statistical job\'s before; a "statistical" commit confirms either');
+  // the cut-over day is written twice (gates.js TUNERS, jobs.js JOBS): every tuner's job is a scheduled job, and a tuner
+  // that joined later says the same day as its job, or the Tuning page and This week would disagree about a weekend
+  const jobsByKey = Object.fromEntries(require('../jobs').JOBS.map((j) => [j.key, j]));
+  ok(gates.TUNERS.every((x) => jobsByKey[x.job] && (x.since || null) === (jobsByKey[x.job].since || null)),
+    'every tuner of gates.js is a job of jobs.js, with the same since');
+  const kh31 ={ weekends: ['2026-10-31'], newest: '2026-10-31', decisions: {}, carriers: {}, commits: 0, error: null };
+  const runs31 = [{ key: 'hyperoptStatistics', at: Z('2026-10-31T09:00:00Z'), finishedAt: Z('2026-10-31T14:00:00Z'), exit: 0, seconds: 18000 },
+    { key: 'kenoSubsetTuning', at: Z('2026-10-31T21:30:00Z'), finishedAt: Z('2026-10-31T21:45:00Z'), exit: 0, seconds: 900 }];
+  const s31 = admin.tuningSummary(admin.tuningRecords({ keno: { 'Markov Model': m31, KenoSubsetTuning: k31 } }, kh31, runs31), kh31, runs31);
+  const kenoStep = s31.byTuner.find((x) => x.tuner === 'keno sub-selections');
+  const stat31 = s31.byTuner.find((x) => x.tuner === 'statistical');
+  ok(kenoStep && kenoStep.job === 'kenoSubsetTuning' && kenoStep.n === 1 && kenoStep.replacedRows.keno.join() === 'KenoSubsetTuning' && kenoStep.run.minutes === 15
+    && stat31.n === 1 && stat31.replacedRows.keno.join() === 'Markov Model' && stat31.run.minutes === 300 && s31.byTuner.map((x) => x.tuner).pop() === 'keno sub-selections',
+    `each run's drawer counts its own decisions: the keno step its KenoSubsetTuning record, the statistical job the rest (${s31.byTuner.map((x) => `${x.tuner} ${x.n}`).join(', ')})`);
+  const kh24 = { weekends: ['2026-10-24'], newest: '2026-10-24', decisions: {}, carriers: {}, commits: 0, error: null };
+  const s24 = admin.tuningSummary(admin.tuningRecords({ keno: { KenoSubsetTuning: k24 } }, kh24, []), kh24);
+  ok(!s24.byTuner.some((x) => x.tuner === 'keno sub-selections') && s24.byTuner.find((x) => x.tuner === 'statistical').n === 1,
+    'the weekend before the keno step existed: no card of its own, its row the statistical job\'s decision');
+  // the lockbox days a decision did not score (26 Oct 2026): out of the window for a row tuner, out of the quantum
+  // tuner's score table before its holdout was cut; an older record has no count
+  const lockRow = gates.describe('Markov Model', { ...markov17, lockbox_days_withheld: 22 });
+  const lockQ = gates.describe('QuantumVQC Model', { ...markov17, lockbox_days_withheld: 60, lockbox_withheld_from: 'table' });
+  const lockGame = admin.tuningGame(admin.tuningRecords({ keno: { KenoSubsetTuning: { ...k31, lockbox_days_withheld: 22 } } }, kh31, runs31), 'keno', kh31).rows[0];
+  ok(lockRow.lockboxDays === 22 && lockRow.lockboxFrom === 'window' && lockQ.lockboxDays === 60 && lockQ.lockboxFrom === 'table'
+    && gates.describe('Mystery Model', mystery).lockboxDays === null && gates.describe('Mystery Model', mystery).lockboxFrom === null
+    && lockGame.lockboxDays === 22 && lockGame.lockboxFrom === 'window' && m.lockboxDays === null && m.lockboxFrom === null,
+    'the lockbox days a decision withheld and out of what, on the drawer\'s row; an older record has neither');
+
+  // the margins of 27 Oct 2026: every tuner asks for k standard errors (margin_se: 1, quantum 2.5), a revert takes its
+  // own margin (revert_margin: 0 for statistical, RL and ensemble), a challenger without an SE is kept (fail closed),
+  // and the RL Position row says whether its sizing sits out. An older record has none of the keys.
+  const at31 = (h) => `2026-10-31T${h}:00+00:00`;
+  const q31 = { ...gate(at31('23:10'), 'kept', 0.9, 0.75, 0.7, { margin: 0.2, tuner: 'HyperoptQuantum' }), margin_se: 2.5, revert_margin: 0.2 };
+  const vqc31 = { ...gate(at31('23:20'), 'replaced', 1.1, 0.75, 0.7, { margin: 0.2, tuner: 'HyperoptQuantum' }), margin_se: 2.5, revert_margin: 0.2 };
+  const rev31 = { ...gate(at31('10:00'), 'reverted', 0.7, 0.6, 0.65, { margin: 0.08, tuner: 'HyperoptStatistics' }), margin_se: 1, revert_margin: 0 };
+  const noSe31 = { ...gate(at31('10:05'), 'kept', 0.9, 0.6, 0.5, { margin: 0, se: null, tuner: 'HyperoptStatistics' }), margin_se: 1, revert_margin: 0,
+    reason: 'no standard error - kept: challenger +0.9000 has none, so its margin of 1 standard error cannot be measured' };
+  const pos31 = { ...gate(at31('22:00'), 'kept', 0.0084, 0.0083, -0.17, { margin: 0.08, kind: 'capped_profit', days: 40, tuner: 'HyperoptRLTicket' }),
+    margin_se: 1, revert_margin: 0, sit_out: true, sit_out_reason: 'served sizing +0.0083 (SE 0.0800) does not beat the 0 of never betting by one standard error of its own - the row sits out' };
+  const dq = gates.describe('QuantumMetaLearner Model', q31);
+  const dr = gates.describe('Markov Model', rev31);
+  const dn = gates.describe('MarkovBayesian Model', noSe31);
+  const dp = gates.describe('RL Position Model', pos31);
+  const dOld = gates.describe('Mystery Model', mystery);
+  ok(Math.abs(dq.marginSe - 2.5) < 1e-9 && dq.marginK === 2.5 && dq.revertMargin === 0.2 && dr.marginK === 1 && Math.abs(dr.marginSe - 1) < 1e-9 && dr.revertMargin === 0
+    && dn.marginSe === null && dn.marginK === 1 && dp.sitOut === true && /sits out$/.test(dp.sitOutReason) && dq.sitOut === null && dq.sitOutReason === null
+    && gates.describe('RL Position Model', { ...pos31, sit_out: false }).sitOut === false,
+    `a record's k, its revert margin and the RL Position sit-out: ${JSON.stringify({ dq, dn, dp })}`);
+  ok(dOld.marginK === null && dOld.revertMargin === null && dOld.sitOut === null && dOld.sitOutReason === null && dOld.marginSe === 0,
+    'an older record without the new keys: no k, no revert margin, no sit-out - and its marginSe as before');
+  const h31 = { weekends: ['2026-10-31'], newest: '2026-10-31', decisions: {}, carriers: {}, commits: 0, error: null };
+  const recs31 = admin.tuningRecords({ lotto: { 'QuantumMetaLearner Model': q31, 'QuantumVQC Model': vqc31, 'Markov Model': rev31, 'MarkovBayesian Model': noSe31 },
+    crypto: { 'RL Position Model': pos31 } }, h31, []);
+  const sum31 = Object.fromEntries(admin.tuningSummary(recs31, h31).byTuner.map((x) => [x.tuner, x]));
+  ok(JSON.stringify(sum31.quantum.marginSeCounts) === '{"2.5":2}' && sum31.quantum.marginOneSe === 0 && sum31.quantum.marginZero === 0
+    && JSON.stringify(sum31.statistical.marginSeCounts) === '{"1":2}' && sum31.statistical.marginOneSe === 1 && sum31.statistical.marginZero === 0
+    && JSON.stringify(sum31['RL ticket'].marginSeCounts) === '{"1":1}' && JSON.stringify(sum31.boosting.marginSeCounts) === '{}',
+    `the margin chips by k: quantum at 2.5 SE, a row kept for want of a challenger SE at its k, never at margin 0: ${JSON.stringify(Object.values(sum31).map((x) => [x.tuner, x.marginSeCounts, x.marginZero]))}`);
+  const game31 = Object.fromEntries(admin.tuningGame(recs31, 'lotto', h31).rows.map((r) => [r.row, r]));
+  const pos31row = admin.tuningGame(recs31, 'crypto', h31).rows[0];
+  ok(game31['QuantumMetaLearner Model'].marginSe === 2.5 && game31['QuantumMetaLearner Model'].marginK === 2.5 && game31['QuantumMetaLearner Model'].revertMargin === 0.2
+    && game31['Markov Model'].revertMargin === 0 && game31['MarkovBayesian Model'].marginK === 1 && game31['MarkovBayesian Model'].marginSe === null
+    && pos31row.sitOut === true && /never betting/.test(pos31row.sitOutReason) && game31['Markov Model'].sitOut === null
+    && m.marginK === null && m.revertMargin === null && m.sitOut === null && m.sitOutReason === null,
+    'one game: each row\'s k, revert margin and sit-out for the drawer; an older record\'s all null');
+  ok(JSON.stringify(tun.statistical.marginSeCounts) === '{}' && tun.statistical.marginZero === 2 && JSON.stringify(tun.quantum.marginSeCounts) === '{"1":1}',
+    'older records: margin 0 counted as before, a margin of one challenger SE as 1');
 
   // a commit whose file is not JSON (Python's json.dump writes NaN) is a fact about that commit, kept: no decision read
   // there; a file not in a commit the same - neither is a git failure. A git that fails otherwise is not kept.
@@ -673,10 +957,10 @@ async function phaseTwo() {
 
   // --- the week
   const live = { lock: { pid: 4242, script: 'Predictor.py', key: 'predictor' }, current: null, queue: [], council: { status: 'running' }, events };
-  const view = (nowIso, extra = {}) => {
+  const view = (nowIso, extra = {}, jobs = TEST_JOBS) => {
     const inputs = admin.readAll(admin.resolveDirs({ dataDir }));
     const dirs = admin.resolveDirs({ dataDir, root: tmp });
-    return admin.weekView({ jobs: TEST_JOBS, sched: admin.readScheduler(dirs), slices: Object.fromEntries(TEST_JOBS.map((j) => [j.key, admin.readSlices(dirs, j)])),
+    return admin.weekView({ jobs, sched: admin.readScheduler(dirs), slices: Object.fromEntries(jobs.map((j) => [j.key, admin.readSlices(dirs, j)])),
       controlsView: admin.withHistory(admin.controlsOverview(inputs, report), admin.weekReading(inputs, report), admin.loadReadings(readingsDir)), tuning: t, live: { ...live, ...extra }, now: new Date(nowIso) });
   };
   const w = view('2026-10-21T18:00:00Z');
@@ -702,20 +986,38 @@ async function phaseTwo() {
     && w.since.council.status === 'running' && w.since.queue.length === 0, 'week: since Monday (Brussels): the predictor runs, the lock holder, the Council API');
   ok(JSON.stringify(w.since.signIns) === '{"failed":1,"locked":0,"ok":1,"last7Days":{"failed":1,"locked":1},"scanned":3,"oldestScanned":"2026-10-16T10:00:00Z"}'
     && !/mallory|203\.0\.113/.test(JSON.stringify(w)), 'week: sign-ins counted, with no name or address sent');
-  ok(w.tiles.tuners.replaced === 3 && w.tiles.tuners.replacedUnder1Se === 1 && w.tiles.tuners.byTuner.length === t.byTuner.length && w.tiles.q0.rowsAbove === ch.tiles.q0.rowsAbove
+  ok(w.tiles.tuners.replaced === 3 && w.tiles.tuners.replacedUnder1Se === 1 && w.tiles.tuners.byTuner.length === t.byTuner.length && w.tiles.q0.confirmed === ch.tiles.q0.confirmed
     && w.tiles.q2.above === ch.tiles.q2.above, 'week: the tuners\' and controls\' tiles are the Tuning and Controls pages\' own');
-  ok(w.tiles.tuners.byTuner.every((x, i) => x.job === t.byTuner[i].job && x.games === t.byTuner[i].games && x.marginOneSe === t.byTuner[i].marginOneSe)
+  ok(w.tiles.tuners.byTuner.every((x, i) => x.job === t.byTuner[i].job && x.games === t.byTuner[i].games && x.marginOneSe === t.byTuner[i].marginOneSe
+      && JSON.stringify(x.marginSeCounts) === JSON.stringify(t.byTuner[i].marginSeCounts))
     && w.rankingAt === ch.rankingAt && typeof w.rankingAt === 'string',
     'week: each tuner\'s job, games and 1-SE margins as on the Tuning page; the ranking time the Q0 tile reads against');
   const lm = w.matrix.games.find((g) => g.game === 'lotto');
-  ok(w.matrix.games.length === 11 && lm.q0.above === 2 && lm.q0.history.weeks === 2 && lm.q2.history.changed === true && lm.gates.replaced === 3 && lm.gates.notThisWeekend === 1
-    && w.matrix.games.find((g) => g.game === 'euromillions').q0 === null && w.readings.stored === 2, 'week: the controls matrix, each cell with its weeks; colour only where changed');
+  ok(w.matrix.games.length === 11 && lm.q0.test.confirmed === 1 && lm.q0.test.under === 3 && lm.q0.confirmedRows.join() === 'B Model' && lm.q0.followedRows.join() === 'A Model'
+    && lm.q0.history.changed === true && lm.q0.at === w.rankingAt && lm.q0.band.at === '2026-10-18T10:11:55Z' && lm.q2.history.changed === true && lm.gates.replaced === 3
+    && lm.gates.notThisWeekend === 1 && w.readings.stored === 2, 'week: the controls matrix - Q0 the row test\'s cell at the report\'s time, its band times apart; colour only where changed');
+  const em = w.matrix.games.find((g) => g.game === 'euromillions').q0;
+  ok(em.test === null && em.error === 'no ranking for this game yet' && em.band === null && em.at === null, 'week: a game without a row test says why, never a count of none');
   // before Saturday's first run the page stays on last weekend; once a job of it runs, on this one
   ok(view('2026-10-24T05:00:00Z').weekend.saturday === '2026-10-17', 'week: on Saturday morning, still last weekend');
   const sat24 = view('2026-10-24T08:00:00Z', { current: { key: 'predictor', name: 'Daily predictor', startedAt: Z('2026-10-24T07:00:00Z') } });
   ok(sat24.weekend.saturday === '2026-10-24' && sat24.tiles.weekend.runs === 0 && sat24.tiles.weekend.running.key === 'predictor'
     && sat24.tiles.weekend.missing.map((e) => `${e.key}${e.day ? `@${e.day}` : ''}`).join() === 'predictor@2026-10-25,hyperoptStatistics,nullControls',
     'week: once Saturday\'s predictor runs, the new weekend - the running job is not missing, Sunday\'s still is');
+  // a job that joined its plan after a weekend (jobs.js since: the keno step on 26 Oct 2026) is no run missing from that
+  // weekend - only from the weekends whose Saturday is that day or later
+  const late = [...TEST_JOBS, { key: 'kenoSubsetTuning', name: 'Weekly tuning: keno sub-selections', log: 'kenoSubsetTuning.log', plan: 'weeklyTuning', since: '2026-10-19' }];
+  const before = view('2026-10-21T18:00:00Z', {}, late).tiles.weekend;
+  const after = view('2026-10-24T08:00:00Z', { current: { key: 'predictor', name: 'Daily predictor', startedAt: Z('2026-10-24T07:00:00Z') } }, late).tiles.weekend;
+  ok(before.expected === 4 && before.missing.length === 0 && after.expected === 5
+    && after.missing.map((e) => `${e.key}${e.day ? `@${e.day}` : ''}`).join() === 'predictor@2026-10-25,hyperoptStatistics,nullControls,kenoSubsetTuning',
+    'week: a job that joined its plan on Mon 19 Oct is not expected of the weekend of 17 Oct, and is of the next one');
+  // a since inside a weekend (its Sunday) is after that weekend's Saturday: not expected there; on the Saturday itself it is
+  const joined = (since) => view('2026-10-24T08:00:00Z', { current: { key: 'predictor', name: 'Daily predictor', startedAt: Z('2026-10-24T07:00:00Z') } },
+    [...TEST_JOBS, { ...late[late.length - 1], since }]).tiles.weekend;
+  ok(joined('2026-10-25').expected === 4 && !joined('2026-10-25').missing.some((e) => e.key === 'kenoSubsetTuning')
+    && joined('2026-10-24').expected === 5 && joined('2026-10-24').missing.some((e) => e.key === 'kenoSubsetTuning'),
+    'week: a job that joined on the Sunday of a weekend is not expected of it, one that joined on its Saturday is');
   const weekRoute = (await requestAsync(app2, '/api/admin/week', ADMIN)).body;
   ok(weekRoute.since.council.healthy === true && weekRoute.since.council.since === '2026-10-20T20:16:00Z' && weekRoute.since.lock.held === true && weekRoute.matrix.games.length === 11,
     'week route: the live parts from the modules the server passes');
@@ -730,8 +1032,11 @@ async function phaseTwo() {
   const w5 = (await requestAsync(app5, '/api/admin/week', ADMIN)).body;
   ok(w5.since.council.lastError === 'cannot open council-api.log: ENOENT: no such file or directory, open \'council-api.log\'',
     `week route: the Council's last error without the server's paths: ${w5.since.council.lastError}`);
-  ok(w5.matrix.fewWindows === 250 && w5.matrix.games.find((g) => g.game === 'lotto').q0.modes.map((x) => x.mode).sort().join() === 'shuffled,synthetic',
-    'week route: Q2\'s power rule, and each Q0 control record\'s time for what a run wrote');
+  ok(w5.matrix.fewWindows === FEW && w5.matrix.games.find((g) => g.game === 'lotto').q0.band.modes.map((x) => x.mode).sort().join() === 'shuffled,synthetic',
+    'week route: Q2\'s power rule (controlRules.json), and each Q0 band record\'s time for what a NullControls run wrote');
+  const cm = w5.matrix.games.find((g) => g.game === 'crypto').q2;
+  ok(cm.status === 'too few draws' && cm.fewWindows === true && cm.minWindows === FEW && w5.tiles.q2.aboveFewWindows === undefined,
+    'week route: a Q2 cell on too few test windows reads too few draws, with the windows it was judged by');
 }
 
 // production's own files for phase P2, read-only: the week and the tuning gates with production's root (git read-only)
@@ -756,6 +1061,9 @@ async function phaseTwoOnProduction() {
     const w = (await requestAsync(prod, '/api/admin/week', ADMIN)).body;
     ok(w.tiles.weekend.runs === w.runs.length && w.tiles.weekend.ok === w.runs.filter((r) => r.result === 'ok').length && w.matrix.games.length === 11
       && w.tiles.tuners.n === t.tiles.n, 'production: the week\'s tiles count its runs and match the Tuning page');
+    const kenoSince = jobs.JOBS.find((j) => j.key === 'kenoSubsetTuning').since;
+    ok(w.weekend.saturday >= kenoSince || !w.tiles.weekend.missing.some((e) => e.key === 'kenoSubsetTuning'),
+      `production: the keno step is no run missing from a weekend before it joined the chain (weekend of ${w.weekend.saturday})`);
   }
   const biggest = sizes.sort((a, b) => b[1] - a[1])[0];
   console.log(`admin.js phase P2 on production: ${sizes.length} views, the largest ${biggest[0]} at ${biggest[1]} bytes`);
@@ -782,7 +1090,9 @@ if (fs.existsSync(path.join(PROD, 'database', 'modelPerformance.json'))) {
   });
   const pc = request(prod, '/api/admin/controls', ADMIN).body;
   const games = pc.groups.flatMap((g) => g.games);
-  ok(pc.tiles.q0.rowsAbove === games.filter((g) => g.q0.ranking === 'hits').reduce((s, g) => s + g.q0.above.n, 0)
+  const prodHeadline = games.filter((g) => g.q0.test && g.q0.inTile);
+  ok(pc.tiles.q0.confirmed === prodHeadline.reduce((s, g) => s + g.q0.confirmed.length, 0) && pc.tiles.q0.under === prodHeadline.reduce((s, g) => s + g.q0.test.under, 0)
+    && pc.tiles.q0.noTest.length + prodHeadline.length + pc.tiles.q0.payout.games.length === games.length
     && pc.tiles.fc.variants === games.reduce((s, g) => s + (g.fc ? g.fc.variants.length : 0), 0), 'production: the tiles count the rows of the cards');
   const pm = request(prod, '/api/admin/models', ADMIN).body;
   const report0 = rankings.loadReport(path.join(PROD, 'database'));

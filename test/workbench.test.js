@@ -15,6 +15,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const admin = require('../admin');
+const brussels = require('../brussels');
 const draws = require('../draws');
 const gates = require('../gates');
 const markets = require('../markets');
@@ -159,6 +160,21 @@ async function partTwo() {
   ok(rankhistory.cutoffOf('lotto', '2026-10-07') === Date.parse('2026-10-07T13:00:00Z') && rankhistory.cutoffOf('lotto', '2026-11-04') === Date.parse('2026-11-04T14:00:00Z')
     && rankhistory.cutoffOf('cryptoweek', '2026-10-11') === Date.parse('2026-10-05T13:00:00Z') && rankhistory.cutoffOf('sharesweek', '2026-10-09') === Date.parse('2026-10-05T13:00:00Z')
     && rankhistory.cutoffOf('lotto', '2026-02-30') === null, 'the cut-off: 15:00 Brussels on the draw\'s day (summer and winter time), on the week\'s Monday for a week game');
+  // the sales close when it comes first (src/drawClose.json, 27 Oct 2026): keno, pick3 and Joker+ close at 13:00 on Sundays -
+  // 18 Oct summer time, 25 Oct (the clocks went back that night) and 1 Nov winter time; every other draw closes after 15:00
+  ok(rankhistory.cutoffOf('keno', '2026-10-18') === Date.parse('2026-10-18T11:00:00Z') && rankhistory.cutoffOf('pick3', '2026-10-25') === Date.parse('2026-10-25T12:00:00Z')
+    && rankhistory.cutoffOf('jokerplus', '2026-11-01') === Date.parse('2026-11-01T12:00:00Z') && rankhistory.cutoffOf('keno', '2026-10-24') === Date.parse('2026-10-24T13:00:00Z')
+    && rankhistory.cutoffOf('vikinglotto', '2026-10-21') === Date.parse('2026-10-21T13:00:00Z') && rankhistory.cutoffOf('crypto', '2026-10-25') === Date.parse('2026-10-25T14:00:00Z'),
+    'the cut-off is the sales close when that is earlier: Sunday keno, pick3 and Joker+ at 13:00 Brussels; Saturday keno, vikinglotto and the markets keep 15:00');
+  // a report ranked on the live record (rankedOn 'live', Helpers.py from 27 Oct 2026) is reduced with its live values
+  const liveReduced = rankhistory.reduce(JSON.stringify({ generatedAt: '2026-10-28T08:00:00', games: {
+    keno: { metric: 'profit_bound', minDrawsForRanking: 10, rankedOn: 'live', live: { minDrawsForRanking: 9, models: [] }, models: [
+      { name: 'H Model', draws: 260, profit_bound: 0.09, live: { draws: 244, profit_bound: 0.111 } }, { name: 'Q Model', draws: 53, profit_bound: 0.099, live: { draws: 49, profit_bound: 0.001 } }] },
+    lotto: { metric: 'avg_hits', minDrawsForRanking: 10, models: [{ name: 'A Model', draws: 20, avg_hits: 1.2, live: { draws: 12, avg_hits: 0.9 } }] } } }));
+  const kr = liveReduced.games.keno;
+  ok(kr.rankedOn === 'live' && kr.names.join() === 'H Model,Q Model' && kr.values.join() === '0.111,0.001' && kr.draws.join() === '244,49' && kr.minDraws === 9
+    && liveReduced.games.lotto.rankedOn === 'all' && liveReduced.games.lotto.values[0] === 1.2 && liveReduced.games.lotto.draws[0] === 20,
+    'reduce: a version ranked on the live record keeps its order with the live values, draws and minimum; one before the switch its every-draw ones');
   let h = await rankhistory.load(repo, { cacheFile });
   ok(h.error === null && h.versions.length === 3 && h.skipped === 1 && h.first.committedAt === '2026-10-05T07:30:00Z' && h.first.sha === s1,
     `the versions of the report, oldest first; the one that does not parse skipped: ${h.versions.length} read, ${h.skipped} skipped`);
@@ -303,6 +319,78 @@ async function partThree() {
   ok(hAll.counted === 4 && hAll.months[0].rows === 28 && hAll.months[0].days.every((d) => d.best.mains === 6 && d.multi === 6 && d.ranking) && hAll.month === '2026-10'
     && hAll.ranking.metrics.avg_hits === 'average hits', 'history, All: every row of every draw');
 
+  // the live record's markers (data/database/lotteryLiveness.json, src/Liveness.py): 6 Oct back-built (every row first saved
+  // after the close), 7 Oct B's row added after the close and G's ticket rewritten after the draw, 10 Oct a second row
+  // of C. A row's late and duplicate marks over the draws are its draws minus its live draws in the History ranking - A,
+  // D, E, F, G 1 (6 Oct), B 2 (6 and 7 Oct), C 2 (6 Oct, and its second row on 10 Oct counts as a draw and is not
+  // live) -; G's recovered 7 Oct is in its live record (live.recovered 1), scored as it stood at the close
+  const liveFile = path.join(repo, 'data', 'database', workbench.LIVENESS_FILE);
+  const tenth = path.join(repo, 'data', 'database', 'lotto', '2026-10-10.json');
+  const tenthText = fs.readFileSync(tenth, 'utf-8');
+  fs.writeFileSync(liveFile, JSON.stringify({ games: { lotto: { checked: 'stamp+git', checkedThrough: '2026-10-10', draws: {
+    '2026-10-06': { close: '2026-10-06T17:00:00Z', ticketFile: '2026-10-3.json', late: 'all', lateReason: 'first saved after the close', firstSaved: '2026-10-08T07:00:00Z', delayHours: 38 },
+    '2026-10-07': { close: '2026-10-07T17:00:00Z', ticketFile: '2026-10-6.json', late: ['B Model'], lateReason: 'row added after the close', firstSaved: '2026-10-07T20:00:00Z', delayHours: 3,
+      recovered: { commit: '0123abcd', savedAt: '2026-10-07T08:00:00Z', rows: { 'G Model': { predictions: [[1, 2, 40, 41, 42, 43]], multiPick: [7, 8, 9] } } } },
+    '2026-10-10': { close: '2026-10-10T17:00:00Z', ticketFile: '2026-10-7.json', duplicates: { 'C Model': 1 } } } } } }));
+  const tenthDay = JSON.parse(tenthText);
+  tenthDay.currentPrediction.push({ name: 'C Model', predictions: [[1, 2, 3, 41, 42, 43]] });
+  fs.writeFileSync(tenth, JSON.stringify(tenthDay));
+  try {
+    const markers = {};
+    const recovered = {};
+    for (const date of ['2026-10-03', '2026-10-06', '2026-10-07', '2026-10-10']) {
+      const d = (await request(app, `/api/admin/draw/lotto/${date}`, ADMIN)).body;
+      d.rows.filter((r) => r.liveMark).forEach((r) => {
+        const into = r.liveMark.status === 'recovered' ? recovered : markers;
+        into[r.name] = (into[r.name] || 0) + 1;
+      });
+    }
+    ok(JSON.stringify(markers) === JSON.stringify({ 'A Model': 1, 'B Model': 2, 'C Model': 2, 'D Model': 1, 'E Model': 1, 'F Model': 1, 'G Model': 1 })
+      && JSON.stringify(recovered) === '{"G Model":1}',
+      `the draws' not-live markers per row are its draws minus its live draws, its recovered ones apart: ${JSON.stringify(markers)} ${JSON.stringify(recovered)}`);
+    const d7 = (await request(app, '/api/admin/draw/lotto/2026-10-07', ADMIN)).body;
+    const g7 = d7.rows.find((r) => r.name === 'G Model').liveMark;
+    const b7 = d7.rows.find((r) => r.name === 'B Model').liveMark;
+    ok(g7.status === 'recovered' && g7.commit === '0123abcd' && g7.savedAt === '2026-10-07T08:00:00Z' && g7.atClose.tickets[0].hits.mains === 2 && g7.ticket === undefined
+      && b7.status === 'late' && b7.reason === 'row added after the close' && b7.delayHours === 3 && b7.close === '2026-10-07T17:00:00Z'
+      && JSON.stringify(d7.liveness.marks) === '{"late":1,"recovered":1}' && d7.liveness.afterClose === true,
+      'a draw: the rewritten row with the ticket that stood at the close, scored; the late row with why, when and how late; the counts by status');
+    // whether the users' history greys a draw is read on its five whatever the admin's scope: 6 Oct's late rows include
+    // the five (A-E), so All says so too
+    const all6Live = (await request(app, '/api/admin/draw/lotto/2026-10-06', ADMIN)).body;
+    ok(all6Live.liveness.afterClose === true && JSON.stringify(all6Live.liveness.marks) === '{"late":7}', 'All: a draw whose five were late is greyed for the users, its seven rows marked');
+    const d10 = (await request(app, '/api/admin/draw/lotto/2026-10-10', ADMIN)).body;
+    const cs = d10.rows.filter((r) => r.name === 'C Model');
+    ok(cs.length === 2 && cs[0].liveMark === null && cs[1].liveMark.status === 'duplicate', 'a second row of one name on a draw is the not-live one, the first is judged as usual');
+    const hl = (await request(app, '/api/admin/history/lotto', ADMIN)).body.months[0].days;
+    const hlTop = (await request(app, '/api/admin/history/lotto?scope=top', ADMIN)).body.months[0].days;
+    ok(JSON.stringify(hl.find((d) => d.date === '2026-10-06').liveMarks) === '{"late":7}' && JSON.stringify(hl.find((d) => d.date === '2026-10-07').liveMarks) === '{"late":1,"recovered":1}'
+      && JSON.stringify(hl.find((d) => d.date === '2026-10-10').liveMarks) === '{"duplicate":1}' && hl.find((d) => d.date === '2026-10-03').liveMarks === undefined
+      && JSON.stringify(hlTop.find((d) => d.date === '2026-10-07').liveMarks) === '{"late":1,"recovered":1}' && JSON.stringify(hlTop.find((d) => d.date === '2026-10-06').liveMarks) === '{"late":5}',
+      'the history: per draw the not-live rows the scope keeps, by status (Top: only the five\'s)');
+  } finally {
+    fs.rmSync(liveFile, { force: true });
+    fs.writeFileSync(tenth, tenthText);
+  }
+  // ... and late rows outside the five (7 Oct: D and E), or a draw before the first saved ranking (3 Oct: no five, the
+  // users' history never lists it), grey nothing for the users, whatever All marks; with several late rows named the
+  // file's one first save is the earliest's, and each mark says how many share it (lateRows)
+  fs.writeFileSync(liveFile, JSON.stringify({ games: { lotto: { checked: 'stamp+git', checkedThrough: '2026-10-10', draws: {
+    '2026-10-03': { close: '2026-10-03T17:00:00Z', ticketFile: '2026-9-30.json', late: 'all', lateReason: 'first saved after the close' },
+    '2026-10-07': { close: '2026-10-07T17:00:00Z', ticketFile: '2026-10-6.json', late: ['D Model', 'E Model'], lateReason: 'row added after the close',
+      firstSaved: '2026-10-07T20:00:00Z', delayHours: 3 } } } } }));
+  try {
+    const d3 = (await request(app, '/api/admin/draw/lotto/2026-10-03', ADMIN)).body;
+    const d7 = (await request(app, '/api/admin/draw/lotto/2026-10-07', ADMIN)).body;
+    const d7Top = (await request(app, '/api/admin/draw/lotto/2026-10-07?scope=top', ADMIN)).body;
+    ok(JSON.stringify(d3.liveness.marks) === '{"late":7}' && d3.liveness.afterClose === false
+      && JSON.stringify(d7.liveness.marks) === '{"late":2}' && d7.liveness.afterClose === false && d7Top.liveness.marks === null && d7Top.liveness.afterClose === false
+      && d7.rows.filter((r) => r.liveMark).every((r) => r.liveMark.lateRows === 2) && d3.rows.every((r) => r.liveMark.lateRows === null),
+      `All marks a late row outside the five, and a draw before the first saved ranking, without saying the users' history greys them: ${JSON.stringify([d3.liveness, d7.liveness])}`);
+  } finally {
+    fs.rmSync(liveFile, { force: true });
+  }
+
   // the controls drawer names the market rows that failed and why (C16 of the parity: only a count was sent)
   fs.mkdirSync(path.join(repo, 'data', 'controls', 'markets'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'data', 'controls', 'markets', 'crypto-rows.json'), JSON.stringify({ market: 'crypto', reference: 'GARCH Model', uniform_log_score: -2.3026,
@@ -393,6 +481,8 @@ async function partFour() {
   // a copy of production's files: the API and markets.js read the same bytes, whatever the daily run does meanwhile
   GAMES.forEach((g) => fs.cpSync(path.join(PROD_ROOT, 'data', 'database', g), path.join(root, 'data', 'database', g), { recursive: true }));
   fs.copyFileSync(path.join(PROD_ROOT, 'data', 'database', 'modelPerformance.json'), path.join(root, 'data', 'database', 'modelPerformance.json'));
+  const prodLive = path.join(PROD_ROOT, 'data', 'database', workbench.LIVENESS_FILE);
+  if (fs.existsSync(prodLive)) fs.copyFileSync(prodLive, path.join(root, 'data', 'database', workbench.LIVENESS_FILE));
   fs.cpSync(path.join(PROD_ROOT, 'data', 'markets'), path.join(root, 'data', 'markets'), { recursive: true });
   if (fs.existsSync(path.join(PROD_ROOT, 'data', 'controls', 'markets'))) fs.cpSync(path.join(PROD_ROOT, 'data', 'controls', 'markets'), path.join(root, 'data', 'controls', 'markets'), { recursive: true });
   const app = fakeApp();
@@ -432,6 +522,40 @@ async function partFour() {
   const kenoAug = await get('/api/admin/history/keno?scope=top&month=2026-08');
   ok(kenoAug.months.find((m) => m.month === '2026-08').days.filter((d) => d.date < '2026-08-25').every((d) => d.ranking.none === 'before-first')
     && kenoAug.ranking.first.committedAt === '2026-08-25T05:21:45Z', 'production: no ranking recorded before 25 Aug 2026, said per draw');
+  // the sales-close cut-off (27 Oct 2026) changes no point-in-time Top: no ranking was ever saved between a Sunday's 13:00
+  // close and 15:00 - every lottery draw reads the same version under the old 15:00 rule and the new one
+  const hist = await rankhistory.load(PROD_ROOT, { cacheFile: path.join(tmp, 'prod-cache.json') });
+  let sameVersion = 0;
+  const moved = [];
+  for (const game of GAMES.filter((g) => !['crypto', 'cryptoweek', 'shares', 'sharesweek'].includes(g))) {
+    for (const f of workbench.dayFilesOf(path.join(root, 'data', 'database', game))) {
+      const old = hist.rankingAt(game, brussels.instant(f.date, 15, 0));
+      const now = hist.rankingAt(game, rankhistory.cutoffOf(game, f.date));
+      if ((old.version ? old.version.sha : old.none) === (now.version ? now.version.sha : now.none)) sameVersion += 1; else moved.push(`${game} ${f.date}`);
+    }
+  }
+  ok(moved.length === 0 && sameVersion > 1000, `production: every lottery draw (${sameVersion}) reads the same ranking version under the sales-close cut-off as under 15:00 (${moved.join(', ')})`);
+  // once production has a liveness file: each row's not-live markers over its draws are its draws minus its live draws
+  if (fs.existsSync(prodLive)) {
+    const report = JSON.parse(fs.readFileSync(path.join(root, 'data', 'database', 'modelPerformance.json'), 'utf-8'));
+    for (const game of ['lotto', 'vikinglotto', 'jokerplus']) {
+      const info = report.games[game];
+      if (!info || !info.models.some((m) => m.live_draws !== undefined)) continue;
+      const marks = {};
+      const recovered = {};
+      const dirs = admin.resolveDirs({ root, dataDir: path.join(root, 'data') });
+      const files = workbench.dayFilesOf(path.join(root, 'data', 'database', game));
+      for (const f of files) {
+        workbench.drawView(dirs, game, f.date, 'all', hist, report).rows.filter((r) => r.liveMark).forEach((r) => {
+          const into = r.liveMark.status === 'recovered' ? recovered : marks;
+          into[r.name] = (into[r.name] || 0) + 1;
+        });
+      }
+      const off = info.models.filter((m) => (marks[m.name] || 0) !== m.draws - m.live_draws || (recovered[m.name] || 0) !== ((m.live && m.live.recovered) || 0))
+        .map((m) => `${m.name} ${marks[m.name] || 0} vs ${m.draws - m.live_draws}`);
+      ok(off.length === 0, `production ${game}: every row's not-live markers are its draws minus its live draws, its recovered ones its live.recovered (${off.slice(0, 3).join('; ')})`);
+    }
+  }
   const jokerTop = await get('/api/admin/history/jokerplus?scope=top');
   ok(jokerTop.ranking.first.committedAt === '2026-08-25T05:21:45Z' && jokerTop.ranking.firstOfGame && jokerTop.ranking.firstOfGame.committedAt.startsWith('2026-09-07'),
     `production: Joker+ entered the ranking after the first saved one, and the history says when: ${JSON.stringify(jokerTop.ranking.firstOfGame)}`);

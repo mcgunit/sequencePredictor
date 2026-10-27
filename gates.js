@@ -24,7 +24,7 @@ const brussels = require('./brussels');
 const GIT_TIMEOUT_MS = 5000;
 const GIT_PARALLEL = 4;
 const HEAD_TTL_MS = 30 * 1000;      // how long a HEAD read is trusted before the commit list is checked again
-const COMMITS_SCANNED = 200;        // tuner commits (five a weekend): about 40 weekends
+const COMMITS_SCANNED = 200;        // tuner commits (six a weekend since 26 Oct 2026 - the keno step commits too): ~33 weekends
 const WEEKENDS_SHOWN = 4;
 const DECISIONS = ['replaced', 'kept', 'reverted'];
 
@@ -32,6 +32,10 @@ const DECISIONS = ['replaced', 'kept', 'reverted'];
 // commit subject's middle part, and the rows each one gates (HyperoptStatistics STRATEGY_DISPLAY_NAMES and
 // KenoSubsetTuning, HyperoptBoost STRATEGY_DISPLAY_NAMES, HyperoptRLTicket TICKET_ROW / POSITION_ROW,
 // HyperoptEnsemble ROW_NAME, HyperoptQuantum VARIANT_ROWS). A row not named here has no family.
+// Two steps run HyperoptStatistics.py since 26 Oct 2026: the keno sub-selection step (-g keno -s KenoSubsetTuning,
+// its own job after the retrain) took the KenoSubsetTuning row over from the statistical job. Its records still say
+// "HyperoptStatistics" and its commits "statistical", so the row tells the two apart - the keno step's from `since` (a
+// Brussels day, jobs.js's own for the job) on, the statistical job's before: each run's drawer counts its own decisions.
 const TUNERS = [
   { tuner: 'statistical', job: 'hyperoptStatistics', script: 'HyperoptStatistics', commit: 'statistical',
     rows: ['Markov Model', 'MarkovMonteCarlo Model', 'MarkovBayesian Model', 'MarkovBayesianEnhanched Model', 'PoissonMonteCarlo Model',
@@ -41,16 +45,27 @@ const TUNERS = [
   { tuner: 'RL ticket', job: 'hyperoptRLTicket', script: 'HyperoptRLTicket', commit: 'RL ticket', rows: ['RL Ticket Model', 'RL Position Model'] },
   { tuner: 'ensemble', job: 'hyperoptEnsemble', script: 'HyperoptEnsemble', commit: 'subset ensemble', rows: ['SubsetEnsemble Model'] },
   { tuner: 'quantum', job: 'hyperoptQuantum', script: 'HyperoptQuantum', commit: 'quantum', rows: ['QuantumMetaLearner Model', 'QuantumVQC Model', 'ClassicalSVM Model'] },
+  { tuner: 'keno sub-selections', job: 'kenoSubsetTuning', script: 'HyperoptStatistics', commit: 'statistical', rows: ['KenoSubsetTuning'], since: '2026-10-26' },
 ];
 const SAVE_SUBJECT = /^Saving latest (.+) hyperopt$/;
 const SHA = /^[0-9a-f]{40}$/;
 const GAME = /^[a-z0-9]+$/;
 
-const familyOf = (row) => (TUNERS.find((t) => t.rows.includes(row)) || {}).tuner || null;
-const tunerOfScript = (script) => {
-  const name = path.basename(String(script || '')).replace(/\.py$/, '');
-  return (TUNERS.find((t) => t.script === name) || {}).tuner || null;
+// The tuner gating a row at ms (a decision's time; null: now): the last one naming it that gated it by then.
+const familyOf = (row, ms = null) => {
+  const day = ms === null ? null : brussels.dayOf(ms);
+  const named = TUNERS.filter((t) => t.rows.includes(row) && !(t.since && day !== null && day < t.since));
+  return named.length ? named[named.length - 1].tuner : null;
 };
+// The tuner a script wrote a record as: of the tuners running that script, the row's at the record's time, else the
+// first (HyperoptStatistics.py without -s is the statistical job).
+const tunerOfScript = (script, row = null, ms = null) => {
+  const name = path.basename(String(script || '')).replace(/\.py$/, '');
+  const named = TUNERS.filter((t) => t.script === name);
+  const family = row === null ? null : familyOf(row, ms);
+  return (named.find((t) => t.tuner === family) || named[0] || {}).tuner || null;
+};
+const commitOf = (tuner) => (TUNERS.find((t) => t.tuner === tuner) || {}).commit || null;
 const tunerOfSubject = (subject) => {
   const m = SAVE_SUBJECT.exec(String(subject || '').trim());
   return m ? (TUNERS.find((t) => t.commit === m[1]) || {}).tuner || null : null;
@@ -110,10 +125,26 @@ function describe(row, record) {
     row, decision: DECISIONS.includes(r.decision) ? r.decision : null, date: at === null ? null : new Date(at).toISOString().replace(/\.\d{3}Z$/, 'Z'),
     weekend: at === null ? null : weekendOf(at), script: r.tuner ? String(r.tuner) : null,
     kind: ((r.challenger_tuning || {}).kind) || null, windowDays: num(r.window_days),
+    // the lockbox days the scores left out (since 26 Oct 2026; null on an older record): counted out of the window
+    // ('window', a row tuner's), or out of the quantum tuner's score table before its holdout was cut ('table')
+    lockboxDays: num(r.lockbox_days_withheld),
+    lockboxFrom: num(r.lockbox_days_withheld) === null ? null : (r.lockbox_withheld_from === 'table' ? 'table' : 'window'),
     runTrials: num(r.run_trials), studyTrials: num(r.study_trials),
     challenger: ch, incumbent: inc, default: def, margin,
-    // the margin in the challenger's own standard errors: 1 for the tuners that ask for one SE, 0 for "any gain"
+    // the margin in the challenger's own standard errors: 1 for the tuners that ask for one SE (2.5 the quantum tuner
+    // since 27 Oct 2026), 0 for "any gain"; null without a challenger SE
     marginSe: ch.se ? margin / ch.se : null,
+    // what the tuner asked for (TuningGate "margin_se", since 27 Oct 2026; null before): k standard errors. A record
+    // with k > 0 and no challenger SE was kept for that reason (the gate fails closed) - not a margin-0 decision
+    marginK: num(r.margin_se),
+    // the margin of the revert's default-over-incumbent comparison ("revert_margin", since 27 Oct 2026): 0 for the
+    // statistical, RL and ensemble tuners (the default is not picked from trials), the challenger's margin for
+    // boosting and quantum; null on an older record, whose revert took the challenger's margin
+    revertMargin: num(r.revert_margin),
+    // the RL Position row: whether the served sizing sits out (HyperoptRLTicket.position_sit_out) and why; null on
+    // every other row and on a record that has no sit-out
+    sitOut: r.sit_out === true ? true : (r.sit_out === false ? false : null),
+    sitOutReason: typeof r.sit_out_reason === 'string' && r.sit_out_reason ? r.sit_out_reason : null,
     bar, gainSe: per(inc.score), gainBestSe: per(best), gainBarSe: per(bar),
   };
 }
@@ -122,15 +153,18 @@ function describe(row, record) {
 // carrier: the tuner commit that first carries this record ({sha, tuner}); run: the scheduler run whose window holds
 // its date ({tuner, job}). Both optional.
 function attribute(row, record, { carrier = null, run = null } = {}) {
+  const at = dateOf(record);
   if (record && record.tuner) {
-    const tuner = tunerOfScript(record.tuner);
+    const tuner = tunerOfScript(record.tuner, row, at);
     return tuner ? { tuner, by: 'record' } : { tuner: 'unattributed', by: 'record', why: `written by ${record.tuner}, not a known tuner` };
   }
-  const family = familyOf(row);
+  const family = familyOf(row, at);
   if (!family) return { tuner: 'unattributed', why: 'no tuner gates a row of this name' };
   const evidence = carrier ? { tuner: carrier.tuner, by: 'commit' } : (run ? { tuner: run.tuner, by: 'run' } : null);
   if (!evidence) return { tuner: 'unattributed', family, why: 'no tuner commit or scheduler run confirms the row\'s family' };
-  if (evidence.tuner !== family) return { tuner: 'unattributed', family, why: `the row is a ${family} row but the ${evidence.by} is the ${evidence.tuner} tuner's` };
+  // a commit names its subject's first tuner: the keno step commits as "statistical" too
+  const agrees = evidence.by === 'commit' ? commitOf(evidence.tuner) === commitOf(family) : evidence.tuner === family;
+  if (!agrees) return { tuner: 'unattributed', family, why: `the row is a ${family} row but the ${evidence.by} is the ${evidence.tuner} tuner's` };
   return { tuner: family, by: `family + ${evidence.by}` };
 }
 // The scheduler run whose own window holds a decision; a minute of slack only when no run's window does (the gate's

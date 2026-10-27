@@ -13,6 +13,8 @@ from datetime import datetime
 from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, install_sigterm_handler
 from src.TuningGate import challenge, make_defaults
+from src.Lockbox import (load_or_warn as load_lockbox, split_by_date as lockbox_split_days, describe as describe_lockbox,
+                         describe_withheld as describe_lockbox_withheld)
 from src.VoteRows import effective_members, weighted_is_flat, positional_vote, voter_count, SUBSET_WEIGHTS_KEY
 
 helpers = Helpers()
@@ -114,10 +116,18 @@ DEFAULT_RECORD_TRIALS = 256
 # wrote its result without one): this run's best combination is written only if it beats the served selection
 # and the plain vote (every candidate row, weighted - the WeightedEnsemble Model over the same rows), both
 # re-scored on this run's days by this objective, and by GATE_SE_MARGIN standard errors of its own score; the
-# plain vote is served back when it beats both. The record is bestParams["tuningGate"]["SubsetEnsemble Model"].
+# plain vote is served back when it scores above the served selection and the challenger did not clear it by the
+# margin (GATE_REVERT_MARGIN). The record is bestParams["tuningGate"]["SubsetEnsemble Model"].
 GATE_ENABLED = True
 GATE_MARGIN = 0.0
 GATE_SE_MARGIN = 1.0
+# The revert takes no margin (TuningGate.challenge revert_margin, 27 Oct 2026): the plain vote is a fixed reference,
+# not picked from the evaluated combinations. With the challenger's margin on the revert too, pick3's served
+# [LaplaceMonteCarlo, Markov] could never be reverted: it trailed the plain vote by 0.49 (17 Oct) and 0.17 (24 Oct),
+# while pick3's margin - one SE of a capped profit per bet - was 1.30 and 1.12, wider than any gap between subsets.
+# The plain vote is also every enumerated subset's starting point, so the challenger is never below it; a challenger
+# that IS the plain vote and does not clear the served selection by the margin now serves it back.
+GATE_REVERT_MARGIN = 0.0
 GATE_TIMEOUT_SECONDS = 300    # one subset scores in milliseconds; the reference evaluations run in a forked child
 
 
@@ -182,6 +192,36 @@ def get_keno_subset_sizes(name, bestParams_json_object):
     if "keno" not in name:
         return []
     return [size for size in (5, 6, 7, 8, 9, 10) if bestParams_json_object.get(f"use_{size}")]
+
+
+# The SubsetEnsemble row's own keno slicing keys (Predictor.addSubsetEnsemblePrediction reads them first)
+KENO_SLICING_KEYS = ("subsetEnsembleSubsetMode", "subsetEnsembleSubsetTemperature")
+
+
+def keno_slicing(existingData):
+    """
+    (mode, temperature, source) the SubsetEnsemble row's keno sub-selections
+    are scored with: Predictor's lookup - the row's own
+    subsetEnsembleSubsetMode/Temperature, each falling back to the weighted
+    vote's weightedEnsembleSubsetMode/Temperature (softmax / 0.5 untuned) -
+    with source "own" when the row has a key of its own, else "weighted vote".
+
+    Since 26 Oct 2026 the keno step re-tunes the weighted vote's keys at the
+    end of the chain, after this tuner, so tune_game writes what it scored
+    with as the row's own keys (served = gated) and records it in the gate
+    record's "kenoSlicing". Those keys are then the tuner's pin, not a choice
+    made by hand: while they still hold what the last record says it took
+    from the weighted vote, they are read past, and the run follows the
+    weighted vote again - a weekend behind the keno step, as served - instead
+    of keeping the first pin for good. Keys set by hand are kept.
+    """
+    pin = ((existingData.get("tuningGate") or {}).get(ROW_NAME) or {}).get("kenoSlicing") or {}
+    own = [existingData.get(key) for key in KENO_SLICING_KEYS]
+    if pin.get("from") == "weighted vote" and own == [pin.get("mode"), pin.get("temperature")]:
+        existingData = {key: value for key, value in existingData.items() if key not in KENO_SLICING_KEYS}
+    mode = existingData.get("subsetEnsembleSubsetMode", existingData.get("weightedEnsembleSubsetMode", "softmax"))
+    temperature = existingData.get("subsetEnsembleSubsetTemperature", existingData.get("weightedEnsembleSubsetTemperature", 0.5))
+    return mode, temperature, "own" if any(key in existingData for key in KENO_SLICING_KEYS) else "weighted vote"
 
 
 def load_evaluation_days(historyDir, days):
@@ -615,19 +655,34 @@ def vote_shape(members, weighted, voteScores, dataset_name):
             "weightedEqualsFlat": bool(weighted and weighted_is_flat(members, voteScores, dataset_name))}
 
 
-def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty, optunaDatabase, runTag):
+def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty, optunaDatabase, runTag,
+              lockbox=None):
     """
     One game: the candidate rows, the search, this run's ranking into the
     study, the gate, the write. Extracted from __main__ on 15 Oct 2026 so a
     scratch root can exercise it.
+
+    `lockbox` (src/Lockbox.py, 26 Oct 2026): its draws leave the window right
+    after loading, before anything is chosen - the candidate rows' coverage,
+    every subset's value, the market vote weights (member_scores), the gate's
+    references and the standard error of its margin are all on the other
+    days. Nothing here is fitted, so the days simply go; the window is not
+    lengthened to make up for them (until 26 Oct 2026 this tuner had no
+    lockbox code at all: 25-26 of the ~100 days of euromillions, lotto and
+    eurodreams were lockbox draws, 12 of vikinglotto's 48).
     """
     print(f"\n{dataset_name.capitalize()}")
     historyDir = os.path.join(path, "data", "database", dataset_name)
 
     evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
+    windowDays = len(evaluation_days)
+    evaluation_days, lockedDays = lockbox_split_days(evaluation_days, lockbox)
+    if lockbox:
+        print(describe_lockbox_withheld(dataset_name, lockbox, len(lockedDays), len(evaluation_days)))
     if len(evaluation_days) < MIN_EVALUATION_DAYS:
         print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
-              f"a currentPrediction and a realResult (need at least {MIN_EVALUATION_DAYS})")
+              f"a currentPrediction and a realResult{' outside the lockbox' if lockedDays else ''} "
+              f"(need at least {MIN_EVALUATION_DAYS})")
         return
     print(f"Evaluating on {len(evaluation_days)} days "
           f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
@@ -680,11 +735,9 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
         else:
             print("No candidate has enough scored days for a vote weight of its own - weighted by modelScores")
     # The served row slices its Keno subsets with the tuned
-    # WeightedEnsemble mode/temperature unless it has its own.
-    subsetMode = existingData.get("subsetEnsembleSubsetMode",
-                                  existingData.get("weightedEnsembleSubsetMode", "softmax"))
-    subsetTemperature = existingData.get("subsetEnsembleSubsetTemperature",
-                                         existingData.get("weightedEnsembleSubsetTemperature", 0.5))
+    # WeightedEnsemble mode/temperature unless it has its own - written for
+    # keno below, so it is served with what it is gated with (keno_slicing).
+    subsetMode, subsetTemperature, slicingFrom = keno_slicing(existingData)
 
     evaluate = lambda members, weighted, dataset_name=dataset_name, evaluation_days=evaluation_days, \
                       voteScores=voteScores, specialColumnCount=specialColumnCount, \
@@ -746,7 +799,8 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
     objective = lambda trial, candidates=candidates, evaluate=evaluate: gate_objective(trial, candidates, evaluate)
     outcome = challenge(study, known_trials, objective, served, make_defaults(defaults, existingData),
                         timeout_seconds=GATE_TIMEOUT_SECONDS, label=studyName, margin=GATE_MARGIN,
-                        enabled=GATE_ENABLED, window_days=len(evaluation_days), se_margin=GATE_SE_MARGIN)
+                        enabled=GATE_ENABLED, window_days=windowDays, se_margin=GATE_SE_MARGIN,
+                        lockbox_withheld=len(lockedDays), revert_margin=GATE_REVERT_MARGIN)
     print(outcome["summary"])
     record = outcome["record"]
     record["candidates"] = list(candidates)
@@ -772,12 +826,21 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
             "days": int(days),
             "from": evaluation_days[0][0].strftime("%Y-%m-%d"),
             "to": evaluation_days[-1][0].strftime("%Y-%m-%d"),
+            # the window's lockbox draws, not scored (from..to are the first and last scored day)
+            "lockboxDaysWithheld": len(lockedDays),
             "candidates": len(candidates),
             "evaluated": int(evaluated),
             "search": how,
             "confidencePenalty": confidencePenalty,
             "decision": outcome["decision"],
         }
+
+    if kenoSubsetSizes:
+        # Served = gated on keno (26 Oct 2026): written whatever the gate decided, like a market's vote weights - it
+        # scored the served selection, the plain vote and the challenger with this slicing, and the keno step re-tunes
+        # the weighted vote's keys after this run, so without its own keys the row would be served with those.
+        existingData.update(dict(zip(KENO_SLICING_KEYS, (subsetMode, subsetTemperature))))
+        record["kenoSlicing"] = {"mode": subsetMode, "temperature": subsetTemperature, "from": slicingFrom}
 
     if memberResults is not None:
         # A market's vote weights (25 Oct 2026): written whatever the gate decided - it scored the served selection,
@@ -856,6 +919,20 @@ def _self_check():
     outcome = challenge(study, {0}, lambda trial: gate_objective(trial, candidates, evaluate), dead, make_defaults(defaults, {}),
                         timeout_seconds=60, label="self-check", margin=0.0, enabled=True, window_days=20, se_margin=0.0)
     assert outcome["decision"] == "replaced" and members_of(outcome["params"], candidates) == (candidates, False), outcome["reason"]
+    # the revert's margin (27 Oct 2026) on pick3's numbers of 17 Oct: the run's best combination WAS the plain vote
+    # (-1.6841, SE 1.3022), the served [LaplaceMonteCarlo, Markov] scored -2.1734. The challenger cannot clear the
+    # served pair by its one SE; with GATE_REVERT_MARGIN 0 the plain vote, above the pair, is served back - with the
+    # challenger's margin on the revert too (None) the pair stayed, as it did on 17 and 24 Oct
+    pair, _, _ = reference_flags({"subsetEnsembleModels": ["A Model", "C Model"], "subsetEnsembleWeighted": True}, candidates)
+    plain = FakeTrial(1, -1.6841, defaults)
+    plain.user_attrs = {"tuning": subset_tuning(-1.6841, -1.6841, 20, 1.3022)}
+    pick3 = {"incumbent": -2.1734, "default": -1.6841}
+    for revert_margin, expected in ((GATE_REVERT_MARGIN, "reverted"), (None, "kept")):
+        outcome = challenge(FakeStudy([FakeTrial(0, 0.0, pair), plain]), {0}, None, pair, make_defaults(defaults, {}),
+                            timeout_seconds=60, label="self-check", margin=GATE_MARGIN, enabled=True, window_days=20,
+                            se_margin=GATE_SE_MARGIN, revert_margin=revert_margin, evaluate=lambda params, role: pick3[role])
+        assert outcome["decision"] == expected and abs(outcome["record"]["margin"] - 1.3022) < 1e-12, (revert_margin, outcome["reason"])
+        assert expected == "kept" or members_of(outcome["params"], candidates) == (candidates, True), outcome["params"]
     # evaluate_subset on hand-made days (25 Oct 2026): a weighted pair one member outweighs (A 2.0 against B 1.0) is
     # infeasible like a one-row subset, its flat twin and the trio (2.0 against 2.5) are scored
     days = [(datetime(2026, 9, 1 + i), [{"name": "A Model", "predictions": [[1, 2, 3]]}, {"name": "B Model", "predictions": [[6, 7, 3]]},
@@ -894,9 +971,124 @@ def _self_check():
     assert vote_shape(["XGBoost Model", "LightGBM Model", "GNN Model"], True, weights, "crypto") == \
         {"effectiveMembers": ["XGBoost Model", "LightGBM Model", "GNN Model"], "weightedEqualsFlat": False}
     assert vote_shape(["XGBoost Model", "LightGBM Model"], True, {}, "crypto")["weightedEqualsFlat"] is True
+    _self_check_lockbox()
+    _self_check_keno_slicing()
     print("HyperoptEnsemble self-check OK: the gate's references, objective and decisions on hand-made data; a dominated "
           "weighted pair is infeasible; market ties go to the middle; weighted = flat is recorded; on a market XGBoost "
-          "and LightGBM are one voter and the weights are the members' own scores")
+          "and LightGBM are one voter and the weights are the members' own scores; the lockbox draws leave the window "
+          "before anything is chosen; keno is served with the slicing it was gated with")
+
+
+def _self_check_lockbox():
+    """
+    tune_game on a scratch root (26 Oct 2026): 30 lotto day JSONs, the first 18 in the lockbox. A and B call the
+    lockbox draws perfectly and nothing after, C and D the reverse - scored on the whole window {A, B} would win
+    (6 hits on 18 of 30 days), withheld it is {C, D} on the 12 days left, and the gate record says what was withheld.
+    """
+    import contextlib
+    import io
+    import tempfile
+    from src.Lockbox import parse
+
+    box = parse({"from": "2026-01-01", "to": "2026-01-18"})
+    early, late = [1, 2, 3, 4, 5, 6], [11, 12, 13, 14, 15, 16]
+    with tempfile.TemporaryDirectory() as root:
+        historyDir = os.path.join(root, "data", "database", "lotto")
+        os.makedirs(historyDir)
+        for day in range(1, 31):
+            rows = [{"name": name, "predictions": [list(ticket)]}
+                    for name, ticket in (("A Model", early), ("B Model", early), ("C Model", late), ("D Model", late))]
+            drawn = (early if day <= 18 else late) + [40]
+            with open(os.path.join(historyDir, f"2026-1-{day}.json"), "w") as handle:
+                json.dump({"currentPrediction": rows, "realResult": drawn}, handle)
+        # every scored day here is the same 6 hits, a series without spread (score_se 0): under the gate's margin in
+        # standard errors such a challenger cannot have its margin measured and is kept out (TuningGate fails closed,
+        # 27 Oct 2026) - the first run below shows it; the lockbox wiring is checked with se_margin 0 after it
+        module = globals()
+        saved = module["GATE_SE_MARGIN"]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                tune_game("lotto", root, 0, DEFAULT_MAX_EVALUATIONS, 4, DEFAULT_CONFIDENCE_PENALTY,
+                          f"sqlite:///{os.path.join(root, 'db.sqlite3')}", "self-check", lockbox=box)
+            with open(os.path.join(root, "bestParams_lotto.json")) as handle:
+                closed = json.load(handle)
+            os.remove(os.path.join(root, "bestParams_lotto.json"))
+            os.remove(os.path.join(root, "db.sqlite3"))
+            module["GATE_SE_MARGIN"] = 0.0
+            with contextlib.redirect_stdout(io.StringIO()):
+                tune_game("lotto", root, 0, DEFAULT_MAX_EVALUATIONS, 4, DEFAULT_CONFIDENCE_PENALTY,
+                          f"sqlite:///{os.path.join(root, 'db.sqlite3')}", "self-check", lockbox=box)
+        finally:
+            module["GATE_SE_MARGIN"] = saved
+        with open(os.path.join(root, "bestParams_lotto.json")) as handle:
+            written = json.load(handle)
+    gated = closed["tuningGate"][ROW_NAME]
+    assert gated["decision"] == "kept" and gated["reason"].startswith("no standard error - kept") \
+        and gated["challenger_tuning"]["score_se"] == 0.0 and not closed.get("subsetEnsembleModels"), gated
+    record = written["tuningGate"][ROW_NAME]
+    assert record["window_days"] == 30 and record["lockbox_days_withheld"] == 18, record
+    assert record["challenger"] == 6.0 and record["challenger_tuning"]["days"] == 12, record
+    assert set(record["candidates"]) == {"A Model", "B Model", "C Model", "D Model"}, record["candidates"]
+    if written.get("subsetEnsembleTunedOn"):
+        tuned = written["subsetEnsembleTunedOn"]
+        assert tuned["from"] == "2026-01-19" and tuned["lockboxDaysWithheld"] == 18 and tuned["days"] == 12, tuned
+    assert set(written.get("subsetEnsembleModels") or []) >= {"C Model", "D Model"}, written.get("subsetEnsembleModels")
+    assert not any(key in written for key in KENO_SLICING_KEYS) and "kenoSlicing" not in record, "keno slicing outside keno"
+
+
+def _self_check_keno_slicing():
+    """
+    Served = gated on keno (26 Oct 2026): keno_slicing on hand-made bestParams, then tune_game three times on a scratch
+    keno root (30 days of three random 20-number rows): the first run writes the weighted vote's slicing it scored with
+    as the row's own keys; after the keno step has moved the weighted vote's, the next run follows it rather than its
+    own pin; keys set by hand are what the row is scored, and then served, with.
+    """
+    import contextlib
+    import io
+    import tempfile
+
+    weighted = {"weightedEnsembleSubsetMode": "top", "weightedEnsembleSubsetTemperature": 0.3}
+    moved = {"weightedEnsembleSubsetMode": "softmax", "weightedEnsembleSubsetTemperature": 1.2}
+    pin = lambda source: {"subsetEnsembleSubsetMode": "top", "subsetEnsembleSubsetTemperature": 0.3,
+                          "tuningGate": {ROW_NAME: {"kenoSlicing": {"mode": "top", "temperature": 0.3, "from": source}}}}
+    assert keno_slicing({}) == ("softmax", 0.5, "weighted vote") and keno_slicing(weighted) == ("top", 0.3, "weighted vote")
+    assert keno_slicing({**weighted, "subsetEnsembleSubsetTemperature": 0.9}) == ("top", 0.9, "own"), "Predictor's per-key fallback"
+    assert keno_slicing({**pin("weighted vote"), **moved}) == ("softmax", 1.2, "weighted vote"), "the tuner's own pin is read past"
+    assert keno_slicing({**pin("weighted vote"), **moved, "subsetEnsembleSubsetTemperature": 0.9}) == ("top", 0.9, "own"), "a pin changed by hand"
+    assert keno_slicing({**pin("own"), **moved}) == ("top", 0.3, "own"), "keys set by hand stay"
+
+    rng = np.random.RandomState(7)
+    draw = lambda: sorted(int(n) for n in rng.choice(np.arange(1, 71), 20, replace=False))
+    with tempfile.TemporaryDirectory() as root:
+        historyDir = os.path.join(root, "data", "database", "keno")
+        os.makedirs(historyDir)
+        for day in range(1, 31):
+            rows = [{"name": name, "predictions": [draw()]} for name in ("A Model", "B Model", "C Model")]
+            with open(os.path.join(historyDir, f"2026-1-{day}.json"), "w") as handle:
+                json.dump({"currentPrediction": rows, "realResult": draw()}, handle)
+        paramsPath = os.path.join(root, "bestParams_keno.json")
+
+        def run(**params):
+            served = {}
+            if os.path.exists(paramsPath):
+                with open(paramsPath) as handle:
+                    served = json.load(handle)
+            served.update(params)
+            with open(paramsPath, "w") as handle:
+                json.dump(served, handle)
+            with contextlib.redirect_stdout(io.StringIO()):
+                tune_game("keno", root, 0, DEFAULT_MAX_EVALUATIONS, 4, DEFAULT_CONFIDENCE_PENALTY,
+                          f"sqlite:///{os.path.join(root, 'db.sqlite3')}", "self-check")
+            with open(paramsPath) as handle:
+                written = json.load(handle)
+            return [written.get(key) for key in KENO_SLICING_KEYS], written["tuningGate"][ROW_NAME]["kenoSlicing"]
+
+        served, record = run(use_5=True, use_6=True, **weighted)
+        assert served == ["top", 0.3] and record == {"mode": "top", "temperature": 0.3, "from": "weighted vote"}, (served, record)
+        served, record = run(**moved)   # the keno step re-tuned the weighted vote after the first run
+        assert served == ["softmax", 1.2] and record["from"] == "weighted vote", (served, record)
+        served, record = run(subsetEnsembleSubsetTemperature=0.9)   # set by hand
+        assert served == ["softmax", 0.9] and record == {"mode": "softmax", "temperature": 0.9, "from": "own"}, (served, record)
 
 
 if __name__ == "__main__":
@@ -947,6 +1139,11 @@ if __name__ == "__main__":
         parser.add_argument(
             '--gate-se-margin', type=float, default=GATE_SE_MARGIN,
             help="The margin in standard errors of the challenger's own score; the larger of this and --gate-margin applies")
+        parser.add_argument(
+            '--gate-revert-margin', type=float, default=GATE_REVERT_MARGIN,
+            help='How much the plain vote must score above the served selection to be served back when the challenger '
+                 'is not written. 0 (default, since 27 Oct 2026) = any amount: the plain vote is not picked from the '
+                 'evaluated combinations.')
         parser.add_argument('--no-gate', action='store_true', help="Write this run's best combination without the comparison")
         parser.add_argument(
             '-g', '--games',
@@ -967,6 +1164,7 @@ if __name__ == "__main__":
         GATE_ENABLED = not args.no_gate
         GATE_MARGIN = float(args.gate_margin)
         GATE_SE_MARGIN = float(args.gate_se_margin)
+        GATE_REVERT_MARGIN = float(args.gate_revert_margin)
 
         print("Push to git: ", pushToGit)
         print("Evaluation budget per game: ", maxEvaluations)
@@ -980,13 +1178,19 @@ if __name__ == "__main__":
         path = os.getcwd()
         optunaDatabase = "sqlite:///db.sqlite3"
         runTag = datetime.now().strftime("%Y-%m-%d %H:%M")
+        # The lockbox's draws leave every game's window (tune_game). A
+        # malformed declaration is a warning, said once - the run then is not
+        # lockbox-safe and the warning says so.
+        lockbox = load_lockbox(path)
+        if lockbox:
+            print(f"Selecting under the {describe_lockbox(lockbox)}: its draws are never scored")
 
         for dataset_name in GAMES:
             if dataset_name not in games:
                 continue
             try:
                 tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty,
-                          optunaDatabase, runTag)
+                          optunaDatabase, runTag, lockbox=lockbox)
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 

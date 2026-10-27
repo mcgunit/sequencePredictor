@@ -9,11 +9,11 @@ import Tile from '../../components/Tile';
 import { Card, Legend } from '../../components/admin/Card';
 import Chip, { type ChipKind } from '../../components/admin/Chip';
 import { DurationBar, StackBar } from '../../components/admin/Bars';
-import { historyNote, readingNote, streakWords } from '../../components/admin/Streak';
+import { historyNote, readingNote, ruleNote, streakWords } from '../../components/admin/Streak';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 import ControlsDrawer from './ControlsDrawer';
 import RunDrawer from './RunDrawer';
-import { GameButton, GroupRow, earliest, joinParts, liveRecordsText, seedsText, units } from './bits';
+import { GameButton, GroupRow, earliest, joinParts, q0TileFoot, seedsText, units } from './bits';
 import { marginText } from './gates';
 import { durationText, jobLabel, runId, usualBasis, usualText, weekStatus, type WeekStatus } from './week';
 
@@ -100,23 +100,19 @@ function lockText(lock: WeekView['since']['lock']): string {
   return `lock held by ${lock.script ?? 'a job'}${lock.pid !== null ? ` (pid ${lock.pid})` : ''}`;
 }
 
-// While Q0 rewrites the bands game by game (Sunday noon into Monday) the tile's count mixes this week's bands with last
-// week's: said on the tile, with how many are which. Out of a run, a band older than the other controls is said too.
-function q0RunNote(games: MatrixGame[], running: WeekView['tiles']['weekend']['running']): string {
-  const cells = games.filter((g) => g.q0);
-  // a game's band is from a run only once both its control records are (Q0 writes the synthetic one first)
-  const oldest = (g: MatrixGame) => earliest(g.q0?.modes.map((m) => m.at) ?? []) ?? g.q0?.at ?? null;
-  const sundays = (xs: MatrixGame[]) => [...new Set(xs.map((g) => weekday(g.q0?.history?.sunday ?? oldest(g))))].join(', ');
-  if (running && running.key === 'nullControls' && running.start) {
-    const from = Date.parse(running.start) - 60 * 1000;
-    const others = cells.filter((g) => {
-      const at = oldest(g);
-      return !at || Date.parse(at) < from;
-    });
-    return `Q0 running since ${stamp(running.start)}: ${cells.length - others.length} of ${cells.length} bands from this run${others.length ? `, the others from ${sundays(others)}` : ''}`;
-  }
-  const behind = cells.filter((g) => g.q0?.history?.behind);
-  return behind.length ? `${behind.length} of ${cells.length} bands older than the other controls, from ${sundays(behind)}: ${behind.map((g) => g.game).join(', ')}` : '';
+// While NullControls rewrites the Q0 band (context since 27 Oct 2026) game by game, Sunday noon into Monday: how many
+// bands are from this run - the row tests on the tile are the daily report's and do not move with it.
+function q0BandRunNote(games: MatrixGame[], running: WeekView['tiles']['weekend']['running']): string {
+  if (!running || running.key !== 'nullControls' || !running.start) return '';
+  const cells = games.filter((g) => g.q0?.band);
+  // a game's band is from a run only once both its control records are (NullControls writes the synthetic one first)
+  const oldest = (g: MatrixGame) => earliest(g.q0?.band?.modes.map((m) => m.at) ?? []) ?? g.q0?.band?.at ?? null;
+  const from = Date.parse(running.start) - 60 * 1000;
+  const others = cells.filter((g) => {
+    const at = oldest(g);
+    return !at || Date.parse(at) < from;
+  });
+  return `band (context) being rewritten since ${stamp(running.start)}: ${cells.length - others.length} of ${cells.length} from this run`;
 }
 
 function Tiles({ d }: { d: WeekView }) {
@@ -127,14 +123,7 @@ function Tiles({ d }: { d: WeekView }) {
   const games = d.matrix.games;
   const closed = Boolean(d.weekend.until && d.builtAt && Date.parse(d.builtAt) >= Date.parse(d.weekend.until));
   const predictorRuns = d.runs.filter((r) => r.key === 'predictor').length;
-  // Q0: the longest record among the rows above, per side - a lottery game's draws, a market game's live part only,
-  // per unit (a day, a trading day and a week are not one scale)
-  const hitAbove = games.filter((g) => g.q0 && g.q0.ranking === 'hits' && g.q0.above > 0);
-  const lottery = hitAbove.filter((g) => g.group === 'Lottery').sort((a, b) => (b.q0?.longest ?? 0) - (a.q0?.longest ?? 0))[0];
-  const records = joinParts([
-    lottery ? `lottery records ≤ ${count(lottery.q0?.longest, lottery.unit)}` : '',
-    liveRecordsText(hitAbove.filter((g) => g.group === 'Markets').map((g) => ({ game: g.game, unit: g.unit, longestLive: g.q0?.longestLive ?? null }))),
-  ]);
+  const unitOf = (game: string) => games.find((g) => g.game === game)?.unit ?? 'draws';
   const q2Above = (group: string) => games.filter((g) => g.group === group && g.q2?.status === 'above').length;
   const rowsGames = games.filter((g) => g.rows);
   const scored = rowsGames.reduce((s, g) => s + (g.rows?.scored ?? 0), 0);
@@ -198,16 +187,10 @@ function Tiles({ d }: { d: WeekView }) {
       )}
       <Tile
         to="/admin/controls#q0"
-        label="Q0 null band"
-        value={String(t.q0.rowsAbove)}
-        unit="rows above band"
-        foot={[
-          `${t.q0.games} of ${t.q0.hitRankedGames} hit-ranked games${t.q0.noBand.length ? ` · no band: ${t.q0.noBand.join(', ')}` : ''}`,
-          records,
-          `rule open: ${t.q0.alternatives.allGamesOnHits.rowsAbove} with payout games · ${t.q0.alternatives.bestRowOnly.games.length} best rows only`,
-          `bands ${span(t.q0.from, t.q0.at)} · ranking ${stamp(d.rankingAt)}`,
-          q0RunNote(games, we.running),
-        ]}
+        label="Q0 row tests"
+        value={String(t.q0.confirmed)}
+        unit="confirmed on new draws"
+        foot={[...q0TileFoot(t.q0, unitOf), q0BandRunNote(games, we.running)]}
       />
       <Tile
         to="/admin/controls#q2"
@@ -216,8 +199,8 @@ function Tiles({ d }: { d: WeekView }) {
         unit={`of ${t.q2.of} above`}
         foot={[
           joinParts([`lottery ${q2Above('Lottery')}`, seedsText(t.q2.seeds.Lottery), `markets ${q2Above('Markets')}`, seedsText(t.q2.seeds.Markets)]),
-          ...t.q2.aboveFewWindows.map((w) => `${w.game} above on ${w.windowsTest ?? DASH} test windows (under ${d.matrix.fewWindows})`),
-          t.q2.tooFewGames.length ? `${t.q2.tooFewGames.length} too few draws (${t.q2.tooFewGames.join(', ')})` : '',
+          t.q2.tooFewGames.length ? `${t.q2.tooFewGames.length} too few draws, under ${d.matrix.fewWindows ?? DASH} test windows (${t.q2.tooFewGames.join(', ')})` : '',
+          t.q2.failedGames.length ? `${t.q2.failedGames.length} failed: a comparison scored under 2 seeds (${t.q2.failedGames.join(', ')})` : '',
           joinParts([t.q2.missing.length ? `no record: ${t.q2.missing.join(', ')}` : '', t.q2.unreadable.length ? `unreadable: ${t.q2.unreadable.join(', ')}` : '']),
           span(t.q2.from, t.q2.at),
         ]}
@@ -230,6 +213,7 @@ function Tiles({ d }: { d: WeekView }) {
         foot={[
           joinParts([`${t.rows.games} games`, windows]),
           `${reference} beats uniform in ${t.rows.referenceAboveUniform} of ${t.rows.games}`,
+          t.rows.frequencyGames ? `${reference} beats the frequencies in ${t.rows.referenceAboveFrequency} of ${t.rows.frequencyGames}` : '',
           t.rows.missing.length ? `no report: ${t.rows.missing.join(', ')}` : '',
           span(t.rows.from, t.rows.at),
         ]}
@@ -574,29 +558,35 @@ const withHistory = (base: ChipKind, text: string, h: Parameters<typeof streakWo
   const words = streakWords(h, what);
   return { text, kind: words?.changed ? 'chg' : base, words, notes: notes.filter(Boolean) };
 };
-const upTo = (same: boolean | null) => (same ? '' : '≤ ');
 
-// Q0: the live count against the ranking on disk; its weeks are the readings' (each at its own Sunday's ranking), and
-// the line under it says where the two differ. A payout game is compared on hits and stays out of the tile's count.
-function q0Cell(g: MatrixGame, headline: number, rankingAt: string | null): Cell | null {
+// Q0 (27 Oct 2026): the row tests of the report on disk - confirmed, holds, under 5% next to what chance puts there,
+// followed. The chip is outlined only when a row is confirmed on new draws; holds and under 5% are this week's figures
+// and colour nothing. Its weeks are the readings' (the rows confirmed and followed, each reading at its own Sunday's
+// report), and the line under it says where the report on disk differs. A payout game is tested on hits, out of the tile.
+function q0Cell(g: MatrixGame, rankingAt: string | null): Cell | null {
   const q = g.q0;
-  if (!q) return null;
+  const t = q?.test;
+  if (!q || !t) return null;
+  if (!t.family) return withHistory('dim', `too few live ${units(g.unit)}: ${t.liveMax} of ${t.minDraws ?? DASH}`, q.history);
   const prefix = q.ranking === 'profit' ? 'on hits: ' : '';
-  const market = g.group === 'Markets';
-  const len = q.above
-    ? ` · ${upTo(q.sameLength)}${count(q.longest, g.unit)}${market ? `, ${upTo(q.sameLive)}${q.longestLive ?? 0} live` : ''}`
-    : '';
-  const outside = !q.inTile && q.above ? ` · not in the tile's ${headline}` : '';
-  return withHistory(q.above ? 'hi' : 'flat', `${prefix}${q.above} above ${fixed(q.ceiling)}${len}${outside}`, q.history, q.history?.state ?? '', [readingNote(q.history, rankingAt)]);
+  const text = `${prefix}${t.confirmed} confirmed · ${t.holds} hold · ${t.under} < 5% (≈${fixed(t.expected, 1)}) · ${t.followed} followed`;
+  return withHistory(t.confirmed ? 'hi' : 'flat', `${text}${q.inTile ? '' : ' · not in the tile'}`, q.history, '', [readingNote(q.history, rankingAt)]);
 }
-// Q2: the status first, in words (the outline is never the only sign), then the numbers named
-function q2Cell(g: MatrixGame, fewWindows: number): Cell | null {
+// Q2: the status first, in words (the outline is never the only sign), then the numbers named. The first week under a
+// new verdict rule (1 Nov 2026: 20 seeds and the windows rule) every cell says the week before was read under the old
+// one - and a market game's that its shuffled control's bins were re-cut on 26 Oct 2026 too - so a change that week
+// may be the rule's rather than the draws'.
+function q2Cell(g: MatrixGame): Cell | null {
   const q = g.q2;
   if (!q) return null;
   const seeds = `${q.seeds ?? DASH} seeds`;
-  if (q.status === 'too few draws') return withHistory('dim', `too few draws · ${seeds}`, q.history, q.status);
-  const windows = q.fewWindows ? ` · ${q.windowsTest ?? DASH} test windows (under ${fewWindows}, the record's power rule)` : '';
-  return withHistory(q.status === 'above' ? 'hi' : 'flat', `${q.status} · AUC ${fixed(q.real)} vs threshold ${fixed(q.threshold)} · ${seeds}${windows}`, q.history, q.status);
+  const rule = ruleNote(q.history);
+  const notes = [rule && g.group === 'Markets' && q.history?.ruleChanged?.rule === 1 ? `${rule}, and the shuffled control's bins were re-cut on 26 Oct` : rule];
+  if (q.status === 'too few draws') {
+    return withHistory('dim', `too few draws · ${q.windowsTest ?? DASH} test windows (under ${q.minWindows ?? DASH}) · ${seeds}`, q.history, q.status, notes);
+  }
+  if (q.status === 'failed') return withHistory('flat', `failed: a comparison scored under 2 seeds · ${seeds}`, q.history, q.status, notes);
+  return withHistory(q.status === 'above' ? 'hi' : 'flat', `${q.status} · AUC ${fixed(q.real)} vs threshold ${fixed(q.threshold)} · ${seeds}`, q.history, q.status, notes);
 }
 // the feature control's verdicts in full: a variant that "fits noise" fits the noise columns, a bad sign
 function fcCell(g: MatrixGame): Cell | null {
@@ -614,7 +604,9 @@ function rowsCell(g: MatrixGame): Cell | null {
   const r = g.rows;
   if (!r) return null;
   const ref = short(r.reference);
-  return withHistory('flat', `${r.beat} of ${r.scored} beat ${ref} · ${ref} vs uniform: ${r.referenceVsUniform ?? DASH} · ${count(r.window, g.unit)}`, r.history);
+  // vs the frequencies only from a report that has them (MarketRows.py, 26 Oct 2026)
+  const frequencies = r.referenceVsFrequency ? ` · vs the frequencies: ${r.referenceVsFrequency}` : '';
+  return withHistory('flat', `${r.beat} of ${r.scored} beat ${ref} · ${ref} vs uniform: ${r.referenceVsUniform ?? DASH}${frequencies} · ${count(r.window, g.unit)}`, r.history);
 }
 
 function CellButton({ game, cell, missing, onOpen }: { game: string; cell: Cell | null; missing: string; onOpen: (g: string) => void }) {
@@ -645,14 +637,17 @@ function MatrixCard({ d, onOpen }: { d: WeekView; onOpen: (g: string) => void })
       flush
       help={
         <>
-          One chip per control and game; a control opens that game&apos;s Controls drawer, the gates cell its Tuning gates drawer. Outlined: above its band (Q0
-          rows of the ranking above the null band, Q2&apos;s real AUC above the threshold and the shuffled control). Dashed: too few draws to judge. Colour marks a
+          One chip per control and game; a control opens that game&apos;s Controls drawer, the gates cell its Tuning gates drawer. Outlined: Q0 with a row
+          confirmed on new draws, Q2&apos;s real AUC above the threshold and the shuffled control&apos;s bound. Dashed: too few draws to judge (Q0: no row with 10
+          live draws, days or weeks yet; Q2: under {d.matrix.fewWindows ?? DASH} test windows, fixed by the history before the run). Colour marks a
           change only: a control that reads differently from the week before, in the stored weekly readings, is coloured and says what it read then; a state
-          that holds is grey, with its weeks in a row. Q0: the longest record among the rows above, in the game&apos;s draws, days or weeks, and for a market game
-          how many of them were live (back-built and late days do not count); ≤ when the rows above differ in length or in live days. The count is against the
-          ranking on disk; its weeks are the stored readings&apos;, each read against its own Sunday&apos;s ranking, and the line under it names the rows where the
-          two differ. jokerplus, pick3 and keno rank on profit and are compared on hits here, outside the tile&apos;s count. Q2: its status, the real AUC against
-          the threshold, and its test windows when they are under the record&apos;s own power rule. Feature control: the variants that fit the noise columns (a
+          that holds is grey, with its weeks in a row. Q0 (since 27 Oct 2026, the daily report&apos;s row test): each ranked row on its live draws against the
+          fair draw (lottery) or its own tickets shuffled within weeks (markets) - the rows confirmed on new draws, those whose p holds after the correction
+          for the rows compared, those under 5% with what chance puts there, and those followed; only a confirmed row outlines the chip. Its weeks count the
+          rows confirmed and followed in the stored readings (a reading from before 1 Nov 2026 read the old band rule), and the line under it names the
+          rows where today&apos;s report differs. jokerplus, pick3 and keno rank on profit and are tested on hits here, outside the tile. Q2: its status, the real AUC against
+          the threshold and its seeds, or its test windows when there are too few; failed when a comparison scored under 2 seeds; the first week under a new
+          verdict rule (1 Nov 2026), that the week before was read under the old one. Feature control: the variants that fit the noise columns (a
           bad sign), are inconclusive, or ignore the noise. Market rows: the rows that beat the reference, and the reference against uniform, over the scored
           window. Gates: replaced · kept · reverted on the newest weekend.
         </>
@@ -669,7 +664,7 @@ function MatrixCard({ d, onOpen }: { d: WeekView; onOpen: (g: string) => void })
         <thead>
           <tr>
             <th>Game</th>
-            <th>Q0 · rows above band</th>
+            <th>Q0 · row tests</th>
             <th>Q2 · real vs threshold</th>
             <th>Feature control</th>
             <th>Market rows</th>
@@ -687,11 +682,11 @@ function MatrixCard({ d, onOpen }: { d: WeekView; onOpen: (g: string) => void })
                   <td className="sym g" data-l="Game">
                     <GameButton game={g.game} onOpen={onOpen} />
                   </td>
-                  <td data-l="Q0 band">
-                    <CellButton game={g.game} cell={q0Cell(g, d.tiles.q0.rowsAbove, d.rankingAt)} missing={g.errors.includes('q0') ? 'record unreadable' : 'no band yet'} onOpen={onOpen} />
+                  <td data-l="Q0 row tests">
+                    <CellButton game={g.game} cell={q0Cell(g, d.rankingAt)} missing={`no row test${g.q0?.error ? `: ${g.q0.error}` : ''}`} onOpen={onOpen} />
                   </td>
                   <td data-l="Q2 AUC">
-                    <CellButton game={g.game} cell={q2Cell(g, d.matrix.fewWindows)} missing={missing(g, 'q2')} onOpen={onOpen} />
+                    <CellButton game={g.game} cell={q2Cell(g)} missing={missing(g, 'q2')} onOpen={onOpen} />
                   </td>
                   <td data-l="FC">
                     <CellButton game={g.game} cell={fcCell(g)} missing={missing(g, 'fc')} onOpen={onOpen} />

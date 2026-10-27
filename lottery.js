@@ -19,13 +19,21 @@
 //
 // The owner's rules (21-23 Oct 2026). A user sees the top five rows of each game's History ranking and nothing else:
 // for the coming draw today's five (ranking.js usersTop, the five /lottery showed), for a past draw the five ranked
-// first before it (rankhistory.js topAt, the 15:00 Brussels cut-off) - never today's five applied to a past draw. A
+// first before it (rankhistory.js topAt, the 15:00 Brussels cut-off, or the draw's sales close when earlier: 13:00 on
+// Sundays for Keno, Pick3 and Joker+) - never today's five applied to a past draw. A
 // draw without a ranking of its game saved before its cut-off (the first: 25 Aug 2026; Joker+ 7 Sep at 18:56, so its
 // 7 Sep draw too) is left out, never read against a rebuilt ranking, and the lines say so by that rule. Every figure - hits, best match, money - is over those five rows only, and a row outside them is never
 // sent, nor a vote of every row: the views are workbench.js's with the scope Top (draws.js scores them through its
 // `keep` filter), and each answer is checked against the five once more before it leaves (onlyTop: the five are read
 // again from the ranking, and a row outside them is a 500, never a leak). Controls and model internals stay in the
 // admin section.
+//
+// Sales close (the owner's decisions 2 and 3, 27 Oct 2026; src/drawClose.json, data/database/lotteryLiveness.json):
+// a draw any of whose five rows' tickets were made after its sales closed (back-built or late, or rewritten after the
+// draw) is shown greyed - "Tickets for this draw were made after its sales closed - shown, not counted in the totals." -
+// and left out of every total (17 draws on 27 Oct: keno 7, pick3 7, Joker+ 3, 30 Aug - 10 Sep 2026); the admin's live
+// record scores a rewritten ticket as it stood at the close instead. The coming draw shows its sales close, and says
+// when its tickets were made after it: then they are for reading, not for playing.
 //
 // Home's two markets are api.js marketView's status - Following the plan against buying everything over the same
 // days, with its window - and today's positions, counted: the figures of /app/crypto and /app/shares in about 1 KB
@@ -121,8 +129,24 @@ const noStart = (hist, game) => (unreadStart(hist, null)
   ? { error: UNREAD, status: 503 }
   : { error: `no ranking of ${game} has been saved yet, so its draws are left out`, code: 'not-ranked', status: 404 });
 // why a draw before the game's first counted one is left out, by the rule itself: no ranking of the game had been
-// saved before the cut-off on its day (the first saved ranking can come later that same day: Joker+ on 7 Sep)
+// saved before the cut-off on its day (the first saved ranking can come later that same day: Joker+ on 7 Sep). The
+// cut-off is 15:00 Brussels time, or the draw's sales close when that is earlier (rankhistory cutoffOf): over many
+// draws the rule in words with the game's early closes ("15:00 Brussels time (13:00 on Sundays, when sales close)"),
+// for one draw its own time.
 const cutoffText = `${rankhistory.CUTOFF_HOUR}:00 Brussels time`;
+const DAY_NAMES = { Mon: 'Mondays', Tue: 'Tuesdays', Wed: 'Wednesdays', Thu: 'Thursdays', Fri: 'Fridays', Sat: 'Saturdays', Sun: 'Sundays' };
+function cutoffTextOf(game) {
+  const table = (draws.DRAW_CLOSE && draws.DRAW_CLOSE.games && draws.DRAW_CLOSE.games[game]) || {};
+  const early = Object.entries(table).filter(([, time]) => String(time) < `${rankhistory.CUTOFF_HOUR}:00`);
+  return early.length ? `${cutoffText} (${early.map(([day, time]) => `${time} on ${DAY_NAMES[day] || day}`).join(', ')}, when sales close)` : cutoffText;
+}
+function cutoffTextAt(game, date) {
+  const at = rankhistory.cutoffOf(game, date);
+  if (at === null) return cutoffText;
+  const p = brussels.parts(at);
+  const time = `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;
+  return p.hour === rankhistory.CUTOFF_HOUR && p.minute === 0 ? cutoffText : `${time} Brussels time (its sales close)`;
+}
 const savedText = (start) => `the first was saved on ${start.day} at ${start.time}`;
 
 // A ranking git could not read, in a reader's words: its reason (a timeout, git's exit code) is the server log's and
@@ -180,16 +204,19 @@ function drawOf(dirs, game, date, hist, report, now = new Date()) {
   if (!start) return noStart(hist, game);
   if (!start.counts(date)) {
     if (start.unsure) return { error: UNREAD, status: 503 };
-    return { error: `no ranking of ${game} had been saved before ${cutoffText} on this draw's day (${savedText(start)}), so it is left out`, code: 'before-first', status: 404 };
+    return { error: `no ranking of ${game} had been saved before ${cutoffTextAt(game, date)} on this draw's day (${savedText(start)}), so it is left out`, code: 'before-first', status: 404 };
   }
   const view = workbench.drawView(dirs, game, date, 'top', hist, report, extraOf(game), now);
   if (view.error) return view;
   const { allowed, comingAllowed } = allowedFor(dirs, game, files[at].file, date, hist, report, at === 0);
   onlyTop(view, allowed, comingAllowed);
-  const { file, ...out } = view;
+  const { file, liveness, ...out } = view;
   if (out.prev && !start.counts(out.prev)) out.prev = null;
-  return { ...out, scope: plainScope(out.scope) };
+  // a user gets the draw's verdict, not the admin's per-row markers
+  return { ...out, rows: out.rows.map(({ liveMark, ...r }) => r), scope: plainScope(out.scope), ...afterCloseOut(liveness) };
 }
+// the users' greyed-draw line (workbench afterCloseOf over the five shown): {afterClose, afterCloseText}
+const afterCloseOut = (liveness) => (liveness && liveness.afterClose ? { afterClose: true, afterCloseText: liveness.afterCloseText } : { afterClose: false });
 
 // --- GET /api/lottery/:game ------------------------------------------------------------------------------------------
 // The admin history with the scope Top (workbench.historyView) over the draws from the game's first saved ranking on;
@@ -202,7 +229,9 @@ function totalOf(game, months, kept) {
     best = draws.betterBest(family, best, m.best);
     if (m.multi !== undefined && m.multi !== null) multi = Math.max(multi === null ? 0 : multi, m.multi);
   });
-  const out = { from: kept[kept.length - 1].date, to: kept[0].date, draws: sum('draws'), counted: sum('counted'), rows: sum('rows'), tickets: sum('tickets'), best };
+  // afterClose: the draws shown greyed, out of every total (tickets made after the sales close)
+  const out = { from: kept[kept.length - 1].date, to: kept[0].date, draws: sum('draws'), counted: sum('counted'), afterClose: sum('afterClose'), rows: sum('rows'),
+    tickets: sum('tickets'), best };
   if (draws.MONEY_GAMES.includes(game)) { out.profit = round2(sum('profit')); out.stake = round2(sum('stake')); }
   if (multi !== null) out.multi = multi;
   return out;
@@ -218,7 +247,7 @@ function leftOutOf(game, start, files, kept) {
       text: `${plural(n, 'earlier draw')} ${is} not shown just now: a saved ranking that may count ${n === 1 ? 'it' : 'them'} could not be read; it is read again shortly.` };
   }
   const text = n
-    ? `${plural(n, 'earlier draw')} ${is} left out: no ranking of ${game} had been saved before ${cutoffText} on ${n === 1 ? 'its' : 'their'} day (${savedText(start)}${first ? `; the first counted draw is ${first}` : ''}).`
+    ? `${plural(n, 'earlier draw')} ${is} left out: no ranking of ${game} had been saved before ${cutoffTextOf(game)} on ${n === 1 ? 'its' : 'their'} day (${savedText(start)}${first ? `; the first counted draw is ${first}` : ''}).`
     : `Every draw since the first saved ranking of ${game} (${start.day}).`;
   return { draws: n, firstSaved: start.day, firstCounted: first, text };
 }
@@ -235,9 +264,9 @@ function historyOf(dirs, game, hist, month, now = new Date()) {
     return { game, ...extraOf(game), builtAt: isoNow(now), scope: 'top', topN: TOP_N, shape: draws.shapeOf(game), draws: 0, counted: 0, month: null, months: [],
       ranking: { first: savedOf(hist.first), firstOfGame: start.first, error: hist.error ? READ_ERROR : null, versions: [], metrics: {} }, total: null, leftOut };
   }
-  const stamp = [histStamp(hist), ...kept.map((f) => `${f.file}@${stampOf(path.join(dir, f.file))}`)].join('|');
+  const stamp = [histStamp(hist), stampOf(path.join(dirs.databaseDir, workbench.LIVENESS_FILE)), ...kept.map((f) => `${f.file}@${stampOf(path.join(dir, f.file))}`)].join('|');
   return remember(`history:${dir}:${month || ''}`, stamp, () => {
-    const view = workbench.historyView(dirs, game, 'top', hist, extraOf(game), month, now, { include: start.counts });
+    const view = workbench.historyView(dirs, game, 'top', hist, extraOf(game), month, now, { include: start.counts, afterClose: true });
     if (view.error) return view.status === 404 && month !== null ? { error: 'no counted draw in that month', status: 404 } : view;
     checkHistory(dirs, game, view, hist, kept);
     return { ...view, ranking: { ...view.ranking, first: savedOf(view.ranking.first), firstOfGame: savedOf(view.ranking.firstOfGame), error: view.ranking.error ? READ_ERROR : null },
@@ -246,10 +275,12 @@ function historyOf(dirs, game, hist, month, now = new Date()) {
 }
 
 // --- GET /api/lottery ------------------------------------------------------------------------------------------------
-// One game's card: the coming draw - its date on the game's own schedule (no time of day: the records hold the date
-// only), today's five rows in their order with their tickets - and the last scored draw: its result, the five ranked
-// before it, each row's figures (draws.dayFigures over that row alone) and the five's together. past: the coming
-// draw's date has gone and no newer run has scored it yet; today: it is today's date in Brussels.
+// One game's card: the coming draw - its date on the game's own schedule, its sales close from src/drawClose.json
+// (time; afterClose when its tickets were made at or after it: 27 Oct 2026, until then no time of day was shown) -,
+// today's five rows in their order with their tickets - and the last scored draw: its result, the five ranked before
+// it, each row's figures (draws.dayFigures over that row alone) and the five's together, greyed (afterClose) when a
+// ticket of the five was made after its sales close. past: the coming draw's date has gone and no newer run has
+// scored it yet; today: it is today's date in Brussels.
 const byRank = (a, b) => (a.rank === null ? 99 : a.rank) - (b.rank === null ? 99 : b.rank);
 function rowFigures(game, day, name) {
   const { rows, best, ...f } = draws.dayFigures(game, day, (n) => n === name);
@@ -271,17 +302,21 @@ function cardOf(dirs, game, hist, report, now) {
   const last = { date: view.date, weekday: view.weekday, result: view.result };
   if (start && start.counts(view.date)) {
     Object.assign(last, { scope: plainScope(view.scope), figures: view.figures,
-      rows: view.rows.slice().sort(byRank).map((r) => ({ name: r.name, rank: r.rank, ...rowFigures(game, day, r.name) })) });
+      rows: view.rows.slice().sort(byRank).map((r) => ({ name: r.name, rank: r.rank, ...rowFigures(game, day, r.name) })), ...afterCloseOut(view.liveness) });
   } else if (unreadStart(hist, start)) {
     // the history is not whole here: not "left out", nor "not saved yet" - the rankings could not be read just now
     last.none = { code: 'unavailable', text: 'the saved rankings could not be read just now' };
   } else {
-    last.leftOut = start ? `no ranking of ${game} had been saved before ${cutoffText} that day (${savedText(start)})` : 'no ranking of this game has been saved yet';
+    last.leftOut = start ? `no ranking of ${game} had been saved before ${cutoffTextAt(game, view.date)} that day (${savedText(start)})` : 'no ranking of this game has been saved yet';
   }
+  // the coming draw's sales close (src/drawClose.json, the owner's decision 3): time, and whether its tickets were made
+  // at or after it - then they are for reading, not for playing
+  const close = c.close || null;
   return {
     ...base, shape: view.shape,
-    next: { date: c.date, weekday: c.date ? draws.weekdayOf(c.date) : null, time: null, past: Boolean(c.date && c.date < today), today: Boolean(c.date && c.date === today),
-      madeAt: c.madeAt },
+    next: { date: c.date, weekday: c.date ? draws.weekdayOf(c.date) : null, time: close ? close.time : null, past: Boolean(c.date && c.date < today), today: Boolean(c.date && c.date === today),
+      madeAt: c.madeAt, closeAt: close ? close.at : null, afterClose: Boolean(close && close.afterClose),
+      afterCloseText: close && close.afterClose ? `These tickets were made after sales closed (${close.time}): for reading, not for playing.` : null },
     // every coming row is one of today's five: their `top` flag (the admin's All marks them) is left out
     coming: { scope: c.scope, rows: c.rows.slice().sort(byRank).map(({ top, ...r }) => r) },
     multiPick: view.multiPick,
@@ -289,7 +324,7 @@ function cardOf(dirs, game, hist, report, now) {
   };
 }
 function overviewOf(dirs, hist, report, now = new Date()) {
-  const stamp = [histStamp(hist), stampOf(path.join(dirs.databaseDir, 'modelPerformance.json')), brussels.dayOf(now.getTime()),
+  const stamp = [histStamp(hist), stampOf(path.join(dirs.databaseDir, 'modelPerformance.json')), stampOf(path.join(dirs.databaseDir, workbench.LIVENESS_FILE)), brussels.dayOf(now.getTime()),
     ...GAMES.map((g) => { const f = workbench.dayFilesOf(path.join(dirs.databaseDir, g)); return f.length ? `${f.length}:${f[0].file}@${stampOf(path.join(dirs.databaseDir, g, f[0].file))}` : '-'; })].join('|');
   return remember(`overview:${dirs.databaseDir}`, stamp, () => ({
     builtAt: isoNow(now), topN: TOP_N, firstSaved: savedOf(hist.first),
@@ -322,7 +357,8 @@ function homeOf(dirs, hist, report, now = new Date()) {
     lottery: overview.games.map((g) => (g.empty ? g : {
       game: g.game, unit: g.unit, shape: g.shape, next: g.next,
       top: g.coming.rows[0] || null, rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
-      last: { date: g.last.date, rows: g.last.rows ? g.last.rows.length : 0, figures: g.last.figures || null, none: g.last.none || (g.last.scope ? g.last.scope.none : null), leftOut: g.last.leftOut || null },
+      last: { date: g.last.date, rows: g.last.rows ? g.last.rows.length : 0, figures: g.last.figures || null, none: g.last.none || (g.last.scope ? g.last.scope.none : null), leftOut: g.last.leftOut || null,
+        afterClose: Boolean(g.last.afterClose) },
     })),
     ...Object.fromEntries(MARKETS.map((m) => [m, marketHeadline(dirs, m, now)])),
   };

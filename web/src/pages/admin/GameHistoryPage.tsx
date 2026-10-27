@@ -102,6 +102,24 @@ function ScopeSummary({ h }: { h: History }) {
   );
 }
 
+// The draws' tickets against their sales close (src/Liveness.py, lotteryLiveness.json, 27 Oct 2026): what the marks
+// under a draw's figures mean, how the admin's live record and the users' history each treat them, and how this
+// game's tickets were judged. A row's late and duplicate marks over its draws are its draws minus its live draws on
+// the Models page; its rewritten ones are in its live record.
+function LivenessSummary({ h }: { h: History }) {
+  const how = h.liveness?.checked === 'stamp+git' ? 'judged by the tickets\' stamps and git' : h.liveness?.checked === 'stamp only'
+    ? 'git could not be read on the last run: judged by the stamps and the check before' : 'not checked on the last run: no evidence, every row counts as not live';
+  return (
+    <p className="statusline mut">
+      <span>
+        <b>Not live as stored</b> under a draw: rows whose ticket was not saved before the draw&apos;s sales close ({how}) - back-built or late (left out of the
+        live record), rewritten after the draw (the live record scores the ticket that stood at the close), or a second row of one name. The totals here count
+        every stored ticket; the users&apos; history shows a draw greyed and leaves it out of its totals when one of its five was back-built, late or rewritten.
+      </span>
+    </p>
+  );
+}
+
 export default function GameHistoryPage() {
   const { game = '' } = useParams();
   const [scope, setScope] = useScope();
@@ -151,6 +169,7 @@ export default function GameHistoryPage() {
         aside={aside}
       />
       <ScopeSummary h={h} />
+      {h.liveness ? <LivenessSummary h={h} /> : null}
       {h.shape.family === 'market' ? <MarketNote game={game} slots={h.shape.slots} mode="admin" marketHref={marketHref} /> : null}
       <HistoryView key={`${game}-${h.scope}`} h={h} mode="admin" open={month} loadMonth={loadMonth} drawHref={toDraw} />
     </div>

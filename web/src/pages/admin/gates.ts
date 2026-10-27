@@ -35,14 +35,27 @@ export function windowText(byUnit: Record<string, Range>): string {
     .join(', ');
 }
 
-// "margin 0" (any gain replaces), "margin 1 SE", or the mix; '' for no decision at all (a tuner of the chain that has
-// not written this weekend's yet) - never "margin mixed" over zero gates
-export function marginText(t: { n: number; marginZero: number; marginOneSe: number | null }): string {
+// "margin 0" (any gain replaces), "margin 1 SE", "margin 2.5 SE" (the quantum tuner's since 27 Oct 2026), or the mix;
+// '' for no decision at all (a tuner of the chain that has not written this weekend's yet) - never "margin mixed" over
+// zero gates. marginSeCounts: {k: records} by the k of their margin in standard errors (the server's since 27 Oct
+// 2026); empty from an older server, which counted 1 SE only
+export function marginText(t: { n: number; marginZero: number; marginOneSe: number | null; marginSeCounts?: Record<string, number> }): string {
   if (!t.n) return '';
   if (t.marginZero === t.n) return 'margin 0';
-  if (t.marginOneSe === t.n) return 'margin 1 SE';
-  return joinParts([t.marginZero ? `${t.marginZero} at margin 0` : '', t.marginOneSe ? `${t.marginOneSe} at 1 SE` : '']) || 'margin mixed';
+  const counted = Object.entries(t.marginSeCounts ?? {}).filter(([, n]) => n > 0);
+  const ks: [string, number][] = counted.length ? counted : t.marginOneSe ? [['1', t.marginOneSe]] : [];
+  if (!t.marginZero && ks.length === 1 && ks[0][1] === t.n) return `margin ${ks[0][0]} SE`;
+  return joinParts([t.marginZero ? `${t.marginZero} at margin 0` : '', ...ks.map(([k, n]) => `${n} at ${k} SE`)]) || 'margin mixed';
 }
+// A gate row's margin as k standard errors of the challenger's score: the margin used over its SE, else the k the tuner
+// asked for (a record kept for want of a challenger SE); null for a margin-0 row. The drawer counts its rows with it as
+// the server counts a tuner's (admin.js kOf).
+export function marginKOf(r: { margin: number | null; marginSe: number | null; marginK: number | null }): number | null {
+  if (r.margin !== null && r.margin > 0 && r.marginSe !== null) return r.marginSe;
+  return r.marginK !== null && r.marginK > 0 ? r.marginK : null;
+}
+// k to two decimals, as a word: '1', '2.5'
+export const kText = (k: number) => String(Math.round(k * 100) / 100);
 
 // A weekend's decision as a letter: R replaced, K kept, V reverted; – the weekend did not decide the row; ? git could not be read
 export function letterOf(decision: string | null): string {

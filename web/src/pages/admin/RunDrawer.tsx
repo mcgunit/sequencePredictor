@@ -142,7 +142,9 @@ function OutputsSection({ r, d }: { r: RunLine; d: WeekView }) {
       >
         <p className="line">
           The {label} records on disk at this build, one per game
-          {controls.part === 'q0' ? ' (Q0 writes a synthetic and a shuffled record a game: both are judged, and a line names the one not from this run)' : ''}: a
+          {controls.part === 'q0'
+            ? ' (the Q0 band, context only since 27 Oct 2026 - Q0 itself is the daily report\'s row test: this job writes a synthetic and a shuffled record a game; both are judged, and a line names the one not from this run)'
+            : ''}: a
           record whose time lies inside this run was written by it.
           {times.length ? ` This run's: ${span(times[0], times[times.length - 1])}.` : ''}
         </p>

@@ -16,14 +16,22 @@
 // written: the pages showed the version before it.
 //
 // THE CUT-OFF: the ranking users saw before a draw is the newest version committed before the draw's day ended its
-// morning run - 15:00 Brussels time on the draw's date. Every game here draws, or closes, later that day: lotto
-// (Wed, Sat), euromillions (Tue, Fri), eurodreams (Mon, Thu) and vikinglotto (Wed) draw in the evening, keno, pick3 and
-// Joker+ every evening; a crypto day closes at 00:00 UTC (02:00 Brussels in summer, 01:00 in winter), a share
-// session at 16:00 New York (22:00 Brussels in most weeks, never before 19:00 on an early close). The daily run
-// starts at 09:00 Brussels and its commit had landed by 12:36 Brussels on every day of the history (3 Sep). A hand run
-// in the afternoon or evening (25 Aug, 2, 7, 8 and 10 Sep) counts from the next draw on: it may hold that day's own
-// result, so 15:00 keeps it out even where it came before the draw. A run later than 15:00 on a normal day means that
-// day's draw is read on the day before's version - an older ranking, never a later one.
+// morning run - 15:00 Brussels time on the draw's date, or the draw's sales close when that comes first
+// (src/drawClose.json, 27 Oct 2026: keno, pick3 and Joker+ close at 13:00 on Sundays; until then the cut-off was
+// 15:00 for every lottery draw and this said they draw "every evening" - no saved ranking fell between 13:00 and
+// 15:00 on a Sunday, the latest Sunday commit is 12:23 on 20 Sep, so no point-in-time Top changed). The other draws
+// close in the evening: lotto (Wed, Sat 19:00), euromillions (Tue, Fri 20:00), eurodreams (Mon, Thu 20:00),
+// vikinglotto (Wed 18:00), keno, pick3 and Joker+ on the other days (19:00 or 20:00); a crypto day closes at 00:00
+// UTC (02:00 Brussels in summer, 01:00 in winter), a share session at 16:00 New York (22:00 Brussels in most weeks,
+// never before 19:00 on an early close). The daily run starts at 09:00 Brussels and its commit had landed by 12:36
+// Brussels on every day of the history (3 Sep). A hand run in the afternoon or evening (25 Aug, 2, 7, 8 and 10 Sep)
+// counts from the next draw on: it may hold that day's own result, so 15:00 keeps it out even where it came before
+// the draw. A run later than the cut-off on a normal day means that day's draw is read on the day before's version -
+// an older ranking, never a later one.
+//
+// A report ranked on the live record (games[g].rankedOn 'live', Helpers.py from 27 Oct 2026: only the tickets saved
+// before each draw's sales close count) is reduced with the live values: names in its order, each name's live value
+// and live draws, the live block's minimum. The versions saved before the switch keep the all-draws ranking they had.
 // The week games (cryptoweek, dated by the week's Sunday; sharesweek, by its last session) are one draw per week: the
 // cut-off is 15:00 Brussels on the week's Monday - after the run that made the week's ticket (Monday for crypto, the
 // Saturday before for shares), before the share week's first open (15:30 Brussels) - the ranking the week was
@@ -33,11 +41,14 @@
 const fs = require('fs');
 const path = require('path');
 const brussels = require('./brussels');
+const draws = require('./draws');
 const gates = require('./gates');
 const rankings = require('./ranking');
 
 const REPORT_PATH = 'data/database/modelPerformance.json';
-const CACHE_VERSION = 1;
+// 2 (27 Oct 2026): a version ranked on the live record is reduced with its live values (reduce); entries reduced
+// before could hold all-draws values for such a version, so every version is read once more from git
+const CACHE_VERSION = 2;
 const CUTOFF_HOUR = 15;                                  // Brussels wall time on the draw's (the week's first) day
 const WEEK_GAMES = ['cryptoweek', 'sharesweek'];
 const TOP_N = rankings.TOP_MODELS_SHOWN;
@@ -55,8 +66,9 @@ function isoUtc(value) {
 }
 const isoMs = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z') : null);
 
-// One version of the report, reduced: {generatedAt, games: {game: {names, metric, minDraws, values, draws}}}; null
-// when the text is not a report.
+// One version of the report, reduced: {generatedAt, games: {game: {names, metric, minDraws, values, draws, rankedOn}}};
+// null when the text is not a report. rankedOn 'live': the values, draws and minimum are the live record's (the
+// order already is); 'all' every stored draw.
 function reduce(text) {
   let report;
   try { report = JSON.parse(text); } catch (e) { return null; }
@@ -65,9 +77,12 @@ function reduce(text) {
   Object.entries(report.games).forEach(([game, info]) => {
     if (!GAME.test(game) || !info || !Array.isArray(info.models) || !info.models.length) return;
     const models = info.models.filter((m) => m && m.name !== undefined && m.name !== null);
+    const metric = String(info.metric || 'avg_hits');
+    const live = info.rankedOn === 'live' && info.live && typeof info.live === 'object';
+    const of = (m) => (live ? (m.live && typeof m.live === 'object' ? m.live : {}) : m);
     games[game] = {
-      names: models.map((m) => String(m.name)), metric: String(info.metric || 'avg_hits'), minDraws: num(info.minDrawsForRanking),
-      values: models.map((m) => r4(m[info.metric || 'avg_hits'])), draws: models.map((m) => num(m.draws)),
+      names: models.map((m) => String(m.name)), metric, minDraws: num(live ? info.live.minDrawsForRanking : info.minDrawsForRanking),
+      values: models.map((m) => r4(of(m)[metric])), draws: models.map((m) => num(of(m).draws)), rankedOn: live ? 'live' : 'all',
     };
   });
   return { generatedAt: isoUtc(report.generatedAt), games };
@@ -87,7 +102,7 @@ function validEntry(v) {
   if (v.skip !== undefined) return v.skip === 'not in commit' || v.skip === 'not a report';
   if ((v.generatedAt !== null && typeof v.generatedAt !== 'string') || !v.games || typeof v.games !== 'object' || Array.isArray(v.games)) return false;
   return Object.entries(v.games).every(([game, g]) => GAME.test(game) && g && typeof g === 'object' && typeof g.metric === 'string'
-    && Array.isArray(g.names) && g.names.every((n) => typeof n === 'string')
+    && (g.rankedOn === 'all' || g.rankedOn === 'live') && Array.isArray(g.names) && g.names.every((n) => typeof n === 'string')
     && Array.isArray(g.values) && g.values.length === g.names.length && Array.isArray(g.draws) && g.draws.length === g.names.length);
 }
 function readCache(file) {
@@ -126,12 +141,15 @@ async function readVersion(root, sha) {
 }
 
 // --- the cut-off -----------------------------------------------------------------------------------------------
-// The instant a draw's ranking is read at (the header explains the hour): 15:00 Brussels on the draw's date, or on
-// the week's Monday for a week game. null for a date that is not a day.
+// The instant a draw's ranking is read at (the header explains the hour): 15:00 Brussels on the draw's date - for a
+// lottery draw its sales close when that is earlier (draws.salesClose: Sunday keno, pick3 and Joker+ at 13:00) -, or
+// 15:00 on the week's Monday for a week game. null for a date that is not a day.
 function cutoffOf(game, date) {
   if (!ISO_DAY.test(String(date)) || !brussels.isDay(date)) return null;
   const day = WEEK_GAMES.includes(game) ? brussels.addDays(date, -((brussels.weekdayOfDay(date) + 6) % 7)) : date;
-  return brussels.instant(day, CUTOFF_HOUR, 0);
+  const at = brussels.instant(day, CUTOFF_HOUR, 0);
+  const close = WEEK_GAMES.includes(game) ? null : draws.salesClose(game, date);
+  return close ? Math.min(at, close.at) : at;
 }
 
 // --- the history -------------------------------------------------------------------------------------------------
@@ -163,8 +181,8 @@ function makeHistory(versions, { head = null, error = null, skipped = 0, unread 
     const g = v.games ? v.games[game] : null;
     const version = { sha: v.sha, committedAt: isoMs(v.at), generatedAt: v.generatedAt };
     if (!g) return none('not-ranked', { version });
-    return { version, names: g.names, metric: g.metric, metricText: rankings.METRIC_TEXT[g.metric] || rankings.METRIC_TEXT.avg_hits,
-      minDraws: g.minDraws, values: g.values, draws: g.draws };
+    return { version, names: g.names, metric: g.metric, metricText: rankings.metricTextOf(g.metric, g.rankedOn),
+      minDraws: g.minDraws, values: g.values, draws: g.draws, rankedOn: g.rankedOn || 'all' };
   }
   // The top n of a draw: the first n names of the ranking at its cut-off that are in the draw's table (present: the
   // names of its rows; a ranked row can be missing from a day). {top, ranking, cutoff} or {none, text, cutoff}.

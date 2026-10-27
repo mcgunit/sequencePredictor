@@ -63,22 +63,31 @@ const WAIT_RELOG_MS = 30 * 60 * 1000;
 const WAIT_ALARM_MS = 6 * 3600 * 1000;
 
 // --- what runs, and when ----------------------------------------------------
-// One entry per Python entry point, mirroring runPredictor.sh and
-// runHyperopt.sh exactly - same commands, same log files, same order. The
-// chain order is load-bearing and documented there: every tuner takes the
-// shared process.lock, HyperoptQuantum.py must run BEFORE TrainMetaLearner.py
-// so the weekly retrain sees freshly tuned quantum parameters, and
-// TrainMetaLearner.py stays last. The control experiments (README "Null
-// controls") are measurements of the rows, never inputs to them: their own
-// plan, started only by Sunday's predictor finishing (or the Sunday 23:00
-// catch-up net), so they are never in the chain and never hold up Sunday's
-// predictions. Same FIFO rule as the chain: a control run that overruns into
-// Monday 09:00 queues that day's predictor behind it.
+// One entry per step - a Python entry point and its arguments - mirroring
+// runPredictor.sh and runHyperopt.sh exactly: same commands, same log files,
+// same order. The chain order is load-bearing and documented there: every
+// tuner takes the shared process.lock, HyperoptQuantum.py must run BEFORE
+// TrainMetaLearner.py so the weekly retrain sees freshly tuned quantum
+// parameters, and the keno sub-selection tuning (HyperoptStatistics.py -g
+// keno -s KenoSubsetTuning) runs AFTER it, last: its day table scores the
+// artifacts the retrain writes (26 Oct 2026 - inside the statistical job it
+// tuned on last weekend's, which the retrain then replaced). Of the steps it
+// used to precede, only HyperoptEnsemble.py reads what it writes (the
+// weighted vote's mode and temperature, its fallback for the SubsetEnsemble
+// row's keno slices), and reads it a weekend older now - writing what it
+// scored with as the row's own keys, so the row is served as it was gated
+// rather than with the values this step writes after it. The control
+// experiments (README "Null controls") are measurements of the rows, never
+// inputs to them: their own plan, started only by Sunday's predictor
+// finishing (or the Sunday 23:00 catch-up net), so they are never in the
+// chain and never hold up Sunday's predictions. Same FIFO rule as the chain:
+// a control run that overruns into Monday 09:00 queues that day's predictor
+// behind it.
 const CHAIN_PLAN = 'weeklyTuning';
 const CONTROLS_PLAN = 'weeklyControls';
 // Two weekly plans, each a run of jobs started by the predictor finishing on
 // its weekday (after that day's 09:00 slot), and caught up by the safety net
-// in dueAt when that never happens. The tuning chain owns Saturday; the two
+// in dueAt when that never happens. The tuning chain owns Saturday; the four
 // control experiments (README "Null controls") own Sunday, so a chain that
 // overruns into Sunday morning still lets Sunday's predictions go first - the
 // queue stays the agreed FIFO, and the controls only ever start behind a
@@ -149,17 +158,34 @@ const JOBS = [
   {
     key: 'trainMetaLearner',
     name: 'Weekly retrain: meta-learner',
-    description: 'Retrains the stacking meta-learner on the freshly tuned parameters. Always last (TrainMetaLearner.py).',
+    description: 'Retrains the stacking meta-learner on the freshly tuned parameters (TrainMetaLearner.py). Only the keno '
+               + 'sub-selection tuning comes after it, because it scores the artifacts written here.',
     script: 'TrainMetaLearner.py', args: [], log: 'TrainMetaLearner.log', plan: CHAIN_PLAN,
+  },
+  {
+    key: 'kenoSubsetTuning',
+    name: 'Weekly tuning: keno sub-selections',
+    description: 'Tunes how the weighted vote and the five meta-learner rows cut their keno ticket into the 5-10-number '
+               + 'sub-selections, through the champion/challenger gate. Last since 26 Oct 2026: it scores the artifacts the '
+               + 'retrain has just written and the rows this chain tuned - inside the statistical job it tuned on last '
+               + 'weekend\'s, which the retrain then replaced (HyperoptStatistics.py -g keno -s KenoSubsetTuning, about a quarter of an hour).',
+    script: 'HyperoptStatistics.py', args: ['-g', 'keno', '-s', 'KenoSubsetTuning'], log: 'kenoSubsetTuning.log', plan: CHAIN_PLAN,
+    // since: the day the step joined its plan (Brussels). This week (admin.js weekView) expects it only of the
+    // weekends whose Saturday is that day or later - a weekend it falls inside is not expected to have run it - and
+    // gates.js TUNERS carries the same day. Without it the weekend of 24 Oct 2026 would list the step as not run
+    // until the next chain.
+    since: '2026-10-26',
   },
   {
     key: 'randomnessDiscrimination',
     name: 'Weekly controls: randomness discrimination (Q2)',
     description: 'Can a classifier suite tell windows of real draws from fair simulated ones better than it tells two fair '
-               + 'histories apart? Held to a null band and a shuffled control; the verdict on the Randomness watch card '
-               + '(RandomnessDiscrimination.py, about an hour for every game; for the market games (crypto, shares and their week games) the fair history is a matched '
-               + 'geometric random walk; three repetitions per game, five for the market games, on a fresh block of seeds every week).',
-    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-w', '10', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly'],
+               + 'histories apart? Held to a null band and a shuffled control; the verdict on the Controls page and the Randomness watch '
+               + '(RandomnessDiscrimination.py; for the market games (crypto, shares and their week games) the fair history is a matched '
+               + 'geometric random walk; twenty repetitions for every game on a fresh block of seeds every week, about 80 minutes, since '
+               + '1 Nov 2026 - three, five for the markets, left the band to the luck of the seeds; "too few draws" under the held-out '
+               + 'windows of controlRules.json, fixed by the history before the run).',
+    script: 'RandomnessDiscrimination.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-w', '10', '-n', '20', '--seed', 'weekly'],
     log: 'randomnessDiscrimination.log', plan: CONTROLS_PLAN,
   },
   {
@@ -186,10 +212,11 @@ const JOBS = [
   },
   {
     key: 'nullControls',
-    name: 'Weekly controls: null histories (Q0)',
-    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each (five for the market games, a fresh block of seeds every week), so the Best-model card can show '
-               + 'what the best row scores on nothing - the null band its rows are greyed under (NullControls.py, hours: a full '
-               + 'backtest per history, which is why the controls have their own Sunday plan).',
+    name: 'Weekly controls: null histories (Q0 band, context)',
+    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each (five for the market games, a fresh block of seeds every week): '
+               + 'what the best of the rows scores on nothing, the null band (NullControls.py, hours: a full backtest per history, which is '
+               + 'why the controls have their own Sunday plan). Context only since 27 Oct 2026, in the Controls drawer: Q0 is the daily '
+               + "report's row test, and nothing is greyed or counted on the band.",
     script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly', '-d', '120'],
     log: 'nullControls.log', plan: CONTROLS_PLAN,
   },
@@ -346,8 +373,19 @@ function lockHolder() {
   } catch (e) {
     return null;                     // stale lock of a dead run; the scripts clean it up
   }
-  const job = JOBS.find((j) => cmdline.includes(j.script));
+  const job = jobOfCmdline(cmdline);
   return { pid, script: job ? job.script : cmdline.split(' ').slice(-1)[0], key: job ? job.key : null };
+}
+
+// The job a command line runs: the one whose script and arguments it carries in full, else the one that runs its
+// script without arguments, else the first that names its script (a run started by hand with its own arguments).
+// Two steps run HyperoptStatistics.py since 26 Oct 2026; matching on the script alone named the statistical job
+// while the keno sub-selection step held the lock, and the Jobs page (system.js compares the keys) would have called
+// the schedule's own run a lock "not started by the schedule".
+function jobOfCmdline(cmdline) {
+  const named = JOBS.filter((j) => cmdline.includes(j.script));
+  return named.find((j) => j.args.length && cmdline.includes([j.script, ...j.args].join(' ')))
+    || named.find((j) => !j.args.length) || named[0] || null;
 }
 
 // --- state ------------------------------------------------------------------
@@ -420,7 +458,7 @@ function enqueue(key, reason, manual) {
 }
 
 // A plan is one occurrence that may expand into several queued jobs: the
-// weekly tuning chain is six of them and the control plan two, kept in order
+// weekly tuning chain is seven of them and the control plan four, kept in order
 // by the FIFO queue.
 function enqueuePlan(plan, occurrenceId, reason) {
   const keys = PLANS[plan] ? planKeys(plan) : [plan];
@@ -543,7 +581,7 @@ function finish(exit, note, finishedAt) {
 }
 
 // --- the week's reading -----------------------------------------------------
-// When the Sunday plan's last job (Q0) finishes - whatever its exit code: a
+// When the Sunday plan's last job (the Q0 band) finishes - whatever its exit code: a
 // failed control leaves last week's record in place, and the reading names
 // every part that is not from this week - the four controls are summarised
 // into data/readings/<sunday>.json (readings.js), the admin pages' week-over-
@@ -558,7 +596,7 @@ const READING_JOB = CONTROL_KEYS[CONTROL_KEYS.length - 1];
 // The Sunday whose reading a finished run writes, as YYYY-MM-DD, or null: the
 // controls plan's last job, started inside that plan's own window - Sunday
 // 00:00 until its catch-up net closes on Tuesday 09:00 (local time, like the
-// schedule). A Q0 run started by hand later in the week writes nothing: it is
+// schedule). A band run started by hand later in the week writes nothing: it is
 // not that weekend's control (the CLI can still write it, said as such).
 function readingSundayOf(run) {
   if (!run || run.key !== READING_JOB) return null;
@@ -1037,13 +1075,15 @@ function tail(file, lines) {
 
 module.exports = {
   start, stop, status, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun,
+  // pipeline.js names the lock holder's step by it (the keno step runs the statistical tuner's script)
+  jobOfCmdline,
   // Pure schedule logic for test/jobs.test.js, plus the few entry points the
   // launch/adoption test drives directly (there is no other way to exercise
   // a reparented job without a browser and a real 12-hour tuner).
   _internals: {
     dueAt, weekId, dayId, dailySlot, nextDaily, lastWeekdaySlot, CHAIN_KEYS, CHAIN_PLAN,
     CONTROL_KEYS, CONTROLS_PLAN, PLANS, planKeys, planTriggerAt, nextDueText, planBaseline,
-    enqueue, startNext, tick, lockHolder, maybeTriggerChain, state: () => state,
+    enqueue, startNext, tick, lockHolder, jobOfCmdline, maybeTriggerChain, state: () => state,
     chainTriggerAt, exitCodeFrom, allowedQueue, READING_JOB, readingSundayOf, writeWeekReading, scheduleReading,
   },
 };

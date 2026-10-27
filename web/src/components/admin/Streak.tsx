@@ -47,29 +47,41 @@ export function streakWords(h: PartHistory | null | undefined, what = ''): { cha
   return behind ? { changed: false, text: '', behind } : null;
 }
 
-// Q0 is read against a ranking, and its weeks are counted on the weekly readings, each fixed at its own Sunday's
-// ranking. The line under a Q0 figure that says so: the reading of its Sunday and what today's ranking reads
-// differently (+ a row above only now, − a row above only then), or that there is no reading of that Sunday yet, so
-// the state is the live one. '' when the live ranking reads the same as the reading.
+// Q0's row tests come with the daily report, and its weeks are counted on the weekly readings, each fixed at its own
+// Sunday's report (27 Oct 2026: the rows confirmed on new draws and the rows followed). The line under a Q0 figure that
+// says so: the reading of its Sunday and what today's report reads differently (+ a row followed or confirmed only now,
+// − one only then), or that there is no reading of that Sunday yet, so the state is the report on disk. '' when the
+// report reads the same as the reading.
 export function readingNote(h: PartHistory | null | undefined, rankingAt: string | null): string {
   if (!h) return '';
-  if (h.live) return `no reading of ${weekday(h.sunday)} yet: read against the ranking of ${stamp(rankingAt)}`;
+  if (h.live) return `no reading of ${weekday(h.sunday)} yet: the report of ${stamp(rankingAt)}`;
   const s = h.sinceReading;
   if (!s) return '';
   const rows = [...s.added.map((r) => `+${short(r)}`), ...s.dropped.map((r) => `−${short(r)}`)].join(', ');
-  return `reading of ${weekday(h.sunday)}: ${h.state} · against the ranking of ${stamp(rankingAt)}: ${rows || s.now}`;
+  return `reading of ${weekday(h.sunday)}: ${h.state} · the report of ${stamp(rankingAt)}: ${rows || s.now}`;
+}
+
+// Q2 only (27 Oct 2026): the week before was read under another verdict rule - 3 seeds (5 for the markets) and a 0.8
+// ceiling until 25 Oct 2026, 20 seeds and the windows rule from 1 Nov - so its run of weeks starts again, and a change
+// from that week may be the rule's rather than the draws'. '' when the rule is the same.
+export function ruleNote(h: PartHistory | null | undefined): string {
+  const r = h?.ruleChanged;
+  if (!r) return '';
+  return `read under the ${r.seeds !== null ? `${r.seeds}-seed` : 'old'} rule the week before`;
 }
 
 // The chip and the words that go with it (the Controls page): a coloured "new this week" with what it read before, or
-// a grey "3rd week".
+// a grey "3rd week"; for Q2, the week before read under another rule.
 export default function Streak({ h, what = '' }: { h: PartHistory | null | undefined; what?: string }) {
   const w = streakWords(h, what);
-  if (!w || !h) return null;
+  const rule = ruleNote(h);
+  if ((!w && !rule) || !h) return null;
   return (
     <span className="streak">
-      {w.changed ? <Chip kind="chg">new this week</Chip> : w.text ? <Chip kind="flat">{w.text}</Chip> : null}
-      {w.changed ? <span className="was">{changeText(h)}</span> : null}
-      {w.behind ? <span className="was">{w.behind}</span> : null}
+      {w?.changed ? <Chip kind="chg">new this week</Chip> : w?.text ? <Chip kind="flat">{w.text}</Chip> : null}
+      {w?.changed ? <span className="was">{changeText(h)}</span> : null}
+      {rule ? <span className="was">{rule}</span> : null}
+      {w?.behind ? <span className="was">{w.behind}</span> : null}
     </span>
   );
 }

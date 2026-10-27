@@ -140,6 +140,25 @@ ok(rep.rows[2].vsReference.verdict === 'worse' && rep.rows[1].vsReference.verdic
 ok(markets.describeRows(null) === null && markets.describeRows({ market: 'shares', rows: [] }).rows.length === 0, 'no report, or an empty one, describes safely');
 const better = markets.describeRows({ ...rowsRecord, rows: rowsRecord.rows.map((r) => (r.name === 'Markov Model' ? { ...r, vs_reference: interval(0.1, 0.02, 0.2, 'better') } : r)) });
 ok(better.betterThanReference.join(',') === 'Markov Model', 'a row whose interval against GARCH lies above zero is named');
+// From 26 Oct 2026 the baselines carry a log-score and every row an interval against the column frequencies
+// (MarketRows.py vs_frequency); this record is from before, so those parts are empty.
+ok(rep.frequency === null && rep.frequencyRow === null && rep.frequencySmoothing === null && rep.rows.every((r) => r.vsFrequency === null && r.isFrequency === false)
+  && rep.betterThanFrequency.length === 0 && rep.referenceAboveFrequency === false, 'a report from before 26 Oct 2026: no frequency reference, no vsFrequency');
+const withFrequency = markets.describeRows({ ...rowsRecord, frequency_reference: 'column_frequency', frequency_smoothing: 1, rows: [
+  ...rowsRecord.rows.filter((r) => r.name !== 'random').map((r) => ({ ...r, vs_frequency: r.name === 'GARCH Model' ? interval(0.03, 0.01, 0.05, 'better') : interval(-0.1, -0.2, -0.01, 'worse') })),
+  { name: 'column_frequency', kind: 'baseline', days: 40, scored_days: 40, log_score: -2.24, log_score_se: 0.02, vs_reference: interval(-0.03, -0.05, -0.01, 'worse'),
+    vs_uniform: interval(0.06, 0.03, 0.09, 'better'), vs_frequency: null },
+  { name: 'global_frequency', kind: 'baseline', days: 40, scored_days: 40, log_score: -2.235, log_score_se: 0.02, vs_reference: interval(0.03, 0.01, 0.05, 'better'),
+    vs_uniform: interval(0.07, 0.04, 0.1, 'better'), vs_frequency: interval(0.005, 0.001, 0.009, 'better') },
+] });
+ok(withFrequency.rows.map((r) => r.name).join(',') === 'GARCH Model,global_frequency,column_frequency,Markov Model,Regime HMM Model'
+  && withFrequency.frequencyRow.name === 'column_frequency' && withFrequency.frequencyRow.isFrequency && withFrequency.frequencySmoothing === 1
+  && withFrequency.frequencyRow.vsUniform.verdict === 'better' && withFrequency.referenceAboveFrequency
+  && withFrequency.betterThanFrequency.join() === 'GARCH Model' && withFrequency.betterThanReference.length === 0,
+  'the scored baselines sort among the rows; the summary lists name model rows only (a baseline beating GARCH or the other baseline is read from its own row)');
+// the record lists Regime HMM before GARCH: the summary lists follow the sorted rows, best log-score first, not the file's order
+const twoAbove = markets.describeRows({ ...rowsRecord, frequency_reference: 'column_frequency', rows: rowsRecord.rows.map((r) => ({ ...r, vs_frequency: interval(0.02, 0.01, 0.03, 'better') })) });
+ok(twoAbove.betterThanFrequency.join() === 'GARCH Model,Markov Model,Regime HMM Model', `the rows beating the frequencies, best log-score first: ${twoAbove.betterThanFrequency.join()}`);
 const regimes = markets.describeRegimes(regimeRecord, ['BTC', 'ETH']);
 // the HMM rows' feature set travels with the results (14 Oct 2026): the report's hmm_features and the regime log's features
 ok(rep.hmmFeatures === null && markets.describeRows({ ...rowsRecord, hmm_features: 'returns' }).hmmFeatures === 'returns' && regimes[0].features === null

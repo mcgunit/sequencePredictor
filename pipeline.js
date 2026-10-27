@@ -9,6 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const jobs = require('./jobs');
 
 const PIPELINE_LOCK = path.join(__dirname, 'process.lock');
 const JOB_NAMES = {
@@ -24,6 +25,12 @@ const JOB_NAMES = {
   'NullControls.py': 'Weekly controls: null histories',
   'IrrelevantFeatureControl.py': 'Weekly controls: irrelevant-feature control',
   'MarketsDaily.py': 'Refreshing the market games (bars and bins)',
+};
+// A step that runs another step's script, named by its job: the script and its arguments, as jobs.js reads the lock
+// (jobOfCmdline). Since 26 Oct 2026 the keno sub-selection step runs HyperoptStatistics.py -g keno -s KenoSubsetTuning,
+// which the script alone named "Weekly tuning: statistical models".
+const STEP_NAMES = {
+  kenoSubsetTuning: 'Weekly tuning: keno sub-selections',
 };
 const readProcCmdline = (pid) => fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8');
 
@@ -45,8 +52,10 @@ function pipelineStatus(lockFile = PIPELINE_LOCK, readCmdline = readProcCmdline)
   } catch (e) {
     return null;                       // stale lock of a dead run - the scripts clean it up themselves
   }
+  const step = jobs.jobOfCmdline(cmdline);
   const script = Object.keys(JOB_NAMES).find((name) => cmdline.includes(name));
-  return { pid, since, what: script ? JOB_NAMES[script] : 'A pipeline job is running' };
+  const what = (step && STEP_NAMES[step.key]) || (script ? JOB_NAMES[script] : 'A pipeline job is running');
+  return { pid, since, what };
 }
 
 // What every reader of the app gets: the job in the banner's words and since when (ISO, to the second) - never its pid
@@ -57,4 +66,4 @@ function runningNow(lockFile = PIPELINE_LOCK, readCmdline = readProcCmdline) {
   return { what: status.what, since: new Date(status.since).toISOString().replace(/\.\d{3}Z$/, 'Z') };
 }
 
-module.exports = { PIPELINE_LOCK, JOB_NAMES, pipelineStatus, runningNow };
+module.exports = { PIPELINE_LOCK, JOB_NAMES, STEP_NAMES, pipelineStatus, runningNow };
