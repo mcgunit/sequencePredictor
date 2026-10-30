@@ -10,6 +10,7 @@
 //   GET /api/admin/market/:market/workbench             a market's workbench in sections (the old /markets/:market
 //                                                       page, minus what /app and the other admin pages show)
 //   GET /api/admin/market/:market/workbench/books/:rule        one paper book's cumulative series per model
+//   GET /api/admin/market/:market/workbench/orders/:game       the crypto order book's per-order tables (day, week)
 //   GET /api/admin/market/:market/workbench/instrument/:symbol one instrument's price chart: closes, moves, every
 //                                                              model's bins and the next calls
 //
@@ -28,6 +29,7 @@ const fs = require('fs');
 const path = require('path');
 const draws = require('./draws');
 const markets = require('./markets');
+const api = require('./api');   // the user card's order lines (reader-side), for the Admin shadow
 const rankings = require('./ranking');
 const rankhistory = require('./rankhistory');
 
@@ -635,6 +637,92 @@ function guardOf(view) {
       afterTheFact: live.filter((p) => g.forwardFrom && p.date < g.forwardFrom).length }, weeks };
 }
 
+// The crypto order book (src/MarketOrders.py, 30 Oct 2026; design orderbook-DESIGN-30oct.md section 6), one game: the
+// variants side by side (the main book, the literal 00:00 UTC reference, the week's late ledger with its refusals and
+// - 31 Oct 2026 - the day's newcomer ledger: a roll card's entry for the reader who did not buy before), every order of every variant, the variant each card showed and the variant log with the review rule,
+// buying every coin at the card, the intraday coverage, and the shadow: the user card's lines as it would say them now
+// (from the reader's side, api.js), with "following this card so far" counted from the book's own start. The user pages
+// show it from markets.ORDERS_SHOWN_FROM on (null: Admin only).
+const ORDER_VARIANT_ORDER = ['edge', 'mid', 'fixed'];
+const orderStatsOut = (st) => (st ? { orders: st.orders, closed: st.closed, open: st.open, pending: st.pending, filled: st.filled, early: st.early, timeStop: st.timeStop,
+  skips: st.skips, notFollowable: st.notFollowable, total: r2(st.total), wins: st.wins, estimated: st.estimated, rolls: st.rolls } : null);
+// one order as a row of ORDER_COLUMNS (the card's per-order table); the newest ORDER_INTERVALS intervals of each ledger
+const ORDER_COLUMNS = ['interval', 'days', 'symbol', 'model', 'bin', 'status', 'reason', 'publishedAt', 'estimated', 'entryPrice', 'limit', 'limitPct', 'exitKind', 'exitAt',
+  'exitPrice', 'money', 'rolls', 'live', 'provisional'];
+const ORDER_INTERVALS = { day: DAYS_IN_DETAIL, week: 12 };
+const orderOut = (q) => [q.interval, q.days.length, q.symbol, q.model, q.bin, q.status, q.reason, q.publishedAt, q.estimated, q.entryPrice, q.limit, r4(q.limitPct), q.exitKind,
+  q.exitAt, q.exitPrice, r4(q.money), q.rolls, q.live, q.provisional];
+function ordersGameOf(o, detail = false) {
+  if (!o) return null;
+  const names = Object.keys(o.books).sort((a, b) => (a === o.primary ? -1 : b === o.primary ? 1 : ORDER_VARIANT_ORDER.indexOf(a) - ORDER_VARIANT_ORDER.indexOf(b)));
+  const intervals = [...new Set(names.flatMap((v) => o.books[v].orders.map((q) => q.interval)))].sort().reverse().slice(0, ORDER_INTERVALS[o.game] || DAYS_IN_DETAIL);
+  const oldest = intervals.length ? intervals[intervals.length - 1] : '';
+  const per = (src) => Object.fromEntries(names.filter((v) => src && src[v]).map((v) => [v, src[v].orders.filter((q) => q.interval >= oldest).map(orderOut).reverse()]));
+  // a card's publication outside the stored 1h bars of any coin: its orders cannot be judged (pending, never guessed)
+  const cov = Object.entries(o.coverage).map(([symbol, c]) => ({ symbol, first1h: c.first1h, last1h: c.last1h, bars1h: c.bars1h, bars1m: c.bars1m }));
+  const missing = o.publications.filter((p) => p.publishedAt && cov.some((c) => !c.first1h || !c.last1h || p.publishedAt < c.first1h || Date.parse(p.publishedAt) > Date.parse(c.last1h) + 3600000))
+    .map((p) => p.interval);
+  const out = {
+    game: o.game, since: o.since, generatedAt: o.generatedAt, rule: o.rule, lateRule: o.lateRule || null, newcomerRule: o.newcomerRule || null, constants: o.constants, primary: o.primary,
+    shownFrom: markets.ORDERS_SHOWN_FROM,
+    review: o.review, variantLog: o.variantLog,
+    variants: names.map((v) => ({ variant: v, primary: v === o.primary, text: o.variants[v] || '', main: orderStatsOut(o.books[v].stats),
+      reference: o.reference[v] ? orderStatsOut(o.reference[v].stats) : null,
+      late: o.late && o.late[v] ? { ...orderStatsOut(o.late[v].stats), refused: o.late[v].refused || {} } : null,
+      newcomer: o.newcomer && o.newcomer[v] ? orderStatsOut(o.newcomer[v].stats) : null })),
+    benchmark: { stats: orderStatsOut(o.benchmark.stats) },
+    record: orderStatsOut(o.record.stats), coverage: cov, missing,
+    // the variant each card showed, as runs of cards ({from, to, variant, cards}): one run until a logged switch
+    shown: o.record.shown.reduce((runs, p) => {
+      const last = runs[runs.length - 1];
+      if (last && last.variant === p.variant) { last.to = p.interval; last.cards += 1; } else runs.push({ from: p.interval, to: p.interval, variant: p.variant, cards: 1 });
+      return runs;
+    }, []),
+    now: o.now ? { interval: o.now.interval, firstDay: o.now.firstDay, runningDay: o.now.runningDay, publishedAt: o.now.publishedAt, estimated: o.now.estimated, model: o.now.model,
+      dayModel: o.now.dayModel, variant: o.now.variant, deadlineFallback: o.now.deadlineFallback } : null,
+  };
+  if (!detail) return out;
+  // the per-order tables (GET .../workbench/orders/:game): kept off the workbench answer, which stays small
+  return { game: o.game, primary: o.primary, columns: ORDER_COLUMNS, detailFrom: oldest || null, orders: per(o.books), reference: per(o.reference), late: o.late ? per(o.late) : null,
+    newcomer: o.newcomer ? per(o.newcomer) : null,
+    benchmark: o.benchmark.points.filter((p) => p.interval >= oldest).map((p) => ({ interval: p.interval, coins: p.coins, money: r4(p.money), closed: p.closed })),
+    publications: o.publications.filter((p) => p.interval >= oldest) };
+}
+// GET /api/admin/market/:market/workbench/orders/:game: one game's per-order tables
+function orderDetailOf(market, view, game) {
+  if (market !== 'crypto') return null;
+  const o = game === 'day' ? (view.trading ? view.trading.orders : null) : (view.week && view.week.trading ? view.week.trading.orders : null);
+  return o && o.game === game ? ordersGameOf(o, true) : null;
+}
+// the shadow of one game's user card: its order rows (reader-side branches) and its "following this card so far" counted
+// from the book's start, as the user line would count it from ORDERS_SHOWN_FROM
+function orderShadowOf(o, rowsOf, unit) {
+  if (!o || !o.now) return null;
+  const keep = o.game === 'week' ? (d) => d > o.since : (d) => d >= o.since;   // a week counts when it closes after the start
+  const soFar = api.orderSoFar(api.orderPositions(o, o.game, keep), api.orderBench(o, keep), o.game, o.since, null, o.constants, unit, { newcomer: Boolean(o.newcomer) });
+  // the day's newcomer ledger as the user line would count it (its own line, never in soFar)
+  const nc = o.game === 'day' ? api.newcomerRecordOf(o, keep, unit) : null;
+  const r = rowsOf();
+  return { soFar, variant: o.now.variant || o.primary, interval: o.now.interval,
+    rows: r.rows.map((q) => ({ symbol: q.symbol, status: q.status, chip: q.order.chip, branches: q.order.branches, limit: q.order.limit, limitPct: q.order.limitPct,
+      entryPrice: q.order.entryPrice, belowEntry: q.order.belowEntry, skipReason: q.order.skipReason, newcomer: q.order.newcomer || null })),
+    none: r.none, late: r.late || [],
+    newcomer: nc ? { shown: nc.shown, closed: nc.closed, open: nc.open, total: nc.total, notPlaced: nc.notPlaced, text: nc.text } : null };
+}
+function ordersOf(market, view, now) {
+  if (market !== 'crypto') return null;
+  const t = view.trading;
+  const dayO = t && t.orders && t.orders.game === 'day' ? t.orders : null;
+  const weekO = view.week && view.week.trading && view.week.trading.orders && view.week.trading.orders.game === 'week' ? view.week.trading.orders : null;
+  if (!dayO && !weekO) return null;
+  const unit = markets.MARKETS[market].unit;
+  const nextDay = markets.nextGameDay(market, view.madeOn);
+  const dayShadow = orderShadowOf(dayO, () => api.dayOrderRows(dayO, view, now, unit), unit);
+  const weekShadow = orderShadowOf(weekO, () => api.weekOrderRows(weekO, view.week, nextDay, now, unit), unit);
+  // the shadows travel on the plan and week cards (workbenchOf), not twice
+  return { shownFrom: markets.ORDERS_SHOWN_FROM, primary: markets.ORDER_VARIANT_PRIMARY, day: ordersGameOf(dayO), week: ordersGameOf(weekO), shadow: { day: dayShadow, week: weekShadow } };
+}
+
 // The worked example (C11): the newest settled day per instrument - its move, its bin, its edges, the close before and
 // on it - and the best row of that day's ticket.
 function exampleOf(view) {
@@ -652,6 +740,14 @@ function workbenchOf(market, view, now = new Date()) {
   const t = view.trading;
   const nextDay = markets.nextGameDay(market, view.madeOn);
   const close = nextDay ? markets.closeMoment(market, nextDay) : null;
+  const orders = ordersOf(market, view, now);
+  const plan = planOf(market, view, now);
+  const week = weekOf(market, view, now);
+  // the plan and week cards carry the order card's lines as a shadow: what the user card would say now
+  const shadow = orders ? orders.shadow : null;
+  if (orders) delete orders.shadow;
+  if (plan) plan.orders = shadow ? shadow.day : null;
+  if (week) week.orders = shadow ? shadow.week : null;
   return {
     market, builtAt: isoDate(now), title: meta.title, noun: meta.noun, unit: meta.unit, calendar: meta.calendar, weekGame: markets.WEEK_GAMES[market],
     k: view.k, chance: view.chance, fee: view.fee, generatedAt: isoUtc(view.generatedAt), newestGameDay: view.newestGameDay, madeOn: view.madeOn, madeAt: isoUtc(view.madeAt),
@@ -659,8 +755,8 @@ function workbenchOf(market, view, now = new Date()) {
     instruments: view.instruments.map((i) => ({ symbol: i.symbol, name: i.name, position: i.position, quote: i.quote, active: i.active, lastClose: i.lastClose, lastDate: i.lastDate, calls: i.next.length })),
     // when the newest ticket's calls are judged: said once for every instrument
     judged: nextDay ? { day: nextDay, at: isoDate(close), status: markets.dayStatus(market, nextDay, now), madeOn: view.madeOn } : null,
-    plan: planOf(market, view, now),
-    week: weekOf(market, view, now),
+    plan,
+    week,
     followed: {
       day: followedOf(t ? t.followed : null, { rule: market === 'crypto' ? 'daily round trip' : 'open to close', week: false }),
       week: followedOf(view.week && view.week.trading ? view.week.trading.followed : null, { rule: market === 'crypto' ? 'weekly round trip' : 'Monday open to Friday close', week: true }),
@@ -672,6 +768,8 @@ function workbenchOf(market, view, now = new Date()) {
     days: view.days.slice(0, DAYS_IN_DETAIL).map((d) => ({ date: d.date, best: d.best, exactMean: r4(d.exactMean),
       instruments: d.instruments.map((i) => ({ symbol: i.symbol, ret: r6(i.ret), bin: i.bin })) })),
     guard: guardOf(view),
+    // the crypto order book: Admin only while markets.ORDERS_SHOWN_FROM is null (the shadow next to the current card)
+    orders,
     regimes: view.regimes.map((r) => ({ row: r.row, date: r.date, regimes: r.regimes, label: r.label, template: r.template, probability: r4(r.probability),
       volatilityRank: r.volatilityRank, features: r.features, expected: r.expected.map((e) => ({ symbol: e.symbol, value: r6(e.value) })), readings: r.history })),
     example: exampleOf(view),
@@ -724,6 +822,12 @@ function install(app, ctx) {
     if (!BOOK_RULES.includes(req.params.rule)) return { error: `the rule is one of ${BOOK_RULES.join(', ')}`, status: 404 };
     return bookSeries(s.view, req.params.rule) || { error: 'this market has no such book', status: 404 };
   }));
+  app.get('/api/admin/market/:market/workbench/orders/:game', (req, res) => answerLater(res, async () => {
+    const s = source(req);
+    if (s.error) return s;
+    if (!['day', 'week'].includes(req.params.game)) return { error: 'the game is day or week', status: 404 };
+    return orderDetailOf(s.market, s.view, req.params.game) || { error: 'this market has no order book', status: 404 };
+  }));
   app.get('/api/admin/market/:market/workbench/instrument/:symbol', (req, res) => answerLater(res, async () => {
     const s = source(req);
     if (s.error) return s;
@@ -733,4 +837,4 @@ function install(app, ctx) {
 }
 
 module.exports = { SCOPES, MARKETS, BOOK_RULES, LIVENESS_FILE, AFTER_CLOSE_TEXT, isoDay, dayFilesOf, readDay, readFull, livenessOf, drawLiveness, liveMarksOf,
-  afterCloseOf, historyView, drawView, planOf, weekOf, followedOf, booksOf, bookSeries, instrumentOf, modelsOf, guardOf, exampleOf, workbenchOf, workbenchSource, install };
+  afterCloseOf, historyView, drawView, planOf, weekOf, followedOf, booksOf, bookSeries, instrumentOf, modelsOf, guardOf, ordersOf, orderDetailOf, exampleOf, workbenchOf, workbenchSource, install };

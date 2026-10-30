@@ -288,4 +288,51 @@ ok(markets.dayStatusWeek(new Date('2026-10-20T13:40:00Z'), new Date('2026-10-19T
 ok(markets.weekEnd('crypto', '2026-10-04') === '2026-10-11' && markets.weekEnd('shares', '2026-10-02') === '2026-10-09' && markets.weekEnd('shares', '2026-12-18') === '2026-12-24' && markets.weekEnd('shares', '2026-11-20') === '2026-11-27' && markets.weekEnd('crypto', 'bad') === null,
    'the week ends on the next Sunday for crypto and on the week\'s last session for shares, holidays skipped');
 
+// the order book (src/MarketOrders.py, 30 Oct 2026): read tolerantly, a malformed order or point dropped, never thrown
+{
+  ok(markets.ORDERS_SHOWN_FROM === '2026-11-02' && markets.ORDER_VARIANT_PRIMARY === 'edge', 'the order card is on the user page from Mon 2 Nov 2026 (owner, 31 Oct 2026); the primary is edge');
+  ok([null, undefined, [], 'x', 3].every((x) => markets.describeOrders(x) === null), 'no order block, no order book');
+  const empty = markets.describeOrders({});
+  ok(empty && empty.game === 'day' && empty.primary === 'edge' && Object.keys(empty.books).length === 0 && empty.now === null && empty.late === null
+     && empty.record.shown.length === 0 && empty.benchmark.points.length === 0, `an empty block reads as an empty book: ${JSON.stringify(empty)}`);
+  const good = { interval: '2026-10-15', days: ['2026-10-15', 'bad'], symbol: 'BTC', model: 'GARCH Model', bin: 6, variant: 'edge', kind: 'main', status: 'closed',
+    published_at: '2026-10-15T09:09:36+00:00', estimated: true, entry_price: 81375.65, limit: 82085.15, limit_pct: 0.868, exit_kind: 'limit',
+    exit_at: '2026-10-15T15:00:00+00:00', exit_price: 82085.15, move: 0.008681, money: 0.671, rolls: 0, live: true };
+  const o = markets.describeOrders({
+    market: 'crypto', game: 'day', since: '2026-10-13', primary: 'edge', constants: { min_gap: 0.003, stake: 100, late_min_gap: 'x' },
+    variant_log: [['2026-10-30', 'edge', 'pre-registered'], ['bad'], null],
+    books: { edge: { orders: [good, { ...good, status: 'weird' }, { ...good, interval: '15 Oct' }, { ...good, symbol: null }, null, 'x',
+      { ...good, interval: '2026-10-16', days: [], status: 'open', money: 5, exit_kind: 'nonsense' }], stats: { orders: 2, total: '3.75', skips: { 'already reached': 4, bad: 'x' } } },
+      broken: 'x' },
+    reference: null, benchmark: { points: [['2026-10-15', 5, -18.39, true], ['2026-10-16', 5, null, true], 'bad'], stats: {} },
+    record: { shown: [['2026-10-15', 'edge'], [3, 'edge']], stats: null },
+    publications: [['2026-10-14', '2026-10-15', '2026-10-15T09:09:36+00:00', true], ['x']],
+    coverage: { BTC: { '1h_first': '2026-10-14T07:00:00+00:00', '1h_bars': 399 }, ETH: 'bad' },
+    now: { interval: '2026-10-16', symbols: { BTC: { status: 'buy now', limit: 82000 }, ETH: { limit: 1 }, SOL: null }, late: { BTC: { shown: true, gap_pct: 2.1 }, X: 3 } },
+  });
+  const edge = o.books.edge;
+  ok(edge && edge.orders.length === 2 && !o.books.broken && edge.orders[0].days.join() === '2026-10-15' && edge.orders[1].days.join() === '2026-10-16'
+     && edge.orders[1].money === null && edge.orders[1].exitKind === null && edge.orders[0].exitKind === 'limit' && edge.orders[0].money === 0.671,
+     `malformed orders are dropped, an open order has no money, an unknown exit kind none: ${JSON.stringify(edge.orders)}`);
+  ok(edge.stats.total === 3.75 && edge.stats.skips['already reached'] === 4 && edge.stats.skips.bad === undefined && edge.stats.closed === 0 && o.constants.lateMinGap === null && o.constants.minGap === 0.003,
+     'stats and constants read as numbers or null');
+  ok(o.variantLog.length === 1 && o.benchmark.points.length === 1 && o.record.shown.length === 1 && o.publications.length === 1 && o.coverage.BTC.bars1h === 399 && !o.coverage.ETH,
+     'the log, the benchmark, the shown variants, the publications and the coverage drop malformed points');
+  ok(o.now && o.now.symbols.BTC.status === 'buy now' && !o.now.symbols.ETH && !o.now.symbols.SOL && o.now.late.BTC.shown === true && o.now.late.BTC.gapPct === 2.1 && !o.now.late.X,
+     'the running card keeps its well-formed coins');
+  // the day's newcomer ledger (31 Oct 2026): a book like the others, kind kept; a roll card's newcomer state, malformed parts dropped
+  ok(o.newcomer === null && empty.newcomer === null && o.now.symbols.BTC.newcomer === null && o.now.symbols.BTC.newcomersHeld.length === 0, 'no newcomer block: null, never thrown');
+  const nc = markets.describeOrders({ game: 'day', newcomer_rule: 'r', newcomer: { edge: { orders: [{ ...good, kind: 'newcomer' }, { ...good, kind: 'odd' }, null], stats: { orders: 2 } }, bad: 3 },
+    now: { interval: '2026-10-16', symbols: { BTC: { status: 'hold (rolled)', newcomer: { status: 'buy now', limit: 82000, entry_price: 81000, limit_pct: 1.2 },
+      newcomers_held: [['2026-10-15', 80900], ['bad', 1], 'x'] }, ETH: { status: 'hold (rolled)', newcomer: { status: 'held' } } } } });
+  ok(nc.newcomerRule === 'r' && nc.newcomer.edge.orders.length === 2 && nc.newcomer.edge.orders[0].kind === 'newcomer' && nc.newcomer.edge.orders[1].kind === 'main' && !nc.newcomer.bad
+     && nc.now.symbols.BTC.newcomer.entryPrice === 81000 && nc.now.symbols.BTC.newcomer.status === 'buy now' && nc.now.symbols.BTC.newcomersHeld.length === 1
+     && nc.now.symbols.BTC.newcomersHeld[0].entryPrice === 80900 && nc.now.symbols.ETH.newcomer === null,
+     `the newcomer ledger and a roll card's newcomer state read tolerantly: ${JSON.stringify(nc.now)}`);
+  // an old record (before the order book) has no orders, and the rest of the trading block reads as before
+  const old =markets.describeTrading({ stake: 100, fee_per_leg: 0.001, dates: [], models: {}, benchmark: [] });
+  ok(old && old.orders === null && old.stake === 100, 'an old JSON without trading.orders reads with orders null');
+  ok(markets.describeTrading({ stake: 100, orders: { game: 'week', books: { edge: { orders: [good] } } } }).orders.game === 'week', 'describeTrading adds the order book');
+}
+
 console.log(`markets.js: ${passed} checks passed`);

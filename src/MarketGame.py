@@ -436,6 +436,14 @@ def daily_refresh(path, market, fetch=True, db_path=None, log=print):
         log(f"{market}: universe CONFLICT: {conflict}")
     # a week game is cut from its base market's bars, fetched by the base game's own refresh moments before
     summaries = update_all(conn, market=market, log=log) if (fetch and not is_week_game(market)) else []
+    if fetch and market == "crypto":
+        # the order book's 1h bars up to now (src/MarketOrders.py, 30 Oct 2026); the 1m windows around the cards come
+        # with the export (MarketSettle.settle_and_export). update_intraday logs a failure and never raises
+        try:
+            from src.MarketData import update_intraday
+        except ImportError:
+            from MarketData import update_intraday
+        update_intraday(conn, "crypto", log=log)
     folder = os.path.join(path, "data", "trainingData", market)
     game_days, _ = refresh(conn, market, folder, log=log)
     conn.close()

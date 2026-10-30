@@ -22,7 +22,7 @@ const JOB_NAMES = {
   'HyperoptDeepLearning.py': 'Tuning: deep learning models',
   'TrainMetaLearner.py': 'Retraining the meta-learner',
   'RandomnessDiscrimination.py': 'Weekly controls: randomness discrimination',
-  'NullControls.py': 'Weekly controls: null histories',
+  'NullControls.py': 'Monthly controls: null histories',
   'IrrelevantFeatureControl.py': 'Weekly controls: irrelevant-feature control',
   'MarketsDaily.py': 'Refreshing the market games (bars and bins)',
 };

@@ -88,7 +88,8 @@ const CONTROLS_PLAN = 'weeklyControls';
 // Two weekly plans, each a run of jobs started by the predictor finishing on
 // its weekday (after that day's 09:00 slot), and caught up by the safety net
 // in dueAt when that never happens. The tuning chain owns Saturday; the four
-// control experiments (README "Null controls") own Sunday, so a chain that
+// control experiments (README "Null controls") own Sunday - the null band only
+// the month's first since 1 Nov 2026 (JOBS monthly) - so a chain that
 // overruns into Sunday morning still lets Sunday's predictions go first - the
 // queue stays the agreed FIFO, and the controls only ever start behind a
 // finished predictor.
@@ -177,6 +178,22 @@ const JOBS = [
     since: '2026-10-26',
   },
   {
+    key: 'nullControls',
+    name: 'Monthly controls: null histories (Q0 band, context)',
+    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each (five for the market games, a fresh block of seeds every run): '
+               + 'what the best of the rows scores on nothing, the null band (NullControls.py, hours: a full backtest per history, which is '
+               + 'why the controls have their own Sunday plan). Context only since 27 Oct 2026, in the Controls drawer: Q0 is the daily '
+               + "report's row test, and nothing is greyed or counted on the band. Monthly since 1 Nov 2026 (the owner's decision of 30 Oct 2026): "
+               + 'on the first Sunday of the month only, as the first job of that Sunday\'s controls - the three weekly controls follow it that day; '
+               + 'on the other Sundays the band of the last first Sunday stays on the page, with its date.',
+    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly', '-d', '120'],
+    log: 'nullControls.log', plan: CONTROLS_PLAN,
+    // monthly: queued only by the occurrence of its plan whose day (the plan's weekday, Brussels) is the first of that
+    // weekday in the month - day 1 to 7 - from `since` on; before it, every week. enqueuePlan honours it (planKeysOn),
+    // and This week (admin.js weekView) expects the job only of such a weekend.
+    monthly: { since: '2026-11-01' },
+  },
+  {
     key: 'randomnessDiscrimination',
     name: 'Weekly controls: randomness discrimination (Q2)',
     description: 'Can a classifier suite tell windows of real draws from fair simulated ones better than it tells two fair '
@@ -210,21 +227,42 @@ const JOBS = [
                + 'market; the verdicts on the Controls page).',
     script: 'MarketRows.py', args: ['-g', 'crypto,shares,cryptoweek,sharesweek', '-d', '250'], log: 'marketRows.log', plan: CONTROLS_PLAN,
   },
-  {
-    key: 'nullControls',
-    name: 'Weekly controls: null histories (Q0 band, context)',
-    description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each (five for the market games, a fresh block of seeds every week): '
-               + 'what the best of the rows scores on nothing, the null band (NullControls.py, hours: a full backtest per history, which is '
-               + 'why the controls have their own Sunday plan). Context only since 27 Oct 2026, in the Controls drawer: Q0 is the daily '
-               + "report's row test, and nothing is greyed or counted on the band.",
-    script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly', '-d', '120'],
-    log: 'nullControls.log', plan: CONTROLS_PLAN,
-  },
 ];
 
 const planKeys = (plan) => JOBS.filter((j) => j.plan === plan).map((j) => j.key);
 const CHAIN_KEYS = planKeys(CHAIN_PLAN);
 const CONTROL_KEYS = planKeys(CONTROLS_PLAN);
+
+// A monthly job (JOBS monthly: {since}) runs on its plan's day only when that day is the first of its weekday in the
+// month (day 1 to 7), from `since` on - every week before it. day: 'YYYY-MM-DD', the plan's weekday.
+function runsOnDay(job, day) {
+  if (!job || !job.monthly) return true;
+  if (job.monthly.since && day < job.monthly.since) return true;
+  return Number(String(day).slice(8, 10)) <= 7;
+}
+// The plan's day of an occurrence handled at `now` (its trigger on the day itself, or the catch-up net up to two
+// days later): the most recent plan weekday at its anchor hour, as dueAt names the occurrence.
+function planDayOf(plan, now) {
+  const spec = PLANS[plan];
+  return dayId(lastWeekdaySlot(now, spec.weekday, spec.anchorHour, 0));
+}
+// The plan's jobs an occurrence on `day` queues, and the monthly ones it leaves out (with the day each runs next).
+function planKeysOn(plan, day) {
+  const jobs = JOBS.filter((j) => j.plan === plan);
+  return {
+    keys: jobs.filter((j) => runsOnDay(j, day)).map((j) => j.key),
+    skipped: jobs.filter((j) => !runsOnDay(j, day)).map((j) => ({ key: j.key, next: nextMonthlyDay(j, day) })),
+  };
+}
+// The next day after `day` (same weekday, a week on at a time) a monthly job runs on.
+function nextMonthlyDay(job, day) {
+  const d = new Date(`${day}T12:00:00`);
+  for (let i = 0; i < 6; i += 1) {
+    d.setDate(d.getDate() + 7);
+    if (runsOnDay(job, dayId(d))) return dayId(d);
+  }
+  return null;
+}
 
 function jobByKey(key) {
   return JOBS.find((j) => j.key === key) || null;
@@ -458,14 +496,18 @@ function enqueue(key, reason, manual) {
 }
 
 // A plan is one occurrence that may expand into several queued jobs: the
-// weekly tuning chain is seven of them and the control plan four, kept in order
-// by the FIFO queue.
-function enqueuePlan(plan, occurrenceId, reason) {
-  const keys = PLANS[plan] ? planKeys(plan) : [plan];
+// weekly tuning chain is seven of them and the control plan four (three on a
+// Sunday that is not the month's first), kept in order by the FIFO queue.
+// A monthly job (the null band since 1 Nov 2026) is left out of every occurrence but its month's first, and said so.
+function enqueuePlan(plan, occurrenceId, reason, now = new Date()) {
+  const on = PLANS[plan] ? planKeysOn(plan, planDayOf(plan, now)) : { keys: [plan], skipped: [] };
+  const keys = on.keys;
+  const left = on.skipped.map((x) => `${jobByKey(x.key).name}: monthly, not this one${x.next ? ` - next on ${x.next}` : ''}`).join('; ');
   const dry = mode() === 'dry';
   remember(occurrenceId, reason);
+  if (left) log(`${occurrenceId} leaves out ${left}`);
   if (dry) {
-    log(`DRY RUN: would start ${PLANS[plan] ? `${PLANS[plan].name} (${keys.length} jobs)` : jobByKey(keys[0]).name} - ${reason}`);
+    log(`DRY RUN: would start ${PLANS[plan] ? `${PLANS[plan].name} (${keys.length} jobs${left ? `; left out: ${left}` : ''})` : jobByKey(keys[0]).name} - ${reason}`);
     record({ at: Date.now(), key: plan, name: PLANS[plan] ? PLANS[plan].name : jobByKey(keys[0]).name,
              reason, dry: true, occurrence: occurrenceId });
     return;
@@ -581,7 +623,7 @@ function finish(exit, note, finishedAt) {
 }
 
 // --- the week's reading -----------------------------------------------------
-// When the Sunday plan's last job (the Q0 band) finishes - whatever its exit code: a
+// When the Sunday plan's last job (the market rows report) finishes - whatever its exit code: a
 // failed control leaves last week's record in place, and the reading names
 // every part that is not from this week - the four controls are summarised
 // into data/readings/<sunday>.json (readings.js), the admin pages' week-over-
@@ -591,6 +633,10 @@ function finish(exit, note, finishedAt) {
 // this run's record, not the schedule, not the next job, which has already
 // been started by then. readings.js is loaded only here, so even a broken
 // readings.js or admin.js cannot stop this module from loading.
+// The Q0 band is monthly since 1 Nov 2026 and runs first on its Sunday, so the
+// plan's last job is one every Sunday runs: the reading is written every week,
+// and on a first Sunday only after the band (hours) and the three weekly
+// controls behind it. A week without a fresh band reads the latest, dated.
 const READING_JOB = CONTROL_KEYS[CONTROL_KEYS.length - 1];
 
 // The Sunday whose reading a finished run writes, as YYYY-MM-DD, or null: the
@@ -775,7 +821,7 @@ function chainTriggerAt(occurrences, now) {
 function maybeTriggerChain(now, why) {
   Object.keys(PLANS).forEach((plan) => {
     const id = planTriggerAt(plan, state.occurrences, now);
-    if (id) enqueuePlan(plan, id, `triggered by ${why}`);
+    if (id) enqueuePlan(plan, id, `triggered by ${why}`, now);
   });
 }
 
@@ -883,7 +929,7 @@ function tick() {
 
     const now = new Date();
     if (mode() !== 'off') {
-      dueAt(state.occurrences, now).forEach((entry) => enqueuePlan(entry.plan, entry.occurrence, entry.reason));
+      dueAt(state.occurrences, now).forEach((entry) => enqueuePlan(entry.plan, entry.occurrence, entry.reason, now));
     }
 
     // "The predictor just finished" also has to be seen when the predictor
@@ -958,7 +1004,14 @@ const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 function nextDueText(job, now) {
   if (job.daily) return `${stamp(nextDaily(now, job.daily))} (daily ${pad(job.daily.hour)}:${pad(job.daily.minute)})`;
   const spec = job.plan && PLANS[job.plan];
-  return `when ${spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday'}'s predictor finishes`;
+  const day = spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday';
+  if (job.monthly && spec) {
+    // the next plan day it runs on: this one when today is it and its predictor may not have finished yet, else later
+    const today = planDayOf(job.plan, now);
+    const next = now.getDay() === spec.weekday && runsOnDay(job, dayId(now)) ? dayId(now) : nextMonthlyDay(job, today);
+    return `when the first ${day}'s predictor of the month finishes (next: ${next})`;
+  }
+  return `when ${day}'s predictor finishes`;
 }
 
 function lastRunOf(key) {
@@ -1085,5 +1138,6 @@ module.exports = {
     CONTROL_KEYS, CONTROLS_PLAN, PLANS, planKeys, planTriggerAt, nextDueText, planBaseline,
     enqueue, startNext, tick, lockHolder, jobOfCmdline, maybeTriggerChain, state: () => state,
     chainTriggerAt, exitCodeFrom, allowedQueue, READING_JOB, readingSundayOf, writeWeekReading, scheduleReading,
+    runsOnDay, planDayOf, planKeysOn, nextMonthlyDay, enqueuePlan,
   },
 };

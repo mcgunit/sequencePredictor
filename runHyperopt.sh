@@ -5,8 +5,10 @@
 # in this same order, as eleven separate jobs in two plans: the seven steps
 # from HyperoptStatistics.py to the keno sub-selection tuning after
 # TrainMetaLearner.py as the weekly chain, started when Saturday's predictor
-# finishes, and RandomnessDiscrimination.py .. NullControls.py as the weekly
-# controls plan, started when Sunday's predictor finishes - never at a fixed
+# finishes, and NullControls.py .. MarketRows.py as the weekly controls plan,
+# started when Sunday's predictor finishes (NullControls.py only on the first
+# Sunday of the month since 1 Nov 2026; this hand-run path runs it every
+# time - comment it out for a week that is not one) - never at a fixed
 # hour, each one visible with its own exit code on the Jobs page. This script
 # stays as the hand-run path for both and as the fallback while the schedule
 # is off; keep the commands, logs and order identical, test/jobs.test.js
@@ -74,11 +76,13 @@ python3 HyperoptStatistics.py -g keno -s KenoSubsetTuning >> /root/sequencePredi
 
 # The control experiments (README "Null controls"), after everything that
 # changes what is served: measurements of the rows, never inputs to them.
-# Q2 first (about 80 minutes: 20 seeds for every game since 1 Nov 2026), then
-# the irrelevant-feature control on the meta-learner table the chain just
-# cached (refits only, about an hour), then Q0 (hours: a full backtest per
-# control history). All write under data/controls/ for the History page's cards.
+# The Q0 band first (hours: a full backtest per control history; monthly in
+# the schedule since 1 Nov 2026, so the weekly reading follows the plan's last
+# job, which runs every Sunday), then Q2 (about 80 minutes: 20 seeds for every
+# game since 1 Nov 2026), the irrelevant-feature control on the meta-learner
+# table the chain just cached (refits only, about an hour) and the market rows
+# report. All write under data/controls/ for the History page's cards.
+python3 NullControls.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek -m both -n 3 --market-repetitions 5 --seed weekly -d 120 >> /root/sequencePredictor/log/nullControls.log 2>&1
 python3 RandomnessDiscrimination.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek -w 10 -n 20 --seed weekly >> /root/sequencePredictor/log/randomnessDiscrimination.log 2>&1
 python3 IrrelevantFeatureControl.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek -r 3 -k 3 --seed weekly >> /root/sequencePredictor/log/featureControl.log 2>&1
 python3 MarketRows.py -g crypto,shares,cryptoweek,sharesweek -d 250 >> /root/sequencePredictor/log/marketRows.log 2>&1
-python3 NullControls.py -g lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek -m both -n 3 --market-repetitions 5 --seed weekly -d 120 >> /root/sequencePredictor/log/nullControls.log 2>&1

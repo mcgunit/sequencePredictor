@@ -229,6 +229,9 @@ function describeTrading(t) {
     followed: describeFollowed(t.followed),
     // the week games' guarded book (MarketSettle.guarded_week, 17 Oct 2026): the week positions under the daily guard
     guarded: describeGuarded(t.guarded),
+    // the crypto order book (src/MarketOrders.py, 30 Oct 2026): what the day and week cards tell a reader to do, booked at
+    // the card's publication with a sell limit; crypto and cryptoweek only, null elsewhere and on a record exported before it
+    orders: describeOrders(t.orders),
     // the same rules with shorts on (MarketSettle.ledger "short"): money per model per rule; the market lines above are their benchmark
     short: t.short && typeof t.short === 'object' ? Object.fromEntries(['daily', 'hold', 'open'].filter((r) => t.short[r] && typeof t.short[r] === 'object').map((r) => [r, { models: seriesMap(t.short[r].models), sold: series(t.short[r].benchmark) }])) : null,
   };
@@ -249,6 +252,114 @@ function describeGuarded(g) {
     live: p[5] === true, market: num(p[6]), guarded: p[9] !== false,
   }));
   return { rule: g.rule ? String(g.rule) : '', forwardFrom: typeof g.forward_from === 'string' ? g.forward_from : GUARD_FORWARD_FROM, points };
+}
+
+// The first day (a day card's UTC day; a week by its first day, the Monday) the user pages show the ORDER BOOK's card
+// and count its record (src/MarketOrders.py, design orderbook-DESIGN-30oct.md section 10); days and weeks before it keep
+// the old record (as GUARD_SHOWN_FROM splits the week record). null: a shadow on the Admin market page only.
+// Switched by the owner's decision of 31 Oct 2026 to Mon 2 Nov 2026 - the first full week after the deploy, when the
+// publication times are recorded instead of estimated - with no shadow period, because the pages had no users yet.
+// Until a card for that day (or the week starting that day) is on the page, the user page stays exactly as before
+// (api.marketView gates on the card's day, not on the clock).
+const ORDERS_SHOWN_FROM = '2026-11-02';
+// MarketOrders.ORDER_VARIANT_LOG's primary, pre-registered on 30 Oct 2026: the limit at the predicted bin's lower edge.
+// A record exported before it carried "primary" uses it; the user line books per card the variant that card showed.
+const ORDER_VARIANT_PRIMARY = 'edge';
+const ORDER_STATUSES = ['closed', 'open', 'pending', 'skip', 'not followable'];
+const ORDER_EXITS = ['limit', 'early', 'next card', 'fallback', 'close'];
+
+// The order book (MarketOrders.orders_record; its module docstring has the exact shape). Read tolerantly like the
+// guarded book: a malformed order, point or entry is dropped, a missing block is empty or null, nothing is thrown.
+function describeOrders(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+  const str = (v) => (typeof v === 'string' && v ? v : null);
+  const counts = (v) => Object.fromEntries(Object.entries(obj(v) || {}).filter(([, n]) => num(n) !== null).map(([k, n]) => [String(k), num(n)]));
+  const stats = (s) => {
+    const x = obj(s) || {};
+    return { orders: num(x.orders) || 0, closed: num(x.closed) || 0, open: num(x.open) || 0, pending: num(x.pending) || 0, filled: num(x.filled) || 0,
+      early: num(x.early) || 0, timeStop: num(x.time_stop) || 0, skips: counts(x.skips), notFollowable: num(x.not_followable) || 0,
+      total: num(x.total), wins: num(x.wins) || 0, estimated: num(x.estimated) || 0, rolls: num(x.rolls) || 0 };
+  };
+  const order = (r) => {
+    if (!obj(r) || !str(r.interval) || !ISO_DAY.test(r.interval) || !str(r.symbol)) return null;
+    const status = ORDER_STATUSES.includes(r.status) ? r.status : null;
+    if (!status) return null;
+    const days = Array.isArray(r.days) ? r.days.filter((d) => typeof d === 'string' && ISO_DAY.test(d)) : [];
+    return {
+      interval: r.interval, days: days.length ? days : [r.interval], symbol: String(r.symbol), model: str(r.model), bin: num(r.bin), scale: num(r.scale),
+      variant: str(r.variant), kind: ['main', 'late', 'reference', 'newcomer'].includes(r.kind) ? r.kind : 'main', status, reason: str(r.reason),
+      publishedAt: str(r.published_at), estimated: r.estimated === true, baseClose: num(r.base_close), limit: num(r.limit),
+      limits: Array.isArray(r.limits) ? r.limits.map(num).filter((v) => v !== null) : [],
+      entryAt: str(r.entry_at), entryPrice: num(r.entry_price), limitPct: num(r.limit_pct),
+      exitKind: ORDER_EXITS.includes(r.exit_kind) ? r.exit_kind : null, exitAt: str(r.exit_at), exitPrice: num(r.exit_price),
+      move: num(r.move), money: status === 'closed' ? num(r.money) : null, rolls: num(r.rolls) || 0, provisional: r.provisional === true, live: r.live !== false,
+    };
+  };
+  const book = (b) => {
+    const x = obj(b);
+    if (!x) return null;
+    const orders = (Array.isArray(x.orders) ? x.orders : []).map(order).filter(Boolean);
+    return { orders, stats: stats(x.stats), refused: x.refused === undefined ? null : counts(x.refused) };
+  };
+  const books = (v) => Object.fromEntries(Object.entries(obj(v) || {}).map(([k, b]) => [String(k), book(b)]).filter(([, b]) => b));
+  const c = obj(o.constants) || {};
+  const bench = obj(o.benchmark) || {};
+  const rec = obj(o.record) || {};
+  const coverage = {};
+  Object.entries(obj(o.coverage) || {}).forEach(([sym, v]) => {
+    const x = obj(v);
+    if (x) coverage[String(sym)] = { first1h: str(x['1h_first']), last1h: str(x['1h_last']), bars1h: num(x['1h_bars']), bars1m: num(x['1m_bars']) };
+  });
+  // a roll card's newcomer entry (31 Oct 2026): the reader who did not buy on the earlier card
+  const newcomerOf = (v) => {
+    const x = obj(v);
+    if (!x || !['buy now', 'no order'].includes(x.status)) return null;
+    return { status: x.status, state: str(x.state), limit: num(x.limit), entryPrice: num(x.entry_price), limitPct: num(x.limit_pct), reason: str(x.reason), provisional: x.provisional === true };
+  };
+  const nowOf = (n) => {
+    const x = obj(n);
+    if (!x || !str(x.interval)) return null;
+    const symbols = {};
+    Object.entries(obj(x.symbols) || {}).forEach(([sym, v]) => {
+      const s = obj(v);
+      if (!s || !str(s.status)) return;
+      symbols[String(sym)] = { status: s.status, call: str(s.call), bin: num(s.bin), limit: num(s.limit), entryPrice: num(s.entry_price), limitPct: num(s.limit_pct),
+        reason: str(s.reason), provisional: s.provisional === true, heldSince: str(s.held_since), state: str(s.state), exitKind: ORDER_EXITS.includes(s.exit_kind) ? s.exit_kind : null,
+        exitAt: str(s.exit_at), money: num(s.money), newcomer: newcomerOf(s.newcomer),
+        // earlier newcomer entries held into this card or sold at it: [first day, entry price]
+        newcomersHeld: (Array.isArray(s.newcomers_held) ? s.newcomers_held : []).filter((p) => Array.isArray(p) && typeof p[0] === 'string' && ISO_DAY.test(p[0]))
+          .map((p) => ({ since: p[0], entryPrice: num(p[1]) })) };
+    });
+    const late = {};
+    Object.entries(obj(x.late) || {}).forEach(([sym, v]) => {
+      const s = obj(v);
+      if (s) late[String(sym)] = { shown: s.shown === true, reason: str(s.reason), price: num(s.price), gapPct: num(s.gap_pct), limit: num(s.limit) };
+    });
+    return { interval: x.interval, firstDay: str(x.first_day), madeOn: str(x.made_on), publishedAt: str(x.published_at), estimated: x.estimated === true, model: str(x.model),
+      variant: str(x.variant), deadlineFallback: str(x.deadline_fallback), runningDay: str(x.running_day), dayModel: str(x.day_model), symbols, late };
+  };
+  return {
+    market: str(o.market), game: o.game === 'week' ? 'week' : 'day', generatedAt: str(o.generated_at), since: str(o.since), rule: str(o.rule) || '', lateRule: str(o.late_rule) || '',
+    newcomerRule: str(o.newcomer_rule) || '',
+    constants: { feePerLeg: num(c.fee_per_leg), minGap: num(c.min_gap), fillThrough: num(c.fill_through), publishLagFallbackMin: num(c.publish_lag_fallback_min),
+      deadlineFallbackHours: num(c.deadline_fallback_hours), lateMinGap: num(c.late_min_gap), lateMinLeftHours: num(c.late_min_left_hours), stake: num(c.stake), fixedGap: num(c.fixed_gap) },
+    primary: str(o.primary) || ORDER_VARIANT_PRIMARY,
+    variants: Object.fromEntries(Object.entries(obj(o.variants) || {}).filter(([, t]) => typeof t === 'string').map(([k, t]) => [String(k), t])),
+    variantLog: (Array.isArray(o.variant_log) ? o.variant_log : []).filter((p) => Array.isArray(p) && p.length >= 2 && typeof p[0] === 'string' && typeof p[1] === 'string')
+      .map((p) => ({ date: p[0], variant: p[1], reason: typeof p[2] === 'string' ? p[2] : '' })),
+    review: str(o.review) || '',
+    books: books(o.books), reference: books(o.reference), late: obj(o.late) ? books(o.late) : null,
+    // the day's newcomer ledger (31 Oct 2026): a roll card's entry for the reader who did not buy before; null on a week or an older record
+    newcomer: obj(o.newcomer) ? books(o.newcomer) : null,
+    benchmark: { points: (Array.isArray(bench.points) ? bench.points : []).filter((p) => Array.isArray(p) && p.length >= 3 && typeof p[0] === 'string' && num(p[2]) !== null)
+      .map((p) => ({ interval: p[0], coins: num(p[1]) || 0, money: num(p[2]), closed: p[3] !== false })), stats: stats(bench.stats) },
+    record: { shown: (Array.isArray(rec.shown) ? rec.shown : []).filter((p) => Array.isArray(p) && typeof p[0] === 'string' && typeof p[1] === 'string')
+      .map((p) => ({ interval: p[0], variant: p[1] })), stats: stats(rec.stats) },
+    publications: (Array.isArray(o.publications) ? o.publications : []).filter((p) => Array.isArray(p) && p.length >= 3 && typeof p[0] === 'string' && typeof p[1] === 'string')
+      .map((p) => ({ madeOn: p[0], interval: p[1], publishedAt: str(p[2]), estimated: p[3] === true })),
+    coverage, now: nowOf(o.now),
+  };
 }
 
 // The followed-plan record (MarketSettle.followed_plan). Points are
@@ -412,4 +523,5 @@ function dayStatus(market, day, now) {
 
 module.exports = { MARKETS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading,
   pickPlan, pickWeek, MIN_PLAN_TRADES, MIN_WEEK_TRADES, dayStatusWeek, describeFollowed, describeGuarded, GUARD_SHOWN_FROM,
+  describeOrders, ORDERS_SHOWN_FROM, ORDER_VARIANT_PRIMARY,
   nextGameDay, closeMoment, openMoment, brusselsText, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE, WEEK_GAMES, weekEnd, MIN_RANK_DAYS };

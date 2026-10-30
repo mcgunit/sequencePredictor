@@ -65,7 +65,7 @@ def main():
                 continue
             if args.settle:
                 try:
-                    settle_and_export(args.root, market, db_path=args.db)
+                    settle_and_export(args.root, market, db_path=args.db, fetch=not args.no_fetch)
                 except Exception as exc:
                     print(f"{market}: settlement/export failed - {exc}")
                     empty += 1

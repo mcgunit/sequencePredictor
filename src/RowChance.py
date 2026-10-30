@@ -55,10 +55,11 @@ keys and only when it changes, so a rerun without a new draw leaves it - and git
 flag may take) and per followed row {since (F), flagDraws, flagP, flagMean, flagNull, verdictLength, state ('running'
 or the verdict), verdictAt (the date of the draw the verdict was taken on), decidedOn (the report's date that took it),
 p, mean, null (the verdict's figures)}. First write wins: the first run with no entry for a game replays its Sundays
-ONCE (every row ever flagged, on the live record as it stands then - a freeze already declared then is kept as the
-entry's freeze and resets nothing, so flags from before it stay; daily runs end with the replay's flags and verdicts,
-decidedOn apart, as long as every draw dated before a Sunday is in by that Sunday's run: 27 Oct 2026 review, on
-production's record); every later run tests only the Sundays after checkedThrough, for the rows not followed yet, and
+ONCE (every row ever flagged on a Sunday on or after the since.json freeze declared then - the first replay applies the
+freeze as the reset rule would have, owner 30 Oct 2026, so no flag from before it is kept - an entry the replay of
+28 Oct kept under the freeze without it (no testFrom) is reset once by the next run; daily runs end with the
+replay's flags and verdicts, decidedOn apart, as long as every draw dated before a Sunday is in by that Sunday's run:
+27 Oct 2026 review, on production's record); every later run tests only the Sundays after checkedThrough, for the rows not followed yet, and
 reads a decided verdict back - never recomputed, whatever later happens to the record (a liveness rescan, a change of
 minDrawsForRanking, a rewritten day file). A renamed row is a new row. The one reset: a since.json freeze declared
 after the game's entry was kept (freeze moves forward) drops the entries of the rows flagged before the new freeze
@@ -388,12 +389,19 @@ def game_chance(game, days, models, min_draws, today, stored=None, freeze=None, 
     newest = sunday_on_or_before(today)
     reset = None
     if persist:
-        if stored and freeze and (entry.get("freeze") is None or freeze > entry["freeze"]):
+        # a later freeze - or an entry kept under the freeze by the first replay of 28 Oct 2026, before the owner's
+        # decision of 30 Oct that the replay applies it (no testFrom yet): reset once, as the reset rule would have
+        legacy = bool(stored and freeze and not entry.get("testFrom"))
+        if stored and freeze and (legacy or entry.get("freeze") is None or freeze > entry["freeze"]):
             # a later freeze: the rows flagged under the design before it start again from it, and from now on no flag
             # takes a Sunday before it (testFrom; a freeze declared for a date still to come holds every flag till then)
             reset = sunday_on_or_after(freeze)
             entry["rows"] = {n: e for n, e in entry["rows"].items() if e.get("since") and e["since"] >= freeze}
             entry["testFrom"] = reset.isoformat()
+        if not stored and freeze:
+            # the first replay keeps the freeze as the reset rule would have (owner, 30 Oct 2026): no row is flagged on a
+            # Sunday before it, so a design the freeze set aside decides no permanent verdict
+            entry["testFrom"] = sunday_on_or_after(freeze).isoformat()
         if freeze and (entry.get("freeze") is None or freeze > entry["freeze"]):
             entry["freeze"] = freeze
         checked = _as_date(entry["checkedThrough"]) if entry.get("checkedThrough") else None
@@ -732,6 +740,19 @@ def _self_check():
     since7 = entry7["rows"].get("Hot Model", {}).get("since")
     check(entry7["freeze"] == draws[30].isoformat() and since7 is not None and since7 >= draws[30].isoformat(),
           f"a later freeze: the row flagged before it is flagged again from it: {entry7['rows'].get('Hot Model')}")
+    # an entry kept under the freeze before 30 Oct (no testFrom): the next run resets it once, then never again
+    legacy = dict(entry4, freeze=draws[30].isoformat(), testFrom=None)
+    _, _, migrated = game_chance("lotto", table(60), models, 10, end, stored=legacy, freeze=draws[30])
+    since_m = migrated["rows"].get("Hot Model", {}).get("since")
+    check(migrated["testFrom"] == sunday_on_or_after(draws[30]).isoformat() and (since_m is None or since_m >= draws[30].isoformat()),
+          f"a pre-30-Oct entry is reset once: {migrated}")
+    _, _, again = game_chance("lotto", table(60), models, 10, end, stored=migrated, freeze=draws[30])
+    check(again["rows"] == migrated["rows"] and again["testFrom"] == migrated["testFrom"], "and never again")
+    # the first replay keeps a freeze already declared: no flag takes a Sunday before it
+    _, _, first_frozen = game_chance("lotto", table(60), models, 10, end, freeze=draws[30])
+    since_ff = first_frozen["rows"].get("Hot Model", {}).get("since")
+    check(first_frozen["testFrom"] == sunday_on_or_after(draws[30]).isoformat() and (since_ff is None or since_ff >= draws[30].isoformat()),
+          f"the first replay applies a declared freeze: {first_frozen}")
     _, _, entry8 = game_chance("lotto", table(60), models, 10, end, stored=entry5, freeze=date(2025, 1, 1))
     check(entry8["rows"] == entry5["rows"], "an earlier or the same freeze resets nothing")
     ahead = end + timedelta(days=10)

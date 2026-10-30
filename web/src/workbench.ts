@@ -521,6 +521,87 @@ export interface Plan {
   record: RecordMix | null;
   soFar: SoFar | null;
   rows: { symbol: string; base: number | null; call: Call | null; order: string; up: number; of: number }[];
+  orders: OrderShadow | null; // what the user's order card would say now (a shadow while ORDERS_SHOWN_FROM is null)
+}
+// --- the crypto order book (workbench.js ordersOf; src/MarketOrders.py) ---
+export interface ShadowBranch {
+  who: string;
+  text: string;
+  belowEntry?: boolean;
+  late?: { limit: number; minGapPct: number };
+}
+export interface OrderShadow {
+  soFar: { orders: number; days: number; filled: number; nextCard: number; fallback: number; early: number; total: number | null; market: number | null; estimated: number; text: string };
+  variant: string;
+  interval: string | null;
+  rows: { symbol: string; status: string; chip: string; branches: ShadowBranch[]; limit: number | null; limitPct: number | null; entryPrice: number | null; belowEntry: boolean; skipReason: string | null }[];
+  none: { symbol: string; call: string }[];
+  late: { symbol: string; price: number | null; limit: number | null; gapPct: number | null; text: string }[];
+  // the day's newcomer ledger as the user line would count it (31 Oct 2026); null on the week
+  newcomer: { shown: number; closed: number; open: number; total: number | null; notPlaced: number; text: string } | null;
+}
+export interface OrderStats {
+  orders: number;
+  closed: number;
+  open: number;
+  pending: number;
+  filled: number;
+  early: number;
+  timeStop: number;
+  skips: Record<string, number>;
+  notFollowable: number;
+  total: number | null;
+  wins: number;
+  estimated: number;
+  rolls: number;
+}
+export interface OrderVariant {
+  variant: string;
+  primary: boolean;
+  text: string;
+  main: OrderStats | null;
+  reference: OrderStats | null;
+  late: (OrderStats & { refused: Record<string, number> }) | null;
+  newcomer: OrderStats | null; // the day's newcomer ledger (31 Oct 2026)
+}
+export interface OrdersGame {
+  game: 'day' | 'week';
+  since: string | null;
+  generatedAt: string | null;
+  rule: string;
+  lateRule: string | null;
+  newcomerRule: string | null;
+  constants: Record<string, number | null>;
+  primary: string;
+  shownFrom: string | null;
+  review: string;
+  variantLog: { date: string; variant: string; reason: string }[];
+  variants: OrderVariant[];
+  benchmark: { stats: OrderStats | null };
+  record: OrderStats | null;
+  coverage: { symbol: string; first1h: string | null; last1h: string | null; bars1h: number | null; bars1m: number | null }[];
+  missing: string[]; // cards published outside the stored hours: their orders cannot be judged yet
+  shown: { from: string; to: string; variant: string; cards: number }[];
+  now: { interval: string; firstDay: string | null; runningDay: string | null; publishedAt: string | null; estimated: boolean; model: string | null; dayModel: string | null; variant: string | null; deadlineFallback: string | null } | null;
+}
+export interface Orders {
+  shownFrom: string | null;
+  primary: string;
+  day: OrdersGame | null;
+  week: OrdersGame | null;
+}
+// GET .../workbench/orders/:game: per-order rows of ORDER_COLUMNS, per variant, for the newest intervals
+export type OrderRow = Record<string, unknown>;
+export interface OrderDetail {
+  game: 'day' | 'week';
+  primary: string;
+  detailFrom: string | null;
+  orders: Record<string, OrderRow[]>;
+  reference: Record<string, OrderRow[]>;
+  late: Record<string, OrderRow[]> | null;
+  newcomer: Record<string, OrderRow[]> | null;
+  benchmark: { interval: string; coins: number; money: number | null; closed: boolean }[];
+  publications: { madeOn: string; interval: string; publishedAt: string | null; estimated: boolean }[];
 }
 export interface WeekCard {
   weekEnd: string;
@@ -552,6 +633,7 @@ export interface WeekCard {
     up: number;
     of: number;
   }[];
+  orders: OrderShadow | null; // the user's week order card as it would read now (shadow)
 }
 export type FollowedPoint = [string, string | null, 'book' | 'exact' | null, number, number | null, number | null]; // date, model, pickedBy, positions, pnl, market
 export interface Followed {
@@ -672,6 +754,7 @@ export interface Workbench {
   accuracy: { chance: number | null; days: { date: string; mean: number | null; best: number | null; bestModel: string | null }[] };
   days: { date: string; best: string | null; exactMean: number | null; instruments: { symbol: string; ret: number | null; bin: number | null }[] }[];
   guard: GuardCard | null;
+  orders: Orders | null; // the crypto order book (Admin; the user pages from shownFrom on)
   regimes: RegimeLine[];
   example: {
     date: string;
@@ -714,6 +797,77 @@ function bookFiguresOf(v: unknown): BookFigures | null {
   const b = o(v);
   return { trades: opt(b.trades), winRate: opt(b.winRate), total: opt(b.total), perTrade: opt(b.perTrade) };
 }
+const statsMap = (v: unknown): Record<string, number> => Object.fromEntries(Object.entries(o(v)).filter(([, n]) => opt(n) !== null).map(([k, n]) => [k, n as number]));
+function orderStatsOf(v: unknown): OrderStats | null {
+  if (!has(v)) return null;
+  const x = o(v);
+  return { orders: num(x.orders, 0), closed: num(x.closed, 0), open: num(x.open, 0), pending: num(x.pending, 0), filled: num(x.filled, 0), early: num(x.early, 0),
+    timeStop: num(x.timeStop, 0), skips: statsMap(x.skips), notFollowable: num(x.notFollowable, 0), total: opt(x.total), wins: num(x.wins, 0), estimated: num(x.estimated, 0), rolls: num(x.rolls, 0) };
+}
+const branchesOf = (v: unknown): ShadowBranch[] =>
+  arr(v).filter(has).map((b) => {
+    const x = o(b);
+    return { who: str(x.who), text: str(x.text), belowEntry: bool(x.belowEntry), late: has(x.late) ? { limit: num(o(x.late).limit, 0), minGapPct: num(o(x.late).minGapPct, 1) } : undefined };
+  });
+function shadowOf(v: unknown): OrderShadow | null {
+  if (!has(v)) return null;
+  const x = o(v);
+  const f = o(x.soFar);
+  return {
+    soFar: { orders: num(f.orders, 0), days: num(f.days, 0), filled: num(f.filled, 0), nextCard: num(f.nextCard, 0), fallback: num(f.fallback, 0), early: num(f.early, 0),
+      total: opt(f.total), market: opt(f.market), estimated: num(f.estimated, 0), text: str(f.text) },
+    variant: str(x.variant), interval: ostr(x.interval),
+    rows: arr(x.rows).filter(has).map((r) => {
+      const q = o(r);
+      return { symbol: str(q.symbol), status: str(q.status), chip: str(q.chip), branches: branchesOf(q.branches), limit: opt(q.limit), limitPct: opt(q.limitPct),
+        entryPrice: opt(q.entryPrice), belowEntry: bool(q.belowEntry), skipReason: ostr(q.skipReason) };
+    }),
+    none: arr(x.none).filter(has).map((n) => ({ symbol: str(o(n).symbol), call: str(o(n).call) })),
+    late: arr(x.late).filter(has).map((n) => ({ symbol: str(o(n).symbol), price: opt(o(n).price), limit: opt(o(n).limit), gapPct: opt(o(n).gapPct), text: str(o(n).text) })),
+    newcomer: has(x.newcomer)
+      ? { shown: num(o(x.newcomer).shown, 0), closed: num(o(x.newcomer).closed, 0), open: num(o(x.newcomer).open, 0), total: opt(o(x.newcomer).total),
+          notPlaced: num(o(x.newcomer).notPlaced, 0), text: str(o(x.newcomer).text) }
+      : null,
+  };
+}
+function ordersGameOf(v: unknown): OrdersGame | null {
+  if (!has(v)) return null;
+  const x = o(v);
+  const n = o(x.now);
+  return {
+    game: x.game === 'week' ? 'week' : 'day', since: ostr(x.since), generatedAt: ostr(x.generatedAt), rule: str(x.rule), lateRule: ostr(x.lateRule), newcomerRule: ostr(x.newcomerRule),
+    constants: Object.fromEntries(Object.entries(o(x.constants)).map(([k, c]) => [k, opt(c)])), primary: str(x.primary, 'edge'), shownFrom: ostr(x.shownFrom), review: str(x.review),
+    variantLog: arr(x.variantLog).filter(has).map((l) => ({ date: str(o(l).date), variant: str(o(l).variant), reason: str(o(l).reason) })),
+    variants: arr(x.variants).filter(has).map((q) => {
+      const y = o(q);
+      const late = orderStatsOf(y.late);
+      return { variant: str(y.variant), primary: bool(y.primary), text: str(y.text), main: orderStatsOf(y.main), reference: orderStatsOf(y.reference),
+        late: late ? { ...late, refused: statsMap(o(y.late).refused) } : null, newcomer: orderStatsOf(y.newcomer) };
+    }),
+    benchmark: { stats: orderStatsOf(o(x.benchmark).stats) }, record: orderStatsOf(x.record),
+    coverage: arr(x.coverage).filter(has).map((c) => ({ symbol: str(o(c).symbol), first1h: ostr(o(c).first1h), last1h: ostr(o(c).last1h), bars1h: opt(o(c).bars1h), bars1m: opt(o(c).bars1m) })),
+    missing: strs(x.missing),
+    shown: arr(x.shown).filter(has).map((r) => ({ from: str(o(r).from), to: str(o(r).to), variant: str(o(r).variant), cards: num(o(r).cards, 0) })),
+    now: has(x.now)
+      ? { interval: str(n.interval), firstDay: ostr(n.firstDay), runningDay: ostr(n.runningDay), publishedAt: ostr(n.publishedAt), estimated: bool(n.estimated), model: ostr(n.model),
+          dayModel: ostr(n.dayModel), variant: ostr(n.variant), deadlineFallback: ostr(n.deadlineFallback) }
+      : null,
+  };
+}
+export function normOrderDetail(raw: unknown, game: 'day' | 'week'): OrderDetail {
+  const r = o(raw);
+  const cols = strs(r.columns);
+  // rows of ORDER_COLUMNS into objects, so the card reads them by name
+  const rows = (v: unknown): Record<string, OrderRow[]> =>
+    Object.fromEntries(Object.entries(o(v)).map(([k, xs]) => [k, arr(xs).filter(Array.isArray).map((row) => Object.fromEntries(cols.map((c, i) => [c, (row as unknown[])[i] ?? null])))]));
+  return {
+    game: r.game === 'week' ? 'week' : game, primary: str(r.primary, 'edge'), detailFrom: ostr(r.detailFrom), orders: rows(r.orders), reference: rows(r.reference),
+    late: has(r.late) ? rows(r.late) : null,
+    newcomer: has(r.newcomer) ? rows(r.newcomer) : null,
+    benchmark: arr(r.benchmark).filter(has).map((p) => ({ interval: str(o(p).interval), coins: num(o(p).coins, 0), money: opt(o(p).money), closed: bool(o(p).closed) })),
+    publications: arr(r.publications).filter(has).map((p) => ({ madeOn: str(o(p).madeOn), interval: str(o(p).interval), publishedAt: ostr(o(p).publishedAt), estimated: bool(o(p).estimated) })),
+  };
+}
 function headOf(v: unknown) {
   if (!has(v)) return null;
   const h = o(v);
@@ -744,7 +898,7 @@ export function normWorkbench(raw: unknown, market: string): Workbench {
       ? {
           day: str(p.day), calendarKnown: p.calendarKnown !== false, madeOn: ostr(p.madeOn), madeAt: ostr(p.madeAt), openAt: ostr(p.openAt), closeAt: ostr(p.closeAt),
           closed: bool(p.closed), opened: bool(p.opened), status: str(p.status), model: str(p.model), byBook: bool(p.byBook), rule: str(p.rule), minTrades: num(p.minTrades, 10),
-          models: num(p.models, 0), book: bookLineOf(p.book), record: recordMixOf(p.record), soFar: soFarOf(p.soFar),
+          models: num(p.models, 0), book: bookLineOf(p.book), record: recordMixOf(p.record), soFar: soFarOf(p.soFar), orders: shadowOf(p.orders),
           rows: arr(p.rows).filter(has).map((x) => {
             const q = o(x);
             return { symbol: str(q.symbol), base: opt(q.base), call: callOf(q.call), order: str(q.order), up: num(q.up, 0), of: num(q.of, 0) };
@@ -756,7 +910,7 @@ export function normWorkbench(raw: unknown, market: string): Workbench {
           weekEnd: str(w.weekEnd), firstDay: ostr(w.firstDay), madeOn: ostr(w.madeOn), madeAt: ostr(w.madeAt), openAt: ostr(w.openAt), closeAt: ostr(w.closeAt),
           started: bool(w.started), closed: bool(w.closed), hoursLeft: opt(w.hoursLeft), status: str(w.status), settledWeeks: opt(w.settledWeeks),
           model: str(w.model), byBook: bool(w.byBook), rule: str(w.rule), minTrades: num(w.minTrades, 5), models: num(w.models, 0), book: bookLineOf(w.book),
-          guard: { from: ostr(o(w.guard).from), applies: bool(o(w.guard).applies) }, record: recordMixOf(w.record), soFar: soFarOf(w.soFar),
+          guard: { from: ostr(o(w.guard).from), applies: bool(o(w.guard).applies) }, record: recordMixOf(w.record), soFar: soFarOf(w.soFar), orders: shadowOf(w.orders),
           rows: arr(w.rows).filter(has).map((x) => {
             const q = o(x);
             const sf = o(q.soFar);
@@ -811,6 +965,9 @@ export function normWorkbench(raw: unknown, market: string): Workbench {
               userPages: str(q.userPages), afterTheFact: bool(q.afterTheFact), live: bool(q.live) };
           }),
         }
+      : null,
+    orders: has(r.orders)
+      ? { shownFrom: ostr(o(r.orders).shownFrom), primary: str(o(r.orders).primary, 'edge'), day: ordersGameOf(o(r.orders).day), week: ordersGameOf(o(r.orders).week) }
       : null,
     regimes: arr(r.regimes).filter(has).map((x) => {
       const q = o(x);
@@ -902,5 +1059,7 @@ export const getDraw = async (game: string, date: string, scope: Scope): Promise
 export const getWorkbench = async (market: string): Promise<Workbench> => normWorkbench(await getJson<unknown>(`/api/admin/market/${enc(market)}/workbench`), market);
 export const getBooks = async (market: string, rule: BookRule): Promise<BookSeries> =>
   normBooks(await getJson<unknown>(`/api/admin/market/${enc(market)}/workbench/books/${rule}`), rule);
+export const getOrderDetail = async (market: string, game: 'day' | 'week'): Promise<OrderDetail> =>
+  normOrderDetail(await getJson<unknown>(`/api/admin/market/${enc(market)}/workbench/orders/${game}`), game);
 export const getInstrument = async (market: string, symbol: string): Promise<InstrumentSeries> =>
   normInstrument(await getJson<unknown>(`/api/admin/market/${enc(market)}/workbench/instrument/${enc(symbol)}`), symbol);

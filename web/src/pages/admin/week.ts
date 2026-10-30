@@ -16,12 +16,13 @@ const JOB_LABEL: Record<string, string> = {
   randomnessDiscrimination: 'Control: Q2',
   featureControl: 'Control: feature (FC)',
   marketRows: 'Control: market rows',
-  nullControls: 'Control: Q0 band (context)',
+  nullControls: 'Control: Q0 band (monthly, context)',
 };
 export const jobLabel = (key: string, name?: string) => JOB_LABEL[key] ?? name ?? key;
 
 // The control a Sunday job writes, as the matrix names its parts. The NullControls job writes Q0's band, context only
 // since 27 Oct 2026 (Q0's row tests are the daily report's): its run is judged on the band's records, never on the cell.
+// It runs on the first Sunday of the month only since 1 Nov 2026; a weekend without it lists it as not due (notDue).
 export type Part = 'q0' | 'q2' | 'fc' | 'rows';
 export const CONTROL_PART: Record<string, Part> = { nullControls: 'q0', randomnessDiscrimination: 'q2', featureControl: 'fc', marketRows: 'rows' };
 export const PART_LABEL: Record<Part, string> = { q0: 'Q0 band (context)', q2: 'Q2', fc: 'Feature control', rows: 'Market rows' };

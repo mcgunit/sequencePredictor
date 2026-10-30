@@ -140,7 +140,7 @@ const complained = [];
 const cliOut = path.join(tmp, 'cli');
 const code = readings.main(['--controls', controlsDir, '--sunday', '2026-10-18', '--database', databaseDir, '--out', cliOut, '--note', 'backfilled from a copy'], (l) => said.push(l), (l) => complained.push(l));
 const cli = JSON.parse(fs.readFileSync(path.join(cliOut, '2026-10-18.json'), 'utf-8'));
-ok(code === 0 && cli.by === 'cli' && cli.note === 'backfilled from a copy' && cli.controls === controlsDir && said[0].startsWith('wrote ') && said.some((l) => l.startsWith('  lotto: Q0 2 of 3 under 5% (≈0.14 by chance), 1 hold, 1 followed, 1 confirmed (band 1.126, context)'))
+ok(code === 0 && cli.by === 'cli' && cli.note === 'backfilled from a copy' && cli.controls === controlsDir && said[0].startsWith('wrote ') && said.some((l) => l.startsWith('  lotto: Q0 2 of 3 under 5% (≈0.14 by chance), 1 hold, 1 followed, 1 confirmed (band 1.126 of 2026-10-18, context)'))
   && said.some((l) => /not from the week of 2026-10-18: keno q2/.test(l)), `the CLI writes the week, says what it read: ${said.slice(0, 3).join(' / ')}`);
 ok(said.some((l) => l.includes('Q2 above band, not shuffled 0.691 vs 0.662±0.016 (shuffled 0.625, bound 0.763, 20 seeds, 496 test windows, rule 2)'))
   && said.some((l) => l.includes('Q2 above 0.590 vs 0.570 (shuffled 0.542, 3 seeds, 496 test windows, rule 1)')),
@@ -154,13 +154,20 @@ ok(readings.main(['--sunday', '2026-10-18'], () => {}, (l) => complained.push(l)
 // --- the hook in jobs.js: which Sunday, and that a failure stays a log line ---------------------------------------
 const { READING_JOB, readingSundayOf, writeWeekReading, scheduleReading, CONTROL_KEYS } = jobs._internals;
 const local = (y, m, d, h, min = 0) => new Date(y, m - 1, d, h, min).getTime();   // the schedule's own clock
-const q0Run = (startedAt) => ({ key: READING_JOB, name: 'Q0', startedAt });
-ok(READING_JOB === 'nullControls' && READING_JOB === CONTROL_KEYS[CONTROL_KEYS.length - 1], 'the reading follows the controls plan\'s last job');
+const q0Run = (startedAt) => ({ key: READING_JOB, name: 'Rows', startedAt });
+// the Q0 band is monthly since 1 Nov 2026 and runs first on its Sunday: the plan's last job, which every Sunday runs, is
+// the market rows report, so the reading is written every week
+ok(READING_JOB === 'marketRows' && READING_JOB === CONTROL_KEYS[CONTROL_KEYS.length - 1] && CONTROL_KEYS[0] === 'nullControls',
+  'the reading follows the controls plan\'s last job, the market rows report; the monthly band is the plan\'s first');
+ok(readingSundayOf(q0Run(local(2026, 11, 8, 12))) === '2026-11-08' && readingSundayOf(q0Run(local(2026, 11, 15, 11))) === '2026-11-15',
+  'a Sunday that is not the month\'s first (no band run) still writes its reading');
+ok(readingSundayOf(q0Run(local(2026, 11, 2, 2))) === '2026-11-01' && readingSundayOf({ key: 'nullControls', startedAt: local(2026, 11, 1, 11) }) === null,
+  'on a first Sunday the reading waits for the market rows behind the band (into Monday): the band itself writes none');
 ok(readingSundayOf(q0Run(local(2026, 10, 18, 12))) === '2026-10-18' && readingSundayOf(q0Run(local(2026, 10, 19, 1))) === '2026-10-18'
   && readingSundayOf(q0Run(local(2026, 10, 20, 8, 59))) === '2026-10-18', 'Sunday\'s run, and its catch-up until Tuesday 09:00, write that Sunday\'s reading');
 ok(readingSundayOf(q0Run(local(2026, 10, 20, 9, 30))) === null && readingSundayOf(q0Run(local(2026, 10, 22, 12))) === null,
-  'a Q0 run started later in the week is not that weekend\'s control: no reading');
-ok(readingSundayOf({ key: 'predictor', startedAt: local(2026, 10, 18, 9) }) === null && readingSundayOf({ key: 'marketRows', startedAt: local(2026, 10, 18, 11) }) === null
+  'a reading job started later in the week is not that weekend\'s control: no reading');
+ok(readingSundayOf({ key: 'predictor', startedAt: local(2026, 10, 18, 9) }) === null && readingSundayOf({ key: 'randomnessDiscrimination', startedAt: local(2026, 10, 18, 11) }) === null
   && readingSundayOf(null) === null && readingSundayOf({ key: READING_JOB }) === null, 'no other job writes one');
 const lines = [];
 const calls = [];
@@ -185,14 +192,18 @@ fs.writeFileSync(path.join(tmp, 'data', 'readings', '2026-10-18.json'), '{}');
 const told = [];
 const tell = { defer: (fn) => deferred.push(fn), log: (l) => told.push(l), root: tmp };
 ok(scheduleReading({ key: 'randomnessDiscrimination', name: 'Q2', startedAt: local(2026, 10, 19, 8) }, tell) === false
-  && scheduleReading({ key: READING_JOB, name: 'Q0', startedAt: local(2026, 10, 20, 10) }, tell) === false
+  && scheduleReading({ key: READING_JOB, name: 'Rows', startedAt: local(2026, 10, 20, 10) }, tell) === false
   && scheduleReading({ key: 'featureControl', name: 'FC', startedAt: local(2026, 10, 25, 10) }, tell) === false && deferred.length === 1 && told.length === 3
   && /^Q2 finished after the reading of Sunday 2026-10-18 was written: .*node readings\.js --controls data\/controls --sunday 2026-10-18 --database/.test(told[0])
-  && /^Q0 started after the controls' window \(Tuesday 09:00\): no reading includes it; .*--sunday 2026-10-18/.test(told[1])
-  && /^FC finished: the reading of Sunday 2026-10-25 is written when .*\(Q0 band, context\) finishes$/.test(told[2]),
-  `a control re-run after Q0, or a Q0 past Tuesday 09:00, says the reading does not hold it and how to rebuild it: ${told.join(' / ')}`);
+  && /^Rows started after the controls' window \(Tuesday 09:00\): no reading includes it; .*--sunday 2026-10-18/.test(told[1])
+  && /^FC finished: the reading of Sunday 2026-10-25 is written when Weekly controls: market rows under a proper score finishes$/.test(told[2]),
+  `a control re-run after the reading, or the reading's job past Tuesday 09:00, says the reading does not hold it and how to rebuild it: ${told.join(' / ')}`);
 
-// --- finish() itself, on a copy of jobs.js in a temp dir: a stand-in Q0 run that ended, adopted at start-up -------
+ok(scheduleReading({ key: 'nullControls', name: 'Q0 band', startedAt: local(2026, 11, 1, 11) }, tell) === false && deferred.length === 1
+  && /^Q0 band finished: the reading of Sunday 2026-11-01 is written when Weekly controls: market rows under a proper score finishes$/.test(told[3]),
+  `the monthly band, first on its Sunday, says the reading comes after the market rows: ${told[3]}`);
+
+// --- finish() itself, on a copy of jobs.js in a temp dir: a stand-in market rows run (the reading job) that ended, adopted at start-up -------
 // The copy's own config and readings are stand-in files next to it: its scheduler state, log and run files
 // all live in the temp dir, the schedule is switched off (nothing is due or started), and the readings stand-in
 // records what it is asked - or throws.
@@ -208,14 +219,14 @@ module.exports = {
   const config = path.join(dir, 'config');
   fs.mkdirSync(path.join(config, 'runs'), { recursive: true });
   fs.writeFileSync(path.join(config, 'scheduler.disabled'), '');   // mode off: nothing is due, nothing starts
-  const runId = 'nullControls-2026-10-18T10-00-15-000Z';
+  const runId = 'marketRows-2026-10-18T10-00-15-000Z';
   const exitFile = path.join(config, 'runs', `${runId}.exit`);
   fs.writeFileSync(exitFile, '1\n');   // the run failed: the reading is written all the same
   const startedAt = local(2026, 10, 18, 12);
   fs.writeFileSync(path.join(config, 'scheduler.json'), JSON.stringify({ version: 1, occurrences: {}, queue: [], history: [], baselinedAt: 'x',
     baselinedPlans: { weeklyTuning: 'x', weeklyControls: 'x' },
-    current: { runId, key: 'nullControls', name: 'Weekly controls: null histories (Q0 band, context)', reason: 'test', startedAt, pid: null,
-      pidFile: path.join(config, 'runs', `${runId}.pid`), exitFile, logFile: path.join(dir, 'log', 'nullControls.log'), sha: null, mode: 'on' } }));
+    current: { runId, key: 'marketRows', name: 'Weekly controls: market rows under a proper score', reason: 'test', startedAt, pid: null,
+      pidFile: path.join(config, 'runs', `${runId}.pid`), exitFile, logFile: path.join(dir, 'log', 'marketRows.log'), sha: null, mode: 'on' } }));
   return dir;
 }
 async function finishOnCopy(behaviour) {
@@ -242,13 +253,13 @@ async function finishOnCopy(behaviour) {
 
 (async () => {
   const good = await finishOnCopy('ok');
-  const recorded = good.saved.history.find((h) => h.key === 'nullControls');
+  const recorded = good.saved.history.find((h) => h.key === 'marketRows');
   ok(recorded && recorded.exit === 1 && good.saved.current === null, 'finish() recorded the failed run and cleared it');
   ok(good.calls.length === 1 && good.calls[0].sunday === '2026-10-18' && good.calls[0].root === good.dir && good.calls[0].by === 'scheduler',
     'and then asked for the reading of the Sunday the run started on, under the checkout - whatever the exit code');
   ok(/the week's reading for Sunday 2026-10-18: written \(data\/readings\/2026-10-18\.json, 1 bytes\)/.test(good.log), 'the scheduler log says so');
   const bad = await finishOnCopy('throw');
-  const kept = bad.saved.history.find((h) => h.key === 'nullControls');
+  const kept = bad.saved.history.find((h) => h.key === 'marketRows');
   ok(kept && kept.exit === 1 && bad.saved.current === null && bad.calls.length === 1, 'a reading that throws: the run is recorded all the same');
   ok(/could not write the week's reading for Sunday 2026-10-18: records unreadable - nothing else is affected/.test(bad.log), 'and the failure is one line in the scheduler log, not a crash');
   fs.rmSync(tmp, { recursive: true, force: true });

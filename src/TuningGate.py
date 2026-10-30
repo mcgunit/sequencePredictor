@@ -236,10 +236,12 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      2.5). Recorded as the record's "margin_se". With
                      se_margin > 0 a challenger without a standard error (None:
                      a one-day score; 0: no spread at all) cannot have its
-                     margin measured and is never written: the incumbent is
-                     kept and nothing is reverted (fail closed, 27 Oct 2026;
-                     until then the margin silently fell back to `margin`, 0
-                     for most tuners, so any gain replaced).
+                     margin measured and is never written (fail closed, 27 Oct
+                     2026; until then the margin silently fell back to
+                     `margin`, 0 for most tuners, so any gain replaced). The
+                     default is still served back when it beats the incumbent
+                     by revert_margin (30 Oct 2026): that comparison does not
+                     involve the challenger.
       revert_margin  the margin of the revert's default-over-incumbent
                      comparison. None (boosting, quantum): the challenger's
                      margin, as before 27 Oct 2026. 0 (statistical, RL ticket,
@@ -377,15 +379,18 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     # The default-over-incumbent comparison takes revert_margin (rm) since 27 Oct 2026: 0 for the tuners whose
     # challengers now need a margin of one standard error, so a default that scores above the incumbent is served
     # back as before - it is not a selected trial; the other clauses keep the challenger's margin. A default that
-    # only ties the incumbent never reverts it. A challenger without a standard error under se_margin reverts
-    # nothing either (no_se: fail closed, the incumbent is kept).
+    # only ties the incumbent never reverts it. A challenger without a standard error under se_margin is never
+    # written (no_se: fail closed), but the revert does not need it: the default against the incumbent is a comparison
+    # of two fixed references, so it is judged on them alone (owner, 30 Oct 2026; 27-30 Oct no_se reverted nothing).
     revert = False
-    if not replace and not no_se and enabled and default_params is not None and is_tuned(param_names, served) \
-            and _finite(default) and not challenger > default + margin \
-            and (incumbent is None or default > incumbent + rm or challenger > incumbent + margin):
+    if not replace and enabled and default_params is not None and is_tuned(param_names, served) and _finite(default) \
+            and (no_se or not challenger > default + margin) \
+            and (incumbent is None or default > incumbent + rm or (not no_se and challenger > incumbent + margin)):
         revert = True
         by = f" by {margin:g}" if margin else ""
-        if default > challenger + margin:
+        if no_se:
+            versus = f"(challenger {_fmt(challenger)} has no standard error and is not written)"
+        elif default > challenger + margin:
             versus = f"beats challenger {_fmt(challenger)}"
         elif default == challenger:
             versus = f"ties challenger {_fmt(challenger)}"
@@ -522,12 +527,18 @@ if __name__ == "__main__":
     check(out["decision"] == "replaced", f"the challenger's own margin is unchanged by revert_margin: {out['reason']}")
 
     # 0c. fail closed (27 Oct 2026): asked for a margin in standard errors, a challenger without one (None: a one-day
-    #     score; 0: no spread) is never written and reverts nothing - the references are still scored and recorded
+    #     score; 0: no spread) is never written - the references are still scored and recorded; since 30 Oct 2026 the
+    #     default still reverts an incumbent it beats (that comparison does not involve the challenger)
     for no_se in (None, 0.0):
         bare = FakeStudy(old + [new[0], FakeTrial(3, -0.4, new[1].params, attrs={"tuning": dict(new[1].user_attrs["tuning"], score_se=no_se)}), new[2]])
-        out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -0.2}), se_margin=1.0, revert_margin=0.0)
+        out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -1.2}), se_margin=1.0, revert_margin=0.0)
         check(out["decision"] == "kept" and out["params"] is None and out["reason"].startswith("no standard error - kept")
-              and out["incumbent"] == -1.0 and out["default"] == -0.2 and out["served_score"] == -1.0, f"score_se {no_se!r} -> kept: {out['reason']}")
+              and out["incumbent"] == -1.0 and out["default"] == -1.2 and out["served_score"] == -1.0, f"score_se {no_se!r} -> kept: {out['reason']}")
+        out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -0.2}), se_margin=1.0, revert_margin=0.0)
+        check(out["decision"] == "reverted" and out["served_score"] == -0.2 and "has no standard error and is not written" in out["reason"],
+              f"score_se {no_se!r}, the default beats the incumbent -> reverted: {out['reason']}")
+        out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -1.0}), se_margin=1.0, revert_margin=0.0)
+        check(out["decision"] == "kept", f"score_se {no_se!r}, a default tying the incumbent -> kept: {out['reason']}")
         out = challenge(bare, known, None, served, dse, 10, "t", evaluate=scorer({"incumbent": -1.0, "default": -0.9}))
         check(out["decision"] == "replaced", f"score_se {no_se!r} without se_margin: any gain, as before")
         out = challenge(bare, known, None, served, dse, 10, "t", enabled=False, evaluate=scorer({}), se_margin=1.0)

@@ -10,6 +10,13 @@ export default function StatusStrip({ status: s, unit, noun }: { status: Status;
   const arrow = (v: number | null) => (isNum(v) ? (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') : '');
   const split = [isNum(s.dailyTotal) ? `daily ${money(s.dailyTotal)}` : '', isNum(s.weeklyTotal) ? `weekly ${money(s.weeklyTotal)}` : ''].filter(Boolean);
   // the weekly part counts the plain week before the guard was on the page and the guard after it (api.js guardFrom)
+  // from ORDERS_SHOWN_FROM the crypto record counts the cards' orders (api.js orderSoFar: the closed table's order rows)
+  const o = s.orders;
+  const orderCount = o ? (o.day?.orders ?? 0) + (o.week?.orders ?? 0) : 0;
+  const orderFilled = o ? (o.day?.filled ?? 0) + (o.week?.filled ?? 0) : 0;
+  const orderText = o
+    ? ` From ${day(o.from)} the record counts the cards' orders, bought at the price when each card appeared: ${plural(orderCount, 'order')}, ${orderFilled} filled at the limit; before it the old books.`
+    : '';
   const weekText = s.week && s.week.guardFrom ? ` The weekly part counts the plain week (held to the week's end) for weeks before ${day(s.week.guardFrom)} and the guard from then on: what the page said each week.` : '';
   return (
     <div className="kpis">
@@ -19,7 +26,7 @@ export default function StatusStrip({ status: s, unit, noun }: { status: Status;
         cls={signClass(s.liveTotal)}
         unit={unit}
         foot={split.length > 1 ? split.join(' · ') : s.since ? `since ${day(s.since)} · ${plural(s.days, 'day')}` : 'no live day yet'}
-        title={`What doing every row of the table made, daily and weekly positions together${s.since ? `, since ${day(s.since)}` : ''}; paper money, live days only.${weekText}${s.entryNote ? ` ${s.entryNote}` : ''}`}
+        title={`What doing every row of the table made, daily and weekly positions together${s.since ? `, since ${day(s.since)}` : ''}; paper money, live days only.${weekText}${orderText}${s.entryNote ? ` ${s.entryNote}` : ''}`}
       />
       <Tile
         label="vs buying everything"
@@ -57,8 +64,16 @@ export default function StatusStrip({ status: s, unit, noun }: { status: Status;
       <Tile
         label="Open now"
         value={int(s.openToBuy + s.openHeld)}
-        foot={`${int(s.openToBuy)} to buy · ${int(s.openHeld)} held`}
-        title="Positions in the table below: to buy now, or held."
+        foot={
+          o
+            ? [`${int(s.openToBuy + (s.openNewcomer ?? 0))} to buy${s.openNewcomer ? ` (${int(s.openNewcomer)} only if you did not buy it before)` : ''}`, s.openToSell ? `${int(s.openToSell)} to sell if bought` : '', s.noOrder ? `${int(s.noOrder)} no order` : ''].filter(Boolean).join(' · ')
+            : `${int(s.openToBuy)} to buy · ${int(s.openHeld)} held`
+        }
+        title={
+          o
+            ? 'Order rows in the table below: to buy now, or kept by a reader who bought on an earlier card; coins with no order are counted apart, never as positions.'
+            : 'Positions in the table below: to buy now, or held.'
+        }
       />
     </div>
   );

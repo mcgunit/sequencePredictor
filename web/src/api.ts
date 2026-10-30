@@ -7,7 +7,88 @@ export type Market = 'crypto' | 'shares';
 export type Game = 'day' | 'week';
 export type Call = 'down' | 'flat';
 // 'sold': a week position the guard sold at today's close (after that close); 'too late': a day position after its close
-export type OpenStatus = 'buy now' | 'buy at open' | 'held' | 'too late' | 'sold' | 'out';
+// The order card (crypto, from ORDERS_SHOWN_FROM on; api.js dayOrderRows / weekOrderRows) adds the book's own codes
+// 'hold (rolled)', 'sell now', 'no order' and 'not bought': a code is never shown as such - an order row's chip and
+// lines (OrderLine.chip, .branches) are the reader's words
+export type OpenStatus = 'buy now' | 'buy at open' | 'held' | 'too late' | 'sold' | 'out' | 'hold (rolled)' | 'sell now' | 'no order' | 'not bought';
+
+// One reader situation on an order row: "If you bought BTC on Wed 14 Oct's card" and what to do then. late: a late
+// entry ("still good to enter"), hidden on the page when the live quote is within minGapPct of the limit
+export interface OrderBranch {
+  who: string;
+  text: string;
+  belowEntry?: boolean;
+  late?: { limit: number; minGapPct: number };
+}
+// The order behind an order row (the variant the card shows; prices in USDT)
+export interface OrderLine {
+  variant: string;
+  limit: number | null;
+  limitPct: number | null; // the limit's distance from the card's price (a roll: from the buy price), simple %
+  entryPrice: number | null;
+  entryAt: string | null;
+  publishedAt: string | null;
+  estimated: boolean; // the card's time is estimated (publication not recorded before 30 Oct)
+  deadlineAt: string | null; // the fallback time: sold at market then at the latest
+  deadlineText: string | null;
+  exitRule: string;
+  skipReason: string | null;
+  heldSince: string | null;
+  rolls: number;
+  belowEntry: boolean; // a roll's new limit is below the buy price: a fill locks in a loss
+  exitKind: string | null;
+  exitAt: string | null;
+  exitPrice: number | null;
+  money: number | null;
+  provisional: boolean;
+  chip: string;
+  branches: OrderBranch[];
+  text: string;
+  // a roll card's newcomer entry (31 Oct 2026): the reader who did not buy on the earlier card; skipReason when not placed
+  newcomer?: { limit: number | null; limitPct: number | null; entryPrice: number | null; skipReason: string | null; provisional: boolean } | null;
+}
+// "Following this card so far" under the order rule: the counts of the closed table's order rows
+export interface OrderSoFar {
+  from: string;
+  orders: number;
+  days: number;
+  filled: number;
+  nextCard: number;
+  fallback: number;
+  early: number;
+  total: number | null;
+  market: number | null;
+  estimated: number;
+  before: { positions: number; total: number | null } | null;
+  text: string;
+}
+export interface LateEntry {
+  symbol: string;
+  price: number;
+  limit: number;
+  gapPct: number | null;
+  minGapPct: number;
+  day: string | null;
+  text: string;
+}
+export interface OrderCard {
+  soFar: OrderSoFar;
+  variant: string;
+  card: boolean; // the order card is shown today (its state is for today's card)
+  interval: string | null;
+  publishedAt: string | null;
+  estimated: boolean;
+  late?: LateEntry[];
+  lateRecord?: { shown: number; closed: number; open: number; total: number | null };
+  // the day's newcomer ledger (31 Oct 2026): its own record, never in soFar
+  newcomerRecord?: { shown: number; closed: number; open: number; total: number | null; notPlaced: number };
+  lines: { model: string; soFar: string; today: string; sell: string; lateRecord?: string; newcomerRecord?: string };
+}
+export interface OrdersView {
+  from: string;
+  day: OrderCard | null;
+  week: OrderCard | null;
+}
 
 export interface Me {
   // open: open access (no login configured), where there is nobody to sign out
@@ -67,6 +148,10 @@ export interface Status {
   worstDay: DayResult | null;
   openToBuy: number;
   openHeld: number;
+  openToSell?: number;
+  openNewcomer?: number; // roll rows with a newcomer buy: to buy only for a reader who did not buy before
+  noOrder?: number; // coins with no order on the order card (counted, never positions)
+  orders?: { from: string; day: OrderSoFar | null; week: OrderSoFar | null } | null;
   paperNote: string;
 }
 
@@ -88,6 +173,7 @@ export interface WeekGame {
   endDay: string;
   guarded?: boolean; // the week rows follow the guard's state for today (MarketSettle.guarded_week)
   guardOrders?: boolean; // the guard gives this week's orders; false: the plain week with the guard as information
+  orders?: boolean; // the week rows are the order book's card
   stateText: string;
   stateTitle?: string;
   closeText: string;
@@ -134,6 +220,7 @@ export interface OpenPosition {
   action?: 'hold' | 'sell' | 'buy' | 'out'; // the guard's action for the running day
   modelsUp: { up: number; of: number } | null;
   size?: number | null; // a sized row's position (the RL Position Model): a multiple of the stake; null for every other row
+  order?: OrderLine; // an order row (the order card)
 }
 
 export interface NoneCall {
@@ -176,6 +263,12 @@ export interface ClosedPosition {
   pnl: number;
   exit: string;
   sold?: string; // a guarded week position: the day it was sold (closed is its week's close)
+  rule?: 'orders'; // a position of the order book (from ORDERS_SHOWN_FROM on)
+  exitKind?: 'limit' | 'early' | 'next card' | 'fallback' | 'close' | null;
+  estimated?: boolean;
+  entryPrice?: number | null;
+  exitPrice?: number | null;
+  rolls?: number;
 }
 
 export interface MarketView {
@@ -196,6 +289,7 @@ export interface MarketView {
   cumulative: CumulativePoint[];
   perCoin: PerInstrument[];
   closed: ClosedPosition[];
+  orders: OrdersView | null; // the order cards' labelled lines (null while ORDERS_SHOWN_FROM is null)
   notes: { entry: string; sell: string; guard: string; entryText?: string; sellText?: string; guardText?: string; closeDay?: string };
 }
 
@@ -351,17 +445,22 @@ function normalize(raw: Partial<MarketView> | null | undefined, market: Market):
       worstDay: s.worstDay && opt(s.worstDay.pnl) !== null ? s.worstDay : null,
       openToBuy: num(s.openToBuy, 0),
       openHeld: num(s.openHeld, 0),
+      openToSell: num(s.openToSell, 0),
+      openNewcomer: num(s.openNewcomer, 0),
+      noOrder: num(s.noOrder, 0),
+      orders: s.orders && typeof s.orders === 'object' ? s.orders : null,
       paperNote: str(s.paperNote),
     },
     day: r.day ?? null,
     week: r.week ?? null,
-    open: arr(r.open),
+    open: arr(r.open).map((p) => (p.order ? { ...p, order: { ...p.order, branches: arr(p.order.branches).filter((b) => b && typeof b.text === 'string'), chip: str(p.order.chip) } } : p)),
     none: { day: arr(r.none?.day), week: arr(r.none?.week) },
     log: arr(r.log),
     daily: arr(r.daily),
     cumulative: arr(r.cumulative),
     perCoin: arr(r.perCoin),
     closed: arr(r.closed),
+    orders: r.orders && typeof r.orders === 'object' && typeof r.orders.from === 'string' ? r.orders : null,
     notes: { entry: str(r.notes?.entry), sell: str(r.notes?.sell), guard: str(r.notes?.guard), entryText: str(r.notes?.entryText), sellText: str(r.notes?.sellText), guardText: str(r.notes?.guardText), closeDay: str(r.notes?.closeDay) },
   };
 }
@@ -1153,6 +1252,7 @@ export interface WeekView {
       ok: number;
       expected: number;
       missing: { key: string; day: string | null }[];
+      notDue: { key: string; next: string | null }[]; // a monthly job this weekend does not run (not missing), and its next plan day
       running: { key: string; start: string | null } | null;
       notOk: { key: string; result: string; note: string | null }[];
       from: string | null;
@@ -1969,6 +2069,7 @@ function normWeek(raw: unknown): WeekView {
       weekend: {
         runs: num(we.runs, 0), ok: num(we.ok, 0), expected: num(we.expected, 0),
         missing: arr(we.missing as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), day: ostr(o(x).day) })),
+        notDue: arr(we.notDue as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), next: ostr(o(x).next) })),
         running: has(we.running) ? { key: str(o(we.running).key), start: ostr(o(we.running).start) } : null,
         notOk: arr(we.notOk as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), result: str(o(x).result), note: ostr(o(x).note) })),
         from: ostr(we.from), to: ostr(we.to), hours: opt(we.hours),
@@ -2094,6 +2195,7 @@ export interface JobLine {
   daily: boolean;
   nextAt: string | null; // the daily job's next slot
   trigger: string | null; // a weekly job: "when Saturday's predictor finishes"
+  monthly: { since: string | null } | null; // a job of a weekly plan that runs only on the plan's first weekday of the month (from since)
   usual: Usual | null; // its earlier successful runs, a weekly job's from its own log
   last: RunShort | null; // the newest run that ran
   canRun: boolean;
@@ -2315,7 +2417,7 @@ function normJobs(raw: unknown): JobsView {
       const j = o(x);
       return {
         key: str(j.key), name: str(j.name, str(j.key)), description: str(j.description), command: str(j.command), log: ostr(j.log), plan: ostr(j.plan), daily: bool(j.daily),
-        nextAt: ostr(j.nextAt), trigger: ostr(j.trigger), usual: usualOf(j.usual), last: runShortOf(j.last), canRun: bool(j.canRun), refusal: ostr(j.refusal),
+        nextAt: ostr(j.nextAt), trigger: ostr(j.trigger), monthly: has(j.monthly) ? { since: ostr(o(j.monthly).since) } : null, usual: usualOf(j.usual), last: runShortOf(j.last), canRun: bool(j.canRun), refusal: ostr(j.refusal),
       };
     }),
     runs: {

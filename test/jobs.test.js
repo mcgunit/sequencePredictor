@@ -27,10 +27,13 @@ ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') =
 ok(byKey.predictor.daily.hour === 9 && byKey.predictor.daily.minute === 0, 'the predictor keeps its 09:00 slot');
 ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner,kenoSubsetTuning',
   'the weekly chain keeps the order runHyperopt.sh documented');
-ok(CONTROL_KEYS.join(',') === 'randomnessDiscrimination,featureControl,marketRows,nullControls',
-  'the control plan runs Q2 (about 80 minutes), the feature control (refits, about an hour), the market rows report (minutes), then the Q0 band (hours, context since 27 Oct 2026)');
-ok(byKey.nullControls.name === 'Weekly controls: null histories (Q0 band, context)' && /context only/i.test(byKey.nullControls.description) && !/greyed under/.test(byKey.nullControls.description),
-  'the null-histories job is named for what it writes since 27 Oct 2026: the Q0 band, context - Q0 itself is the daily report\'s row test');
+ok(CONTROL_KEYS.join(',') === 'nullControls,randomnessDiscrimination,featureControl,marketRows',
+  'the control plan runs the Q0 band first (hours, context since 27 Oct 2026, monthly since 1 Nov 2026), then Q2 (about 80 minutes), the feature control (refits, about an hour) and the market rows report (minutes) - the last job every Sunday runs, which writes the reading');
+ok(byKey.nullControls.name === 'Monthly controls: null histories (Q0 band, context)' && /context only/i.test(byKey.nullControls.description) && !/greyed under/.test(byKey.nullControls.description)
+  && /first Sunday of the month/.test(byKey.nullControls.description) && /1 Nov 2026/.test(byKey.nullControls.description),
+  'the null-histories job is named for what it writes since 27 Oct 2026 (the Q0 band, context - Q0 itself is the daily report\'s row test) and says it is monthly since 1 Nov 2026');
+ok(byKey.nullControls.monthly && byKey.nullControls.monthly.since === '2026-11-01' && jobs.JOBS.filter((j) => j.monthly).map((j) => j.key).join() === 'nullControls',
+  'only the null band is monthly, from 1 Nov 2026 (the owner\'s decision of 30 Oct 2026)');
 ok(jobs.JOBS.every((j) => !j.plan || PLANS[j.plan]), 'every planned job belongs to a known plan');
 ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'),
   'the quantum tuner must run before the retrain - that is why the retrain is weekly at all');
@@ -192,6 +195,30 @@ ok(allowedQueue(mixed, 'dry').length === 1 && allowedQueue(mixed, 'dry')[0].manu
   'dry mode keeps only what an administrator started by hand');
 ok(allowedQueue(mixed, 'dry') !== mixed && allowedQueue(mixed, 'on') !== mixed, 'the queue is never aliased back');
 
+// --- the monthly null band (30 Oct 2026, the owner's decision) ------------
+// The Q0 band runs only on the first Sunday of the month (day 1 to 7) from 1 Nov 2026 on; the other three controls
+// every Sunday. The occurrence's Sunday decides, also for a catch-up on Monday or Tuesday.
+{
+  const { planKeysOn, planDayOf, runsOnDay, nextMonthlyDay } = jobs._internals;
+  const on = (day) => planKeysOn(CONTROLS_PLAN, day);
+  ok(on('2026-11-01').keys.join() === CONTROL_KEYS.join() && on('2026-11-01').skipped.length === 0,
+    'a first Sunday (1 Nov 2026) queues all four controls, the band first');
+  ok(on('2026-11-08').keys.join() === 'randomnessDiscrimination,featureControl,marketRows'
+    && on('2026-11-08').skipped.map((x) => `${x.key}:${x.next}`).join() === 'nullControls:2026-12-06',
+    'a second Sunday leaves the band out, and names the Sunday it runs next');
+  ok(['2026-11-15', '2026-11-22', '2026-11-29'].every((d) => !on(d).keys.includes('nullControls')) && on('2026-12-06').keys.includes('nullControls')
+    && on('2027-01-03').keys.includes('nullControls') && !on('2027-01-10').keys.includes('nullControls'),
+    'only the Sunday on day 1 to 7 of its month runs the band');
+  ok(on('2026-10-25').keys.join() === CONTROL_KEYS.join() && runsOnDay(byKey.nullControls, '2026-10-18'),
+    'before 1 Nov 2026 the band was weekly - an earlier Sunday is read as it ran');
+  ok(planKeysOn(CHAIN_PLAN, '2026-11-07').keys.join() === CHAIN_KEYS.join(), 'the tuning chain is untouched');
+  ok(planDayOf(CONTROLS_PLAN, at('2026-11-01T10:30:00')) === '2026-11-01' && planDayOf(CONTROLS_PLAN, at('2026-11-02T08:00:00')) === '2026-11-01'
+    && planDayOf(CONTROLS_PLAN, at('2026-11-10T08:30:00')) === '2026-11-08',
+    'a catch-up on Monday or Tuesday morning is the Sunday before\'s occurrence: first or not by that Sunday');
+  ok(nextMonthlyDay(byKey.nullControls, '2026-11-01') === '2026-12-06' && nextMonthlyDay(byKey.nullControls, '2026-10-25') === '2026-11-01',
+    'the next band: the next first Sunday');
+}
+
 // --- occurrence identity ----------------------------------------------------
 // Ids are the only thing standing between "ran once" and "ran twice", so they
 // must not drift with the year boundary.
@@ -206,8 +233,13 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
 {
   const { nextDueText, planBaseline } = jobs._internals;
   const anyNow = at('2026-09-26T20:00:00');
-  ok(CONTROL_KEYS.every((k) => nextDueText(byKey[k], anyNow) === "when Sunday's predictor finishes"),
-    'the control jobs say Sunday on the Jobs page, from the plan table');
+  ok(CONTROL_KEYS.filter((k) => k !== 'nullControls').every((k) => nextDueText(byKey[k], anyNow) === "when Sunday's predictor finishes"),
+    'the weekly control jobs say Sunday on the Jobs page, from the plan table');
+  ok(nextDueText(byKey.nullControls, at('2026-10-31T20:00:00')) === "when the first Sunday's predictor of the month finishes (next: 2026-11-01)"
+    && nextDueText(byKey.nullControls, at('2026-11-01T08:00:00')).endsWith('(next: 2026-11-01)')
+    && nextDueText(byKey.nullControls, at('2026-11-03T12:00:00')).endsWith('(next: 2026-12-06)')
+    && nextDueText(byKey.nullControls, at('2026-11-08T12:00:00')).endsWith('(next: 2026-12-06)'),
+    'the monthly band says which Sunday it runs next');
   ok(CHAIN_KEYS.every((k) => nextDueText(byKey[k], anyNow) === "when Saturday's predictor finishes"), 'the chain jobs still say Saturday');
   // Every scheduled entry point takes process.lock, or the scheduler's "one
   // job at a time behind the same lock" promise is void for it.
@@ -226,6 +258,49 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
     'a Sunday-noon deploy skips nothing: the net opens at 23:00 and this week\'s controls still run tonight');
   const done = planBaseline({ [CHAIN_PLAN]: 'x', [CONTROLS_PLAN]: 'x' }, {}, at('2026-09-28T21:00:00'));
   ok(done.fresh.length === 0 && done.skipped.length === 0, 'a baselined plan is never baselined again - its next miss is a real miss');
+}
+
+// --- enqueuePlan itself, on a copy of jobs.js in a temp dir --------------------------------------------------------
+// The copy's config is a stand-in next to it and the schedule is off (scheduler.disabled): start() starts nothing, and
+// enqueuePlan only fills the queue the worker would drain - nothing is launched.
+{
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-monthly-'));
+  fs.copyFileSync(path.join(__dirname, '..', 'jobs.js'), path.join(dir, 'jobs.js'));
+  fs.writeFileSync(path.join(dir, 'config.js'), `module.exports = { CONFIG_DIR: ${JSON.stringify(path.join(dir, 'config'))} };`);
+  fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+  fs.writeFileSync(path.join(dir, 'config', 'scheduler.json'), JSON.stringify({ version: 1, occurrences: {}, queue: [], history: [], current: null,
+    baselinedAt: 'x', baselinedPlans: { [CHAIN_PLAN]: 'x', [CONTROLS_PLAN]: 'x' } }));
+  const quiet = console.log;
+  console.log = () => {};
+  let copy;
+  try {
+    copy = require(path.join(dir, 'jobs.js'));
+    copy.start();
+    const c = copy._internals;
+    const queued = () => c.state().queue.map((q) => q.key).join();
+    c.enqueuePlan(CONTROLS_PLAN, `${CONTROLS_PLAN}@2026-W44`, 'test', at('2026-11-01T10:30:00'));
+    const first = queued();
+    c.state().queue.length = 0;
+    c.enqueuePlan(CONTROLS_PLAN, `${CONTROLS_PLAN}@2026-W45`, 'test', at('2026-11-08T10:30:00'));
+    const second = queued();
+    c.state().queue.length = 0;
+    c.enqueuePlan(CONTROLS_PLAN, `${CONTROLS_PLAN}@2026-W45b`, 'test', at('2026-11-02T08:00:00'));
+    const catchUp = queued();
+    c.state().queue.length = 0;
+    console.log = quiet;
+    const logText = fs.readFileSync(path.join(dir, 'log', 'scheduler.log'), 'utf-8');
+    ok(first === 'nullControls,randomnessDiscrimination,featureControl,marketRows', `a first Sunday queues the band, first: ${first}`);
+    ok(second === 'randomnessDiscrimination,featureControl,marketRows', `a second Sunday does not queue it: ${second}`);
+    ok(catchUp === first, `a Monday-morning catch-up of a first Sunday queues it too: ${catchUp}`);
+    ok(/weeklyControls@2026-W45 leaves out Monthly controls: null histories \(Q0 band, context\): monthly, not this one - next on 2026-12-06/.test(logText),
+      'and the log says the band was left out, and when it runs next');
+  } finally {
+    console.log = quiet;
+    if (copy) copy.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 console.log(`jobs.js: ${checks} checks passed (${jobs.JOBS.length} jobs, ${CHAIN_KEYS.length} in the weekly chain)`);

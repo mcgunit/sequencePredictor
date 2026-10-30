@@ -43,13 +43,19 @@ export default function ControlsPage() {
   const d = load.data;
   const t = d.tiles;
   const all = d.groups.flatMap((g) => g.games);
-  // the Sunday controls' span: Q0's band records (context) with the other three; Q0's row tests are the daily report's
-  const from = earliest([t.q0.band.from, t.q2.from, t.fc.from, t.rows.from]);
-  const to = latest([t.q0.band.at, t.q2.at, t.fc.at, t.rows.at]);
+  // the Sunday controls' span: the three weekly ones; Q0's row tests are the daily report's, and its band (context) is
+  // monthly since 1 Nov 2026 - named apart with its own day, so a band from an earlier Sunday does not stretch the span
+  const from = earliest([t.q2.from, t.fc.from, t.rows.from]);
+  const to = latest([t.q2.at, t.fc.at, t.rows.at]);
+  const bandDay = t.q0.band.from ?? t.q0.band.at;
   const note = historyNote(d.readings, all.flatMap((g) => [g.history.q0, g.history.q2, g.history.fc, g.history.rows]));
   return (
     <div className="admin">
-      <PageHead title="Controls" sub={`Sunday controls of ${weekday(from)} · ${all.length} games`} meta={[span(from, to), 'Brussels time']} />
+      <PageHead
+        title="Controls"
+        sub={`Sunday controls of ${weekday(from)} · ${all.length} games`}
+        meta={[span(from, to), bandDay ? `Q0 band (monthly, context) of ${weekday(bandDay)}` : '', 'Brussels time']}
+      />
       {note ? <p className="statusline mut">{note}</p> : null}
       <Tiles d={d} />
       <div className="stack">

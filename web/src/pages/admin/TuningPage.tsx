@@ -136,7 +136,7 @@ function Tiles({ d }: { d: TuningView }) {
 const HELP = (
   <>
     Replaced: the challenger beat the better of the incumbent and the default by the margin. Kept: it did not - or it had no standard error to take the
-    margin in - and the served set stays. Reverted: the challenger did not clear the default while the served set lost to the default or the challenger,
+    margin in (it is then never written, but the default may still revert) - and the served set stays. Reverted: the challenger did not clear the default while the served set lost to the default or the challenger,
     so the untuned default is served again; for the statistical, keno sub-selection, RL and ensemble tuners the default needs no margin over the served
     set (it is not picked from trials), for boosting and quantum it needs the margin. The margin is k standard errors of the challenger&apos;s score: 1 SE
     for every tuner but quantum, 2.5 SE for quantum, whose one-fit scores move about 0.9 SE with the fit&apos;s seed alone (since 27 Oct 2026; until then

@@ -1,4 +1,4 @@
-import os, argparse, json, sys
+import os, argparse, json, sys, math
 # Pin the BLAS/OpenMP thread pools before numpy (via optuna) is imported: every
 # Backtester worker otherwise inherits a 16-thread OpenBLAS pool whose
 # spin-waiting was measured at ~10 cores of pure overhead per single-threaded
@@ -9,6 +9,7 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 import optuna
+import numpy as np
 import time
 from multiprocessing import cpu_count
 
@@ -594,21 +595,56 @@ STRATEGY_DISPLAY_NAMES = {
 }
 
 
-def boost_pruner(scored_days):
+class CheckpointPruner(optuna.pruners.BasePruner):
+    """
+    Bottom-quartile pruning judged only at fixed checkpoints and only against
+    this run's own completed trials (30 Oct 2026). Optuna's PercentilePruner
+    compares a trial's BEST partial score so far with the trials of the whole
+    study: a trial whose first scored days were lucky kept that peak after it
+    faded, and the study is reused every weekend (load_if_exists), so last
+    weeks' trials - fitted on another window - set the bar. Here a trial is
+    judged by its partial score AT the checkpoint (half and three quarters of
+    the scored days), against the completed trials numbered from `first_trial`
+    (this run's first) at the same step, and pruned when below the
+    (100 - percentile)th percentile of them; nothing is judged before
+    `min_completed` of them exist.
+    """
+
+    def __init__(self, percentile, min_completed, checkpoints, first_trial=0):
+        self.percentile = float(percentile)
+        self.min_completed = int(min_completed)
+        self.checkpoints = sorted({int(c) for c in checkpoints if int(c) >= 1})
+        self.first_trial = int(first_trial)
+
+    def prune(self, study, trial):
+        step = trial.last_step
+        if step is None or step not in self.checkpoints:
+            return False
+        value = trial.intermediate_values.get(step)
+        if value is None or not math.isfinite(value):
+            return False
+        peers = [t.intermediate_values[step] for t in study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.COMPLETE,))
+                 if t.number >= self.first_trial and step in t.intermediate_values
+                 and math.isfinite(t.intermediate_values[step])]
+        if len(peers) < self.min_completed:
+            return False
+        return value < float(np.percentile(peers, 100.0 - self.percentile))
+
+
+def boost_pruner(scored_days, first_trial=0):
     """
     Conservative by construction - bottom quartile only (PRUNE_PERCENTILE 75
-    keeps the top 75%), only after half the window, only once
-    PRUNE_MIN_COMPLETED_TRIALS trials completed. `scored_days` is the window
-    the steps count: its days outside the lockbox (run_backtest's
+    keeps the top 75%), judged at half and three quarters of the window only,
+    once PRUNE_MIN_COMPLETED_TRIALS of THIS run's trials (numbered from
+    first_trial) completed (CheckpointPruner). `scored_days` is the window the
+    steps count: its days outside the lockbox (run_backtest's
     progress_callback), so "half the window" is half of what is scored.
     Built per process (trial processes included), never persisted.
     """
     if PRUNE_PERCENTILE <= 0:
         return optuna.pruners.NopPruner()
-    return optuna.pruners.PercentilePruner(
-        PRUNE_PERCENTILE,
-        n_startup_trials=PRUNE_MIN_COMPLETED_TRIALS,
-        n_warmup_steps=max(1, scored_days // 2))
+    return CheckpointPruner(PRUNE_PERCENTILE, PRUNE_MIN_COMPLETED_TRIALS,
+                            (max(1, scored_days // 2), max(1, (3 * scored_days) // 4)), first_trial=first_trial)
 
 
 def _self_check():
@@ -625,21 +661,32 @@ def _self_check():
     module = globals()
     saved = {key: module[key] for key in ("Backtester", "DataLoader", "LOCKBOX", "PRUNE_PERCENTILE")}
     try:
-        # 1. PercentilePruner(p) keeps the top p%: eight completed trials at 0.1..0.8 on the step checked, a partial
-        #    score of 0.2 is the bottom quartile (pruned), 0.3 and 0.5 are not - at the 25 used until 26 Oct 2026,
-        #    0.5 (above the median) was pruned too
-        def pruned_at(percentile, partial):
+        # 1. the checkpoint pruner (30 Oct 2026) keeps the top p%: eight completed trials of this run at 0.1..0.8 on the
+        #    checkpoint, a partial score of 0.2 is the bottom quartile (pruned), 0.3 and 0.5 are not; it judges the
+        #    trial's value AT the checkpoint (a lucky early peak does not save it), never between checkpoints, and
+        #    only against this run's trials (older weeks' trials numbered below first_trial do not count)
+        def pruned_at(percentile, partial, history=None, step=5, first=0, old=None):
             module["PRUNE_PERCENTILE"] = percentile
-            study = optuna.create_study(direction="maximize", pruner=boost_pruner(10))
+            study = optuna.create_study(direction="maximize", pruner=boost_pruner(10, first))
+            for value in (old or []):
+                study.add_trial(optuna.trial.create_trial(value=value, intermediate_values={5: value, 7: value}))
             for k in range(8):
-                study.add_trial(optuna.trial.create_trial(value=0.1 * (k + 1), intermediate_values={6: 0.1 * (k + 1)}))
+                v = 0.1 * (k + 1)
+                study.add_trial(optuna.trial.create_trial(value=v, intermediate_values={5: v, 6: v, 7: v}))
             trial = study.ask()
-            trial.report(partial, step=6)
+            for s_, v in (history or []):
+                trial.report(v, step=s_)
+            trial.report(partial, step=step)
             return trial.should_prune()
         assert saved["PRUNE_PERCENTILE"] == 75.0, saved["PRUNE_PERCENTILE"]
         assert pruned_at(75.0, 0.2) and not pruned_at(75.0, 0.3) and not pruned_at(75.0, 0.5)
-        assert pruned_at(25.0, 0.5) and not pruned_at(25.0, 0.7), "optuna's percentile is the share KEPT on a maximising study"
-        assert boost_pruner(68)._n_warmup_steps == 34, "the warm-up is half the scored days"
+        assert pruned_at(25.0, 0.5) and not pruned_at(25.0, 0.7), "the percentile is the share KEPT on a maximising study"
+        assert pruned_at(75.0, 0.2, history=[(1, 0.9), (2, 0.9)]), "a lucky early peak does not save a trial at the checkpoint"
+        assert not pruned_at(75.0, 0.05, step=6), "no judgement between checkpoints (10 scored days: steps 5 and 7)"
+        assert pruned_at(75.0, 0.2, step=7), "the second checkpoint at three quarters"
+        assert pruned_at(75.0, 0.3, first=0, old=[2.0] * 8) and not pruned_at(75.0, 0.3, first=8, old=[2.0] * 8), \
+            "older weeks' trials (numbered below first_trial) are no peers: counted, their 2.0s would prune 0.3"
+        assert boost_pruner(68).checkpoints == [34, 51], "the checkpoints are half and three quarters of the scored days"
         module["PRUNE_PERCENTILE"] = saved["PRUNE_PERCENTILE"]
 
         # 2. the lockbox: 100 dated draws, a 90-day window with 22 lockbox days (rows 20..41), each a perfect day
@@ -704,7 +751,7 @@ def _self_check():
             module[key] = value
         optuna.logging.set_verbosity(verbosity)
     print("HyperoptBoost self-check OK: the pruner stops the bottom quartile (75 keeps the top 75%; 25 kept only the top "
-          "quarter); the lockbox days are backtested but never scored - not by a trial, not by the pruner's steps, not "
+          "quarter) at half and three quarters of the scored days, on the value there, against this run's trials only; the lockbox days are backtested but never scored - not by a trial, not by the pruner's steps, not "
           "by a gate reference")
 
 
@@ -776,11 +823,11 @@ if __name__ == "__main__":
                  'gate\'s references, so the ranking is unaffected.')
         parser.add_argument(
             '--prune-percentile', type=float, default=PRUNE_PERCENTILE,
-            help='Optuna PercentilePruner percentile: the share of trials KEPT. After half the scored '
-                 'window a trial whose best partial score so far is below the top N%% of the completed trials\' '
-                 'scores at that day is stopped (needs 5 completed trials first). Default 75 = the bottom quartile is '
-                 'stopped (until 26 Oct 2026 the default was 25, which stopped all but the top quarter). '
-                 '0 disables pruning.')
+            help='Pruning percentile: the share of trials KEPT. At half and at three quarters of the scored '
+                 'window a trial whose partial score at that day is below the top N%% of this run\'s completed '
+                 'trials\' scores at that day is stopped (needs 5 of them first; CheckpointPruner, 30 Oct 2026). '
+                 'Default 75 = the bottom quartile is stopped (until 26 Oct 2026 the default was 25, which stopped '
+                 'all but the top quarter). 0 disables pruning.')
         parser.add_argument(
             '--catboost-border-count', type=int, default=254,
             help='CatBoost border_count (split candidates per feature), CatBoost\'s own default '
@@ -932,13 +979,14 @@ if __name__ == "__main__":
 
                     studyName = f"{dataset_name}_{strategy_name}"
                     parallel = parallel_trials_for(strategy["objective"].prefix, daysToRebuild)
-                    pruner_factory = lambda days=pruneDays: boost_pruner(days)
-
-                    study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory())
+                    study = open_study(studyName, optunaDatabase, parallel=parallel)
                     fail_stale_running_trials(study)
                     # Trials that exist before this run - the gate compares
-                    # only what this run adds (TuningGate.run_trials).
+                    # only what this run adds (TuningGate.run_trials), and so
+                    # does the pruner (CheckpointPruner's first_trial).
                     known_trials = {t.number for t in study.get_trials(deepcopy=False)}
+                    first_trial = max(known_trials) + 1 if known_trials else 0
+                    pruner_factory = lambda days=pruneDays, first=first_trial: boost_pruner(days, first)
 
                     objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
                                        game_cfg=game_cfg: strategy["objective"](

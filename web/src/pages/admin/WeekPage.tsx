@@ -149,6 +149,7 @@ function Tiles({ d }: { d: WeekView }) {
           we.missing.length
             ? { text: `${closed ? 'no run' : 'not run yet'}: ${we.missing.map((m) => `${jobLabel(m.key)}${m.day ? ` ${weekday(m.day)}` : ''}`).join(', ')}`, warn: closed }
             : '',
+          we.notDue.length ? `not due this weekend: ${we.notDue.map((m) => `${jobLabel(m.key)}${m.next ? `, next ${weekday(m.next)}` : ''}`).join('; ')}` : '',
           we.slowest
             ? { text: `${jobLabel(we.slowest.key)} ${durationText(we.slowest.minutes, we.slowest.usual)} vs ${usualText(we.slowest.usual, we.slowest.minutes)} · ${usualBasis(we.slowest.usual)}`, warn: true }
             : '',
@@ -241,7 +242,9 @@ function RunsCard({ d, onOpen }: { d: WeekView; onOpen: (id: string) => void }) 
           log, the predictor&apos;s from the scheduler&apos;s history; the count is on the line. Amber: a run longer than its usual maximum, and a warning
           signature none of the job&apos;s earlier runs the logs still hold had. A signature is a Python warning or error class (with the file that raised it),
           LOCKBOX or Traceback; the other lines a plain grep for &quot;warn&quot; or &quot;error&quot; would catch (TF start-up chatter, the gate&apos;s lines on
-          &quot;standard error&quot;) are filtered and counted in the run&apos;s drawer. A run not started yet counts as missing only once the window has closed.
+          &quot;standard error&quot;) are filtered and counted in the run&apos;s drawer. A run not started yet counts as missing only once the window has closed. The Q0
+          band (context) runs on the first Sunday of the month only (since 1 Nov 2026, NullControls first, then the three weekly controls); on the other
+          weekends it is listed as not due, never missing.
         </>
       }
       meta={[`${we.runs} runs · ${we.expected} expected`, we.from ? span(we.from, we.to) : '', 'Brussels time']}
@@ -301,6 +304,19 @@ function RunsCard({ d, onOpen }: { d: WeekView; onOpen: (id: string) => void }) 
             <span className="dur mut">{closed ? 'no run in the window' : 'not run yet'}</span>
             <span className="chips">
               <Chip kind={closed ? 'down' : 'dim'}>{closed ? 'missing' : 'not run yet'}</Chip>
+            </span>
+          </div>
+        ))}
+        {we.notDue.map((m) => (
+          <div className="run" key={`notdue-${m.key}`}>
+            <span className="job mut">
+              {jobLabel(m.key)}
+              <small>first Sunday of the month</small>
+            </span>
+            <DurationBar minutes={null} usual={null} label={`${jobLabel(m.key)}: not due this weekend`} />
+            <span className="dur mut">{m.next ? `next ${weekday(m.next)}` : 'monthly'}</span>
+            <span className="chips">
+              <Chip kind="dim">not due</Chip>
             </span>
           </div>
         ))}

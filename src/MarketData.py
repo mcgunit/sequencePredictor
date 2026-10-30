@@ -49,6 +49,7 @@ Self-check: python3 -m src.MarketData (part of npm test; no network).
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
@@ -169,6 +170,30 @@ CREATE TABLE IF NOT EXISTS model_performance (
     days        INTEGER,
     report      TEXT,
     PRIMARY KEY (model, market)
+);
+-- the crypto order book (src/MarketOrders.py, 30 Oct 2026): Binance 1h bars continuously and 1m bars around every
+-- card publication - a day order bought at ~10:00 UTC cannot be judged on daily bars (the entry price and whether
+-- the day's high came after it are unknown). start is the bar's ISO UTC start; additive, so SCHEMA_VERSION stays 1
+CREATE TABLE IF NOT EXISTS intraday_bars (
+    instrument_id INTEGER NOT NULL REFERENCES instruments(id),
+    interval      TEXT    NOT NULL CHECK (interval IN ('1m', '1h')),
+    start         TEXT    NOT NULL,
+    open          REAL    NOT NULL,
+    high          REAL    NOT NULL,
+    low           REAL    NOT NULL,
+    close         REAL    NOT NULL,
+    volume        REAL,
+    fetched_at    TEXT    NOT NULL,
+    PRIMARY KEY (instrument_id, interval, start)
+);
+-- when a card could first be seen: the first export of a ticket (MarketSettle.export_page_json), first seen only,
+-- so a re-run that restamps madeAt can never move an entry after the fact
+CREATE TABLE IF NOT EXISTS ticket_published (
+    market       TEXT NOT NULL,
+    made_on      TEXT NOT NULL,
+    made_at      TEXT,
+    published_at TEXT NOT NULL,
+    PRIMARY KEY (market, made_on)
 );
 """
 
@@ -398,6 +423,167 @@ def fetch_binance_daily(source_symbol, since=None, now=None, page_size=1000, htt
             break
         start_ms = int(rows[-1][6]) + 1
     return bars
+
+
+# ---------------------------------------------------------------------------
+# Intraday bars (the crypto order book, src/MarketOrders.py - 30 Oct 2026)
+# ---------------------------------------------------------------------------
+
+INTRADAY_SECONDS = {"1m": 60, "1h": 3600}
+# 1h bars from the Monday of the order book's first week (MarketOrders.ORDER_SINCE 13 Oct 2026 lies in the week of
+# 12 Oct); the 1m windows are fetched per card publication (MarketOrders.minute_windows)
+INTRADAY_SINCE = "2026-10-12"
+# what an export-time update reaches back for when nothing is stored yet: a few days, so the first production run
+# after the deploy does not quietly backfill weeks - the one-time backfill is MarketOrders --backfill, with the
+# owner's go (design section 10)
+INTRADAY_LOOKBACK = timedelta(days=3)
+
+
+def _utc(value):
+    """An ISO date or datetime string (or a datetime) as an aware UTC datetime; a bare date is its 00:00 UTC."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    stamp = datetime.fromisoformat(str(value))
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+
+
+def parse_binance_intraday(rows, now_ms):
+    """
+    Binance kline rows (1m or 1h) -> bars keyed by their ISO UTC start. A
+    kline whose close time has not passed is still open and is skipped, as in
+    parse_binance_klines: a stored bar is a closed bar.
+    """
+    bars = []
+    for row in rows:
+        open_ms, open_, high, low, close, volume, close_ms = row[0], row[1], row[2], row[3], row[4], row[5], row[6]
+        if int(close_ms) >= now_ms:
+            continue
+        start = datetime.fromtimestamp(int(open_ms) / 1000, tz=timezone.utc)
+        bars.append({"start": iso(start), "open": float(open_), "high": float(high), "low": float(low),
+                     "close": float(close), "volume": float(volume)})
+    return bars
+
+
+def fetch_binance_klines(source_symbol, interval, start, end, now=None, page_size=1000, http=http_json):
+    """
+    The closed `interval` bars ('1m' or '1h') whose start lies in [start, end),
+    datetimes in UTC; paged by `page_size` like fetch_binance_daily (the next
+    page starts after the last row's close time).
+    """
+    if interval not in INTRADAY_SECONDS:
+        raise ValueError(f"interval {interval!r}: one of {tuple(INTRADAY_SECONDS)}")
+    now = now or utc_now()
+    now_ms = int(now.timestamp() * 1000)
+    start_ms = int(start.timestamp() * 1000)
+    end_ms = min(int(end.timestamp() * 1000), now_ms)
+    bars = []
+    while start_ms < end_ms:
+        query = urllib.parse.urlencode({"symbol": source_symbol, "interval": interval, "limit": page_size,
+                                        "startTime": start_ms, "endTime": end_ms - 1})
+        rows = http(f"{BINANCE_KLINES}?{query}")
+        if not isinstance(rows, list):
+            raise SourceError(f"binance {source_symbol} {interval}: unexpected payload {str(rows)[:80]}")
+        if not rows:
+            break
+        bars.extend(parse_binance_intraday(rows, now_ms))
+        if len(rows) < page_size:
+            break
+        start_ms = int(rows[-1][6]) + 1
+    return bars
+
+
+def upsert_intraday(conn, instrument_id, interval, bars, fetched_at=None):
+    """Writes intraday bars (dicts with start, open, high, low, close, volume) like upsert_bars: a changed bar is updated, an equal one left alone. Returns (inserted, updated)."""
+    stamp = fetched_at or iso(utc_now())
+    inserted = updated = 0
+    for bar in bars:
+        values = tuple(float(bar[k]) for k in ("open", "high", "low", "close"))
+        volume = None if bar.get("volume") is None else float(bar["volume"])
+        existing = conn.execute("SELECT open, high, low, close, volume FROM intraday_bars WHERE instrument_id = ? AND interval = ? AND start = ?",
+                                (instrument_id, interval, bar["start"])).fetchone()
+        if existing is None:
+            conn.execute("INSERT INTO intraday_bars (instrument_id, interval, start, open, high, low, close, volume, fetched_at) "
+                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (instrument_id, interval, bar["start"], *values, volume, stamp))
+            inserted += 1
+        elif tuple(existing[k] for k in ("open", "high", "low", "close")) != values or existing["volume"] != volume:
+            conn.execute("UPDATE intraday_bars SET open = ?, high = ?, low = ?, close = ?, volume = ?, fetched_at = ? "
+                         "WHERE instrument_id = ? AND interval = ? AND start = ?",
+                         (*values, volume, stamp, instrument_id, interval, bar["start"]))
+            updated += 1
+    conn.commit()
+    return inserted, updated
+
+
+def intraday(conn, instrument_id, interval, start, end):
+    """The stored `interval` bars whose start lies in [start, end) (datetimes or ISO strings), oldest first, as dicts."""
+    a = start if isinstance(start, str) else iso(start)
+    z = end if isinstance(end, str) else iso(end)
+    rows = conn.execute("SELECT start, open, high, low, close, volume FROM intraday_bars WHERE instrument_id = ? AND interval = ? "
+                        "AND start >= ? AND start < ? ORDER BY start", (instrument_id, interval, a, z)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_intraday(conn, market="crypto", windows=None, now=None, since=None, http=http_json, log=print):
+    """
+    Brings the intraday store up to date for the active Binance instruments
+    of `market` (a week game reads its base market's): 1h bars from the
+    newest stored hour (else from `since`, else INTRADAY_LOOKBACK back) up to
+    now, then the 1m bars of every window [start, end) in `windows` whose
+    closed part is not fully stored (a window still running is fetched again
+    next time). A source failure is logged per instrument and never raised -
+    the order book shows those positions pending, it never guesses. Returns
+    {symbol: {"1h": inserted, "1m": inserted, "error": text or None}}.
+    """
+    now = now or utc_now()
+    base = base_market(market)
+    out = {}
+    if http is http_json:
+        # a short leash (31 Oct 2026): the default 3 tries x 30 s per request, per instrument and per window, let an
+        # unreachable Binance hold a daily run for up to ~25 min; 2 tries x 10 s, and the first instrument failing on
+        # the source stops the rest (they would fail the same way) - their positions read pending, never guessed
+        http = functools.partial(http_json, timeout=10, retries=2)
+    unreachable = None
+    for member in instruments(conn, base):
+        if member["source"] != "binance":
+            continue
+        summary = out.setdefault(member["symbol"], {"1h": 0, "1m": 0, "error": None})
+        if unreachable:
+            summary["error"] = f"skipped: the source was unreachable for an earlier instrument ({unreachable})"
+            continue
+        try:
+            stored = conn.execute("SELECT MIN(start), MAX(start) FROM intraday_bars WHERE instrument_id = ? AND interval = '1h'",
+                                  (member["id"],)).fetchone()
+            floor = _utc(since) if since else None
+            if stored[1] and not (floor and floor < datetime.fromisoformat(stored[0])):
+                first = datetime.fromisoformat(stored[1]) + timedelta(hours=1)
+            elif floor:
+                first = floor          # nothing stored, or a backfill reaching further back than what is: from `since` (upserts dedupe)
+            else:
+                first = (now - INTRADAY_LOOKBACK).replace(minute=0, second=0, microsecond=0)
+            if first < now:
+                bars = fetch_binance_klines(member["source_symbol"], "1h", first, now, now=now, http=http)
+                summary["1h"] += upsert_intraday(conn, member["id"], "1h", bars)[0]
+            for start, end in windows or []:
+                closed_end = min(end, now.replace(second=0, microsecond=0))
+                if closed_end <= start:
+                    continue
+                expected = int((closed_end - start).total_seconds() // 60)
+                have = conn.execute("SELECT COUNT(*) FROM intraday_bars WHERE instrument_id = ? AND interval = '1m' AND start >= ? AND start < ?",
+                                    (member["id"], iso(start), iso(closed_end))).fetchone()[0]
+                if have >= expected:
+                    continue
+                bars = fetch_binance_klines(member["source_symbol"], "1m", start, end, now=now, http=http)
+                summary["1m"] += upsert_intraday(conn, member["id"], "1m", bars)[0]
+        except SourceError as exc:
+            summary["error"] = str(exc)
+            # an HTTP 4xx is this instrument's own answer (a delisted symbol); anything else is the source itself
+            if not str(exc).startswith("HTTP 4"):
+                unreachable = member["symbol"]
+            log(f"{member['symbol']} intraday: FAILED - {exc}" + (" (the other instruments are skipped this run)" if unreachable else ""))
+        except Exception as exc:     # never let the intraday step break a settlement or a refresh
+            summary["error"] = f"{type(exc).__name__}: {exc}"
+            log(f"{member['symbol']} intraday: FAILED - {summary['error']}")
+    return out
 
 
 YAHOO_CHART = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -1061,6 +1247,58 @@ def _self_check():
     assert d == ["b", "c"] and abs(r[0] - math.log(2)) < 1e-12 and abs(r[1] + math.log(2)) < 1e-12
     assert len(status(conn, today=date(2026, 10, 4))) == 9
     print("series: aligned returns drop the days an instrument lacks; log returns and status lines behave")
+
+    # 8. Intraday bars (the order book, 30 Oct 2026): parse with ISO starts, the open kline skipped, paging,
+    #    upsert idempotence, windows fetched only while their closed part is incomplete, failures never raised.
+    conn.execute("UPDATE instruments SET active = 1")
+    t0 = datetime(2026, 10, 29, 10, 0, tzinfo=timezone.utc)
+    ms = lambda dt: int(dt.timestamp() * 1000)
+    kline = lambda start, seconds, price: [ms(start), str(price), str(price + 1), str(price - 1), str(price + 0.5), "3", ms(start) + seconds * 1000 - 1, "x", 1, "x", "x", "0"]
+    rows = [kline(t0 + timedelta(minutes=i), 60, 100 + i) for i in range(3)]
+    parsed = parse_binance_intraday(rows, ms(t0 + timedelta(minutes=2, seconds=30)))
+    assert [b["start"] for b in parsed] == ["2026-10-29T10:00:00+00:00", "2026-10-29T10:01:00+00:00"], parsed
+    assert parsed[1]["open"] == 101.0 and parsed[1]["high"] == 102.0 and parsed[1]["close"] == 101.5
+    asked = []
+    def fake_klines(url):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        start, end, limit = int(query["startTime"][0]), int(query["endTime"][0]), int(query["limit"][0])
+        step = INTRADAY_SECONDS[query["interval"][0]] * 1000
+        asked.append((query["interval"][0], start))
+        out = []
+        while start <= end and len(out) < limit:
+            out.append(kline(datetime.fromtimestamp(start / 1000, tz=timezone.utc), step // 1000, 100))
+            start += step
+        return out
+    now = t0 + timedelta(hours=2, minutes=30)
+    got = fetch_binance_klines("BTCUSDT", "1m", t0, t0 + timedelta(hours=3), now=now, page_size=100, http=fake_klines)
+    assert len(got) == 150 and len(asked) == 2 and got[-1]["start"] == "2026-10-29T12:29:00+00:00", (len(got), asked[-1])
+    assert len(fetch_binance_klines("BTCUSDT", "1h", t0, now, now=now, http=fake_klines)) == 2      # 12:00 still open
+    btc = instruments(conn, "crypto")[0]
+    assert upsert_intraday(conn, btc["id"], "1m", got[:5], fetched_at="t") == (5, 0)
+    assert upsert_intraday(conn, btc["id"], "1m", got[:5], fetched_at="t") == (0, 0)
+    assert upsert_intraday(conn, btc["id"], "1m", [dict(got[0], high=999.0)], fetched_at="t") == (0, 1)
+    assert [b["high"] for b in intraday(conn, btc["id"], "1m", t0, t0 + timedelta(minutes=2))] == [999.0, 101.0]
+    asked.clear()
+    window = (t0, t0 + timedelta(hours=2))
+    summary = update_intraday(conn, "cryptoweek", windows=[window], now=now, since="2026-10-29", http=fake_klines, log=lambda *_: None)
+    assert set(summary) == {"BTC", "ETH", "BNB", "XRP", "SOL"} and summary["ETH"] == {"1h": 12, "1m": 120, "error": None}, summary   # 00:00-11:00, 12:00 still open
+    assert summary["BTC"]["1m"] == 115, summary["BTC"]      # five minutes were stored already
+    asked.clear()
+    again = update_intraday(conn, "crypto", windows=[window], now=now, http=fake_klines, log=lambda *_: None)
+    assert all(v == {"1h": 0, "1m": 0, "error": None} for v in again.values()) and all(a[0] == "1h" for a in asked), (again, asked)
+    broken = update_intraday(conn, "crypto", windows=[window], now=now + timedelta(hours=2), http=lambda url: {"code": -1121},
+                             log=lambda *_: None)
+    errors = [v["error"] for v in broken.values()]
+    assert "unexpected payload" in errors[0] and all(e.startswith("skipped: the source was unreachable") for e in errors[1:]) and len(errors) > 1, broken
+    # a source failure stops the other instruments (one short wait, not one per coin); an HTTP 4xx is the symbol's own
+    calls = []
+    def gone(url):
+        calls.append(url)
+        raise SourceError("HTTP 400 from https://api.binance.com/api/v3/klines")
+    own = update_intraday(conn, "crypto", windows=[window], now=now + timedelta(hours=3), http=gone, log=lambda *_: None)
+    assert all(v["error"].startswith("HTTP 400") for v in own.values()) and len(calls) == len(own), (own, len(calls))
+    print("intraday: ISO starts, open kline skipped, paging, upserts idempotent, a stored window is not fetched again, a failure is reported, not raised, "
+          "a source failure skips the other instruments, a 4xx does not")
     print("MarketData self-check OK")
 
 

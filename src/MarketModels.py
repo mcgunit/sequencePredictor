@@ -452,6 +452,17 @@ def _log_gaussian(X, mean, cov):
     return -0.5 * (d * math.log(2 * math.pi) + logdet + maha)
 
 
+# A Dirichlet prior of one pseudo-transition per cell of the transition matrix
+# (30 Oct 2026, owner's decision on the 26 Oct reading): EM's maximum
+# likelihood keeps a transition it never saw at exactly 0, so K=4-5 fits on
+# the ~100 rows of a week game ended with absorbing regimes - a regime the
+# chain can enter but never leave, the root of the 0/0 the log-space passes
+# now survive. The M-step takes the posterior mode instead: (expected
+# transitions + 1) / (row total + K). On a daily game's ~1000 rows it moves a
+# probability by about 1/rows; on a week game's 100 it keeps every exit open.
+TRANSITION_PSEUDOCOUNT = 1.0
+
+
 class GaussianHMM:
     """
     Full-covariance Gaussian HMM fitted by EM (Baum-Welch) with scaled
@@ -481,8 +492,10 @@ class GaussianHMM:
     the served fits agree with the scaled numbers to ~1e-12.
     """
 
-    def __init__(self, n_states, n_iter=100, tol=1e-5, min_covar=1e-4, shrinkage=0.1, zero_mean_dims=None, block=None, seed=0):
+    def __init__(self, n_states, n_iter=100, tol=1e-5, min_covar=1e-4, shrinkage=0.1, zero_mean_dims=None, block=None, seed=0,
+                 transition_prior=TRANSITION_PSEUDOCOUNT):
         self.K = int(n_states)
+        self.transition_prior = float(transition_prior)
         self.n_iter = int(n_iter)
         self.tol = float(tol)
         self.min_covar = float(min_covar)
@@ -722,8 +735,9 @@ class GaussianHMM:
             gamma, xi, loglik = self._expectations(logB)
             # M-step
             if self.K > 1:
-                rows = xi.sum(axis=1, keepdims=True)
-                self.transmat = np.where(rows > 0, xi / np.where(rows > 0, rows, 1.0), 1.0 / self.K)
+                counts = xi + self.transition_prior          # the Dirichlet prior's mode (TRANSITION_PSEUDOCOUNT)
+                rows = counts.sum(axis=1, keepdims=True)
+                self.transmat = np.where(rows > 0, counts / np.where(rows > 0, rows, 1.0), 1.0 / self.K)
             self.startprob = np.clip(gamma[0], 1e-12, None)
             self.startprob /= self.startprob.sum()
             Nk = gamma.sum(axis=0)
@@ -1320,6 +1334,13 @@ def _self_check():
     accuracy = max((decoded == states).mean(), (decoded != states).mean())
     assert accuracy > 0.9, accuracy
     assert hmm.converged and np.allclose(hmm.transmat.sum(axis=1), 1)
+    # the transition prior (30 Oct 2026): a fit on a short history whose second regime is never left keeps every
+    # transition open - no exact 0 in the fitted matrix; without the prior EM keeps the unseen exit at 0
+    absorb = np.concatenate([rng.standard_normal((60, d)) * 0.5, rng.standard_normal((40, d)) * 2.0 + 0.3])
+    open_fit = GaussianHMM(2, seed=1).fit(absorb)
+    mle_fit = GaussianHMM(2, seed=1, transition_prior=0.0).fit(absorb)
+    assert open_fit.transmat.min() > 0.005, open_fit.transmat
+    assert mle_fit.transmat.min() < open_fit.transmat.min(), (mle_fit.transmat, open_fit.transmat)
     row = RegimeHmmModel(variant="full", regimes=(1, 4), features=("returns",), penalty=1.0, validation=300, restarts=1)
     K_sel, scores = row.select_regimes(X, list(range(d)), [])
     assert K_sel == 2, (K_sel, {k: round(v["score"], 1) for k, v in scores.items()})

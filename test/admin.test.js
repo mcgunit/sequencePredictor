@@ -195,7 +195,9 @@ function oldRankingFor(dataPath, game) {
     const old = JSON.parse(fs.readFileSync(path.join(dataPath, 'modelPerformance.json'), 'utf-8'));
     const info = old.games && old.games[game];
     if (!info || !Array.isArray(info.models) || !info.models.length) return null;
-    return { names: info.models.map((m) => String(m.name)), metric: info.metric === 'profit_bound' ? 'capped profit per bet (lower bound)' : (info.metric === 'profit_per_bet' ? 'profit per bet' : 'average hits') };
+    // a game ranked on the live record (rankedOn 'live', reports from 27 Oct 2026 on) says so in its metric's words
+    const live = info.rankedOn === 'live' ? ' over the tickets saved before each draw\'s sales close' : '';
+    return { names: info.models.map((m) => String(m.name)), metric: (info.metric === 'profit_bound' ? 'capped profit per bet (lower bound)' : (info.metric === 'profit_per_bet' ? 'profit per bet' : 'average hits')) + live };
   } catch (e) { return null; }
 }
 // generateTable's old pick of the shown rows: the first five ranked names present in the day's table
@@ -702,7 +704,8 @@ ok(lives.band.modes.length === 1 && lives.band.modes[0].at === '2026-10-18T10:00
 const TEST_JOBS = [
   { key: 'predictor', name: 'Daily predictor', log: 'predictor.log', daily: { hour: 9, minute: 0 } },
   { key: 'hyperoptStatistics', name: 'Weekly tuning: statistical models', log: 'hyperoptStatistics.log', plan: 'weeklyTuning' },
-  { key: 'nullControls', name: 'Weekly controls: null histories (Q0 band, context)', log: 'nullControls.log', plan: 'weeklyControls' },
+  // monthly since 1 Nov 2026 (jobs.js monthly; admin's job list adds the plan's weekday): weekly before it
+  { key: 'nullControls', name: 'Monthly controls: null histories (Q0 band, context)', log: 'nullControls.log', plan: 'weeklyControls', monthly: { since: '2026-11-01', weekday: 0 } },
 ];
 const Z = (iso) => Date.parse(iso);
 const runOf = (key, startIso, minutes, exit = 0, extra = {}) => ({ at: Z(startIso), finishedAt: Z(startIso) + minutes * 60000, key, name: key, reason: 'test', seconds: minutes * 60, exit, sha: 'abc12345', ...extra });
@@ -725,7 +728,7 @@ writeLog('hyperoptStatistics.log', [
   slice('Weekly tuning: statistical models', '2026-10-10 08:52:22', ['LOCKBOX: 2 days withheld', 'LOCKBOX: again', '/x/foo.py:12: UserWarning: careful'], 0, 7200),
   slice('Weekly tuning: statistical models', '2026-10-17 09:00:01', ['LOCKBOX: 1 day withheld', '/src/MarketModels.py:448: RuntimeWarning: invalid value encountered in divide',
     'Traceback (most recent call last):', '  the gate: standard error 0.0883', 'TF-TRT Warning: Could not find TensorRT'], 0, 18000)]);
-writeLog('nullControls.log', [slice('Weekly controls: null histories (Q0 band, context)', '2026-10-18 10:00:01', ['/src/MarketModels.py:448: RuntimeWarning: invalid value'], 1, 45600)]);
+writeLog('nullControls.log', [slice('Monthly controls: null histories (Q0 band, context)', '2026-10-18 10:00:01', ['/src/MarketModels.py:448: RuntimeWarning: invalid value'], 1, 45600)]);
 writeLog('predictor.log', ['2026-10-12', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21']
   .map((d) => slice('Daily predictor', `${d} 07:00:02`, ['saving_lib.py:1: UserWarning: keras', ...(d === '2026-10-21' ? ['Traceback (most recent call last):'] : [])], 0, 6000)));
 ok(admin.slicesOf('=== scheduler: J started 2026-10-18 10:00:01 UTC ===\nZeroDivisionError: x\n=== scheduler: J started 2026-10-18 11:00:01 abc UTC ===\nstill running').map((s) => `${s.status}:${Object.keys(s.sig)}`).join('|')
@@ -1018,6 +1021,18 @@ async function phaseTwo() {
   ok(joined('2026-10-25').expected === 4 && !joined('2026-10-25').missing.some((e) => e.key === 'kenoSubsetTuning')
     && joined('2026-10-24').expected === 5 && joined('2026-10-24').missing.some((e) => e.key === 'kenoSubsetTuning'),
     'week: a job that joined on the Sunday of a weekend is not expected of it, one that joined on its Saturday is');
+  // the monthly Q0 band (30 Oct 2026): expected of the weekend whose Sunday is the month's first, not of the others -
+  // there it is not due (never missing), with the Sunday it runs next
+  const satAt = (iso) => view(iso, { current: { key: 'predictor', name: 'Daily predictor', startedAt: Z(iso) - 3600000 } }).tiles.weekend;
+  const firstSunday = satAt('2026-10-31T08:00:00Z');
+  ok(firstSunday.expected === 4 && firstSunday.missing.map((e) => `${e.key}${e.day ? `@${e.day}` : ''}`).join() === 'predictor@2026-11-01,hyperoptStatistics,nullControls'
+    && firstSunday.notDue.length === 0, `week: the weekend of the first Sunday (1 Nov 2026) expects the band, and lists it while it has not run: ${JSON.stringify(firstSunday.missing)}`);
+  const secondSunday = satAt('2026-11-07T08:00:00Z');
+  ok(secondSunday.expected === 3 && !secondSunday.missing.some((e) => e.key === 'nullControls')
+    && JSON.stringify(secondSunday.notDue) === '[{"key":"nullControls","monthly":true,"next":"2026-12-06"}]',
+    `week: a second Sunday's weekend does not list the band as missing - not due, next on the first Sunday of December: ${JSON.stringify(secondSunday)}`);
+  ok(satAt('2026-11-28T08:00:00Z').notDue[0].next === '2026-12-06' && satAt('2026-12-05T08:00:00Z').missing.some((e) => e.key === 'nullControls'),
+    'week: the last weekend of November names 6 Dec, and the weekend of 6 Dec expects the band again');
   const weekRoute = (await requestAsync(app2, '/api/admin/week', ADMIN)).body;
   ok(weekRoute.since.council.healthy === true && weekRoute.since.council.since === '2026-10-20T20:16:00Z' && weekRoute.since.lock.held === true && weekRoute.matrix.games.length === 11,
     'week route: the live parts from the modules the server passes');
