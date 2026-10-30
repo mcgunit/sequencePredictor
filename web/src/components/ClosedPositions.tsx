@@ -1,8 +1,26 @@
 import { useState } from 'react';
 import type { ClosedPosition } from '../api';
-import { DASH, cap, day, money, pct, signClass } from '../format';
+import { DASH, cap, day, money, pct, rate, signClass } from '../format';
 
 const NEWEST = 10;
+// an order position's exit (api.js orderExitText): its kind as a chip, then when
+const EXIT_CHIP: Record<string, { label: string; chip: string }> = {
+  limit: { label: 'limit filled', chip: 'up' }, 'next card': { label: 'next card', chip: 'flat' }, early: { label: 'daily call not up', chip: 'down' },
+  fallback: { label: 'fallback time', chip: 'flat' }, close: { label: '00:00 UTC', chip: 'flat' },
+};
+const EXIT_PREFIX = /^(limit filled|daily call not up, at market|next card, at market|no next card, at market \(fallback\)|00:00 UTC close) ?/;
+function ExitCell({ r }: { r: ClosedPosition }) {
+  const k = r.exitKind ? EXIT_CHIP[r.exitKind] : null;
+  if (!k) return <>{r.exit || DASH}</>;
+  const title = [r.entryPrice ? `bought at ${rate(r.entryPrice)}` : '', r.exitPrice ? `sold at ${rate(r.exitPrice)}` : '', r.estimated ? 'the card time is estimated (15 min after the ticket)' : '']
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <span className="ord-exit" title={title || undefined}>
+      <span className={`chip ${k.chip}`}>{k.label}</span> {r.exit.replace(EXIT_PREFIX, '')}
+    </span>
+  );
+}
 
 // Text columns first, the two numbers at the right edge, as in the open positions.
 export default function ClosedPositions({ closed, noun, pending }: { closed: ClosedPosition[]; noun: string; unit?: string; pending?: boolean }) {
@@ -44,7 +62,9 @@ export default function ClosedPositions({ closed, noun, pending }: { closed: Clo
                         <span className="tag">{r.game || DASH}</span>
                       </td>
                       <td className="hide-sm">{r.model ? <span className="chip model">{short(r.model)}</span> : <span className="mut">{DASH}</span>}</td>
-                      <td className="hide-sm mut">{r.exit || DASH}</td>
+                      <td className="hide-sm mut">
+                        <ExitCell r={r} />
+                      </td>
                       <td className={`num ${signClass(r.movePct)}`}>{pct(r.movePct)}</td>
                       <td className={`num strong ${cls}`}>{money(r.pnl)}</td>
                     </tr>

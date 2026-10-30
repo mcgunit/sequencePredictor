@@ -1008,3 +1008,13 @@ nav.side .foot.theme .seg button { padding: 3px 9px; font-size: var(--fs-xs); }
 .tbl.tix th:first-child, .tbl.tix td.mdl { position: sticky; left: 0; z-index: 1; }
 .tbl.tix th:first-child { background: var(--card); }
 .tbl.tix td.mdl { box-shadow: inset -1px 0 0 var(--line); }
+
+/* the crypto order card (api.js order rows, 30 Oct 2026): the reader's situations under each coin row */
+.tbl tr.ord-top td { border-bottom: 0; padding-bottom: 4px; }
+.tbl tr.ord-lines td { padding-top: 0; font-size: var(--fs-sm); color: var(--muted); white-space: normal; }
+.tbl tbody tr.ord-lines:hover td { background: none; }
+.ord-b { margin: 2px 0 4px; max-width: 110ch; }
+.ord-b b { color: var(--fg); font-weight: 600; }
+.ord-b.warn { color: var(--warn); }
+.plines .ord-h { font-size: var(--fs-xs, 12px); text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
+.ord-exit .chip { margin-right: 2px; }

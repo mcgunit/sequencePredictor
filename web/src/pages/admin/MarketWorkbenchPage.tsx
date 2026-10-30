@@ -10,6 +10,7 @@ import BooksCard from './workbench/BooksCard';
 import FollowedCard from './workbench/FollowedCard';
 import InstrumentsCard from './workbench/InstrumentsCard';
 import ModelsCard from './workbench/ModelsCard';
+import OrdersCard from './workbench/OrdersCard';
 import { BackgroundCard, DaysCard, GuardCard, RegimesCard } from './workbench/MoreCards';
 import { PlanCard, WeekGameCard } from './workbench/PlanCards';
 
@@ -58,6 +59,7 @@ export default function MarketWorkbenchPage() {
       <div className="stack">
         <PlanCard w={w} />
         <WeekGameCard w={w} />
+        <OrdersCard w={w} />
         <FollowedCard w={w} />
         <BooksCard w={w} />
         <ModelsCard w={w} />

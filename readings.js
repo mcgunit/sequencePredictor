@@ -3,11 +3,14 @@
 // 5% against what chance puts there, holds, the rows followed and confirmed on new draws; the band as context), Q2's real,
 // shuffled and threshold AUC with its seeds and test windows; each feature-control variant's verdict, noise ratio
 // and held-out AUC; every market row against uniform and against GARCH - each part with its own record's time.
-// data/controls/ is gitignored and overwritten every Sunday; a reading is not: it is tracked in git (the daily
+// data/controls/ is gitignored and overwritten by every control run; a reading is not: it is tracked in git (the daily
 // commit's `git add -A` sweeps it in), so "week after week" becomes something the admin pages can count ("2nd week
 // above") instead of a memory note.
 //
-// jobs.js writes it when the Sunday plan's last job (nullControls) finishes, whatever its exit code. The CLI rebuilds
+// jobs.js writes it when the Sunday plan's last job (marketRows) finishes, whatever its exit code - every week: the Q0
+// band (nullControls) is monthly since 1 Nov 2026 (the owner's decision of 30 Oct 2026), the first job of the first
+// Sunday of the month, so on the other Sundays the reading carries the latest band as context with its own time (and
+// names it in notThisWeek, as any record from another week). The CLI rebuilds
 // a week or backfills one from a copy of that week's records:
 //   node readings.js --controls <dir> --sunday YYYY-MM-DD [--database <dir>] [--out <dir>] [--note <text>]
 // --database: the data/database folder whose modelPerformance.json holds the Q0 row tests, by default this
@@ -94,7 +97,9 @@ const pm3 = (x) => (x === null || x === undefined ? '' : `±${f3(x)}`);
 const f2 = (x) => (x === null || x === undefined ? '-' : Number(x).toFixed(2));
 function q0Line(q, unit) {
   if (!q) return 'Q0 none';
-  const band = q.band ? ` (band ${f3(q.band.ceiling)}, context)` : '';
+  // the band's date: its older control record's day - monthly since 1 Nov 2026, so most weeks it is an earlier Sunday's
+  const bandDays = Object.values(q.modes || {}).map((m) => m && m.at).filter(Boolean).sort();
+  const band = q.band ? ` (band ${f3(q.band.ceiling)}${bandDays.length ? ` of ${String(bandDays[0]).slice(0, 10)}` : ''}, context)` : '';
   if (!q.rule) return `Q0 band rule: ${Array.isArray(q.above) ? `${q.above.length} above` : 'no ranking'}${band}`;
   const t = q.test;
   if (!t) return `Q0 no row test (${q.error || 'not in the report'})${band}`;

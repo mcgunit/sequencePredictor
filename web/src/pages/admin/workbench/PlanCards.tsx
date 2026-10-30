@@ -1,6 +1,6 @@
 import { Card, Scroll } from '../../../components/admin/Card';
 import { DASH, day, dayYear, isNum, money, pct, rate, share, short, stamp, time, unsigned } from '../../../format';
-import type { BookLine, Call, Plan, RecordMix, SoFar, WeekCard, Workbench } from '../../../workbench';
+import type { BookLine, Call, OrderShadow, Plan, RecordMix, SoFar, WeekCard, Workbench } from '../../../workbench';
 
 // Today's plan and the week game in their admin detail (C2, C3). Each card opens with its labelled lines (the 13 Oct
 // plan-card rule): one model's calls - whose they are and why that model; following this card so far - what doing
@@ -87,6 +87,46 @@ function SoFarLine({ s, w, weekly, caveat }: { s: SoFar | null; w: Workbench; we
   );
 }
 
+// The order card's lines as the user card would say them now (api.js, from the reader's side), next to the current card:
+// a shadow while ORDERS_SHOWN_FROM is not set. "Following this card so far" counts from the order book's own start.
+// Folded, as every collapsible; the book's own code is shown after each coin in grey.
+export function OrderShadowBlock({ sh, w, weekly }: { sh: OrderShadow | null | undefined; w: Workbench; weekly: boolean }) {
+  if (!sh) return null;
+  const from = w.orders?.[weekly ? 'week' : 'day']?.since ?? null;
+  const shown = w.orders?.shownFrom ?? null;
+  return (
+    <details className="fold">
+      <summary>
+        The order card: what the user card would say now <span className="mut">· {shown ? `shown to users from ${day(shown)}` : 'a shadow, not shown to users yet'} · variant {sh.variant}</span>
+      </summary>
+      <div className="plines">
+        <p>
+          <span className="lbl">Following this card so far (order rule{from ? `, since ${day(from)}` : ''}).</span> {sh.soFar.text}
+        </p>
+        {sh.rows.map((r) => (
+          <p key={r.symbol}>
+            <span className="lbl">
+              {r.symbol} · {r.chip}
+            </span>{' '}
+            <span className="mut">({r.status})</span>{' '}
+            {r.branches.map((b, i) => (
+              <span key={i} className={b.belowEntry ? 'warn' : undefined}>
+                {b.who ? <b>{b.who}:</b> : null} {b.text}{' '}
+              </span>
+            ))}
+          </p>
+        ))}
+        {sh.none.length ? <p className="mut">Call not up, no order: {sh.none.map((n) => `${n.symbol} (${n.call})`).join(', ')}.</p> : null}
+        {sh.newcomer ? (
+          <p>
+            <span className="lbl">Newcomer entries so far.</span> {sh.newcomer.text.replace(/^Newcomer entries so far \(a separate record\): /, 'A separate record: ')}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 const PLAN_ORDER: Record<string, (p: Plan, c: Call | null) => string> = {
   'no-call': (p) => `no call from ${short(p.model)}`,
   'no-buy': (_p, c) => `no buy: the call is ${c?.word ?? 'not up'}`,
@@ -129,6 +169,7 @@ export function PlanCard({ w }: { w: Workbench }) {
             band; the band only says when the call counts as right.
           </p>
         </div>
+        <OrderShadowBlock sh={p.orders} w={w} weekly={false} />
       </div>
       <Scroll>
         <table className="tbl">
@@ -218,6 +259,7 @@ export function WeekGameCard({ w }: { w: Workbench }) {
               : `The user pages count this week as the plain week; they follow the guard from the week of ${day(wk.guard.from)} (its record is under The guard).`}
           </p>
         </div>
+        <OrderShadowBlock sh={wk.orders} w={w} weekly />
       </div>
       <Scroll>
         <table className="tbl">

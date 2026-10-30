@@ -1,10 +1,15 @@
-import type { Band, Guard, MarketView, OpenPosition, OpenStatus, Quotes } from '../api';
+import type { Band, Guard, MarketView, OpenPosition, OpenStatus, OrderBranch, OrdersView, Quotes } from '../api';
 import { DASH, cap, day, int, isNum, pct, rate, time } from '../format';
 import NoneChips from './NoneChips';
 
-const STATUS_CHIP: Record<OpenStatus, string> = { 'buy now': 'act', 'buy at open': 'act', held: 'up', 'too late': 'flat', sold: 'flat', out: 'flat' };
+const STATUS_CHIP: Record<OpenStatus, string> = {
+  'buy now': 'act', 'buy at open': 'act', held: 'up', 'too late': 'flat', sold: 'flat', out: 'flat',
+  'hold (rolled)': 'up', 'sell now': 'down', 'no order': 'flat', 'not bought': 'flat',
+};
 // The Buy column: the chip says what to do, the line under it when.
 function buyCell(p: OpenPosition): { chip: string; text: string; sub: string | null } {
+  // an order row: the reader's words (api.js), never the book's code
+  if (p.order) return { chip: p.order.chip || cap(p.status), text: '', sub: p.status === 'buy now' ? 'market order' : null };
   const when = p.buyText && p.buyText !== DASH ? p.buyText : null;
   if (p.status === 'held') return { chip: 'Held', text: '', sub: when ? `bought ${when}` : null };
   if (p.status === 'too late') return { chip: 'Too late', text: '', sub: null };
@@ -71,8 +76,8 @@ function Row({
 }) {
   // Only a held position has a live move: a "buy now" row has nothing to measure yet, a "too late" or "sold"
   // row was sold at the close - its result comes with the morning run - and an "out" row holds nothing.
-  const held = p.status === 'held';
-  const late = p.status === 'too late' || p.status === 'sold';
+  const held = p.status === 'held' || p.status === 'hold (rolled)' || p.status === 'sell now';
+  const late = !p.order && (p.status === 'too late' || p.status === 'sold');
   const live = held && isNum(quote) && isNum(p.openRate) && p.openRate > 0 ? (quote / p.openRate - 1) * 100 : null;
   const move = late ? null : (live ?? p.profitPct ?? p.profitPctClose);
   const cls = isNum(move) ? (move > 0 ? 'pos' : move < 0 ? 'neg' : 'mut') : 'mut';
@@ -91,8 +96,10 @@ function Row({
   const guard = guardOf(p);
   const buy = buyCell(p);
   const model = p.game === 'week' ? models.week : models.day;
+  const cols = withCall ? 7 : 6;
   return (
-    <tr>
+    <>
+    <tr className={p.order ? 'ord-top' : undefined}>
       <td className="sym" title={[coinTitle, model ? `${p.game === 'week' ? 'Weekly' : 'Daily'} model: ${model}` : ''].filter(Boolean).join(' · ') || undefined}>
         {p.symbol || DASH}
         <span className="tag">{p.game || DASH}</span>
@@ -148,6 +155,72 @@ function Row({
         {isNum(quote) ? <span className="sub show-sm">now {rate(quote)}</span> : null}
       </td>
     </tr>
+    {p.order && p.order.branches.length ? (
+      <tr className="ord-lines">
+        <td colSpan={cols}>
+          {p.order.branches.map((b, i) => (
+            <Branch key={i} b={b} quote={quote} />
+          ))}
+        </td>
+      </tr>
+    ) : null}
+    </>
+  );
+}
+
+// One reader situation of an order row. A late entry ("still good to enter") is hidden by the live quote once the price
+// is within its gap of the limit: the record booked it at the card's price, a reader buys at today's.
+function Branch({ b, quote }: { b: OrderBranch; quote: number | undefined }) {
+  const tooClose = b.late && isNum(quote) && quote > 0 && Math.log(b.late.limit / quote) < b.late.minGapPct / 100;
+  return (
+    <p className={b.belowEntry ? 'ord-b warn' : 'ord-b'}>
+      {b.who ? <b>{b.who}:</b> : null}{' '}
+      {tooClose ? `no order now: the live price ${rate(quote)} is within ${b.late?.minGapPct}% of the limit ${rate(b.late?.limit)}, too close to enter late.` : b.text}
+    </p>
+  );
+}
+
+// The order cards' labelled lines (the plan-card rule): one model's calls, following this card so far, the card's day,
+// the sell - each caveat on the line whose number it qualifies. The day adds the newcomer entries' own record (a roll
+// card's buy for the reader who did not buy before), the week the late entries' - neither is in "following so far".
+function OrderLines({ o }: { o: OrdersView }) {
+  const card = (c: OrdersView['day'], name: string) =>
+    c ? (
+      <div className="plines">
+        <p className="ord-h">{name}</p>
+        {c.lines.model ? (
+          <p>
+            <span className="lbl">One model&apos;s calls.</span> {c.lines.model}
+          </p>
+        ) : null}
+        <p>
+          <span className="lbl">Following this card so far (order rule, since {day(o.from)}).</span> {c.lines.soFar}
+        </p>
+        {c.card && c.lines.today ? (
+          <p>
+            <span className="lbl">{c.lines.today}</span> the orders are in the table below.
+          </p>
+        ) : null}
+        <p>
+          <span className="lbl">Sell.</span> {c.lines.sell}
+        </p>
+        {c.lines.newcomerRecord ? (
+          <p>
+            <span className="lbl">Newcomer entries so far.</span> {c.lines.newcomerRecord.replace(/^Newcomer entries so far \(a separate record\): /, 'A separate record: ')}
+          </p>
+        ) : null}
+        {c.lines.lateRecord ? (
+          <p>
+            <span className="lbl">Late entries so far.</span> {c.lines.lateRecord.replace(/^Late entries so far \(a separate record\): /, 'A separate record: ')}
+          </p>
+        ) : null}
+      </div>
+    ) : null;
+  return (
+    <div className="card-b">
+      {card(o.day, 'Day card')}
+      {card(o.week, 'Week card')}
+    </div>
   );
 }
 
@@ -166,7 +239,7 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
   const weekTitle = w ? `${w.model ?? 'no model'}${isNum(w.modelCount) ? `, one of ${w.modelCount} models` : ''}${w.ruleName ? `, ${w.ruleName}` : ''}: ${pickNote(w)}.` : '';
   const models = { day: short(d?.model), week: short(w?.model) };
   // the daily-call column whenever there is a week position: it is what the week position is watched by
-  const withCall = open.some((p) => p.guard || p.game === 'week');
+  const withCall = open.some((p) => p.guard || (p.game === 'week' && !p.order));
   const unbooked = open.some((p) => p.guard && p.guard.booked === false);
 
   return (
@@ -190,6 +263,7 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
           </span>
         ) : null}
       </div>
+      {data.orders ? <OrderLines o={data.orders} /> : null}
       <div className="card-b flush">
         <div className="scroll">
           <table className="tbl">
@@ -232,12 +306,12 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
         <div className="nones">
           <NoneChips label="Not traded today" calls={none.day} total={instruments.length} />
           <NoneChips
-            label={w?.guarded ? 'Week call not up' : 'Not held this week'}
-            title={w?.guarded ? 'the weekly model does not call these up: no week position this week' : undefined}
+            label={w?.guarded || w?.orders ? 'Week call not up' : 'Not held this week'}
+            title={w?.guarded || w?.orders ? 'the weekly model does not call these up: no week order this week' : undefined}
             calls={none.week}
             total={instruments.length}
           />
-          {market === 'crypto' && notes.entry ? (
+          {market === 'crypto' && notes.entry && !data.orders ? (
             <span className="chip warn" title={notes.entryText || notes.entry}>
               {notes.entry}
             </span>
@@ -250,6 +324,7 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
         </div>
         <details className="help">
           <summary>How to read this</summary>
+          {data.orders ? null : (
           <p>
             Buy and Sell are the orders: a day position is bought when you read this and sold at the close shown. {notes.closeDay || ''} A week
             position is sold at the week's end{w?.guardOrders ? ' at the latest; the guard can sell it sooner' : ''}. Every sell is a market order at
@@ -259,13 +334,23 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
               ? 'The Guard column watches a week position with the daily call: Buy on an up call, Hold while it stays up, Sell at today\'s close when it is flat or down, Out until the next up call brings it back.'
               : 'The Guard column shows the daily call next to a week position, as information.'}
           </p>
-          {notes.entryText ? <p>{notes.entryText}</p> : d?.entryNote ? <p>{d.entryNote}</p> : null}
+          )}
+          {data.orders ? null : notes.entryText ? <p>{notes.entryText}</p> : d?.entryNote ? <p>{d.entryNote}</p> : null}
           {open.some((p) => isNum(p.size)) ? (
             <p>
               A ×N in the Buy column is the daily model&apos;s position size: N times the paper stake{isNum(d?.stake) ? ` of ${d.stake} ${data.unit}` : ''}.
             </p>
           ) : null}
-          {notes.guardText ? <p>{notes.guardText}</p> : null}
+          {data.orders ? (
+            <p>
+              From {day(data.orders.from)} the crypto cards are orders: buy at market when the card appears, place the sell limit shown, and sell at market at the
+              next card of the same game if the limit has not filled (a week position also when a daily card turns the coin flat or down). Each order row says what to
+              do for your own situation - whether you bought on an earlier card or not. When a card calls a coin you could already hold up again, a reader who did
+              not buy before gets a buy line of its own: those newcomer entries are counted in their own record, not in &quot;following this card so far&quot;. The
+              record buys at the price when the card appeared; prices are Binance USDT.
+            </p>
+          ) : null}
+          {notes.guardText && !w?.orders ? <p>{notes.guardText}</p> : null}
           {generatedAt ? (
             <p>
               Plan generated {day(generatedAt)} {time(generatedAt)} (Belgian time).

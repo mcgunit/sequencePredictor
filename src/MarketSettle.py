@@ -72,6 +72,9 @@ FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell
 # opens (asked for on 4 Oct 2026). Crypto's UTC day opens at the previous
 # close, so its open book would repeat the daily one and is not exported.
 OPEN_RULE_MARKETS = ("shares", "sharesweek")
+# the markets that carry the crypto ORDER BOOK (trading["orders"], src/MarketOrders.py - 30 Oct 2026); the same
+# tuple as MarketOrders.ORDER_MARKETS, kept here so this module never imports that one at load (it imports this)
+ORDER_MARKETS = ("crypto", "cryptoweek")
 CHART_DAYS = 365       # closes and predicted course the page draws (a year; the chart zooms)
 TOP_MODELS = 3         # models whose predicted course is drawn (plus every model in the next-day table)
 DAY_RECORDS = 30       # settled days the page lists day by day, newest first
@@ -1294,6 +1297,31 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     followed = followed_plan(conn, market, book, path=path, k=k)
     # the week game played with the daily guard - the user page's week positions (GUARD_RULE)
     guarded = guarded_week(conn, market, path, followed, k) if is_week_game(market) else None
+    upcoming = next_day_predictions(conn, market, path)
+    # the crypto ORDER BOOK (src/MarketOrders.py, 30 Oct 2026): the card's publication is stamped on its first export
+    # (first seen only: the export whose old page did not show it yet; PUBLISH_RECORD_WINDOW when the old page is unreadable), then the books are built - an
+    # Admin-only block until the user pages switch (markets.js ORDERS_SHOWN_FROM). Never allowed to break the page.
+    orders = None
+    if market in ORDER_MARKETS:
+        try:
+            try:
+                from src.MarketOrders import orders_record, record_publication
+            except ImportError:
+                from MarketOrders import orders_record, record_publication
+            if upcoming and upcoming.get("made_on"):
+                # 31 Oct 2026 (review): whether the page being replaced already showed this ticket - only the first
+                # showing is its publication (record_publication); None when the old page cannot be read
+                shown_before = None
+                try:
+                    with open(os.path.join(path, "data", "markets", f"{market}.json")) as handle:
+                        shown_before = ((json.load(handle).get("next") or {}).get("made_on") == upcoming["made_on"])
+                except (OSError, ValueError, AttributeError):
+                    shown_before = None       # no page yet (a fresh root) or unreadable: the 3-hour window decides
+                record_publication(conn, market, upcoming["made_on"], upcoming.get("made_at"), shown_before=shown_before)
+            orders = orders_record(conn, path, market, followed=followed)
+        except Exception as exc:
+            print(f"{market}: order book not exported - {type(exc).__name__}: {exc}")
+            orders = None
     book.pop("_counts", None)
     if market not in OPEN_RULE_MARKETS:
         book.pop("open", None)
@@ -1345,8 +1373,9 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
                     "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
                     **({"open_rule": "the same calls, but the stake is bought at the session's open and sold at its close, a fee on each leg: the rule a reader of the page can follow"} if "open" in book else {}),
                     "short_rule": "with shorts on, a bin in the lower half is a short: sold at the previous close and bought back at the day's close (daily), kept while the call stays down (hold), sold at the open and bought back at the close (open to close); paper only - selling what one does not own needs a margin or derivatives account",
-                    **book, "followed": followed, **({"guarded": guarded} if guarded is not None else {})},
-        "next": next_day_predictions(conn, market, path),
+                    **book, "followed": followed, **({"guarded": guarded} if guarded is not None else {}),
+                    **({"orders": orders} if orders is not None else {})},
+        "next": upcoming,
         "daily": daily_series(conn, market)[-chart_days:],
         "days": day_records(conn, market, days=DAY_RECORDS, k=k),
     }
@@ -1357,8 +1386,14 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
     return out, record
 
 
-def settle_and_export(path, market, db_path=None, log=print, fee=FEE):
-    """Predictor.py's hook after a market game's day: settle what can be settled, export the page and the CSVs."""
+def settle_and_export(path, market, db_path=None, log=print, fee=FEE, fetch=True):
+    """
+    Predictor.py's hook after a market game's day: settle what can be settled, export the page and the CSVs.
+    For the crypto order markets with fetch on (30 Oct 2026; MarketsDaily.py --no-fetch passes False) the
+    intraday bars are brought up to date first - the 1h bars and the 1m windows of the cards of the last
+    days, the card being published included: a day order's deadline is the publication of this very run's
+    card, after the morning's daily_refresh. Without them a position is pending, never guessed.
+    """
     try:
         from src.MarketData import DEFAULT_DB, connect
     except ImportError:
@@ -1366,6 +1401,17 @@ def settle_and_export(path, market, db_path=None, log=print, fee=FEE):
     conn = connect(db_path or os.path.join(path, DEFAULT_DB))
     try:
         days, written = settle_market(conn, path, market, fee=fee, log=log)
+        if fetch and market in ORDER_MARKETS:
+            # 31 Oct 2026 (review): guarded as a whole - refresh_intraday never raises, but its import could, and
+            # an intraday failure must never cost the page its settlement and export
+            try:
+                try:
+                    from src.MarketOrders import refresh_intraday
+                except ImportError:
+                    from MarketOrders import refresh_intraday
+                refresh_intraday(conn, path, log=log)
+            except Exception as exc:
+                log(f"{market}: intraday refresh skipped - {type(exc).__name__}: {exc}")
         files = export_results_csv(conn, path, market)
         out, record = export_page_json(conn, path, market, fee=fee)
         log(f"{market}: {written} result(s) settled over {days} day(s); {len(record['models'])} model(s) summarised; "
@@ -1634,6 +1680,27 @@ def _self_check():
                        "newPrediction": [{"name": "Perfect Model", "predictions": [[5, 6, 7, 8, 9]]}]}, handle)
         settle_market(conn, root, "crypto", log=lambda *_: None)
         _, record2 = export_page_json(conn, root, "crypto", chart_days=40)
+        # 31 Oct 2026 (review): the order book never breaks the page - a failing orders_record drops only
+        # trading["orders"], every other key of the export is the same
+        try:
+            import src.MarketOrders as _orders_module
+        except ImportError:
+            import MarketOrders as _orders_module
+        assert "orders" in record2["trading"] and record2["trading"]["orders"]["market"] == "crypto"
+        _real = _orders_module.orders_record
+        def _broken(*_a, **_k):
+            raise RuntimeError("simulated order book failure")
+        _orders_module.orders_record = _broken
+        try:
+            import contextlib, io
+            with contextlib.redirect_stdout(io.StringIO()):
+                _, record_broken = export_page_json(conn, root, "crypto", chart_days=40)
+        finally:
+            _orders_module.orders_record = _real
+        assert "orders" not in record_broken["trading"]
+        assert {k: v for k, v in record2["trading"].items() if k != "orders"} == record_broken["trading"]
+        assert {k: v for k, v in record2.items() if k not in ("trading", "generated_at")} == {
+            k: v for k, v in record_broken.items() if k not in ("trading", "generated_at")}
         btc2 = record2["instruments"][0]
         chart_dates = [p[0] for p in btc2["closes"]]
         i_gap, i_after = chart_dates.index(gap_day), chart_dates.index(after_gap["date"])

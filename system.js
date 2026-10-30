@@ -214,6 +214,8 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
       const last = ran.find((h) => h.key === j.key) || null;
       return { key: j.key, name: j.name, description: j.description, command: j.command, log: j.logFile ? path.basename(j.logFile) : null,
         plan: j.plan || null, daily: Boolean(job.daily), nextAt: isoMs(j.nextAt), trigger: j.nextAt ? null : j.next,
+        // monthly (jobs.js, the Q0 band since 1 Nov 2026): runs only on the first of its plan's weekday in the month
+        monthly: job.monthly ? { since: job.monthly.since || null } : null,
         // the median of the job's earlier successful runs (admin.js usualOf: a weekly job's from its log, reaching
         // further back than the kept runs; the predictor's from the kept runs), in minutes
         usual: u ? { median: r1(u.median), min: r1(u.min), max: r1(u.max), n: u.n, from: u.from, to: u.to, basis: u.basis } : null,

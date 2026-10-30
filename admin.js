@@ -1366,7 +1366,7 @@ const rowsBy = (recs, decision) => {
   return out;
 };
 const TUNING_META = {
-  decide: 'replaced when the challenger beats the better scored reference (incumbent, default) by the margin - k standard errors of its own score: 1 for the statistical, keno sub-selection, boosting, RL ticket, RL position and ensemble tuners, 2.5 for quantum (since 27 Oct 2026; the statistical and RL tuners took any gain before, quantum 1); reverted when the challenger did not clear the default and the untuned default scores above the incumbent - by no margin for the statistical, keno sub-selection, RL and ensemble tuners (revertMargin 0: the default is not picked from trials), by the challenger\'s margin for boosting and quantum; kept otherwise, and always when the challenger has no standard error to take its margin in (src/TuningGate.py)',
+  decide: 'replaced when the challenger beats the better scored reference (incumbent, default) by the margin - k standard errors of its own score: 1 for the statistical, keno sub-selection, boosting, RL ticket, RL position and ensemble tuners, 2.5 for quantum (since 27 Oct 2026; the statistical and RL tuners took any gain before, quantum 1); reverted when the challenger did not clear the default and the untuned default scores above the incumbent - by no margin for the statistical, keno sub-selection, RL and ensemble tuners (revertMargin 0: the default is not picked from trials), by the challenger\'s margin for boosting and quantum; kept otherwise; a challenger with no standard error to take its margin in is never written, but the default still reverts an incumbent it beats (since 30 Oct 2026; src/TuningGate.py)',
   scores: 'each the gate\'s own score on the gate window: hits, positional, capped_profit, log_score and subset_bound are lower bounds (mean - 1 SE); holdout_hits and holdout_profit are means on the quantum tuner\'s holdout; a keno capped_profit score is the capped profit above a fair ticket (fairPerBet, its capped value per bet), not money won - profitPerBet is the raw, uncapped profit per bet in EUR',
   margin: 'margin in score units; marginSe = margin / challenger SE (1 for the tuners that ask one SE, 2.5 for quantum since 27 Oct 2026, 0 for any gain); marginK = the k the tuner asked for (since 27 Oct 2026, null before) - with marginK > 0 and no challenger SE the record was kept for want of one (with no challenger score at all: for want of a scored trial); revertMargin = the margin of the revert\'s default-over-incumbent comparison (0: none; null before 27 Oct 2026, when it was the margin); marginSeCounts = records by k',
   sitOut: 'RL Position Model only: sitOut true - the served sizing takes no position, because its score (mean - 1 SE) is not above one of its own standard errors, i.e. its mean is not more than 2 SE above the 0 of never betting (since 27 Oct 2026; any score above 0 before); sitOutReason says why, with its mean sizes',
@@ -1472,7 +1472,7 @@ function signInsOf(events, fromMs, weekMs) {
   return { failed: count(fromMs, 'login.failed'), locked: count(fromMs, 'login.locked'), ok: count(fromMs, 'login.ok'),
     last7Days: { failed: count(weekMs, 'login.failed'), locked: count(weekMs, 'login.locked') }, scanned: events.length, oldestScanned: oldest };
 }
-// jobs: [{key, name, log, plan, daily, since}] (jobs.js JOBS); sched: config/scheduler.json; slices: {job key: log slices};
+// jobs: [{key, name, log, plan, daily, since, monthly}] (jobs.js JOBS); sched: config/scheduler.json; slices: {job key: log slices};
 // controlsView: controlsOverview with its history (withHistory); tuning: tuningSummary; live: what the running server
 // knows now - {lock, current, queue, council, events} - each missing when not known (null lock = free).
 function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, live = {}, now = new Date() }) {
@@ -1496,8 +1496,23 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
   // what a weekend runs: the daily job on Saturday and on Sunday, every job of the two weekly plans once - a job that
   // joined its plan later (jobs.js since, a day) only in the weekends whose Saturday is that day or later, so a step
   // added midweek does not stand as "no run" in the weekend before it existed
+  // A monthly job (jobs.js monthly, the Q0 band since 1 Nov 2026) is expected only of the weekend whose plan day - its
+  // plan's weekday, Sunday unless said - is day 1 to 7 of its month (from its since on); the others list it as not due,
+  // with the day it runs next.
+  const planDay = (j) => (j.monthly && j.monthly.weekday === 6 ? saturday : sunday);
+  const dueThisWeekend = (j) => !j.monthly || (j.monthly.since && planDay(j) < j.monthly.since) || Number(planDay(j).slice(8, 10)) <= 7;
+  const nextDue = (j) => {
+    let day = planDay(j);
+    for (let i = 0; i < 6; i += 1) {
+      day = brussels.addDays(day, 7);
+      if (Number(day.slice(8, 10)) <= 7) return day;
+    }
+    return null;
+  };
+  const planned = list(jobs).filter((j) => j.plan && !(j.since && saturday < j.since));
   const expected = [...(daily ? [{ key: daily.key, day: saturday }, { key: daily.key, day: sunday }] : []),
-    ...list(jobs).filter((j) => j.plan && !(j.since && saturday < j.since)).map((j) => ({ key: j.key }))];
+    ...planned.filter(dueThisWeekend).map((j) => ({ key: j.key }))];
+  const notDue = planned.filter((j) => !dueThisWeekend(j)).map((j) => ({ key: j.key, monthly: true, next: nextDue(j) }));
   const missing = expected.filter((e) => !runs.some((h) => h.key === e.key && (!e.day || brussels.dayOf(h.at) === e.day)));
   const runningNow = currentRun && inWeekend(currentRun, byKey[currentRun.key], saturday) ? { key: currentRun.key, start: isoMs(currentRun.at) } : null;
   const isRunning = (e) => Boolean(runningNow) && runningNow.key === e.key && (!e.day || e.day === brussels.dayOf(currentRun.at));
@@ -1519,6 +1534,8 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
       weekend: {
         runs: lines.length, ok: lines.filter((l) => l.result === 'ok').length, expected: expected.length,
         missing: missing.filter((e) => !isRunning(e)), running: runningNow,
+        // the monthly jobs this weekend does not run (not missing), with the day each runs next
+        notDue,
         notOk: lines.filter((l) => l.result !== 'ok').map((l) => ({ key: l.key, result: l.result, note: l.note })),
         from: isoMs(starts.length ? Math.min(...starts) : NaN), to: isoMs(ends.length ? Math.max(...ends) : NaN),
         hours: starts.length && ends.length ? r2((Math.max(...ends) - Math.min(...starts)) / 3600000) : null,
@@ -1646,7 +1663,10 @@ function install(app, options = {}) {
     return { records: tuningRecords(current, hist, runs), hist, runs, missing: GAMES.filter((g) => files[g] === null) };
   };
   // the job list, from jobs.js when the server passes it (options.jobs); the week has no runs without it
-  const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily), since: j.since || null }));
+  // monthly: {since, weekday} - the job runs only on the first of its plan's weekday in the month (jobs.js monthly)
+  const planWeekday = (plan) => { const p = options.jobs && options.jobs._internals && options.jobs._internals.PLANS && options.jobs._internals.PLANS[plan]; return p ? p.weekday : 0; };
+  const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily), since: j.since || null,
+    monthly: j.monthly ? { since: j.monthly.since || null, weekday: planWeekday(j.plan) } : null }));
   const COUNCIL_WAIT_MS = 6000;   // services.js probes for up to 5 s
   // what the running server knows now: the lock, the running job and the queue (jobs.status), the Council API
   // (services.status, which probes its health), the audit events; each left out when its module was not passed

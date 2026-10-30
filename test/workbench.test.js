@@ -625,6 +625,94 @@ async function throughExpress() {
   return true;
 }
 
+// --- the crypto order book on the workbench (ordersOf, orderDetailOf): every variant, the log, the shadow ---------------
+{
+  const o = (x) => ({ days: [x.interval], model: 'GARCH Model', bin: 6, kind: 'main', estimated: true, live: true, rolls: 0, limits: [], provisional: false, reason: null,
+    published_at: `${x.interval}T09:10:00+00:00`, entry_at: `${x.interval}T09:11:00+00:00`, exit_kind: null, exit_at: null, exit_price: null, move: null, money: null, ...x });
+  const stats = (n, total) => ({ orders: n, closed: n, open: 0, pending: 0, filled: n, early: 0, time_stop: 0, skips: { 'already reached': 1 }, not_followable: 0, total, wins: n, estimated: n, rolls: 0 });
+  const book = (variant, money) => ({ orders: [
+    o({ interval: '2026-10-14', symbol: 'BTC', variant, status: 'closed', entry_price: 82000, limit: 82500, exit_kind: 'limit', exit_at: '2026-10-14T15:00:00+00:00', exit_price: 82500, move: 0.006, money }),
+    o({ interval: '2026-10-15', symbol: 'BTC', variant, status: 'skip', reason: 'already reached', limit: 82000 }),
+    o({ interval: '2026-10-16', symbol: 'BTC', variant, status: 'open', entry_price: 81600, limit: 82085 }),
+  ], stats: stats(1, money) });
+  const pred = (bin) => ({ model: 'GARCH Model', bin, low: 82085, high: 82600, direction: 1 });
+  const rec = {
+    market: 'crypto', generated_at: '2026-10-16T09:30:00+00:00', k: 10, newest_game_day: '2026-10-15',
+    instruments: [{ symbol: 'BTC', active: true, last_close: 81700, closes: [['2026-10-15', 81700]] }, { symbol: 'ETH', active: true, last_close: 2400, closes: [['2026-10-15', 2400]] }],
+    models: [{ name: 'GARCH Model', days: 40, trades: 30, pnl_cash_total: 20, exact_rate: 0.12 }],
+    next: { made_on: '2026-10-15', made_at: '2026-10-16T08:55:00+00:00', instruments: { BTC: { predictions: [pred(6)] }, ETH: { predictions: [pred(3)] } } },
+    trading: { stake: 100, fee_per_leg: 0.001, dates: [], models: {}, benchmark: [], hold: { models: {}, benchmark: [] },
+      orders: {
+        market: 'crypto', game: 'day', since: '2026-10-13', primary: 'edge', rule: 'buy at the card', constants: { min_gap: 0.003, publish_lag_fallback_min: 15, stake: 100 },
+        variants: { edge: 'the lower edge', mid: 'the middle', fixed: '+1 %' }, variant_log: [['2026-10-30', 'edge', 'pre-registered: a right call fills']], review: 'one review at 60 live day orders',
+        books: { fixed: book('fixed', -1), mid: book('mid', 0.2), edge: book('edge', 0.41) },
+        reference: { edge: book('edge', 0.3), mid: book('mid', 0.1), fixed: book('fixed', -2) },
+        benchmark: { points: [['2026-10-14', 5, -3, true], ['2026-10-15', 5, 2, true]], stats: stats(10, -1) },
+        record: { shown: [['2026-10-14', 'edge'], ['2026-10-15', 'edge'], ['2026-10-16', 'mid']], stats: stats(1, 0.41) },
+        publications: [['2026-10-13', '2026-10-14', '2026-10-14T09:10:00+00:00', true], ['2026-10-15', '2026-10-16', '2026-10-16T09:10:00+00:00', false]],
+        coverage: { BTC: { '1h_first': '2026-10-14T07:00:00+00:00', '1h_last': '2026-10-15T23:00:00+00:00', '1h_bars': 41, '1m_bars': 300 } },
+        // the newcomer ledger (31 Oct 2026): the 16 Oct roll card's entry, open; an older closed one; mid's own
+        newcomer_rule: 'a newcomer entry on a roll card',
+        newcomer: {
+          edge: { orders: [o({ interval: '2026-10-14', symbol: 'BTC', variant: 'edge', kind: 'newcomer', status: 'closed', entry_price: 81900, limit: 82500, exit_kind: 'limit',
+            exit_at: '2026-10-14T15:00:00+00:00', exit_price: 82500, move: 0.0073, money: 0.53 }), o({ interval: '2026-10-16', symbol: 'BTC', variant: 'edge', kind: 'newcomer', status: 'open', entry_price: 81400, limit: 81500 })],
+          stats: { ...stats(1, 0.53), orders: 2, open: 1 } },
+          mid: { orders: [], stats: stats(0, 0) }, fixed: { orders: [], stats: stats(0, 0) } },
+        now: { interval: '2026-10-16', made_on: '2026-10-15', published_at: '2026-10-16T09:10:00+00:00', estimated: false, model: 'GARCH Model', variant: 'edge',
+          deadline_fallback: '2026-10-17T12:00:00+00:00', symbols: { BTC: { status: 'hold (rolled)', call: 'up', bin: 6, limit: 81500, entry_price: 81600, limit_pct: -0.12, held_since: '2026-10-15',
+            newcomer: { status: 'buy now', state: 'open', limit: 81500, entry_price: 81400, limit_pct: 0.123 } },
+            ETH: { status: 'no order', call: 'down', bin: 3, reason: 'call down' } } },
+      } },
+    days: [],
+  };
+  const view = markets.describeMarket(rec);
+  const at = new Date('2026-10-16T12:00:00Z');
+  const ord = workbench.ordersOf('crypto', view, at);
+  const d = ord.day;
+  ok(ord.shownFrom === '2026-11-02' && d.shownFrom === '2026-11-02' && ord.primary === 'edge' && d && ord.week === null && workbench.ordersOf('shares', view, at) === null,
+     'the order book is crypto only; the user pages show it from Mon 2 Nov 2026 (owner, 31 Oct)');
+  ok(d.newcomerRule === 'a newcomer entry on a roll card' && d.variants[0].newcomer.orders === 2 && d.variants[0].newcomer.open === 1 && d.variants[0].newcomer.total === 0.53
+     && d.variants[1].newcomer.orders === 0 && d.variants[0].late === null,
+     `the newcomer ledger per variant next to the main and reference ledgers: ${JSON.stringify(d.variants.map((v) => v.newcomer))}`);
+  ok(d.variants.map((v) => v.variant).join() === 'edge,mid,fixed' && d.variants[0].primary && d.variants[0].main.total === 0.41 && d.variants[1].reference.total === 0.1
+     && d.variants[2].main.skips['already reached'] === 1 && d.variants[0].text === 'the lower edge' && d.benchmark.stats.total === -1,
+     `the variants side by side, the primary first, each with its main and 00:00 reference ledgers: ${JSON.stringify(d.variants)}`);
+  ok(d.variantLog.length === 1 && d.variantLog[0].reason.startsWith('pre-registered') && d.review.startsWith('one review') && d.record.total === 0.41
+     && d.shown.length === 2 && d.shown[0].from === '2026-10-14' && d.shown[0].to === '2026-10-15' && d.shown[0].cards === 2 && d.shown[1].variant === 'mid',
+     `the variant log, the review rule and the shown variant as runs of cards: ${JSON.stringify(d.shown)}`);
+  ok(d.coverage.length === 1 && d.coverage[0].bars1h === 41 && d.missing.join() === '2026-10-16', `a card outside the stored hours is listed as missing: ${d.missing}`);
+  ok(!('orders' in d) && !('reference' in d && Array.isArray(d.reference)), 'the per-order tables are not on the workbench answer');
+  const det = workbench.orderDetailOf('crypto', view, 'day');
+  const col = (name) => det.columns.indexOf(name);
+  ok(det && Object.keys(det.orders).join() === 'edge,mid,fixed' && det.orders.edge.length === 3 && det.orders.edge[0][col('interval')] === '2026-10-16'
+     && det.reference.fixed.length === 3 && det.orders.edge[2][col('money')] === 0.41 && det.orders.edge[1][col('reason')] === 'already reached' && det.late === null
+     && det.publications.length === 2 && det.benchmark.length === 2 && workbench.orderDetailOf('crypto', view, 'week') === null,
+     `the per-order tables of every variant and the reference ledger, newest first: ${JSON.stringify(det.orders.edge)}`);
+  ok(det.newcomer && det.newcomer.edge.length === 2 && det.newcomer.edge[0][col('interval')] === '2026-10-16' && det.newcomer.edge[0][col('status')] === 'open' && det.newcomer.mid.length === 0,
+     `the newcomer ledger's per-order table on the orders route: ${JSON.stringify(det.newcomer)}`);
+  // the plan card's shadow: what the user card would say now, from the reader's side
+  const wbv = workbench.workbenchOf('crypto', view, at);
+  const sh = wbv.plan.orders;
+  const btc = sh.rows.find((r) => r.symbol === 'BTC');
+  ok(sh && sh.variant === 'edge' && btc.chip === 'Keep, or buy now' && btc.belowEntry === true && btc.branches.every((b) => /^If you /.test(b.who))
+     && btc.branches[0].who === 'If you bought BTC yesterday (at about 81,600 USDT)' && btc.branches[0].text.includes('This limit is below your buy price')
+     && btc.branches[1].who === 'If you did not buy BTC yesterday' && btc.branches[1].text.startsWith('buy now at market (about 81,400 USDT; the newcomer record bought at 11:10 at that price), sell limit 81,500 USDT (+0.12% from the card\'s price)')
+     && btc.newcomer && btc.newcomer.entryPrice === 81400
+     && !sh.rows.some((r) => r.branches.some((b) => /\bheld\b|hold \(rolled\)/i.test(`${b.who} ${b.text}`))) && sh.none.length === 1 && sh.none[0].symbol === 'ETH'
+     && wbv.orders && !('shadow' in wbv.orders) && wbv.week === null,
+     `the plan card carries the user card's lines as a shadow, reader-side: ${JSON.stringify(sh.rows)}`);
+  ok(sh.soFar.orders === 1 && sh.soFar.text.startsWith('1 order on 1 day: 1 filled at the limit'), `the shadow's "following this card so far" counts from the book's start: ${sh.soFar.text}`);
+  // the shadow's newcomer line: its count equals the newcomer tables' position rows from the book's start, each in the
+  // variant its card showed (16 Oct showed mid here, whose table has none), never in soFar
+  const shownOn = Object.fromEntries(rec.trading.orders.record.shown);
+  const ncTable = Object.entries(det.newcomer).flatMap(([v, rows]) => rows.filter((r) => ['closed', 'open', 'pending'].includes(r[col('status')]) && r[col('interval')] >= '2026-10-13'
+    && (shownOn[r[col('interval')]] || 'edge') === v));
+  ok(sh.newcomer && sh.newcomer.shown === ncTable.length && sh.newcomer.shown === 1 && sh.newcomer.open === 0 && sh.newcomer.total === 0.53
+     && sh.newcomer.text === "Newcomer entries so far (a separate record): 1 shown, +0.53 USDT on the closed ones, each counted from the price when that day's card appeared."
+     && sh.soFar.text.endsWith('Newcomer entries are not in this line; see below.') && sh.soFar.total === 0.41,
+     `the shadow's newcomer line counts the newcomer table's rows: ${JSON.stringify(sh.newcomer)} / ${sh.soFar.text}`);
+}
+
 partTwo().then(partThree).then(partFour).then(throughExpress).then((viaExpress) => {
   cleanUp();
   console.log(`workbench: ${checks} checks passed${viaExpress ? ' (express included)' : ' (express not installed here: the route checks ran on the stand-in)'}`);

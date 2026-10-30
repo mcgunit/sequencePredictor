@@ -1002,8 +1002,8 @@ def _self_check_lockbox():
             with open(os.path.join(historyDir, f"2026-1-{day}.json"), "w") as handle:
                 json.dump({"currentPrediction": rows, "realResult": drawn}, handle)
         # every scored day here is the same 6 hits, a series without spread (score_se 0): under the gate's margin in
-        # standard errors such a challenger cannot have its margin measured and is kept out (TuningGate fails closed,
-        # 27 Oct 2026) - the first run below shows it; the lockbox wiring is checked with se_margin 0 after it
+        # standard errors such a challenger cannot have its margin measured and is never written (TuningGate fails
+        # closed, 27 Oct 2026) - the first run below shows it; the lockbox wiring is checked with se_margin 0 after it
         module = globals()
         saved = module["GATE_SE_MARGIN"]
         try:
@@ -1023,8 +1023,11 @@ def _self_check_lockbox():
         with open(os.path.join(root, "bestParams_lotto.json")) as handle:
             written = json.load(handle)
     gated = closed["tuningGate"][ROW_NAME]
-    assert gated["decision"] == "kept" and gated["reason"].startswith("no standard error - kept") \
-        and gated["challenger_tuning"]["score_se"] == 0.0 and not closed.get("subsetEnsembleModels"), gated
+    # never written; since 30 Oct 2026 the untuned default (the plain vote) still reverts an incumbent it beats
+    # (here nothing was served, so the plain vote - every candidate - is written)
+    assert gated["decision"] == "reverted" and "has no standard error and is not written" in gated["reason"] \
+        and gated["challenger_tuning"]["score_se"] == 0.0 \
+        and set(closed.get("subsetEnsembleModels") or []) == {"A Model", "B Model", "C Model", "D Model"}, (gated, closed.get("subsetEnsembleModels"))
     record = written["tuningGate"][ROW_NAME]
     assert record["window_days"] == 30 and record["lockbox_days_withheld"] == 18, record
     assert record["challenger"] == 6.0 and record["challenger_tuning"]["days"] == 12, record

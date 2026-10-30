@@ -161,7 +161,10 @@ export function runAsk(job: JobLine, d: JobsView): Ask {
     const [day, hour] = brussels(finish);
     const plan = hour >= 9 ? (day === 'Sat' ? 'weeklyTuning' : day === 'Sun' ? 'weeklyControls' : null) : null;
     if (plan) {
-      const jobs = d.jobs.filter((j) => j.plan === plan);
+      // a monthly job (the Q0 band since 1 Nov 2026) only when that day is the first of its weekday in the month
+      const today = brusselsDay(new Date(finish).toISOString());
+      const firstOfMonth = Number(today.slice(8, 10)) <= 7;
+      const jobs = d.jobs.filter((j) => j.plan === plan && (!j.monthly || firstOfMonth || (j.monthly.since !== null && today < j.monthly.since)));
       const hours = jobs.reduce((sum, j) => sum + (j.usual && isNum(j.usual.median) ? j.usual.median : 0), 0) / 60;
       const what = plan === 'weeklyTuning' ? "this week's tuning chain" : "this week's Sunday controls";
       timed.push(`Finishing about ${stamp(new Date(finish).toISOString())}, it starts ${what} if it has not run yet (${jobs.length} jobs${hours >= 1 ? `, about ${Math.round(hours)} h by their medians` : ''}).`);
