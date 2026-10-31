@@ -1,6 +1,6 @@
 {
  "market": "sharesweek",
- "generated_at": "2026-10-29T10:32:21+00:00",
+ "generated_at": "2026-10-31T02:00:25+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -16,17 +16,9 @@
    "position": 0,
    "quote": "USD",
    "active": true,
-   "last_close": 215.38,
-   "last_date": "2026-10-28",
+   "last_close": 204.64,
+   "last_date": "2026-10-30",
    "closes": [
-    [
-     "2025-05-16",
-     135.4
-    ],
-    [
-     "2025-05-19",
-     135.57
-    ],
     [
      "2025-05-20",
      134.38
@@ -1478,21 +1470,17 @@
     [
      "2026-10-28",
      215.38
+    ],
+    [
+     "2026-10-29",
+     213.66
+    ],
+    [
+     "2026-10-30",
+     204.64
     ]
    ],
    "edges": [
-    [
-     -0.073115,
-     -0.040632,
-     -0.021361,
-     -0.004062,
-     0.011791,
-     0.023083,
-     0.037585,
-     0.060382,
-     0.086444
-    ],
-    null,
     null,
     null,
     null,
@@ -2605,11 +2593,11 @@
     ],
     null,
     null,
+    null,
+    null,
     null
    ],
    "moves": [
-    0.14905536,
-    null,
     null,
     null,
     null,
@@ -2972,12 +2960,12 @@
     -0.01491477,
     null,
     null,
+    null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -3338,6 +3326,8 @@
      null,
      null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -3547,8 +3537,6 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
      null,
      null,
@@ -3705,6 +3693,8 @@
      null,
      null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -3914,8 +3904,6 @@
      null,
      null,
      null,
-     null,
-     null,
      4,
      null,
      null,
@@ -4072,6 +4060,8 @@
      null,
      null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -4281,8 +4271,6 @@
      null,
      null,
      null,
-     null,
-     null,
      4,
      null,
      null,
@@ -4439,6 +4427,8 @@
      null,
      null,
      5,
+     null,
+     null,
      null,
      null,
      null
@@ -4648,8 +4638,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -4806,6 +4794,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -5015,8 +5005,6 @@
      null,
      null,
      null,
-     null,
-     null,
      7,
      null,
      null,
@@ -5173,6 +5161,8 @@
      null,
      null,
      3,
+     null,
+     null,
      null,
      null,
      null
@@ -5382,8 +5372,6 @@
      null,
      null,
      null,
-     null,
-     null,
      0,
      null,
      null,
@@ -5540,6 +5528,8 @@
      null,
      null,
      3,
+     null,
+     null,
      null,
      null,
      null
@@ -5749,8 +5739,6 @@
      null,
      null,
      null,
-     null,
-     null,
      1,
      null,
      null,
@@ -5907,6 +5895,8 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -6116,8 +6106,6 @@
      null,
      null,
      null,
-     null,
-     null,
      1,
      null,
      null,
@@ -6274,6 +6262,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -6483,8 +6473,6 @@
      null,
      null,
      null,
-     null,
-     null,
      7,
      null,
      null,
@@ -6641,6 +6629,8 @@
      null,
      null,
      8,
+     null,
+     null,
      null,
      null,
      null
@@ -6850,8 +6840,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -7008,6 +6996,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -7217,8 +7207,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -7375,6 +7363,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -7584,8 +7574,6 @@
      null,
      null,
      null,
-     null,
-     null,
      5,
      null,
      null,
@@ -7742,6 +7730,8 @@
      null,
      null,
      7,
+     null,
+     null,
      null,
      null,
      null
@@ -7951,8 +7941,6 @@
      null,
      null,
      null,
-     null,
-     null,
      5,
      null,
      null,
@@ -8109,6 +8097,8 @@
      null,
      null,
      7,
+     null,
+     null,
      null,
      null,
      null
@@ -8318,8 +8308,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -8476,6 +8464,8 @@
      null,
      null,
      7,
+     null,
+     null,
      null,
      null,
      null
@@ -8685,8 +8675,6 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
      null,
      null,
@@ -8843,6 +8831,8 @@
      null,
      null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -9052,8 +9042,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -9210,6 +9198,8 @@
      null,
      null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -9564,8 +9554,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -9577,13 +9565,13 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
     ],
     "TCN Base Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -9946,11 +9934,11 @@
      2,
      null,
      null,
+     null,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -10311,6 +10299,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -10665,8 +10655,6 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
      null,
      null,
@@ -10678,6 +10666,8 @@
      null,
      null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -11037,14 +11027,14 @@
      null,
      null,
      null,
-     null,
-     null,
      1,
      null,
      null,
      null,
      null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -11404,14 +11394,14 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -11776,9 +11766,9 @@
      null,
      null,
      null,
-     null,
-     null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -12143,9 +12133,9 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -12510,9 +12500,9 @@
      null,
      null,
      null,
-     null,
-     null,
      7,
+     null,
+     null,
      null,
      null,
      null
@@ -12877,9 +12867,9 @@
      null,
      null,
      null,
-     null,
-     null,
      8,
+     null,
+     null,
      null,
      null,
      null
@@ -13244,9 +13234,9 @@
      null,
      null,
      null,
-     null,
-     null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -13611,9 +13601,9 @@
      null,
      null,
      null,
-     null,
-     null,
      1,
+     null,
+     null,
      null,
      null,
      null
@@ -13626,13 +13616,9 @@
    "position": 1,
    "quote": "USD",
    "active": true,
-   "last_close": 343.83,
-   "last_date": "2026-10-28",
+   "last_close": 348.91,
+   "last_date": "2026-10-29",
    "closes": [
-    [
-     "2025-05-16",
-     211.26
-    ],
     [
      "2025-05-19",
      208.78
@@ -15088,20 +15074,13 @@
     [
      "2026-10-28",
      343.83
+    ],
+    [
+     "2026-10-29",
+     348.91
     ]
    ],
    "edges": [
-    [
-     -0.040072,
-     -0.021711,
-     -0.010232,
-     -0.001774,
-     0.005976,
-     0.012423,
-     0.021728,
-     0.031633,
-     0.047871
-    ],
     null,
     null,
     null,
@@ -16215,10 +16194,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    0.06214938,
     null,
     null,
     null,
@@ -16582,11 +16561,11 @@
     0.01234128,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -16948,6 +16927,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -17158,7 +17138,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -17315,6 +17294,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -17525,7 +17505,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -17682,6 +17661,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -17892,7 +17872,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -18049,6 +18028,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -18259,7 +18239,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -18416,6 +18395,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -18626,7 +18606,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -18783,6 +18762,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -18993,7 +18973,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -19150,6 +19129,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -19360,7 +19340,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -19517,6 +19496,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -19727,7 +19707,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -19884,6 +19863,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -20094,7 +20074,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -20251,6 +20230,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -20461,7 +20441,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -20618,6 +20597,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -20828,7 +20808,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -20985,6 +20964,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -21195,7 +21175,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -21352,6 +21331,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -21562,7 +21542,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -21719,6 +21698,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -21929,7 +21909,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -22088,10 +22067,10 @@
      9,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -22455,10 +22434,10 @@
      1,
      null,
      null,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -22820,6 +22799,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -23175,7 +23155,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -23187,12 +23166,12 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
     ],
     "TCN Base Model": [
-     null,
      null,
      null,
      null,
@@ -23556,6 +23535,7 @@
      4,
      null,
      null,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -23909,7 +23889,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -23921,12 +23900,12 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
-     null,
      null,
      null,
      null,
@@ -24288,6 +24267,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -24648,19 +24628,18 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
      null,
      null,
      8,
+     null,
      null,
      null,
      null
     ],
     "TimesFM Model": [
-     null,
      null,
      null,
      null,
@@ -25022,6 +25001,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -25387,8 +25367,8 @@
      null,
      null,
      null,
-     null,
      1,
+     null,
      null,
      null,
      null
@@ -25754,8 +25734,8 @@
      null,
      null,
      null,
-     null,
      8,
+     null,
      null,
      null,
      null
@@ -26121,8 +26101,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null,
      null,
      null
@@ -26488,8 +26468,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null,
      null,
      null
@@ -26855,8 +26835,8 @@
      null,
      null,
      null,
-     null,
      4,
+     null,
      null,
      null,
      null
@@ -27222,8 +27202,8 @@
      null,
      null,
      null,
-     null,
      7,
+     null,
      null,
      null,
      null
@@ -27236,13 +27216,9 @@
    "position": 2,
    "quote": "USD",
    "active": true,
-   "last_close": 531.01,
-   "last_date": "2026-10-28",
+   "last_close": 530.14,
+   "last_date": "2026-10-29",
    "closes": [
-    [
-     "2025-05-16",
-     454.27
-    ],
     [
      "2025-05-19",
      458.87
@@ -28698,20 +28674,13 @@
     [
      "2026-10-28",
      531.01
+    ],
+    [
+     "2026-10-29",
+     530.14
     ]
    ],
    "edges": [
-    [
-     -0.034455,
-     -0.019651,
-     -0.011508,
-     -0.00206,
-     0.004808,
-     0.011439,
-     0.018621,
-     0.027133,
-     0.044237
-    ],
     null,
     null,
     null,
@@ -29825,10 +29794,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    0.03480755,
     null,
     null,
     null,
@@ -30192,11 +30161,11 @@
     -0.00861845,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -30558,6 +30527,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -30768,7 +30738,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -30925,6 +30894,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -31135,7 +31105,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -31292,6 +31261,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -31502,7 +31472,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -31659,6 +31628,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -31869,7 +31839,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -32026,6 +31995,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -32236,7 +32206,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -32393,6 +32362,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -32603,7 +32573,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -32760,6 +32729,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -32970,7 +32940,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -33127,6 +33096,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -33337,7 +33307,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -33494,6 +33463,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -33704,7 +33674,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -33861,6 +33830,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -34071,7 +34041,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -34228,6 +34197,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -34438,7 +34408,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -34595,6 +34564,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -34805,7 +34775,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -34962,6 +34931,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -35172,7 +35142,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -35329,6 +35298,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -35539,7 +35509,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -35696,6 +35665,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -35906,7 +35876,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -36063,6 +36032,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -36273,7 +36243,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -36430,6 +36399,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -36785,7 +36755,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -36797,12 +36766,12 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
     ],
     "TCN Base Model": [
-     null,
      null,
      null,
      null,
@@ -37166,10 +37135,10 @@
      1,
      null,
      null,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
-     null,
      null,
      null,
      null,
@@ -37533,10 +37502,10 @@
      9,
      null,
      null,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
-     null,
      null,
      null,
      null,
@@ -37898,6 +37867,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -38258,13 +38228,13 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -38625,13 +38595,13 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -38997,8 +38967,8 @@
      null,
      null,
      null,
-     null,
      9,
+     null,
      null,
      null,
      null
@@ -39364,8 +39334,8 @@
      null,
      null,
      null,
-     null,
      0,
+     null,
      null,
      null,
      null
@@ -39731,8 +39701,8 @@
      null,
      null,
      null,
-     null,
      3,
+     null,
      null,
      null,
      null
@@ -40098,8 +40068,8 @@
      null,
      null,
      null,
-     null,
      0,
+     null,
      null,
      null,
      null
@@ -40465,8 +40435,8 @@
      null,
      null,
      null,
-     null,
      0,
+     null,
      null,
      null,
      null
@@ -40832,8 +40802,8 @@
      null,
      null,
      null,
-     null,
      3,
+     null,
      null,
      null,
      null
@@ -40846,17 +40816,9 @@
    "position": 3,
    "quote": "USD",
    "active": true,
-   "last_close": 1662.85,
-   "last_date": "2026-10-28",
+   "last_close": 1565.9,
+   "last_date": "2026-10-30",
    "closes": [
-    [
-     "2025-05-16",
-     748.1
-    ],
-    [
-     "2025-05-19",
-     749.13
-    ],
     [
      "2025-05-20",
      748.76
@@ -42308,21 +42270,17 @@
     [
      "2026-10-28",
      1662.85
+    ],
+    [
+     "2026-10-29",
+     1675.7
+    ],
+    [
+     "2026-10-30",
+     1565.9
     ]
    ],
    "edges": [
-    [
-     -0.053173,
-     -0.032298,
-     -0.013886,
-     -0.003653,
-     0.006092,
-     0.013864,
-     0.023073,
-     0.036869,
-     0.060803
-    ],
-    null,
     null,
     null,
     null,
@@ -43435,11 +43393,11 @@
     ],
     null,
     null,
+    null,
+    null,
     null
    ],
    "moves": [
-    0.05762402,
-    null,
     null,
     null,
     null,
@@ -43802,12 +43760,12 @@
     -0.04340118,
     null,
     null,
+    null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -44168,6 +44126,8 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -44377,8 +44337,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -44535,6 +44493,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -44744,8 +44704,6 @@
      null,
      null,
      null,
-     null,
-     null,
      6,
      null,
      null,
@@ -44902,6 +44860,8 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -45111,8 +45071,6 @@
      null,
      null,
      null,
-     null,
-     null,
      4,
      null,
      null,
@@ -45269,6 +45227,8 @@
      null,
      null,
      4,
+     null,
+     null,
      null,
      null,
      null
@@ -45478,8 +45438,6 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
      null,
      null,
@@ -45636,6 +45594,8 @@
      null,
      null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -45845,8 +45805,6 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
      null,
      null,
@@ -46003,6 +45961,8 @@
      null,
      null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -46212,8 +46172,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -46370,6 +46328,8 @@
      null,
      null,
      8,
+     null,
+     null,
      null,
      null,
      null
@@ -46579,8 +46539,6 @@
      null,
      null,
      null,
-     null,
-     null,
      0,
      null,
      null,
@@ -46737,6 +46695,8 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -46946,8 +46906,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -47104,13 +47062,13 @@
      null,
      null,
      8,
+     null,
+     null,
      null,
      null,
      null
     ],
     "Transformer Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -47473,6 +47431,8 @@
      4,
      null,
      null,
+     null,
+     null,
      null
     ],
     "GNN Model": [
@@ -47680,8 +47640,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -47838,6 +47796,8 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -48047,8 +48007,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -48205,13 +48163,13 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
     ],
     "XGBoost Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -48574,11 +48532,11 @@
      2,
      null,
      null,
+     null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -48941,11 +48899,11 @@
      2,
      null,
      null,
+     null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -49308,11 +49266,11 @@
      2,
      null,
      null,
+     null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -49675,6 +49633,8 @@
      0,
      null,
      null,
+     null,
+     null,
      null
     ],
     "RL Position Model": [
@@ -49882,8 +49842,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -50040,6 +49998,8 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -50394,8 +50354,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -50407,13 +50365,13 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
     ],
     "TCN Base Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -50776,6 +50734,8 @@
      0,
      null,
      null,
+     null,
+     null,
      null
     ],
     "UnifiedLstmTcn Model": [
@@ -51128,8 +51088,6 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
@@ -51141,13 +51099,13 @@
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
-     null,
-     null,
      null,
      null,
      null,
@@ -51508,6 +51466,8 @@
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -51867,14 +51827,14 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
      null,
      null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -52234,14 +52194,14 @@
      null,
      null,
      null,
-     null,
-     null,
      9,
      null,
      null,
      null,
      null,
      9,
+     null,
+     null,
      null,
      null,
      null
@@ -52606,9 +52566,9 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -52973,9 +52933,9 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -53340,9 +53300,9 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -53707,9 +53667,9 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -54074,9 +54034,9 @@
      null,
      null,
      null,
-     null,
-     null,
      2,
+     null,
+     null,
      null,
      null,
      null
@@ -54441,9 +54401,9 @@
      null,
      null,
      null,
-     null,
-     null,
      0,
+     null,
+     null,
      null,
      null,
      null
@@ -87759,15 +87719,16 @@
    "live_weeks": 3,
    "live_positions": 4,
    "now": {
-    "running_day": "2026-10-29",
+    "running_day": "2026-10-30",
     "first_day": "2026-10-26",
-    "last_day": false,
+    "last_day": true,
     "week_model": "CatBoost Model",
     "day_model": "GARCH Model",
     "settled_days": [
      "2026-10-26",
      "2026-10-27",
-     "2026-10-28"
+     "2026-10-28",
+     "2026-10-29"
     ],
     "symbols": {
      "NVDA": {
@@ -87782,8 +87743,8 @@
       "trades": []
      },
      "ASML": {
-      "action": "hold",
-      "reason": null,
+      "action": "sell",
+      "reason": "week end",
       "entry": "2026-10-26",
       "scale": 1.0,
       "entry_price": 1588.02,
@@ -88067,7 +88028,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-10-28"
+    "traded_since": "2026-10-30"
    },
    "AAPL": {
     "last_close": 347.725,
@@ -88335,7 +88296,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-10-28"
+    "traded_since": "2026-10-29"
    },
    "MSFT": {
     "last_close": 524.51,
@@ -88603,7 +88564,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-10-28"
+    "traded_since": "2026-10-29"
    },
    "ASML": {
     "last_close": 1571.8,
@@ -88871,7 +88832,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-10-28"
+    "traded_since": "2026-10-30"
    }
   }
  },

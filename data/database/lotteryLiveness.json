@@ -138,7 +138,8 @@
     "2026-09-06": {"close":"2026-09-06T11:00:00Z","delayHours":29.9,"firstSaved":"2026-09-07T16:56:36Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-5.json"},
     "2026-09-08": {"close":"2026-09-08T18:00:00Z","delayHours":0.3,"firstSaved":"2026-09-08T18:16:06Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-7.json"},
     "2026-09-09": {"close":"2026-09-09T17:00:00Z","delayHours":28.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-8.json"},
-    "2026-09-10": {"close":"2026-09-10T18:00:00Z","delayHours":3.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-9.json"}
+    "2026-09-10": {"close":"2026-09-10T18:00:00Z","delayHours":3.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-9.json"},
+    "2026-10-30": {"close":"2026-10-30T19:00:00Z","delayHours":3.2,"firstSaved":"2026-10-30T22:10:51Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-10-29.json"}
    }
   },
   "keno": {
@@ -366,7 +367,8 @@
     "2026-09-06": {"close":"2026-09-06T11:00:00Z","delayHours":21.7,"firstSaved":"2026-09-07T08:42:00Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-5.json"},
     "2026-09-08": {"close":"2026-09-08T18:00:00Z","delayHours":0.3,"firstSaved":"2026-09-08T18:16:06Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-7.json"},
     "2026-09-09": {"close":"2026-09-09T17:00:00Z","delayHours":28.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-8.json"},
-    "2026-09-10": {"close":"2026-09-10T18:00:00Z","delayHours":3.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-9.json"}
+    "2026-09-10": {"close":"2026-09-10T18:00:00Z","delayHours":3.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-9.json"},
+    "2026-10-30": {"close":"2026-10-30T19:00:00Z","delayHours":4.6,"firstSaved":"2026-10-30T23:35:39Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-10-29.json"}
    }
   },
   "lotto": {
@@ -642,7 +644,8 @@
     "2026-09-06": {"close":"2026-09-06T11:00:00Z","delayHours":21.7,"firstSaved":"2026-09-07T08:42:00Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-5.json"},
     "2026-09-08": {"close":"2026-09-08T18:00:00Z","delayHours":0.3,"firstSaved":"2026-09-08T18:16:06Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-7.json"},
     "2026-09-09": {"close":"2026-09-09T17:00:00Z","delayHours":28.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-8.json"},
-    "2026-09-10": {"close":"2026-09-10T18:00:00Z","delayHours":3.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-9.json"}
+    "2026-09-10": {"close":"2026-09-10T18:00:00Z","delayHours":3.3,"firstSaved":"2026-09-10T21:20:38Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-9-9.json"},
+    "2026-10-30": {"close":"2026-10-30T19:00:00Z","delayHours":5.9,"firstSaved":"2026-10-31T00:56:25Z","late":"all","lateReason":"first saved after the close","ticketFile":"2026-10-29.json"}
    }
   },
   "vikinglotto": {
