@@ -213,20 +213,27 @@
     "rlTicketSamplesPerDay": 32,
     "rlTicketTrainDays": 120,
     "subsetEnsembleModels": [
+        "HybridStatisticalModel",
         "LSTM Base Model",
-        "LaplaceMonteCarlo Model"
+        "LaplaceMonteCarlo Model",
+        "MarkovBayesian Model",
+        "MarkovBayesianEnhanched Model",
+        "PoissonMarkov Model",
+        "PoissonMonteCarlo Model"
     ],
     "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": 1.0429,
-    "subsetEnsembleMean": 1.1395,
+    "subsetEnsembleObjective": 1.0211,
+    "subsetEnsembleMean": 1.1212,
     "subsetEnsembleTunedOn": {
-        "days": 86,
+        "days": 66,
         "from": "2025-11-13",
-        "to": "2026-10-08",
+        "to": "2026-10-29",
+        "lockboxDaysWithheld": 26,
         "candidates": 7,
         "evaluated": 256,
         "search": "exhaustive",
-        "confidencePenalty": 1.0
+        "confidencePenalty": 1.0,
+        "decision": "reverted"
     },
     "tuningGate": {
         "Markov Model": {
@@ -1085,39 +1092,36 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-25T00:44:02+00:00",
+            "date": "2026-10-31T23:12:15+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 99,
-            "study_best": 1.08976434907809,
-            "margin": 0.09422939458721169,
-            "decision": "kept",
-            "run_trials": 240,
-            "study_trials": 1742,
-            "reason": "challenger +1.0502 does not beat incumbent +1.0502 or default +0.9909 by 0.0942294 (margin 1 x the challenger's standard error 0.0942)",
-            "trial": 1502,
-            "challenger": 1.0502150498572327,
-            "incumbent": 1.0502150498572327,
-            "default": 0.9909013709870192,
+            "window_days": 101,
+            "margin_se": 1.0,
+            "lockbox_days_withheld": 26,
+            "study_best": 1.0982505062805845,
+            "margin": 0.08841616038608223,
+            "revert_margin": 0.0,
+            "decision": "reverted",
+            "run_trials": 220,
+            "study_trials": 1962,
+            "reason": "default +1.0211 is not beaten by challenger +1.0983 by 0.0884162 and scores above incumbent -inf (no margin: the default is not picked from trials) - reverted to the untuned defaults (margin 1 x the challenger's standard error 0.0884)",
+            "trial": 1742,
+            "challenger": 1.0982505062805845,
+            "incumbent": null,
+            "default": 1.0210603680235857,
             "challenger_tuning": {
-                "score": 1.0502150498572327,
+                "score": 1.0982505062805845,
                 "kind": "subset_bound",
-                "days": 90,
-                "mean": 1.1444444444444444,
-                "score_se": 0.09422939458721169
+                "days": 75,
+                "mean": 1.1866666666666668,
+                "score_se": 0.08841616038608223
             },
-            "incumbent_tuning": {
-                "score": 1.0502150498572327,
-                "kind": "subset_bound",
-                "days": 90,
-                "mean": 1.1444444444444444,
-                "score_se": 0.09422939458721169
-            },
+            "incumbent_tuning": null,
             "default_tuning": {
-                "score": 0.9909013709870192,
+                "score": 1.0210603680235857,
                 "kind": "subset_bound",
-                "days": 90,
-                "mean": 1.0777777777777777,
-                "score_se": 0.0868764067907585
+                "days": 66,
+                "mean": 1.121212121212121,
+                "score_se": 0.10015175318853536
             },
             "candidates": [
                 "HybridStatisticalModel",
@@ -1127,7 +1131,18 @@
                 "MarkovBayesianEnhanched Model",
                 "PoissonMarkov Model",
                 "PoissonMonteCarlo Model"
-            ]
+            ],
+            "incumbent_note": "the served selection is LaplaceMonteCarlo Model's ticket under this run's weights (it outweighs the other member(s) together) - scored as nothing",
+            "effectiveMembers": [
+                "HybridStatisticalModel",
+                "LSTM Base Model",
+                "LaplaceMonteCarlo Model",
+                "MarkovBayesian Model",
+                "MarkovBayesianEnhanched Model",
+                "PoissonMarkov Model",
+                "PoissonMonteCarlo Model"
+            ],
+            "weightedEqualsFlat": false
         },
         "QuantumMetaLearner Model": {
             "date": "2026-10-25T01:36:55+00:00",

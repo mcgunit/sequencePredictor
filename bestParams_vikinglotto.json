@@ -1086,39 +1086,42 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-25T00:44:39+00:00",
+            "date": "2026-10-31T23:12:55+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 48,
-            "study_best": 1.0376862434842735,
-            "margin": 0.1146739648015612,
+            "window_days": 49,
+            "margin_se": 1.0,
+            "lockbox_days_withheld": 12,
+            "study_best": 1.0503510359691672,
+            "margin": 0.138838153220022,
+            "revert_margin": 0.0,
             "decision": "kept",
             "run_trials": 256,
-            "study_trials": 2183,
-            "reason": "challenger +0.9687 does not beat incumbent +0.9687 by 0.114674 (margin 1 x the challenger's standard error 0.1147)",
-            "trial": 1928,
-            "challenger": 0.968659368531772,
-            "incumbent": 0.968659368531772,
-            "default": 0.739443795561538,
+            "study_trials": 2439,
+            "reason": "challenger +1.0504 does not beat incumbent +1.0000 by 0.138838 (margin 1 x the challenger's standard error 0.1388)",
+            "trial": 2184,
+            "challenger": 1.0503510359691672,
+            "incumbent": 1.0,
+            "default": 0.7623869944618402,
             "challenger_tuning": {
-                "score": 0.968659368531772,
+                "score": 1.0503510359691672,
                 "kind": "subset_bound",
-                "days": 48,
-                "mean": 1.0833333333333333,
-                "score_se": 0.1146739648015612
+                "days": 37,
+                "mean": 1.1891891891891893,
+                "score_se": 0.138838153220022
             },
             "incumbent_tuning": {
-                "score": 0.968659368531772,
+                "score": 1.0,
                 "kind": "subset_bound",
-                "days": 48,
-                "mean": 1.0833333333333333,
-                "score_se": 0.1146739648015612
+                "days": 37,
+                "mean": 1.135135135135135,
+                "score_se": 0.13513513513513511
             },
             "default_tuning": {
-                "score": 0.739443795561538,
+                "score": 0.7623869944618402,
                 "kind": "subset_bound",
-                "days": 44,
-                "mean": 0.8636363636363636,
-                "score_se": 0.12419256807482555
+                "days": 33,
+                "mean": 0.9090909090909091,
+                "score_se": 0.14670391462906882
             },
             "candidates": [
                 "HybridStatisticalModel",
@@ -1129,7 +1132,13 @@
                 "MarkovBayesianEnhanched Model",
                 "PoissonMarkov Model",
                 "PoissonMonteCarlo Model"
-            ]
+            ],
+            "effectiveMembers": [
+                "HybridStatisticalModel",
+                "LaplaceMonteCarlo Model",
+                "MarkovBayesian Model"
+            ],
+            "weightedEqualsFlat": false
         },
         "QuantumMetaLearner Model": {
             "date": "2026-10-25T07:33:36+00:00",

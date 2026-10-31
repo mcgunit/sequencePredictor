@@ -444,39 +444,42 @@
             "served_mean_nonzero_size": 0.515625
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-25T00:45:44+00:00",
+            "date": "2026-10-31T23:13:59+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 32,
+            "window_days": 33,
+            "margin_se": 1.0,
+            "lockbox_days_withheld": 0,
             "study_best": 0.011178396974093526,
-            "margin": 0.2321819440463212,
+            "margin": 0.27423300670252226,
+            "revert_margin": 0.0,
             "decision": "kept",
-            "run_trials": 256,
-            "study_trials": 768,
-            "reason": "challenger -0.0709 does not beat incumbent -0.0709 by 0.232182 (margin 1 x the challenger's standard error 0.2322)",
-            "trial": 512,
-            "challenger": -0.07086944404632124,
-            "incumbent": -0.07086944404632124,
-            "default": -0.5426990573668835,
+            "run_trials": 204,
+            "study_trials": 972,
+            "reason": "challenger -0.1607 does not beat incumbent -0.3730 by 0.274233 (margin 1 x the challenger's standard error 0.2742)",
+            "trial": 768,
+            "challenger": -0.16065724912676474,
+            "incumbent": -0.3730281954622277,
+            "default": -0.43904925355509583,
             "challenger_tuning": {
-                "score": -0.07086944404632124,
+                "score": -0.16065724912676474,
                 "kind": "subset_bound",
-                "days": 32,
-                "mean": 0.15937499999999996,
-                "score_se": 0.2321819440463212
+                "days": 33,
+                "mean": 0.11212121212121207,
+                "score_se": 0.27423300670252226
             },
             "incumbent_tuning": {
-                "score": -0.07086944404632124,
+                "score": -0.3730281954622277,
                 "kind": "subset_bound",
-                "days": 32,
-                "mean": 0.15937499999999996,
-                "score_se": 0.2321819440463212
+                "days": 33,
+                "mean": -0.03030303030303035,
+                "score_se": 0.3444221348561671
             },
             "default_tuning": {
-                "score": -0.5426990573668835,
+                "score": -0.43904925355509583,
                 "kind": "subset_bound",
-                "days": 32,
-                "mean": -0.18437500000000012,
-                "score_se": 0.3598865573668834
+                "days": 33,
+                "mean": -0.10606060606060606,
+                "score_se": 0.3345037990096413
             },
             "candidates": [
                 "Autoencoder Model",
@@ -494,7 +497,29 @@
                 "Regime HMM ZeroMean Model",
                 "Transformer Model",
                 "XGBoost Model"
-            ]
+            ],
+            "memberScores": {
+                "Autoencoder Model": -0.3771,
+                "CatBoost Model": -0.4661,
+                "GARCH Model": -0.9243,
+                "GNN Model": -0.4211,
+                "LaplaceMonteCarlo Model": -0.433,
+                "LightGBM Model": -0.7475,
+                "Markov Model": -0.6788,
+                "MarkovMonteCarlo Model": -0.444,
+                "OrderStatistics Baseline": -0.7493,
+                "PoissonMonteCarlo Model": -0.38,
+                "Regime HMM Model": -0.5796,
+                "Regime HMM Single Model": -0.4696,
+                "Regime HMM ZeroMean Model": -0.4352,
+                "Transformer Model": -0.6939,
+                "XGBoost Model": -0.6976
+            },
+            "effectiveMembers": [
+                "PoissonMonteCarlo Model",
+                "Transformer Model"
+            ],
+            "weightedEqualsFlat": false
         }
     },
     "markovSoftMaxTemperature": 0.21625173611751866,
@@ -556,5 +581,22 @@
         "search": "local search",
         "confidencePenalty": 1.0
     },
-    "rlPositionSitOut": true
+    "rlPositionSitOut": true,
+    "subsetEnsembleWeights": {
+        "Autoencoder Model": 2.0,
+        "CatBoost Model": 1.8374,
+        "GARCH Model": 1.0,
+        "GNN Model": 1.9197,
+        "LaplaceMonteCarlo Model": 1.8979,
+        "LightGBM Model": 1.3231,
+        "Markov Model": 1.4487,
+        "MarkovMonteCarlo Model": 1.8778,
+        "OrderStatistics Baseline": 1.3198,
+        "PoissonMonteCarlo Model": 1.9946,
+        "Regime HMM Model": 1.6299,
+        "Regime HMM Single Model": 1.831,
+        "Regime HMM ZeroMean Model": 1.8938,
+        "Transformer Model": 1.4211,
+        "XGBoost Model": 1.4144
+    }
 }

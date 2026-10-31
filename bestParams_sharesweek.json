@@ -444,39 +444,36 @@
             "served_mean_nonzero_size": 0.5116279069767442
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-25T00:46:04+00:00",
+            "date": "2026-10-31T23:14:22+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 33,
+            "window_days": 34,
+            "margin_se": 1.0,
+            "lockbox_days_withheld": 0,
             "study_best": 0.06966178327531475,
-            "margin": 0.0770048833913519,
-            "decision": "kept",
+            "margin": 0.1805006261503922,
+            "revert_margin": 0.0,
+            "decision": "replaced",
             "run_trials": 256,
-            "study_trials": 768,
-            "reason": "challenger +0.0697 does not beat incumbent +0.0697 by 0.0770049 (margin 1 x the challenger's standard error 0.0770)",
-            "trial": 512,
-            "challenger": 0.06966178327531475,
-            "incumbent": 0.06966178327531475,
-            "default": -0.5440661993967383,
+            "study_trials": 1024,
+            "reason": "challenger +0.0091 beats incumbent -inf and default -0.5137 (margin 1 x the challenger's standard error 0.1805)",
+            "trial": 768,
+            "challenger": 0.009131726790784271,
+            "incumbent": null,
+            "default": -0.5137164526920838,
             "challenger_tuning": {
-                "score": 0.06966178327531475,
+                "score": 0.009131726790784271,
                 "kind": "subset_bound",
-                "days": 33,
-                "mean": 0.14545454545454545,
-                "score_se": 0.0770048833913519
+                "days": 34,
+                "mean": 0.18823529411764706,
+                "score_se": 0.1805006261503922
             },
-            "incumbent_tuning": {
-                "score": 0.06966178327531475,
-                "kind": "subset_bound",
-                "days": 33,
-                "mean": 0.14545454545454545,
-                "score_se": 0.0770048833913519
-            },
+            "incumbent_tuning": null,
             "default_tuning": {
-                "score": -0.5440661993967383,
+                "score": -0.5137164526920838,
                 "kind": "subset_bound",
-                "days": 33,
-                "mean": -0.2515151515151516,
-                "score_se": 0.2936874115179503
+                "days": 34,
+                "mean": -0.2588235294117648,
+                "score_se": 0.2557752762214954
             },
             "candidates": [
                 "Autoencoder Model",
@@ -494,7 +491,30 @@
                 "Regime HMM ZeroMean Model",
                 "Transformer Model",
                 "XGBoost Model"
-            ]
+            ],
+            "incumbent_note": "the served selection is PoissonMonteCarlo Model's ticket under this run's weights (it outweighs the other member(s) together) - scored as nothing",
+            "memberScores": {
+                "Autoencoder Model": -0.5284,
+                "CatBoost Model": -0.3558,
+                "GARCH Model": -0.8839,
+                "GNN Model": -0.5805,
+                "LaplaceMonteCarlo Model": -0.6045,
+                "LightGBM Model": -0.3508,
+                "Markov Model": -0.6731,
+                "MarkovMonteCarlo Model": -0.7959,
+                "OrderStatistics Baseline": -0.273,
+                "PoissonMonteCarlo Model": -0.1575,
+                "Regime HMM Model": -0.7442,
+                "Regime HMM Single Model": -0.6455,
+                "Regime HMM ZeroMean Model": 0.0013,
+                "Transformer Model": -0.5973,
+                "XGBoost Model": -0.3046
+            },
+            "effectiveMembers": [
+                "GARCH Model",
+                "OrderStatistics Baseline"
+            ],
+            "weightedEqualsFlat": false
         }
     },
     "markovSoftMaxTemperature": 0.4490562607679004,
@@ -541,20 +561,39 @@
     "rlPositionTrainDays": 120,
     "rlPositionRiskAversion": 0.4515529318242062,
     "subsetEnsembleModels": [
-        "CatBoost Model",
-        "PoissonMonteCarlo Model"
+        "GARCH Model",
+        "OrderStatistics Baseline"
     ],
-    "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": 0.0488,
-    "subsetEnsembleMean": 0.1258,
+    "subsetEnsembleWeighted": false,
+    "subsetEnsembleObjective": 0.0091,
+    "subsetEnsembleMean": 0.1882,
     "subsetEnsembleTunedOn": {
-        "days": 31,
+        "days": 34,
         "from": "2026-03-13",
-        "to": "2026-10-09",
+        "to": "2026-10-30",
+        "lockboxDaysWithheld": 0,
         "candidates": 15,
-        "evaluated": 397,
+        "evaluated": 379,
         "search": "local search",
-        "confidencePenalty": 1.0
+        "confidencePenalty": 1.0,
+        "decision": "replaced"
     },
-    "rlPositionSitOut": true
+    "rlPositionSitOut": true,
+    "subsetEnsembleWeights": {
+        "Autoencoder Model": 1.4016,
+        "CatBoost Model": 1.5966,
+        "GARCH Model": 1.0,
+        "GNN Model": 1.3428,
+        "LaplaceMonteCarlo Model": 1.3156,
+        "LightGBM Model": 1.6022,
+        "Markov Model": 1.2381,
+        "MarkovMonteCarlo Model": 1.0994,
+        "OrderStatistics Baseline": 1.6901,
+        "PoissonMonteCarlo Model": 1.8206,
+        "Regime HMM Model": 1.1578,
+        "Regime HMM Single Model": 1.2693,
+        "Regime HMM ZeroMean Model": 2.0,
+        "Transformer Model": 1.3237,
+        "XGBoost Model": 1.6544
+    }
 }
