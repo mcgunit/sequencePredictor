@@ -1,6 +1,6 @@
 {
  "market": "crypto",
- "generated_at": "2026-10-31T02:00:19+00:00",
+ "generated_at": "2026-10-31T08:18:05+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -124343,6 +124343,4755 @@
    "live_market": -99.6514,
    "live_days": 29,
    "live_positions": 44
+  },
+  "orders": {
+   "market": "crypto",
+   "game": "day",
+   "generated_at": "2026-10-31T08:18:05+00:00",
+   "since": "2026-10-13",
+   "rule": "buy at market when the day card appears, a sell limit at X (the predicted bin's lower edge from the previous close), sold at the limit or at market when the next day card appears (12:00 UTC the next day at the latest); the same coin called up again with its new limit at least 0.30 % above the price keeps the position and only moves the limit",
+   "constants": {
+    "fee_per_leg": 0.001,
+    "min_gap": 0.003,
+    "fill_through": 0.0005,
+    "publish_lag_fallback_min": 15.0,
+    "deadline_fallback_hours": 12,
+    "late_min_gap": 0.01,
+    "late_min_left_hours": 24.0,
+    "stake": 100.0,
+    "fixed_gap": 0.01
+   },
+   "primary": "edge",
+   "variants": {
+    "edge": "the predicted bin's lower edge from the base close: when the call comes true the close is at least X, so a right call fills",
+    "mid": "the predicted bin's representative return from the base close: the predicted price the pages draw",
+    "fixed": "the entry price plus 1 % (day) or 4 % (week): a control that ignores the bin"
+   },
+   "variant_log": [
+    [
+     "2026-10-30",
+     "edge",
+     "pre-registered: a right call fills"
+    ]
+   ],
+   "review": "one review, at 60 live day orders or 31 Jan 2027, whichever is later: switch only if another variant beats the primary in a paired per-order comparison with the lower bound of the mean difference above 0, and with the owner's decision",
+   "books": {
+    "edge": {
+     "orders": [
+      {
+       "interval": "2026-10-14",
+       "days": [
+        "2026-10-14"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-14T08:58:02+00:00",
+       "estimated": true,
+       "base_close": 83169.0,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-14T08:59:00+00:00",
+       "entry_price": 83462.02,
+       "limit": 83579.4175103,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        83579.4175103
+       ],
+       "limit_pct": 0.141
+      },
+      {
+       "interval": "2026-10-15",
+       "days": [
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-15T09:09:36+00:00",
+       "estimated": true,
+       "base_close": 81682.01,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-15T09:10:00+00:00",
+       "entry_price": 81375.65,
+       "limit": 82085.15016395,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82085.15016395,
+       "move": 0.008681,
+       "money": 0.671,
+       "provisional": false,
+       "limits": [
+        82085.15016395
+       ],
+       "limit_pct": 0.868
+      },
+      {
+       "interval": "2026-10-16",
+       "days": [
+        "2026-10-16"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-16T08:51:20+00:00",
+       "estimated": true,
+       "base_close": 82245.93,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-16T08:52:00+00:00",
+       "entry_price": 82344.01,
+       "limit": 82651.81272617,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-16T11:00:00+00:00",
+       "exit_price": 82651.81272617,
+       "move": 0.003731,
+       "money": 0.1734,
+       "provisional": false,
+       "limits": [
+        82651.81272617
+       ],
+       "limit_pct": 0.373
+      },
+      {
+       "interval": "2026-10-17",
+       "days": [
+        "2026-10-17"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-17T09:03:57+00:00",
+       "estimated": true,
+       "base_close": 81615.64,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-17T09:04:00+00:00",
+       "entry_price": 81724.65,
+       "limit": 82018.47276783,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-18T03:00:00+00:00",
+       "exit_price": 82018.47276783,
+       "move": 0.003589,
+       "money": 0.1592,
+       "provisional": false,
+       "limits": [
+        82018.47276783
+       ],
+       "limit_pct": 0.359
+      },
+      {
+       "interval": "2026-10-18",
+       "days": [
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-18T09:02:26+00:00",
+       "estimated": true,
+       "base_close": 81491.04,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-18T09:03:00+00:00",
+       "entry_price": 81775.17,
+       "limit": 81893.21749371,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81893.21749371
+       ],
+       "limit_pct": 0.144
+      },
+      {
+       "interval": "2026-10-19",
+       "days": [
+        "2026-10-19"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-19T08:48:39+00:00",
+       "estimated": true,
+       "base_close": 82116.0,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-19T08:49:00+00:00",
+       "entry_price": 82800.01,
+       "limit": 82521.22122757,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        82521.22122757
+       ],
+       "limit_pct": -0.337
+      },
+      {
+       "interval": "2026-10-20",
+       "days": [
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-20T08:57:01+00:00",
+       "estimated": true,
+       "base_close": 81938.4,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-20T08:58:00+00:00",
+       "entry_price": 81463.99,
+       "limit": 82342.80557241,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82342.80557241,
+       "move": 0.01073,
+       "money": 0.8777,
+       "provisional": false,
+       "limits": [
+        82342.80557241
+       ],
+       "limit_pct": 1.073
+      },
+      {
+       "interval": "2026-10-21",
+       "days": [
+        "2026-10-21"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-21T08:55:18+00:00",
+       "estimated": true,
+       "base_close": 83028.15,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-21T08:56:00+00:00",
+       "entry_price": 83314.94,
+       "limit": 83437.89297295,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        83437.89297295
+       ],
+       "limit_pct": 0.147
+      },
+      {
+       "interval": "2026-10-22",
+       "days": [
+        "2026-10-22"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-22T09:08:39+00:00",
+       "estimated": true,
+       "base_close": 84093.42,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-22T09:09:00+00:00",
+       "entry_price": 81812.1,
+       "limit": 84508.48242106,
+       "exit_kind": "next card",
+       "exit_at": "2026-10-23T08:48:00+00:00",
+       "exit_price": 81846.01,
+       "move": 0.000414,
+       "money": -0.1586,
+       "provisional": false,
+       "limits": [
+        84508.48242106
+       ],
+       "limit_pct": 3.243
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 81416.09,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 81846.01,
+       "limit": 81818.23152287,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81818.23152287
+       ],
+       "limit_pct": -0.034
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 7,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 1.3094,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 1.3274,
+       "limit": 1.3272919,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.3272919
+       ],
+       "limit_pct": -0.008
+      },
+      {
+       "interval": "2026-10-24",
+       "days": [
+        "2026-10-24",
+        "2026-10-25"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-24T08:56:19+00:00",
+       "estimated": true,
+       "base_close": 81189.43,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-24T08:57:00+00:00",
+       "entry_price": 80733.97,
+       "limit": 81287.38213085,
+       "exit_kind": "next card",
+       "exit_at": "2026-10-26T10:20:00+00:00",
+       "exit_price": 80435.51,
+       "move": -0.003704,
+       "money": -0.5693,
+       "provisional": false,
+       "limits": [
+        81590.256731,
+        81287.38213085
+       ],
+       "limit_pct": 0.683
+      },
+      {
+       "interval": "2026-10-26",
+       "days": [
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-26T10:19:33+00:00",
+       "estimated": true,
+       "base_close": 80154.09,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-26T10:20:00+00:00",
+       "entry_price": 80435.51,
+       "limit": 80549.64951964,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        80549.64951964
+       ],
+       "limit_pct": 0.142
+      },
+      {
+       "interval": "2026-10-27",
+       "days": [
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-27T10:21:54+00:00",
+       "estimated": true,
+       "base_close": 80150.56,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-27T10:22:00+00:00",
+       "entry_price": 79597.11,
+       "limit": 80546.06247962,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T15:00:00+00:00",
+       "exit_price": 80546.06247962,
+       "move": 0.011851,
+       "money": 0.991,
+       "provisional": false,
+       "limits": [
+        80546.06247962
+       ],
+       "limit_pct": 1.185
+      },
+      {
+       "interval": "2026-10-28",
+       "days": [
+        "2026-10-28"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-28T10:24:29+00:00",
+       "estimated": true,
+       "base_close": 80909.77,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-28T10:25:00+00:00",
+       "entry_price": 81554.14,
+       "limit": 81306.99593823,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81306.99593823
+       ],
+       "limit_pct": -0.304
+      },
+      {
+       "interval": "2026-10-29",
+       "days": [
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-29T10:35:24+00:00",
+       "estimated": true,
+       "base_close": 81343.5,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-29T10:36:00+00:00",
+       "entry_price": 80291.23,
+       "limit": 81744.90913981,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-29T15:00:00+00:00",
+       "exit_price": 81744.90913981,
+       "move": 0.017943,
+       "money": 1.6087,
+       "provisional": false,
+       "limits": [
+        81744.90913981
+       ],
+       "limit_pct": 1.794
+      },
+      {
+       "interval": "2026-10-30",
+       "days": [
+        "2026-10-30"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-31T01:49:42+00:00",
+       "estimated": true,
+       "base_close": 77991.89,
+       "live": false,
+       "rolls": 0,
+       "status": "not followable",
+       "reason": "published after the interval's end",
+       "limit": 78376.81763978,
+       "limits": [
+        78376.81763978
+       ],
+       "entry_at": null,
+       "entry_price": null,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limit_pct": null
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 77368.77,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 77398.01,
+       "limit": 77750.58399722,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        77750.58399722
+       ],
+       "limit_pct": 0.454
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 8,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 1.2567,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 1.2542,
+       "limit": 1.28801282,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.28801282
+       ],
+       "limit_pct": 2.66
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "SOL",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 96.38,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 96.7,
+       "limit": 97.28311592,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        97.28311592
+       ],
+       "limit_pct": 0.601
+      }
+     ],
+     "stats": {
+      "orders": 11,
+      "closed": 8,
+      "open": 3,
+      "pending": 0,
+      "filled": 6,
+      "early": 0,
+      "time_stop": 2,
+      "skips": {
+       "too close to the limit": 4,
+       "already reached": 4
+      },
+      "not_followable": 1,
+      "total": 3.7531,
+      "wins": 6,
+      "estimated": 8,
+      "rolls": 1
+     }
+    },
+    "mid": {
+     "orders": [
+      {
+       "interval": "2026-10-14",
+       "days": [
+        "2026-10-14"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-14T08:58:02+00:00",
+       "estimated": true,
+       "base_close": 83169.0,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-14T08:59:00+00:00",
+       "entry_price": 83462.02,
+       "limit": 83841.11334159,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-14T12:00:00+00:00",
+       "exit_price": 83841.11334159,
+       "move": 0.004532,
+       "money": 0.2538,
+       "provisional": false,
+       "limits": [
+        83841.11334159
+       ],
+       "limit_pct": 0.453
+      },
+      {
+       "interval": "2026-10-15",
+       "days": [
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-15T09:09:36+00:00",
+       "estimated": true,
+       "base_close": 81682.01,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-15T09:10:00+00:00",
+       "entry_price": 81375.65,
+       "limit": 82342.3899359,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82342.3899359,
+       "move": 0.01181,
+       "money": 0.9868,
+       "provisional": false,
+       "limits": [
+        82342.3899359
+       ],
+       "limit_pct": 1.181
+      },
+      {
+       "interval": "2026-10-16",
+       "days": [
+        "2026-10-16",
+        "2026-10-17",
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-16T08:51:20+00:00",
+       "estimated": true,
+       "base_close": 82245.93,
+       "live": true,
+       "rolls": 2,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-16T08:52:00+00:00",
+       "entry_price": 82344.01,
+       "limit": 82149.54522489,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-18T09:33:00+00:00",
+       "exit_price": 82149.54522489,
+       "move": -0.002364,
+       "money": -0.4359,
+       "provisional": false,
+       "limits": [
+        82910.73165659,
+        82275.27481559,
+        82149.54522489
+       ],
+       "limit_pct": -0.236
+      },
+      {
+       "interval": "2026-10-19",
+       "days": [
+        "2026-10-19"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-19T08:48:39+00:00",
+       "estimated": true,
+       "base_close": 82116.0,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-19T08:49:00+00:00",
+       "entry_price": 82800.01,
+       "limit": 82779.46413068,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        82779.46413068
+       ],
+       "limit_pct": -0.025
+      },
+      {
+       "interval": "2026-10-20",
+       "days": [
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-20T08:57:01+00:00",
+       "estimated": true,
+       "base_close": 81938.4,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-20T08:58:00+00:00",
+       "entry_price": 81463.99,
+       "limit": 82600.45337463,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82600.45337463,
+       "move": 0.013854,
+       "money": 1.1937,
+       "provisional": false,
+       "limits": [
+        82600.45337463
+       ],
+       "limit_pct": 1.385
+      },
+      {
+       "interval": "2026-10-21",
+       "days": [
+        "2026-10-21"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-21T08:55:18+00:00",
+       "estimated": true,
+       "base_close": 83028.15,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-21T08:56:00+00:00",
+       "entry_price": 83314.94,
+       "limit": 83698.98147516,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-21T13:00:00+00:00",
+       "exit_price": 83698.98147516,
+       "move": 0.004599,
+       "money": 0.2605,
+       "provisional": false,
+       "limits": [
+        83698.98147516
+       ],
+       "limit_pct": 0.46
+      },
+      {
+       "interval": "2026-10-22",
+       "days": [
+        "2026-10-22"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-22T09:08:39+00:00",
+       "estimated": true,
+       "base_close": 84093.42,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-22T09:09:00+00:00",
+       "entry_price": 81812.1,
+       "limit": 84772.90473722,
+       "exit_kind": "next card",
+       "exit_at": "2026-10-23T08:48:00+00:00",
+       "exit_price": 81846.01,
+       "move": 0.000414,
+       "money": -0.1586,
+       "provisional": false,
+       "limits": [
+        84772.90473722
+       ],
+       "limit_pct": 3.555
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 81416.09,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 81846.01,
+       "limit": 82074.3274762,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        82074.3274762
+       ],
+       "limit_pct": 0.279
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 7,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 1.3094,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 1.3274,
+       "limit": 1.33467686,
+       "exit_kind": "next card",
+       "exit_at": "2026-10-24T08:57:00+00:00",
+       "exit_price": 1.2809,
+       "move": -0.035659,
+       "money": -3.6996,
+       "provisional": false,
+       "limits": [
+        1.33467686
+       ],
+       "limit_pct": 0.547
+      },
+      {
+       "interval": "2026-10-24",
+       "days": [
+        "2026-10-24",
+        "2026-10-25",
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-24T08:56:19+00:00",
+       "estimated": true,
+       "base_close": 81189.43,
+       "live": true,
+       "rolls": 2,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-24T08:57:00+00:00",
+       "entry_price": 80733.97,
+       "limit": 80801.71057445,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-26T15:00:00+00:00",
+       "exit_price": 80801.71057445,
+       "move": 0.000839,
+       "money": -0.1162,
+       "provisional": false,
+       "limits": [
+        81845.63507149,
+        81541.76969356,
+        80801.71057445
+       ],
+       "limit_pct": 0.084
+      },
+      {
+       "interval": "2026-10-27",
+       "days": [
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-27T10:21:54+00:00",
+       "estimated": true,
+       "base_close": 80150.56,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-27T10:22:00+00:00",
+       "entry_price": 79597.11,
+       "limit": 80798.12602641,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T21:00:00+00:00",
+       "exit_price": 80798.12602641,
+       "move": 0.014976,
+       "money": 1.3074,
+       "provisional": false,
+       "limits": [
+        80798.12602641
+       ],
+       "limit_pct": 1.498
+      },
+      {
+       "interval": "2026-10-28",
+       "days": [
+        "2026-10-28"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-28T10:24:29+00:00",
+       "estimated": true,
+       "base_close": 80909.77,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-28T10:25:00+00:00",
+       "entry_price": 81554.14,
+       "limit": 81562.44915078,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81562.44915078
+       ],
+       "limit_pct": 0.01
+      },
+      {
+       "interval": "2026-10-29",
+       "days": [
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-29T10:35:24+00:00",
+       "estimated": true,
+       "base_close": 81343.5,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-29T10:36:00+00:00",
+       "entry_price": 80291.23,
+       "limit": 82000.49793518,
+       "exit_kind": "fallback",
+       "exit_at": "2026-10-30T12:00:00+00:00",
+       "exit_price": 77382.01,
+       "move": -0.036906,
+       "money": -3.8197,
+       "provisional": false,
+       "limits": [
+        82000.49793518
+       ],
+       "limit_pct": 2.106
+      },
+      {
+       "interval": "2026-10-30",
+       "days": [
+        "2026-10-30"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-31T01:49:42+00:00",
+       "estimated": true,
+       "base_close": 77991.89,
+       "live": false,
+       "rolls": 0,
+       "status": "not followable",
+       "reason": "published after the interval's end",
+       "limit": 78621.25410226,
+       "limits": [
+        78621.25410226
+       ],
+       "entry_at": null,
+       "entry_price": null,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limit_pct": null
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 77368.77,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 77398.01,
+       "limit": 77992.49888265,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        77992.49888265
+       ],
+       "limit_pct": 0.765
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 8,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 1.2567,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 1.2542,
+       "limit": 1.3029234,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.3029234
+       ],
+       "limit_pct": 3.811
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "SOL",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 96.38,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 96.7,
+       "limit": 97.87574756,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        97.87574756
+       ],
+       "limit_pct": 1.209
+      }
+     ],
+     "stats": {
+      "orders": 13,
+      "closed": 10,
+      "open": 3,
+      "pending": 0,
+      "filled": 7,
+      "early": 0,
+      "time_stop": 3,
+      "skips": {
+       "already reached": 1,
+       "too close to the limit": 2
+      },
+      "not_followable": 1,
+      "total": -4.2279,
+      "wins": 5,
+      "estimated": 10,
+      "rolls": 4
+     }
+    },
+    "fixed": {
+     "orders": [
+      {
+       "interval": "2026-10-14",
+       "days": [
+        "2026-10-14",
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-14T08:58:02+00:00",
+       "estimated": true,
+       "base_close": 83169.0,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-14T08:59:00+00:00",
+       "entry_price": 83462.02,
+       "limit": 82189.4065,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82189.4065,
+       "move": -0.015365,
+       "money": -1.7233,
+       "provisional": false,
+       "limits": [
+        84296.6402,
+        82189.4065
+       ],
+       "limit_pct": -1.537
+      },
+      {
+       "interval": "2026-10-16",
+       "days": [
+        "2026-10-16",
+        "2026-10-17",
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-16T08:51:20+00:00",
+       "estimated": true,
+       "base_close": 82245.93,
+       "live": true,
+       "rolls": 2,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-16T08:52:00+00:00",
+       "entry_price": 82344.01,
+       "limit": 82592.9217,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-19T02:00:00+00:00",
+       "exit_price": 82592.9217,
+       "move": 0.003018,
+       "money": 0.102,
+       "provisional": false,
+       "limits": [
+        83167.4501,
+        82541.8965,
+        82592.9217
+       ],
+       "limit_pct": 0.302
+      },
+      {
+       "interval": "2026-10-19",
+       "days": [
+        "2026-10-19",
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-19T08:48:39+00:00",
+       "estimated": true,
+       "base_close": 82116.0,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-19T08:49:00+00:00",
+       "entry_price": 82800.01,
+       "limit": 82278.6299,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82278.6299,
+       "move": -0.006317,
+       "money": -0.8291,
+       "provisional": false,
+       "limits": [
+        83628.0101,
+        82278.6299
+       ],
+       "limit_pct": -0.632
+      },
+      {
+       "interval": "2026-10-21",
+       "days": [
+        "2026-10-21"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-21T08:55:18+00:00",
+       "estimated": true,
+       "base_close": 83028.15,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-21T08:56:00+00:00",
+       "entry_price": 83314.94,
+       "limit": 84148.0894,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-21T14:00:00+00:00",
+       "exit_price": 84148.0894,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        84148.0894
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-22",
+       "days": [
+        "2026-10-22",
+        "2026-10-23",
+        "2026-10-24",
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-22T09:08:39+00:00",
+       "estimated": true,
+       "base_close": 84093.42,
+       "live": true,
+       "rolls": 5,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-22T09:09:00+00:00",
+       "entry_price": 81812.1,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": -0.017497,
+       "money": -1.9328,
+       "provisional": false,
+       "limits": [
+        82630.221,
+        82664.4701,
+        81541.3097,
+        81135.0271,
+        81239.8651,
+        80393.0811
+       ],
+       "limit_pct": -1.75
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 7,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 1.3094,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 1.3274,
+       "limit": 1.340674,
+       "exit_kind": "next card",
+       "exit_at": "2026-10-24T08:57:00+00:00",
+       "exit_price": 1.2809,
+       "move": -0.035659,
+       "money": -3.6996,
+       "provisional": false,
+       "limits": [
+        1.340674
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-28",
+       "days": [
+        "2026-10-28",
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-28T10:24:29+00:00",
+       "estimated": true,
+       "base_close": 80909.77,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-28T10:25:00+00:00",
+       "entry_price": 81554.14,
+       "limit": 81094.1423,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-29T14:00:00+00:00",
+       "exit_price": 81094.1423,
+       "move": -0.005656,
+       "money": -0.7635,
+       "provisional": false,
+       "limits": [
+        82369.6814,
+        81094.1423
+       ],
+       "limit_pct": -0.566
+      },
+      {
+       "interval": "2026-10-30",
+       "days": [
+        "2026-10-30"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-31T01:49:42+00:00",
+       "estimated": true,
+       "base_close": 77991.89,
+       "live": false,
+       "rolls": 0,
+       "status": "not followable",
+       "reason": "published after the interval's end",
+       "limit": 78198.5733,
+       "limits": [
+        78198.5733
+       ],
+       "entry_at": null,
+       "entry_price": null,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limit_pct": null
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 77368.77,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 77398.01,
+       "limit": 78171.9901,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        78171.9901
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 8,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 1.2567,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 1.2542,
+       "limit": 1.266742,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.266742
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "SOL",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "main",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 96.38,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 96.7,
+       "limit": 97.667,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        97.667
+       ],
+       "limit_pct": 0.995
+      }
+     ],
+     "stats": {
+      "orders": 10,
+      "closed": 7,
+      "open": 3,
+      "pending": 0,
+      "filled": 6,
+      "early": 0,
+      "time_stop": 1,
+      "skips": {},
+      "not_followable": 1,
+      "total": -8.0471,
+      "wins": 2,
+      "estimated": 7,
+      "rolls": 10
+     }
+    }
+   },
+   "reference": {
+    "edge": {
+     "orders": [
+      {
+       "interval": "2026-10-14",
+       "days": [
+        "2026-10-14"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-14T08:58:02+00:00",
+       "estimated": true,
+       "base_close": 83169.0,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-14T08:59:00+00:00",
+       "entry_price": 83462.02,
+       "limit": 83579.4175103,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        83579.4175103
+       ],
+       "limit_pct": 0.141
+      },
+      {
+       "interval": "2026-10-15",
+       "days": [
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-15T09:09:36+00:00",
+       "estimated": true,
+       "base_close": 81682.01,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-15T09:10:00+00:00",
+       "entry_price": 81375.65,
+       "limit": 82085.15016395,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82085.15016395,
+       "move": 0.008681,
+       "money": 0.671,
+       "provisional": false,
+       "limits": [
+        82085.15016395
+       ],
+       "limit_pct": 0.868
+      },
+      {
+       "interval": "2026-10-16",
+       "days": [
+        "2026-10-16"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-16T08:51:20+00:00",
+       "estimated": true,
+       "base_close": 82245.93,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-16T08:52:00+00:00",
+       "entry_price": 82344.01,
+       "limit": 82651.81272617,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-16T11:00:00+00:00",
+       "exit_price": 82651.81272617,
+       "move": 0.003731,
+       "money": 0.1734,
+       "provisional": false,
+       "limits": [
+        82651.81272617
+       ],
+       "limit_pct": 0.373
+      },
+      {
+       "interval": "2026-10-17",
+       "days": [
+        "2026-10-17"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-17T09:03:57+00:00",
+       "estimated": true,
+       "base_close": 81615.64,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-17T09:04:00+00:00",
+       "entry_price": 81724.65,
+       "limit": 82018.47276783,
+       "exit_kind": "close",
+       "exit_at": "2026-10-18T00:00:00+00:00",
+       "exit_price": 81491.04,
+       "move": -0.002863,
+       "money": -0.4856,
+       "provisional": false,
+       "limits": [
+        82018.47276783
+       ],
+       "limit_pct": 0.359
+      },
+      {
+       "interval": "2026-10-18",
+       "days": [
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-18T09:02:26+00:00",
+       "estimated": true,
+       "base_close": 81491.04,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-18T09:03:00+00:00",
+       "entry_price": 81775.17,
+       "limit": 81893.21749371,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81893.21749371
+       ],
+       "limit_pct": 0.144
+      },
+      {
+       "interval": "2026-10-19",
+       "days": [
+        "2026-10-19"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-19T08:48:39+00:00",
+       "estimated": true,
+       "base_close": 82116.0,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-19T08:49:00+00:00",
+       "entry_price": 82800.01,
+       "limit": 82521.22122757,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        82521.22122757
+       ],
+       "limit_pct": -0.337
+      },
+      {
+       "interval": "2026-10-20",
+       "days": [
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-20T08:57:01+00:00",
+       "estimated": true,
+       "base_close": 81938.4,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-20T08:58:00+00:00",
+       "entry_price": 81463.99,
+       "limit": 82342.80557241,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82342.80557241,
+       "move": 0.01073,
+       "money": 0.8777,
+       "provisional": false,
+       "limits": [
+        82342.80557241
+       ],
+       "limit_pct": 1.073
+      },
+      {
+       "interval": "2026-10-21",
+       "days": [
+        "2026-10-21"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-21T08:55:18+00:00",
+       "estimated": true,
+       "base_close": 83028.15,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-21T08:56:00+00:00",
+       "entry_price": 83314.94,
+       "limit": 83437.89297295,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        83437.89297295
+       ],
+       "limit_pct": 0.147
+      },
+      {
+       "interval": "2026-10-22",
+       "days": [
+        "2026-10-22"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-22T09:08:39+00:00",
+       "estimated": true,
+       "base_close": 84093.42,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-22T09:09:00+00:00",
+       "entry_price": 81812.1,
+       "limit": 84508.48242106,
+       "exit_kind": "close",
+       "exit_at": "2026-10-23T00:00:00+00:00",
+       "exit_price": 81416.09,
+       "move": -0.004852,
+       "money": -0.6836,
+       "provisional": false,
+       "limits": [
+        84508.48242106
+       ],
+       "limit_pct": 3.243
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 81416.09,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 81846.01,
+       "limit": 81818.23152287,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81818.23152287
+       ],
+       "limit_pct": -0.034
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 7,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 1.3094,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 1.3274,
+       "limit": 1.3272919,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.3272919
+       ],
+       "limit_pct": -0.008
+      },
+      {
+       "interval": "2026-10-24",
+       "days": [
+        "2026-10-24"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-24T08:56:19+00:00",
+       "estimated": true,
+       "base_close": 81189.43,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-24T08:57:00+00:00",
+       "entry_price": 80733.97,
+       "limit": 81590.256731,
+       "exit_kind": "close",
+       "exit_at": "2026-10-25T00:00:00+00:00",
+       "exit_price": 80888.15,
+       "move": 0.001908,
+       "money": -0.0092,
+       "provisional": false,
+       "limits": [
+        81590.256731
+       ],
+       "limit_pct": 1.055
+      },
+      {
+       "interval": "2026-10-25",
+       "days": [
+        "2026-10-25"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-25T10:31:51+00:00",
+       "estimated": true,
+       "base_close": 80888.16,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-25T10:32:00+00:00",
+       "entry_price": 80331.71,
+       "limit": 81287.38213085,
+       "exit_kind": "close",
+       "exit_at": "2026-10-26T00:00:00+00:00",
+       "exit_price": 80154.09,
+       "move": -0.002214,
+       "money": -0.4209,
+       "provisional": false,
+       "limits": [
+        81287.38213085
+       ],
+       "limit_pct": 1.183
+      },
+      {
+       "interval": "2026-10-26",
+       "days": [
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-26T10:19:33+00:00",
+       "estimated": true,
+       "base_close": 80154.09,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-26T10:20:00+00:00",
+       "entry_price": 80435.51,
+       "limit": 80549.64951964,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        80549.64951964
+       ],
+       "limit_pct": 0.142
+      },
+      {
+       "interval": "2026-10-27",
+       "days": [
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-27T10:21:54+00:00",
+       "estimated": true,
+       "base_close": 80150.56,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-27T10:22:00+00:00",
+       "entry_price": 79597.11,
+       "limit": 80546.06247962,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T15:00:00+00:00",
+       "exit_price": 80546.06247962,
+       "move": 0.011851,
+       "money": 0.991,
+       "provisional": false,
+       "limits": [
+        80546.06247962
+       ],
+       "limit_pct": 1.185
+      },
+      {
+       "interval": "2026-10-28",
+       "days": [
+        "2026-10-28"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-28T10:24:29+00:00",
+       "estimated": true,
+       "base_close": 80909.77,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-28T10:25:00+00:00",
+       "entry_price": 81554.14,
+       "limit": 81306.99593823,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81306.99593823
+       ],
+       "limit_pct": -0.304
+      },
+      {
+       "interval": "2026-10-29",
+       "days": [
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-29T10:35:24+00:00",
+       "estimated": true,
+       "base_close": 81343.5,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-29T10:36:00+00:00",
+       "entry_price": 80291.23,
+       "limit": 81744.90913981,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-29T15:00:00+00:00",
+       "exit_price": 81744.90913981,
+       "move": 0.017943,
+       "money": 1.6087,
+       "provisional": false,
+       "limits": [
+        81744.90913981
+       ],
+       "limit_pct": 1.794
+      },
+      {
+       "interval": "2026-10-30",
+       "days": [
+        "2026-10-30"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-31T01:49:42+00:00",
+       "estimated": true,
+       "base_close": 77991.89,
+       "live": false,
+       "rolls": 0,
+       "status": "not followable",
+       "reason": "published after the interval's end",
+       "limit": 78376.81763978,
+       "limits": [
+        78376.81763978
+       ],
+       "entry_at": null,
+       "entry_price": null,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limit_pct": null
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 77368.77,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 77398.01,
+       "limit": 77750.58399722,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        77750.58399722
+       ],
+       "limit_pct": 0.454
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 8,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 1.2567,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 1.2542,
+       "limit": 1.28801282,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.28801282
+       ],
+       "limit_pct": 2.66
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "SOL",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 96.38,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 96.7,
+       "limit": 97.28311592,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        97.28311592
+       ],
+       "limit_pct": 0.601
+      }
+     ],
+     "stats": {
+      "orders": 12,
+      "closed": 9,
+      "open": 3,
+      "pending": 0,
+      "filled": 5,
+      "early": 0,
+      "time_stop": 4,
+      "skips": {
+       "too close to the limit": 4,
+       "already reached": 4
+      },
+      "not_followable": 1,
+      "total": 2.7226,
+      "wins": 5,
+      "estimated": 9,
+      "rolls": 0
+     }
+    },
+    "mid": {
+     "orders": [
+      {
+       "interval": "2026-10-14",
+       "days": [
+        "2026-10-14"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-14T08:58:02+00:00",
+       "estimated": true,
+       "base_close": 83169.0,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-14T08:59:00+00:00",
+       "entry_price": 83462.02,
+       "limit": 83841.11334159,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-14T12:00:00+00:00",
+       "exit_price": 83841.11334159,
+       "move": 0.004532,
+       "money": 0.2538,
+       "provisional": false,
+       "limits": [
+        83841.11334159
+       ],
+       "limit_pct": 0.453
+      },
+      {
+       "interval": "2026-10-15",
+       "days": [
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-15T09:09:36+00:00",
+       "estimated": true,
+       "base_close": 81682.01,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-15T09:10:00+00:00",
+       "entry_price": 81375.65,
+       "limit": 82342.3899359,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82342.3899359,
+       "move": 0.01181,
+       "money": 0.9868,
+       "provisional": false,
+       "limits": [
+        82342.3899359
+       ],
+       "limit_pct": 1.181
+      },
+      {
+       "interval": "2026-10-16",
+       "days": [
+        "2026-10-16"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-16T08:51:20+00:00",
+       "estimated": true,
+       "base_close": 82245.93,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-16T08:52:00+00:00",
+       "entry_price": 82344.01,
+       "limit": 82910.73165659,
+       "exit_kind": "close",
+       "exit_at": "2026-10-17T00:00:00+00:00",
+       "exit_price": 81615.91,
+       "move": -0.008881,
+       "money": -1.0833,
+       "provisional": false,
+       "limits": [
+        82910.73165659
+       ],
+       "limit_pct": 0.686
+      },
+      {
+       "interval": "2026-10-17",
+       "days": [
+        "2026-10-17"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-17T09:03:57+00:00",
+       "estimated": true,
+       "base_close": 81615.64,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-17T09:04:00+00:00",
+       "entry_price": 81724.65,
+       "limit": 82275.27481559,
+       "exit_kind": "close",
+       "exit_at": "2026-10-18T00:00:00+00:00",
+       "exit_price": 81491.04,
+       "move": -0.002863,
+       "money": -0.4856,
+       "provisional": false,
+       "limits": [
+        82275.27481559
+       ],
+       "limit_pct": 0.671
+      },
+      {
+       "interval": "2026-10-18",
+       "days": [
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-18T09:02:26+00:00",
+       "estimated": true,
+       "base_close": 81491.04,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-18T09:03:00+00:00",
+       "entry_price": 81775.17,
+       "limit": 82149.54522489,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-18T09:33:00+00:00",
+       "exit_price": 82149.54522489,
+       "move": 0.004568,
+       "money": 0.2574,
+       "provisional": false,
+       "limits": [
+        82149.54522489
+       ],
+       "limit_pct": 0.457
+      },
+      {
+       "interval": "2026-10-19",
+       "days": [
+        "2026-10-19"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-19T08:48:39+00:00",
+       "estimated": true,
+       "base_close": 82116.0,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "already reached",
+       "entry_at": "2026-10-19T08:49:00+00:00",
+       "entry_price": 82800.01,
+       "limit": 82779.46413068,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        82779.46413068
+       ],
+       "limit_pct": -0.025
+      },
+      {
+       "interval": "2026-10-20",
+       "days": [
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-20T08:57:01+00:00",
+       "estimated": true,
+       "base_close": 81938.4,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-20T08:58:00+00:00",
+       "entry_price": 81463.99,
+       "limit": 82600.45337463,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82600.45337463,
+       "move": 0.013854,
+       "money": 1.1937,
+       "provisional": false,
+       "limits": [
+        82600.45337463
+       ],
+       "limit_pct": 1.385
+      },
+      {
+       "interval": "2026-10-21",
+       "days": [
+        "2026-10-21"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-21T08:55:18+00:00",
+       "estimated": true,
+       "base_close": 83028.15,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-21T08:56:00+00:00",
+       "entry_price": 83314.94,
+       "limit": 83698.98147516,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-21T13:00:00+00:00",
+       "exit_price": 83698.98147516,
+       "move": 0.004599,
+       "money": 0.2605,
+       "provisional": false,
+       "limits": [
+        83698.98147516
+       ],
+       "limit_pct": 0.46
+      },
+      {
+       "interval": "2026-10-22",
+       "days": [
+        "2026-10-22"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-22T09:08:39+00:00",
+       "estimated": true,
+       "base_close": 84093.42,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-22T09:09:00+00:00",
+       "entry_price": 81812.1,
+       "limit": 84772.90473722,
+       "exit_kind": "close",
+       "exit_at": "2026-10-23T00:00:00+00:00",
+       "exit_price": 81416.09,
+       "move": -0.004852,
+       "money": -0.6836,
+       "provisional": false,
+       "limits": [
+        84772.90473722
+       ],
+       "limit_pct": 3.555
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 81416.09,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 81846.01,
+       "limit": 82074.3274762,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        82074.3274762
+       ],
+       "limit_pct": 0.279
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 7,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 1.3094,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 1.3274,
+       "limit": 1.33467686,
+       "exit_kind": "close",
+       "exit_at": "2026-10-24T00:00:00+00:00",
+       "exit_price": 1.295,
+       "move": -0.024711,
+       "money": -2.6384,
+       "provisional": false,
+       "limits": [
+        1.33467686
+       ],
+       "limit_pct": 0.547
+      },
+      {
+       "interval": "2026-10-24",
+       "days": [
+        "2026-10-24"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-24T08:56:19+00:00",
+       "estimated": true,
+       "base_close": 81189.43,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-24T08:57:00+00:00",
+       "entry_price": 80733.97,
+       "limit": 81845.63507149,
+       "exit_kind": "close",
+       "exit_at": "2026-10-25T00:00:00+00:00",
+       "exit_price": 80888.15,
+       "move": 0.001908,
+       "money": -0.0092,
+       "provisional": false,
+       "limits": [
+        81845.63507149
+       ],
+       "limit_pct": 1.368
+      },
+      {
+       "interval": "2026-10-25",
+       "days": [
+        "2026-10-25"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-25T10:31:51+00:00",
+       "estimated": true,
+       "base_close": 80888.16,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-25T10:32:00+00:00",
+       "entry_price": 80331.71,
+       "limit": 81541.76969356,
+       "exit_kind": "close",
+       "exit_at": "2026-10-26T00:00:00+00:00",
+       "exit_price": 80154.09,
+       "move": -0.002214,
+       "money": -0.4209,
+       "provisional": false,
+       "limits": [
+        81541.76969356
+       ],
+       "limit_pct": 1.495
+      },
+      {
+       "interval": "2026-10-26",
+       "days": [
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-26T10:19:33+00:00",
+       "estimated": true,
+       "base_close": 80154.09,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-26T10:20:00+00:00",
+       "entry_price": 80435.51,
+       "limit": 80801.71057445,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-26T15:00:00+00:00",
+       "exit_price": 80801.71057445,
+       "move": 0.004542,
+       "money": 0.2548,
+       "provisional": false,
+       "limits": [
+        80801.71057445
+       ],
+       "limit_pct": 0.454
+      },
+      {
+       "interval": "2026-10-27",
+       "days": [
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-27T10:21:54+00:00",
+       "estimated": true,
+       "base_close": 80150.56,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-27T10:22:00+00:00",
+       "entry_price": 79597.11,
+       "limit": 80798.12602641,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T21:00:00+00:00",
+       "exit_price": 80798.12602641,
+       "move": 0.014976,
+       "money": 1.3074,
+       "provisional": false,
+       "limits": [
+        80798.12602641
+       ],
+       "limit_pct": 1.498
+      },
+      {
+       "interval": "2026-10-28",
+       "days": [
+        "2026-10-28"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-28T10:24:29+00:00",
+       "estimated": true,
+       "base_close": 80909.77,
+       "live": true,
+       "rolls": 0,
+       "status": "skip",
+       "reason": "too close to the limit",
+       "entry_at": "2026-10-28T10:25:00+00:00",
+       "entry_price": 81554.14,
+       "limit": 81562.44915078,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        81562.44915078
+       ],
+       "limit_pct": 0.01
+      },
+      {
+       "interval": "2026-10-29",
+       "days": [
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-29T10:35:24+00:00",
+       "estimated": true,
+       "base_close": 81343.5,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-29T10:36:00+00:00",
+       "entry_price": 80291.23,
+       "limit": 82000.49793518,
+       "exit_kind": "close",
+       "exit_at": "2026-10-30T00:00:00+00:00",
+       "exit_price": 77991.89,
+       "move": -0.029056,
+       "money": -3.0609,
+       "provisional": false,
+       "limits": [
+        82000.49793518
+       ],
+       "limit_pct": 2.106
+      },
+      {
+       "interval": "2026-10-30",
+       "days": [
+        "2026-10-30"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-31T01:49:42+00:00",
+       "estimated": true,
+       "base_close": 77991.89,
+       "live": false,
+       "rolls": 0,
+       "status": "not followable",
+       "reason": "published after the interval's end",
+       "limit": 78621.25410226,
+       "limits": [
+        78621.25410226
+       ],
+       "entry_at": null,
+       "entry_price": null,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limit_pct": null
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 77368.77,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 77398.01,
+       "limit": 77992.49888265,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        77992.49888265
+       ],
+       "limit_pct": 0.765
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 8,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 1.2567,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 1.2542,
+       "limit": 1.3029234,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.3029234
+       ],
+       "limit_pct": 3.811
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "SOL",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 96.38,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 96.7,
+       "limit": 97.87574756,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        97.87574756
+       ],
+       "limit_pct": 1.209
+      }
+     ],
+     "stats": {
+      "orders": 17,
+      "closed": 14,
+      "open": 3,
+      "pending": 0,
+      "filled": 7,
+      "early": 0,
+      "time_stop": 7,
+      "skips": {
+       "already reached": 1,
+       "too close to the limit": 2
+      },
+      "not_followable": 1,
+      "total": -3.8676,
+      "wins": 7,
+      "estimated": 14,
+      "rolls": 0
+     }
+    },
+    "fixed": {
+     "orders": [
+      {
+       "interval": "2026-10-14",
+       "days": [
+        "2026-10-14"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-14T08:58:02+00:00",
+       "estimated": true,
+       "base_close": 83169.0,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-14T08:59:00+00:00",
+       "entry_price": 83462.02,
+       "limit": 84296.6402,
+       "exit_kind": "close",
+       "exit_at": "2026-10-15T00:00:00+00:00",
+       "exit_price": 81682.02,
+       "move": -0.021558,
+       "money": -2.3306,
+       "provisional": false,
+       "limits": [
+        84296.6402
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-15",
+       "days": [
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-15T09:09:36+00:00",
+       "estimated": true,
+       "base_close": 81682.01,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-15T09:10:00+00:00",
+       "entry_price": 81375.65,
+       "limit": 82189.4065,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82189.4065,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        82189.4065
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-16",
+       "days": [
+        "2026-10-16"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-16T08:51:20+00:00",
+       "estimated": true,
+       "base_close": 82245.93,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-16T08:52:00+00:00",
+       "entry_price": 82344.01,
+       "limit": 83167.4501,
+       "exit_kind": "close",
+       "exit_at": "2026-10-17T00:00:00+00:00",
+       "exit_price": 81615.91,
+       "move": -0.008881,
+       "money": -1.0833,
+       "provisional": false,
+       "limits": [
+        83167.4501
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-17",
+       "days": [
+        "2026-10-17"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-17T09:03:57+00:00",
+       "estimated": true,
+       "base_close": 81615.64,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-17T09:04:00+00:00",
+       "entry_price": 81724.65,
+       "limit": 82541.8965,
+       "exit_kind": "close",
+       "exit_at": "2026-10-18T00:00:00+00:00",
+       "exit_price": 81491.04,
+       "move": -0.002863,
+       "money": -0.4856,
+       "provisional": false,
+       "limits": [
+        82541.8965
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-18",
+       "days": [
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-18T09:02:26+00:00",
+       "estimated": true,
+       "base_close": 81491.04,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-18T09:03:00+00:00",
+       "entry_price": 81775.17,
+       "limit": 82592.9217,
+       "exit_kind": "close",
+       "exit_at": "2026-10-19T00:00:00+00:00",
+       "exit_price": 82116.0,
+       "move": 0.004159,
+       "money": 0.2164,
+       "provisional": false,
+       "limits": [
+        82592.9217
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-19",
+       "days": [
+        "2026-10-19"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-19T08:48:39+00:00",
+       "estimated": true,
+       "base_close": 82116.0,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-19T08:49:00+00:00",
+       "entry_price": 82800.01,
+       "limit": 83628.0101,
+       "exit_kind": "close",
+       "exit_at": "2026-10-20T00:00:00+00:00",
+       "exit_price": 81938.39,
+       "move": -0.010461,
+       "money": -1.2396,
+       "provisional": false,
+       "limits": [
+        83628.0101
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-20",
+       "days": [
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-20T08:57:01+00:00",
+       "estimated": true,
+       "base_close": 81938.4,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-20T08:58:00+00:00",
+       "entry_price": 81463.99,
+       "limit": 82278.6299,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82278.6299,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        82278.6299
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-21",
+       "days": [
+        "2026-10-21"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-21T08:55:18+00:00",
+       "estimated": true,
+       "base_close": 83028.15,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-21T08:56:00+00:00",
+       "entry_price": 83314.94,
+       "limit": 84148.0894,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-21T14:00:00+00:00",
+       "exit_price": 84148.0894,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        84148.0894
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-22",
+       "days": [
+        "2026-10-22"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-22T09:08:39+00:00",
+       "estimated": true,
+       "base_close": 84093.42,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-22T09:09:00+00:00",
+       "entry_price": 81812.1,
+       "limit": 82630.221,
+       "exit_kind": "close",
+       "exit_at": "2026-10-23T00:00:00+00:00",
+       "exit_price": 81416.09,
+       "move": -0.004852,
+       "money": -0.6836,
+       "provisional": false,
+       "limits": [
+        82630.221
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 81416.09,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 81846.01,
+       "limit": 82664.4701,
+       "exit_kind": "close",
+       "exit_at": "2026-10-24T00:00:00+00:00",
+       "exit_price": 81189.44,
+       "move": -0.008054,
+       "money": -1.0014,
+       "provisional": false,
+       "limits": [
+        82664.4701
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 7,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 1.3094,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 1.3274,
+       "limit": 1.340674,
+       "exit_kind": "close",
+       "exit_at": "2026-10-24T00:00:00+00:00",
+       "exit_price": 1.295,
+       "move": -0.024711,
+       "money": -2.6384,
+       "provisional": false,
+       "limits": [
+        1.340674
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-24",
+       "days": [
+        "2026-10-24"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-24T08:56:19+00:00",
+       "estimated": true,
+       "base_close": 81189.43,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-24T08:57:00+00:00",
+       "entry_price": 80733.97,
+       "limit": 81541.3097,
+       "exit_kind": "close",
+       "exit_at": "2026-10-25T00:00:00+00:00",
+       "exit_price": 80888.15,
+       "move": 0.001908,
+       "money": -0.0092,
+       "provisional": false,
+       "limits": [
+        81541.3097
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-25",
+       "days": [
+        "2026-10-25"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-25T10:31:51+00:00",
+       "estimated": true,
+       "base_close": 80888.16,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-25T10:32:00+00:00",
+       "entry_price": 80331.71,
+       "limit": 81135.0271,
+       "exit_kind": "close",
+       "exit_at": "2026-10-26T00:00:00+00:00",
+       "exit_price": 80154.09,
+       "move": -0.002214,
+       "money": -0.4209,
+       "provisional": false,
+       "limits": [
+        81135.0271
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-26",
+       "days": [
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-26T10:19:33+00:00",
+       "estimated": true,
+       "base_close": 80154.09,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-26T10:20:00+00:00",
+       "entry_price": 80435.51,
+       "limit": 81239.8651,
+       "exit_kind": "close",
+       "exit_at": "2026-10-27T00:00:00+00:00",
+       "exit_price": 80150.56,
+       "move": -0.003549,
+       "money": -0.5539,
+       "provisional": false,
+       "limits": [
+        81239.8651
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-27",
+       "days": [
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-27T10:21:54+00:00",
+       "estimated": true,
+       "base_close": 80150.56,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-27T10:22:00+00:00",
+       "entry_price": 79597.11,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        80393.0811
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-28",
+       "days": [
+        "2026-10-28"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-28T10:24:29+00:00",
+       "estimated": true,
+       "base_close": 80909.77,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-28T10:25:00+00:00",
+       "entry_price": 81554.14,
+       "limit": 82369.6814,
+       "exit_kind": "close",
+       "exit_at": "2026-10-29T00:00:00+00:00",
+       "exit_price": 81343.51,
+       "move": -0.002586,
+       "money": -0.458,
+       "provisional": false,
+       "limits": [
+        82369.6814
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-29",
+       "days": [
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-29T10:35:24+00:00",
+       "estimated": true,
+       "base_close": 81343.5,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-29T10:36:00+00:00",
+       "entry_price": 80291.23,
+       "limit": 81094.1423,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-29T14:00:00+00:00",
+       "exit_price": 81094.1423,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        81094.1423
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-30",
+       "days": [
+        "2026-10-30"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-31T01:49:42+00:00",
+       "estimated": true,
+       "base_close": 77991.89,
+       "live": false,
+       "rolls": 0,
+       "status": "not followable",
+       "reason": "published after the interval's end",
+       "limit": 78198.5733,
+       "limits": [
+        78198.5733
+       ],
+       "entry_at": null,
+       "entry_price": null,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limit_pct": null
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 77368.77,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 77398.01,
+       "limit": 78171.9901,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        78171.9901
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "XRP",
+       "model": "GARCH Model",
+       "bin": 8,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 1.2567,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 1.2542,
+       "limit": 1.266742,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        1.266742
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-31",
+       "days": [
+        "2026-10-31"
+       ],
+       "symbol": "SOL",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "reference",
+       "published_at": "2026-10-31T02:02:50+00:00",
+       "estimated": true,
+       "base_close": 96.38,
+       "live": true,
+       "rolls": 0,
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-10-31T02:03:00+00:00",
+       "entry_price": 96.7,
+       "limit": 97.667,
+       "exit_kind": null,
+       "exit_at": null,
+       "exit_price": null,
+       "move": null,
+       "money": null,
+       "provisional": false,
+       "limits": [
+        97.667
+       ],
+       "limit_pct": 0.995
+      }
+     ],
+     "stats": {
+      "orders": 20,
+      "closed": 17,
+      "open": 3,
+      "pending": 0,
+      "filled": 5,
+      "early": 0,
+      "time_stop": 12,
+      "skips": {},
+      "not_followable": 1,
+      "total": -6.6931,
+      "wins": 6,
+      "estimated": 17,
+      "rolls": 0
+     }
+    }
+   },
+   "benchmark": {
+    "points": [
+     [
+      "2026-10-14",
+      5,
+      -18.3874,
+      true
+     ],
+     [
+      "2026-10-15",
+      5,
+      10.287,
+      true
+     ],
+     [
+      "2026-10-16",
+      5,
+      -8.5893,
+      true
+     ],
+     [
+      "2026-10-17",
+      5,
+      -4.5566,
+      true
+     ],
+     [
+      "2026-10-18",
+      5,
+      5.7081,
+      true
+     ],
+     [
+      "2026-10-19",
+      5,
+      -7.9897,
+      true
+     ],
+     [
+      "2026-10-20",
+      5,
+      13.7648,
+      true
+     ],
+     [
+      "2026-10-21",
+      5,
+      -11.0493,
+      true
+     ],
+     [
+      "2026-10-22",
+      5,
+      2.0621,
+      true
+     ],
+     [
+      "2026-10-23",
+      5,
+      -11.6902,
+      true
+     ],
+     [
+      "2026-10-24",
+      5,
+      -2.878,
+      true
+     ],
+     [
+      "2026-10-25",
+      5,
+      -0.2508,
+      true
+     ],
+     [
+      "2026-10-26",
+      5,
+      -5.5915,
+      true
+     ],
+     [
+      "2026-10-27",
+      5,
+      14.1095,
+      true
+     ],
+     [
+      "2026-10-28",
+      5,
+      -12.0723,
+      true
+     ],
+     [
+      "2026-10-29",
+      5,
+      -21.3361,
+      true
+     ],
+     [
+      "2026-10-31",
+      0,
+      0,
+      false
+     ]
+    ],
+    "stats": {
+     "orders": 85,
+     "closed": 80,
+     "open": 5,
+     "pending": 0,
+     "filled": 0,
+     "early": 0,
+     "time_stop": 80,
+     "skips": {},
+     "not_followable": 0,
+     "total": -58.4599,
+     "wins": 26,
+     "estimated": 0,
+     "rolls": 0
+    }
+   },
+   "record": {
+    "shown": [
+     [
+      "2026-10-14",
+      "edge"
+     ],
+     [
+      "2026-10-15",
+      "edge"
+     ],
+     [
+      "2026-10-16",
+      "edge"
+     ],
+     [
+      "2026-10-17",
+      "edge"
+     ],
+     [
+      "2026-10-18",
+      "edge"
+     ],
+     [
+      "2026-10-19",
+      "edge"
+     ],
+     [
+      "2026-10-20",
+      "edge"
+     ],
+     [
+      "2026-10-21",
+      "edge"
+     ],
+     [
+      "2026-10-22",
+      "edge"
+     ],
+     [
+      "2026-10-23",
+      "edge"
+     ],
+     [
+      "2026-10-24",
+      "edge"
+     ],
+     [
+      "2026-10-25",
+      "edge"
+     ],
+     [
+      "2026-10-26",
+      "edge"
+     ],
+     [
+      "2026-10-27",
+      "edge"
+     ],
+     [
+      "2026-10-28",
+      "edge"
+     ],
+     [
+      "2026-10-29",
+      "edge"
+     ],
+     [
+      "2026-10-30",
+      "edge"
+     ],
+     [
+      "2026-10-31",
+      "edge"
+     ]
+    ],
+    "stats": {
+     "orders": 11,
+     "closed": 8,
+     "open": 3,
+     "pending": 0,
+     "filled": 6,
+     "early": 0,
+     "time_stop": 2,
+     "skips": {
+      "too close to the limit": 4,
+      "already reached": 4
+     },
+     "not_followable": 1,
+     "total": 3.7531,
+     "wins": 6,
+     "estimated": 8,
+     "rolls": 1
+    }
+   },
+   "publications": [
+    [
+     "2026-10-13",
+     "2026-10-14",
+     "2026-10-14T08:58:02+00:00",
+     true
+    ],
+    [
+     "2026-10-14",
+     "2026-10-15",
+     "2026-10-15T09:09:36+00:00",
+     true
+    ],
+    [
+     "2026-10-15",
+     "2026-10-16",
+     "2026-10-16T08:51:20+00:00",
+     true
+    ],
+    [
+     "2026-10-16",
+     "2026-10-17",
+     "2026-10-17T09:03:57+00:00",
+     true
+    ],
+    [
+     "2026-10-17",
+     "2026-10-18",
+     "2026-10-18T09:02:26+00:00",
+     true
+    ],
+    [
+     "2026-10-18",
+     "2026-10-19",
+     "2026-10-19T08:48:39+00:00",
+     true
+    ],
+    [
+     "2026-10-19",
+     "2026-10-20",
+     "2026-10-20T08:57:01+00:00",
+     true
+    ],
+    [
+     "2026-10-20",
+     "2026-10-21",
+     "2026-10-21T08:55:18+00:00",
+     true
+    ],
+    [
+     "2026-10-21",
+     "2026-10-22",
+     "2026-10-22T09:08:39+00:00",
+     true
+    ],
+    [
+     "2026-10-22",
+     "2026-10-23",
+     "2026-10-23T08:47:25+00:00",
+     true
+    ],
+    [
+     "2026-10-23",
+     "2026-10-24",
+     "2026-10-24T08:56:19+00:00",
+     true
+    ],
+    [
+     "2026-10-24",
+     "2026-10-25",
+     "2026-10-25T10:31:51+00:00",
+     true
+    ],
+    [
+     "2026-10-25",
+     "2026-10-26",
+     "2026-10-26T10:19:33+00:00",
+     true
+    ],
+    [
+     "2026-10-26",
+     "2026-10-27",
+     "2026-10-27T10:21:54+00:00",
+     true
+    ],
+    [
+     "2026-10-27",
+     "2026-10-28",
+     "2026-10-28T10:24:29+00:00",
+     true
+    ],
+    [
+     "2026-10-28",
+     "2026-10-29",
+     "2026-10-29T10:35:24+00:00",
+     true
+    ],
+    [
+     "2026-10-29",
+     "2026-10-30",
+     "2026-10-31T01:49:42+00:00",
+     true
+    ],
+    [
+     "2026-10-30",
+     "2026-10-31",
+     "2026-10-31T02:02:50+00:00",
+     true
+    ]
+   ],
+   "coverage": {
+    "BTC": {
+     "1h_first": "2026-10-14T07:00:00+00:00",
+     "1h_last": "2026-10-31T07:00:00+00:00",
+     "1h_bars": 409,
+     "1m_bars": 2837
+    },
+    "ETH": {
+     "1h_first": "2026-10-14T07:00:00+00:00",
+     "1h_last": "2026-10-31T07:00:00+00:00",
+     "1h_bars": 409,
+     "1m_bars": 2837
+    },
+    "BNB": {
+     "1h_first": "2026-10-14T07:00:00+00:00",
+     "1h_last": "2026-10-31T07:00:00+00:00",
+     "1h_bars": 409,
+     "1m_bars": 2837
+    },
+    "XRP": {
+     "1h_first": "2026-10-14T07:00:00+00:00",
+     "1h_last": "2026-10-31T07:00:00+00:00",
+     "1h_bars": 409,
+     "1m_bars": 2837
+    },
+    "SOL": {
+     "1h_first": "2026-10-14T07:00:00+00:00",
+     "1h_last": "2026-10-31T07:00:00+00:00",
+     "1h_bars": 409,
+     "1m_bars": 2837
+    }
+   },
+   "now": {
+    "interval": "2026-10-31",
+    "made_on": "2026-10-30",
+    "published_at": "2026-10-31T02:02:50+00:00",
+    "estimated": true,
+    "model": "GARCH Model",
+    "variant": "edge",
+    "deadline_fallback": "2026-11-01T12:00:00+00:00",
+    "deadline_text": "Sun 1 Nov 13:00",
+    "symbols": {
+     "BTC": {
+      "status": "buy now",
+      "call": "up",
+      "bin": 6,
+      "limit": 77750.58399721584,
+      "entry_price": 77398.01,
+      "limit_pct": 0.454,
+      "reason": null,
+      "provisional": false,
+      "held_since": "2026-10-31",
+      "state": "open",
+      "newcomer": null,
+      "newcomers_held": []
+     },
+     "ETH": {
+      "status": "no order",
+      "call": "down",
+      "bin": 3,
+      "limit": null,
+      "entry_price": null,
+      "limit_pct": null,
+      "reason": "call down",
+      "provisional": false,
+      "held_since": null,
+      "state": null,
+      "newcomer": null,
+      "newcomers_held": []
+     },
+     "BNB": {
+      "status": "no order",
+      "call": "down",
+      "bin": 0,
+      "limit": null,
+      "entry_price": null,
+      "limit_pct": null,
+      "reason": "call down",
+      "provisional": false,
+      "held_since": null,
+      "state": null,
+      "newcomer": null,
+      "newcomers_held": []
+     },
+     "XRP": {
+      "status": "buy now",
+      "call": "up",
+      "bin": 8,
+      "limit": 1.288012817976918,
+      "entry_price": 1.2542,
+      "limit_pct": 2.66,
+      "reason": null,
+      "provisional": false,
+      "held_since": "2026-10-31",
+      "state": "open",
+      "newcomer": null,
+      "newcomers_held": []
+     },
+     "SOL": {
+      "status": "buy now",
+      "call": "up",
+      "bin": 6,
+      "limit": 97.28311592400368,
+      "entry_price": 96.7,
+      "limit_pct": 0.601,
+      "reason": null,
+      "provisional": false,
+      "held_since": "2026-10-31",
+      "state": "open",
+      "newcomer": null,
+      "newcomers_held": []
+     }
+    }
+   },
+   "newcomer_rule": "on a day card that rolls a held position (the same coin called up again, its new limit at least 0.30 % above the price), a reader who did not buy on the earlier card is told to buy now: each such showing is booked as a newcomer entry - bought at the price when that card appeared, the same new limit, sold at the limit or at market when the next day card appears (12:00 UTC the next day at the latest), under the same no-order tests as a fresh day order, and rolled like the main position when the next card calls the coin up again - in a separate record",
+   "newcomer": {
+    "edge": {
+     "orders": [
+      {
+       "interval": "2026-10-25",
+       "days": [
+        "2026-10-25"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "newcomer",
+       "published_at": "2026-10-25T10:31:51+00:00",
+       "estimated": true,
+       "base_close": 80888.16,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-25T10:32:00+00:00",
+       "entry_price": 80331.71,
+       "limit": 81287.38213085,
+       "exit_kind": "next card",
+       "exit_at": "2026-10-26T10:20:00+00:00",
+       "exit_price": 80435.51,
+       "move": 0.001291,
+       "money": -0.0709,
+       "provisional": false,
+       "limits": [
+        81287.38213085
+       ],
+       "limit_pct": 1.183
+      }
+     ],
+     "stats": {
+      "orders": 1,
+      "closed": 1,
+      "open": 0,
+      "pending": 0,
+      "filled": 0,
+      "early": 0,
+      "time_stop": 1,
+      "skips": {},
+      "not_followable": 0,
+      "total": -0.0709,
+      "wins": 0,
+      "estimated": 1,
+      "rolls": 0
+     }
+    },
+    "mid": {
+     "orders": [
+      {
+       "interval": "2026-10-17",
+       "days": [
+        "2026-10-17",
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "newcomer",
+       "published_at": "2026-10-17T09:03:57+00:00",
+       "estimated": true,
+       "base_close": 81615.64,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-17T09:04:00+00:00",
+       "entry_price": 81724.65,
+       "limit": 82149.54522489,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-18T09:33:00+00:00",
+       "exit_price": 82149.54522489,
+       "move": 0.005186,
+       "money": 0.3194,
+       "provisional": false,
+       "limits": [
+        82275.27481559,
+        82149.54522489
+       ],
+       "limit_pct": 0.519
+      },
+      {
+       "interval": "2026-10-18",
+       "days": [
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "newcomer",
+       "published_at": "2026-10-18T09:02:26+00:00",
+       "estimated": true,
+       "base_close": 81491.04,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-18T09:03:00+00:00",
+       "entry_price": 81775.17,
+       "limit": 82149.54522489,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-18T09:33:00+00:00",
+       "exit_price": 82149.54522489,
+       "move": 0.004568,
+       "money": 0.2574,
+       "provisional": false,
+       "limits": [
+        82149.54522489
+       ],
+       "limit_pct": 0.457
+      },
+      {
+       "interval": "2026-10-25",
+       "days": [
+        "2026-10-25",
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "newcomer",
+       "published_at": "2026-10-25T10:31:51+00:00",
+       "estimated": true,
+       "base_close": 80888.16,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-25T10:32:00+00:00",
+       "entry_price": 80331.71,
+       "limit": 80801.71057445,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-26T15:00:00+00:00",
+       "exit_price": 80801.71057445,
+       "move": 0.005834,
+       "money": 0.3845,
+       "provisional": false,
+       "limits": [
+        81541.76969356,
+        80801.71057445
+       ],
+       "limit_pct": 0.583
+      },
+      {
+       "interval": "2026-10-26",
+       "days": [
+        "2026-10-26"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "newcomer",
+       "published_at": "2026-10-26T10:19:33+00:00",
+       "estimated": true,
+       "base_close": 80154.09,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-26T10:20:00+00:00",
+       "entry_price": 80435.51,
+       "limit": 80801.71057445,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-26T15:00:00+00:00",
+       "exit_price": 80801.71057445,
+       "move": 0.004542,
+       "money": 0.2548,
+       "provisional": false,
+       "limits": [
+        80801.71057445
+       ],
+       "limit_pct": 0.454
+      }
+     ],
+     "stats": {
+      "orders": 4,
+      "closed": 4,
+      "open": 0,
+      "pending": 0,
+      "filled": 4,
+      "early": 0,
+      "time_stop": 0,
+      "skips": {},
+      "not_followable": 0,
+      "total": 1.2161,
+      "wins": 4,
+      "estimated": 4,
+      "rolls": 2
+     }
+    },
+    "fixed": {
+     "orders": [
+      {
+       "interval": "2026-10-15",
+       "days": [
+        "2026-10-15"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-15T09:09:36+00:00",
+       "estimated": true,
+       "base_close": 81682.01,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-15T09:10:00+00:00",
+       "entry_price": 81375.65,
+       "limit": 82189.4065,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-15T15:00:00+00:00",
+       "exit_price": 82189.4065,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        82189.4065
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-17",
+       "days": [
+        "2026-10-17",
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-17T09:03:57+00:00",
+       "estimated": true,
+       "base_close": 81615.64,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-17T09:04:00+00:00",
+       "entry_price": 81724.65,
+       "limit": 82592.9217,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-19T02:00:00+00:00",
+       "exit_price": 82592.9217,
+       "move": 0.010568,
+       "money": 0.8614,
+       "provisional": false,
+       "limits": [
+        82541.8965,
+        82592.9217
+       ],
+       "limit_pct": 1.057
+      },
+      {
+       "interval": "2026-10-18",
+       "days": [
+        "2026-10-18"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-18T09:02:26+00:00",
+       "estimated": true,
+       "base_close": 81491.04,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-18T09:03:00+00:00",
+       "entry_price": 81775.17,
+       "limit": 82592.9217,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-19T02:00:00+00:00",
+       "exit_price": 82592.9217,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        82592.9217
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-20",
+       "days": [
+        "2026-10-20"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-20T08:57:01+00:00",
+       "estimated": true,
+       "base_close": 81938.4,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-20T08:58:00+00:00",
+       "entry_price": 81463.99,
+       "limit": 82278.6299,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-20T14:00:00+00:00",
+       "exit_price": 82278.6299,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        82278.6299
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-23",
+       "days": [
+        "2026-10-23",
+        "2026-10-24",
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-23T08:47:25+00:00",
+       "estimated": true,
+       "base_close": 81416.09,
+       "live": true,
+       "rolls": 4,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-23T08:48:00+00:00",
+       "entry_price": 81846.01,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": -0.017911,
+       "money": -1.9734,
+       "provisional": false,
+       "limits": [
+        82664.4701,
+        81541.3097,
+        81135.0271,
+        81239.8651,
+        80393.0811
+       ],
+       "limit_pct": -1.791
+      },
+      {
+       "interval": "2026-10-24",
+       "days": [
+        "2026-10-24",
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-24T08:56:19+00:00",
+       "estimated": true,
+       "base_close": 81189.43,
+       "live": true,
+       "rolls": 3,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-24T08:57:00+00:00",
+       "entry_price": 80733.97,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": -0.004231,
+       "money": -0.6218,
+       "provisional": false,
+       "limits": [
+        81541.3097,
+        81135.0271,
+        81239.8651,
+        80393.0811
+       ],
+       "limit_pct": -0.423
+      },
+      {
+       "interval": "2026-10-25",
+       "days": [
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-25T10:31:51+00:00",
+       "estimated": true,
+       "base_close": 80888.16,
+       "live": true,
+       "rolls": 2,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-25T10:32:00+00:00",
+       "entry_price": 80331.71,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": 0.000764,
+       "money": -0.1237,
+       "provisional": false,
+       "limits": [
+        81135.0271,
+        81239.8651,
+        80393.0811
+       ],
+       "limit_pct": 0.076
+      },
+      {
+       "interval": "2026-10-26",
+       "days": [
+        "2026-10-26",
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-26T10:19:33+00:00",
+       "estimated": true,
+       "base_close": 80154.09,
+       "live": true,
+       "rolls": 1,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-26T10:20:00+00:00",
+       "entry_price": 80435.51,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": -0.000528,
+       "money": -0.2527,
+       "provisional": false,
+       "limits": [
+        81239.8651,
+        80393.0811
+       ],
+       "limit_pct": -0.053
+      },
+      {
+       "interval": "2026-10-27",
+       "days": [
+        "2026-10-27"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-27T10:21:54+00:00",
+       "estimated": true,
+       "base_close": 80150.56,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-27T10:22:00+00:00",
+       "entry_price": 79597.11,
+       "limit": 80393.0811,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-27T12:00:00+00:00",
+       "exit_price": 80393.0811,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        80393.0811
+       ],
+       "limit_pct": 0.995
+      },
+      {
+       "interval": "2026-10-29",
+       "days": [
+        "2026-10-29"
+       ],
+       "symbol": "BTC",
+       "model": "GARCH Model",
+       "bin": 6,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "newcomer",
+       "published_at": "2026-10-29T10:35:24+00:00",
+       "estimated": true,
+       "base_close": 81343.5,
+       "live": true,
+       "rolls": 0,
+       "status": "closed",
+       "reason": null,
+       "entry_at": "2026-10-29T10:36:00+00:00",
+       "entry_price": 80291.23,
+       "limit": 81094.1423,
+       "exit_kind": "limit",
+       "exit_at": "2026-10-29T14:00:00+00:00",
+       "exit_price": 81094.1423,
+       "move": 0.00995,
+       "money": 0.799,
+       "provisional": false,
+       "limits": [
+        81094.1423
+       ],
+       "limit_pct": 0.995
+      }
+     ],
+     "stats": {
+      "orders": 10,
+      "closed": 10,
+      "open": 0,
+      "pending": 0,
+      "filled": 10,
+      "early": 0,
+      "time_stop": 0,
+      "skips": {},
+      "not_followable": 0,
+      "total": 1.8848,
+      "wins": 6,
+      "estimated": 10,
+      "rolls": 11
+     }
+    }
+   }
   }
  },
  "next": {
