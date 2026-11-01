@@ -16,7 +16,6 @@ interface Item {
   to?: string; // a route, possibly with an anchor (#q0)
   nested?: boolean; // an anchor inside the page above it
   prefix?: boolean; // "on" for the pages under it too (/admin/games/lotto/2026-10-21)
-  links?: { label: string; to: string }[]; // one line, several routes (the market workbench: crypto, shares)
   news?: boolean; // carries What's new's unseen count
 }
 interface Group {
@@ -51,13 +50,9 @@ const ADMIN_GROUPS: Group[] = [
       { label: 'Phase-shift', to: '/admin/phase-shift' },
       { label: 'Randomness watch', to: '/admin/randomness' },
       { label: 'Games', to: '/admin/games', prefix: true },
-      {
-        label: 'Market workbench',
-        links: [
-          { label: 'crypto', to: '/admin/markets/crypto' },
-          { label: 'shares', to: '/admin/markets/shares' },
-        ],
-      },
+      // the market workbench, one item per market (owner 31 Oct 2026: the one line with two small links was unclear)
+      { label: 'Crypto workbench', to: '/admin/markets/crypto' },
+      { label: 'Shares workbench', to: '/admin/markets/shares' },
     ],
   },
   {
@@ -84,7 +79,8 @@ const HERE: [string, string][] = [
   ['/admin/jobs', 'Jobs & services'],
   ['/admin/people', 'People'],
   ['/admin/games', 'Games'],
-  ['/admin/markets', 'Market workbench'],
+  ['/admin/markets/crypto', 'Crypto workbench'],
+  ['/admin/markets/shares', 'Shares workbench'],
   ['/admin', 'This week'],
   ['/account', 'Account'],
   ['/whats-new', "What's new"],
@@ -122,18 +118,6 @@ function NewCount({ n }: { n: number | null | undefined }) {
 
 function ItemLink({ item, sub, pathname, hash, news, onNavigate }: { item: Item; sub: boolean; pathname: string; hash: string; news?: number | null; onNavigate: () => void }) {
   const cls = [sub ? 'sub' : '', item.nested ? 'sub2' : ''].filter(Boolean).join(' ');
-  if (item.links) {
-    return (
-      <div className="pair">
-        {item.label}
-        {item.links.map((l) => (
-          <Link key={l.to} to={l.to} className={pathname === l.to ? 'on' : undefined} aria-current={pathname === l.to ? 'page' : undefined} onClick={onNavigate}>
-            {l.label}
-          </Link>
-        ))}
-      </div>
-    );
-  }
   const [path, anchor = ''] = (item.to ?? '/').split('#');
   // a page's own entry is "on" unless one of its anchors is; an anchor only when it is the one in the URL
   const anchored = hash !== '' && ADMIN_GROUPS.some((g) => g.items.some((i) => i.to === `${path}${hash}`));
@@ -208,7 +192,7 @@ export default function Sidebar() {
               <WeekLink on={pathname === '/admin' || pathname === '/admin/'} onNavigate={closeDrawer} />
               {ADMIN_GROUPS.map((g) => {
                 const holds = g.items.some(
-                  (i) => (i.to && (pathname === i.to.split('#')[0] || (i.prefix && pathname.startsWith(`${i.to}/`)))) || i.links?.some((l) => pathname === l.to),
+                  (i) => (i.to && (pathname === i.to.split('#')[0] || (i.prefix && pathname.startsWith(`${i.to}/`)))),
                 );
                 return (
                   // folded, except the one holding the page

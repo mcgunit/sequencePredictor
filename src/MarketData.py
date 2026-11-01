@@ -26,6 +26,12 @@ Sources (probed from the production box on 2026-09-30):
                  environment; 25 requests a day is plenty for four tickers).
   stooq          the design's first choice for shares now serves a JavaScript
                  browser check instead of the CSV - not usable from a script.
+  euronext       live.euronext.com's own "download" of a listing (ISIN-MIC,
+                 e.g. BE0003565737-XBRU), a GET with the CSV options in the
+                 query, no key - the shares source since 31 Oct 2026 (Euronext
+                 Amsterdam and Brussels, EUR). It answers only about the last
+                 two years, so the older history is built once from Yahoo
+                 (back_build_history), joined at the oldest Euronext days.
 Nasdaq and Yahoo serve the WHOLE history split-adjusted to the day of the
 call (NVDA's 2024 bars are stored at a tenth of their traded price, AAPL's
 2020 bars at a quarter), so a three-day incremental window would splice two
@@ -89,23 +95,37 @@ def is_week_game(market):
 # cap on CoinGecko on 2026-09-30 that are not stablecoins (Tether at #3 and
 # USDC at #6 are pegged to the quote currency and have no return to predict),
 # quoted in USDT on Binance - BTC and ETH since 2017, BNB 2017, XRP 2018, SOL
-# since 2020-08-11, which bounds the joint history. Shares: four liquid
-# US-listed names (ASML's Nasdaq listing rather than Euronext, so the four
-# share one calendar and one currency). position = the slot in the positional
-# game (instrument = position, return bin = digit).
+# since 2020-08-11, which bounds the joint history. Shares (owner, 31 Oct
+# 2026 - the four Nasdaq names of the kickoff were removed with their record):
+# five of the most traded shares of Euronext Amsterdam and Brussels, in EUR,
+# for Belgian users, with Yahoo history since 2016; ASML left out for now
+# (one share costs more than the EUR 1,000 position, and only whole shares
+# are bought). Their added_on is the day they are installed. history_symbol
+# is the Yahoo listing of the one-time back-build, never fetched daily.
+# position = the slot in the positional game (instrument = position, return
+# bin = digit).
 DEFAULT_UNIVERSE = [
     {"market": "crypto", "symbol": "BTC", "name": "Bitcoin", "source": "binance", "source_symbol": "BTCUSDT", "quote": "USDT", "position": 0, "added_on": KICKOFF},
     {"market": "crypto", "symbol": "ETH", "name": "Ethereum", "source": "binance", "source_symbol": "ETHUSDT", "quote": "USDT", "position": 1, "added_on": KICKOFF},
     {"market": "crypto", "symbol": "BNB", "name": "BNB", "source": "binance", "source_symbol": "BNBUSDT", "quote": "USDT", "position": 2, "added_on": KICKOFF},
     {"market": "crypto", "symbol": "XRP", "name": "XRP", "source": "binance", "source_symbol": "XRPUSDT", "quote": "USDT", "position": 3, "added_on": KICKOFF},
     {"market": "crypto", "symbol": "SOL", "name": "Solana", "source": "binance", "source_symbol": "SOLUSDT", "quote": "USDT", "position": 4, "added_on": KICKOFF},
-    {"market": "shares", "symbol": "NVDA", "name": "NVIDIA", "source": "nasdaq", "source_symbol": "NVDA", "quote": "USD", "position": 0, "added_on": KICKOFF},
-    {"market": "shares", "symbol": "AAPL", "name": "Apple", "source": "nasdaq", "source_symbol": "AAPL", "quote": "USD", "position": 1, "added_on": KICKOFF},
-    {"market": "shares", "symbol": "MSFT", "name": "Microsoft", "source": "nasdaq", "source_symbol": "MSFT", "quote": "USD", "position": 2, "added_on": KICKOFF},
-    {"market": "shares", "symbol": "ASML", "name": "ASML (Nasdaq listing)", "source": "nasdaq", "source_symbol": "ASML", "quote": "USD", "position": 3, "added_on": KICKOFF},
+    {"market": "shares", "symbol": "SHELL", "name": "Shell", "source": "euronext", "source_symbol": "GB00BP6MXD84-XAMS", "quote": "EUR", "position": 0, "history_symbol": "SHELL.AS"},
+    {"market": "shares", "symbol": "INGA", "name": "ING", "source": "euronext", "source_symbol": "NL0011821202-XAMS", "quote": "EUR", "position": 1, "history_symbol": "INGA.AS"},
+    {"market": "shares", "symbol": "ABI", "name": "AB InBev", "source": "euronext", "source_symbol": "BE0974293251-XBRU", "quote": "EUR", "position": 2, "history_symbol": "ABI.BR"},
+    {"market": "shares", "symbol": "KBC", "name": "KBC", "source": "euronext", "source_symbol": "BE0003565737-XBRU", "quote": "EUR", "position": 3, "history_symbol": "KBC.BR"},
+    {"market": "shares", "symbol": "UCB", "name": "UCB", "source": "euronext", "source_symbol": "BE0003739530-XBRU", "quote": "EUR", "position": 4, "history_symbol": "UCB.BR"},
 ]
-# the week games' instruments: the same symbols at the same slots, joined on the week games' kickoff, never fetched (update_all skips them)
-DEFAULT_UNIVERSE += [dict(row, market=week, added_on=WEEK_KICKOFF) for week, base in WEEK_MARKETS.items() for row in list(DEFAULT_UNIVERSE) if row["market"] == base]
+# the week games' instruments: the same symbols at the same slots, never fetched (update_all skips them); crypto's
+# joined on the week games' kickoff, the shares' on the day they are installed, like their base rows
+DEFAULT_UNIVERSE += [dict(row, market=week, added_on=WEEK_KICKOFF if base == "crypto" else None)
+                     for week, base in WEEK_MARKETS.items() for row in list(DEFAULT_UNIVERSE) if row["market"] == base]
+
+
+def history_symbol(market, symbol):
+    """The Yahoo listing a share's history is back-built from (DEFAULT_UNIVERSE), or None."""
+    row = next((r for r in DEFAULT_UNIVERSE if r["market"] == base_market(market) and r["symbol"] == symbol), None)
+    return row.get("history_symbol") if row else None
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -262,7 +282,7 @@ def install_universe(conn, universe=DEFAULT_UNIVERSE, added_on=None):
     return added, conflicts
 
 
-SOURCES = ("binance", "nasdaq", "yahoo", "alphavantage")
+SOURCES = ("binance", "nasdaq", "yahoo", "alphavantage", "euronext")
 
 
 def set_source(conn, market, symbol, source, source_symbol=None):
@@ -764,6 +784,76 @@ def fetch_alphavantage_daily(source_symbol, api_key, since=None, http=http_json)
     return bars
 
 
+EURONEXT_DOWNLOAD = "https://live.euronext.com/en/ajax/AwlHistoricalPrice/getFullDownloadAjax/{listing}"
+EURONEXT_WINDOW_DAYS = 730          # the download answers about two years back; older ranges come back empty
+EURONEXT_ZONE = "Europe/Brussels"   # Amsterdam and Brussels share it
+EURONEXT_READY = (18, 0)            # the day's row is kept once the 17:30 close and its auction are over
+
+
+def _euronext_number(text):
+    text = (text or "").strip().strip('"')
+    if text in ("", "-"):
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def parse_euronext_csv(text):
+    """
+    Euronext's download -> bars, oldest first. The file opens with a BOM and
+    three title lines, then the header Date;Open;High;Low;Last;Close;Number
+    of Shares;...; dates are d/m/Y. A row without a full price set (a session
+    without trades) is skipped; anything without that header is refused.
+    """
+    lines = [line for line in text.lstrip("\ufeff").splitlines() if line.strip()]
+    header = next((i for i, line in enumerate(lines) if line.split(";")[0].strip('"') == "Date"), None)
+    if header is None:
+        raise SourceError(f"euronext: no price table ({' '.join(lines[:2])[:80]!r})")
+    names = [n.strip().strip('"') for n in lines[header].split(";")]
+    try:
+        col = {k: names.index(k) for k in ("Date", "Open", "High", "Low", "Close")}
+    except ValueError as exc:
+        raise SourceError(f"euronext: unexpected columns {names}") from exc
+    volume_col = names.index("Number of Shares") if "Number of Shares" in names else None
+    bars = {}
+    for line in lines[header + 1:]:
+        cells = line.split(";")
+        if len(cells) < len(names):
+            continue
+        try:
+            day, month, year = cells[col["Date"]].strip('"').split("/")
+            when = date(int(year), int(month), int(day)).isoformat()
+        except ValueError:
+            continue
+        values = [_euronext_number(cells[col[k]]) for k in ("Open", "High", "Low", "Close")]
+        if any(v is None or v <= 0 for v in values):
+            continue
+        volume = _euronext_number(cells[volume_col]) if volume_col is not None else None
+        bars[when] = {"date": when, "open": values[0], "high": values[1], "low": values[2], "close": values[3], "volume": volume}
+    return [bars[d] for d in sorted(bars)]
+
+
+def fetch_euronext_daily(source_symbol, since=None, now=None, http=http_get):
+    """
+    One listing's last two years from Euronext (adjusted, like Nasdaq and
+    Yahoo, so the update reads the whole answer every time); `since` is
+    ignored. Today's row is kept only after 18:00 Brussels time.
+    """
+    from zoneinfo import ZoneInfo
+    local = (now or utc_now()).astimezone(ZoneInfo(EURONEXT_ZONE))
+    today = local.date()
+    query = urllib.parse.urlencode({"format": "csv", "decimal_separator": ".", "date_form": "d/m/Y", "adjusted": "Y",
+                                    "startdate": (today - timedelta(days=EURONEXT_WINDOW_DAYS)).isoformat(), "enddate": today.isoformat()})
+    raw = http(EURONEXT_DOWNLOAD.format(listing=urllib.parse.quote(source_symbol)) + "?" + query)
+    bars = parse_euronext_csv(raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw)
+    if not bars:
+        raise SourceError(f"euronext {source_symbol}: an empty price table")
+    closed = (local.hour, local.minute) >= EURONEXT_READY
+    return [b for b in bars if b["date"] < today.isoformat() or (b["date"] == today.isoformat() and closed)]
+
+
 def fetcher_for(instrument, env=None, yahoo=None):
     """A callable(since) for the instrument's source, or a SourceError."""
     env = os.environ if env is None else env
@@ -779,6 +869,8 @@ def fetcher_for(instrument, env=None, yahoo=None):
     if source == "alphavantage":
         key = env.get("ALPHAVANTAGE_KEY")
         return lambda since=None: fetch_alphavantage_daily(symbol, key, since)
+    if source == "euronext":
+        return lambda since=None: fetch_euronext_daily(symbol, since)
     raise SourceError(f"{instrument['symbol']}: unknown source {source!r}")
 
 
@@ -787,7 +879,11 @@ def fetcher_for(instrument, env=None, yahoo=None):
 # ---------------------------------------------------------------------------
 
 REFETCH_DAYS = 3   # as-traded sources: re-read the newest few stored days so a revision lands
-ADJUSTED_SOURCES = ("nasdaq", "yahoo")   # serve the whole history adjusted to the day of the call: always refetched whole
+ADJUSTED_SOURCES = ("nasdaq", "yahoo", "euronext")   # serve the whole history adjusted to the day of the call: always refetched whole
+WINDOW_SOURCES = ("euronext",)   # ... but only a window of it: the stored bars older than the answer are joined at its oldest days
+SEAM_BARS = 5                # the oldest answered days that must agree on the join factor ...
+SEAM_TOLERANCE = 0.001       # ... within 0.1% (a revision of one bar is not an adjustment) ...
+SEAM_THRESHOLD = 0.0005      # ... and sit this far from 1 for the older bars to be rescaled (a 0.7% capital return counts, a rounding does not)
 RESCALE_MIN_OVERLAP = 3      # overlapping bars needed to call a rescale
 RESCALE_TOLERANCE = 0.01     # the overlap's ratios must agree within 1% ...
 RESCALE_THRESHOLD = 0.05     # ... and sit at least 5% away from 1
@@ -811,6 +907,27 @@ def detect_rescale(conn, instrument_id, bars):
         return None
     ratio = sum(ratios) / len(ratios)
     return None if abs(ratio - 1) < RESCALE_THRESHOLD else ratio
+
+
+def seam_ratio(conn, instrument_id, bars):
+    """
+    For a window source: the factor stored close / fetched close at the
+    answer's oldest SEAM_BARS stored days, when they agree and it is not 1.
+    The source has adjusted the days before some event (a split, a capital
+    return), and the stored bars older than its window - which it no longer
+    serves - must take the same factor, or the join becomes a fake return.
+    """
+    ratios = []
+    for bar in sorted(bars, key=lambda b: b["date"]):
+        row = conn.execute("SELECT close FROM bars WHERE instrument_id = ? AND date = ?", (instrument_id, bar["date"])).fetchone()
+        if row and row["close"] and float(bar["close"]) > 0:
+            ratios.append(float(row["close"]) / float(bar["close"]))
+        if len(ratios) == SEAM_BARS:
+            break
+    if len(ratios) < SEAM_BARS or max(ratios) / min(ratios) - 1 > SEAM_TOLERANCE:
+        return None
+    ratio = sum(ratios) / len(ratios)
+    return None if abs(ratio - 1) < SEAM_THRESHOLD else ratio
 
 
 def update_instrument(conn, instrument, fetch, refetch_days=REFETCH_DAYS, now=None, full=False):
@@ -844,6 +961,9 @@ def update_instrument(conn, instrument, fetch, refetch_days=REFETCH_DAYS, now=No
             bars = fetch(None)
             since = None
             summary.update({"since": None, "full": True})
+        if ratio is None and instrument["source"] in WINDOW_SOURCES and bars:
+            # a window source adjusted only the days before an event: the join to the older stored bars moved
+            ratio = seam_ratio(conn, instrument["id"], bars)
         summary["rescaled_by"] = ratio
         summary["fetched"] = len(bars)
         inserted, updated = upsert_bars(conn, instrument["id"], bars, fetched_at=iso(now or utc_now()))
@@ -898,6 +1018,63 @@ def update_all(conn, market=None, env=None, log=print, full=False):
             log(f"{instrument['symbol']} ({instrument['source']}): {summary['fetched']} bar(s) fetched, {scope}, "
                 f"{summary['inserted']} new, {summary['updated']} revised; stored {summary['first']} .. {summary['last']} ({summary['seconds']}s){note}")
     return summaries
+
+
+HISTORY_FROM = "2016-01-01"     # the back-build's start: the Yahoo history of the five Euronext shares begins 2016-01-04
+BACK_BUILD_TOLERANCE = 0.005    # the oldest stored days must give one join factor within 0.5%
+
+
+def fetch_history(history_symbol, now=None, http=http_json, yahoo=None):
+    """
+    A share's Yahoo history since HISTORY_FROM for the one-time back-build.
+    The plain chart call first (it answered without the crumb on 31 Oct
+    2026); the cookie-and-crumb client when that is refused.
+    """
+    now = now or utc_now()
+    query = urllib.parse.urlencode({"interval": "1d", "period1": int(datetime.fromisoformat(HISTORY_FROM).replace(tzinfo=timezone.utc).timestamp()),
+                                    "period2": int(now.timestamp())})
+    try:
+        bars = parse_yahoo_chart(http(YAHOO_CHART.format(symbol=urllib.parse.quote(history_symbol)) + "?" + query))
+    except SourceError:
+        bars = (yahoo or YahooClient()).fetch(history_symbol, since=HISTORY_FROM, now=now)
+    return [b for b in bars if b["date"] < now.date().isoformat()]
+
+
+def back_build_history(conn, instrument, history, now=None):
+    """
+    The one-time back-build of a window source's instrument (Euronext keeps
+    about two years): the bars of `history` older than the stored first bar
+    are inserted, scaled by the factor stored close / history close at the
+    oldest SEAM_BARS days both have, so the join is no fake return (Euronext
+    adjusts for some events Yahoo's close does not: ING's of 7 Jan 2026 is
+    0.7%). Refused - nothing written - when the store is empty (update from
+    Euronext first) or the oldest days disagree on the factor (another
+    listing, a bad answer). Run again, it adds nothing.
+    Returns {"symbol", "inserted", "factor", "first", "joined_at"}.
+    """
+    first = conn.execute("SELECT MIN(date) FROM bars WHERE instrument_id = ?", (instrument["id"],)).fetchone()[0]
+    if first is None:
+        raise ValueError(f"{instrument['symbol']}: no stored bars - run --update first, the back-build joins onto them")
+    by_date = {b["date"]: b for b in history}
+    ratios, joined = [], []
+    for row in conn.execute("SELECT date, close FROM bars WHERE instrument_id = ? ORDER BY date", (instrument["id"],)):
+        bar = by_date.get(row["date"])
+        if bar and bar["close"] > 0:
+            ratios.append(row["close"] / bar["close"])
+            joined.append(row["date"])
+        if len(ratios) == SEAM_BARS:
+            break
+    if len(ratios) < SEAM_BARS:
+        raise ValueError(f"{instrument['symbol']}: the history shares only {len(ratios)} of the oldest stored days - no join")
+    if max(ratios) / min(ratios) - 1 > BACK_BUILD_TOLERANCE:
+        raise ValueError(f"{instrument['symbol']}: the join factors disagree ({min(ratios):.4f} .. {max(ratios):.4f}) - another listing?")
+    factor = sum(ratios) / len(ratios)
+    older = [{"date": b["date"], "open": b["open"] * factor, "high": b["high"] * factor, "low": b["low"] * factor,
+              "close": b["close"] * factor, "volume": b["volume"]} for b in history if b["date"] < first]
+    inserted, _ = upsert_bars(conn, instrument["id"], older, fetched_at=iso(now or utc_now()))
+    return {"symbol": instrument["symbol"], "inserted": inserted, "factor": factor,
+            "first": conn.execute("SELECT MIN(date) FROM bars WHERE instrument_id = ?", (instrument["id"],)).fetchone()[0],
+            "joined_at": joined[0]}
 
 
 # ---------------------------------------------------------------------------
@@ -1010,7 +1187,11 @@ def _self_check():
 
     # 1. The frozen universe: installed once, never changed.
     added, conflicts = install_universe(conn)
-    assert len(added) == len(DEFAULT_UNIVERSE) == 18 and conflicts == [], (added, conflicts)
+    assert len(added) == len(DEFAULT_UNIVERSE) == 20 and conflicts == [], (added, conflicts)
+    shares = instruments(conn, "shares")
+    assert [i["symbol"] for i in shares] == ["SHELL", "INGA", "ABI", "KBC", "UCB"] and {i["quote"] for i in shares} == {"EUR"}
+    assert all(i["added_on"] == utc_now().date().isoformat() for i in shares + instruments(conn, "sharesweek")), "the shares join on their install day"
+    assert history_symbol("sharesweek", "KBC") == "KBC.BR" and history_symbol("crypto", "BTC") is None
     # the week games: their own instrument rows, bars through the base market's row
     week_btc = instruments(conn, "cryptoweek")[0]
     assert week_btc["symbol"] == "BTC" and week_btc["added_on"] == WEEK_KICKOFF and week_btc["id"] != instruments(conn, "crypto")[0]["id"]
@@ -1030,7 +1211,7 @@ def _self_check():
     assert added == ["DOGE"] and len(conflicts) == 2 and "held by SOL" in conflicts[0] and "position 4, not 6" in conflicts[1], (added, conflicts)
     assert conn.execute("SELECT added_on FROM instruments WHERE symbol = 'DOGE'").fetchone()[0] == "2027-01-04"
     conn.execute("DELETE FROM instruments WHERE symbol = 'DOGE'")
-    print("frozen universe: 9 instruments installed once, positions fixed, re-install changes nothing; a later entry keeps its own date, a taken slot is reported")
+    print("frozen universe: 10 instruments installed once, positions fixed, re-install changes nothing; a later entry keeps its own date, a taken slot is reported")
 
     # 2. Binance klines: parsed, the open candle skipped, dates in UTC.
     now = datetime(2026, 9, 30, 16, 0, tzinfo=timezone.utc)
@@ -1098,7 +1279,7 @@ def _self_check():
     _, returns_x = log_returns(dates_x, closes_x)
     assert max(abs(r) for r in returns_x) < 1e-12, "no fake split return may remain"
     assert check_bars(conn, xrp, today=date(2026, 9, 28))["jumps"] == 0
-    # the adjusted path: an instrument on nasdaq is always read whole
+    # the adjusted path: an instrument on euronext is always read whole
     msft = instruments(conn, "shares")[2]
     upsert_bars(conn, msft["id"], old_scale[:5], fetched_at="t")
     asked.clear()
@@ -1189,18 +1370,84 @@ def _self_check():
     # switching a source: same identity, bars cleared because the bases differ; another listing refused
     nvda_row = instruments(conn, "shares")[0]
     upsert_bars(conn, nvda_row["id"], [{"date": "2026-09-29", "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}], fetched_at="t")
-    assert set_source(conn, "shares", "NVDA", "nasdaq") == 0, "the same source clears nothing"
-    assert set_source(conn, "shares", "NVDA", "yahoo") == 1 and last_bar_date(conn, nvda_row["id"]) is None
+    assert set_source(conn, "shares", "SHELL", "euronext") == 0, "the same source clears nothing"
+    assert set_source(conn, "shares", "SHELL", "yahoo", "SHELL.AS") == 1 and last_bar_date(conn, nvda_row["id"]) is None
     assert instruments(conn, "shares")[0]["source"] == "yahoo" and instruments(conn, "shares")[0]["position"] == 0
-    set_source(conn, "shares", "NVDA", "nasdaq")
-    for bad in (("stooq", None), ("yahoo", "ASML.AS")):
+    set_source(conn, "shares", "SHELL", "euronext", "GB00BP6MXD84-XAMS")
+    for market, symbol, *bad in (("shares", "SHELL", "stooq", None), ("crypto", "BTC", "yahoo", "BTC.AS")):
         try:
-            set_source(conn, "shares", "NVDA", *bad)
+            set_source(conn, market, symbol, *bad)
             raise AssertionError(f"accepted {bad}")
         except ValueError:
             pass
     print("nasdaq: prices and volumes parsed, N/A skipped, today's row only after the close, ten-year window survives a leap day; "
           "a source switch clears the bars and another listing is refused")
+
+    # 4c. Euronext: the download's BOM and title lines, d/m/Y dates, a session without trades skipped, oldest first,
+    #     today's row only after 18:00 Brussels; the two-year window asked for whatever `since` says.
+    csv_text = ("﻿\"Historical Data\"\n\"From 2024-10-31 to 2026-10-30\"\nBE0003565737\n"
+                "Date;Open;High;Low;Last;Close;\"Number of Shares\";\"Number of Trades\";Turnover;vwap\n"
+                "30/10/2026;115.35;115.35;113.50;114.10;114.10;503366;2075;57470856;114.1731\n"
+                "29/10/2026;-;-;-;-;-;0;0;0;-\n"
+                "28/10/2026;116.70;116.85;115.75;116.30;116.30;577101;2605;67117323;116.3008\n")
+    parsed = parse_euronext_csv(csv_text)
+    assert [b["date"] for b in parsed] == ["2026-10-28", "2026-10-30"] and parsed[1]["close"] == 114.10 and parsed[0]["volume"] == 577101.0, parsed
+    urls = []
+    def euronext_http(url):
+        urls.append(url)
+        return csv_text.encode("utf-8")
+    during = datetime(2026, 10, 30, 16, 0, tzinfo=timezone.utc)       # 17:00 Brussels: the session is still open
+    evening = datetime(2026, 10, 30, 17, 5, tzinfo=timezone.utc)      # 18:05 Brussels
+    assert [b["date"] for b in fetch_euronext_daily("BE0003565737-XBRU", since="2026-10-29", now=during, http=euronext_http)] == ["2026-10-28"]
+    assert [b["date"] for b in fetch_euronext_daily("BE0003565737-XBRU", now=evening, http=euronext_http)][-1] == "2026-10-30"
+    assert "/BE0003565737-XBRU?" in urls[0] and "startdate=2024-10-30" in urls[0] and "adjusted=Y" in urls[0] and "date_form=d%2Fm%2FY" in urls[0], urls[0]
+    for bad in ("<html>Access denied</html>", "﻿\"Historical Data\"\nDate;Open;High;Low;Last;Close\n"):
+        try:
+            fetch_euronext_daily("X-XAMS", now=evening, http=lambda url, bad=bad: bad.encode())
+            raise AssertionError("bad download accepted")
+        except SourceError:
+            pass
+    assert fetcher_for({"symbol": "KBC", "source": "euronext", "source_symbol": "BE0003565737-XBRU"}) is not None
+    print("euronext: BOM and title lines skipped, d/m/Y dates, empty sessions skipped, today's row only after 18:00 Brussels, a page without the table refused")
+
+    # 4d. The window join: Euronext adjusts the days before an event (ING, 7 Jan 2026: x0.993) and no longer serves the
+    #     bars older than its window - those take the same factor, so the join is no fake return, and the update notes it.
+    #     The back-build joins Yahoo's history onto the oldest stored days the same way, and refuses another listing.
+    kbc = instruments(conn, "shares")[3]
+    window = [(date(2026, 1, 5) + timedelta(days=i)).isoformat() for i in range(260)]
+    older = [(date(2025, 1, 1) + timedelta(days=i)).isoformat() for i in range(30)]
+    flat = lambda days, price: [{"date": d, "open": price, "high": price, "low": price, "close": price, "volume": 1} for d in days]
+    upsert_bars(conn, kbc["id"], flat(older, 100.0) + flat(window, 100.0), fetched_at="t")
+    adjusted = flat(window[:10], 99.3) + flat(window[10:], 100.0)       # the event on the 11th day of the answer
+    summary = update_instrument(conn, kbc, lambda since=None: adjusted, now=now)
+    assert summary["full"] and abs(summary["rescaled_by"] - 100 / 99.3) < 1e-9 and summary["rescaled_older"] == 30, summary
+    dates_k, closes_k = closes(conn, kbc["id"])
+    assert dates_k[0] == older[0] and abs(closes_k[0] - 99.3) < 1e-9 and abs(closes_k[len(older)] - 99.3) < 1e-9
+    assert update_instrument(conn, kbc, lambda since=None: adjusted, now=now)["rescaled_by"] is None, "a second run finds the join in place"
+    assert seam_ratio(conn, kbc["id"], [dict(b, close=b["close"] * 1.0002) for b in adjusted]) is None, "a rounding is not an adjustment"
+    conn.execute("DELETE FROM bars WHERE instrument_id = ?", (kbc["id"],))
+    try:
+        back_build_history(conn, kbc, flat(older, 50.0))
+        raise AssertionError("back-build onto an empty store")
+    except ValueError:
+        pass
+    upsert_bars(conn, kbc["id"], flat(window, 99.3), fetched_at="t")
+    history = flat(older, 49.0) + flat(window, 50.0)        # another basis: the factor 1.986 joins it
+    built = back_build_history(conn, kbc, history, now=now)
+    assert built["inserted"] == 30 and abs(built["factor"] - 1.986) < 1e-9 and built["first"] == older[0] and built["joined_at"] == window[0], built
+    assert abs(closes(conn, kbc["id"])[1][0] - 49.0 * 1.986) < 1e-9
+    assert back_build_history(conn, kbc, history, now=now)["inserted"] == 0, "a second back-build adds nothing"
+    conn.execute("DELETE FROM bars WHERE date < ? AND instrument_id = ?", (window[0], kbc["id"]))
+    try:
+        back_build_history(conn, kbc, flat(older, 49.0) + flat(window[:2], 50.0) + flat(window[2:], 80.0))
+        raise AssertionError("disagreeing join accepted")
+    except ValueError:
+        pass
+    assert fetch_history("KBC.BR", now=now, http=lambda url: payload)[0]["date"] == "2026-09-25"
+    conn.execute("DELETE FROM bars WHERE instrument_id = ?", (kbc["id"],))
+    conn.commit()
+    print("window join: older bars take the factor of an event Euronext adjusted, a rounding does not move them; "
+          "the back-build joins Yahoo onto the oldest stored days, once, and refuses an empty store or a disagreeing join")
 
     # 5. Alpha Vantage parsing and the key requirement.
     av = {"Time Series (Daily)": {"2026-09-29": {"1. open": "1", "2. high": "2", "3. low": "0.5", "4. close": "1.5", "5. volume": "7"},
@@ -1245,7 +1492,7 @@ def _self_check():
     assert abs(matrix[-1][1] - math.log(2.0)) < 1e-12
     d, r = log_returns(["a", "b", "c"], [1.0, 2.0, 1.0])
     assert d == ["b", "c"] and abs(r[0] - math.log(2)) < 1e-12 and abs(r[1] + math.log(2)) < 1e-12
-    assert len(status(conn, today=date(2026, 10, 4))) == 9
+    assert len(status(conn, today=date(2026, 10, 4))) == 10
     print("series: aligned returns drop the days an instrument lacks; log returns and status lines behave")
 
     # 8. Intraday bars (the order book, 30 Oct 2026): parse with ISO starts, the open kline skipped, paging,

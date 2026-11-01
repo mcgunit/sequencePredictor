@@ -31,6 +31,8 @@ const JOB_NAMES = {
 // which the script alone named "Weekly tuning: statistical models".
 const STEP_NAMES = {
   kenoSubsetTuning: 'Weekly tuning: keno sub-selections',
+  // the evening shares run (31 Oct 2026): Predictor.py too, for the next Euronext session
+  sharesPredictor: "Tomorrow's share predictions are being computed",
 };
 const readProcCmdline = (pid) => fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8');
 

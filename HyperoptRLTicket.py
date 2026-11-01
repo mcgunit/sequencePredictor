@@ -12,7 +12,7 @@ from datetime import datetime
 
 from src.RLTicketModel import RLTicketModel
 from src.RLPositionModel import RLPositionModel, ROW_NAME as POSITION_ROW
-from src.MarketSettle import cash_pnl
+from src.MarketSettle import cash_pnl, leg_rate
 from src.TuningScore import score_bets_by_day, attrs_for_trial, describe
 from src.TuningGate import challenge, make_defaults
 from src.Lockbox import (load_or_warn as load_lockbox, covers as lockbox_covers, split_by_date as lockbox_split_days,
@@ -44,9 +44,9 @@ GAME_CONFIG = {
     # since 8 Oct 2026): the RL Ticket row is not served there; the position
     # row learns how much to put on the vote's call. draw_size = instruments.
     "crypto":       {"draw_size": 5, "special_column_count": 0, "position": True},
-    "shares":       {"draw_size": 4, "special_column_count": 0, "position": True},
+    "shares":       {"draw_size": 5, "special_column_count": 0, "position": True},
     "cryptoweek":   {"draw_size": 5, "special_column_count": 0, "position": True},
-    "sharesweek":   {"draw_size": 4, "special_column_count": 0, "position": True},
+    "sharesweek":   {"draw_size": 5, "special_column_count": 0, "position": True},
 }
 
 # A game needs at least this many scoreable days before tuning on it means
@@ -270,9 +270,13 @@ def rl_row_material(rlRow, realResult, drawSize, is_pick3, is_keno):
     return [], len(set(int(n) for n in mainTicket) & realMains)
 
 
-def position_bets(sizes, returns_of_day):
-    """One day's paper money per instrument: the size times the daily rule's cash P&L (MarketSettle.cash_pnl)."""
-    return [float(size) * cash_pnl(float(ret)) for size, ret in zip(sizes, returns_of_day)]
+def position_bets(sizes, returns_of_day, market="crypto"):
+    """
+    One day's paper money per instrument: the size times the daily rule's cash P&L (MarketSettle.cash_pnl) at the
+    100-unit stake, a leg costing the market's rate (MarketSettle.leg_rate: the shares' Bolero costs since 31 Oct 2026).
+    """
+    fee = leg_rate(market)
+    return [float(size) * cash_pnl(float(ret), fee=fee) for size, ret in zip(sizes, returns_of_day)]
 
 
 def plain_rule_score(dataset_name, evaluation_days, returns, modelScores, lockbox=None):
@@ -301,7 +305,7 @@ def plain_rule_score(dataset_name, evaluation_days, returns, modelScores, lockbo
         ticket = model._voteTicket(rows, slots, modelScores, dataset_name)
         if ticket is None:
             continue
-        bets_by_day.append(position_bets([1.0 if b >= model.k / 2 else 0.0 for b in ticket], ret))
+        bets_by_day.append(position_bets([1.0 if b >= model.k / 2 else 0.0 for b in ticket], ret, dataset_name))
     return score_bets_by_day(bets_by_day, payout=True)
 
 
@@ -343,7 +347,7 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
                         {"cutoffDate": fileDate, "modelScores": modelScores, "returns": returns})
         if not row or not row.get("positions") or lockbox_covers(lockbox, fileDate):
             continue
-        bets_by_day.append(position_bets(row["positions"], ret))
+        bets_by_day.append(position_bets(row["positions"], ret, dataset_name))
         sizes_taken.extend(float(s) for s in row["positions"])
     shutil.rmtree(policyDir, ignore_errors=True)
     tuning = score_bets_by_day(bets_by_day, payout=True)

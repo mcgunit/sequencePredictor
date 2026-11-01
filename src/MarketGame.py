@@ -177,12 +177,57 @@ def week_of(day):
     return (iso[0], iso[1])
 
 
-# NYSE Group's announced closures (the same table markets.js carries): a shares week whose last
-# aligned day is the day before one of these is a full week, not one still waiting for Friday's bar
-NYSE_CLOSED = {
-    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
-    "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
-}
+# Euronext's harmonised calendar for its cash markets (the same rule markets.js carries): closed on New Year's Day,
+# Good Friday, Easter Monday, 1 May, 25 and 26 December; 24 and 31 December are half days (continuous trading until
+# 14:00). It matches every session of the five shares from 2016 to October 2026; 2026 is as Euronext published it.
+# A shares week whose last aligned day is the day before one of these closures is a full week, not one still
+# waiting for Friday's bar. The session: 09:00-17:30 Brussels time.
+EURONEXT_ZONE = "Europe/Brussels"
+EURONEXT_OPEN = (9, 0)
+EURONEXT_CLOSE = (17, 30)
+EURONEXT_HALF_CLOSE = (14, 0)
+
+
+def easter_sunday(year):
+    """The Gregorian Easter Sunday (the anonymous computus)."""
+    a, b, c = year % 19, year // 100, year % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    return date(year, month, (h + l - 7 * m + 114) % 31 + 1)
+
+
+def euronext_closed(year):
+    """The weekdays of `year` Euronext's cash markets are closed on."""
+    easter = easter_sunday(year)
+    days = (date(year, 1, 1), easter - timedelta(days=2), easter + timedelta(days=1), date(year, 5, 1), date(year, 12, 25), date(year, 12, 26))
+    return {d.isoformat() for d in days if d.weekday() < 5}
+
+
+EURONEXT_CLOSED = set().union(*(euronext_closed(y) for y in range(2016, 2041)))
+EURONEXT_HALF_DAYS = {date(y, 12, d).isoformat() for y in range(2016, 2041) for d in (24, 31) if date(y, 12, d).weekday() < 5}
+
+
+def euronext_instant(day, hour_minute):
+    """hh:mm Brussels time on an ISO day, as a UTC datetime (the clocks of that date, never a fixed offset)."""
+    from zoneinfo import ZoneInfo
+    d = date.fromisoformat(str(day)[:10])
+    local = datetime(d.year, d.month, d.day, hour_minute[0], hour_minute[1], tzinfo=ZoneInfo(EURONEXT_ZONE))
+    return local.astimezone(timezone.utc)
+
+
+def euronext_open(day):
+    return euronext_instant(day, EURONEXT_OPEN)
+
+
+def euronext_close(day):
+    """17:30 Brussels time, 14:00 on a half day."""
+    return euronext_instant(day, EURONEXT_HALF_CLOSE if str(day)[:10] in EURONEXT_HALF_DAYS else EURONEXT_CLOSE)
 
 
 def week_closed_by(game, last_day):
@@ -200,7 +245,7 @@ def week_closed_by(game, last_day):
         return d.weekday() == 6
     if d.weekday() > 4:
         return False
-    return all((d + timedelta(days=k)).isoformat() in NYSE_CLOSED for k in range(1, 5 - d.weekday()))
+    return all((d + timedelta(days=k)).isoformat() in EURONEXT_CLOSED for k in range(1, 5 - d.weekday()))
 
 
 def week_complete(game, week, now):
@@ -541,6 +586,13 @@ def _self_check():
     assert d5 == ["2026-09-27"] and notes and "2026-10-03" in notes[0], (d5, notes)
     assert week_closed_by("cryptoweek", "2026-10-04") and not week_closed_by("cryptoweek", "2026-10-03")
     assert week_closed_by("sharesweek", "2026-10-09") and not week_closed_by("sharesweek", "2026-10-08") and week_closed_by("sharesweek", "2026-12-24") and week_closed_by("sharesweek", "2026-11-25") is False
+    assert week_closed_by("sharesweek", "2026-04-02") and not week_closed_by("sharesweek", "2026-12-23") and week_closed_by("sharesweek", "2026-12-31")
+    # the Euronext calendar: 2026 as published, a weekend holiday no closure, the session in Brussels time on either side of a clock change
+    assert sorted(d for d in EURONEXT_CLOSED if d.startswith("2026")) == ["2026-01-01", "2026-04-03", "2026-04-06", "2026-05-01", "2026-12-25"]
+    assert sorted(d for d in EURONEXT_CLOSED if d.startswith("2027")) == ["2027-01-01", "2027-03-26", "2027-03-29"] and easter_sunday(2025) == date(2025, 4, 20)
+    assert euronext_open("2026-10-23") == datetime(2026, 10, 23, 7, 0, tzinfo=timezone.utc) and euronext_open("2026-10-26") == datetime(2026, 10, 26, 8, 0, tzinfo=timezone.utc)
+    assert euronext_close("2026-10-05") == datetime(2026, 10, 5, 15, 30, tzinfo=timezone.utc) and euronext_close("2026-12-10") == datetime(2026, 12, 10, 16, 30, tzinfo=timezone.utc)
+    assert euronext_close("2026-12-24") == datetime(2026, 12, 24, 13, 0, tzinfo=timezone.utc)
     # the mid-week tail of a history is never a week (whatever `now` says)
     d6, _ = weekly_returns(wk_days, wk_matrix, "cryptoweek", now=date(2030, 1, 1))
     assert d6 == ["2026-09-27", "2026-10-04"], d6

@@ -1,4 +1,4 @@
-import type { Band, Guard, MarketView, OpenPosition, OpenStatus, OrderBranch, OrdersView, Quotes } from '../api';
+import type { Band, Guard, MarketView, OpenPosition, OpenStatus, OrderBuyCell, OrdersView, Quotes } from '../api';
 import { DASH, cap, day, int, isNum, pct, rate, time } from '../format';
 import NoneChips from './NoneChips';
 
@@ -66,6 +66,7 @@ function Row({
   models,
   stake,
   unit,
+  run,
 }: {
   p: OpenPosition;
   quote: number | undefined;
@@ -73,9 +74,10 @@ function Row({
   models: { day: string; week: string };
   stake: number | null | undefined;
   unit: string;
+  run: string; // the daily run that brings the market's next call and results (crypto the morning run, shares the evening run)
 }) {
   // Only a held position has a live move: a "buy now" row has nothing to measure yet, a "too late" or "sold"
-  // row was sold at the close - its result comes with the morning run - and an "out" row holds nothing.
+  // row was sold at the close - its result comes with the next run - and an "out" row holds nothing.
   const held = p.status === 'held' || p.status === 'hold (rolled)' || p.status === 'sell now';
   const late = !p.order && (p.status === 'too late' || p.status === 'sold');
   const live = held && isNum(quote) && isNum(p.openRate) && p.openRate > 0 ? (quote / p.openRate - 1) * 100 : null;
@@ -85,8 +87,8 @@ function Row({
   const coinTitle = p.game === 'week' ? p.since ?? undefined : p.modelsUp ? `${int(p.modelsUp.up)} of ${int(p.modelsUp.of)} models call it up` : undefined;
   const moveTitle = late
     ? p.status === 'sold'
-      ? 'Sold at the close by the guard; its move shows after the morning run, its money when the week closes.'
-      : 'Sold at the close; the result comes with the morning run.'
+      ? `Sold at the close by the guard; its move shows after ${run}, its money when the week closes.`
+      : `Sold at the close; the result comes with ${run}.`
     : p.status === 'out'
       ? p.since?.startsWith('sold') ? 'No position held; its sale this week is under Buy.' : 'No position held this week.'
       : live !== null && isNum(p.profitPctClose)
@@ -95,15 +97,38 @@ function Row({
   const call = p.guard ? callOf(p.guard) : null;
   const guard = guardOf(p);
   const buy = buyCell(p);
+  const cells = p.order?.cells ?? null;
   const model = p.game === 'week' ? models.week : models.day;
-  const cols = withCall ? 7 : 6;
   return (
     <>
-    <tr className={p.order ? 'ord-top' : undefined}>
+    <tr>
       <td className="sym" title={[coinTitle, model ? `${p.game === 'week' ? 'Weekly' : 'Daily'} model: ${model}` : ''].filter(Boolean).join(' · ') || undefined}>
         {p.symbol || DASH}
         <span className="tag">{p.game || DASH}</span>
       </td>
+      {cells ? (
+        <>
+          <td title={p.order?.text || undefined}>
+            <OrderBuy c={cells.buy} quote={quote} />
+          </td>
+          <td title={p.order?.text || undefined}>
+            {cells.sell ? (
+              <>
+                {cells.sell.chip ? <span className={`chip ${cells.sell.tone || 'flat'}`}>{cells.sell.chip}</span> : <span className="strong">{cells.sell.text}</span>}
+                {cells.sell.subs.map((t, i) => (
+                  <span key={i} className="sub">
+                    {t}
+                  </span>
+                ))}
+                {cells.sell.warn ? <span className="sub warn">{cells.sell.warn}</span> : null}
+              </>
+            ) : (
+              <span className="mut">{DASH}</span>
+            )}
+          </td>
+        </>
+      ) : (
+      <>
       <td title={p.statusText || undefined}>
         <span className={`chip ${STATUS_CHIP[p.status] ?? 'flat'}`}>{buy.chip}</span>
         {isNum(p.size) ? (
@@ -125,6 +150,8 @@ function Row({
           </span>
         ) : null}
       </td>
+      </>
+      )}
       {withCall ? (
         <td className="hide-sm">
           {guard && p.guard ? (
@@ -135,7 +162,7 @@ function Row({
               {guard.sub ? <span className="sub">{guard.sub}</span> : null}
             </>
           ) : (
-            <span className="mut" title={p.game === 'week' ? "today's daily call for this coin arrives with the morning run" : 'a day position is the daily call itself'}>
+            <span className="mut" title={p.game === 'week' ? `the next daily call arrives with ${run}` : 'a day position is the daily call itself'}>
               {DASH}
             </span>
           )}
@@ -155,28 +182,20 @@ function Row({
         {isNum(quote) ? <span className="sub show-sm">now {rate(quote)}</span> : null}
       </td>
     </tr>
-    {p.order && p.order.branches.length ? (
-      <tr className="ord-lines">
-        <td colSpan={cols}>
-          {p.order.branches.map((b, i) => (
-            <Branch key={i} b={b} quote={quote} />
-          ))}
-        </td>
-      </tr>
-    ) : null}
     </>
   );
 }
 
-// One reader situation of an order row. A late entry ("still good to enter") is hidden by the live quote once the price
+// An order row's Buy cell. A late entry ("still good to enter") turns into "Don't buy" by the live quote once the price
 // is within its gap of the limit: the record booked it at the card's price, a reader buys at today's.
-function Branch({ b, quote }: { b: OrderBranch; quote: number | undefined }) {
-  const tooClose = b.late && isNum(quote) && quote > 0 && Math.log(b.late.limit / quote) < b.late.minGapPct / 100;
+function OrderBuy({ c, quote }: { c: OrderBuyCell; quote: number | undefined }) {
+  const tooClose = c.late && isNum(quote) && quote > 0 && Math.log(c.late.limit / quote) < c.late.minGapPct / 100;
+  const chip = tooClose ? "Don't buy" : c.chip;
   return (
-    <p className={b.belowEntry ? 'ord-b warn' : 'ord-b'}>
-      {b.who ? <b>{b.who}:</b> : null}{' '}
-      {tooClose ? `no order now: the live price ${rate(quote)} is within ${b.late?.minGapPct}% of the limit ${rate(b.late?.limit)}, too close to enter late.` : b.text}
-    </p>
+    <>
+      <span className={`chip ${tooClose ? 'flat' : c.tone}`}>{chip}</span>
+      <span className="sub">{tooClose ? `now within ${c.late?.minGapPct}% of the limit` : c.sub}</span>
+    </>
   );
 }
 
@@ -263,7 +282,6 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
           </span>
         ) : null}
       </div>
-      {data.orders ? <OrderLines o={data.orders} /> : null}
       <div className="card-b flush">
         <div className="scroll">
           <table className="tbl">
@@ -295,7 +313,7 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
                 </tr>
               ) : (
                 open.map((p, i) => (
-                  <Row key={`${p.symbol}-${p.game}-${i}`} p={p} quote={quotes?.quotes[p.symbol]} withCall={withCall} models={models} stake={d?.stake} unit={data.unit} />
+                  <Row key={`${p.symbol}-${p.game}-${i}`} p={p} quote={quotes?.quotes[p.symbol]} withCall={withCall} models={models} stake={d?.stake} unit={data.unit} run={market === 'crypto' ? 'the morning run' : 'the evening run'} />
                 ))
               )}
             </tbody>
@@ -341,8 +359,10 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
               A ×N in the Buy column is the daily model&apos;s position size: N times the paper stake{isNum(d?.stake) ? ` of ${d.stake} ${data.unit}` : ''}.
             </p>
           ) : null}
+          {data.orders ? <OrderLines o={data.orders} /> : null}
           {data.orders ? (
             <p>
+              Buy says what to do if you do not have the coin, Sell what to do if you have it; hover a row for the full instruction.
               From {day(data.orders.from)} the crypto cards are orders: buy at market when the card appears, place the sell limit shown, and sell at market at the
               next card of the same game if the limit has not filled (a week position also when a daily card turns the coin flat or down). Each order row says what to
               do for your own situation - whether you bought on an earlier card or not. When a card calls a coin you could already hold up again, a reader who did

@@ -31,7 +31,7 @@ export const NUMBER_MAX: Record<string, number> = { lotto: 45, euromillions: 50,
 export const MARKET_DRAW: Record<string, string> = {
   crypto: 'one UTC day: per coin the bin (0-9) its close-to-close move fell in',
   cryptoweek: 'one UTC week, Monday to Monday: per coin the bin (0-9) its week move fell in',
-  shares: 'one New York trading day: per share the bin (0-9) its close-to-close move fell in',
+  shares: 'one Euronext trading day: per share the bin (0-9) its close-to-close move fell in',
   sharesweek: 'one trading week to its last session: per share the bin (0-9) its week move fell in',
 };
 

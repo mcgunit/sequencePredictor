@@ -143,6 +143,7 @@ details.help p { margin: 8px 0 0; max-width: 80ch; }
 .tbl .ctr { text-align: center; }
 .tbl .sym { font-weight: 600; white-space: nowrap; }
 .tbl .sub { font-size: var(--fs-xs); color: var(--muted); font-weight: 400; display: block; white-space: normal; margin-top: 1px; }
+.tbl .sub.warn { color: var(--warn); }
 .tbl tr.none td { color: var(--muted); }
 .tbl .strong { font-weight: 600; }
 .tbl th .live { text-transform: none; letter-spacing: 0; }
@@ -193,10 +194,6 @@ html.locked { overflow: hidden; scrollbar-gutter: stable; } /* a drawer is open:
 /* Sidebar: nested anchors, the sign-out button */
 nav.side a.sub.on { color: var(--accent); }
 nav.side a.sub2 { padding-left: 36px; }
-nav.side .pair { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; padding: 6px 10px 6px 24px; color: var(--muted); font-size: 13px; }
-nav.side .pair a { display: inline; padding: 0; color: var(--muted); font-weight: 400; border-radius: 4px; }
-nav.side .pair a:hover { background: none; color: var(--accent); }
-nav.side .pair a.on { color: var(--accent); font-weight: 500; }
 nav.side .foot { display: grid; gap: 4px; }
 nav.side .foot form { margin: 0; display: inline; }
 nav.side .foot a { display: inline; padding: 0; font-weight: 400; color: var(--muted); }

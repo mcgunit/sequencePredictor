@@ -742,6 +742,7 @@ export interface Workbench {
   scoredDays: number | null;
   stake: number | null;
   feePerLeg: number | null;
+  costsText: string | null; // how a position is sized and charged (the shares: whole shares at Bolero's costs); null on older records
   currency: string;
   best: string | null;
   instruments: { symbol: string; name: string; position: number; quote: string; active: boolean; lastClose: number | null; lastDate: string | null; calls: number }[];
@@ -887,7 +888,7 @@ export function normWorkbench(raw: unknown, market: string): Workbench {
   return {
     market: str(r.market, market), builtAt: ostr(r.builtAt), title: str(r.title), noun: str(r.noun, 'instrument'), unit: str(r.unit), calendar: str(r.calendar),
     weekGame: ostr(r.weekGame), k: num(r.k, 10), chance: chanceOf(r.chance), fee: opt(r.fee), generatedAt: ostr(r.generatedAt), newestGameDay: ostr(r.newestGameDay),
-    madeOn: ostr(r.madeOn), madeAt: ostr(r.madeAt), scoredDays: opt(r.scoredDays), stake: opt(r.stake), feePerLeg: opt(r.feePerLeg), currency: str(r.currency, str(r.unit)),
+    madeOn: ostr(r.madeOn), madeAt: ostr(r.madeAt), scoredDays: opt(r.scoredDays), stake: opt(r.stake), feePerLeg: opt(r.feePerLeg), costsText: ostr(r.costsText), currency: str(r.currency, str(r.unit)),
     best: ostr(r.best),
     instruments: arr(r.instruments).filter(has).map((x, i) => {
       const n = o(x);

@@ -108,20 +108,41 @@ const PLANS = {
   },
 };
 
+// The games of the two daily runs (Predictor.py -g): the shares in the evening, everything else in the morning.
+const EVENING_GAMES = 'shares,sharesweek';
+const MORNING_GAMES = 'euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,cryptoweek';
+
 const JOBS = [
   {
     key: 'predictor',
     name: 'Daily predictor',
-    description: "Today's predictions for every game, deep learning rows included and time-boxed "
-               + '(Predictor.py -a true). Replaces the two 09:00 crontab entries.',
+    description: "Today's predictions for every game but the shares, deep learning rows included and time-boxed "
+               + '(Predictor.py -a true). Replaces the two 09:00 crontab entries. The shares have their own evening run since '
+               + 'Nov 2026: Euronext opens at 09:00, before this run\'s cards could be up.',
     script: 'Predictor.py',
-    args: ['-a', 'true'],
+    args: ['-a', 'true', '-g', MORNING_GAMES],
     log: 'predictor.log',
     daily: { hour: 9, minute: 0 },
     // How long after its slot a missed run is still worth starting. The box
     // being down over a night is the case this exists for; past 20 h the
     // next morning's run is close enough to supersede it.
     catchUpHours: 20,
+  },
+  {
+    // The owner's decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
+    // open-to-close book is one nobody could have followed. Euronext's day is complete after 18:00 Brussels
+    // (src/MarketData.py EURONEXT_READY), so the run is at 18:30 and the card is up the evening before.
+    key: 'sharesPredictor',
+    name: 'Evening predictor: shares',
+    description: "Tomorrow's shares predictions, from the Euronext day that just closed (Predictor.py -a true -g shares,sharesweek), "
+               + 'Monday to Friday at 18:30 Brussels so the card is up before the 09:00 open. Waits for process.lock like any job: '
+               + 'a tuner or control holding it delays the card.',
+    script: 'Predictor.py',
+    args: ['-a', 'true', '-g', EVENING_GAMES],
+    log: 'sharesPredictor.log',
+    daily: { hour: 18, minute: 30, weekdays: [1, 2, 3, 4, 5] },
+    // until 08:30 the next morning: a card started later is no longer up before the open
+    catchUpHours: 14,
   },
   {
     key: 'hyperoptStatistics',
@@ -305,12 +326,22 @@ function dailySlot(now, at) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), at.hour, at.minute, 0, 0);
 }
 
+// A daily job with weekdays (JOBS daily.weekdays, the evening shares run: Monday to Friday) runs on those days only.
+const onWeekday = (slot, at) => !at.weekdays || at.weekdays.includes(slot.getDay());
+
 function nextDaily(now, at) {
-  const slot = dailySlot(now, at);
-  if (slot > now) return slot;
-  const next = new Date(slot);
-  next.setDate(next.getDate() + 1);
+  const next = dailySlot(now, at);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  while (!onWeekday(next, at)) next.setDate(next.getDate() + 1);
   return next;
+}
+
+// The most recent slot of a daily job that is not in the future (before its hour: yesterday's, or the last weekday's).
+function lastDaily(now, at) {
+  const slot = dailySlot(now, at);
+  if (slot > now) slot.setDate(slot.getDate() - 1);
+  while (!onWeekday(slot, at)) slot.setDate(slot.getDate() - 1);
+  return slot;
 }
 
 // The most recent <weekday> at <hour>:<minute> that is not in the future.
@@ -759,22 +790,21 @@ function pollCurrent() {
 function dueAt(occurrences, now) {
   const due = [];
 
-  const predictor = jobByKey('predictor');
-  // The most recent slot, which before 09:00 is yesterday's - otherwise a
-  // box that comes back at 04:00 would silently skip the day it missed
-  // instead of catching it up.
-  let slot = dailySlot(now, predictor.daily);
-  if (slot > now) slot = new Date(slot.getTime() - 86400000);
-  const late = now - slot;
-  if (late >= 0 && late <= predictor.catchUpHours * 3600 * 1000) {
-    const id = `predictor@${dayId(slot)}`;
-    if (!occurrences[id]) {
-      due.push({ plan: 'predictor', occurrence: id,
-                 reason: late > 30 * 60 * 1000
-                   ? `catch-up: the ${pad(predictor.daily.hour)}:${pad(predictor.daily.minute)} run was missed by ${humanDuration(late / 1000)}`
-                   : `schedule ${pad(predictor.daily.hour)}:${pad(predictor.daily.minute)}` });
+  // Each daily job's most recent slot, which before its hour is yesterday's (or, for one with weekdays, the last
+  // weekday's) - otherwise a box that comes back at 04:00 would silently skip the day it missed instead of catching
+  // it up.
+  JOBS.filter((j) => j.daily).forEach((job) => {
+    const slot = lastDaily(now, job.daily);
+    const late = now - slot;
+    const when = `${pad(job.daily.hour)}:${pad(job.daily.minute)}`;
+    if (late >= 0 && late <= job.catchUpHours * 3600 * 1000) {
+      const id = `${job.key}@${dayId(slot)}`;
+      if (!occurrences[id]) {
+        due.push({ plan: job.key, occurrence: id,
+                   reason: late > 30 * 60 * 1000 ? `catch-up: the ${when} run was missed by ${humanDuration(late / 1000)}` : `schedule ${when}` });
+      }
     }
-  }
+  });
 
   // A plan is normally started by its weekday's predictor finishing. This is
   // only the safety net: the box was down, or that predictor never ran, and
@@ -1002,7 +1032,7 @@ function stop() {
 // --- status -----------------------------------------------------------------
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function nextDueText(job, now) {
-  if (job.daily) return `${stamp(nextDaily(now, job.daily))} (daily ${pad(job.daily.hour)}:${pad(job.daily.minute)})`;
+  if (job.daily) return `${stamp(nextDaily(now, job.daily))} (${job.daily.weekdays ? 'Monday to Friday' : 'daily'} ${pad(job.daily.hour)}:${pad(job.daily.minute)})`;
   const spec = job.plan && PLANS[job.plan];
   const day = spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday';
   if (job.monthly && spec) {
@@ -1134,7 +1164,7 @@ module.exports = {
   // launch/adoption test drives directly (there is no other way to exercise
   // a reparented job without a browser and a real 12-hour tuner).
   _internals: {
-    dueAt, weekId, dayId, dailySlot, nextDaily, lastWeekdaySlot, CHAIN_KEYS, CHAIN_PLAN,
+    dueAt, weekId, dayId, dailySlot, nextDaily, lastDaily, lastWeekdaySlot, CHAIN_KEYS, CHAIN_PLAN,
     CONTROL_KEYS, CONTROLS_PLAN, PLANS, planKeys, planTriggerAt, nextDueText, planBaseline,
     enqueue, startNext, tick, lockHolder, jobOfCmdline, maybeTriggerChain, state: () => state,
     chainTriggerAt, exitCodeFrom, allowedQueue, READING_JOB, readingSundayOf, writeWeekReading, scheduleReading,

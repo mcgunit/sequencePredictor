@@ -442,8 +442,8 @@ function planOf(market, view, now) {
     return { symbol: inst.symbol, base, call: c, order, up: inst.next.filter((p) => isUp(p, view.k)).length, of: inst.next.length };
   });
   return {
-    // calendarKnown: a share day in a year NYSE has published its holidays for; otherwise the day is "normally" this one
-    day, calendarKnown: market === 'crypto' || [...markets.NYSE_CLOSED].some((d) => d.slice(0, 4) === day.slice(0, 4)),
+    // calendarKnown: a share day in a year Euronext has published its calendar for; otherwise the day is "normally" this one
+    day, calendarKnown: market === 'crypto' || markets.EURONEXT_PUBLISHED_YEARS.has(day.slice(0, 4)),
     madeOn: view.madeOn, madeAt: isoUtc(view.madeAt), openAt: isoDate(openAt), closeAt: isoDate(closeAt), closed, opened: Boolean(openAt && now >= openAt),
     status: markets.dayStatus(market, day, now),
     model: pick.model.name, byBook: pick.byBook, rule: pick.ruleName, minTrades: markets.MIN_PLAN_TRADES, models: ticketModels(view.instruments) || view.models.length,
@@ -752,6 +752,8 @@ function workbenchOf(market, view, now = new Date()) {
     market, builtAt: isoDate(now), title: meta.title, noun: meta.noun, unit: meta.unit, calendar: meta.calendar, weekGame: markets.WEEK_GAMES[market],
     k: view.k, chance: view.chance, fee: view.fee, generatedAt: isoUtc(view.generatedAt), newestGameDay: view.newestGameDay, madeOn: view.madeOn, madeAt: isoUtc(view.madeAt),
     scoredDays: view.scoredDays, stake: t ? t.stake : null, feePerLeg: t ? t.feePerLeg : null, currency: t ? t.currency : meta.unit, best: view.best,
+    // how a position is sized and charged, said by the record (MarketSettle.cost_terms); null on older records
+    costsText: t && t.costs && t.costs.text ? t.costs.text : null,
     instruments: view.instruments.map((i) => ({ symbol: i.symbol, name: i.name, position: i.position, quote: i.quote, active: i.active, lastClose: i.lastClose, lastDate: i.lastDate, calls: i.next.length })),
     // when the newest ticket's calls are judged: said once for every instrument
     judged: nextDay ? { day: nextDay, at: isoDate(close), status: markets.dayStatus(market, nextDay, now), madeOn: view.madeOn } : null,

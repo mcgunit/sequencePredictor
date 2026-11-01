@@ -177,10 +177,13 @@ fs.rmSync(controls, { recursive: true, force: true });
 ok(markets.nextGameDay('crypto', '2026-10-02') === '2026-10-03' && markets.nextGameDay('crypto', '2026-10-31') === '2026-11-01' && markets.nextGameDay('crypto', '2026-12-31') === '2027-01-01', 'a crypto ticket is for the next calendar day');
 ok(markets.nextGameDay('shares', '2026-10-02') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-03') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-04') === '2026-10-05' && markets.nextGameDay('shares', '2026-10-05') === '2026-10-06',
    'a shares ticket is for the next weekday - Friday, Saturday and Sunday all point at Monday');
-ok(markets.nextGameDay('shares', '2026-11-25') === '2026-11-27' && markets.nextGameDay('shares', '2026-12-24') === '2026-12-28' && markets.nextGameDay('shares', '2027-12-23') === '2027-12-27'
-   && markets.nextGameDay('shares', '2026-07-02') === '2026-07-06', 'New York holidays are skipped: Thanksgiving, Christmas, the observed days');
-const perYear = (year) => [...markets.NYSE_CLOSED].filter((d) => d.startsWith(year)).length;
-ok(perYear('2026') === 10 && perYear('2027') === 10 && markets.NYSE_CLOSED.size === 20 && [...markets.NYSE_CLOSED].every((d) => ![0, 6].includes(new Date(d).getUTCDay())), 'the closure table has ten weekdays in each announced year');
+ok(markets.nextGameDay('shares', '2026-04-02') === '2026-04-07' && markets.nextGameDay('shares', '2026-04-30') === '2026-05-04' && markets.nextGameDay('shares', '2026-12-24') === '2026-12-28'
+   && markets.nextGameDay('shares', '2027-12-23') === '2027-12-24' && markets.nextGameDay('shares', '2026-12-31') === '2027-01-04', 'Euronext holidays are skipped: Easter, 1 May, Christmas, New Year; a half day is a session');
+const perYear = (year) => [...markets.EURONEXT_CLOSED].filter((d) => d.startsWith(year));
+ok(perYear('2026').join() === '2026-01-01,2026-04-03,2026-04-06,2026-05-01,2026-12-25' && perYear('2027').join() === '2027-01-01,2027-03-26,2027-03-29'
+   && perYear('2025').join() === '2025-01-01,2025-04-18,2025-04-21,2025-05-01,2025-12-25,2025-12-26' && [...markets.EURONEXT_CLOSED].every((d) => ![0, 6].includes(new Date(d).getUTCDay()))
+   && markets.EURONEXT_HALF_DAYS.has('2026-12-24') && markets.EURONEXT_HALF_DAYS.has('2026-12-31') && !markets.EURONEXT_HALF_DAYS.has('2027-12-25') && markets.EURONEXT_PUBLISHED_YEARS.has('2026'),
+   'the closures follow the rule: 2026 as Euronext published it, a weekend holiday is no closure');
 ok(markets.nextGameDay('crypto', 'soon') === null && markets.nextGameDay('crypto', '2026-02-30') === null && markets.nextGameDay('crypto', '2026-13-01') === null && markets.closeMoment('shares', null) === null, 'malformed and impossible dates give null, not a roll-over');
 // the moments in Belgian time (brusselsText, as dayStatus and dayStatusWeek say them)
 const belgian = (moment) => markets.brusselsText(moment);
@@ -190,22 +193,20 @@ ok(markets.closeMoment('crypto', '2026-10-03').toISOString() === '2026-10-04T00:
    && belgian(markets.closeMoment('crypto', '2026-12-10')) === '01:00 Belgian time', 'a crypto day closes at 00:00 UTC: 02:00 Belgian time in summer, 01:00 in winter');
 ok(belgian(markets.closeMoment('crypto', '2026-10-24')) === '02:00 Belgian time' && belgian(markets.closeMoment('crypto', '2026-10-25')) === '01:00 Belgian time'
    && belgian(markets.closeMoment('crypto', '2027-03-27')) === '01:00 Belgian time', 'the Belgian clock-change nights are computed, not assumed');
-ok(belgian(markets.closeMoment('shares', '2026-10-05')) === '22:00 Belgian time' && belgian(markets.closeMoment('shares', '2026-12-10')) === '22:00 Belgian time',
-   `New York closes at 22:00 Belgian time in summer and in winter: ${belgian(markets.closeMoment('shares', '2026-10-05'))}`);
-ok(belgian(markets.closeMoment('shares', '2026-10-28')) === '21:00 Belgian time' && belgian(markets.closeMoment('shares', '2027-03-16')) === '21:00 Belgian time' && belgian(markets.closeMoment('shares', '2026-03-09')) === '21:00 Belgian time',
-   `between the two clock changes New York closes at 21:00 Belgian time: ${belgian(markets.closeMoment('shares', '2026-10-28'))}`);
-ok(markets.closeMoment('shares', '2026-10-05').toISOString() === '2026-10-05T20:00:00.000Z' && markets.closeMoment('shares', '2026-12-10').toISOString() === '2026-12-10T21:00:00.000Z'
-   && markets.closeMoment('shares', '2026-03-09').toISOString() === '2026-03-09T20:00:00.000Z', 'the New York close as an instant, also in the US-only summer-time week');
-ok(belgian(markets.closeMoment('shares', '2026-11-27')) === '19:00 Belgian time' && belgian(markets.closeMoment('shares', '2026-12-24')) === '19:00 Belgian time',
-   `an early close is 13:00 New York time: ${belgian(markets.closeMoment('shares', '2026-11-27'))}`);
-ok(belgian(markets.openMoment('shares', '2026-10-05')) === '15:30 Belgian time' && belgian(markets.openMoment('shares', '2026-10-28')) === '14:30 Belgian time'
-   && belgian(markets.openMoment('shares', '2026-11-27')) === '15:30 Belgian time', `the New York open is computed per date, also on an early-close day: ${belgian(markets.openMoment('shares', '2026-10-28'))}`);
+ok(belgian(markets.closeMoment('shares', '2026-10-05')) === '17:30 Belgian time' && belgian(markets.closeMoment('shares', '2026-12-10')) === '17:30 Belgian time'
+   && markets.closeMoment('shares', '2026-10-05').toISOString() === '2026-10-05T15:30:00.000Z' && markets.closeMoment('shares', '2026-12-10').toISOString() === '2026-12-10T16:30:00.000Z'
+   && markets.closeMoment('shares', '2027-03-29').toISOString() === '2027-03-29T15:30:00.000Z', `Euronext closes at 17:30 Belgian time, in summer and in winter: ${belgian(markets.closeMoment('shares', '2026-10-05'))}`);
+ok(belgian(markets.closeMoment('shares', '2026-12-24')) === '14:00 Belgian time' && markets.closeMoment('shares', '2026-12-31').toISOString() === '2026-12-31T13:00:00.000Z',
+   `a half day closes at 14:00: ${belgian(markets.closeMoment('shares', '2026-12-24'))}`);
+ok(belgian(markets.openMoment('shares', '2026-10-05')) === '09:00 Belgian time' && markets.openMoment('shares', '2026-10-23').toISOString() === '2026-10-23T07:00:00.000Z'
+   && markets.openMoment('shares', '2026-10-26').toISOString() === '2026-10-26T08:00:00.000Z' && belgian(markets.openMoment('shares', '2026-12-24')) === '09:00 Belgian time',
+   `the Euronext open is 09:00 Belgian time, on either side of the clock change: ${belgian(markets.openMoment('shares', '2026-10-26'))}`);
 ok(markets.openMoment('crypto', '2026-10-03').toISOString() === '2026-10-03T00:00:00.000Z', 'a crypto day opens at 00:00 UTC');
 ok(markets.dayStatus('crypto', '2026-10-03', new Date('2026-10-03T09:00:00Z')) === 'the UTC day 2026-10-03 is running now, 9 hours in; it closes at 02:00 Belgian time'
    && markets.dayStatus('crypto', '2026-10-03', new Date('2026-10-04T05:00:00Z')).startsWith('the UTC day 2026-10-03 has already closed (02:00 Belgian time)')
-   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-03T09:00:00Z')) === 'the New York session of Monday 2026-10-05 has not opened yet - it opens at 15:30 Belgian time and closes at 22:00 Belgian time'
-   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T15:00:00Z')).includes('is running now, 1.5 hours in')
-   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T21:00:00Z')).includes('has already closed') && markets.dayStatus('crypto', 'bad', new Date()) === null, 'the day status follows the clock');
+   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-03T09:00:00Z')) === 'the Euronext session of Monday 2026-10-05 has not opened yet - it opens at 09:00 Belgian time and closes at 17:30 Belgian time'
+   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T08:30:00Z')).includes('is running now, 1.5 hours in')
+   && markets.dayStatus('shares', '2026-10-05', new Date('2026-10-05T16:00:00Z')).includes('has already closed') && markets.dayStatus('crypto', 'bad', new Date()) === null, 'the day status follows the clock');
 
 // the open-to-close book for shares (4 Oct 2026), and the same rules with shorts on
 const sharesRecord = { ...record, market: 'shares',

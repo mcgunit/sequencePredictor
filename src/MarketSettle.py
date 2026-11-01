@@ -47,12 +47,12 @@ import bisect
 from datetime import date, datetime, timedelta, timezone
 
 try:
-    from src.MarketData import closes, instruments, base_instrument_id, is_week_game, base_market
-    from src.MarketGame import (NYSE_CLOSED, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
+    from src.MarketData import closes, instruments, base_instrument_id, is_week_game, base_market, history_symbol
+    from src.MarketGame import (EURONEXT_CLOSED, euronext_close, euronext_open, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                                 predicted_price, price_interval, representative_return)
 except ImportError:  # imported from within src/
-    from MarketData import closes, instruments, base_instrument_id, is_week_game, base_market
-    from MarketGame import (NYSE_CLOSED, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
+    from MarketData import closes, instruments, base_instrument_id, is_week_game, base_market, history_symbol
+    from MarketGame import (EURONEXT_CLOSED, euronext_close, euronext_open, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                             predicted_price, price_interval, representative_return)
 
 FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchange; shares are cheaper, this is the conservative one
@@ -63,13 +63,25 @@ FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchan
 # A fixed stake rather than one coin or one share, because one BTC and one XRP
 # are not comparable positions. Holding across days and shorts are the later
 # extensions the owner named; this is the first, simplest rule.
-STAKE = 100.0          # per position, in USDT (crypto) or USD (shares)
+STAKE = 100.0          # per position, in USDT: crypto's stake (stake_for: the shares' since 31 Oct 2026 is SHARES_STAKE)
 MIN_RANK_DAYS = 10     # a model with fewer settled days ranks after the others (the page's "best" and the drawn models follow this order)
-FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell
+FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell (crypto; the shares pay Bolero's costs - Costs)
+# The shares as a Belgian private investor would trade them (the owner's decision of 31 Oct 2026, when the five
+# shares moved to Euronext): 1,000 EUR a position in WHOLE shares - the number of shares the stake buys at the entry
+# price, rounded down, so a little of the stake stays unspent - at Bolero's costs on every buy and every sell: the
+# broker's fee by order value (BOLERO_TIERS: 2.50 EUR up to 250, 5.00 up to 1,000, 7.50 up to 2,500, then 15.00 per
+# started 10,000 - the tiers above 1,000 only matter for a sale after a large rise, and are as remembered, not
+# re-read from Bolero's tariff sheet) plus the Belgian stock exchange tax TOB, 0.35% of the order value (its cap of
+# 1,600 EUR is out of reach at this stake). About 0.85% a leg at 1,000 EUR, eight times crypto's 0.1%.
+SHARES_STAKE = 1000.0
+BOLERO_TIERS = ((250.0, 2.50), (1000.0, 5.00), (2500.0, 7.50))
+BOLERO_PER_10K = 15.00
+TOB = 0.0035
 # The markets whose page carries the OPEN-TO-CLOSE book (ledger: "open"): the
 # stake bought at the session's open and sold at its close - the one rule a
-# reader of the page can follow, since the ticket is up hours before New York
-# opens (asked for on 4 Oct 2026). Crypto's UTC day opens at the previous
+# reader of the page can follow when the ticket is up before the session opens
+# (asked for on 4 Oct 2026, when the shares were New York's; since 31 Oct 2026
+# the session is Euronext's, 09:00-17:30 Brussels time - entry_instant). Crypto's UTC day opens at the previous
 # close, so its open book would repeat the daily one and is not exported.
 OPEN_RULE_MARKETS = ("shares", "sharesweek")
 # the markets that carry the crypto ORDER BOOK (trading["orders"], src/MarketOrders.py - 30 Oct 2026); the same
@@ -112,6 +124,114 @@ def cash_pnl(ret, stake=STAKE, fee=FEE_PER_LEG):
     """
     proceeds = stake * math.exp(float(ret))
     return proceeds * (1.0 - fee) - stake * (1.0 + fee)
+
+
+def stake_for(market):
+    """The stake of one position in the market's currency: 100 USDT for crypto, 1,000 EUR for the shares."""
+    return SHARES_STAKE if base_market(market) == "shares" else STAKE
+
+
+def bolero_fee(value):
+    """Bolero's broker fee for one order of `value` EUR on Euronext (BOLERO_TIERS)."""
+    for upto, fee in BOLERO_TIERS:
+        if value <= upto:
+            return fee
+    return BOLERO_PER_10K * math.ceil(value / 10000.0)
+
+
+class Costs:
+    """
+    How a position is sized and what each leg costs, per market: crypto buys
+    the stake itself (fractional units) at `fee` of the order value a leg; the
+    shares buy whole shares at Bolero's fee plus TOB a leg (SHARES_STAKE).
+    Every book prices its positions through this, so a rule's money means the
+    same everywhere. `whole` is False for crypto: its money needs no price and
+    stays exactly cash_pnl / short_pnl.
+    """
+
+    def __init__(self, market=None, fee=FEE_PER_LEG):
+        self.whole = market is not None and base_market(market) == "shares"
+        self.fee = fee
+
+    def units(self, money, price):
+        """What `money` buys at `price`: the fraction for crypto, the whole shares for the shares (rounded down)."""
+        if not self.whole:
+            return money / price
+        return math.floor(money / price + 1e-9)
+
+    def leg(self, value):
+        """The cost of one order of `value`: the fee rate for crypto, Bolero's fee plus TOB for the shares."""
+        if not self.whole:
+            return value * self.fee
+        return bolero_fee(value) + TOB * value if value > 0 else 0.0
+
+    def position(self, ret, money, side=1, entry=None):
+        """
+        Money made by one position of `money` (the stake, scaled by a sized
+        row's size) over a log move `ret`: long (side 1) bought at `entry` and
+        sold at entry x exp(ret), short (side -1) sold at `entry` and bought
+        back there, one cost a leg. Crypto: cash_pnl / short_pnl, no price
+        needed. Shares: None when the entry price is unknown or the money
+        buys no whole share - no position, not a position that made nothing.
+        """
+        if not self.whole:
+            return cash_pnl(ret, money, self.fee) if side > 0 else short_pnl(ret, money, self.fee)
+        if entry is None or not entry > 0:
+            return None
+        n = self.units(money, entry)
+        if n <= 0:
+            return None
+        bought, sold = n * entry, n * entry * math.exp(float(ret))
+        return side * (sold - bought) - self.leg(bought) - self.leg(sold)
+
+
+def costs_for(market, fee=FEE_PER_LEG):
+    return Costs(market, fee)
+
+
+def leg_rate(market):
+    """
+    The market's cost of one leg as a share of the order value at its stake:
+    crypto's 0.1%, the shares' Bolero fee plus TOB on 1,000 EUR (0.85%). For
+    the learners that price a position from its return alone (the RL Position
+    Model's reward, its tuner's money), at their own 100-unit scale.
+    """
+    if not costs_for(market).whole:
+        return FEE_PER_LEG
+    return Costs(market).leg(SHARES_STAKE) / SHARES_STAKE
+
+
+def cost_terms(market):
+    """The market's Costs as the page record carries them."""
+    if not costs_for(market).whole:
+        return {"kind": "percent", "whole_units": False, "fee_per_leg": FEE_PER_LEG,
+                "text": f"{stake_for(market):.0f} USDT a position, {FEE_PER_LEG:.1%} of the order value on each buy and each sell"}
+    return {"kind": "bolero", "whole_units": True, "tob": TOB, "broker": [list(t) for t in BOLERO_TIERS], "broker_per_10k": BOLERO_PER_10K,
+            "text": (f"{stake_for(market):,.0f} EUR a position in whole shares (what the stake buys at the entry price, rounded down); "
+                     f"on each buy and each sell Bolero's fee (2.50 EUR up to 250 EUR, 5.00 EUR up to 1,000 EUR, 7.50 EUR up to 2,500 EUR) "
+                     f"and the stock exchange tax (TOB) of {TOB:.2%}")}
+
+
+def move_pct(ret):
+    """A log move as the percentage the pages show."""
+    return round((math.exp(float(ret)) - 1.0) * 100.0, 4)
+
+
+def entry_closes(conn, market):
+    """
+    entry(symbol, day, ret): the price a position settled on `day` was bought
+    at under the daily rule - the close before the day's window, read back as
+    the day's close x exp(-ret) from the stored bars (the base market's for a
+    week game, whose return spans the week): None without a bar.
+    """
+    bars = {i["symbol"]: bars_by_date(conn, base_instrument_id(conn, i)) for i in instruments(conn, market, active_only=False)}
+
+    def entry(symbol, day, ret):
+        bar = bars.get(symbol, {}).get(day)
+        if not bar or ret is None or not bar[1] > 0:
+            return None
+        return bar[1] * math.exp(-float(ret))
+    return entry
 
 
 def position_of(bin_value, meta, k=K_BINS):
@@ -288,13 +408,17 @@ def _result_rows(conn, market):
         "WHERE i.market = ? ORDER BY r.for_date, r.model, i.position", (market,)).fetchall()
 
 
-def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
+def model_summary(conn, market, k=K_BINS, stake=None, fee_per_leg=FEE_PER_LEG):
     """
     Per model over every settled result of the market, sorted by exact rate
     then P&L: hit rates, the fixed rule's P&L in return units (pnl_total),
     and the same positions in money (pnl_cash_total: `stake` per position,
-    a fee on each leg - see cash_pnl), with trades, wins and the win rate.
+    the market's costs on each leg - see Costs), with trades, wins and the
+    win rate.
     """
+    stake = stake_for(market) if stake is None else stake
+    costs = costs_for(market, fee_per_leg)
+    entry = entry_closes(conn, market) if costs.whole else None
     per = {}
     for r in _result_rows(conn, market):
         m = per.setdefault(r["model"], {"n": 0, "days": set(), "exact": 0, "adjacent": 0, "direction": 0, "trades": 0, "pnl": 0.0,
@@ -308,9 +432,11 @@ def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         m["last"] = max(m["last"], r["for_date"])
         m["first"] = min(m["first"], r["for_date"])
         long, scale = position_of(r["bin"], r["meta"], k)
+        made = None
         if long and r["actual_return"] is not None:
+            made = costs.position(r["actual_return"], scale * stake, 1, entry(r["symbol"], r["for_date"], r["actual_return"]) if entry else None)
+        if made is not None:
             m["trades"] += 1
-            made = scale * cash_pnl(r["actual_return"], stake, fee_per_leg)
             m["cash"] += made
             m["wins"] += int(made > 0)
     out = []
@@ -333,20 +459,25 @@ def model_summary(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     return out
 
 
-def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None):
+def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None, costs=None, entries=None):
     """
     One instrument under the HOLD rule: a position is opened at the previous
     close on the first day the call is up and kept while the calls stay up,
     then sold at the close of the last up day (the morning after, when the
     next call is not up, the position is gone - we only have closes, so the
     sale is booked at that close); a position still open at the end is
-    sold at the last close. The buy fee is paid once on entry, the sell fee
-    once on exit, and the stake compounds while held. `calls[i]` is True
-    when the model called day i up, False or None otherwise; `returns[i]` is
-    the day's log return (None when unknown); `sizes[i]`, when given, scales
-    the stake of a position opened on day i (a sized row). Returns (daily
-    money per date, number of positions, positions that made money).
+    sold at the last close. The buy cost is paid once on entry, the sell cost
+    once on exit, and the position's value follows the price while held.
+    `calls[i]` is True when the model called day i up, False or None
+    otherwise; `returns[i]` is the day's log return (None when unknown);
+    `sizes[i]`, when given, scales the stake of a position opened on day i (a
+    sized row). `costs` (Costs, default crypto's at `fee`) sizes and prices
+    the legs; for whole shares `entries[i]` is the price a position opened on
+    day i is bought at, and a day whose money buys no whole share opens
+    nothing. Returns (daily money per date, number of positions, positions
+    that made money).
     """
+    costs = costs or Costs(None, fee)
     daily = [0.0] * len(dates)
     value = None
     entry_cost = 0.0
@@ -355,23 +486,29 @@ def hold_book(dates, calls, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None):
         up = bool(calls[i]) and returns[i] is not None
         if up:
             if value is None:
-                entry = stake * (float(sizes[i]) if sizes is not None and sizes[i] else 1.0)
-                value = entry
-                entry_cost = entry * (1.0 + fee)
-                daily[i] -= entry * fee
+                money = stake * (float(sizes[i]) if sizes is not None and sizes[i] else 1.0)
+                if costs.whole:
+                    price = entries[i] if entries is not None else None
+                    units = costs.units(money, price) if price and price > 0 else 0
+                    if units <= 0:
+                        continue
+                    money = units * price
+                value = money
+                entry_cost = money + costs.leg(money)
+                daily[i] -= costs.leg(money)
                 trades += 1
             grown = value * math.exp(float(returns[i]))
             daily[i] += grown - value
             value = grown
             last = i + 1 >= len(dates) or not (bool(calls[i + 1]) and returns[i + 1] is not None)
             if last:
-                daily[i] -= value * fee
-                wins += int(value * (1.0 - fee) - entry_cost > 0)
+                daily[i] -= costs.leg(value)
+                wins += int(value - costs.leg(value) - entry_cost > 0)
                 value = None
     return daily, trades, wins
 
 
-def hold_book_ls(dates, direction, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None):
+def hold_book_ls(dates, direction, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=None, costs=None, entries=None):
     """
     The HOLD rule with shorts: `direction[i]` is +1 (long), -1 (short) or 0 /
     None (flat). A position is opened at the previous close on the first day
@@ -379,10 +516,13 @@ def hold_book_ls(dates, direction, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=
     closed at the close of the last day of the run (a flip opens the other
     way the next day). The notional follows the price for both sides - a
     long's value, a short's buy-back cost - so a day's money is direction x
-    notional x (exp(return) - 1); a fee on the notional at entry and at exit.
-    `sizes[i]` scales the stake of a position opened on day i. Returns (daily
-    money per date, positions, positions that made money).
+    notional x (exp(return) - 1); the market's cost on the notional at entry
+    and at exit (`costs`, `entries` as in hold_book: whole shares are sold
+    short as they are bought). `sizes[i]` scales the stake of a position
+    opened on day i. Returns (daily money per date, positions, positions
+    that made money).
     """
+    costs = costs or Costs(None, fee)
     n = len(dates)
     daily = [0.0] * n
     side, notional, net = 0, None, 0.0
@@ -392,9 +532,15 @@ def hold_book_ls(dates, direction, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=
         if d == 0:
             continue
         if notional is None:
-            entry = stake * (float(sizes[i]) if sizes is not None and sizes[i] else 1.0)
-            notional, side, net = entry, d, -entry * fee
-            daily[i] -= entry * fee
+            money = stake * (float(sizes[i]) if sizes is not None and sizes[i] else 1.0)
+            if costs.whole:
+                price = entries[i] if entries is not None else None
+                units = costs.units(money, price) if price and price > 0 else 0
+                if units <= 0:
+                    continue
+                money = units * price
+            notional, side, net = money, d, -costs.leg(money)
+            daily[i] -= costs.leg(money)
             trades += 1
         growth = math.exp(float(returns[i]))
         change = side * notional * (growth - 1.0)
@@ -403,14 +549,14 @@ def hold_book_ls(dates, direction, returns, stake=STAKE, fee=FEE_PER_LEG, sizes=
         net += change
         following = int(direction[i + 1]) if i + 1 < n and direction[i + 1] and returns[i + 1] is not None else 0
         if following != side:
-            daily[i] -= notional * fee
-            net -= notional * fee
+            daily[i] -= costs.leg(notional)
+            net -= costs.leg(notional)
             wins += int(net > 0)
             notional, side = None, 0
     return daily, trades, wins
 
 
-def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
+def ledger(conn, market, k=K_BINS, stake=None, fee_per_leg=FEE_PER_LEG):
     """
     The paper-trading book, day by day, under three rules. DAILY: every long
     call is a round trip - the stake bought at the previous close, sold at
@@ -424,8 +570,13 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     buying every instrument every day with the same stake and fees (daily,
     and open to close), or buying everything on the first day and holding to
     the last (hold): what the instruments themselves gave over the same days.
-    Dates are the settled days, oldest first.
+    Dates are the settled days, oldest first. Every position is sized and
+    priced by the market's Costs (whole shares at Bolero's costs for the
+    shares since 31 Oct 2026); a share position whose money buys no whole
+    share is not taken.
     """
+    stake = stake_for(market) if stake is None else stake
+    costs = costs_for(market, fee_per_leg)
     rows = _result_rows(conn, market)
     dates = sorted({r["for_date"] for r in rows})
     index = {d: i for i, d in enumerate(dates)}
@@ -454,6 +605,17 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         j = bisect.bisect_right(ds, previous) if previous is not None else bisect.bisect_left(ds, dates[i])
         first = b.get(ds[j]) if j < len(ds) and ds[j] <= dates[i] else last
         return (first[0], last[1]) if first and first[0] > 0 else None
+    def entry_at(symbol, i, ret):
+        """The previous close a daily position on settled day i is bought at: the day's close x exp(-ret)."""
+        bar = bars.get(symbol, {}).get(dates[i])
+        return bar[1] * math.exp(-ret) if bar and bar[1] > 0 and ret is not None else None
+
+    def priced(ret, money, side, entry):
+        """One position's money under the market's costs (Costs.position); crypto needs no price."""
+        return costs.position(ret, money, side, entry)
+
+    def entries_of(symbol, ret):
+        return [entry_at(symbol, i, ret[i]) for i in range(n)] if costs.whole else None
     # per model and instrument: the call (up or not) and the return per date
     calls, rets, seen, scales, sides = {}, {}, {}, {}, {}
     market_ret = {}
@@ -482,6 +644,7 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     daily_models, hold_models, hold_stats, open_models, open_stats = {}, {}, {}, {}, {}
     daily_counts, open_counts = {}, {}   # positions per model per day under the daily and the open rule (followed_plan's thresholds)
     daily_by, open_by = {}, {}           # per model, per day, the money per instrument under each rule (followed_plan's positions, 15 Oct 2026)
+    daily_move, open_move = {}, {}       # the same positions' moves in percent (the cards show them; whole shares and fixed fees hide them in the money)
     # the same rules with shorts on (a lower-half bin is a short): money per model and the position counts
     ls_daily, ls_daily_stats, ls_hold, ls_hold_stats, ls_open, ls_open_stats = {}, {}, {}, {}, {}, {}
     for (model, symbol), call in calls.items():
@@ -499,40 +662,49 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         ocount = open_counts.setdefault(model, [0] * n)
         dby = daily_by.setdefault(model, {})
         oby = open_by.setdefault(model, {})
+        dmv = daily_move.setdefault(model, {})
+        omv = open_move.setdefault(model, {})
         for i in range(n):
             if ret[i] is None:
                 continue
             bar = session(symbol, i)
+            entry = entry_at(symbol, i, ret[i]) if costs.whole else None
+            oret = math.log(bar[1] / bar[0]) if bar else None
             if call[i]:
-                pnl = size[i] * cash_pnl(ret[i], stake, fee_per_leg)
-                day[i] += pnl
-                dby.setdefault(dates[i], {})[symbol] = round(pnl, 4)
-                dcount[i] += 1
-                if bar:
-                    pnl = size[i] * open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
+                pnl = priced(ret[i], size[i] * stake, 1, entry)
+                if pnl is not None:
+                    day[i] += pnl
+                    dby.setdefault(dates[i], {})[symbol] = round(pnl, 4)
+                    dmv.setdefault(dates[i], {})[symbol] = move_pct(ret[i])
+                    dcount[i] += 1
+                pnl = priced(oret, size[i] * stake, 1, bar[0]) if bar else None
+                if pnl is not None:
                     oday[i] += pnl
                     oby.setdefault(dates[i], {})[symbol] = round(pnl, 4)
+                    omv.setdefault(dates[i], {})[symbol] = move_pct(oret)
                     ocount[i] += 1
                     ostat["trades"] += 1
                     ostat["wins"] += int(pnl > 0)
             if side[i]:
-                pnl = size[i] * (cash_pnl(ret[i], stake, fee_per_leg) if side[i] > 0 else short_pnl(ret[i], stake, fee_per_leg))
-                lday[i] += pnl
-                lstat["trades"] += 1
-                lstat["wins"] += int(pnl > 0)
-                if bar:
-                    pnl = size[i] * (open_close_pnl(bar[0], bar[1], stake, fee_per_leg) if side[i] > 0 else short_open_close_pnl(bar[0], bar[1], stake, fee_per_leg))
+                pnl = priced(ret[i], size[i] * stake, side[i], entry)
+                if pnl is not None:
+                    lday[i] += pnl
+                    lstat["trades"] += 1
+                    lstat["wins"] += int(pnl > 0)
+                pnl = priced(oret, size[i] * stake, side[i], bar[0]) if bar else None
+                if pnl is not None:
                     loday[i] += pnl
                     lostat["trades"] += 1
                     lostat["wins"] += int(pnl > 0)
-        held, trades, wins = hold_book(dates, call, ret, stake, fee_per_leg, sizes=size)
+        entries = entries_of(symbol, ret)
+        held, trades, wins = hold_book(dates, call, ret, stake, fee_per_leg, sizes=size, costs=costs, entries=entries)
         hday = hold_models.setdefault(model, [0.0] * n)
         for i in range(n):
             hday[i] += held[i]
         stat = hold_stats.setdefault(model, {"trades": 0, "wins": 0})
         stat["trades"] += trades
         stat["wins"] += wins
-        held, trades, wins = hold_book_ls(dates, side, ret, stake, fee_per_leg, sizes=size)
+        held, trades, wins = hold_book_ls(dates, side, ret, stake, fee_per_leg, sizes=size, costs=costs, entries=entries)
         lhday = ls_hold.setdefault(model, [0.0] * n)
         for i in range(n):
             lhday[i] += held[i]
@@ -545,14 +717,17 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
     for symbol, ret in market_ret.items():
         for i in range(n):
             if ret[i] is not None:
-                bench_daily[i] += cash_pnl(ret[i], stake, fee_per_leg)
-                sold_daily[i] += short_pnl(ret[i], stake, fee_per_leg)
+                entry = entry_at(symbol, i, ret[i]) if costs.whole else None
+                bench_daily[i] += priced(ret[i], stake, 1, entry) or 0.0
+                sold_daily[i] += priced(ret[i], stake, -1, entry) or 0.0
                 bar = session(symbol, i)
                 if bar:
-                    bench_open[i] += open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
-                    sold_open[i] += short_open_close_pnl(bar[0], bar[1], stake, fee_per_leg)
-        held, _, _ = hold_book(dates, [r is not None for r in ret], ret, stake, fee_per_leg)
-        sold, _, _ = hold_book_ls(dates, [-1 if r is not None else 0 for r in ret], ret, stake, fee_per_leg)
+                    oret = math.log(bar[1] / bar[0])
+                    bench_open[i] += priced(oret, stake, 1, bar[0]) or 0.0
+                    sold_open[i] += priced(oret, stake, -1, bar[0]) or 0.0
+        entries = entries_of(symbol, ret)
+        held, _, _ = hold_book(dates, [r is not None for r in ret], ret, stake, fee_per_leg, costs=costs, entries=entries)
+        sold, _, _ = hold_book_ls(dates, [-1 if r is not None else 0 for r in ret], ret, stake, fee_per_leg, costs=costs, entries=entries)
         for i in range(n):
             bench_hold[i] += held[i]
             sold_hold[i] += sold[i]
@@ -560,7 +735,7 @@ def ledger(conn, market, k=K_BINS, stake=STAKE, fee_per_leg=FEE_PER_LEG):
         "dates": dates,
         # internal: positions per model per day; export_page_json reads it for followed_plan and drops it from the page record
         "_counts": {"daily": daily_counts, "open": open_counts, "seen": {m: sorted(v) for m, v in seen.items()},
-                    "by_instrument": {"daily": daily_by, "open": open_by}},
+                    "by_instrument": {"daily": daily_by, "open": open_by}, "moves": {"daily": daily_move, "open": open_move}},
         "models": {m: series(day, seen[m]) for m, day in daily_models.items()},
         "benchmark": series(bench_daily),
         "hold": {"models": {m: series(day, seen[m]) for m, day in hold_models.items()}, "benchmark": series(bench_hold),
@@ -649,13 +824,12 @@ def close_instant(market, day):
     """
     The moment a game day's call is judged, as a UTC datetime: a crypto day
     (and a crypto week, dated by its Sunday) closes at the next 00:00 UTC; a
-    share session (and a share week, dated by its Friday) at 16:00 New York,
-    taken as 20:00 UTC - the earlier of the two clock seasons, so a ticket made
-    in the last hour of a winter session is never counted as made before it.
+    share session (and a share week, dated by its last session) at the
+    Euronext close of that date: 17:30 Brussels time, 14:00 on a half day.
     """
     d = date.fromisoformat(day)
     if str(market).startswith("shares"):
-        return datetime(d.year, d.month, d.day, 20, 0, tzinfo=timezone.utc)
+        return euronext_close(d.isoformat())
     nxt = d + timedelta(days=1)
     return datetime(nxt.year, nxt.month, nxt.day, 0, 0, tzinfo=timezone.utc)
 
@@ -711,8 +885,7 @@ def entry_instant(market, day, previous_game_day=None):
     Open-to-close markets: the window's first open (ledger.session) - the
     day's own session for shares; for a share week the first weekday after
     the previous game day (Monday; a holiday Monday only makes this stricter)
-    - taken as 13:30 UTC, 09:30 New York in summer time, the earlier of the
-    two seasons. A crypto week: the end of the week's first UTC day (the
+    - at the Euronext open of that date, 09:00 Brussels time. A crypto week: the end of the week's first UTC day (the
     Week ahead card still says "a market order now" until then). A crypto
     day: its close (close_instant) - its daily book buys at 00:00 UTC, before
     any ticket can be up, which the page says. Without a game day before it
@@ -727,7 +900,7 @@ def entry_instant(market, day, previous_game_day=None):
             while first.weekday() >= 5:
                 first += timedelta(days=1)
             first = min(first, d)
-        return datetime(first.year, first.month, first.day, 13, 30, tzinfo=timezone.utc)
+        return euronext_open(first.isoformat())
     if is_week_game(market):
         start = prev + timedelta(days=1) if prev is not None else d - timedelta(days=6)
         end = start + timedelta(days=1)
@@ -759,10 +932,11 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
     the rule would have done, not a record.
 
     Returns {rule, min_trades, points: [[date, model, picked_by, positions,
-    pnl, total, live, market_pnl, by_symbol]], first_live, totals} or None
-    without settled days. by_symbol (15 Oct 2026) is {symbol: money} of the
-    followed row's positions that day under the rule - the user page's
-    positions, per coin or share.
+    pnl, total, live, market_pnl, by_symbol, moves]], first_live, totals} or
+    None without settled days. by_symbol (15 Oct 2026) is {symbol: money} of
+    the followed row's positions that day under the rule - the user page's
+    positions, per coin or share; moves (31 Oct 2026) the same positions'
+    moves in percent, which whole shares and fixed fees hide in the money.
     """
     dates = book.get("dates") or []
     if not dates:
@@ -773,6 +947,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
     bench = book["open"]["benchmark"] if rule == "open" else book["benchmark"]
     counts = book["_counts"]["open" if rule == "open" else "daily"]
     by_symbol = (book["_counts"].get("by_instrument") or {}).get("open" if rule == "open" else "daily", {})
+    moves_by = (book["_counts"].get("moves") or {}).get("open" if rule == "open" else "daily", {})
     pnl_by = {m: {p[0]: p[1] for p in pts} for m, pts in series.items()}
     bench_by = {p[0]: p[1] for p in bench}
     # the exact-rate fallback, per model and day: hits, positions, days, P&L in return units (model_summary's order)
@@ -808,6 +983,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
         pnl = pnl_by.get(model, {}).get(d) if model else None
         positions = counts.get(model, [0] * len(dates))[i] if model else 0
         per_symbol = dict(by_symbol.get(model, {}).get(d, {})) if model and pnl is not None else {}
+        moves = {sym: v for sym, v in moves_by.get(model, {}).get(d, {}).items() if sym in per_symbol}
         if pnl is None:
             pnl, positions = 0.0, 0          # no call from the picked row that day: nothing bought
         total += pnl
@@ -821,7 +997,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
             live_market += market_pnl or 0.0
             live_days += 1
             live_positions += positions
-        points.append([d, model, picked_by, positions, round(pnl, 4), round(total, 4), live, None if market_pnl is None else round(market_pnl, 4), per_symbol])
+        points.append([d, model, picked_by, positions, round(pnl, 4), round(total, 4), live, None if market_pnl is None else round(market_pnl, 4), per_symbol, moves])
         # the day settles: it enters the record the NEXT day's pick reads
         for m, pts in pnl_by.items():
             v = pts.get(d)
@@ -892,16 +1068,16 @@ def call_word(bin_value, size, k=K_BINS):
 
 
 def next_session(market, day):
-    """The next game day after `day`: the next calendar day for crypto, the next NYSE session for shares."""
+    """The next game day after `day`: the next calendar day for crypto, the next Euronext session for shares."""
     d = date.fromisoformat(str(day)[:10]) + timedelta(days=1)
     if base_market(market) == "crypto":
         return d.isoformat()
-    while d.weekday() >= 5 or d.isoformat() in NYSE_CLOSED:
+    while d.weekday() >= 5 or d.isoformat() in EURONEXT_CLOSED:
         d += timedelta(days=1)
     return d.isoformat()
 
 
-def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=FEE_PER_LEG):
+def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=None, fee=FEE_PER_LEG):
     """
     The week game played with the daily guard (GUARD_RULE) - the rule the
     user page follows for its week positions since 17 Oct 2026; the plain
@@ -924,9 +1100,15 @@ def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=F
     up call: the week's start, a first up call later in the week, or a
     re-entry after a sale) or "out". Each sold position of this week comes as
     [entry_day, exit_day, reason, money, log_move, entry_price, exit_price].
+    Each position of a settled week is [symbol, entry_day, exit_day, money,
+    reason, move in percent]; the money under the market's Costs (whole
+    shares at Bolero's costs for the shares), 0 for a share position whose
+    money buys no whole share.
     """
     if not week_followed or not week_followed.get("points"):
         return None
+    stake = stake_for(market) if stake is None else stake
+    costs = costs_for(market, fee)
     base = base_market(market)
     rule = plan_rule(market)
     day_book = ledger(conn, base, k)
@@ -981,7 +1163,7 @@ def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=F
         if a is None or z is None or a <= 0 or z <= 0:
             return None
         ret = math.log(z / a)
-        return scale * cash_pnl(ret, stake, fee), ret
+        return costs.position(ret, scale * stake, 1, a) or 0.0, ret
 
     def verdict_for(symbol):
         def verdict(d):
@@ -1002,18 +1184,18 @@ def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=F
         for e, x, reason in trades + ([(entry, end, "week end")] if entry is not None and end else []):
             held = [d for d in days if e <= d < x] + [x]
             got = money(symbol, held, scale)
-            out.append([symbol, e, x, None if got is None else round(got[0], 4), reason])
+            out.append([symbol, e, x, None if got is None else round(got[0], 4), reason, None if got is None else move_pct(got[1])])
         return out
 
     def expected_days(w):
-        """The game days of the ISO week ending on `w`: Monday to `w` for crypto, the NYSE sessions among them for shares."""
+        """The game days of the ISO week ending on `w`: Monday to `w` for crypto, the Euronext sessions among them for shares."""
         end = date.fromisoformat(w)
         if base == "crypto":
             return [(end - timedelta(days=j)).isoformat() for j in range(end.weekday(), -1, -1)]
         out = []
         for j in range(end.weekday(), -1, -1):
             d = end - timedelta(days=j)
-            if d.weekday() < 5 and d.isoformat() not in NYSE_CLOSED:
+            if d.weekday() < 5 and d.isoformat() not in EURONEXT_CLOSED:
                 out.append(d.isoformat())
         return out
 
@@ -1042,7 +1224,8 @@ def guarded_week(conn, market, path, week_followed, k=K_BINS, stake=STAKE, fee=F
             # a week from before the daily game's record (the week history goes back further): no daily call to
             # guard with, so the plain week - each up call held from the week's start to its close
             plain = p[8] if len(p) > 8 and isinstance(p[8], dict) else {}
-            trades = [[sym, expected[0] if expected else w, w, round(v, 4), "week end"] for sym, v in plain.items() if v is not None]
+            plain_moves = p[9] if len(p) > 9 and isinstance(p[9], dict) else {}
+            trades = [[sym, expected[0] if expected else w, w, round(v, 4), "week end", plain_moves.get(sym)] for sym, v in plain.items() if v is not None]
         priced = all(t[3] is not None for t in trades)
         pnl = sum(t[3] for t in trades if t[3] is not None)
         by_symbol = {}
@@ -1132,6 +1315,9 @@ def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
         "SELECT DISTINCT r.for_date FROM results r JOIN instruments i ON i.id = r.instrument_id "
         "JOIN game_days g ON g.market = i.market AND g.date = r.for_date "
         "WHERE i.market = ? ORDER BY r.for_date DESC LIMIT ?", (market, int(days))).fetchall()]
+    costs = costs_for(market)
+    stake = stake_for(market)
+    entry_of = entry_closes(conn, market) if costs.whole else (lambda *_: None)
     out = []
     for day in dates:
         game_day = load_game_day(conn, market, day)
@@ -1164,9 +1350,10 @@ def day_records(conn, market, days=CHART_DAYS, k=K_BINS):
             # size is above zero and scales the stake by it (until 13 Oct 2026 this used the bin rule at full stake,
             # so the Day by day table showed the RL Position Model trading on days it sat out)
             long, scale = position_of(r["bin"], r["meta"], k)
-            if long and r["actual_return"] is not None:
+            made = costs.position(r["actual_return"], scale * stake, 1, entry_of(r["symbol"], day, r["actual_return"])) if long and r["actual_return"] is not None else None
+            if made is not None:
                 entry["trades"] += 1
-                entry["pnl_cash"] += scale * cash_pnl(r["actual_return"])
+                entry["pnl_cash"] += made
         for entry in per_model.values():
             if all(v is None for v in entry["sizes"]):
                 del entry["sizes"]
@@ -1266,6 +1453,9 @@ def export_results_csv(conn, path, market):
         "r.hit_direction, r.pnl, p.meta FROM results r JOIN instruments i ON i.id = r.instrument_id "
         "LEFT JOIN predictions p ON p.model = r.model AND p.instrument_id = r.instrument_id AND p.for_date = r.for_date "
         "WHERE i.market = ? ORDER BY r.for_date, r.model, i.position", (market,)).fetchall()
+    costs = costs_for(market)
+    stake = stake_for(market)
+    entry_of = entry_closes(conn, market) if costs.whole else (lambda *_: None)
     folder = os.path.join(path, "data", "markets", market)
     os.makedirs(folder, exist_ok=True)
     by_year = {}
@@ -1281,9 +1471,10 @@ def export_results_csv(conn, path, market):
                 # pnl_cash through position_of, as every book reads it: a sized row's size decides long and scales the stake
                 # (the bin rule at full stake until 13 Oct 2026, which contradicted the sized "pnl" column next to it)
                 long, scale = position_of(r["predicted_bin"], r["meta"])
+                made = costs.position(r["actual_return"], scale * stake, 1, entry_of(r["symbol"], r["for_date"], r["actual_return"])) if long else None
                 writer.writerow([r["for_date"], r["model"], r["symbol"], r["predicted_bin"], r["actual_bin"], f"{r['actual_return']:.8f}",
                                  r["hit_exact"], r["hit_adjacent"], r["hit_direction"], f"{r['pnl']:.8f}",
-                                 f"{scale * cash_pnl(r['actual_return']) if long else 0.0:.4f}"])
+                                 f"{made or 0.0:.4f}"])
         files.append(file)
     return files
 
@@ -1358,6 +1549,8 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         instruments_out.append({
             "symbol": member["symbol"], "name": member["name"], "position": member["position"], "quote": member["quote"],
             "active": bool(member["active"]),
+            # the Yahoo listing of a Euronext share: where api.js reads the live price (Euronext's own quote is encrypted)
+            "quote_symbol": history_symbol(market, member["symbol"]),
             "last_close": values[-1] if values else None, "last_date": dates[-1] if dates else None,
             "closes": [[d, v] for d, v in zip(window, values[-chart_days:])],
             # aligned to "closes": the game day's edges and return, and every model's predicted bin
@@ -1368,7 +1561,11 @@ def export_page_json(conn, path, market, chart_days=CHART_DAYS, top_models=TOP_M
         "market": market, "generated_at": utc_now(), "k": k, "fee": fee, "chance": chance_levels(k),
         "newest_game_day": newest["date"] if newest else None,
         "instruments": instruments_out, "models": models, "drawn_models": drawn, "best_model": drawn[0] if drawn else None,
-        "trading": {"stake": STAKE, "fee_per_leg": FEE_PER_LEG, "currency": members[0]["quote"] if members else "",
+        "trading": {"stake": stake_for(market), "fee_per_leg": None if costs_for(market).whole else FEE_PER_LEG,
+                    "currency": members[0]["quote"] if members else "",
+                    # how a position is sized and charged (Costs): the pages say it, and a fee_per_leg of None means the
+                    # money cannot be read back into a move (whole shares, fixed fees) - the books export the moves
+                    "costs": cost_terms(market),
                     "rule": "long when the predicted bin is in the upper half: the stake bought at the previous close, sold at the day's close, a fee on each leg; flat otherwise",
                     "hold_rule": "the same calls, but a position is kept while the calls stay up and sold at the close of the last up day: one fee pair per run, the stake compounds",
                     **({"open_rule": "the same calls, but the stake is bought at the session's open and sold at its close, a fee on each leg: the rule a reader of the page can follow"} if "open" in book else {}),
@@ -1440,7 +1637,7 @@ def _guard_check():
     assert call_word(7, None) == "up" and call_word(4, None) == "flat" and call_word(2, None) == "down" and call_word(None, None) is None
     assert call_word(3, 1.5) == "up" and call_word(8, 0.0) == "flat"
     assert next_session("crypto", "2026-10-17") == "2026-10-18" and next_session("shares", "2026-10-16") == "2026-10-19"
-    assert next_session("sharesweek", "2026-11-25") == "2026-11-27", "Thanksgiving is skipped"
+    assert next_session("sharesweek", "2026-04-02") == "2026-04-07" and next_session("shares", "2026-11-25") == "2026-11-26", "Easter is skipped, Thanksgiving no longer"
     print("guard rule: bought on an up daily call, held until a flat or down one (sold at that day's close), bought again on the next up call")
 
 
@@ -1622,12 +1819,12 @@ def _self_check():
         assert [p_[6] for p_ in pts] == [False] * 21 + [True] * 9, [p_[6] for p_ in pts]
         assert fol["first_live"] == tdates[21] and fol["live_days"] == 9
         assert abs(fol["live_total"] - sum(p_[4] for p_ in pts[21:])) < 1e-3 and abs(fol["live_market"] - sum(p_[7] for p_ in pts[21:])) < 1e-3
-        assert close_instant("shares", "2026-10-09") == datetime(2026, 10, 9, 20, 0, tzinfo=timezone.utc)
+        assert close_instant("shares", "2026-10-09") == datetime(2026, 10, 9, 15, 30, tzinfo=timezone.utc) and close_instant("shares", "2026-12-24") == datetime(2026, 12, 24, 13, 0, tzinfo=timezone.utc)
         assert close_instant("cryptoweek", "2026-10-11") == datetime(2026, 10, 12, 0, 0, tzinfo=timezone.utc)
-        # the plan's entry: the open for shares (13:30 UTC), the week's first open for a share week (Monday after the
+        # the plan's entry: the Euronext open for shares (09:00 Brussels), the week's first open for a share week (Monday after the
         # previous Friday), the end of the week's first day for a crypto week, the close for a crypto day
-        assert entry_instant("shares", "2026-10-09") == datetime(2026, 10, 9, 13, 30, tzinfo=timezone.utc)
-        assert entry_instant("sharesweek", "2026-10-09", "2026-10-02") == datetime(2026, 10, 5, 13, 30, tzinfo=timezone.utc)
+        assert entry_instant("shares", "2026-10-09") == datetime(2026, 10, 9, 7, 0, tzinfo=timezone.utc) and entry_instant("shares", "2026-11-09") == datetime(2026, 11, 9, 8, 0, tzinfo=timezone.utc)
+        assert entry_instant("sharesweek", "2026-10-09", "2026-10-02") == datetime(2026, 10, 5, 7, 0, tzinfo=timezone.utc)
         assert entry_instant("cryptoweek", "2026-10-11", "2026-10-04") == datetime(2026, 10, 6, 0, 0, tzinfo=timezone.utc)
         assert entry_instant("crypto", "2026-10-11") == close_instant("crypto", "2026-10-11")
         # "madeAt" in the file wins over its modification time; a file without it falls back to the time
@@ -1643,7 +1840,7 @@ def _self_check():
         assert ticket_written(late_path) == datetime.fromisoformat(late_data["madeAt"])
         relived = followed_plan(conn, "crypto", ledger(conn, "crypto"), path=root)
         for _p in relived["points"]:   # the per-symbol money of a point adds up to its day, one entry per position
-            assert len(_p) == 9 and isinstance(_p[8], dict) and abs(sum(_p[8].values()) - _p[4]) < 1e-3, ("per-symbol money", _p)
+            assert len(_p) == 10 and isinstance(_p[8], dict) and set(_p[9]) == set(_p[8]) and abs(sum(_p[8].values()) - _p[4]) < 1e-3, ("per-symbol money", _p)
             assert len(_p[8]) == _p[3], ("one entry per position", _p)
         flags = [p_[6] for p_ in relived["points"]]
         assert flags[26] is False and flags[21:26] == [True] * 5 and flags[27:] == [True] * 3, flags
@@ -1843,6 +2040,97 @@ def _self_check():
         assert nxt3["instruments"]["ETH"]["last_close"] == dict(zip(eth_dates, eth_closes))[newest3["date"]]
         assert nxt3["instruments"]["ETH"]["predictions"][0]["bin"] == 1, nxt3["instruments"]["ETH"]["predictions"]
         print("day records: newest first, a day without a game day is skipped without shortening the list, a retired instrument keeps every bin in its own slot")
+
+    # --- the shares' costs (31 Oct 2026): 1,000 EUR in whole shares, Bolero's fee and TOB on each leg -----------------
+    assert stake_for("shares") == stake_for("sharesweek") == 1000.0 and stake_for("crypto") == stake_for("cryptoweek") == 100.0
+    assert bolero_fee(250.0) == 2.5 and bolero_fee(250.01) == 5.0 and bolero_fee(1000.0) == 5.0 and bolero_fee(1000.01) == 7.5 and bolero_fee(2600.0) == 15.0
+    sc = costs_for("shares")
+    assert sc.whole and not costs_for("crypto").whole and sc.units(1000.0, 101.0) == 9 and sc.units(1000.0, 100.0) == 10 and sc.units(1000.0, 1001.0) == 0
+    # 9 shares at 101 = 909 EUR, sold at 103.02: (927.18 - 909) - (5 + 3.1815) - (5 + 3.24513)
+    got = sc.position(math.log(103.02 / 101.0), 1000.0, 1, 101.0)
+    assert abs(got - (927.18 - 909.0 - 5.0 - 909.0 * TOB - 5.0 - 927.18 * TOB)) < 1e-9, got
+    assert sc.position(0.01, 1000.0, 1, 1200.0) is None and sc.position(0.01, 1000.0, 1, None) is None, "no whole share, or no price: no position"
+    # a flat day costs two legs: about 17 EUR on 1,000 - eight times crypto's 0.2 EUR on 100 per 100
+    assert abs(sc.position(0.0, 1000.0, 1, 50.0) + 2 * (5.0 + 1000.0 * TOB)) < 1e-9
+    short = sc.position(math.log(0.98), 1000.0, -1, 50.0)
+    assert abs(short - (20 * 50.0 * 0.02 - 2 * 5.0 - 1000.0 * TOB - 980.0 * TOB)) < 1e-9, short
+    # crypto's money is untouched by the cost model
+    assert costs_for("crypto").position(0.02, 100.0) == cash_pnl(0.02) and costs_for("crypto").position(0.02, 100.0, -1) == short_pnl(0.02)
+    assert cost_terms("shares")["kind"] == "bolero" and cost_terms("crypto")["fee_per_leg"] == FEE_PER_LEG
+    assert abs(leg_rate("sharesweek") - 0.0085) < 1e-12 and leg_rate("cryptoweek") == FEE_PER_LEG
+
+    # the books on a synthetic Euronext market: four affordable shares and one near 3,000 EUR that 1,000 EUR cannot buy
+    sconn = connect(":memory:")
+    install_universe(sconn)
+    shares = instruments(sconn, "shares")
+    assert len(shares) == 5
+    sessions = []
+    d = date(2024, 1, 1)
+    while len(sessions) < 400:
+        if d.weekday() < 5 and d.isoformat() not in EURONEXT_CLOSED:
+            sessions.append(d.isoformat())
+        d += timedelta(days=1)
+    levels = [30.0, 20.0, 55.0, 400.0, 3000.0]
+    for member, level in zip(shares, levels):
+        walk = level * np.exp(np.cumsum(rng.normal(0.0, 0.015, size=len(sessions))))
+        upsert_bars(sconn, member["id"], [{"date": dd, "open": c * 0.999, "high": c, "low": c, "close": c, "volume": 1.0} for dd, c in zip(sessions, walk)], fetched_at="t")
+    s_days, s_symbols = build_game(sconn, "shares", k=10, min_history=250)
+    store_game_days(sconn, "shares", s_days, s_symbols)
+    with tempfile.TemporaryDirectory() as root:
+        folder = os.path.join(root, "data", "database", "shares")
+        os.makedirs(folder)
+        for day in s_days[-30:]:
+            dd = date.fromisoformat(day["date"])
+            with open(os.path.join(folder, f"{dd.year}-{dd.month}-{dd.day}.json"), "w") as handle:
+                json.dump({"realResult": day["bins"], "currentPrediction": [{"name": "Perfect Model", "predictions": [list(day["bins"])]}]}, handle)
+        settle_market(sconn, root, "shares", log=lambda *_: None)
+        closes_of = {sym: dict(zip(*closes(sconn, m["id"]))) for sym, m in zip(s_symbols, shares)}
+        expected, trades, moves = 0.0, 0, {}
+        for day in s_days[-30:]:
+            for p, sym in enumerate(s_symbols):
+                if day["bins"][p] < 5:
+                    continue
+                entry = closes_of[sym][day["date"]] * math.exp(-day["returns"][p])
+                n = math.floor(1000.0 / entry + 1e-9)
+                if n == 0:
+                    continue
+                bought, sold = n * entry, n * closes_of[sym][day["date"]]
+                expected += sold - bought - (bolero_fee(bought) + TOB * bought) - (bolero_fee(sold) + TOB * sold)
+                trades += 1
+        sbook = ledger(sconn, "shares")
+        summary_s = {m["name"]: m for m in model_summary(sconn, "shares")}["Perfect Model"]
+        assert abs(sbook["models"]["Perfect Model"][-1][2] - expected) < 1e-2 and abs(summary_s["pnl_cash_total"] - expected) < 1e-6, (sbook["models"]["Perfect Model"][-1], expected)
+        assert summary_s["trades"] == trades and trades > 0
+        pricey = shares[4]["symbol"]
+        assert min(closes(sconn, shares[4]["id"])[1]) > 1000.0
+        assert not any(pricey in v for v in sbook["_counts"]["by_instrument"]["daily"]["Perfect Model"].values()), "1,000 EUR buys no share near 3,000 EUR: no position"
+        assert not any(pricey in v for v in sbook["_counts"]["by_instrument"]["open"]["Perfect Model"].values())
+        assert all(set(sbook["_counts"]["moves"]["daily"]["Perfect Model"][dd]) == set(v) for dd, v in sbook["_counts"]["by_instrument"]["daily"]["Perfect Model"].items())
+        # the hold book's whole shares, by hand for the first share: each run of up days buys n shares at the close
+        # before its first day and sells them at its last day's close, one Bolero leg each way
+        sym0 = s_symbols[0]
+        by_date = {x["date"]: x for x in s_days}
+        dates_s = sbook["dates"]
+        ups = [by_date[dd]["bins"][0] >= 5 for dd in dates_s]
+        rets0 = [by_date[dd]["returns"][0] for dd in dates_s]
+        entries0 = [closes_of[sym0][dd] * math.exp(-r) for dd, r in zip(dates_s, rets0)]
+        by_hand, runs, i = 0.0, 0, 0
+        while i < len(dates_s):
+            if not ups[i]:
+                i += 1
+                continue
+            j = i
+            while j + 1 < len(dates_s) and ups[j + 1]:
+                j += 1
+            n0 = math.floor(1000.0 / entries0[i] + 1e-9)
+            bought, sold = n0 * entries0[i], n0 * closes_of[sym0][dates_s[j]]
+            by_hand += sold - bought - (bolero_fee(bought) + TOB * bought) - (bolero_fee(sold) + TOB * sold)
+            runs += 1
+            i = j + 1
+        hold0, hold_trades, _ = hold_book(dates_s, ups, rets0, 1000.0, costs=sc, entries=entries0)
+        assert abs(sum(hold0) - by_hand) < 1e-6 and hold_trades == runs > 0, (sum(hold0), by_hand, hold_trades, runs)
+        terms = cost_terms("shares")
+        print(f"shares costs: {terms['text']}; the perfect model's daily book {expected:+.2f} EUR over {trades} positions, the 3,000 EUR share never bought")
     print("MarketSettle self-check OK")
 
 

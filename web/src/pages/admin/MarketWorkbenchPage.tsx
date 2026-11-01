@@ -48,7 +48,7 @@ export default function MarketWorkbenchPage() {
       <p className="statusline mut">
         <span>
           Each {w.noun}&apos;s next move is cut into {w.k} bins of its own past; every model calls one bin per {w.noun}. A predictor, not a trading bot: paper money,{' '}
-          {w.stake ?? 100} {w.currency} a position.
+          {w.stake ?? 100} {w.currency} a position{w.costsText && w.feePerLeg === null ? ', whole shares at Bolero\'s costs' : ''}.
         </span>
         <span className="wb-links">
           <Link to={`/admin/games/${market}`}>{market} draws ›</Link>

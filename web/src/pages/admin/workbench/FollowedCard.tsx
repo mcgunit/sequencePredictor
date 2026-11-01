@@ -177,7 +177,7 @@ export default function FollowedCard({ w }: { w: Workbench }) {
     <Card
       id="followed"
       title="Following the plan"
-      help={`The result a reader would have after doing exactly what the plan cards said: every ${w.market === 'crypto' ? 'UTC day' : 'trading day'} Today's plan, every week the week game. A day counts as live when its ticket was made before the plan's entry. ${w.stake ?? 100} ${w.currency} per ${w.noun} bought and a fee on each leg; a sized row scaled by its size; down or flat calls buy nothing and shorts are not included. Paper money, no slippage; a handful of days says nothing about skill.`}
+      help={`The result a reader would have after doing exactly what the plan cards said: every ${w.market === 'crypto' ? 'UTC day' : 'trading day'} Today's plan, every week the week game. A day counts as live when its ticket was made before the plan's entry. ${w.costsText && w.feePerLeg === null ? `Positions in ${w.costsText}` : `${w.stake ?? 100} ${w.currency} per ${w.noun} bought and a fee on each leg`}; a sized row scaled by its size; down or flat calls buy nothing and shorts are not included. Paper money, no slippage; a handful of days says nothing about skill.`}
       meta={[w.followed.day ? `${w.followed.day.liveDays} live days` : '', w.followed.week ? `${w.followed.week.liveDays} live weeks` : '']}
       flush
     >

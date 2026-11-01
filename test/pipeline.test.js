@@ -51,8 +51,11 @@ try {
 
   // --- a step that runs another step's script, by its job (jobs.js jobOfCmdline: the script and its arguments) ---------
   const jobKeys = require('../jobs').JOBS.map((j) => j.key);
-  ok(Object.keys(pipeline.STEP_NAMES).join() === 'kenoSubsetTuning' && Object.keys(pipeline.STEP_NAMES).every((key) => jobKeys.includes(key)),
-    'one step is named by its job rather than its script, and it is a job of the schedule');
+  ok(Object.keys(pipeline.STEP_NAMES).join() === 'kenoSubsetTuning,sharesPredictor' && Object.keys(pipeline.STEP_NAMES).every((key) => jobKeys.includes(key)),
+    'two steps are named by their job rather than their script, and they are jobs of the schedule');
+  ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0shares,sharesweek\0' })).what === "Tomorrow's share predictions are being computed"
+    && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,cryptoweek\0' })).what === "Today's predictions are being computed",
+    'the evening shares run says it computes tomorrow\'s share predictions; the morning run is still today\'s');
   const keno = pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0-g\0keno\0-s\0KenoSubsetTuning\0' }));
   ok(keno && keno.what === 'Weekly tuning: keno sub-selections', `the keno step (HyperoptStatistics.py -g keno -s KenoSubsetTuning) is not the statistical models: "${keno && keno.what}"`);
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0' })).what === 'Weekly tuning: statistical models'

@@ -72,12 +72,12 @@ import numpy as np
 try:
     from src.Helpers import Helpers, MARKET_BINS
     from src.MarketModels import MarketHistory
-    from src.MarketSettle import cash_pnl, STAKE, FEE_PER_LEG
+    from src.MarketSettle import cash_pnl, leg_rate, STAKE, FEE_PER_LEG
     from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, positional_vote, vote_shares
 except ImportError:  # imported from inside src/
     from Helpers import Helpers, MARKET_BINS
     from MarketModels import MarketHistory
-    from MarketSettle import cash_pnl, STAKE, FEE_PER_LEG
+    from MarketSettle import cash_pnl, leg_rate, STAKE, FEE_PER_LEG
     from VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, positional_vote, vote_shares
 
 helpers = Helpers()
@@ -334,6 +334,9 @@ class RLPositionModel:
         """
         config = config or {}
         startTime = time.time()
+        # the market's cost of a leg at the reward's 100-unit scale: 0.1% crypto, Bolero's fee and TOB at 1,000 EUR for
+        # the shares (MarketSettle.leg_rate, 31 Oct 2026)
+        self.fee = leg_rate(name)
         rows = [r for r in listOfDecodedPredictions if r.get("predictions") and r["predictions"][0]]
         slots = int(config.get("slots") or (len(rows[0]["predictions"][0]) if rows else 0))
         if not rows or slots <= 0:

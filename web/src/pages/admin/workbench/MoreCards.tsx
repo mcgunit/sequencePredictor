@@ -240,14 +240,14 @@ export function BackgroundCard({ w }: { w: Workbench }) {
         <div className="plines">
           <p>
             <span className="lbl">1. Two closes, one number.</span> A day&apos;s move is the change from the previous close to its close; nothing within the day is used.{' '}
-            {crypto ? 'A crypto day is the UTC day: its close is 00:00 UTC, 02:00 Belgian time in summer, 01:00 in winter.' : 'A share day is the New York session: its close is 16:00 New York time, 22:00 Belgian time in most weeks (21:00 in the weeks the US and Europe change clocks on different dates; three hours earlier on an early close).'}
+            {crypto ? 'A crypto day is the UTC day: its close is 00:00 UTC, 02:00 Belgian time in summer, 01:00 in winter.' : 'A share day is the Euronext session of Brussels and Amsterdam, 09:00 to 17:30 Belgian time: its close is the 17:30 closing price (14:00 on the half days, 24 and 31 December).'}
           </p>
           <p>
             <span className="lbl">2. The move goes into one of {w.k} bins.</span> Each {w.noun}&apos;s past daily moves, sorted and cut into {w.k} equal piles, from the days before
             only: bin 0 its worst tenth, bin {w.k - 1} its best. A blind pick is right 1 time in {w.k}, the bar every model has to beat.
           </p>
           <p>
-            <span className="lbl">3. The bins side by side are the draw.</span> One slot per {w.noun}; a model&apos;s ticket is one bin per slot, made by the morning run after the
+            <span className="lbl">3. The bins side by side are the draw.</span> One slot per {w.noun}; a model&apos;s ticket is one bin per slot, made by {crypto ? 'the morning run' : 'the evening run'} after the
             previous close and judged at the day&apos;s close. A hit is the right bin in the right slot.
           </p>
         </div>
@@ -346,8 +346,9 @@ export function BackgroundCard({ w }: { w: Workbench }) {
             land in. The two end bins have no outer edge: their band runs to the chart&apos;s edge.
           </p>
           <p>
-            The paper books buy every up call (a bin in the upper half) at {w.stake ?? 100} {w.currency} a position with a {isNum(w.feePerLeg) ? `${(w.feePerLeg * 100).toFixed(2)}%` : DASH} fee on
-            each leg{crypto ? ', at the previous close (00:00 UTC), hours before the ticket is up: they score the call, not what a reader could have made' : ''}. With shorts on, a bin
+            The paper books buy every up call (a bin in the upper half):{' '}
+            {w.costsText ?? `${w.stake ?? 100} ${w.currency} a position with a ${isNum(w.feePerLeg) ? `${(w.feePerLeg * 100).toFixed(2)}%` : DASH} fee on each leg`}
+            {crypto ? ', at the previous close (00:00 UTC), hours before the ticket is up: they score the call, not what a reader could have made' : ''}. With shorts on, a bin
             in the lower half is a paper short, which is never an order.
           </p>
           <p>

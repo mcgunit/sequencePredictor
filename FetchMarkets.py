@@ -10,6 +10,8 @@ data/markets.sqlite3 up to date from the keyless sources and reports on it.
     python3 FetchMarkets.py --status
     python3 FetchMarkets.py --set-source shares:ASML yahoo   # another source, same listing, bars reloaded
     python3 FetchMarkets.py --refetch-all --market shares    # rewrite a history from scratch
+    python3 FetchMarkets.py --back-build --market shares     # once, after the first --update: Yahoo's history since 2016
+                                                            # joined onto Euronext's two years
     python3 FetchMarkets.py --db /elsewhere/markets.sqlite3 ...
 
 This script does NOT take process.lock: it is network-bound, touches only
@@ -27,7 +29,8 @@ source failed (the others are still stored), 1 on a usage error.
 import argparse
 import sys
 
-from src.MarketData import DEFAULT_DB, MARKETS, check_bars, connect, install_universe, instruments, set_source, status, update_all
+from src.MarketData import (DEFAULT_DB, MARKETS, WINDOW_SOURCES, back_build_history, check_bars, connect, fetch_history, history_symbol,
+                            install_universe, instruments, set_source, status, update_all)
 
 
 def main():
@@ -42,8 +45,11 @@ def main():
                         help="Point an instrument at another source, e.g. shares:ASML yahoo - identity unchanged, the source symbol "
                              "must name the same listing (never ASML.AS for the USD listing); the stored bars are cleared and reloaded")
     parser.add_argument("--refetch-all", action="store_true", help="With --update: read every instrument's whole history and rewrite it")
+    parser.add_argument("--back-build", action="store_true",
+                        help="Once, after --update: the older history of the instruments on a window source (Euronext keeps two years) "
+                             "from their Yahoo listing, joined onto the oldest stored days")
     args = parser.parse_args()
-    if not (args.init or args.update or args.check or args.status or args.set_source):
+    if not (args.init or args.update or args.check or args.status or args.set_source or args.back_build):
         parser.print_help()
         return 1
 
@@ -71,6 +77,19 @@ def main():
         summaries = update_all(conn, market=args.market, full=args.refetch_all)
         failed = sum(1 for s in summaries if s.get("error"))
         print(f"update: {len(summaries) - failed} of {len(summaries)} instrument(s) updated" + (f", {failed} failed" if failed else ""))
+    if args.back_build:
+        for instrument in instruments(conn, args.market):
+            listing = history_symbol(instrument["market"], instrument["symbol"])
+            if instrument["source"] not in WINDOW_SOURCES or not listing:
+                continue
+            try:
+                built = back_build_history(conn, instrument, fetch_history(listing))
+            except Exception as exc:   # a refused join or an unreachable Yahoo: reported, the others still built
+                failed += 1
+                print(f"{instrument['symbol']}: back-build FAILED - {exc}")
+                continue
+            print(f"{instrument['symbol']}: {built['inserted']} older bar(s) from {listing}, joined at {built['joined_at']} "
+                  f"(factor {built['factor']:.4f}); stored from {built['first']}")
     if args.check:
         for instrument in instruments(conn, args.market):
             report = check_bars(conn, instrument)

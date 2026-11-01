@@ -29,7 +29,7 @@ export default function ModelsCard({ w }: { w: Workbench }) {
     <Card
       id="models"
       title="Models"
-      help={`Exact: the right bin; within one bin: the bin or a neighbour; direction: the predicted bin's middle on the right side of zero. Each row over its own scored days. The books trade ${w.stake ?? 100} ${cur} a position with a fee on each leg; a book's total is in ${cur}. The RL Position Model sizes its positions (0 to 2 times the stake) and is long only, so its long-and-short figures are its long-only ones.`}
+      help={`Exact: the right bin; within one bin: the bin or a neighbour; direction: the predicted bin's middle on the right side of zero. Each row over its own scored days. The books trade ${w.costsText && w.feePerLeg === null ? w.costsText : `${w.stake ?? 100} ${cur} a position with a fee on each leg`}; a book's total is in ${cur}. The RL Position Model sizes its positions (0 to 2 times the stake) and is long only, so its long-and-short figures are its long-only ones.`}
       meta={[`${w.models.length} rows`, `${w.scoredDays ?? DASH} scored days`, `bold: above chance (exact ${share(c.exact)}, within one bin ${share(c.adjacent)}, direction ${share(c.direction)})`]}
       flush
     >

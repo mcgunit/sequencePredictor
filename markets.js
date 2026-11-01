@@ -23,7 +23,7 @@ const path = require('path');
 
 const MARKETS = {
   crypto: { title: 'Crypto predictor', noun: 'coin', unit: 'USDT', calendar: 'every day (UTC)' },
-  shares: { title: 'Shares predictor', noun: 'share', unit: 'USD', calendar: 'every trading day (New York)' },
+  shares: { title: 'Shares predictor', noun: 'share', unit: 'EUR', calendar: 'every trading day (Euronext Brussels and Amsterdam)' },
 };
 // The week games (README roadmap item 4, M5): one draw per week, cut from the
 // same bars (MarketGame.weekly_returns), settled and exported like a market
@@ -219,6 +219,9 @@ function describeTrading(t) {
   const open = t.open && typeof t.open === 'object' ? t.open : null;   // the open-to-close book: shares only (MarketSettle.OPEN_RULE_MARKETS)
   return {
     stake: num(t.stake), feePerLeg: num(t.fee_per_leg), currency: t.currency ? String(t.currency) : '', rule: t.rule ? String(t.rule) : '', holdRule: t.hold_rule ? String(t.hold_rule) : '',
+    // how a position is sized and charged (MarketSettle.cost_terms, 31 Oct 2026): the shares' whole shares at Bolero's
+    // costs, crypto's 0.1% a leg; null on older records (crypto's terms)
+    costs: t.costs && typeof t.costs === 'object' ? { kind: String(t.costs.kind || ''), wholeUnits: t.costs.whole_units === true, text: t.costs.text ? String(t.costs.text) : '' } : null,
     openRule: t.open_rule ? String(t.open_rule) : '',
     shortRule: t.short_rule ? String(t.short_rule) : '',
     dates: Array.isArray(t.dates) ? t.dates.map(String) : [], models: seriesMap(t.models), benchmark: series(t.benchmark),
@@ -363,7 +366,7 @@ function describeOrders(o) {
 }
 
 // The followed-plan record (MarketSettle.followed_plan). Points are
-// [date, model, picked_by, positions, pnl, total, live, market_pnl]; a
+// [date, model, picked_by, positions, pnl, total, live, market_pnl, by_symbol, moves]; a
 // malformed point is dropped, never thrown.
 function describeFollowed(f) {
   if (!f || typeof f !== 'object' || !Array.isArray(f.points)) return null;
@@ -372,6 +375,8 @@ function describeFollowed(f) {
     positions: num(p[3]) || 0, pnl: num(p[4]) || 0, total: num(p[5]), live: p[6] === true, market: num(p[7]),
     // the followed row's money per instrument that day (MarketSettle.followed_plan, 15 Oct 2026); {} on older records
     bySymbol: p.length >= 9 && p[8] && typeof p[8] === 'object' ? Object.fromEntries(Object.entries(p[8]).map(([k, v]) => [String(k), num(v)])) : {},
+    // the same positions' moves in percent (31 Oct 2026); {} on older records, where the move is read back from the money
+    moveBySymbol: p.length >= 10 && p[9] && typeof p[9] === 'object' ? Object.fromEntries(Object.entries(p[9]).map(([k, v]) => [String(k), num(v)])) : {},
   }));
   return {
     rule: f.rule === 'open' ? 'open' : 'daily', minTrades: num(f.min_trades), firstLive: typeof f.first_live === 'string' ? f.first_live : null,
@@ -400,19 +405,21 @@ function describeDays(days) {
 }
 
 // --- when a call is judged ------------------------------------------------
-// A ticket is made by the daily run (09:00 Belgian time) after the newest
+// A ticket is made by the daily run (crypto 09:00, shares 18:30 Belgian time) after the newest
 // candle has closed, for the game day after that candle; the day file carries
 // the newest candle's date (made_on) and its write time (made_at), so the day
 // a ticket is for is the next game day, and the moment it is judged is that
 // day's close. The reader asked (4 Oct 2026) when a position has to be closed:
 // these helpers give that moment, and say it in Belgian time. Crypto's day is
 // the UTC day (close at 00:00 UTC, which is the next calendar day in Belgium);
-// a share's day is the New York session (09:30-16:00 there - the Belgian
-// hours differ in the few weeks a year when only one side of the Atlantic has
-// changed its clocks, so every hour is computed for its date, never
-// hard-coded).
+// a share's day is the Euronext session of Brussels and Amsterdam (09:00-17:30
+// Belgian time, 31 Oct 2026: the five shares moved there from New York), and
+// every instant is computed for its date, never hard-coded in UTC.
+// Which daily run brings a market's next call and results (jobs.js): crypto's at 09:00, the shares' at 18:30 on
+// weekdays since 31 Oct 2026, so their card is up before Euronext's 09:00 open.
+const RUN_NAME = { crypto: 'the morning run', shares: 'the evening run' };
+const runName = (market) => RUN_NAME[market] || 'the daily run';
 const BRUSSELS = 'Europe/Brussels';
-const NEW_YORK = 'America/New_York';
 const HOUR_MS = 3600 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -430,42 +437,64 @@ const zoneParts = (date, zone) => {
   parts.hour = parts.hour === '24' ? '00' : parts.hour;
   return parts;
 };
-// NYSE Group's published calendar (ir.theice.com, "Holiday and Early Closings
-// Calendar"): the days the exchange is closed and the days it closes at 13:00
-// New York time, for the years it has announced. A year outside the table
-// gets the weekday rule (and the word "normally": workbench.js calendarKnown).
-const NYSE_CLOSED = new Set([
-  '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25', '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
-  '2027-01-01', '2027-01-18', '2027-02-15', '2027-03-26', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-11-25', '2027-12-24',
-]);
-const NYSE_EARLY_CLOSE = new Set(['2026-11-27', '2026-12-24', '2027-11-26']);
+// Euronext's harmonised calendar for its cash markets (live.euronext.com, "Trading hours & holidays"): closed on
+// New Year's Day, Good Friday, Easter Monday, 1 May, 25 and 26 December; 24 and 31 December are half days. The rule
+// matches every session of the five shares from 2016 to October 2026 (no bar on a rule day, none missing on another
+// weekday); EURONEXT_PUBLISHED_YEARS are the years Euronext has published a calendar for - another year gets the
+// rule and the word "normally" (workbench.js calendarKnown). Half days close at 14:00 (continuous trading; the
+// closing auction follows, as at 17:30 on a full day).
+const EURONEXT_PUBLISHED_YEARS = new Set(['2026']);
+const EURONEXT_OPEN = [9, 0];
+const EURONEXT_CLOSE = [17, 30];
+const EURONEXT_HALF_CLOSE = [14, 0];
+function easterSunday(year) {      // the Gregorian computus (anonymous algorithm), as a UTC midnight in ms
+  const a = year % 19; const b = Math.floor(year / 100); const c = year % 100; const d = Math.floor(b / 4); const e = b % 4;
+  const f = Math.floor((b + 8) / 25); const g = Math.floor((b - f + 1) / 3); const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4); const k = c % 4; const l = (32 + 2 * e + 2 * i - h - k) % 7; const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return Date.UTC(year, month - 1, day);
+}
+const weekday = (ms) => ![0, 6].includes(new Date(ms).getUTCDay());
+function euronextClosed(year) {
+  const easter = easterSunday(year);
+  return [Date.UTC(year, 0, 1), easter - 2 * DAY_MS, easter + DAY_MS, Date.UTC(year, 4, 1), Date.UTC(year, 11, 25), Date.UTC(year, 11, 26)]
+    .filter(weekday).map(isoDay);
+}
+const EURONEXT_CLOSED = new Set();
+const EURONEXT_HALF_DAYS = new Set();
+for (let year = 2016; year <= 2040; year += 1) {
+  euronextClosed(year).forEach((d) => EURONEXT_CLOSED.add(d));
+  [Date.UTC(year, 11, 24), Date.UTC(year, 11, 31)].filter(weekday).forEach((ms) => EURONEXT_HALF_DAYS.add(isoDay(ms)));
+}
 function nextGameDay(market, madeOn) {
   const start = parseDay(madeOn);
   if (start === null) return null;
   if (market === 'crypto') return isoDay(start + DAY_MS);
   let next = start + DAY_MS;
-  while ([0, 6].includes(new Date(next).getUTCDay()) || NYSE_CLOSED.has(isoDay(next))) next += DAY_MS;   // the next session
+  while (!weekday(next) || EURONEXT_CLOSED.has(isoDay(next))) next += DAY_MS;   // the next session
   return isoDay(next);
+}
+// hh:mm Belgian time on an ISO day, as an instant (Brussels is UTC+1 or UTC+2; the clock-change nights fall on Sundays)
+function brusselsAt(start, [hour, minute]) {
+  for (const offset of [1, 2]) {
+    const candidate = new Date(start + (hour - offset) * HOUR_MS + minute * 60000);
+    const b = zoneParts(candidate, BRUSSELS);
+    if (Number(b.hour) === hour && Number(b.minute) === minute) return candidate;
+  }
+  return null;
 }
 function closeMoment(market, day) {
   const start = parseDay(day);
   if (start === null) return null;
   if (market === 'crypto') return new Date(start + DAY_MS);              // 00:00 UTC of the following day
-  // 16:00 New York on that date (13:00 on an early-close day): the UTC hour depends on New York's clocks
-  const closeHour = NYSE_EARLY_CLOSE.has(day) ? '13' : '16';
-  for (const hour of [20, 21, 17, 18, 19, 22]) {
-    const candidate = new Date(start + hour * HOUR_MS);
-    if (zoneParts(candidate, NEW_YORK).hour === closeHour) return candidate;
-  }
-  return null;
+  return brusselsAt(start, EURONEXT_HALF_DAYS.has(day) ? EURONEXT_HALF_CLOSE : EURONEXT_CLOSE);   // 17:30 Belgian time, 14:00 on a half day
 }
-// when the game day begins: 00:00 UTC for crypto, the 09:30 New York open for shares (6.5 h before the close, 3.5 h on an early-close day)
+// when the game day begins: 00:00 UTC for crypto, the 09:00 Euronext open for shares
 function openMoment(market, day) {
   const start = parseDay(day);
   if (start === null) return null;
   if (market === 'crypto') return new Date(start);
-  const close = closeMoment(market, day);
-  return close ? new Date(close.getTime() - (NYSE_EARLY_CLOSE.has(day) ? 3.5 : 6.5) * HOUR_MS) : null;
+  return brusselsAt(start, EURONEXT_OPEN);
 }
 function brusselsText(date, withDate = false) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
@@ -487,7 +516,7 @@ function weekEnd(market, madeOn) {
   if (market === 'crypto') return isoDay(monday + 6 * DAY_MS);
   for (let k = 4; k >= 0; k -= 1) {
     const day = isoDay(monday + k * DAY_MS);
-    if (!NYSE_CLOSED.has(day)) return day;
+    if (!EURONEXT_CLOSED.has(day)) return day;
   }
   return isoDay(monday + 4 * DAY_MS);
 }
@@ -510,7 +539,7 @@ function dayStatus(market, day, now) {
   const open = openMoment(market, day);
   const close = closeMoment(market, day);
   if (!open || !close || !(now instanceof Date) || Number.isNaN(now.getTime())) return null;
-  const what = market === 'crypto' ? `the UTC day ${day}` : `the New York session of ${weekdayOf(day)} ${day}`;
+  const what = market === 'crypto' ? `the UTC day ${day}` : `the Euronext session of ${weekdayOf(day)} ${day}`;
   if (now < open) {
     return market === 'crypto' ? `${what} has not started yet` : `${what} has not opened yet - it opens at ${brusselsText(open)} and closes at ${brusselsText(close)}`;
   }
@@ -518,10 +547,10 @@ function dayStatus(market, day, now) {
     const hours = Math.round((now - open) / HOUR_MS * 10) / 10;
     return `${what} is running now, ${hours} hours in; it closes at ${brusselsText(close)}`;
   }
-  return `${what} has already closed (${brusselsText(close)}); the verdict appears here after the next morning's run`;
+  return `${what} has already closed (${brusselsText(close)}); the verdict appears here after ${market === 'crypto' ? "the next morning's run" : "that evening's run"}`;
 }
 
-module.exports = { MARKETS, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading,
+module.exports = { MARKETS, runName, loadMarket, loadRows, loadRegimes, describeMarket, describeRows, describeRegimes, describeDays, describeTrading,
   pickPlan, pickWeek, MIN_PLAN_TRADES, MIN_WEEK_TRADES, dayStatusWeek, describeFollowed, describeGuarded, GUARD_SHOWN_FROM,
   describeOrders, ORDERS_SHOWN_FROM, ORDER_VARIANT_PRIMARY,
-  nextGameDay, closeMoment, openMoment, brusselsText, dayStatus, NYSE_CLOSED, NYSE_EARLY_CLOSE, WEEK_GAMES, weekEnd, MIN_RANK_DAYS };
+  nextGameDay, closeMoment, openMoment, brusselsText, dayStatus, EURONEXT_CLOSED, EURONEXT_HALF_DAYS, EURONEXT_PUBLISHED_YEARS, WEEK_GAMES, weekEnd, MIN_RANK_DAYS };

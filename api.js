@@ -71,21 +71,28 @@ const base = (inst) => (inst.nextBase !== null && inst.nextBase !== undefined ? 
 const SIZED_ROWS = new Set(['RL Position Model']);
 
 // One entry per instrument per live day, from the followed points' per-symbol
-// money (MarketSettle.followed_plan). movePct is the position's move, read
-// back from the money of an unsized row: under both rules money = stake x
+// money (MarketSettle.followed_plan). movePct is the position's move: the
+// record's own (moveBySymbol, 31 Oct 2026), else read back from the money of
+// an unsized row of a record without it: under both rules money = stake x
 // ratio x (1 - fee) - stake x (1 + fee) (MarketSettle.cash_pnl /
 // open_close_pnl), so ratio - 1 = (money + 2 x fee x stake) / (stake x (1 -
-// fee)). Null for the sized row. The exit is the day's own close.
+// fee)) - impossible with whole shares and fixed fees (feePerLeg null), and
+// for the sized row. The exit is the day's own close.
+const movePctOf = (given, pnl, model, stake, fee) => {
+  if (num(given) !== null) return round2(given);
+  if (fee === null || fee === undefined || SIZED_ROWS.has(model) || !stake) return null;
+  return round2(((pnl + 2 * fee * stake) / (stake * (1 - fee))) * 100);
+};
 function positionsOf(market, view, followed, game) {
   if (!followed || !view.trading) return [];
-  const stake = view.trading.stake, fee = view.trading.feePerLeg || 0;
+  const stake = view.trading.stake, fee = view.trading.feePerLeg;
   const out = [];
   followed.points.filter((p) => p.live).forEach((p) => {
     const closeAt = game === 'day' ? closeMoment(market, p.date) : null;
     const exit = game === 'day' ? `close ${closeAt ? clock(closeAt) : ''}${market === 'crypto' ? ' next day' : ''}`.trim() : 'week end';
     Object.entries(p.bySymbol || {}).forEach(([symbol, pnl]) => {
       if (pnl === null) return;
-      const movePct = !SIZED_ROWS.has(p.model) && stake ? round2(((pnl + 2 * fee * stake) / (stake * (1 - fee))) * 100) : null;
+      const movePct = movePctOf((p.moveBySymbol || {})[symbol], pnl, p.model, stake, fee);
       out.push({ closed: p.date, symbol, game, model: p.model, movePct, pnl: round2(pnl), exit, raw: pnl });
     });
   });
@@ -101,7 +108,7 @@ function guardedPositions(market, guarded, stake, fee) {
   const out = [];
   guarded.points.filter((p) => Array.isArray(p) && p[5] === true).forEach((p) => {
     (Array.isArray(p[8]) ? p[8] : []).forEach((t) => {
-      const [symbol, entryDay, exitDay, money, reason] = t;
+      const [symbol, entryDay, exitDay, money, reason, move] = t;
       const pnl = num(money);
       if (pnl === null) return;
       const closeAt = closeMoment(market, exitDay);
@@ -109,7 +116,7 @@ function guardedPositions(market, guarded, stake, fee) {
       const exit = reason === 'guard'
         ? `guard: ${dayText(exitDay)}, close ${closeAt ? clock(closeAt) : ''}${market === 'crypto' ? ' next day' : ''}${bought}`
         : `week end${bought}`;
-      const movePct = !SIZED_ROWS.has(p[1]) && stake ? round2(((pnl + 2 * (fee || 0) * stake) / (stake * (1 - (fee || 0)))) * 100) : null;
+      const movePct = movePctOf(move, pnl, p[1], stake, fee);
       out.push({ closed: p[0], symbol: String(symbol), game: 'week', model: p[1] || null, movePct, pnl: round2(pnl), exit, raw: pnl, sold: exitDay });
     });
   });
@@ -150,7 +157,7 @@ function guardedRow(market, inst, call, gs, gNow, w, wClose, now, daily, unit, {
     const before = allCloses.filter((c) => c[0] < running).slice(-1)[0] || null;
     b = before ? num(before[1]) : (daily ? base(daily) : null);
     bNote = crypto ? 'last close (the paper book buys at it)'
-      : (closed ? `bought at the open of ${dayText(running)}; shown from the close before it until ${lag ? 'the week record catches up' : 'the morning run brings the open'}`
+      : (closed ? `bought at the open of ${dayText(running)}; shown from the close before it until ${lag ? 'the week record catches up' : `${markets.runName(market)} brings the open`}`
         : `last close; the book buys at the open of ${dayText(running)}`);
   }
   else if (b === null) { b = base(inst); bNote = 'the week base (the entry price is not in the record)'; }
@@ -191,8 +198,8 @@ function guardedRow(market, inst, call, gs, gNow, w, wClose, now, daily, unit, {
   const after = lag && nextDay ? (nextClose && now >= nextClose ? nextGameDay(market, nextDay) : nextDay) : nextGameDay(market, running);
   const sooner = Boolean(!gNow.last_day && after && endDay && after < endDay);
   const waiting = () => {
-    row.guard.text = 'next call after the morning run';
-    row.guard.reason = `${dayText(running)}'s daily call for ${sym} was ${gs.call || 'missing'}; the next one comes with the morning run`;
+    row.guard.text = `next call after ${markets.runName(market)}`;
+    row.guard.reason = `${dayText(running)}'s daily call for ${sym} was ${gs.call || 'missing'}; the next one comes with ${markets.runName(market)}`;
   };
   const latest = () => { if (!gNow.last_day) row.sellNote = sooner ? 'at the latest · the guard can sell sooner' : 'the week\'s close'; };
   if (held) {
@@ -217,7 +224,7 @@ function guardedRow(market, inst, call, gs, gNow, w, wClose, now, daily, unit, {
         const soldAt = rClose && dayKey(rClose) !== dayKey(now) ? `${dayText(running)}${crypto ? `, close ${clock(rClose)} next day` : ''}` : when(rClose, now);
         row.status = 'sold'; row.sellText = '—';
         row.statusText = lag ? `sold at the close by the guard (${soldAt}); its money is booked when the week closes`
-          : `sold at the close by the guard (${soldAt}); its move shows after the morning run, its money when the week closes`;
+          : `sold at the close by the guard (${soldAt}); its move shows after ${markets.runName(market)}, its money when the week closes`;
       } else {
         row.sellText = when(rClose, now);
         row.statusText += `; the guard sells it at the close (${when(rClose, now)})`;
@@ -229,7 +236,7 @@ function guardedRow(market, inst, call, gs, gNow, w, wClose, now, daily, unit, {
     if (closed) {
       // the book bought it on the running day and holds it: only the next daily call can sell it
       row.status = 'held'; row.buyText = dayText(running); row.since = `since ${dayText(running)}`;
-      row.statusText = `bought ${dayText(running)}; still held${lag ? '' : ' - the next daily call comes with the morning run'}`;
+      row.statusText = `bought ${dayText(running)}; still held${lag ? '' : ` - the next daily call comes with ${markets.runName(market)}`}`;
       row.guard.state = 'hold';
       waiting();
     } else if (crypto || sessionOpen) {
@@ -287,6 +294,16 @@ const SKIP_TEXT = {
   'no target': () => 'No order: the call is the open-ended lowest bin, which has no lower edge to place a limit at.',
   "published after the interval's end": () => 'No order: the card appeared after its day had ended.',
 };
+// the same reasons in a table cell's few words (the order rows' compact cells, owner 31 Oct 2026)
+const SKIP_SHORT = { 'target below fees': 'gain too small for the fees', 'already reached': 'limit already reached', 'too close to the limit': 'too close to the limit',
+  'no target': 'no limit for this call', "published after the interval's end": 'the card came too late', 'daily call not up': "Monday's call not up",
+  'price within 1 % of the limit': 'too close to the limit', 'less than 24 h left': 'under 24 h left' };
+const skipShort = (reason) => SKIP_SHORT[reason] || reason || 'no order';
+// An order row's two cells, each from the reader's side (owner, 31 Oct 2026: the table stays compact, every cell an
+// instruction): Buy = what to do if you do not have the coin, Sell = what to do if you do. The long branches stay as
+// the cells' title.
+const buyCell = (chip, sub, extra = {}) => ({ chip, tone: chip === 'Buy now' || chip === 'Still good to enter' ? 'act' : 'flat', sub, ...extra });
+const DONT = "Don't buy";
 // the limit's distance from a price as a reader computes it (simple percent; the record's limit_pct is a log move)
 const limitPctOf = (limit, from, logPct) => (num(limit) !== null && num(from) !== null && from > 0 ? round2((limit / from - 1) * 100) : (num(logPct) !== null ? round2((Math.exp(logPct / 100) - 1) * 100) : null));
 const skipText = (s, minGap) => (SKIP_TEXT[s.reason] ? SKIP_TEXT[s.reason](s, minGap) : `No order: ${s.reason || 'no reason recorded'}.`);
@@ -409,7 +426,7 @@ function dayOrderRows(o, view, now, unit) {
     const order = { variant, limit: s.limit, limitPct, entryPrice: entry, entryAt: q ? q.entryAt : null, publishedAt: n.publishedAt, estimated: n.estimated,
       deadlineAt: fallback ? fallback.toISOString() : null, deadlineText: fallback ? when(fallback, now) : null, exitRule: 'at the limit, or at market when tomorrow\'s card appears',
       skipReason: null, heldSince: s.heldSince, rolls: q ? q.rolls : 0, belowEntry: false, exitKind: exited ? q.exitKind : null,
-      exitAt: exited ? q.exitAt : null, exitPrice: exited ? q.exitPrice : null, money: exited ? round2(q.money) : null, provisional: s.provisional, chip: '', branches: [], text: '',
+      exitAt: exited ? q.exitAt : null, exitPrice: exited ? q.exitPrice : null, money: exited ? round2(q.money) : null, provisional: s.provisional, chip: '', branches: [], text: '', cells: null,
       newcomer: null };
     const row = {
       symbol: sym, game: 'day', status: 'buy now', statusText: '', buyText: 'now',
@@ -430,13 +447,18 @@ function dayOrderRows(o, view, now, unit) {
         + `${held.length ? `; newcomer entries ${held.map((h) => `on ${dayText(h.since)}'s card${h.entryPrice !== null ? ` at about ${priceText(h.entryPrice)} ${unit}` : ''}`).join(' and ')}` : ''})`;
     const freshWho = yesterday ? `If you did not buy ${sym} yesterday` : `If you do not have ${sym} from an earlier card`;
     const noPosition = () => { row.buyText = '—'; row.sellText = '—'; row.sellAt = null; row.sellNote = null; row.openRate = null; row.openRateNote = 'no position'; };
+    const limitText = `limit ${priceText(s.limit)}`;
+    const atNext = 'else at market at the next card';
     if (s.status === 'no order') {
       row.status = 'no order'; noPosition();
       order.skipReason = s.reason; order.chip = 'No order';
       order.branches = [branch('', skipText(s, minGap))];
+      order.cells = { buy: buyCell('No order', skipShort(s.reason)), sell: null };
     } else if (s.status === 'sell now') {
       row.status = 'sell now'; row.buyText = '—'; row.sellText = 'now'; row.sellNote = 'at market';
       order.chip = 'If bought: sell now';
+      order.cells = { buy: buyCell(DONT, s.call === 'up' ? 'too close to the limit' : 'call not up'),
+        sell: { chip: 'Sell now', tone: 'down', text: '', subs: ['if you bought it', 'at market, cancel your limit'] } };
       const sellWho = held.length ? heldWho : `If you bought ${sym} on ${since}'s card`;
       // the position ends at this card: called up again but the new limit is too close (D5 refused), or not called up
       const upAgain = s.call === 'up';
@@ -453,6 +475,8 @@ function dayOrderRows(o, view, now, unit) {
       const move = q.move !== null ? pctText((Math.exp(q.move) - 1) * 100) : null;
       const how = q.exitKind === 'limit' ? `your limit filled ${stampText(dateOf(q.exitAt))} at ${priceText(q.exitPrice)} ${unit}` : `the record sold at market ${stampText(dateOf(q.exitAt))} at ${priceText(q.exitPrice)} ${unit}`;
       order.chip = q.exitKind === 'limit' ? 'Limit filled' : 'Sold';
+      order.cells = { buy: buyCell(DONT, q.exitKind === 'limit' ? 'limit already reached' : 'wait for the next card'),
+        sell: { text: q.exitKind === 'limit' ? 'Done: limit filled' : 'Done: sold at market', subs: [stampText(dateOf(q.exitAt))] } };
       // a rolled position: the holders from an earlier card and today's newcomers share the limit, each with its own price
       const rolled = s.status === 'hold (rolled)';
       order.branches = [
@@ -489,6 +513,13 @@ function dayOrderRows(o, view, now, unit) {
         fresh = branch(freshWho, 'no new order today: today\'s card continues that position, it does not open a new one.');
       }
       order.branches = [keep, fresh];
+      // the newcomer places the card's limit; the earlier buyer moves theirs to it (the same price when the two agree)
+      const ncOwn = ncBuy && nc.limit !== null && nc.limit !== s.limit;
+      order.cells = {
+        buy: ncBuy ? buyCell('Buy now', ncOwn ? `market order, limit ${priceText(nc.limit)}` : 'market order') : buyCell(DONT, nc ? skipShort(nc.reason) : 'continues an earlier buy'),
+        sell: { text: `Hold · move limit to ${priceText(s.limit)}`, subs: [ncBuy && !ncOwn ? 'bought earlier? move it; just bought? place it' : 'if you bought it earlier', atNext],
+          warn: order.belowEntry ? 'below your buy price: a fill is a loss' : null },
+      };
     } else {
       // the card's buy: a market order while its day runs; after the day's close the record keeps it until the next card
       const dayOver = Boolean(close && now >= close);
@@ -498,8 +529,10 @@ function dayOrderRows(o, view, now, unit) {
       if (dayOver) {
         order.chip = 'If bought: keep';
         order.branches = [keep, branch(`If you have not bought ${sym}`, 'no order now: this card\'s day has ended. Wait for tomorrow\'s card.')];
+        order.cells = { buy: buyCell(DONT, "the card's day has ended"), sell: { text: `Hold · keep ${limitText}`, subs: ['if you bought it', atNext] } };
       } else {
         order.chip = 'Buy now';
+        order.cells = { buy: buyCell('Buy now', 'market order'), sell: { text: `Sell ${limitText}`, subs: [`${pctText(limitPct)} · ${atNext}`] } };
         order.branches = [
           branch(`If you have not bought ${sym} today`, `buy now at market (about ${priceText(entry)} ${unit}${recordBought ? `; the record bought at ${clock(pub)} at that price` : ''}). `
             + `Place a sell limit at ${priceText(s.limit)} ${unit} (${pctText(limitPct)} from the card's price); ${deadline}.`),
@@ -555,7 +588,7 @@ function weekOrderRows(o, w, nextDay, now, unit) {
       exitRule: "at the limit, at market on a flat or down daily card, or at market when next Monday's card appears", skipReason: null, heldSince: null, rolls: 0, belowEntry: false,
       exitKind: closedNow ? s.exitKind || (q ? q.exitKind : null) : null, exitAt: closedNow ? exitAt0.toISOString() : null,
       exitPrice: closedNow && q ? q.exitPrice : null, money: closedNow ? (s.money !== null ? round2(s.money) : (q ? round2(q.money) : null)) : null, provisional: false,
-      chip: '', branches: [], text: '' };
+      chip: '', branches: [], text: '', cells: null };
     const row = {
       symbol: sym, game: 'week', status: 'buy now', statusText: '', buyText: 'now',
       openRate: entry, openRateNote: `the price when the week card appeared${pub ? `, ${stampText(pub)}` : ''}${n.estimated ? ' (time estimated)' : ''}: the record's entry`,
@@ -587,16 +620,24 @@ function weekOrderRows(o, w, nextDay, now, unit) {
     };
     // a reader who took an earlier late entry of this week: the same limit, early exit and deadline
     const lateHeld = lateBook ? lateBook.orders.some((x) => x.kind === 'late' && x.symbol === sym && x.interval === n.interval && x.status === 'open') : false;
+    const keepWeek = (who) => ({ text: `Hold · keep limit ${priceText(s.limit)}`, subs: [who, 'sell at market on a flat or down call'] });
+    const lateBuy = lateBranch ? buyCell('Still good to enter', 'market order', { late: lateBranch.late }) : null;
+    // today's reason first: it is what keeps the coin out now (Monday's only while no day card has checked it since)
+    const notLateShort = (monday) => buyCell(DONT, l && l.reason ? (l.reason === 'daily call not up' ? "today's call not up" : skipShort(l.reason)) : monday ? "Monday's call not up" : 'wait for an up call');
+    const keepOrPlace = 'bought earlier? keep it; buying now? place it';
     const lateKeep = lateHeld ? branch(`If you bought ${sym} on an earlier "still good to enter" line this week`, `keep it; your sell limit stays at ${priceText(s.limit)} ${unit}. ${sellRule}`) : null;
     if (s.status === 'no order') {
       row.status = 'no order'; noPosition();
       order.skipReason = s.reason; order.chip = 'No order';
       order.branches = [branch('', skipText(s, minGap))];
+      order.cells = { buy: buyCell('No order', skipShort(s.reason)), sell: null };
     } else if (s.status === 'not bought') {
       row.status = 'not bought'; noPosition();
       order.skipReason = s.reason;
       order.chip = lateBranch ? 'Still good to enter' : 'No order today';
       order.branches = [lateBranch || notLate(s.reason === 'daily call not up'), lateKeep].filter(Boolean);
+      order.cells = { buy: lateBuy || notLateShort(s.reason === 'daily call not up'),
+        sell: lateHeld ? keepWeek(lateBuy ? keepOrPlace : 'if you entered late') : lateBuy ? { text: `Sell limit ${priceText(l.limit)}`, subs: ['after a late entry', 'at market on a flat or down call'] } : null };
     } else if (closedNow) {
       row.status = 'sold'; row.buyText = '—'; row.sellText = '—'; row.sellNote = null;
       const exitDay = order.exitAt ? fmtWeekday.format(dateOf(order.exitAt)) : '';
@@ -606,11 +647,16 @@ function weekOrderRows(o, w, nextDay, now, unit) {
         : order.exitKind === 'limit' ? `your limit filled ${stampText(dateOf(order.exitAt))}` : `it was sold at market ${stampText(dateOf(order.exitAt))}`;
       order.chip = order.exitKind === 'limit' ? 'Limit filled' : 'Sold';
       order.branches = [branch(`If you bought ${sym} on ${weekCard()}`, `${how}${move ? `, ${move}` : ''}${money}. Do not buy it back this week.`), lateBranch || lateKeep].filter(Boolean);
+      order.cells = { buy: lateBuy || buyCell(DONT, 'sold this week, no buy-back'),
+        sell: lateHeld ? keepWeek(lateBuy ? keepOrPlace : 'if you entered late')
+          : lateBuy ? { text: `Sell limit ${priceText(l.limit)}`, subs: ['after a late entry', 'at market on a flat or down call'] }
+          : { text: order.exitKind === 'limit' ? 'Done: limit filled' : order.exitKind === 'early' ? 'Done: sold on a down call' : 'Done: sold at market', subs: [order.exitAt ? stampText(dateOf(order.exitAt)) : ''].filter(Boolean) } };
     } else if (s.status === 'sell now') {
       row.status = 'sell now'; row.buyText = '—'; row.sellText = 'now'; row.sellNote = 'at market';
       order.chip = 'If bought: sell now';
       order.branches = [branch(`If you hold ${sym} from ${weekCard()}`, `sell at market now (today's daily call is not up) - cancel your limit first. Do not buy it back this week.`),
         branch(`If you have not bought ${sym} this week`, 'no order.')];
+      order.cells = { buy: buyCell(DONT, 'call not up today'), sell: { chip: 'Sell now', tone: 'down', text: '', subs: ['if you bought it', 'at market, cancel your limit'] } };
     } else {
       const first = Boolean(firstClose && now < firstClose);
       row.status = first ? 'buy now' : 'held';
@@ -619,10 +665,12 @@ function weekOrderRows(o, w, nextDay, now, unit) {
         `keep it; your sell limit stays at ${priceText(s.limit)} ${unit} (${pctText(limitPct)} from that price). ${sellRule}`);
       if (first) {
         order.chip = 'Buy now';
+        order.cells = { buy: buyCell('Buy now', 'market order'), sell: { text: `Sell limit ${priceText(s.limit)}`, subs: [`${pctText(limitPct)} · or at market on a flat or down call`] } };
         order.branches = [branch(`If you have not bought ${sym} this week`, `buy now at market (about ${priceText(entry)} ${unit}). Place a sell limit at ${priceText(s.limit)} ${unit} (${pctText(limitPct)}). ${sellRule}`)];
       } else {
         order.chip = lateBranch ? 'Still good to enter' : 'If bought: keep';
         order.branches = [keep, lateBranch || notLate(false)];
+        order.cells = { buy: lateBuy || notLateShort(false), sell: keepWeek(lateBuy ? keepOrPlace : lateHeld ? 'if you bought it this week' : 'if you bought it') };
       }
     }
     order.text = textOf(order.branches);
@@ -683,7 +731,7 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
       const pctOf = (v) => (v === null || b === null || b <= 0 ? null : round2((v / b - 1) * 100));
       // buyText: when to buy, short - "now", "today 15:30" - next to the sell time in the table
       let status, statusText, buyText;
-      if (dayClosed) { status = 'too late'; statusText = `closed at ${clock(closeAt)}; the result comes with the morning run`; buyText = '—'; }
+      if (dayClosed) { status = 'too late'; statusText = `closed at ${clock(closeAt)}; the result comes with ${markets.runName(market)}`; buyText = '—'; }
       else if (market === 'crypto' || sessionOpen) { status = 'buy now'; statusText = 'a market order now'; buyText = 'now'; }
       else { status = 'buy at open'; statusText = `a market order placed before ${clock(openAt)}, filled at the open`; buyText = when(openAt, now); }
       open.push({
@@ -852,7 +900,7 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
   const oldWeek = (date) => !orderWeek || !orderWeek(date);
   const plainWeek = (date) => (!guarded || date < guardFrom) && oldWeek(date);
   const guardWeekPositions = guarded
-    ? guardedPositions(market, guarded, w && w.trading ? w.trading.stake : null, w && w.trading ? w.trading.feePerLeg : 0).filter((q) => !plainWeek(q.closed) && oldWeek(q.closed))
+    ? guardedPositions(market, guarded, w && w.trading ? w.trading.stake : null, w && w.trading ? w.trading.feePerLeg : null).filter((q) => !plainWeek(q.closed) && oldWeek(q.closed))
     : [];
   const weekOrderPositions = orderPositions(weekBook, 'week', orderWeek);
   const weekPositions = (w ? positionsOf(market, w, wf, 'week').filter((q) => plainWeek(q.closed)) : []).concat(guardWeekPositions, weekOrderPositions);
@@ -960,7 +1008,8 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
       noOrder: open.filter((q) => q.status === 'no order' || q.status === 'not bought').length,
       // the order book's counts on the labelled lines (null before ordersFrom or without the order book)
       orders: orders ? { from: ordersFrom, day: orders.day ? orders.day.soFar : null, week: orders.week ? orders.week.soFar : null } : null,
-      paperNote: `Paper money, ${t && t.stake !== null ? t.stake : 100} ${meta.unit} a position, ${t && t.feePerLeg !== null ? (t.feePerLeg * 100).toFixed(2) : '0.10'}% a leg.`,
+      paperNote: t && t.costs && t.costs.text ? `Paper money: ${t.costs.text}.`
+        : `Paper money, ${t && t.stake !== null ? t.stake : 100} ${meta.unit} a position, ${t && t.feePerLeg !== null ? (t.feePerLeg * 100).toFixed(2) : '0.10'}% a leg.`,
       // the weekly positions' own record, kept for whoever needs it apart
       // guarded: weeks of the guarded book are among them; guardFrom: the first week the guard counts
       week: w || guarded ? { since: weekSince, days: weekCount, liveTotal: round2(weeklyTotal), liveMarket: round2(weeklyMarket),
@@ -996,7 +1045,7 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
           + (!guardShown ? ' This week the guard is shown as information: the sell stays at the week\'s end.'
             : (week && !week.guarded ? ' Today\'s guard state is not in the week record yet: the week rows show the daily call as information until the next run.' : ''))
         : 'The guard rule - sell a week position at the close of the first day whose daily call is flat or down, re-enter on the next up call - is shown as information next to each week position until its paper book exists; until then the sell of a week position stays at the week\'s end, as the record books it.',
-      closeDay: closeAt ? `${market === 'crypto' ? 'A day position sells at the UTC close, ' : 'A day position sells at the New York close, '}${clock(closeAt)} Belgian time.` : '',
+      closeDay: closeAt ? `${market === 'crypto' ? 'A day position sells at the UTC close, ' : 'A day position sells at the Euronext close, '}${clock(closeAt)} Belgian time.` : '',
     },
   };
 }
@@ -1073,8 +1122,9 @@ function ticketModels(instruments) {
 // --- live quotes ---------------------------------------------------------------
 const QUOTE_TTL_MS = 60000;
 const quoteCache = {};   // market -> {at, quotes, fetched}
-const NASDAQ_HEADERS = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json, text/plain, */*', 'Accept-Language': 'en-US,en;q=0.9',
-                         Origin: 'https://www.nasdaq.com', Referer: 'https://www.nasdaq.com/' };
+// the shares' live price: Yahoo's chart call on the Euronext listing (meta.regularMarketPrice, about 15 minutes late) -
+// Euronext's own quote endpoints answer encrypted, and Nasdaq had the old US names only (31 Oct 2026)
+const YAHOO_HEADERS = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json, text/plain, */*' };
 
 async function fetchJson(url, headers) {
   const controller = new AbortController();
@@ -1090,7 +1140,7 @@ async function fetchJson(url, headers) {
   }
 }
 
-async function fetchQuotes(market, symbols) {
+async function fetchQuotes(market, symbols, listings = {}) {
   const quotes = {};
   if (!symbols.length) return quotes;
   if (market === 'crypto') {
@@ -1102,21 +1152,22 @@ async function fetchQuotes(market, symbols) {
       if (symbols.includes(sym) && v !== null && v > 0) quotes[sym] = v;
     });
   } else if (market === 'shares') {
-    await Promise.all(symbols.map(async (s) => {
-      const data = await fetchJson(`https://api.nasdaq.com/api/quote/${encodeURIComponent(s)}/info?assetclass=stocks`, NASDAQ_HEADERS);
-      const raw = data && data.data && data.data.primaryData ? data.data.primaryData.lastSalePrice : null;
-      // an unknown or delisted symbol answers 200 with data null: no price is no quote (never 0)
-      const v = typeof raw === 'string' && raw.trim() ? num(raw.replace(/[$,]/g, '')) : null;
+    await Promise.all(symbols.filter((s) => listings[s]).map(async (s) => {
+      const data = await fetchJson(`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(listings[s])}?range=1d&interval=1d`, YAHOO_HEADERS);
+      const result = data && data.chart && Array.isArray(data.chart.result) ? data.chart.result[0] : null;
+      const meta = result && result.meta ? result.meta : null;
+      // an unknown listing answers with result null; a price in another currency is not this listing's: no quote (never 0)
+      const v = meta && meta.currency === 'EUR' ? num(meta.regularMarketPrice) : null;
       if (v !== null && v > 0) quotes[s] = v;
     }));
   }
   return quotes;
 }
 
-async function quotesFor(market, symbols) {
+async function quotesFor(market, symbols, listings) {
   const cached = quoteCache[market];
   if (cached && Date.now() - cached.fetched < QUOTE_TTL_MS) return { at: cached.at, quotes: cached.quotes };
-  const quotes = await fetchQuotes(market, symbols);
+  const quotes = await fetchQuotes(market, symbols, listings);
   const at = Object.keys(quotes).length ? new Date().toISOString() : null;
   quoteCache[market] = { at, quotes, fetched: Date.now() };
   return { at, quotes };
@@ -1143,8 +1194,9 @@ function install(app, { dataDir }) {
     const market = req.params.market;
     if (!MARKETS[market]) return json(res, { error: 'unknown market' }, 404);
     const record = loadMarket(dataDir, market);
-    const symbols = record ? record.instruments.filter((i) => i.active !== false).map((i) => String(i.symbol)) : [];
-    json(res, await quotesFor(market, symbols));
+    const active = record ? record.instruments.filter((i) => i.active !== false) : [];
+    const listings = Object.fromEntries(active.filter((i) => i.quote_symbol).map((i) => [String(i.symbol), String(i.quote_symbol)]));
+    json(res, await quotesFor(market, active.map((i) => String(i.symbol)), listings));
   });
 }
 

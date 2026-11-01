@@ -21,10 +21,20 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 12, 'twelve jobs: the daily predictor, the seven steps of the weekly tuning chain and the four control experiments');
-ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true',
-  'the daily job is Predictor.py -a true, exactly as runPredictor.sh had it');
+ok(jobs.JOBS.length === 13, 'thirteen jobs: the daily predictor, the evening shares run, the seven steps of the weekly tuning chain and the four control experiments');
+ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,cryptoweek',
+  'the daily job is Predictor.py -a true as runPredictor.sh had it, for every game but the shares (31 Oct 2026)');
 ok(byKey.predictor.daily.hour === 9 && byKey.predictor.daily.minute === 0, 'the predictor keeps its 09:00 slot');
+ok(byKey.sharesPredictor.script === 'Predictor.py' && byKey.sharesPredictor.args.join(' ') === '-a true -g shares,sharesweek'
+  && byKey.sharesPredictor.daily.hour === 18 && byKey.sharesPredictor.daily.minute === 30 && byKey.sharesPredictor.daily.weekdays.join() === '1,2,3,4,5',
+  'the shares run in the evening, Monday to Friday 18:30, after Euronext\'s day is complete and before the next 09:00 open');
+{
+  // every game Predictor.py knows runs in exactly one of the two daily runs
+  const source = fs.readFileSync(path.join(__dirname, '..', 'Predictor.py'), 'utf-8');
+  const all = /default="([a-z0-9,]+)"/.exec(source.slice(source.indexOf("'--games'")))[1].split(',').sort();
+  const ran = [byKey.predictor, byKey.sharesPredictor].flatMap((j) => j.args[j.args.indexOf('-g') + 1].split(',')).sort();
+  ok(ran.join() === all.join(), 'the morning and evening runs together cover every game, each once');
+}
 ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner,kenoSubsetTuning',
   'the weekly chain keeps the order runHyperopt.sh documented');
 ok(CONTROL_KEYS.join(',') === 'nullControls,randomnessDiscrimination,featureControl,marketRows',
@@ -85,7 +95,8 @@ jobs.JOBS.forEach((job) => {
   ok(typeof job.description === 'string' && job.description.length > 20, `${job.key}: says what it does on the Jobs page`);
 });
 ok(new Set(jobs.JOBS.map((j) => j.log)).size === jobs.JOBS.length, 'every job writes to its own log');
-ok(jobs.JOBS.filter((j) => j.daily).length === 1, 'only the predictor runs on a clock');
+ok(jobs.JOBS.filter((j) => j.daily).map((j) => j.key).join() === 'predictor,sharesPredictor',
+  'only the two predictor runs are on a clock, the morning one first (admin.js and system.js take the first daily job as "the predictor")');
 
 // Who holds process.lock, from its command line: the step whose script and arguments it carries, so the keno step
 // is not read as the statistical job (system.js would call the schedule's own run a stranger's lock)
@@ -98,6 +109,9 @@ ok(jobs.JOBS.filter((j) => j.daily).length === 1, 'only the predictor runs on a 
   ok(keyOf('/usr/bin/python3 /root/sequencePredictor/HyperoptStatistics.py -g lotto') === 'hyperoptStatistics',
     'a hand run with its own arguments is the job that runs the script without any');
   ok(keyOf('python3 Predictor.py -a true') === 'predictor' && keyOf('python3 Predictor.py') === 'predictor', 'the predictor, with or without its arguments');
+  ok(keyOf('python3 Predictor.py -a true -g shares,sharesweek') === 'sharesPredictor'
+    && keyOf('python3 Predictor.py -a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,cryptoweek') === 'predictor',
+    'the lock of the evening run names the evening run, so it never starts the weekly plans');
   ok(keyOf('python3 HyperoptDeepLearning.py') === null, 'a script no job runs is no job');
 }
 
@@ -137,6 +151,21 @@ ok(dueAt({}, at('2026-09-24T04:00:00')).find((d) => d.plan === 'predictor').occu
 ok(!plans({}, at('2026-09-24T08:00:00')).includes('predictor'),
   'past the 20 h window the morning run supersedes it, so it is dropped');
 ok(!plans({}, at('2026-09-23T08:59:00')).includes('predictor'), 'nothing is due before the slot');
+
+// --- the evening shares run (31 Oct 2026) ------------------------------------
+ok(reasonFor({}, at('2026-09-23T18:30:00'), 'sharesPredictor') === 'schedule 18:30', 'a Wednesday evening at 18:30');
+ok(!plans({}, at('2026-09-23T18:29:00')).includes('sharesPredictor'), 'not before it');
+ok(dueAt({}, at('2026-09-24T04:00:00')).find((d) => d.plan === 'sharesPredictor').occurrence === 'sharesPredictor@2026-09-23',
+  'a missed evening is caught up overnight');
+ok(plans({}, at('2026-09-24T08:29:00')).includes('sharesPredictor') && !plans({}, at('2026-09-24T08:31:00')).includes('sharesPredictor'),
+  'until 08:30: a card started later would not be up before the open');
+ok(!plans({}, at('2026-09-26T18:45:00')).includes('sharesPredictor') && !plans({}, at('2026-09-27T18:45:00')).includes('sharesPredictor'),
+  'no run on Saturday or Sunday evening');
+ok(dueAt({}, at('2026-09-26T07:00:00')).find((d) => d.plan === 'sharesPredictor').occurrence === 'sharesPredictor@2026-09-25',
+  "Friday evening's run is still caught up early on Saturday");
+ok(nextDaily(at('2026-09-25T19:00:00'), byKey.sharesPredictor.daily).getTime() === at('2026-09-28T18:30:00').getTime(),
+  'after Friday evening the next one is Monday evening');
+ok(jobs._internals.nextDueText(byKey.sharesPredictor, at('2026-09-25T19:00:00')).endsWith('(Monday to Friday 18:30)'), 'and the Jobs page says when it runs');
 
 // --- the weekly tuning chain ------------------------------------------------
 // Normally started by Saturday's predictor finishing (maybeTriggerChain);

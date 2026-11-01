@@ -132,6 +132,15 @@ const moved = api.marketView('crypto', { ...record, trading: { ...record.trading
 ok(moved.closed.find((q) => q.symbol === 'BTC').movePct === -4.88 && moved.closed.find((q) => q.symbol === 'ETH').movePct === 10.52, `the move reads back exactly: ${JSON.stringify(moved.closed.map((q) => q.movePct))}`);
 const sizedView = api.marketView('crypto', { ...record, trading: { ...record.trading, followed: { ...record.trading.followed, points: [['2026-10-14', 'RL Position Model', 'book', 1, 2, 2, true, 0, { BTC: 2 }]] } } }, null, now);
 ok(sizedView.closed[0].movePct === null && sizedView.closed[0].pnl === 2, 'the sized row has no move, only money');
+// the record's own moves (31 Oct 2026) win over the read-back, and are the only move when the money cannot be read back:
+// whole shares at Bolero's costs (fee_per_leg null) - a sized row's move is its instrument's, so it is shown too
+const withMoves = api.marketView('crypto', { ...record, trading: { ...record.trading, followed: { ...record.trading.followed, points: [['2026-10-14', 'GARCH Model', 'book', 2, 0, 0, true, 0, { BTC: exact(-0.05), ETH: exact(0.1) }, { BTC: -4.9, ETH: 10.5 }]] } } }, null, now);
+ok(withMoves.closed.find((q) => q.symbol === 'BTC').movePct === -4.9 && withMoves.closed.find((q) => q.symbol === 'ETH').movePct === 10.5, 'the record\'s moves are shown as they are');
+const bolero = { ...record.trading, fee_per_leg: null, stake: 1000, costs: { kind: 'bolero', whole_units: true, text: '1,000 EUR a position in whole shares' } };
+const noFee = api.marketView('crypto', { ...record, trading: { ...bolero, followed: { ...record.trading.followed, points: [['2026-10-14', 'GARCH Model', 'book', 2, 3, 3, true, 0, { BTC: 12.5, ETH: -9.5 }, { BTC: 3.1 }]] } } }, null, now);
+ok(noFee.closed.find((q) => q.symbol === 'BTC').movePct === 3.1 && noFee.closed.find((q) => q.symbol === 'ETH').movePct === null,
+  'whole shares and fixed fees: the record\'s move, never one read back from the money');
+ok(noFee.status.paperNote === 'Paper money: 1,000 EUR a position in whole shares.' && /0\.10% a leg/.test(v.status.paperNote), `the paper note says the record's costs: ${noFee.status.paperNote}`);
 
 // --- the guarded week (MarketSettle.guarded_week): the week rows and the weekly record follow the guard ----------
 // these fixtures are weeks of 5-18 Oct 2026, before the guard counts on the page (GUARD_SHOWN_FROM 26 Oct): move the switch
@@ -291,27 +300,27 @@ const sharesRecord = { ...record, market: 'shares', instruments: record.instrume
   next: { ...record.next, made_on: '2026-10-14', instruments: { NVDA: record.next.instruments.BTC, AAPL: record.next.instruments.ETH } },
   models: record.models.map((m) => ({ ...m, open_total: m.pnl_cash_total, open_trades: m.trades })),
   trading: { ...record.trading, currency: 'USD', open: { models: record.trading.models, benchmark: record.trading.benchmark }, followed: { ...record.trading.followed, rule: 'open' } } };
-const before = api.marketView('shares', sharesRecord, null, new Date('2026-10-15T09:00:00Z'));   // 11:00 Belgian, before New York opens
+const before = api.marketView('shares', sharesRecord, null, new Date('2026-10-15T05:00:00Z'));   // 07:00 Belgian, before Euronext opens
 const nvda = before.open.find((q) => q.symbol === 'NVDA');
-ok(before.day.ruleName === 'open to close' && nvda.status === 'buy at open' && nvda.buyText === 'today 15:30' && nvda.statusText.includes('15:30') && nvda.sellText === 'today 22:00' && before.notes.closeDay.includes('22:00'), `shares before the open: ${JSON.stringify(nvda)}`);
-const during = api.marketView('shares', sharesRecord, null, new Date('2026-10-15T15:00:00Z'));
-ok(during.open.find((q) => q.symbol === 'NVDA').status === 'buy now' && during.closed[0].exit === 'close 22:00', 'shares during the session: buy now, closed positions exit at 22:00');
+ok(before.day.ruleName === 'open to close' && nvda.status === 'buy at open' && nvda.buyText === 'today 09:00' && nvda.statusText.includes('09:00') && nvda.sellText === 'today 17:30' && before.notes.closeDay.includes('17:30') && before.notes.closeDay.includes('Euronext'), `shares before the open: ${JSON.stringify(nvda)}`);
+const during = api.marketView('shares', sharesRecord, null, new Date('2026-10-15T10:00:00Z'));
+ok(during.open.find((q) => q.symbol === 'NVDA').status === 'buy now' && during.closed[0].exit === 'close 17:30', 'shares during the session: buy now, closed positions exit at 17:30');
 // a guarded share week: a first up call mid-week buys at the open, measured until then from the last close
 const sharesWeek = { ...weekRecord, market: 'sharesweek', instruments: [{ symbol: 'NVDA', active: true, last_close: 229.28, closes: [['2026-10-09', 229.28]] }],
   next: { ...weekRecord.next, made_on: '2026-10-09', instruments: { NVDA: { base: 229.28, predictions: [pred('PoissonMonteCarlo Model', 7, 235, 240)] } } },
   trading: { ...weekRecord.trading, rule: 'open', guarded: { ...guardedWeek.trading.guarded, now: { ...guardedWeek.trading.guarded.now,
     symbols: { NVDA: { action: 'buy', reason: 'first up call', entry: '2026-10-15', entry_price: null, call: 'up', sold_on: null, realized: null, trades: [] } } } } } };
-const nvdaW = api.marketView('shares', sharesRecord, sharesWeek, new Date('2026-10-15T09:00:00Z'), G).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
+const nvdaW = api.marketView('shares', sharesRecord, sharesWeek, new Date('2026-10-15T05:00:00Z'), G).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
 const nvdaOut = api.marketView('shares', sharesRecord, { ...sharesWeek, trading: { ...sharesWeek.trading, guarded: { ...sharesWeek.trading.guarded, now: { ...sharesWeek.trading.guarded.now, settled_days: [],
-  symbols: { NVDA: { action: 'out', reason: 'call', entry: null, entry_price: null, call: 'flat', sold_on: null, realized: null, trades: [] } } } } } }, new Date('2026-10-15T09:00:00Z'), G).open.find((q) => q.game === 'week');
+  symbols: { NVDA: { action: 'out', reason: 'call', entry: null, entry_price: null, call: 'flat', sold_on: null, realized: null, trades: [] } } } } } }, new Date('2026-10-15T05:00:00Z'), G).open.find((q) => q.game === 'week');
 ok(nvdaOut.statusText === "not bought yet: today's daily call is flat; in on the first up daily call this week", `before anything settled the out text names today's call: ${nvdaOut.statusText}`);
-ok(nvdaW && nvdaW.status === 'buy at open' && nvdaW.buyText === 'today 15:30' && nvdaW.openRate === 81682 && nvdaW.openRateNote === 'last close; the book buys at the open of Thu 15 Oct',
+ok(nvdaW && nvdaW.status === 'buy at open' && nvdaW.buyText === 'today 09:00' && nvdaW.openRate === 81682 && nvdaW.openRateNote === 'last close; the book buys at the open of Thu 15 Oct',
    `a share bought at today's open is measured from the last close, not the week base: ${JSON.stringify(nvdaW)}`);
 // a lagging share week: the daily record already has the running day's close; the entry shown is the close before it
 const sharesAhead = { ...sharesRecord, next: { ...sharesRecord.next, made_on: '2026-10-15' },
   instruments: sharesRecord.instruments.map((i) => (i.symbol === 'NVDA' ? { ...i, last_close: 80000, closes: [...i.closes, ['2026-10-15', 80000]] } : i)) };
 sharesAhead.next = { ...sharesAhead.next, instruments: { ...sharesAhead.next.instruments, NVDA: { ...sharesAhead.next.instruments.NVDA, base: 80000 } } };
-const nvdaLag = api.marketView('shares', sharesAhead, sharesWeek, new Date('2026-10-16T09:00:00Z'), G).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
+const nvdaLag = api.marketView('shares', sharesAhead, sharesWeek, new Date('2026-10-16T05:00:00Z'), G).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
 ok(nvdaLag && nvdaLag.status === 'held' && nvdaLag.openRate === 81682 && nvdaLag.openRateNote.includes('the week record catches up'),
    `a lagging share buy is measured from the close before its day, not its own close: ${JSON.stringify(nvdaLag)}`);
 const nvdaNight = api.marketView('shares', sharesRecord, sharesWeek, new Date('2026-10-15T21:00:00Z'), G).open.find((q) => q.game === 'week' && q.symbol === 'NVDA');
@@ -362,6 +371,17 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
     ok(!bad.length, `${label}: no user-facing string carries a bare book status: ${JSON.stringify(bad)}`);
     vw.open.filter((q) => q.order && q.status !== 'no order').forEach((q) => ok(q.order.branches.length >= 1 && q.order.branches.every((b) => /^If you /.test(b.who)),
       `${label} ${q.symbol}: every branch is labelled by the reader's situation: ${JSON.stringify(q.order.branches)}`));
+    // the compact cells (owner 31 Oct): Buy is an instruction chip, Sell either a chip or an order line, and a Hold or Sell
+    // line says whose it is ("if you ..." / "bought earlier? ...") - a bare "Held" or "Out" never reaches the table
+    vw.open.filter((q) => q.order).forEach((q) => {
+      const c = q.order.cells;
+      ok(c && ['Buy now', 'Still good to enter', "Don't buy", 'No order'].includes(c.buy.chip) && c.buy.sub,
+        `${label} ${q.symbol}: the Buy cell is an instruction: ${JSON.stringify(c)}`);
+      if (c && c.sell && (/^Hold\b/.test(c.sell.text) || c.sell.chip === 'Sell now')) ok(/^if you |^bought earlier\?/.test(c.sell.subs[0] || ''),
+        `${label} ${q.symbol}: a Hold or Sell now cell says whose it is: ${JSON.stringify(c.sell)}`);
+      ok(!c || ![c.buy.chip, c.buy.sub, c.sell && c.sell.chip, c.sell && c.sell.text].some((x) => /^(held|out)$/i.test(x || '')),
+        `${label} ${q.symbol}: no bare book status in a cell: ${JSON.stringify(c)}`);
+    });
   };
   const dv = api.marketView('crypto', dayRec, weekRecord, now, O);
   const dBtc = dv.open.find((q) => q.game === 'day' && q.symbol === 'BTC');
@@ -369,6 +389,8 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
      && dBtc.order.branches[0].text.startsWith('buy now at market (about 81,600 USDT; the record bought at 11:10 at that price). Place a sell limit at 82,085 USDT (+0.59% from the card\'s price)')
      && dBtc.order.branches[0].text.includes('by Fri 16 Oct 14:00 at the latest') && dBtc.order.branches[1].who === 'If you bought BTC on this card' && dBtc.openRate === 81600,
      `buy now: the order line with its limit and the Brussels deadline (14:00 in summer time): ${JSON.stringify(dBtc.order)}`);
+  ok(dBtc.order.cells.buy.chip === 'Buy now' && dBtc.order.cells.buy.sub === 'market order' && dBtc.order.cells.sell.text === 'Sell limit 82,085'
+     && dBtc.order.cells.sell.subs[0] === '+0.59% · else at market at the next card', `buy now: the compact cells: ${JSON.stringify(dBtc.order.cells)}`);
   ok(dv.none.day.length === 1 && dv.none.day[0].symbol === 'ETH' && dv.none.day[0].call === 'down', 'a call that is not up stays a chip');
   ok(dv.orders.day.lines.today === 'Today, Thu 15 Oct (UTC day; the card appeared 11:10 Brussels, estimated at 15 min after the ticket):'
      && dv.orders.day.lines.sell.includes('Prices are Binance USDT; on a EUR exchange, place the limit at the same percentage above your own buy price.')
@@ -399,6 +421,7 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
   const fBtc = api.marketView('crypto', filled, weekRecord, now, O).open.find((q) => q.game === 'day');
   ok(fBtc.status === 'sold' && fBtc.order.chip === 'Limit filled' && fBtc.order.branches[0].text.startsWith('your limit filled Thu 15 Oct 16:00 at 82,085 USDT')
      && fBtc.order.branches[1].text.startsWith('no order now'), `limit filled: ${JSON.stringify(fBtc.order.branches)}`);
+  ok(fBtc.order.cells.buy.sub === 'limit already reached' && fBtc.order.cells.sell.text === 'Done: limit filled', `limit filled: the compact cells: ${JSON.stringify(fBtc.order.cells)}`);
   ok(api.marketView('crypto', filled, weekRecord, new Date('2026-10-15T12:00:00Z'), O).open.find((q) => q.game === 'day').status === 'buy now', 'a fill after now is not known yet');
   // a roll (D5): keep it and replace the limit; a reader who did not buy yesterday buys now as a NEWCOMER (31 Oct 2026),
   // or - on a record from before the newcomer ledger - gets no new order (that book booked none)
@@ -411,6 +434,8 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
      && below.order.branches[0].text.includes('This limit is below your buy price: a fill sells at a loss of about 0.49%.')
      && below.order.branches[1].who === 'If you did not buy BTC yesterday' && below.order.branches[1].text.startsWith('no new order today'),
      `a roll whose new limit is below the entry says so: ${JSON.stringify(below.order.branches)}`);
+  ok(below.order.cells.buy.chip === "Don't buy" && below.order.cells.buy.sub === 'continues an earlier buy' && below.order.cells.sell.text === 'Hold · move limit to 81,200'
+     && below.order.cells.sell.subs[0] === 'if you bought it earlier' && /below your buy price/.test(below.order.cells.sell.warn), `a roll's compact cells: ${JSON.stringify(below.order.cells)}`);
   // the newcomer entry of a roll card: two branches, both from the reader's side
   const ncBuy = { status: 'buy now', state: 'open', limit: 82300, entry_price: 81700, limit_pct: 0.734, reason: null, provisional: false };
   const rolledNc = roll(82300, { newcomer: ncBuy });

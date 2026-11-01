@@ -109,9 +109,9 @@ GAMES = {
     "pick3": ("pick3", 0, 9, 3),
     "jokerplus": ("joker", 0, 9, 6),
     "crypto": ("market", 0, 9, 5),
-    "shares": ("market", 0, 9, 4),
+    "shares": ("market", 0, 9, 5),
     "cryptoweek": ("market", 0, 9, 5),
-    "sharesweek": ("market", 0, 9, 4),
+    "sharesweek": ("market", 0, 9, 5),
 }
 
 

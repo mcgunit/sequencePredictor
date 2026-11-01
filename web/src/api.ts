@@ -20,6 +20,19 @@ export interface OrderBranch {
   belowEntry?: boolean;
   late?: { limit: number; minGapPct: number };
 }
+export interface OrderBuyCell {
+  chip: string;
+  tone: string;
+  sub: string;
+  late?: { limit: number; minGapPct: number };
+}
+export interface OrderSellCell {
+  chip?: string;
+  tone?: string;
+  text: string;
+  subs: string[];
+  warn?: string | null;
+}
 // The order behind an order row (the variant the card shows; prices in USDT)
 export interface OrderLine {
   variant: string;
@@ -44,6 +57,8 @@ export interface OrderLine {
   chip: string;
   branches: OrderBranch[];
   text: string;
+  // the row's two compact cells from the reader's side: buy = if you do not have the coin, sell = if you do (null: nothing)
+  cells?: { buy: OrderBuyCell; sell: OrderSellCell | null } | null;
   // a roll card's newcomer entry (31 Oct 2026): the reader who did not buy on the earlier card; skipReason when not placed
   newcomer?: { limit: number | null; limitPct: number | null; entryPrice: number | null; skipReason: string | null; provisional: boolean } | null;
 }

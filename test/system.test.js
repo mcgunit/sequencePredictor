@@ -303,7 +303,7 @@ fs.writeFileSync(councilLog, [
   '20:03:07 INFO    council api on http://127.0.0.1:8099',
   '20:04:16 INFO    127.0.0.1 - "GET /endpoints HTTP/1.1" 200 -',
 ].join('\n') + '\n');
-ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 12, 'the copies log into their own temp dirs');
+ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 13, 'the copies log into their own temp dirs');
 
 // --- the app under test ------------------------------------------------------------------------------------------
 const app = standIn();
@@ -360,7 +360,7 @@ async function main() {
   const j = (await call(app, 'GET', '/api/admin/jobs', { user: ADMIN })).body;
   ok(j.mode.mode === 'dry' && j.lock.held && j.lock.pid === process.pid && j.lock.key === null && j.lock.ours === false && j.running === null
     && j.lock.script && !j.lock.script.includes('/'), `jobs: the mode, the lock and who holds it (not a job of the schedule, its script by file name), nothing running: ${j.lock.script}`);
-  ok(j.jobs.length === 12 && j.jobs.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every job may run now, its log named by file name only');
+  ok(j.jobs.length === 13 && j.jobs.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every job may run now, its log named by file name only');
   const boost = j.jobs.find((x) => x.key === 'hyperoptBoost');
   ok(boost.usual.median === 65 && boost.usual.n === 2 && boost.usual.basis === 'earlier runs in the job log' && boost.last.result === 'unknown' && boost.trigger.includes('Saturday'),
     `jobs: the usual duration is the median of the earlier successful runs in the log (60 and 70 min): ${JSON.stringify(boost.usual)}`);
