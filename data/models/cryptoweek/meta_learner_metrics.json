@@ -1,8 +1,8 @@
 {
   "game": "cryptoweek",
-  "trained_at": "2026-10-25T08:14:09.205283+00:00",
+  "trained_at": "2026-11-01T06:27:25.439621+00:00",
   "days": 300,
-  "table_days": 111,
+  "table_days": 112,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
@@ -25,13 +25,13 @@
           0.1304,
           0.1304,
           0.1739,
-          0.1304,
+          0.087,
           0.2174
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1565,
-        "argmax_profit_per_day": -0.387,
-        "train_days": 88,
+        "mean_top1": 0.1478,
+        "argmax_profit_per_day": -0.2522,
+        "train_days": 89,
         "test_days": 23
       }
     },
@@ -40,16 +40,16 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.1304,
-          0.1304,
+          0.1739,
+          0.087,
           0.2174,
           0.087,
-          0.2609
+          0.1304
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1652,
-        "argmax_profit_per_day": -0.2609,
-        "train_days": 88,
+        "mean_top1": 0.1391,
+        "argmax_profit_per_day": -0.3478,
+        "train_days": 89,
         "test_days": 23
       }
     },
@@ -58,16 +58,16 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.0435,
-          0.0435,
           0.0,
-          0.087,
-          0.1739
+          0.0435,
+          0.1739,
+          0.2174,
+          0.1304
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.0696,
-        "argmax_profit_per_day": -0.4348,
-        "train_days": 88,
+        "mean_top1": 0.113,
+        "argmax_profit_per_day": -0.4304,
+        "train_days": 89,
         "test_days": 23
       }
     },
@@ -76,16 +76,16 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
+          0.1304,
           0.0435,
-          0.1304,
-          0.1304,
           0.087,
-          0.2174
+          0.1739,
+          0.087
         ],
         "chance_top1": 0.1,
-        "mean_top1": 0.1217,
-        "argmax_profit_per_day": -0.2261,
-        "train_days": 88,
+        "mean_top1": 0.1043,
+        "argmax_profit_per_day": -0.6261,
+        "train_days": 89,
         "test_days": 23
       }
     },
@@ -94,16 +94,16 @@
       "positional": true,
       "metrics": {
         "per_position_top1": [
-          0.2174,
+          0.1739,
           0.087,
           0.087,
           0.087,
-          0.0
+          0.0435
         ],
         "chance_top1": 0.1,
         "mean_top1": 0.0957,
-        "argmax_profit_per_day": -0.3783,
-        "train_days": 88,
+        "argmax_profit_per_day": -0.3478,
+        "train_days": 89,
         "test_days": 23
       }
     }

@@ -1,6 +1,6 @@
 {
  "market": "sharesweek",
- "generated_at": "2026-10-31T08:18:18+00:00",
+ "generated_at": "2026-11-01T10:05:18+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -87860,7 +87860,7 @@
      2,
      -3.1448,
      8.448,
-     true,
+     false,
      -3.8505,
      {
       "AAPL": 0.9481,
@@ -87874,7 +87874,7 @@
      1,
      -6.5767,
      1.8713,
-     true,
+     false,
      -15.2006,
      {
       "NVDA": -6.5767
@@ -87910,15 +87910,15 @@
      }
     ]
    ],
-   "first_live": "2026-10-09",
+   "first_live": "2026-10-23",
    "next_pick": "CatBoost Model",
    "next_picked_by": "book",
    "total": -6.511,
    "market_total": 38.3846,
-   "live_total": -18.1038,
-   "live_market": -35.2316,
-   "live_days": 4,
-   "live_positions": 8
+   "live_total": -8.3823,
+   "live_market": -16.1805,
+   "live_days": 2,
+   "live_positions": 5
   },
   "guarded": {
    "rule": "the week call is the permission, the daily call the trigger: a coin the week's followed row calls up is bought at the entry of the first day of the week whose daily call for it is up, held while the daily call does not turn flat or down (a day without a daily call keeps a held position and buys nothing), sold at the close of the first day whose daily call is flat or down, bought again on the next up call, sold at the week's close at the latest; consecutive held days are one position, one fee pair, the stake scaled by a sized week row's size",
@@ -88601,7 +88601,7 @@
      3,
      -3.9246,
      4.9966,
-     true,
+     false,
      -3.8505,
      {
       "AAPL": -0.2503,
@@ -88638,7 +88638,7 @@
      0,
      0,
      4.9966,
-     true,
+     false,
      -15.2006,
      {},
      [],
@@ -88689,12 +88689,12 @@
      true
     ]
    ],
-   "first_live": "2026-10-09",
+   "first_live": "2026-10-23",
    "total": 2.2749,
-   "live_total": -5.0548,
-   "live_market": -28.2381,
-   "live_weeks": 3,
-   "live_positions": 4,
+   "live_total": -1.1302,
+   "live_market": -9.187,
+   "live_weeks": 1,
+   "live_positions": 1,
    "now": {
     "running_day": "2026-11-02",
     "first_day": "2026-11-02",

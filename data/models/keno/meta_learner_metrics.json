@@ -1,15 +1,15 @@
 {
   "game": "keno",
-  "trained_at": "2026-10-25T08:08:02.257035+00:00",
+  "trained_at": "2026-11-01T06:21:26.639526+00:00",
   "days": 300,
-  "table_days": 237,
+  "table_days": 244,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
     "declared": "2026-09-27",
     "note": "declared after the September 2026 objective, gate and cadence changes"
   },
-  "lockbox_days_withheld": 63,
+  "lockbox_days_withheld": 56,
   "versions": {
     "python": "3.10.12",
     "numpy": "1.26.4",
@@ -21,237 +21,237 @@
       "artifact": "meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3360,
+        "rows": 3430,
         "base_rate": 0.2857,
         "brier": 0.2501,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6933,
+        "log_loss": 0.6934,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.5064,
+        "auc": 0.5046,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1625,
-            "mean_predicted": 0.4907,
-            "observed": 0.28
+            "count": 1683,
+            "mean_predicted": 0.4913,
+            "observed": 0.2828
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1735,
-            "mean_predicted": 0.5086,
-            "observed": 0.2911
+            "count": 1747,
+            "mean_predicted": 0.5084,
+            "observed": 0.2885
           }
         ],
         "ece": 0.2143,
-        "precision_at_k": 0.2771,
-        "hits_at_k": 5.5417,
+        "precision_at_k": 0.2796,
+        "hits_at_k": 5.5918,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 48,
+        "days": 49,
         "k": 20,
-        "train_days": 189,
-        "test_days": 48,
-        "accuracy": 0.4985
+        "train_days": 195,
+        "test_days": 49,
+        "accuracy": 0.4988
       }
     },
     "keno (v2)": {
       "artifact": "meta_learner_v2.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3360,
+        "rows": 3430,
         "base_rate": 0.2857,
-        "brier": 0.2489,
+        "brier": 0.2499,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.691,
+        "log_loss": 0.693,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.4919,
+        "auc": 0.4938,
         "reliability": [
           {
             "lo": 0.1,
             "hi": 0.2,
-            "count": 4,
-            "mean_predicted": 0.1608,
-            "observed": 0.5
+            "count": 3,
+            "mean_predicted": 0.1501,
+            "observed": 0.3333
           },
           {
             "lo": 0.2,
             "hi": 0.3,
             "count": 16,
-            "mean_predicted": 0.2651,
-            "observed": 0.125
+            "mean_predicted": 0.2532,
+            "observed": 0.25
           },
           {
             "lo": 0.3,
             "hi": 0.4,
-            "count": 97,
-            "mean_predicted": 0.366,
-            "observed": 0.2268
+            "count": 88,
+            "mean_predicted": 0.3626,
+            "observed": 0.2386
           },
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1756,
-            "mean_predicted": 0.474,
-            "observed": 0.3013
+            "count": 1789,
+            "mean_predicted": 0.4755,
+            "observed": 0.2946
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1442,
-            "mean_predicted": 0.5227,
-            "observed": 0.2732
+            "count": 1482,
+            "mean_predicted": 0.5233,
+            "observed": 0.2787
           },
           {
             "lo": 0.6,
             "hi": 0.7,
-            "count": 44,
-            "mean_predicted": 0.6253,
-            "observed": 0.25
+            "count": 50,
+            "mean_predicted": 0.6277,
+            "observed": 0.26
           },
           {
             "lo": 0.7,
             "hi": 0.8,
-            "count": 1,
-            "mean_predicted": 0.704,
-            "observed": 0.0
+            "count": 2,
+            "mean_predicted": 0.7253,
+            "observed": 0.5
           }
         ],
-        "ece": 0.2075,
-        "precision_at_k": 0.2823,
-        "hits_at_k": 5.6458,
+        "ece": 0.2089,
+        "precision_at_k": 0.2673,
+        "hits_at_k": 5.3469,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 48,
+        "days": 49,
         "k": 20,
-        "train_days": 189,
-        "test_days": 48,
-        "accuracy": 0.5128
+        "train_days": 195,
+        "test_days": 49,
+        "accuracy": 0.516
       }
     },
     "keno (quantum kernel)": {
       "artifact": "quantum_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3360,
+        "rows": 3430,
         "base_rate": 0.2857,
-        "brier": 0.25,
+        "brier": 0.2498,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6931,
+        "log_loss": 0.6927,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.5018,
+        "auc": 0.5077,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 27,
-            "mean_predicted": 0.4936,
-            "observed": 0.2593
+            "count": 995,
+            "mean_predicted": 0.4899,
+            "observed": 0.2864
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 3333,
-            "mean_predicted": 0.5,
-            "observed": 0.2859
+            "count": 2435,
+            "mean_predicted": 0.5037,
+            "observed": 0.2854
           }
         ],
-        "ece": 0.2143,
-        "precision_at_k": 0.2719,
-        "hits_at_k": 5.4375,
+        "ece": 0.214,
+        "precision_at_k": 0.2949,
+        "hits_at_k": 5.898,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 48,
+        "days": 49,
         "k": 20,
-        "train_days": 189,
-        "test_days": 48,
-        "accuracy": 0.7134
+        "train_days": 195,
+        "test_days": 49,
+        "accuracy": 0.6184
       }
     },
     "keno (quantum vqc)": {
       "artifact": "quantum_vqc_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3360,
+        "rows": 3430,
         "base_rate": 0.2857,
-        "brier": 0.2436,
+        "brier": 0.2525,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6803,
+        "log_loss": 0.6982,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.4969,
+        "auc": 0.4921,
         "reliability": [
-          {
-            "lo": 0.3,
-            "hi": 0.4,
-            "count": 6,
-            "mean_predicted": 0.3934,
-            "observed": 0.3333
-          },
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 2868,
-            "mean_predicted": 0.4785,
-            "observed": 0.2884
+            "count": 1310,
+            "mean_predicted": 0.4908,
+            "observed": 0.2908
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 486,
-            "mean_predicted": 0.513,
-            "observed": 0.2695
+            "count": 2119,
+            "mean_predicted": 0.5134,
+            "observed": 0.2822
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 1,
+            "mean_predicted": 0.6119,
+            "observed": 1.0
           }
         ],
-        "ece": 0.1976,
-        "precision_at_k": 0.2812,
-        "hits_at_k": 5.625,
+        "ece": 0.2193,
+        "precision_at_k": 0.2735,
+        "hits_at_k": 5.4694,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 48,
+        "days": 49,
         "k": 20,
-        "train_days": 189,
-        "test_days": 48,
-        "accuracy": 0.6476
+        "train_days": 195,
+        "test_days": 49,
+        "accuracy": 0.4455
       }
     },
     "keno (classical svm)": {
       "artifact": "classical_svm_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3360,
+        "rows": 3430,
         "base_rate": 0.2857,
-        "brier": 0.2504,
+        "brier": 0.2499,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.694,
+        "log_loss": 0.693,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.5039,
+        "auc": 0.5045,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1123,
-            "mean_predicted": 0.4859,
-            "observed": 0.2796
+            "count": 579,
+            "mean_predicted": 0.4927,
+            "observed": 0.2832
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 2237,
-            "mean_predicted": 0.5079,
-            "observed": 0.2888
+            "count": 2851,
+            "mean_predicted": 0.5014,
+            "observed": 0.2862
           }
         ],
-        "ece": 0.2149,
-        "precision_at_k": 0.2854,
-        "hits_at_k": 5.7083,
+        "ece": 0.2142,
+        "precision_at_k": 0.2888,
+        "hits_at_k": 5.7755,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 48,
+        "days": 49,
         "k": 20,
-        "train_days": 189,
-        "test_days": 48,
-        "accuracy": 0.5411
+        "train_days": 195,
+        "test_days": 49,
+        "accuracy": 0.6501
       }
     }
   }
