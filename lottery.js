@@ -71,6 +71,7 @@ const nameOf = (m) => (m && m.name) || 'not known';
 const namesOf = (rows) => [...new Set(list(rows).filter((m) => m && typeof m === 'object' && Array.isArray(m.predictions)).map(nameOf))];
 const isoNow = (now) => now.toISOString().replace(/\.\d{3}Z$/, 'Z');
 const round2 = (x) => Math.round(x * 100) / 100;
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 // a day as the user routes take it: YYYY-MM-DD and a real date (the admin routes also read 2026-10-6)
 const strictDay = (text) => (DAY.test(String(text)) && workbench.isoDay(text) === String(text) ? String(text) : null);
 const stampOf = (file) => { try { const s = fs.statSync(file); return `${s.mtimeMs}:${s.size}`; } catch (e) { return 'missing'; } };
@@ -350,12 +351,38 @@ function marketHeadline(dirs, market, now) {
     today: { date: v.day ? v.day.date : null, state: v.day ? v.day.stateText : null, toBuy: s.openToBuy, held: s.openHeld },
   };
 }
+// Home's summary of a game (owner 2 Nov 2026): the best row by raw total profit on its live tickets (saved before each
+// draw's sales close) - for the jackpot games, which have no money record (their prizes depend on the pool), by
+// average hits on the same tickets - among the rows with at least the ranking's minimum of live draws; and the best
+// combination exactly as the admin's Best combination per game card has it (every established row, every scored draw;
+// for the payout games its total profit, for the others the best line held per draw), with its luck control's p value.
+// Raw profit, as asked: one big prize can carry a row's total.
+function summaryOf(report, game) {
+  const info = report && report.games ? report.games[game] : null;
+  if (!info) return null;
+  const minDraws = num((info.live && info.live.minDrawsForRanking) ?? info.minDrawsForRanking) || 1;
+  const rows = list(info.models).filter((m) => m && m.live && num(m.live.draws) >= minDraws);
+  const money = rows.some((m) => num(m.live.profit_total) !== null);
+  const value = (m) => (money ? num(m.live.profit_total) : num(m.live.avg_hits));
+  const ranked = rows.filter((m) => value(m) !== null).sort((a, b) => value(b) - value(a) || String(a.name).localeCompare(String(b.name)));
+  const best = ranked.length ? { name: ranked[0].name, value: round2(value(ranked[0])), draws: num(ranked[0].live.draws) } : null;
+  const combo = info.combinations && info.combinations.best ? info.combinations.best : null;
+  const comboMoney = info.combinations && info.combinations.metric === 'profit_per_draw';
+  const comboValue = combo ? num(comboMoney ? combo.profit_total : combo.avg_best_hits) : null;
+  const control = info.combinations && info.combinations.control ? num(info.combinations.control.p_value) : null;
+  return {
+    unit: money ? 'EUR' : 'hits per draw', minDraws, best,
+    combination: combo && comboValue !== null ? { members: list(combo.members).map(String), value: round2(comboValue), draws: num(combo.draws),
+      unit: comboMoney ? 'EUR' : 'best line per draw', pValue: control } : null,
+  };
+}
 function homeOf(dirs, hist, report, now = new Date()) {
   const overview = overviewOf(dirs, hist, report, now);
   return {
     builtAt: isoNow(now),
     lottery: overview.games.map((g) => (g.empty ? g : {
       game: g.game, unit: g.unit, shape: g.shape, next: g.next,
+      summary: summaryOf(report, g.game),
       tops: g.coming.rows.map((r) => ({ ...r, tickets: r.tickets.filter((t) => t.kind !== 'ranking').slice(0, 1) })), rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
       last: { date: g.last.date, rows: g.last.rows ? g.last.rows.length : 0, figures: g.last.figures || null, none: g.last.none || (g.last.scope ? g.last.scope.none : null), leftOut: g.last.leftOut || null,
         afterClose: Boolean(g.last.afterClose) },
@@ -410,4 +437,4 @@ function install(app, options = {}) {
   app.use('/api/home', (req, res) => json(res, { error: 'not found' }, 404));
 }
 
-module.exports = { GAMES, strictDay, startOf, onlyTop, drawOf, historyOf, overviewOf, cardOf, homeOf, marketHeadline, install };
+module.exports = { GAMES, strictDay, startOf, onlyTop, drawOf, historyOf, overviewOf, cardOf, homeOf, summaryOf, marketHeadline, install };

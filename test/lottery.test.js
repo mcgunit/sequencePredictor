@@ -328,13 +328,28 @@ async function partOne() {
   const hl = home.lottery.find((g) => g.game === 'lotto');
   ok(hl.tops.length === 5 && hl.tops[0].name === 'C Model' && hl.tops.every((r) => r.tickets.length === 1 && r.tickets[0].kind !== 'ranking') && hl.rows === 5 && hl.next.date === '2026-10-13' && hl.last.date === '2026-10-10' && hl.last.figures.best.mains === 6 && hl.last.rows === 5
     && hl.ranking.today === true && !mentions(home.lottery, 'Z Model'), 'Home, lottery: the next draw, today\'s five with one played ticket each, the last draw over the five before it');
+  // Home's summary: the best row by raw total profit on its live tickets among rows with the minimum of live draws (by
+  // average hits where no row has money), the combination as the admin card has it
+  const row = (name, draws, profit, hits) => ({ name, live: { draws, profit_total: profit, avg_hits: hits } });
+  const sumReport = { games: {
+    pick3: { minDrawsForRanking: 10, live: { minDrawsForRanking: 10 }, models: [row('A Model', 50, 120, 0.3), row('B Model', 9, 900, 0.9), row('C Model', 40, -20, 0.5)],
+      combinations: { metric: 'profit_per_draw', best: { members: ['A Model', 'C Model'], draws: 36, profit_total: 1209, avg_best_hits: 1.7 }, control: { p_value: 0.287 } } },
+    lotto: { minDrawsForRanking: 10, models: [row('A Model', 12, null, 1.1), row('B Model', 30, null, 1.3), row('C Model', 5, null, 2.0)],
+      combinations: { metric: 'avg_best_hits', best: { members: ['A Model', 'B Model'], draws: 11, profit_total: null, avg_best_hits: 1.818 } } },
+  } };
+  const p3 = lottery.summaryOf(sumReport, 'pick3');
+  const lt = lottery.summaryOf(sumReport, 'lotto');
+  ok(p3.unit === 'EUR' && p3.best.name === 'A Model' && p3.best.value === 120 && p3.combination.value === 1209 && p3.combination.unit === 'EUR' && p3.combination.pValue === 0.287
+    && lt.unit === 'hits per draw' && lt.best.name === 'B Model' && lt.combination.value === 1.82 && lt.combination.pValue === null
+    && lottery.summaryOf(sumReport, 'keno') === null && lottery.summaryOf(null, 'lotto') === null,
+    'Home summary: raw total profit on live tickets (a row under the minimum of live draws left out), by hits without money; the card\'s combination');
   const record = markets.loadMarket(path.join(repo, 'data', 'markets'), 'crypto');
   const view = api.marketView('crypto', record, null, new Date());
   ok(home.crypto.plan.total === view.status.liveTotal && home.crypto.plan.market === view.status.liveMarket && home.crypto.plan.ahead === view.status.ahead
     && home.crypto.plan.since === view.status.since && home.crypto.plan.days === view.status.days && home.crypto.plan.through === '2026-10-14'
     && home.crypto.today.toBuy === view.status.openToBuy && home.crypto.today.held === view.status.openHeld && home.crypto.unit === 'USDT',
     `Home, crypto: the plan against buying everything with its window, today's positions - api.js marketView's own figures: ${JSON.stringify(home.crypto.plan)}`);
-  ok(home.shares.empty === 'no record yet' && JSON.stringify(home).length < 10 * 1024, `Home: a market without a record says so; the answer is small (${JSON.stringify(home).length} bytes)`);
+  ok(home.shares.empty === 'no record yet' && JSON.stringify(home).length < 16 * 1024, `Home: a market without a record says so; the answer is small (${JSON.stringify(home).length} bytes)`);
 
   // --- the coming draw on its own day: today (the old pages' "for the draw of today, ..."), not past --------------------
   const onTheDay = new Date('2026-10-13T08:00:00Z');   // 10:00 Brussels on the draw's day

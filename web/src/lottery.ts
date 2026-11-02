@@ -187,6 +187,14 @@ export function normUserHistory(raw: unknown, game: string): UserHistory {
 }
 
 // --- GET /api/home ------------------------------------------------------------------------------------------------------
+// Home's summary of a game: the best row by total profit on its live tickets (by average hits for the jackpot games), and
+// the admin card's best combination (total profit, or the best line held per draw) with its luck control's p value
+export interface HomeSummary {
+  unit: string; // 'EUR' or 'hits per draw'
+  minDraws: number;
+  best: { name: string; value: number; draws: number | null } | null;
+  combination: { members: string[]; value: number; draws: number | null; unit: string; pValue: number | null } | null;
+}
 export interface HomeGame {
   game: string;
   unit: string;
@@ -194,6 +202,7 @@ export interface HomeGame {
   shape: Shape;
   next: NextDraw | null;
   tops: Row[]; // today's five in rank order, each with its first played ticket
+  summary: HomeSummary | null;
   rows: number; // today's five shown on the Lottery page
   ranking: (RankVersion & { today: true }) | null;
   none: { code: string; text: string } | null;
@@ -225,6 +234,21 @@ export interface Home {
   shares: MarketHeadline;
   running: Running | null;
 }
+function summaryOf(v: unknown): HomeSummary | null {
+  if (!has(v)) return null;
+  const s = o(v);
+  const b = o(s.best);
+  const c = o(s.combination);
+  const bv = opt(b.value);
+  const cv = opt(c.value);
+  return {
+    unit: str(s.unit, 'hits per draw'), minDraws: num(s.minDraws, 0),
+    best: has(s.best) && bv !== null ? { name: str(b.name), value: bv, draws: opt(b.draws) } : null,
+    combination: has(s.combination) && cv !== null
+      ? { members: arr(c.members).filter((m): m is string => typeof m === 'string'), value: cv, draws: opt(c.draws), unit: str(c.unit), pValue: opt(c.pValue) }
+      : null,
+  };
+}
 function homeGameOf(v: unknown): HomeGame {
   const g = o(v);
   const game = str(g.game);
@@ -232,7 +256,7 @@ function homeGameOf(v: unknown): HomeGame {
   const ranking = versionOf(g.ranking);
   return {
     game, unit: str(g.unit, 'draws'), empty: ostr(g.empty), shape: shapeOf(g.shape, game), next: nextOf(g.next),
-    tops: arr(g.tops).filter(has).map(rowOf), rows: num(g.rows, 0), ranking: ranking ? { ...ranking, today: true } : null, none: noneOf(g.none),
+    tops: arr(g.tops).filter(has).map(rowOf), summary: summaryOf(g.summary), rows: num(g.rows, 0), ranking: ranking ? { ...ranking, today: true } : null, none: noneOf(g.none),
     last: has(g.last) ? { date: ostr(l.date), rows: num(l.rows, 0), figures: figuresOf(l.figures), none: noneOf(l.none), leftOut: ostr(l.leftOut), afterClose: l.afterClose === true } : null,
   };
 }

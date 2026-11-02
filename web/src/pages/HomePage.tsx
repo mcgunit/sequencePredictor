@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { day, money, plural, short, signClass, unsigned, weekday } from '../format';
+import { DASH, day, fixed, money, plural, short, signClass, unsigned, weekday } from '../format';
 import { useLoad } from '../hooks/useLoad';
 import { useMe } from '../hooks/useMe';
-import { getHome, type HomeGame, type MarketHeadline } from '../lottery';
+import { getHome, type HomeGame, type HomeSummary, type MarketHeadline } from '../lottery';
 import { Card } from '../components/admin/Card';
 import { Failed, Loading, PageHead } from '../components/admin/States';
 import { gameTitle } from '../components/draws/text';
@@ -92,8 +92,8 @@ function LotterySection({ games }: { games: HomeGame[] }) {
   );
 }
 
-// One game: its name, the next draw and today's five tickets, no words (owner 2 Nov 2026: the users' Home carries
-// little text); the model's name is the line's tooltip
+// One game: its name, the next draw and today's five tickets, each with its model's name (owner 2 Nov 2026: the users'
+// Home carries little text), and beside them the game's summary
 function GameLine({ g }: { g: HomeGame }) {
   const title = gameTitle(g.game);
   return (
@@ -102,18 +102,64 @@ function GameLine({ g }: { g: HomeGame }) {
         {g.empty ? <b>{title}</b> : <Link to={lotteryHref(g.game)}>{title}</Link>}
         {g.next ? <small>next draw {nextText(g.next)}</small> : null}
       </div>
-      {g.tops.length ? (
-        <div className="htops">
-          {g.tops.map((r) => (
-            <div key={r.name} title={short(r.name)}>
-              <TicketNums shape={g.shape} row={r} numbers />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <small>{g.empty ?? 'No top 5 today.'}</small>
-      )}
+      <div className="hgame-b">
+        {g.tops.length ? (
+          <div className="htops">
+            {g.tops.map((r) => (
+              <div key={r.name} className="htop">
+                <TicketNums shape={g.shape} row={r} numbers />
+                <small>{short(r.name)}</small>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <small>{g.empty ?? 'No top 5 today.'}</small>
+        )}
+        {g.summary ? <GameSummary s={g.summary} /> : null}
+      </div>
     </div>
+  );
+}
+
+// The best row by total profit on its live tickets (the jackpot games: by average hits, they have no money record) and
+// the best combination as the admin's Best combination per game card has it; the details are in the tooltips
+function GameSummary({ s }: { s: HomeSummary }) {
+  const euro = (v: number) => `${money(v, 0)} EUR`;
+  const b = s.best;
+  const c = s.combination;
+  return (
+    <dl className="hsum">
+      <dt>Best model</dt>
+      <dd
+        title={b ? `${s.unit === 'EUR' ? 'total profit' : 'average hits per draw'} on the tickets saved before each draw's sales close, rows with at least ${s.minDraws} such draws` : undefined}
+      >
+        {b ? (
+          <>
+            {short(b.name)} <b className={s.unit === 'EUR' ? signClass(b.value) : ''}>{s.unit === 'EUR' ? euro(b.value) : `${fixed(b.value, 2)} hits`}</b>
+            {b.draws !== null ? <small> · {plural(b.draws, 'draw')}</small> : null}
+          </>
+        ) : (
+          DASH
+        )}
+      </dd>
+      <dt>Best combination</dt>
+      <dd
+        title={
+          c
+            ? `as on Best combination per game: ${c.unit === 'EUR' ? 'total profit of playing every member' : 'the best line held per draw'} over the draws they share${c.pValue !== null ? `; luck control p ${fixed(c.pValue, 2)}${c.pValue > 0.05 ? ', no better than the best set luck finds' : ''}` : ''}`
+            : undefined
+        }
+      >
+        {c ? (
+          <>
+            {c.members.map(short).join(' + ')} <b className={c.unit === 'EUR' ? signClass(c.value) : ''}>{c.unit === 'EUR' ? euro(c.value) : `${fixed(c.value, 2)} hits`}</b>
+            {c.draws !== null ? <small> · {plural(c.draws, 'draw')}</small> : null}
+          </>
+        ) : (
+          DASH
+        )}
+      </dd>
+    </dl>
   );
 }
 

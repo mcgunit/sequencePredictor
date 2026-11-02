@@ -817,15 +817,24 @@ details.fold > summary .mut { color: var(--muted); }
   gap: var(--gap); align-items: start; margin-bottom: var(--gap); }
 .hgrid > :nth-child(1) { grid-area: lot; } .hgrid > :nth-child(2) { grid-area: cry; } .hgrid > :nth-child(3) { grid-area: sha; }
 @media (max-width: 1100px) { .hgrid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lot" "cry" "sha"; grid-template-rows: none; } }
-.hgames { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
-@media (max-width: 1400px) { .hgames { grid-template-columns: minmax(0, 1fr); } }
+/* one game a row: since 2 Nov 2026 a game holds its five lines and its summary side by side */
+.hgames { display: grid; grid-template-columns: minmax(0, 1fr); }
 .hgame { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; align-content: start; }
 .hgame:first-child { border-top: 0; padding-top: 0; }
-@media (min-width: 1401px) { .hgame:nth-child(2) { border-top: 0; padding-top: 0; } }
 .hgame-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .hgame-h a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .hgame-h a:hover { text-decoration: underline; }
 .htops { display: grid; gap: 4px; margin-top: 2px; }
+/* Home: a game's five lines (each with its model's name) and its summary beside them, under them on a narrow card */
+.hgame-b { display: grid; grid-template-columns: minmax(0, auto) minmax(180px, 1fr); gap: 8px 28px; align-items: start; }
+@media (max-width: 760px) { .hgame-b { grid-template-columns: minmax(0, 1fr); } }
+.htop { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+.htop > small { color: var(--muted); font-size: var(--fs-xs); }
+.hsum { margin: 2px 0 0; display: grid; gap: 2px; font-size: var(--fs-sm); }
+.hsum dt { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px; }
+.hsum dt:first-child { margin-top: 0; }
+.hsum dd { margin: 0; overflow-wrap: anywhere; }
+.hsum dd small { color: var(--muted); }
 .hgame > small, .hgame-h small { color: var(--muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .hfig { display: grid; gap: 2px; margin-bottom: 8px; }
 .hfig .k { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
