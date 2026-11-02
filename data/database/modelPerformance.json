@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-02T11:43:13",
+  "generatedAt": "2026-11-02T17:44:23",
   "games": {
     "crypto": {
       "metric": "avg_hits",
@@ -70677,8 +70677,8 @@
       "models": [
         {
           "name": "GNN Model",
-          "draws": 30,
-          "avg_hits": 0.8,
+          "draws": 31,
+          "avg_hits": 0.774,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70688,26 +70688,32 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": {
-            "valLoss": 2.3023,
-            "baselineLoss": 2.3027,
-            "margin": 0.021,
+            "valLoss": 2.3021,
+            "baselineLoss": 2.3025,
+            "margin": 0.0206,
             "verdict": "counts-only",
             "sameTicket": 1.0,
             "inputBlind": true,
             "windows": 485,
-            "date": "2026-10-30"
+            "date": "2026-11-02"
           },
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "OrderStatistics Baseline",
-          "draws": 30,
-          "avg_hits": 0.767,
+          "draws": 31,
+          "avg_hits": 0.742,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70717,17 +70723,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "Transformer Model",
-          "draws": 30,
-          "avg_hits": 0.767,
+          "draws": 31,
+          "avg_hits": 0.742,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70737,26 +70749,32 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": {
-            "valLoss": 2.311,
+            "valLoss": 2.3108,
             "baselineLoss": 2.3027,
-            "margin": 0.0222,
+            "margin": 0.0221,
             "verdict": "counts-only",
             "sameTicket": 0.061,
             "inputBlind": false,
             "windows": 475,
-            "date": "2026-10-30"
+            "date": "2026-11-02"
           },
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "MarkovMonteCarlo Model",
-          "draws": 30,
-          "avg_hits": 0.733,
+          "draws": 31,
+          "avg_hits": 0.71,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 3,
@@ -70766,17 +70784,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "Autoencoder Model",
-          "draws": 30,
-          "avg_hits": 0.7,
+          "draws": 31,
+          "avg_hits": 0.71,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 3,
@@ -70786,26 +70810,32 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": {
-            "valLoss": 2.2896,
-            "baselineLoss": 2.3027,
-            "margin": 0.0232,
+            "valLoss": 2.2893,
+            "baselineLoss": 2.3025,
+            "margin": 0.0228,
             "verdict": "counts-only",
-            "sameTicket": 0.398,
+            "sameTicket": 0.394,
             "inputBlind": false,
             "windows": 485,
-            "date": "2026-10-30"
+            "date": "2026-11-02"
           },
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "GARCH Model",
-          "draws": 30,
-          "avg_hits": 0.6,
+          "draws": 31,
+          "avg_hits": 0.581,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70815,17 +70845,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "Markov Model",
-          "draws": 30,
-          "avg_hits": 0.533,
+          "draws": 31,
+          "avg_hits": 0.548,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70835,17 +70871,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "LightGBM Model",
-          "draws": 30,
-          "avg_hits": 0.533,
+          "draws": 31,
+          "avg_hits": 0.516,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70855,37 +70897,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
-          }
-        },
-        {
-          "name": "XGBoost Model",
-          "draws": 30,
-          "avg_hits": 0.467,
-          "profit_bound": null,
-          "avg_special_hits": null,
-          "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0,
-          "profit_by_size": null,
-          "multi_pick": null,
-          "learning_check": null,
-          "live_draws": 0,
-          "chance": {
-            "draws": 0,
-            "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "CatBoost Model",
-          "draws": 30,
-          "avg_hits": 0.467,
+          "draws": 31,
+          "avg_hits": 0.484,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70895,57 +70923,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
-          }
-        },
-        {
-          "name": "WeightedEnsemble Model",
-          "draws": 30,
-          "avg_hits": 0.467,
-          "profit_bound": null,
-          "avg_special_hits": null,
-          "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0,
-          "profit_by_size": null,
-          "multi_pick": null,
-          "learning_check": null,
-          "live_draws": 0,
-          "chance": {
-            "draws": 0,
-            "notLive": 30,
-            "inFamily": false
-          }
-        },
-        {
-          "name": "RL Position Model",
-          "draws": 30,
-          "avg_hits": 0.467,
-          "profit_bound": null,
-          "avg_special_hits": null,
-          "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0,
-          "profit_by_size": null,
-          "multi_pick": null,
-          "learning_check": null,
-          "live_draws": 0,
-          "chance": {
-            "draws": 0,
-            "notLive": 30,
-            "inFamily": false
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "LaplaceMonteCarlo Model",
-          "draws": 30,
-          "avg_hits": 0.433,
+          "draws": 31,
+          "avg_hits": 0.452,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70955,17 +70949,101 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "XGBoost Model",
+          "draws": 31,
+          "avg_hits": 0.452,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": null,
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 30,
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "WeightedEnsemble Model",
+          "draws": 31,
+          "avg_hits": 0.452,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": null,
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 30,
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "RL Position Model",
+          "draws": 31,
+          "avg_hits": 0.452,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": null,
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 30,
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "PoissonMonteCarlo Model",
-          "draws": 30,
-          "avg_hits": 0.367,
+          "draws": 31,
+          "avg_hits": 0.355,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -70975,17 +71053,49 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "Regime HMM Single Model",
+          "draws": 31,
+          "avg_hits": 0.355,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 2,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": null,
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 30,
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "Regime HMM Model",
-          "draws": 30,
-          "avg_hits": 0.333,
+          "draws": 31,
+          "avg_hits": 0.323,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 1,
@@ -70995,37 +71105,23 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
-          }
-        },
-        {
-          "name": "Regime HMM Single Model",
-          "draws": 30,
-          "avg_hits": 0.333,
-          "profit_bound": null,
-          "avg_special_hits": null,
-          "best_hits": 2,
-          "profit_total": null,
-          "profit_per_bet": null,
-          "bets": 0,
-          "profit_by_size": null,
-          "multi_pick": null,
-          "learning_check": null,
-          "live_draws": 0,
-          "chance": {
-            "draws": 0,
-            "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         },
         {
           "name": "Regime HMM ZeroMean Model",
-          "draws": 30,
-          "avg_hits": 0.3,
+          "draws": 31,
+          "avg_hits": 0.29,
           "profit_bound": null,
           "avg_special_hits": null,
           "best_hits": 2,
@@ -71035,14 +71131,424 @@
           "profit_by_size": null,
           "multi_pick": null,
           "learning_check": null,
-          "live_draws": 0,
+          "live_draws": 1,
           "chance": {
-            "draws": 0,
+            "draws": 1,
             "notLive": 30,
-            "inFamily": false
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "LSTM Base Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": {
+            "valLoss": 2.2944,
+            "baselineLoss": 2.3028,
+            "margin": 0.0238,
+            "verdict": "counts-only",
+            "sameTicket": 0.265,
+            "inputBlind": false,
+            "windows": 505,
+            "date": "2026-11-02"
+          },
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 0,
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "LSTM Smoothed Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": {
+            "valLoss": 2.2944,
+            "baselineLoss": 2.3027,
+            "margin": 0.0193,
+            "verdict": "counts-only",
+            "sameTicket": 0.15,
+            "inputBlind": false,
+            "windows": 505,
+            "date": "2026-11-02"
+          },
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 0,
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "UnifiedLstmGruTcn Model",
+          "draws": 1,
+          "avg_hits": 1.0,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 1,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": {
+            "valLoss": 2.3045,
+            "baselineLoss": 2.3025,
+            "margin": 0.0206,
+            "verdict": "counts-only",
+            "sameTicket": 0.482,
+            "inputBlind": false,
+            "windows": 485,
+            "date": "2026-11-02"
+          },
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 0,
+            "mean": 1.0,
+            "null": 1.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "TCN Base Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": {
+            "valLoss": 2.3011,
+            "baselineLoss": 2.3025,
+            "margin": 0.0206,
+            "verdict": "counts-only",
+            "sameTicket": 0.247,
+            "inputBlind": false,
+            "windows": 485,
+            "date": "2026-11-02"
+          },
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 0,
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
+          }
+        },
+        {
+          "name": "UnifiedLstmTcn Model",
+          "draws": 1,
+          "avg_hits": 0.0,
+          "profit_bound": null,
+          "avg_special_hits": null,
+          "best_hits": 0,
+          "profit_total": null,
+          "profit_per_bet": null,
+          "bets": 0,
+          "profit_by_size": null,
+          "multi_pick": null,
+          "learning_check": {
+            "valLoss": 2.2947,
+            "baselineLoss": 2.3025,
+            "margin": 0.0206,
+            "verdict": "counts-only",
+            "sameTicket": 0.474,
+            "inputBlind": false,
+            "windows": 485,
+            "date": "2026-11-02"
+          },
+          "live_draws": 1,
+          "chance": {
+            "draws": 1,
+            "notLive": 0,
+            "mean": 0.0,
+            "null": 0.0,
+            "nullSd": 0.0,
+            "p": 1.0,
+            "inFamily": false,
+            "pHolm": null,
+            "last": "2026-11-02"
           }
         }
       ],
+      "since": {
+        "date": "2026-09-27",
+        "label": "September 2026 design freeze",
+        "metric": "avg_hits",
+        "minDrawsForRanking": 1,
+        "bestModel": "Markov Model",
+        "models": [
+          {
+            "name": "Markov Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "LaplaceMonteCarlo Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "Regime HMM Single Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "Autoencoder Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "LSTM Base Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "LSTM Smoothed Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "UnifiedLstmGruTcn Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "CatBoost Model",
+            "draws": 1,
+            "avg_hits": 1.0,
+            "best_hits": 1,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "MarkovMonteCarlo Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "PoissonMonteCarlo Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "OrderStatistics Baseline",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "GARCH Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "Regime HMM Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "Regime HMM ZeroMean Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "Transformer Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "GNN Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "TCN Base Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "UnifiedLstmTcn Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "XGBoost Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "LightGBM Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "WeightedEnsemble Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          },
+          {
+            "name": "RL Position Model",
+            "draws": 1,
+            "avg_hits": 0.0,
+            "best_hits": 0,
+            "profit_total": null,
+            "profit_per_bet": null,
+            "profit_bound": null,
+            "bets": 0
+          }
+        ]
+      },
       "chance": {
         "method": "permutation",
         "alpha": 0.05,
@@ -71051,7 +71557,7 @@
         "permutations": 20000,
         "block": 7,
         "family": 0,
-        "liveMax": 0,
+        "liveMax": 1,
         "under": 0,
         "expected": 0,
         "holds": 0,
@@ -71088,43 +71594,24 @@
         "evaluated": 816,
         "best": {
           "members": [
-            "GNN Model",
-            "Transformer Model"
+            "Autoencoder Model",
+            "OrderStatistics Baseline"
           ],
           "size": 2,
           "how": "pair",
-          "draws": 30,
+          "draws": 31,
           "profit_total": null,
-          "bets": 60,
+          "bets": 62,
           "profit_per_bet": null,
           "profit_per_draw": null,
           "win_day_rate": null,
           "daily_std": null,
-          "avg_hits": 0.783,
-          "avg_best_hits": 1.2,
-          "best_hits": 2,
-          "value": 1.2
+          "avg_hits": 0.726,
+          "avg_best_hits": 1.161,
+          "best_hits": 3,
+          "value": 1.161
         },
         "ranking": [
-          {
-            "members": [
-              "GNN Model",
-              "Transformer Model"
-            ],
-            "size": 2,
-            "how": "pair",
-            "draws": 30,
-            "profit_total": null,
-            "bets": 60,
-            "profit_per_bet": null,
-            "profit_per_draw": null,
-            "win_day_rate": null,
-            "daily_std": null,
-            "avg_hits": 0.783,
-            "avg_best_hits": 1.2,
-            "best_hits": 2,
-            "value": 1.2
-          },
           {
             "members": [
               "Autoencoder Model",
@@ -71132,17 +71619,36 @@
             ],
             "size": 2,
             "how": "pair",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 60,
+            "bets": 62,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.733,
-            "avg_best_hits": 1.167,
+            "avg_hits": 0.726,
+            "avg_best_hits": 1.161,
             "best_hits": 3,
-            "value": 1.167
+            "value": 1.161
+          },
+          {
+            "members": [
+              "GNN Model",
+              "Transformer Model"
+            ],
+            "size": 2,
+            "how": "pair",
+            "draws": 31,
+            "profit_total": null,
+            "bets": 62,
+            "profit_per_bet": null,
+            "profit_per_draw": null,
+            "win_day_rate": null,
+            "daily_std": null,
+            "avg_hits": 0.758,
+            "avg_best_hits": 1.161,
+            "best_hits": 2,
+            "value": 1.161
           },
           {
             "members": [
@@ -71151,17 +71657,17 @@
             ],
             "size": 2,
             "how": "pair",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 60,
+            "bets": 62,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.65,
-            "avg_best_hits": 1.133,
+            "avg_hits": 0.645,
+            "avg_best_hits": 1.129,
             "best_hits": 3,
-            "value": 1.133
+            "value": 1.129
           },
           {
             "members": [
@@ -71170,17 +71676,17 @@
             ],
             "size": 2,
             "how": "pair",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 60,
+            "bets": 62,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.75,
-            "avg_best_hits": 1.133,
+            "avg_hits": 0.742,
+            "avg_best_hits": 1.129,
             "best_hits": 3,
-            "value": 1.133
+            "value": 1.129
           },
           {
             "members": [
@@ -71189,17 +71695,17 @@
             ],
             "size": 2,
             "how": "pair",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 60,
+            "bets": 62,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.717,
-            "avg_best_hits": 1.133,
+            "avg_hits": 0.71,
+            "avg_best_hits": 1.129,
             "best_hits": 3,
-            "value": 1.133
+            "value": 1.129
           },
           {
             "members": [
@@ -71209,17 +71715,17 @@
             ],
             "size": 3,
             "how": "triple",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 90,
+            "bets": 93,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.7,
-            "avg_best_hits": 1.367,
+            "avg_hits": 0.688,
+            "avg_best_hits": 1.355,
             "best_hits": 3,
-            "value": 1.367
+            "value": 1.355
           },
           {
             "members": [
@@ -71229,17 +71735,17 @@
             ],
             "size": 3,
             "how": "triple",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 90,
+            "bets": 93,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.544,
-            "avg_best_hits": 1.367,
+            "avg_hits": 0.548,
+            "avg_best_hits": 1.355,
             "best_hits": 3,
-            "value": 1.367
+            "value": 1.355
           },
           {
             "members": [
@@ -71249,17 +71755,17 @@
             ],
             "size": 3,
             "how": "triple",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 90,
+            "bets": 93,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.756,
-            "avg_best_hits": 1.367,
+            "avg_hits": 0.742,
+            "avg_best_hits": 1.355,
             "best_hits": 3,
-            "value": 1.367
+            "value": 1.355
           },
           {
             "members": [
@@ -71269,17 +71775,17 @@
             ],
             "size": 3,
             "how": "triple",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 90,
+            "bets": 93,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.689,
-            "avg_best_hits": 1.333,
+            "avg_hits": 0.677,
+            "avg_best_hits": 1.323,
             "best_hits": 3,
-            "value": 1.333
+            "value": 1.323
           },
           {
             "members": [
@@ -71289,31 +71795,31 @@
             ],
             "size": 3,
             "how": "triple",
-            "draws": 30,
+            "draws": 31,
             "profit_total": null,
-            "bets": 90,
+            "bets": 93,
             "profit_per_bet": null,
             "profit_per_draw": null,
             "win_day_rate": null,
             "daily_std": null,
-            "avg_hits": 0.689,
-            "avg_best_hits": 1.333,
+            "avg_hits": 0.677,
+            "avg_best_hits": 1.323,
             "best_hits": 3,
-            "value": 1.333
+            "value": 1.323
           }
         ],
         "bestSingle": {
           "name": "GNN Model",
-          "value": 0.8,
-          "draws": 30
+          "value": 0.774,
+          "draws": 31
         },
         "beatsBestSingle": null,
         "control": {
           "shuffles": 100,
-          "observed": 1.2,
-          "best_mean": 1.297,
-          "best_p95": 1.433,
-          "p_value": 0.95
+          "observed": 1.161,
+          "best_mean": 1.272,
+          "best_p95": 1.419,
+          "p_value": 0.99
         }
       },
       "lagAnalysis": {
@@ -71322,9 +71828,9 @@
             "run": "2026-11-02",
             "lag": 16,
             "avg_hits": 1.0,
-            "n": 15,
-            "z": 2.66,
-            "profile_mean": 0.597,
+            "n": 16,
+            "z": 2.71,
+            "profile_mean": 0.584,
             "metric": "main_hits"
           },
           "history": [
@@ -71332,9 +71838,9 @@
               "run": "2026-11-02",
               "lag": 16,
               "avg_hits": 1.0,
-              "n": 15,
-              "z": 2.66,
-              "profile_mean": 0.597,
+              "n": 16,
+              "z": 2.71,
+              "profile_mean": 0.584,
               "metric": "main_hits"
             }
           ],
@@ -71350,20 +71856,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 18,
-            "avg_hits": 1.154,
-            "n": 13,
-            "z": 2.58,
-            "profile_mean": 0.811,
+            "avg_hits": 1.143,
+            "n": 14,
+            "z": 2.48,
+            "profile_mean": 0.796,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 18,
-              "avg_hits": 1.154,
-              "n": 13,
-              "z": 2.58,
-              "profile_mean": 0.811,
+              "avg_hits": 1.143,
+              "n": 14,
+              "z": 2.48,
+              "profile_mean": 0.796,
               "metric": "main_hits"
             }
           ],
@@ -71378,39 +71884,39 @@
         "PoissonMonteCarlo Model": {
           "peak": {
             "run": "2026-11-02",
-            "lag": 21,
-            "avg_hits": 0.6,
-            "n": 10,
-            "z": 1.41,
-            "profile_mean": 0.415,
+            "lag": 5,
+            "avg_hits": 0.556,
+            "n": 27,
+            "z": 1.36,
+            "profile_mean": 0.393,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
-              "lag": 21,
-              "avg_hits": 0.6,
-              "n": 10,
-              "z": 1.41,
-              "profile_mean": 0.415,
+              "lag": 5,
+              "avg_hits": 0.556,
+              "n": 27,
+              "z": 1.36,
+              "profile_mean": 0.393,
               "metric": "main_hits"
             }
           ],
           "runs": 1,
           "lag_counts": {
-            "21": 1
+            "5": 1
           },
-          "consensus_lag": 21,
+          "consensus_lag": 5,
           "consensus_runs": 1,
-          "best_lag": 21
+          "best_lag": 5
         },
         "LaplaceMonteCarlo Model": {
           "peak": {
             "run": "2026-11-02",
             "lag": 11,
-            "avg_hits": 0.7,
-            "n": 20,
-            "z": 2.58,
+            "avg_hits": 0.667,
+            "n": 21,
+            "z": 2.66,
             "profile_mean": 0.341,
             "metric": "main_hits"
           },
@@ -71418,9 +71924,9 @@
             {
               "run": "2026-11-02",
               "lag": 11,
-              "avg_hits": 0.7,
-              "n": 20,
-              "z": 2.58,
+              "avg_hits": 0.667,
+              "n": 21,
+              "z": 2.66,
               "profile_mean": 0.341,
               "metric": "main_hits"
             }
@@ -71437,20 +71943,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 16,
-            "avg_hits": 1.0,
-            "n": 15,
-            "z": 1.89,
-            "profile_mean": 0.817,
+            "avg_hits": 0.938,
+            "n": 16,
+            "z": 2.04,
+            "profile_mean": 0.774,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 16,
-              "avg_hits": 1.0,
-              "n": 15,
-              "z": 1.89,
-              "profile_mean": 0.817,
+              "avg_hits": 0.938,
+              "n": 16,
+              "z": 2.04,
+              "profile_mean": 0.774,
               "metric": "main_hits"
             }
           ],
@@ -71466,20 +71972,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 20,
-            "avg_hits": 1.091,
-            "n": 11,
-            "z": 1.82,
-            "profile_mean": 0.763,
+            "avg_hits": 1.0,
+            "n": 12,
+            "z": 1.69,
+            "profile_mean": 0.728,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 20,
-              "avg_hits": 1.091,
-              "n": 11,
-              "z": 1.82,
-              "profile_mean": 0.763,
+              "avg_hits": 1.0,
+              "n": 12,
+              "z": 1.69,
+              "profile_mean": 0.728,
               "metric": "main_hits"
             }
           ],
@@ -71495,20 +72001,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 17,
-            "avg_hits": 0.571,
-            "n": 14,
-            "z": 1.94,
-            "profile_mean": 0.395,
+            "avg_hits": 0.533,
+            "n": 15,
+            "z": 1.85,
+            "profile_mean": 0.366,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 17,
-              "avg_hits": 0.571,
-              "n": 14,
-              "z": 1.94,
-              "profile_mean": 0.395,
+              "avg_hits": 0.533,
+              "n": 15,
+              "z": 1.85,
+              "profile_mean": 0.366,
               "metric": "main_hits"
             }
           ],
@@ -71524,20 +72030,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 6,
-            "avg_hits": 0.36,
-            "n": 25,
-            "z": 1.55,
-            "profile_mean": 0.294,
+            "avg_hits": 0.346,
+            "n": 26,
+            "z": 1.1,
+            "profile_mean": 0.266,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 6,
-              "avg_hits": 0.36,
-              "n": 25,
-              "z": 1.55,
-              "profile_mean": 0.294,
+              "avg_hits": 0.346,
+              "n": 26,
+              "z": 1.1,
+              "profile_mean": 0.266,
               "metric": "main_hits"
             }
           ],
@@ -71553,20 +72059,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 17,
-            "avg_hits": 0.571,
-            "n": 14,
-            "z": 2.03,
-            "profile_mean": 0.447,
+            "avg_hits": 0.533,
+            "n": 15,
+            "z": 1.57,
+            "profile_mean": 0.421,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 17,
-              "avg_hits": 0.571,
-              "n": 14,
-              "z": 2.03,
-              "profile_mean": 0.447,
+              "avg_hits": 0.533,
+              "n": 15,
+              "z": 1.57,
+              "profile_mean": 0.421,
               "metric": "main_hits"
             }
           ],
@@ -71582,20 +72088,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 10,
-            "avg_hits": 0.81,
-            "n": 21,
-            "z": 1.5,
-            "profile_mean": 0.667,
+            "avg_hits": 0.773,
+            "n": 22,
+            "z": 1.48,
+            "profile_mean": 0.636,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 10,
-              "avg_hits": 0.81,
-              "n": 21,
-              "z": 1.5,
-              "profile_mean": 0.667,
+              "avg_hits": 0.773,
+              "n": 22,
+              "z": 1.48,
+              "profile_mean": 0.636,
               "metric": "main_hits"
             }
           ],
@@ -71611,20 +72117,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 20,
-            "avg_hits": 0.909,
-            "n": 11,
-            "z": 1.91,
-            "profile_mean": 0.781,
+            "avg_hits": 0.833,
+            "n": 12,
+            "z": 1.63,
+            "profile_mean": 0.742,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 20,
-              "avg_hits": 0.909,
-              "n": 11,
-              "z": 1.91,
-              "profile_mean": 0.781,
+              "avg_hits": 0.833,
+              "n": 12,
+              "z": 1.63,
+              "profile_mean": 0.742,
               "metric": "main_hits"
             }
           ],
@@ -71641,8 +72147,8 @@
             "run": "2026-11-02",
             "lag": 20,
             "avg_hits": 1.0,
-            "n": 11,
-            "z": 2.36,
+            "n": 12,
+            "z": 2.24,
             "profile_mean": 0.733,
             "metric": "main_hits"
           },
@@ -71651,8 +72157,8 @@
               "run": "2026-11-02",
               "lag": 20,
               "avg_hits": 1.0,
-              "n": 11,
-              "z": 2.36,
+              "n": 12,
+              "z": 2.24,
               "profile_mean": 0.733,
               "metric": "main_hits"
             }
@@ -71669,20 +72175,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 14,
-            "avg_hits": 0.882,
-            "n": 17,
-            "z": 1.84,
-            "profile_mean": 0.547,
+            "avg_hits": 0.833,
+            "n": 18,
+            "z": 1.76,
+            "profile_mean": 0.546,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 14,
-              "avg_hits": 0.882,
-              "n": 17,
-              "z": 1.84,
-              "profile_mean": 0.547,
+              "avg_hits": 0.833,
+              "n": 18,
+              "z": 1.76,
+              "profile_mean": 0.546,
               "metric": "main_hits"
             }
           ],
@@ -71698,20 +72204,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 15,
-            "avg_hits": 0.938,
-            "n": 16,
-            "z": 2.45,
-            "profile_mean": 0.52,
+            "avg_hits": 0.882,
+            "n": 17,
+            "z": 2.49,
+            "profile_mean": 0.508,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 15,
-              "avg_hits": 0.938,
-              "n": 16,
-              "z": 2.45,
-              "profile_mean": 0.52,
+              "avg_hits": 0.882,
+              "n": 17,
+              "z": 2.49,
+              "profile_mean": 0.508,
               "metric": "main_hits"
             }
           ],
@@ -71727,20 +72233,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 17,
-            "avg_hits": 0.929,
-            "n": 14,
-            "z": 1.62,
-            "profile_mean": 0.665,
+            "avg_hits": 0.867,
+            "n": 15,
+            "z": 1.44,
+            "profile_mean": 0.637,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 17,
-              "avg_hits": 0.929,
-              "n": 14,
-              "z": 1.62,
-              "profile_mean": 0.665,
+              "avg_hits": 0.867,
+              "n": 15,
+              "z": 1.44,
+              "profile_mean": 0.637,
               "metric": "main_hits"
             }
           ],
@@ -71756,20 +72262,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 15,
-            "avg_hits": 1.062,
-            "n": 16,
-            "z": 2.29,
-            "profile_mean": 0.633,
+            "avg_hits": 1.0,
+            "n": 17,
+            "z": 2.25,
+            "profile_mean": 0.61,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 15,
-              "avg_hits": 1.062,
-              "n": 16,
-              "z": 2.29,
-              "profile_mean": 0.633,
+              "avg_hits": 1.0,
+              "n": 17,
+              "z": 2.25,
+              "profile_mean": 0.61,
               "metric": "main_hits"
             }
           ],
@@ -71785,20 +72291,20 @@
           "peak": {
             "run": "2026-11-02",
             "lag": 15,
-            "avg_hits": 1.062,
-            "n": 16,
-            "z": 2.29,
-            "profile_mean": 0.633,
+            "avg_hits": 1.0,
+            "n": 17,
+            "z": 2.25,
+            "profile_mean": 0.61,
             "metric": "main_hits"
           },
           "history": [
             {
               "run": "2026-11-02",
               "lag": 15,
-              "avg_hits": 1.062,
-              "n": 16,
-              "z": 2.29,
-              "profile_mean": 0.633,
+              "avg_hits": 1.0,
+              "n": 17,
+              "z": 2.25,
+              "profile_mean": 0.61,
               "metric": "main_hits"
             }
           ],
@@ -71812,8 +72318,8 @@
         }
       },
       "anomalyWatch": {
-        "date": "2026-10-30",
-        "latest_z": 0.6079783317045938,
+        "date": "2026-11-02",
+        "latest_z": -0.8945067935067766,
         "min_z_recent": -1.9,
         "alert": false
       }
