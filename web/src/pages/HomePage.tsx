@@ -6,8 +6,8 @@ import { useMe } from '../hooks/useMe';
 import { getHome, type HomeGame, type MarketHeadline } from '../lottery';
 import { Card } from '../components/admin/Card';
 import { Failed, Loading, PageHead } from '../components/admin/States';
-import { gameTitle, prettyDates } from '../components/draws/text';
-import { TicketNums, figureText, lotteryHref, nextText, userText } from '../components/lottery/bits';
+import { gameTitle } from '../components/draws/text';
+import { TicketNums, lotteryHref, nextText } from '../components/lottery/bits';
 import RunBanner from '../components/RunBanner';
 
 // / : the three sections (the owner's rule of 1 Oct: Lottery games, Crypto, Shares), each with its headline and a link,
@@ -76,7 +76,7 @@ function LotterySection({ games }: { games: HomeGame[] }) {
       title="Lottery"
       className="hsec"
       meta={[plural(games.length, 'game')]}
-      help="Per game the first of today's top 5: the 5 models with the best record in the History ranking. Under it, the last draw's figure over the 5 models ranked best before that draw, which can be other models than today's."
+      help="Per game today's top 5: the tickets of the 5 models with the best record in the History ranking, best first. Each game's page has the models' names and how they did."
       foot={
         <Link className="more" to="/lottery">
           Every game&apos;s top 5 ›
@@ -92,44 +92,27 @@ function LotterySection({ games }: { games: HomeGame[] }) {
   );
 }
 
+// One game: its name, the next draw and today's five tickets, no words (owner 2 Nov 2026: the users' Home carries
+// little text); the model's name is the line's tooltip
 function GameLine({ g }: { g: HomeGame }) {
   const title = gameTitle(g.game);
-  if (g.empty) {
-    return (
-      <div className="hgame">
-        <div className="hgame-h">
-          <b>{title}</b>
-        </div>
-        <small>{g.empty}</small>
-      </div>
-    );
-  }
-  const l = g.last;
-  const last = !l
-    ? null
-    : l.leftOut
-      ? `last draw ${day(l.date)}: left out, ${userText(l.leftOut)}`
-      : l.figures
-        ? `last draw ${day(l.date)}: ${figureText(g.shape, l.figures, `the ${l.figures.rows} ranked best before it`)}${l.afterClose ? ' (not counted: tickets made after the sales close)' : ''}`
-        : `last draw ${day(l.date)}: no top 5${l.none ? ` (${prettyDates(l.none.text)})` : ''}`;
   return (
     <div className="hgame">
       <div className="hgame-h">
-        <Link to={lotteryHref(g.game)}>{title}</Link>
-        <small>next draw {nextText(g.next)}</small>
+        {g.empty ? <b>{title}</b> : <Link to={lotteryHref(g.game)}>{title}</Link>}
+        {g.next ? <small>next draw {nextText(g.next)}</small> : null}
       </div>
-      {g.top ? (
-        <>
-          <TicketNums shape={g.shape} row={g.top} />
-          <small>
-            {short(g.top.name)}&apos;s {g.top.tickets.filter((t) => t.kind !== 'ranking').length > 1 ? 'tickets' : 'ticket'}: 1st of today&apos;s top {g.rows}
-            {g.ranking ? ` by ${g.ranking.metricText}` : ''}
-          </small>
-        </>
+      {g.tops.length ? (
+        <div className="htops">
+          {g.tops.map((r) => (
+            <div key={r.name} title={short(r.name)}>
+              <TicketNums shape={g.shape} row={r} numbers />
+            </div>
+          ))}
+        </div>
       ) : (
-        <small>No top 5 today{g.none ? `: ${prettyDates(g.none.text)}` : ''}.</small>
+        <small>{g.empty ?? 'No top 5 today.'}</small>
       )}
-      {last ? <small>{last}</small> : null}
     </div>
   );
 }

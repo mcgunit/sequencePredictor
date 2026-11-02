@@ -193,7 +193,7 @@ export interface HomeGame {
   empty: string | null;
   shape: Shape;
   next: NextDraw | null;
-  top: Row | null; // the first of today's five, with its coming tickets
+  tops: Row[]; // today's five in rank order, each with its first played ticket
   rows: number; // today's five shown on the Lottery page
   ranking: (RankVersion & { today: true }) | null;
   none: { code: string; text: string } | null;
@@ -232,7 +232,7 @@ function homeGameOf(v: unknown): HomeGame {
   const ranking = versionOf(g.ranking);
   return {
     game, unit: str(g.unit, 'draws'), empty: ostr(g.empty), shape: shapeOf(g.shape, game), next: nextOf(g.next),
-    top: has(g.top) ? rowOf(g.top) : null, rows: num(g.rows, 0), ranking: ranking ? { ...ranking, today: true } : null, none: noneOf(g.none),
+    tops: arr(g.tops).filter(has).map(rowOf), rows: num(g.rows, 0), ranking: ranking ? { ...ranking, today: true } : null, none: noneOf(g.none),
     last: has(g.last) ? { date: ostr(l.date), rows: num(l.rows, 0), figures: figuresOf(l.figures), none: noneOf(l.none), leftOut: ostr(l.leftOut), afterClose: l.afterClose === true } : null,
   };
 }

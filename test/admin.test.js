@@ -796,8 +796,10 @@ async function phaseTwo() {
     const a = await requestAsync(app2, url, ADMIN);
     ok(a.statusCode === 200 && a.headers['Cache-Control'] === 'no-store' && !/NaN|undefined/.test(JSON.stringify(a.body)), `${url}: 200 for the administrator`);
   }
-  ok((await requestAsync(app2, '/api/admin/tuning/bingo', ADMIN)).statusCode === 404 && (await requestAsync(app2, '/api/admin/tuning/keno', ADMIN)).body.error === 'no bestParams file for this game',
-    'tuning: an unknown game, and a game without a bestParams file, are 404s that say so');
+  const untuned = await requestAsync(app2, '/api/admin/tuning/keno', ADMIN);
+  ok((await requestAsync(app2, '/api/admin/tuning/bingo', ADMIN)).statusCode === 404 && untuned.statusCode === 200 && untuned.body.untuned === true
+    && untuned.body.rows.length === 0 && (await requestAsync(app2, '/api/admin/tuning/lotto', ADMIN)).body.untuned === false,
+    'tuning: an unknown game is a 404; a game without a bestParams file is a view with no rows that says it is not tuned yet');
 
   // --- the tuning gates
   const t = (await requestAsync(app2, '/api/admin/tuning', ADMIN)).body;

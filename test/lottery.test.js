@@ -326,8 +326,8 @@ async function partOne() {
   // --- Home: the lottery's next draws and top picks, the markets' headlines -----------------------------------------------
   const home = (await get('/api/home')).body;
   const hl = home.lottery.find((g) => g.game === 'lotto');
-  ok(hl.top.name === 'C Model' && hl.rows === 5 && hl.next.date === '2026-10-13' && hl.last.date === '2026-10-10' && hl.last.figures.best.mains === 6 && hl.last.rows === 5
-    && hl.ranking.today === true && !mentions(home.lottery, 'Z Model'), 'Home, lottery: the next draw, the first of today\'s five, the last draw over the five before it');
+  ok(hl.tops.length === 5 && hl.tops[0].name === 'C Model' && hl.tops.every((r) => r.tickets.length === 1 && r.tickets[0].kind !== 'ranking') && hl.rows === 5 && hl.next.date === '2026-10-13' && hl.last.date === '2026-10-10' && hl.last.figures.best.mains === 6 && hl.last.rows === 5
+    && hl.ranking.today === true && !mentions(home.lottery, 'Z Model'), 'Home, lottery: the next draw, today\'s five with one played ticket each, the last draw over the five before it');
   const record = markets.loadMarket(path.join(repo, 'data', 'markets'), 'crypto');
   const view = api.marketView('crypto', record, null, new Date());
   ok(home.crypto.plan.total === view.status.liveTotal && home.crypto.plan.market === view.status.liveMarket && home.crypto.plan.ahead === view.status.ahead

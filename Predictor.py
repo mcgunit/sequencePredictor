@@ -46,7 +46,7 @@ from src.DataFetcher import DataFetcher
 from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
-from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder
+from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder, order_for as probabilityOrder, in_score_order as inScoreOrder
 from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, effective_members, positional_vote, voter_count, subset_vote_scores
 
 tcn = TCNModel()
@@ -145,9 +145,18 @@ def applyMultiPick(name, row, scores):
     row's ranking, a vote row's weighted votes, the RL ticket's decode
     scores; a row without one (HybridStatisticalModel) keeps its ticket as
     it is and gets no extras. Returns whether extras were added.
+
+    The other number games (src/MultiPick.PROBABILITY_ORDER, owner 2 Nov
+    2026): every ticket of the row - keno's subsets too - gets its mains in
+    the same score order, highest first, the specials where they were; no
+    extras. The numbers played do not change, only their order.
     """
+    ordered, mainsCount = probabilityOrder(name)
+    if not ordered or not scores or not row.get("predictions") or not row["predictions"][0]:
+        return False
     cfg = multiPickConfig(name)
-    if not cfg or not scores or not row.get("predictions") or not row["predictions"][0]:
+    if not cfg:
+        row["predictions"] = [inScoreOrder(ticket, mainsCount, scores) if ticket else ticket for ticket in row["predictions"]]
         return False
     ticket = list(row["predictions"][0])
     mains, rest = ticket[:cfg["draw"]], ticket[cfg["draw"]:]
@@ -156,6 +165,11 @@ def applyMultiPick(name, row, scores):
     if extras:
         row["multiPick"] = [int(n) for n in extras]
     return bool(extras)
+
+
+def orderedGame(name):
+    """True for a game whose tickets keep the row's probability order (applyMultiPick): lotto and the other number games."""
+    return probabilityOrder(name)[0]
 
 
 def matchingSplitArgs(name, realResult):
@@ -1217,7 +1231,7 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
         rlRow = rlTicket.run(name, listOfDecodedPredictions,
                              os.path.join(path, "data", "database", name), gameConfig)
         if rlRow and rlRow.get("predictions"):
-            if multiPickConfig(name) and getattr(rlTicket, "lastScores", None):
+            if orderedGame(name) and getattr(rlTicket, "lastScores", None):
                 try:
                     applyMultiPick(name, rlRow, rlTicket.lastScores)
                 except Exception as e:
@@ -1275,7 +1289,7 @@ def _appendVoteEnsembleRow(current_json_object, name, rows, rowName, model_score
         return
 
     row = {"name": rowName, "predictions": ensemblePredictions}
-    if multiPickConfig(name):
+    if orderedGame(name):
         # the vote's own ranking - the weighted votes per main number, the
         # same count the ticket was taken from - orders the six and names
         # the next three
@@ -1408,17 +1422,6 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
 
         nthPredictions["predictions"].append(predicted_digits)
 
-        # Lotto multi-pick: the six in probability order plus the next three
-        # (the per-number probability summed over the positions' softmax -
-        # the inclusion probability - as the keno subsets use it; the
-        # maximum over the positions until 8 Oct 2026 led most DL rows'
-        # ranking with the edge numbers 44 and 1 and put 45 among the extras)
-        if multiPickConfig(gameName):
-            try:
-                applyMultiPick(gameName, nthPredictions, helpers.score_numbers_from_prediction(newPredictionRaw, unique_labels))
-            except Exception as e:
-                print(f"No multi-pick for {modelDisplayName}: {e}")
-
         # Keno is the only game with playable sub-selections (5-10 numbers
         # out of the full 20-number ticket) - mirrors
         # HyperoptDeepLearning.py's deepLearningMethod, reusing the DL
@@ -1441,6 +1444,21 @@ def deepLearningMethod(listOfDecodedPredictions, newPredictionRaw, unique_labels
                     nthPredictions["predictions"].append(subset)
             except Exception as e:
                 print("Failed to generate keno subsets: ", e)
+
+        # Probability order (lotto: plus the next three, the multi-pick), after
+        # keno's subsets so they are ordered too: the per-number probability
+        # summed over the main positions' softmax - the inclusion probability -
+        # as the keno subsets use it (the maximum over the positions until 8 Oct
+        # 2026 led most DL rows' ranking with the edge numbers 44 and 1 and put
+        # 45 among the extras). Only the main positions count: a star's or the
+        # dream number's softmax is over another pool sharing the same labels.
+        if orderedGame(gameName):
+            try:
+                mainsCount = probabilityOrder(gameName)[1]
+                mainRaw = newPredictionRaw[:mainsCount] if mainsCount and len(newPredictionRaw) > mainsCount else newPredictionRaw
+                applyMultiPick(gameName, nthPredictions, helpers.score_numbers_from_prediction(mainRaw, unique_labels))
+            except Exception as e:
+                print(f"No probability order for {modelDisplayName}: {e}")
 
         listOfDecodedPredictions.append(nthPredictions)
 
@@ -2439,7 +2457,7 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Meta-Learner prediction: ", e)
 
-    if multiPickConfig(name):
+    if orderedGame(name):
         mainSkip = specialColumnCount if specialColumnCount > 0 else skipLastColumns
         rankable = {
             "Markov Model": markov, "MarkovMonteCarlo Model": markovMonteCarlo, "MarkovBayesian Model": markovBayesian,
@@ -2580,7 +2598,7 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
             for key in modelSubsets:
                 prediction["predictions"].append(modelSubsets[key])
 
-            if multiPickConfig(name):
+            if orderedGame(name):
                 # the fit is cached, so the ranking costs a prediction pass only
                 try:
                     applyMultiPick(name, prediction, model.score_numbers(

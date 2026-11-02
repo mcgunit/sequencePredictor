@@ -1401,6 +1401,7 @@ export interface TuningGameView {
   notThisWeekend: number;
   weekends: string[];
   historyError: string | null;
+  untuned: boolean; // no bestParams file yet: no tuner has written this game's settings
   rows: GateRow[];
 }
 
@@ -2168,7 +2169,7 @@ function normTuningGame(raw: unknown, game: string): TuningGameView {
   return {
     game: g, group: groupName(r.group, g), unit: unitOf(r.unit, g), builtAt: ostr(r.builtAt), weekend: ostr(r.weekend),
     n: num(r.n, 0), replaced: num(r.replaced, 0), kept: num(r.kept, 0), reverted: num(r.reverted, 0), notThisWeekend: num(r.notThisWeekend, 0),
-    weekends: strs(r.weekends), historyError: ostr(r.historyError),
+    weekends: strs(r.weekends), historyError: ostr(r.historyError), untuned: r.untuned === true,
     rows: arr(r.rows as unknown[]).filter(has).map((x) => {
       const w = o(x);
       return {

@@ -24,6 +24,10 @@ Two things this module keeps honest:
   6" (they must) but "do the model's 7th-9th numbers hit more often than
   13.3%", and "do 9 model numbers beat the 8.4% that 9 random numbers get".
 
+The other number games (EuroMillions, EuroDreams, Vikinglotto, Keno) keep
+the same probability order since 2 Nov 2026, without the extras
+(PROBABILITY_ORDER, in_score_order).
+
     python3 -m src.MultiPick        # self-check (in npm test)
 """
 
@@ -36,6 +40,29 @@ MULTI_PICK = {
     "lotto": {"extra": 3, "pool": (1, 45), "draw": 6, "min_hits": 3, "grid_price": 1.5,
               "grids": {6: 1, 7: 7, 8: 28, 9: 84}},
 }
+
+
+# The number games whose tickets keep the row's own probability order, highest first (owner 2 Nov 2026, after lotto's of
+# 3 Oct: the order says which number the model rates highest, and whether the lower-rated places hit as often is a
+# fairness test): game -> how many leading numbers of a ticket are its mains, the rest (stars, the dream number, the
+# viking, lotto's bonus) left where they are; None orders the whole ticket (keno's tickets and subsets). Only lotto adds
+# the extras (MULTI_PICK). The positional games (pick3, Joker+, the markets) are not here: their order is the position.
+PROBABILITY_ORDER = {"vikinglotto": 6, "euromillions": 5, "eurodreams": 6, "keno": None, "lotto": 6}
+
+
+def order_for(name):
+    """(True, mains per ticket or None for the whole ticket) for a game kept in probability order, else (False, None)."""
+    text = str(name or "").lower()
+    for game, mains in PROBABILITY_ORDER.items():   # vikinglotto before lotto: its name contains lotto
+        if game in text:
+            return True, mains
+    return False, None
+
+
+def in_score_order(ticket, mains, scores):
+    """The ticket with its first `mains` numbers (all for None) in score order, highest first; the rest as they were."""
+    head, rest = (list(ticket), []) if mains is None else (list(ticket[:mains]), list(ticket[mains:]))
+    return ordered_and_extras(head, scores, extra=0)[0] + [int(n) for n in rest]
 
 
 def config_for(name):
@@ -123,6 +150,11 @@ def _self_check():
     assert table["per_size"][9]["price"] == 126.0 and table["per_size"][7]["price"] == 10.5 and table["per_size"][8]["grids"] == 28
     assert abs(table["per_extra"] - 6 / 45) < 1e-12
     assert hits([1, 2, 3, 4, 5, 6, 7, 8, 9], [3, 9, 20, 30, 40, 45]) == 2 and hits([], [1]) == 0
+    assert order_for("vikinglotto") == (True, 6) and order_for("data/database/euromillions") == (True, 5) and order_for("keno") == (True, None)
+    assert order_for("lotto") == (True, 6) and order_for("pick3") == (False, None) and order_for("jokerplus")[0] is False and order_for("crypto")[0] is False
+    stars = in_score_order([3, 7, 12, 21, 36, 2, 9], 5, scores)      # euromillions: five mains, then the two stars untouched
+    assert stars == [12, 3, 7, 21, 36, 2, 9], stars
+    assert in_score_order([40, 2, 12], None, scores) == [12, 2, 40] and in_score_order([5, 1], 6, None) == [5, 1]
     print(f"MultiPick self-check OK: 6 numbers win (3+) {six['win']:.2%}, 9 numbers {nine['win']:.2%} for "
           f"{table['per_size'][9]['price']:.0f} EUR; an extra number hits {table['per_extra']:.1%} by luck")
 

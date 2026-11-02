@@ -43,6 +43,13 @@ function Body({ d }: { d: TuningGameView }) {
     if (g) g.rows.push(r);
     else groups.push({ key, tuner: r.tuner, kind: r.kind, rows: [r] });
   });
+  if (d.untuned && !d.rows.length) {
+    return (
+      <section className="dsec">
+        <p className="line">Not tuned yet: no tuner has written this game&apos;s settings, so its rows run on their defaults until the next weekend&apos;s tuning.</p>
+      </section>
+    );
+  }
   return (
     <>
       <section className="dsec">

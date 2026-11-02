@@ -49,7 +49,7 @@ const ADMIN_GROUPS: Group[] = [
       { label: 'Best model & rankings', to: '/admin/models' },
       { label: 'Phase-shift', to: '/admin/phase-shift' },
       { label: 'Randomness watch', to: '/admin/randomness' },
-      { label: 'Games', to: '/admin/games', prefix: true },
+      { label: 'Games in detail', to: '/admin/games', prefix: true },
       // the market workbench, one item per market (owner 31 Oct 2026: the one line with two small links was unclear)
       { label: 'Crypto workbench', to: '/admin/markets/crypto' },
       { label: 'Shares workbench', to: '/admin/markets/shares' },
@@ -78,7 +78,7 @@ const HERE: [string, string][] = [
   ['/admin/randomness', 'Randomness'],
   ['/admin/jobs', 'Jobs & services'],
   ['/admin/people', 'People'],
-  ['/admin/games', 'Games'],
+  ['/admin/games', 'Games in detail'],
   ['/admin/markets/crypto', 'Crypto workbench'],
   ['/admin/markets/shares', 'Shares workbench'],
   ['/admin', 'This week'],

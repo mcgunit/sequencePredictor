@@ -38,9 +38,11 @@ export function nextText(n: NextDraw | null): string {
 
 // One coming ticket as cells: the numbers or digits, then the stars, dream, Viking number or Joker+'s sign as their own
 // group. Keno says how many tickets a row plays instead (a ranking line and one ticket per size).
-export function TicketNums({ shape, row }: { shape: Shape; row: Row }) {
+// numbers: the first played ticket's numbers for keno too, instead of the count of its tickets, and lotto's 7th-9th after
+// the six, shaded as on the Lottery page (Home's one line a row)
+export function TicketNums({ shape, row, numbers = false }: { shape: Shape; row: Row; numbers?: boolean }) {
   const played = row.tickets.filter((t) => t.kind !== 'ranking');
-  if (shape.family === 'keno') {
+  if (shape.family === 'keno' && !numbers) {
     const sizes = played.map((t) => t.mains.length).filter((n) => n > 0);
     const lo = Math.min(...sizes);
     const hi = Math.max(...sizes);
@@ -50,10 +52,14 @@ export function TicketNums({ shape, row }: { shape: Shape; row: Row }) {
   if (!t) return <span className="note">no ticket</span>;
   const sign = shape.family === 'jokerplus' ? (t.signName ?? (t.specials && t.specials.length ? String(t.specials[0]) : null)) : null;
   const specials = shape.family === 'specials' && t.specials ? t.specials : [];
+  const extras = numbers && row.multiPick ? row.multiPick.numbers : [];
   return (
     <span className="nums sm">
       {t.mains.map((v, i) => (
         <Nb key={i} v={v} />
+      ))}
+      {extras.map((v, i) => (
+        <Nb key={`x${i}`} v={v} extra />
       ))}
       {sign || specials.length ? (
         <>

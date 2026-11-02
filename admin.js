@@ -1733,8 +1733,9 @@ function install(app, options = {}) {
     const game = gameOf(req);
     if (!game) return { error: 'unknown game', status: 404 };
     const t = await readTuning();
-    if (t.missing.includes(game)) return { error: 'no bestParams file for this game', status: 404 };
-    return tuningGame(t.records, game, t.hist);
+    // no bestParams file (a game not tuned yet: the shares after their switch to Euronext, 2 Nov 2026, until the next
+    // weekend's tuners write one) is a view with no rows that says so, not a 404
+    return { ...tuningGame(t.records, game, t.hist), untuned: t.missing.includes(game) };
   }));
   app.get('/api/admin/week', (req, res) => answerLater(res, async () => {
     const [t, live] = await Promise.all([readTuning(), liveStatus()]);

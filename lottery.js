@@ -333,8 +333,8 @@ function overviewOf(dirs, hist, report, now = new Date()) {
 }
 
 // --- GET /api/home ---------------------------------------------------------------------------------------------------
-// Lottery: per game the next draw, today's top pick (the first of today's five, its tickets) and the last draw's
-// figures over the five ranked before it. Crypto and Shares: api.js marketView's headline - following the plan (the
+// Lottery: per game the next draw and today's five in rank order, each with its first played ticket only (Home shows one
+// line of numbers per row, no words - owner 2 Nov 2026), and the last draw's figures over the five ranked before it. Crypto and Shares: api.js marketView's headline - following the plan (the
 // day and week positions together, live days only) against buying everything over the same days, its window (since,
 // through, days) - and today's positions: to buy (now or at the open) and held.
 function marketHeadline(dirs, market, now) {
@@ -356,7 +356,7 @@ function homeOf(dirs, hist, report, now = new Date()) {
     builtAt: isoNow(now),
     lottery: overview.games.map((g) => (g.empty ? g : {
       game: g.game, unit: g.unit, shape: g.shape, next: g.next,
-      top: g.coming.rows[0] || null, rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
+      tops: g.coming.rows.map((r) => ({ ...r, tickets: r.tickets.filter((t) => t.kind !== 'ranking').slice(0, 1) })), rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
       last: { date: g.last.date, rows: g.last.rows ? g.last.rows.length : 0, figures: g.last.figures || null, none: g.last.none || (g.last.scope ? g.last.scope.none : null), leftOut: g.last.leftOut || null,
         afterClose: Boolean(g.last.afterClose) },
     })),

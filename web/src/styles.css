@@ -825,6 +825,7 @@ details.fold > summary .mut { color: var(--muted); }
 .hgame-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .hgame-h a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .hgame-h a:hover { text-decoration: underline; }
+.htops { display: grid; gap: 4px; margin-top: 2px; }
 .hgame > small, .hgame-h small { color: var(--muted); font-size: var(--fs-xs); overflow-wrap: anywhere; }
 .hfig { display: grid; gap: 2px; margin-bottom: 8px; }
 .hfig .k { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; }
