@@ -1,6 +1,6 @@
 {
  "market": "cryptoweek",
- "generated_at": "2026-11-02T11:43:49+00:00",
+ "generated_at": "2026-11-03T09:56:03+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -17,13 +17,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 78354.0,
-   "last_date": "2026-11-01",
+   "last_close": 76816.0,
+   "last_date": "2026-11-02",
    "closes": [
-    [
-     "2025-11-02",
-     110540.68
-    ],
     [
      "2025-11-03",
      106583.04
@@ -1479,20 +1475,13 @@
     [
      "2026-11-01",
      78354.0
+    ],
+    [
+     "2026-11-02",
+     76816.0
     ]
    ],
    "edges": [
-    [
-     -0.091142,
-     -0.043361,
-     -0.019073,
-     -0.006813,
-     0.005387,
-     0.018647,
-     0.039211,
-     0.069932,
-     0.110198
-    ],
     null,
     null,
     null,
@@ -2376,10 +2365,10 @@
      0.035036,
      0.063037,
      0.099109
-    ]
+    ],
+    null
    ],
    "moves": [
-    -0.03570987,
     null,
     null,
     null,
@@ -2743,7 +2732,8 @@
     null,
     null,
     null,
-    -0.02271389
+    -0.02271389,
+    null
    ],
    "course": {
     "Markov Model": [
@@ -2879,7 +2869,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -3111,7 +3100,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "MarkovMonteCarlo Model": [
      null,
@@ -3246,7 +3236,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -3478,7 +3467,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "PoissonMonteCarlo Model": [
      null,
@@ -3613,7 +3603,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -3845,7 +3834,8 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "LaplaceMonteCarlo Model": [
      null,
@@ -3980,7 +3970,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -4212,7 +4201,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "OrderStatistics Baseline": [
      null,
@@ -4347,7 +4337,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -4579,7 +4568,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "GARCH Model": [
      null,
@@ -4714,7 +4704,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -4946,7 +4935,8 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "Regime HMM Model": [
      null,
@@ -5081,7 +5071,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -5313,7 +5302,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM ZeroMean Model": [
      null,
@@ -5448,7 +5438,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -5680,7 +5669,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Regime HMM Single Model": [
      null,
@@ -5815,7 +5805,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -6047,7 +6036,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Transformer Model": [
      null,
@@ -6182,7 +6172,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -6414,7 +6403,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "GNN Model": [
      null,
@@ -6549,7 +6539,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -6781,7 +6770,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Autoencoder Model": [
      null,
@@ -6916,7 +6906,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7148,7 +7137,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "XGBoost Model": [
      null,
@@ -7283,7 +7273,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7515,7 +7504,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "LightGBM Model": [
      null,
@@ -7650,7 +7640,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7882,7 +7871,8 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "CatBoost Model": [
      null,
@@ -8017,7 +8007,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -8249,10 +8238,10 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -8616,10 +8605,10 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -8983,7 +8972,8 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "LSTM Base Model": [
      null,
@@ -9328,7 +9318,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -9350,7 +9339,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "TCN Base Model": [
      null,
@@ -9695,7 +9685,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -9717,7 +9706,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "UnifiedLstmTcn Model": [
      null,
@@ -10062,7 +10052,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -10084,7 +10073,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "UnifiedLstmGruTcn Model": [
      null,
@@ -10429,7 +10419,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -10451,7 +10440,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Chronos Model": [
      null,
@@ -10803,7 +10793,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -10818,10 +10807,10 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "TimesFM Model": [
-     null,
      null,
      null,
      null,
@@ -11185,7 +11174,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "MetaLearner Model": [
      null,
@@ -11537,7 +11527,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -11552,7 +11541,8 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "MetaLearnerV2 Model": [
      null,
@@ -11904,7 +11894,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -11919,7 +11908,8 @@
      null,
      null,
      null,
-     8
+     8,
+     null
     ],
     "QuantumMetaLearner Model": [
      null,
@@ -12271,7 +12261,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -12286,7 +12275,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "QuantumVQC Model": [
      null,
@@ -12638,7 +12628,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -12653,10 +12642,10 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -13020,7 +13009,8 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "SubsetEnsemble Model": [
      null,
@@ -13372,7 +13362,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -13387,7 +13376,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "LSTM Smoothed Model": [
      null,
@@ -13753,8 +13743,8 @@
      null,
      null,
      null,
-     null,
-     4
+     4,
+     null
     ]
    }
   },
@@ -13765,13 +13755,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 2275.31,
-   "last_date": "2026-11-01",
+   "last_close": 2253.29,
+   "last_date": "2026-11-02",
    "closes": [
-    [
-     "2025-11-02",
-     3906.58
-    ],
     [
      "2025-11-03",
      3603.83
@@ -15227,20 +15213,13 @@
     [
      "2026-11-01",
      2275.31
+    ],
+    [
+     "2026-11-02",
+     2253.29
     ]
    ],
    "edges": [
-    [
-     -0.111677,
-     -0.068317,
-     -0.032541,
-     -0.014051,
-     0.004683,
-     0.029416,
-     0.059518,
-     0.090302,
-     0.134248
-    ],
     null,
     null,
     null,
@@ -16124,10 +16103,10 @@
      0.0492,
      0.077274,
      0.128555
-    ]
+    ],
+    null
    ],
    "moves": [
-    -0.0624825,
     null,
     null,
     null,
@@ -16491,7 +16470,8 @@
     null,
     null,
     null,
-    -0.02369617
+    -0.02369617,
+    null
    ],
    "course": {
     "Markov Model": [
@@ -16627,7 +16607,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -16859,7 +16838,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "MarkovMonteCarlo Model": [
      null,
@@ -16994,7 +16974,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -17226,7 +17205,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "PoissonMonteCarlo Model": [
      null,
@@ -17361,7 +17341,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -17593,7 +17572,8 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "LaplaceMonteCarlo Model": [
      null,
@@ -17728,7 +17708,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -17960,7 +17939,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "OrderStatistics Baseline": [
      null,
@@ -18095,7 +18075,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18327,7 +18306,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "GARCH Model": [
      null,
@@ -18462,7 +18442,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -18694,7 +18673,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "Regime HMM Model": [
      null,
@@ -18829,7 +18809,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -19061,7 +19040,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Regime HMM ZeroMean Model": [
      null,
@@ -19196,7 +19176,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -19428,7 +19407,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Regime HMM Single Model": [
      null,
@@ -19563,7 +19543,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -19795,7 +19774,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Transformer Model": [
      null,
@@ -19930,7 +19910,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -20162,7 +20141,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "GNN Model": [
      null,
@@ -20297,7 +20277,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -20529,7 +20508,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Autoencoder Model": [
      null,
@@ -20664,7 +20644,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -20896,10 +20875,10 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -21263,10 +21242,10 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -21630,7 +21609,8 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "CatBoost Model": [
      null,
@@ -21765,7 +21745,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -21997,7 +21976,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "WeightedEnsemble Model": [
      null,
@@ -22132,7 +22112,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -22364,7 +22343,8 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "RL Position Model": [
      null,
@@ -22499,7 +22479,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -22731,7 +22710,8 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "LSTM Base Model": [
      null,
@@ -23076,7 +23056,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -23098,7 +23077,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "TCN Base Model": [
      null,
@@ -23443,7 +23423,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -23465,7 +23444,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "UnifiedLstmTcn Model": [
      null,
@@ -23810,7 +23790,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -23832,7 +23811,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "UnifiedLstmGruTcn Model": [
      null,
@@ -24177,7 +24157,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -24199,7 +24178,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Chronos Model": [
      null,
@@ -24551,7 +24531,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -24566,7 +24545,8 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "TimesFM Model": [
      null,
@@ -24918,7 +24898,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -24933,7 +24912,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "MetaLearner Model": [
      null,
@@ -25285,7 +25265,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -25300,7 +25279,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "MetaLearnerV2 Model": [
      null,
@@ -25652,7 +25632,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -25667,7 +25646,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "QuantumMetaLearner Model": [
      null,
@@ -26019,7 +25999,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -26034,10 +26013,10 @@
      null,
      null,
      null,
-     9
+     9,
+     null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -26401,10 +26380,10 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -26768,7 +26747,8 @@
      null,
      null,
      null,
-     0
+     0,
+     null
     ],
     "SubsetEnsemble Model": [
      null,
@@ -27120,7 +27100,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -27135,7 +27114,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LSTM Smoothed Model": [
      null,
@@ -27501,8 +27481,8 @@
      null,
      null,
      null,
-     null,
-     5
+     5,
+     null
     ]
    }
   },
@@ -27513,13 +27493,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 712.69,
-   "last_date": "2026-11-01",
+   "last_close": 699.25,
+   "last_date": "2026-11-02",
    "closes": [
-    [
-     "2025-11-02",
-     1083.25
-    ],
     [
      "2025-11-03",
      993.54
@@ -28975,20 +28951,13 @@
     [
      "2026-11-01",
      712.69
+    ],
+    [
+     "2026-11-02",
+     699.25
     ]
    ],
    "edges": [
-    [
-     -0.091553,
-     -0.050128,
-     -0.025286,
-     -0.013231,
-     0.003104,
-     0.026584,
-     0.051366,
-     0.07847,
-     0.11684
-    ],
     null,
     null,
     null,
@@ -29872,10 +29841,10 @@
      0.045698,
      0.073359,
      0.106802
-    ]
+    ],
+    null
    ],
    "moves": [
-    -0.0494735,
     null,
     null,
     null,
@@ -30239,7 +30208,8 @@
     null,
     null,
     null,
-    -0.0358318
+    -0.0358318,
+    null
    ],
    "course": {
     "Markov Model": [
@@ -30375,7 +30345,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -30607,7 +30576,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "MarkovMonteCarlo Model": [
      null,
@@ -30742,7 +30712,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -30974,7 +30943,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "PoissonMonteCarlo Model": [
      null,
@@ -31109,7 +31079,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -31341,7 +31310,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LaplaceMonteCarlo Model": [
      null,
@@ -31476,7 +31446,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -31708,7 +31677,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "OrderStatistics Baseline": [
      null,
@@ -31843,7 +31813,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -32075,7 +32044,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "GARCH Model": [
      null,
@@ -32210,7 +32180,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -32442,7 +32411,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM Model": [
      null,
@@ -32577,7 +32547,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -32809,7 +32778,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Regime HMM ZeroMean Model": [
      null,
@@ -32944,7 +32914,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -33176,7 +33145,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Regime HMM Single Model": [
      null,
@@ -33311,7 +33281,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -33543,7 +33512,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Transformer Model": [
      null,
@@ -33678,7 +33648,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -33910,7 +33879,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "GNN Model": [
      null,
@@ -34045,7 +34015,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -34277,7 +34246,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "Autoencoder Model": [
      null,
@@ -34412,7 +34382,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -34644,7 +34613,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "XGBoost Model": [
      null,
@@ -34779,7 +34749,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -35011,7 +34980,8 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "LightGBM Model": [
      null,
@@ -35146,7 +35116,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -35378,7 +35347,8 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "CatBoost Model": [
      null,
@@ -35513,7 +35483,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -35745,10 +35714,10 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -36112,10 +36081,10 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -36479,7 +36448,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LSTM Base Model": [
      null,
@@ -36824,7 +36794,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -36846,7 +36815,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "TCN Base Model": [
      null,
@@ -37191,7 +37161,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -37213,7 +37182,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "UnifiedLstmTcn Model": [
      null,
@@ -37558,7 +37528,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -37580,10 +37549,10 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "UnifiedLstmGruTcn Model": [
-     null,
      null,
      null,
      null,
@@ -37947,7 +37916,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Chronos Model": [
      null,
@@ -38299,7 +38269,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -38314,7 +38283,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "TimesFM Model": [
      null,
@@ -38666,7 +38636,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -38681,10 +38650,10 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "MetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -39048,10 +39017,10 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "MetaLearnerV2 Model": [
-     null,
      null,
      null,
      null,
@@ -39415,10 +39384,10 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -39782,10 +39751,10 @@
      null,
      null,
      null,
-     9
+     9,
+     null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -40149,10 +40118,10 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -40516,7 +40485,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "SubsetEnsemble Model": [
      null,
@@ -40868,7 +40838,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -40883,7 +40852,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LSTM Smoothed Model": [
      null,
@@ -41249,8 +41219,8 @@
      null,
      null,
      null,
-     null,
-     5
+     5,
+     null
     ]
    }
   },
@@ -41261,13 +41231,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 1.2507,
-   "last_date": "2026-11-01",
+   "last_close": 1.2502,
+   "last_date": "2026-11-02",
    "closes": [
-    [
-     "2025-11-02",
-     2.5267
-    ],
     [
      "2025-11-03",
      2.3096
@@ -42723,20 +42689,13 @@
     [
      "2026-11-01",
      1.2507
+    ],
+    [
+     "2026-11-02",
+     1.2502
     ]
    ],
    "edges": [
-    [
-     -0.126056,
-     -0.071724,
-     -0.049393,
-     -0.02575,
-     -0.00575,
-     0.021355,
-     0.043395,
-     0.072923,
-     0.139226
-    ],
     null,
     null,
     null,
@@ -43620,10 +43579,10 @@
      0.040585,
      0.065463,
      0.131708
-    ]
+    ],
+    null
    ],
    "moves": [
-    -0.04617275,
     null,
     null,
     null,
@@ -43987,7 +43946,8 @@
     null,
     null,
     null,
-    -0.03573351
+    -0.03573351,
+    null
    ],
    "course": {
     "Markov Model": [
@@ -44123,7 +44083,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -44355,7 +44314,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "MarkovMonteCarlo Model": [
      null,
@@ -44490,7 +44450,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -44722,7 +44681,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "PoissonMonteCarlo Model": [
      null,
@@ -44857,7 +44817,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -45089,7 +45048,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "LaplaceMonteCarlo Model": [
      null,
@@ -45224,7 +45184,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -45456,7 +45415,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "OrderStatistics Baseline": [
      null,
@@ -45591,7 +45551,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -45823,7 +45782,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "GARCH Model": [
      null,
@@ -45958,7 +45918,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -46190,7 +46149,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM Model": [
      null,
@@ -46325,7 +46285,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -46557,7 +46516,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM ZeroMean Model": [
      null,
@@ -46692,7 +46652,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -46924,7 +46883,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM Single Model": [
      null,
@@ -47059,7 +47019,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -47291,7 +47250,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Transformer Model": [
      null,
@@ -47426,7 +47386,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -47658,7 +47617,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "GNN Model": [
      null,
@@ -47793,7 +47753,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -48025,7 +47984,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "Autoencoder Model": [
      null,
@@ -48160,7 +48120,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -48392,10 +48351,10 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -48759,10 +48718,10 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -49126,10 +49085,10 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -49493,10 +49452,10 @@
      null,
      null,
      null,
-     6
+     6,
+     null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -49860,10 +49819,10 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -50227,7 +50186,8 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "LSTM Base Model": [
      null,
@@ -50572,7 +50532,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -50594,7 +50553,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "TCN Base Model": [
      null,
@@ -50939,7 +50899,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -50961,7 +50920,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "UnifiedLstmTcn Model": [
      null,
@@ -51306,7 +51266,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -51328,7 +51287,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "UnifiedLstmGruTcn Model": [
      null,
@@ -51673,7 +51633,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -51695,7 +51654,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "Chronos Model": [
      null,
@@ -52047,7 +52007,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -52062,7 +52021,8 @@
      null,
      null,
      null,
-     8
+     8,
+     null
     ],
     "TimesFM Model": [
      null,
@@ -52414,7 +52374,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -52429,10 +52388,10 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "MetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -52796,10 +52755,10 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "MetaLearnerV2 Model": [
-     null,
      null,
      null,
      null,
@@ -53163,10 +53122,10 @@
      null,
      null,
      null,
-     2
+     2,
+     null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -53530,10 +53489,10 @@
      null,
      null,
      null,
-     0
+     0,
+     null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -53897,10 +53856,10 @@
      null,
      null,
      null,
-     8
+     8,
+     null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -54264,10 +54223,10 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "SubsetEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -54631,7 +54590,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "LSTM Smoothed Model": [
      null,
@@ -54997,8 +54957,8 @@
      null,
      null,
      null,
-     null,
-     3
+     3,
+     null
     ]
    }
   },
@@ -55009,13 +54969,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 94.53,
-   "last_date": "2026-11-01",
+   "last_close": 91.98,
+   "last_date": "2026-11-02",
    "closes": [
-    [
-     "2025-11-02",
-     187.71
-    ],
     [
      "2025-11-03",
      166.06
@@ -56471,20 +56427,13 @@
     [
      "2026-11-01",
      94.53
+    ],
+    [
+     "2026-11-02",
+     91.98
     ]
    ],
    "edges": [
-    [
-     -0.161573,
-     -0.103436,
-     -0.062633,
-     -0.029753,
-     -0.0023,
-     0.048838,
-     0.080215,
-     0.122545,
-     0.229123
-    ],
     null,
     null,
     null,
@@ -57368,10 +57317,10 @@
      0.062906,
      0.117017,
      0.211003
-    ]
+    ],
+    null
    ],
    "moves": [
-    -0.06356914,
     null,
     null,
     null,
@@ -57735,7 +57684,8 @@
     null,
     null,
     null,
-    -0.07015585
+    -0.07015585,
+    null
    ],
    "course": {
     "Markov Model": [
@@ -57871,7 +57821,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -58103,7 +58052,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "MarkovMonteCarlo Model": [
      null,
@@ -58238,7 +58188,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -58470,7 +58419,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "PoissonMonteCarlo Model": [
      null,
@@ -58605,7 +58555,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -58837,7 +58786,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LaplaceMonteCarlo Model": [
      null,
@@ -58972,7 +58922,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -59204,7 +59153,8 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "OrderStatistics Baseline": [
      null,
@@ -59339,7 +59289,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -59571,7 +59520,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "GARCH Model": [
      null,
@@ -59706,7 +59656,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -59938,7 +59887,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM Model": [
      null,
@@ -60073,7 +60023,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -60305,7 +60254,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM ZeroMean Model": [
      null,
@@ -60440,7 +60390,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -60672,7 +60621,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Regime HMM Single Model": [
      null,
@@ -60807,7 +60757,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -61039,7 +60988,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Transformer Model": [
      null,
@@ -61174,7 +61124,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -61406,7 +61355,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "GNN Model": [
      null,
@@ -61541,7 +61491,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -61773,7 +61722,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Autoencoder Model": [
      null,
@@ -61908,7 +61858,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -62140,7 +62089,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "XGBoost Model": [
      null,
@@ -62275,7 +62225,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -62507,7 +62456,8 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "LightGBM Model": [
      null,
@@ -62642,7 +62592,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -62874,10 +62823,10 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -63241,10 +63190,10 @@
      null,
      null,
      null,
-     7
+     7,
+     null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -63608,7 +63557,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "RL Position Model": [
      null,
@@ -63743,7 +63693,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -63975,7 +63924,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LSTM Base Model": [
      null,
@@ -64320,7 +64270,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -64342,7 +64291,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "TCN Base Model": [
      null,
@@ -64687,7 +64637,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -64709,7 +64658,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "UnifiedLstmTcn Model": [
      null,
@@ -65054,7 +65004,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -65076,7 +65025,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "UnifiedLstmGruTcn Model": [
      null,
@@ -65421,7 +65371,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -65443,7 +65392,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "Chronos Model": [
      null,
@@ -65795,7 +65745,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -65810,7 +65759,8 @@
      null,
      null,
      null,
-     4
+     4,
+     null
     ],
     "TimesFM Model": [
      null,
@@ -66162,7 +66112,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -66177,7 +66126,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "MetaLearner Model": [
      null,
@@ -66529,7 +66479,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -66544,7 +66493,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "MetaLearnerV2 Model": [
      null,
@@ -66896,7 +66846,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -66911,10 +66860,10 @@
      null,
      null,
      null,
-     3
+     3,
+     null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -67278,10 +67227,10 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -67645,10 +67594,10 @@
      null,
      null,
      null,
-     1
+     1,
+     null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -68012,7 +67961,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "SubsetEnsemble Model": [
      null,
@@ -68364,7 +68314,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -68379,7 +68328,8 @@
      null,
      null,
      null,
-     5
+     5,
+     null
     ],
     "LSTM Smoothed Model": [
      null,
@@ -68745,8 +68695,8 @@
      null,
      null,
      null,
-     null,
-     4
+     4,
+     null
     ]
    }
   }
@@ -93689,12 +93639,14 @@
    "live_weeks": 1,
    "live_positions": 1,
    "now": {
-    "running_day": "2026-11-02",
+    "running_day": "2026-11-03",
     "first_day": "2026-11-02",
     "last_day": false,
     "week_model": "PoissonMonteCarlo Model",
     "day_model": "GARCH Model",
-    "settled_days": [],
+    "settled_days": [
+     "2026-11-02"
+    ],
     "symbols": {
      "BNB": {
       "action": "out",
@@ -93708,8 +93660,8 @@
       "trades": []
      },
      "SOL": {
-      "action": "buy",
-      "reason": "start",
+      "action": "hold",
+      "reason": null,
       "entry": "2026-11-02",
       "scale": 1.0,
       "entry_price": 94.53,
@@ -93724,7 +93676,7 @@
   "orders": {
    "market": "cryptoweek",
    "game": "week",
-   "generated_at": "2026-11-02T11:43:49+00:00",
+   "generated_at": "2026-11-03T09:56:03+00:00",
    "since": "2026-10-13",
    "rule": "buy at market when the week card appears if the week call is up and Monday's daily call is up, a sell limit at X (the bin's lower edge from Sunday's close), sold at the limit, at market when a daily card turns the coin flat or down (cancel the limit first), or at market when next Monday's week card appears (12:00 UTC Monday at the latest); one round trip per coin per week, no buy-back",
    "constants": {
@@ -94046,17 +93998,17 @@
        "limits": [
         83052.45510808
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-26T10:25:00+00:00",
        "entry_price": 80432.0,
        "limit": 83052.45510808,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.032094,
+       "money": -3.3553,
+       "provisional": false,
        "limit_pct": 3.206
       },
       {
@@ -94239,33 +94191,33 @@
        "status": "skip",
        "reason": "target below fees",
        "entry_at": "2026-11-02T11:44:00+00:00",
-       "entry_price": 93.93,
+       "entry_price": 93.95,
        "limit": 93.94658263,
        "exit_kind": null,
        "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
-       "provisional": true,
-       "limit_pct": 0.018
+       "provisional": false,
+       "limit_pct": -0.004
       }
      ],
      "stats": {
       "orders": 1,
-      "closed": 0,
-      "open": 1,
+      "closed": 1,
+      "open": 0,
       "pending": 0,
       "filled": 0,
       "early": 0,
-      "time_stop": 0,
+      "time_stop": 1,
       "skips": {
        "daily call not up": 10,
        "target below fees": 1
       },
       "not_followable": 1,
-      "total": 0,
+      "total": -3.3553,
       "wins": 0,
-      "estimated": 0,
+      "estimated": 1,
       "rolls": 0
      }
     },
@@ -94562,17 +94514,17 @@
        "limits": [
         84212.56638569
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-26T10:25:00+00:00",
        "entry_price": 80432.0,
        "limit": 84212.56638569,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.032094,
+       "money": -3.3553,
+       "provisional": false,
        "limit_pct": 4.593
       },
       {
@@ -94755,32 +94707,32 @@
        "status": "open",
        "reason": null,
        "entry_at": "2026-11-02T11:44:00+00:00",
-       "entry_price": 93.93,
+       "entry_price": 93.95,
        "limit": 96.05613144,
        "exit_kind": null,
        "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
-       "provisional": true,
-       "limit_pct": 2.238
+       "provisional": false,
+       "limit_pct": 2.217
       }
      ],
      "stats": {
       "orders": 2,
-      "closed": 0,
-      "open": 2,
+      "closed": 1,
+      "open": 1,
       "pending": 0,
       "filled": 0,
       "early": 0,
-      "time_stop": 0,
+      "time_stop": 1,
       "skips": {
        "daily call not up": 10
       },
       "not_followable": 1,
-      "total": 0,
+      "total": -3.3553,
       "wins": 0,
-      "estimated": 0,
+      "estimated": 1,
       "rolls": 0
      }
     },
@@ -95077,17 +95029,17 @@
        "limits": [
         83649.28
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-26T10:25:00+00:00",
        "entry_price": 80432.0,
        "limit": 83649.28,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.032094,
+       "money": -3.3553,
+       "provisional": false,
        "limit_pct": 3.922
       },
       {
@@ -95227,11 +95179,11 @@
        "live": true,
        "rolls": 0,
        "limits": [
-        732.8984
+        732.6696
        ],
        "status": "skip",
        "reason": "daily call not up",
-       "limit": 732.8984,
+       "limit": 732.6696,
        "entry_at": null,
        "entry_price": null,
        "exit_kind": null,
@@ -95265,37 +95217,37 @@
        "live": true,
        "rolls": 0,
        "limits": [
-        97.6872
+        97.708
        ],
        "status": "open",
        "reason": null,
        "entry_at": "2026-11-02T11:44:00+00:00",
-       "entry_price": 93.93,
-       "limit": 97.6872,
+       "entry_price": 93.95,
+       "limit": 97.708,
        "exit_kind": null,
        "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
-       "provisional": true,
+       "provisional": false,
        "limit_pct": 3.922
       }
      ],
      "stats": {
       "orders": 2,
-      "closed": 0,
-      "open": 2,
+      "closed": 1,
+      "open": 1,
       "pending": 0,
       "filled": 0,
       "early": 0,
-      "time_stop": 0,
+      "time_stop": 1,
       "skips": {
        "daily call not up": 10
       },
       "not_followable": 1,
-      "total": 0,
+      "total": -3.3553,
       "wins": 0,
-      "estimated": 0,
+      "estimated": 1,
       "rolls": 0
      }
     }
@@ -95787,15 +95739,15 @@
        "status": "skip",
        "reason": "target below fees",
        "entry_at": "2026-11-02T11:44:00+00:00",
-       "entry_price": 93.93,
+       "entry_price": 93.95,
        "limit": 93.94658263,
        "exit_kind": null,
        "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
-       "provisional": true,
-       "limit_pct": 0.018
+       "provisional": false,
+       "limit_pct": -0.004
       }
      ],
      "stats": {
@@ -96303,15 +96255,15 @@
        "status": "open",
        "reason": null,
        "entry_at": "2026-11-02T11:44:00+00:00",
-       "entry_price": 93.93,
+       "entry_price": 93.95,
        "limit": 96.05613144,
        "exit_kind": null,
        "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
-       "provisional": true,
-       "limit_pct": 2.238
+       "provisional": false,
+       "limit_pct": 2.217
       }
      ],
      "stats": {
@@ -96775,11 +96727,11 @@
        "live": true,
        "rolls": 0,
        "limits": [
-        732.8984
+        732.6696
        ],
        "status": "skip",
        "reason": "daily call not up",
-       "limit": 732.8984,
+       "limit": 732.6696,
        "entry_at": null,
        "entry_price": null,
        "exit_kind": null,
@@ -96813,19 +96765,19 @@
        "live": true,
        "rolls": 0,
        "limits": [
-        97.6872
+        97.708
        ],
        "status": "open",
        "reason": null,
        "entry_at": "2026-11-02T11:44:00+00:00",
-       "entry_price": 93.93,
-       "limit": 97.6872,
+       "entry_price": 93.95,
+       "limit": 97.708,
        "exit_kind": null,
        "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
-       "provisional": true,
+       "provisional": false,
        "limit_pct": 3.922
       }
      ],
@@ -96864,9 +96816,9 @@
      ],
      [
       "2026-11-01",
-      0,
-      0,
-      false
+      5,
+      -21.3105,
+      true
      ],
      [
       "2026-11-08",
@@ -96877,15 +96829,15 @@
     ],
     "stats": {
      "orders": 20,
-     "closed": 10,
-     "open": 10,
+     "closed": 15,
+     "open": 5,
      "pending": 0,
      "filled": 0,
      "early": 0,
-     "time_stop": 10,
+     "time_stop": 15,
      "skips": {},
      "not_followable": 0,
-     "total": 19.4316,
+     "total": -1.8789,
      "wins": 6,
      "estimated": 0,
      "rolls": 0
@@ -96912,20 +96864,20 @@
     ],
     "stats": {
      "orders": 1,
-     "closed": 0,
-     "open": 1,
+     "closed": 1,
+     "open": 0,
      "pending": 0,
      "filled": 0,
      "early": 0,
-     "time_stop": 0,
+     "time_stop": 1,
      "skips": {
       "daily call not up": 10,
       "target below fees": 1
      },
      "not_followable": 1,
-     "total": 0,
+     "total": -3.3553,
      "wins": 0,
-     "estimated": 0,
+     "estimated": 1,
      "rolls": 0
     }
    },
@@ -96958,33 +96910,33 @@
    "coverage": {
     "BTC": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-02T10:00:00+00:00",
-     "1h_bars": 460,
-     "1m_bars": 3241
+     "1h_last": "2026-11-03T08:00:00+00:00",
+     "1h_bars": 482,
+     "1m_bars": 3433
     },
     "ETH": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-02T10:00:00+00:00",
-     "1h_bars": 460,
-     "1m_bars": 3241
+     "1h_last": "2026-11-03T08:00:00+00:00",
+     "1h_bars": 482,
+     "1m_bars": 3433
     },
     "BNB": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-02T10:00:00+00:00",
-     "1h_bars": 460,
-     "1m_bars": 3241
+     "1h_last": "2026-11-03T08:00:00+00:00",
+     "1h_bars": 482,
+     "1m_bars": 3433
     },
     "XRP": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-02T10:00:00+00:00",
-     "1h_bars": 460,
-     "1m_bars": 3241
+     "1h_last": "2026-11-03T08:00:00+00:00",
+     "1h_bars": 482,
+     "1m_bars": 3433
     },
     "SOL": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-02T10:00:00+00:00",
-     "1h_bars": 460,
-     "1m_bars": 3241
+     "1h_last": "2026-11-03T08:00:00+00:00",
+     "1h_bars": 482,
+     "1m_bars": 3433
     }
    },
    "now": {
@@ -96997,7 +96949,7 @@
     "variant": "edge",
     "deadline_fallback": "2026-11-09T12:00:00+00:00",
     "deadline_text": "Mon 9 Nov 13:00",
-    "running_day": "2026-11-02",
+    "running_day": "2026-11-03",
     "day_model": "GARCH Model",
     "symbols": {
      "BTC": {
@@ -97057,8 +97009,8 @@
       "call": "up",
       "bin": 5,
       "limit": 93.94658262541334,
-      "entry_price": 93.93,
-      "limit_pct": 0.018,
+      "entry_price": 93.95,
+      "limit_pct": -0.004,
       "reason": "target below fees",
       "state": "skip",
       "exit_kind": null,
@@ -97066,7 +97018,22 @@
       "money": null
      }
     },
-    "late": {}
+    "late": {
+     "BNB": {
+      "shown": false,
+      "reason": "daily call not up",
+      "price": null,
+      "gap_pct": null,
+      "limit": 766.93757104
+     },
+     "SOL": {
+      "shown": true,
+      "reason": null,
+      "price": 92.38,
+      "gap_pct": 1.682,
+      "limit": 93.94658263
+     }
+    }
    },
    "late_rule": "a late entry is shown on a day card Tuesday to Sunday when the week call is up, that day's daily call is up, the price is at least 1 % below the limit and the deadline is at least 24 h away; each showing is booked as its own position (the same limit, early exit and deadline) in a separate record",
    "late": {
@@ -97130,17 +97097,17 @@
        "limits": [
         83052.45510808
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-27T10:22:00+00:00",
        "entry_price": 79597.11,
        "limit": 83052.45510808,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.02166,
+       "money": -2.3406,
+       "provisional": false,
        "limit_pct": 4.249
       },
       {
@@ -97166,17 +97133,17 @@
        "limits": [
         83052.45510808
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-28T10:25:00+00:00",
        "entry_price": 81554.14,
        "limit": 83052.45510808,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.045949,
+       "money": -4.6865,
+       "provisional": false,
        "limit_pct": 1.821
       },
       {
@@ -97201,17 +97168,17 @@
        "limits": [
         83052.45510808
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-29T10:36:00+00:00",
        "entry_price": 80291.23,
        "limit": 83052.45510808,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.030343,
+       "money": -3.1857,
+       "provisional": false,
        "limit_pct": 3.381
       },
       {
@@ -97234,17 +97201,17 @@
        "limits": [
         83052.45510808
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-31T02:03:00+00:00",
        "entry_price": 77398.01,
        "limit": 83052.45510808,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": 0.006357,
+       "money": 0.4371,
+       "provisional": false,
        "limit_pct": 7.051
       },
       {
@@ -97266,17 +97233,17 @@
        "limits": [
         83052.45510808
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-11-01T10:06:00+00:00",
        "entry_price": 78094.01,
        "limit": 83052.45510808,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.002596,
+       "money": -0.459,
+       "provisional": false,
        "limit_pct": 6.156
       },
       {
@@ -97299,17 +97266,17 @@
        "limits": [
         100.78852654
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-31T02:03:00+00:00",
        "entry_price": 96.7,
        "limit": 100.78852654,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 93.95,
+       "move": -0.028851,
+       "money": -3.041,
+       "provisional": false,
        "limit_pct": 4.141
       },
       {
@@ -97331,37 +97298,74 @@
        "limits": [
         100.78852654
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-11-01T10:06:00+00:00",
        "entry_price": 95.45,
        "limit": 100.78852654,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
+       "exit_price": 93.95,
+       "move": -0.01584,
+       "money": -1.7699,
+       "provisional": false,
+       "limit_pct": 5.442
+      },
+      {
+       "interval": "2026-11-08",
+       "days": [
+        "2026-11-03",
+        "2026-11-04",
+        "2026-11-05",
+        "2026-11-06",
+        "2026-11-07",
+        "2026-11-08"
+       ],
+       "symbol": "SOL",
+       "model": "PoissonMonteCarlo Model",
+       "bin": 5,
+       "scale": 1.0,
+       "variant": "edge",
+       "kind": "late",
+       "published_at": "2026-11-03T09:55:58+00:00",
+       "estimated": false,
+       "base_close": 91.98,
+       "live": true,
+       "rolls": 0,
+       "limits": [
+        93.94658263
+       ],
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-11-03T09:56:00+00:00",
+       "entry_price": 92.38,
+       "limit": 93.94658263,
+       "exit_kind": null,
+       "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
        "provisional": true,
-       "limit_pct": 5.442
+       "limit_pct": 1.682
       }
      ],
      "stats": {
-      "orders": 8,
-      "closed": 1,
-      "open": 7,
+      "orders": 9,
+      "closed": 8,
+      "open": 1,
       "pending": 0,
       "filled": 0,
       "early": 1,
-      "time_stop": 0,
+      "time_stop": 7,
       "skips": {},
       "not_followable": 0,
-      "total": -3.6996,
-      "wins": 0,
-      "estimated": 1,
+      "total": -18.7452,
+      "wins": 1,
+      "estimated": 6,
       "rolls": 0
      },
      "refused": {
-      "daily call not up": 51
+      "daily call not up": 52
      }
     },
     "mid": {
@@ -97424,17 +97428,17 @@
        "limits": [
         84212.56638569
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-27T10:22:00+00:00",
        "entry_price": 79597.11,
        "limit": 84212.56638569,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.02166,
+       "money": -2.3406,
+       "provisional": false,
        "limit_pct": 5.637
       },
       {
@@ -97460,17 +97464,17 @@
        "limits": [
         84212.56638569
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-28T10:25:00+00:00",
        "entry_price": 81554.14,
        "limit": 84212.56638569,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.045949,
+       "money": -4.6865,
+       "provisional": false,
        "limit_pct": 3.208
       },
       {
@@ -97495,17 +97499,17 @@
        "limits": [
         84212.56638569
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-29T10:36:00+00:00",
        "entry_price": 80291.23,
        "limit": 84212.56638569,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.030343,
+       "money": -3.1857,
+       "provisional": false,
        "limit_pct": 4.768
       },
       {
@@ -97528,17 +97532,17 @@
        "limits": [
         84212.56638569
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-31T02:03:00+00:00",
        "entry_price": 77398.01,
        "limit": 84212.56638569,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": 0.006357,
+       "money": 0.4371,
+       "provisional": false,
        "limit_pct": 8.438
       },
       {
@@ -97560,17 +97564,17 @@
        "limits": [
         84212.56638569
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-11-01T10:06:00+00:00",
        "entry_price": 78094.01,
        "limit": 84212.56638569,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.002596,
+       "money": -0.459,
+       "provisional": false,
        "limit_pct": 7.543
       },
       {
@@ -97593,17 +97597,17 @@
        "limits": [
         103.0842613
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-31T02:03:00+00:00",
        "entry_price": 96.7,
        "limit": 103.0842613,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 93.95,
+       "move": -0.028851,
+       "money": -3.041,
+       "provisional": false,
        "limit_pct": 6.393
       },
       {
@@ -97625,37 +97629,74 @@
        "limits": [
         103.0842613
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-11-01T10:06:00+00:00",
        "entry_price": 95.45,
        "limit": 103.0842613,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
+       "exit_price": 93.95,
+       "move": -0.01584,
+       "money": -1.7699,
+       "provisional": false,
+       "limit_pct": 7.694
+      },
+      {
+       "interval": "2026-11-08",
+       "days": [
+        "2026-11-03",
+        "2026-11-04",
+        "2026-11-05",
+        "2026-11-06",
+        "2026-11-07",
+        "2026-11-08"
+       ],
+       "symbol": "SOL",
+       "model": "PoissonMonteCarlo Model",
+       "bin": 5,
+       "scale": 1.0,
+       "variant": "mid",
+       "kind": "late",
+       "published_at": "2026-11-03T09:55:58+00:00",
+       "estimated": false,
+       "base_close": 91.98,
+       "live": true,
+       "rolls": 0,
+       "limits": [
+        96.05613144
+       ],
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-11-03T09:56:00+00:00",
+       "entry_price": 92.38,
+       "limit": 96.05613144,
+       "exit_kind": null,
+       "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
        "provisional": true,
-       "limit_pct": 7.694
+       "limit_pct": 3.902
       }
      ],
      "stats": {
-      "orders": 8,
-      "closed": 1,
-      "open": 7,
+      "orders": 9,
+      "closed": 8,
+      "open": 1,
       "pending": 0,
       "filled": 0,
       "early": 1,
-      "time_stop": 0,
+      "time_stop": 7,
       "skips": {},
       "not_followable": 0,
-      "total": -3.6996,
-      "wins": 0,
-      "estimated": 1,
+      "total": -18.7452,
+      "wins": 1,
+      "estimated": 6,
       "rolls": 0
      },
      "refused": {
-      "daily call not up": 51
+      "daily call not up": 52
      }
     },
     "fixed": {
@@ -97718,17 +97759,17 @@
        "limits": [
         83649.28
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-27T10:22:00+00:00",
        "entry_price": 79597.11,
        "limit": 83649.28,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.02166,
+       "money": -2.3406,
+       "provisional": false,
        "limit_pct": 4.966
       },
       {
@@ -97754,17 +97795,17 @@
        "limits": [
         83649.28
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-28T10:25:00+00:00",
        "entry_price": 81554.14,
        "limit": 83649.28,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.045949,
+       "money": -4.6865,
+       "provisional": false,
        "limit_pct": 2.537
       },
       {
@@ -97789,17 +97830,17 @@
        "limits": [
         83649.28
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-29T10:36:00+00:00",
        "entry_price": 80291.23,
        "limit": 83649.28,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.030343,
+       "money": -3.1857,
+       "provisional": false,
        "limit_pct": 4.097
       },
       {
@@ -97822,17 +97863,17 @@
        "limits": [
         83649.28
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-31T02:03:00+00:00",
        "entry_price": 77398.01,
        "limit": 83649.28,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": 0.006357,
+       "money": 0.4371,
+       "provisional": false,
        "limit_pct": 7.767
       },
       {
@@ -97854,17 +97895,17 @@
        "limits": [
         83649.28
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-11-01T10:06:00+00:00",
        "entry_price": 78094.01,
        "limit": 83649.28,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 77891.57,
+       "move": -0.002596,
+       "money": -0.459,
+       "provisional": false,
        "limit_pct": 6.872
       },
       {
@@ -97887,17 +97928,17 @@
        "limits": [
         105.5496
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-10-31T02:03:00+00:00",
        "entry_price": 96.7,
        "limit": 105.5496,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
-       "exit_price": null,
-       "move": null,
-       "money": null,
-       "provisional": true,
+       "exit_price": 93.95,
+       "move": -0.028851,
+       "money": -3.041,
+       "provisional": false,
        "limit_pct": 8.757
       },
       {
@@ -97919,37 +97960,74 @@
        "limits": [
         105.5496
        ],
-       "status": "open",
+       "status": "closed",
        "reason": null,
        "entry_at": "2026-11-01T10:06:00+00:00",
        "entry_price": 95.45,
        "limit": 105.5496,
        "exit_kind": "next card",
        "exit_at": "2026-11-02T11:44:00+00:00",
+       "exit_price": 93.95,
+       "move": -0.01584,
+       "money": -1.7699,
+       "provisional": false,
+       "limit_pct": 10.058
+      },
+      {
+       "interval": "2026-11-08",
+       "days": [
+        "2026-11-03",
+        "2026-11-04",
+        "2026-11-05",
+        "2026-11-06",
+        "2026-11-07",
+        "2026-11-08"
+       ],
+       "symbol": "SOL",
+       "model": "PoissonMonteCarlo Model",
+       "bin": 5,
+       "scale": 1.0,
+       "variant": "fixed",
+       "kind": "late",
+       "published_at": "2026-11-03T09:55:58+00:00",
+       "estimated": false,
+       "base_close": 91.98,
+       "live": true,
+       "rolls": 0,
+       "limits": [
+        97.708
+       ],
+       "status": "open",
+       "reason": null,
+       "entry_at": "2026-11-03T09:56:00+00:00",
+       "entry_price": 92.38,
+       "limit": 97.708,
+       "exit_kind": null,
+       "exit_at": null,
        "exit_price": null,
        "move": null,
        "money": null,
        "provisional": true,
-       "limit_pct": 10.058
+       "limit_pct": 5.607
       }
      ],
      "stats": {
-      "orders": 8,
-      "closed": 1,
-      "open": 7,
+      "orders": 9,
+      "closed": 8,
+      "open": 1,
       "pending": 0,
       "filled": 0,
       "early": 1,
-      "time_stop": 0,
+      "time_stop": 7,
       "skips": {},
       "not_followable": 0,
-      "total": -3.6996,
-      "wins": 0,
-      "estimated": 1,
+      "total": -18.7452,
+      "wins": 1,
+      "estimated": 6,
       "rolls": 0
      },
      "refused": {
-      "daily call not up": 51
+      "daily call not up": 52
      }
     }
    }
@@ -98235,7 +98313,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": null
+    "traded_since": "2026-11-02"
    },
    "ETH": {
     "last_close": 2275.31,
@@ -98512,7 +98590,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": null
+    "traded_since": "2026-11-02"
    },
    "BNB": {
     "last_close": 712.69,
@@ -98789,7 +98867,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": null
+    "traded_since": "2026-11-02"
    },
    "XRP": {
     "last_close": 1.2507,
@@ -99066,7 +99144,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": null
+    "traded_since": "2026-11-02"
    },
    "SOL": {
     "last_close": 94.53,
@@ -99343,7 +99421,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": null
+    "traded_since": "2026-11-02"
    }
   }
  },
