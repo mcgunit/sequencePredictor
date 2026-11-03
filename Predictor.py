@@ -47,6 +47,7 @@ from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
 from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder, order_for as probabilityOrder, in_score_order as inScoreOrder
+from src.PrizeTables import game_of as prizeTableGame, backfill as prizeBackfill
 from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, effective_members, positional_vote, voter_count, subset_vote_scores
 
 tcn = TCNModel()
@@ -2788,6 +2789,19 @@ if __name__ == "__main__":
                             dataFetcher.getLatestData(gameName, filePath)
                         except Exception as e:
                             print(f"Data fetch failed for {dataset_name} - continuing with the existing CSV: {e}")
+                        # The prize tables of every draw this game has scored
+                        # tickets for (src/PrizeTables.py, 3 Nov 2026): the
+                        # fetch above keeps the new draws' tables, this fills
+                        # in the older ones once - a few requests the first
+                        # time, none after. A failure costs profit, never the run.
+                        prizeGame = prizeTableGame(dataset_name)
+                        if prizeGame:
+                            try:
+                                ticketDays = [f for f in os.listdir(os.path.join(path, "data", "database", dataset_name))
+                                              if f.endswith(".json") and f[:4].isdigit()]
+                                prizeBackfill(dataPath, prizeGame, ticketDays)
+                            except Exception as e:
+                                print(f"Prize tables for {dataset_name} could not be filled in: {e}")
                         #os.remove(os.path.join(dataPath, file))
                     else:
                         command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)

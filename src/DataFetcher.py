@@ -23,6 +23,15 @@ def zodiac_codec():
     return encode_zodiac, decode_zodiac
 
 
+def prize_tables():
+    """src/PrizeTables, imported the way zodiac_codec imports Helpers (from the repo root or from within src/)."""
+    try:
+        from src import PrizeTables
+    except ImportError:
+        import PrizeTables
+    return PrizeTables
+
+
 class DataFetcher():
     startDate = int(time.time() - (2*24*3600)) * 1000 #((current time in seconds) - (days in seconds)) * 1000 for ms
     endDate = int(time.time()) * 1000
@@ -108,7 +117,18 @@ class DataFetcher():
         data = response.json()
         
         draws = data.get("draws", [])
-        
+
+        # Lotto, EuroMillions and EuroDreams: the same answer carries each
+        # draw's prize tiers - kept next to the CSV for the profit of their
+        # tickets (src/PrizeTables.py, 3 Nov 2026). A table that cannot be
+        # kept costs the profit of that draw, never its numbers.
+        prizeGame = prize_tables().game_of(os.path.basename(os.path.dirname(filePath)))
+        if prizeGame and not dryRun:
+            try:
+                prize_tables().record(os.path.dirname(filePath), prizeGame, draws)
+            except Exception as e:
+                print(f"Prize tables for {prizeGame} could not be kept: {e}")
+
         rows = []
         for draw in draws:
             draw_date = datetime.utcfromtimestamp(draw["drawTime"] / 1000).strftime("%Y-%m-%d")

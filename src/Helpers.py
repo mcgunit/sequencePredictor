@@ -11,6 +11,10 @@ try:
     from src.MultiPick import config_for as multi_pick_config, hits as multi_pick_hits, chance_table as multi_pick_chance_table
 except ImportError:  # imported from within src/
     from MultiPick import config_for as multi_pick_config, hits as multi_pick_hits, chance_table as multi_pick_chance_table
+try:
+    from src import PrizeTables
+except ImportError:  # imported from within src/
+    import PrizeTables
 
 
 # ---------------------------------------------------------------------------
@@ -676,6 +680,11 @@ class Helpers():
           (the boosting rows are weeks old, the statistical rows months) and
           bet different numbers of Keno subsets, so totals aren't comparable.
           Joker+ bets its 7-value main ticket once per draw.
+        - lotto/euromillions/eurodreams (3 Nov 2026, src/PrizeTables.py): the
+          same profit bound, each row's one grid scored against its draw's
+          own prize table from the draw API; a draw without a table has no
+          bet, a game without any table ranks on average hits as below. The
+          combination search stays on hits for these three.
         - every other game: average MAIN-number hits of the model's main
           ticket. avg_hits/best_hits/hits_total count main hits only - the
           special columns (stars/dream/viking) live in their own smaller range
@@ -767,6 +776,18 @@ class Helpers():
             recoveredDraws = {}                 # name -> recovered draws in the live record
 
             hasPayout = "keno" in game or "pick3" in game or is_jokerplus(game)
+            # Lotto, EuroMillions, EuroDreams: each draw's own prize table
+            # (src/PrizeTables.py, 3 Nov 2026). With tables the game ranks on
+            # the profit bound like the payout games (moneyRank); a draw
+            # without one is scored on hits only, a game without any keeps
+            # average hits. The combination search stays on hits for them
+            # (hasPayout): its shuffled-history control would need every
+            # ticket scored against every other draw's table.
+            prizeGame = None if is_market_game(game) else PrizeTables.game_of(game)
+            prizes = (PrizeTables.load(os.path.join(os.path.dirname(os.path.abspath(databaseDir)), "trainingData", game), prizeGame)
+                      if prizeGame else {})
+            prizeTypical = PrizeTables.typical_amounts(prizes)
+            moneyRank = hasPayout or any(entry.get("tiers") for entry in prizes.values())
             # Games with a modeled special pool get their own special-hit
             # average; for every other game the field stays None.
             gameSpecialCount = next(
@@ -787,7 +808,7 @@ class Helpers():
             # games' bets - added to statsTable[name] (the per-row aggregates) and kept in rowsTable[name] (the day's
             # row record). The all-history record and the live record (27 Oct 2026: the recovered tickets swapped in,
             # the late ones left out) are both scored here, so they cannot drift apart.
-            def scoreRow(model, realResult, statsTable, rowsTable):
+            def scoreRow(model, realResult, statsTable, rowsTable, prize=None):
                 name = model.get("name")
                 predictions = model.get("predictions") or []
                 entry = statsTable.setdefault(name, {
@@ -888,6 +909,16 @@ class Helpers():
                         rowProfit += profit
                         rowBets += 1
                         betList.append(float(profit))
+                elif prize is not None:
+                    # One grid of the row's own ticket against its draw's table (lotto: the six, never the extras)
+                    profit = PrizeTables.ticket_profit(prizeGame, ticketMains, ticketSpecials, realResult[:realMainCount],
+                                                       realResult[realMainCount:], prize, prizeTypical)
+                    if profit is not None:
+                        entry["profit_total"] += profit
+                        entry["bets"] += 1
+                        rowProfit += profit
+                        rowBets += 1
+                        betList.append(float(profit))
                 if betList:
                     entry["bets_by_day"].append(betList)
 
@@ -954,6 +985,7 @@ class Helpers():
 
                 seen, statuses, dayStatuses = {}, {}, []
                 dayKey = self._day_key(dayDate) if dayDate is not None else None
+                dayPrize = prizes.get(dayKey) if dayKey else None
                 # the live record's rows of this day; None when the game's liveness could not be judged
                 liveRows = {} if judged is not None else None
                 for model in scoredModels:
@@ -961,7 +993,7 @@ class Helpers():
                     predictions = model.get("predictions") or []
                     if not name or not predictions or not predictions[0]:
                         continue
-                    scoreRow(model, realResult, stats, dayRecord["rows"])
+                    scoreRow(model, realResult, stats, dayRecord["rows"], dayPrize)
                     occurrence = seen.get(name, 0)
                     seen[name] = occurrence + 1
                     if liveRows is None:
@@ -969,7 +1001,7 @@ class Helpers():
                     try:
                         status, liveModel = Liveness.ticket_for(judged, dayKey, name, occurrence, model)
                         if liveModel is not None:
-                            liveRow = scoreRow(liveModel, realResult, liveStats, liveRows)
+                            liveRow = scoreRow(liveModel, realResult, liveStats, liveRows, dayPrize)
                             if status == "recovered":
                                 recoveredDraws[name] = recoveredDraws.get(name, 0) + 1
                                 liveTally["auditRows"] += 1
@@ -1028,7 +1060,7 @@ class Helpers():
                     "draws": entry["draws"],
                     "avg_hits": round(avgHits, 3),
                     # payout games: what the ranking reads (profit_bound, 13 Oct 2026)
-                    "profit_bound": self._profit_bound(entry["bets_by_day"]) if hasPayout else None,
+                    "profit_bound": self._profit_bound(entry["bets_by_day"]) if moneyRank else None,
                     "avg_special_hits": avgSpecialHits,
                     "best_hits": entry["best_hits"],
                     "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
@@ -1066,7 +1098,7 @@ class Helpers():
             if not models:
                 continue
 
-            if hasPayout:
+            if moneyRank:
                 # The capped-profit bound of src/TuningScore.score_bets_by_day (keno's tuning objective; pick3's and Joker+'s
                 # tuning scores slot hits first and uses it as a tie-breaker): per draw the capped profit
                 # per bet - each bet capped at the 20 EUR lucky-strike threshold, a keno bet against a fair ticket of
@@ -1224,7 +1256,7 @@ class Helpers():
                         "best_hits": entry["best_hits"],
                         "profit_total": round(entry["profit_total"], 2) if entry["bets"] else None,
                         "profit_per_bet": round(entry["profit_total"] / entry["bets"], 3) if entry["bets"] else None,
-                        "profit_bound": self._profit_bound(entry["bets_by_day"]) if hasPayout else None,
+                        "profit_bound": self._profit_bound(entry["bets_by_day"]) if moneyRank else None,
                         "bets": entry["bets"],
                     } for name, entry in sinceStats.items()]
                     sinceMinDraws = min(10, max(m["draws"] for m in sinceModels))

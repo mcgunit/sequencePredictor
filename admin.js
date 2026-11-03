@@ -197,13 +197,16 @@ const readAll = (dirs) => Object.fromEntries(GAMES.map((game) => [game, readCont
 const gameInfo = (report, game) => (report && report.games && report.games[game] && Array.isArray(report.games[game].models) ? report.games[game] : null);
 // today: the names in the game's newest day file (ranking.namesToday), or null - then the first five of the ranking
 const topOf = (report, game, today = null) => rankings.usersTop(report, game, today);
+// the games paid from each draw's own prize table (src/PrizeTables.py, 3 Nov 2026)
+const PRIZE_TABLE_GAMES = ['lotto', 'euromillions', 'eurodreams'];
 const isMoney = (metric) => metric === 'profit_bound' || metric === 'profit_per_bet';
 // What a game's ranking value measures, in words: its unit, and for a profit bound its cap, its bound and what it
 // is measured against.
 function measureOf(game, metric) {
   if (metric === 'profit_bound') {
     return { unit: 'EUR per bet', text: rankings.METRIC_TEXT.profit_bound, capEur: 20, bound: 'mean minus 1 SE over the draws',
-      against: game === 'keno' ? 'a fair ticket of its size (0 = a fair ticket; not money won)' : 'the payout table (money)' };
+      against: game === 'keno' ? 'a fair ticket of its size (0 = a fair ticket; not money won)'
+        : (PRIZE_TABLE_GAMES.includes(game) ? "each draw's own prize table (money; one grid a row)" : 'the payout table (money)') };
   }
   if (metric === 'profit_per_bet') return { unit: 'EUR per bet', text: rankings.METRIC_TEXT.profit_per_bet, against: 'the payout table (money)' };
   return { unit: 'hits per draw', text: rankings.METRIC_TEXT.avg_hits };
