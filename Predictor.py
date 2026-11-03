@@ -33,7 +33,7 @@ from src.Baselines import ColumnFrequencyBaseline
 from src.TransformerModel import TransformerModel
 from src.GNN import GNNModel
 from src.AutoencoderAnomaly import AutoencoderAnomaly
-from src.RLTicketModel import RLTicketModel
+from src.RLTicketModel import RLTicketModel, voted_specials
 from src.RLPositionModel import RLPositionModel
 from src.XGBoost import XGBoostPredictor, XGBoostMultiLabelPredictor
 from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
@@ -1207,8 +1207,10 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
             mainLabels = np.arange(1, 41)
         # Main-ticket size from an existing row (rows append special columns
         # after the mains); fall back to the caller's draw-derived size. The
-        # RL row predicts main numbers only - specials have their own range
-        # and payout logic that ticket construction can't arbitrage.
+        # RL policy builds the main numbers only - specials have their own
+        # range and payout logic that ticket construction can't arbitrage -
+        # and takes its special column(s) from the other rows' votes
+        # (voted_specials; until 3 Nov 2026 the row was stored mains-only).
         rowWithTicket = next((row for row in listOfDecodedPredictions if row.get("predictions") and row["predictions"][0]), None)
         if rowWithTicket is not None:
             drawSize = len(rowWithTicket["predictions"][0]) - specialColumnCount
@@ -1237,6 +1239,13 @@ def addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
                     applyMultiPick(name, rlRow, rlTicket.lastScores)
                 except Exception as e:
                     print(f"No multi-pick for RL Ticket Model: {e}")
+            if specialColumnCount and not gameConfig["isPick3"]:
+                specials = voted_specials(listOfDecodedPredictions, drawSize, specialColumnCount)
+                if specials:
+                    rlRow["predictions"] = [list(ticket[:drawSize]) + specials if ticket else ticket
+                                            for ticket in rlRow["predictions"]]
+                else:
+                    print("RL Ticket Model: no row voted the special column - stored with its main numbers only")
             listOfDecodedPredictions.append(rlRow)
     except Exception as e:
         print("Failed to perform RL Ticket Model prediction: ", e)

@@ -234,13 +234,16 @@ def ticket_profit(game, mains, specials, real_mains, real_specials, entry, typic
     Net EUR of one grid (GRID) on a draw: the tier its hits reach (special hits
     against the draw's specials; Lotto has none on the ticket - its bonus
     number counts when one of the six is it) minus the draw's price. None
-    when the draw has no table or no price.
+    when the draw has no table or no price, or when the ticket is not a full
+    grid: fewer mains, or fewer specials than the game plays (the RL Ticket
+    rows stored before 3 Nov 2026 without their stars, dream or viking) - such
+    a draw counts on hits only.
     """
     if not entry or not entry.get("price") or not entry.get("tiers"):
         return None
     numbers, stars = GRID[game]
     mains, specials = list(mains)[:numbers], list(specials)[:stars]
-    if len(mains) < numbers:
+    if len(mains) < numbers or len(specials) < stars:
         return None
     main_hits = len(set(map(int, mains)) & set(map(int, real_mains)))
     special_hits = len(set(map(int, mains if game == "lotto" else specials)) & set(map(int, real_specials)))
@@ -283,6 +286,7 @@ def _self_check():
     dreams = {"price": 2.5, "jackpot": None, "tiers": [{"name": "6+1", "mains": 6, "special": 1, "amount": 0.0},
                                                        {"name": "5/", "mains": 5, "special": None, "amount": 381.3}]}
     assert ticket_profit("eurodreams", real, [3], real, [3], dreams) == 7200000.0 - 2.5
+    assert ticket_profit("eurodreams", real, [], real, [3], dreams) is None                 # no dream number: hits only
     assert ticket_profit("eurodreams", [1, 2, 3, 4, 5, 40], [2], real, [3], dreams) == 378.8   # 5 and any dream
     assert typical_amounts({"a": {"tiers": [{"name": "5+1", "amount": 10}]}, "b": {"tiers": [{"name": "5+1", "amount": 30}, {"name": "6", "amount": 0}]}}) == {"5+1": 20.0}
 

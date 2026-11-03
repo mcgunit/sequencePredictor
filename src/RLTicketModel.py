@@ -18,6 +18,32 @@ from Helpers import Helpers
 helpers = Helpers()
 
 
+def voted_specials(rows, mainCount, specialCount):
+    """
+    The special column(s) of the RL Ticket row: the values the other rows of
+    the day put there most often (owner decision of 3 Nov 2026). The policy
+    builds the main numbers only, and until then the row was stored without
+    them - EuroMillions without its two stars, EuroDreams without the dream
+    number, Vikinglotto without the viking: a ticket nobody can play, scored
+    as if its specials could never hit. Votes count once per row (its first
+    ticket); a row without its full special column does not vote. The
+    specialCount distinct values with the most votes, ties to the smaller
+    value; [] when no row votes - the row then stays mains-only.
+    """
+    votes = {}
+    for row in rows:
+        tickets = row.get("predictions") if isinstance(row, dict) else None
+        ticket = tickets[0] if tickets else None
+        if not ticket or len(ticket) < mainCount + specialCount:
+            continue
+        for value in set(int(v) for v in ticket[mainCount:mainCount + specialCount]):
+            votes[value] = votes.get(value, 0) + 1
+    if len(votes) < specialCount:
+        return []
+    ranked = sorted(votes, key=lambda value: (-votes[value], value))[:specialCount]
+    return sorted(ranked)
+
+
 class RLTicketModel():
     """
     Reinforcement-learned TICKET CONSTRUCTION, not number prediction.
@@ -760,3 +786,21 @@ class RLTicketModel():
                 else:
                     predictions = [sorted(int(n) for n in candidates[:drawSize])]
             return {"name": "RL Ticket Model", "predictions": predictions}
+
+
+def _self_check():
+    rows = [{"name": "A", "predictions": [[1, 2, 3, 4, 5, 7, 9]]},
+            {"name": "B", "predictions": [[6, 7, 8, 9, 10, 9, 2]]},
+            {"name": "C", "predictions": [[1, 2, 3, 4, 5, 9, 3]]},
+            {"name": "short", "predictions": [[1, 2, 3, 4, 5]]},
+            {"name": "empty", "predictions": []}]
+    assert voted_specials(rows, 5, 2) == [2, 9]            # 9 three votes; 2, 3 and 7 one each: the smaller
+    assert voted_specials(rows[3:], 5, 2) == []            # nobody votes: mains-only
+    assert voted_specials([{"predictions": [[1, 2, 3, 4, 5, 6, 4]]}, {"predictions": [[1, 2, 3, 4, 5, 6, 4]]},
+                           {"predictions": [[1, 2, 3, 4, 5, 6, 1]]}], 6, 1) == [4]
+    assert voted_specials(rows, 5, 0) == []
+    print("RLTicketModel self-check OK")
+
+
+if __name__ == "__main__":
+    _self_check()
