@@ -1347,9 +1347,51 @@
     1,
     2
    ]
+  },
+  {
+   "date": "2026-11-04",
+   "row": "Regime HMM Model",
+   "regimes": 4,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 2,
+   "volatility_rank": 3,
+   "label": "normal",
+   "probability": 0.9999640125883558,
+   "weights": [
+    3.588732561820348e-05,
+    1.0008602597168497e-07,
+    0.9999640125883558,
+    1.6019024354972996e-21
+   ],
+   "expected_return": [
+    -0.0023341726414143654,
+    -0.000629386717862379,
+    -1.3278567126948575e-05,
+    0.0015558133240758181,
+    -0.0010685749922525558
+   ],
+   "volatility": [
+    0.015025492862013228,
+    0.016083012881280407,
+    0.013702661882434183,
+    0.015513069359561697,
+    0.022606184515826275
+   ],
+   "template": 1,
+   "template_distance": 0.2997881449975244,
+   "templates": [
+    5,
+    3,
+    1,
+    2
+   ]
   }
  ],
- "updated": "2026-11-03",
+ "updated": "2026-11-04",
  "Regime HMM ZeroMean Model": [
   {
    "date": "2026-09-17",
@@ -2642,6 +2684,44 @@
     2,
     3
    ]
+  },
+  {
+   "date": "2026-11-04",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "turbulent",
+   "probability": 0.9998481204799189,
+   "weights": [
+    0.9998481204799189,
+    0.00015187952008105125
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.03158314099403471,
+    0.03602334720298156,
+    0.029865390714141564,
+    0.03350577888337251,
+    0.02909883144826587
+   ],
+   "template": 2,
+   "template_distance": 0.061264116980148,
+   "templates": [
+    2,
+    3
+   ]
   }
  ],
  "Regime HMM Single Model": [
@@ -3793,6 +3873,42 @@
    ],
    "template": 1,
    "template_distance": 0.013771742919135977,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-11-04",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.0030940854165279145,
+    -0.0006616173621824711,
+    -0.001431310482560545,
+    0.0031555250257727287,
+    0.002825865159360167
+   ],
+   "volatility": [
+    0.01774823005499728,
+    0.02017412211013313,
+    0.017125537622322343,
+    0.019186399396780324,
+    0.01829299276444276
+   ],
+   "template": 1,
+   "template_distance": 0.012645571231412217,
    "templates": [
     1
    ]

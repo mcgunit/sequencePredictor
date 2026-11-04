@@ -1,6 +1,6 @@
 {
  "market": "sharesweek",
- "generated_at": "2026-11-03T19:18:42+00:00",
+ "generated_at": "2026-11-04T17:41:51+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -17,13 +17,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "SHELL.AS",
-   "last_close": 46.515,
-   "last_date": "2026-11-03",
+   "last_close": 45.64,
+   "last_date": "2026-11-04",
    "closes": [
-    [
-     "2025-06-03",
-     29.96
-    ],
     [
      "2025-06-04",
      29.6
@@ -1479,10 +1475,13 @@
     [
      "2026-11-03",
      46.515
+    ],
+    [
+     "2026-11-04",
+     45.64
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     [
@@ -2586,10 +2585,10 @@
      0.039604
     ],
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     0.0223284,
@@ -2953,6 +2952,7 @@
     null,
     0.00794023,
     null,
+    null,
     null
    ],
    "course": {
@@ -3174,7 +3174,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -3320,6 +3319,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -3541,7 +3541,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -3687,6 +3686,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -3908,7 +3908,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -4054,6 +4053,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -4275,7 +4275,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -4421,6 +4420,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -4642,7 +4642,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -4788,6 +4787,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -5009,7 +5009,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -5155,6 +5154,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -5376,7 +5376,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -5522,6 +5521,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -5743,7 +5743,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -5889,6 +5888,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -6110,7 +6110,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -6256,6 +6255,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -6477,7 +6477,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -6623,6 +6622,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -6844,7 +6844,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -6990,6 +6989,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -7211,7 +7211,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -7357,6 +7356,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -7578,7 +7578,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -7724,6 +7723,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -7945,7 +7945,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -8091,6 +8090,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -8312,7 +8312,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -8458,6 +8457,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -8679,7 +8679,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -8825,6 +8824,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -9046,7 +9046,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -9193,6 +9192,7 @@
      null,
      4,
      null,
+     null,
      null
     ]
    }
@@ -9204,13 +9204,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "INGA.AS",
-   "last_close": 27.715,
-   "last_date": "2026-11-03",
+   "last_close": 29.095,
+   "last_date": "2026-11-04",
    "closes": [
-    [
-     "2025-06-03",
-     18.411234
-    ],
     [
      "2025-06-04",
      18.401304
@@ -10666,10 +10662,13 @@
     [
      "2026-11-03",
      27.715
+    ],
+    [
+     "2026-11-04",
+     29.095
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     [
@@ -11773,10 +11772,10 @@
      0.051481
     ],
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     -0.00429183,
@@ -12140,6 +12139,7 @@
     null,
     -0.00722916,
     null,
+    null,
     null
    ],
    "course": {
@@ -12361,7 +12361,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -12507,6 +12506,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -12728,7 +12728,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -12874,6 +12873,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -13095,7 +13095,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -13241,6 +13240,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -13462,7 +13462,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -13608,6 +13607,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -13829,7 +13829,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -13975,6 +13974,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -14196,7 +14196,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -14342,6 +14341,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -14563,7 +14563,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -14709,6 +14708,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -14930,7 +14930,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -15076,6 +15075,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -15297,7 +15297,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -15443,6 +15442,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -15664,7 +15664,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -15810,6 +15809,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -16031,7 +16031,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -16177,6 +16176,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -16398,7 +16398,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -16544,6 +16543,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -16765,7 +16765,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -16911,6 +16910,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -17132,7 +17132,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -17278,6 +17277,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -17499,7 +17499,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -17645,6 +17644,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -17866,7 +17866,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18012,6 +18011,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -18233,7 +18233,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18380,6 +18379,7 @@
      null,
      5,
      null,
+     null,
      null
     ]
    }
@@ -18391,13 +18391,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "ABI.BR",
-   "last_close": 72.98,
-   "last_date": "2026-11-03",
+   "last_close": 75.28,
+   "last_date": "2026-11-04",
    "closes": [
-    [
-     "2025-06-03",
-     62.22
-    ],
     [
      "2025-06-04",
      62.78
@@ -19853,10 +19849,13 @@
     [
      "2026-11-03",
      72.98
+    ],
+    [
+     "2026-11-04",
+     75.28
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     [
@@ -20960,10 +20959,10 @@
      0.042587
     ],
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     0.00225407,
@@ -21327,6 +21326,7 @@
     null,
     -0.04669687,
     null,
+    null,
     null
    ],
    "course": {
@@ -21548,7 +21548,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -21694,6 +21693,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -21915,7 +21915,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -22061,6 +22060,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -22282,7 +22282,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -22428,6 +22427,7 @@
      null,
      null,
      8,
+     null,
      null,
      null
     ],
@@ -22649,7 +22649,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -22795,6 +22794,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -23016,7 +23016,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -23162,6 +23161,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -23383,7 +23383,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -23529,6 +23528,7 @@
      null,
      null,
      8,
+     null,
      null,
      null
     ],
@@ -23750,7 +23750,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -23896,6 +23895,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -24117,7 +24117,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -24263,6 +24262,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -24484,7 +24484,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -24630,6 +24629,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -24851,7 +24851,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -24997,6 +24996,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -25218,7 +25218,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -25364,6 +25363,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -25585,7 +25585,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -25731,6 +25730,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -25952,7 +25952,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -26098,6 +26097,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -26319,7 +26319,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -26465,6 +26464,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -26686,7 +26686,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -26832,6 +26831,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -27053,7 +27053,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -27199,6 +27198,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -27420,7 +27420,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -27567,6 +27566,7 @@
      null,
      9,
      null,
+     null,
      null
     ]
    }
@@ -27578,13 +27578,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "KBC.BR",
-   "last_close": 113.6,
-   "last_date": "2026-11-03",
+   "last_close": 116.8,
+   "last_date": "2026-11-04",
    "closes": [
-    [
-     "2025-06-03",
-     87.36
-    ],
     [
      "2025-06-04",
      86.36
@@ -29040,10 +29036,13 @@
     [
      "2026-11-03",
      113.6
+    ],
+    [
+     "2026-11-04",
+     116.8
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     [
@@ -30147,10 +30146,10 @@
      0.043444
     ],
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     0.0036731,
@@ -30514,6 +30513,7 @@
     null,
     0.0030722,
     null,
+    null,
     null
    ],
    "course": {
@@ -30735,7 +30735,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -30881,6 +30880,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -31102,7 +31102,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -31248,6 +31247,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -31469,7 +31469,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -31615,6 +31614,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -31836,7 +31836,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -31982,6 +31981,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -32203,7 +32203,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -32349,6 +32348,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -32570,7 +32570,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -32716,6 +32715,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -32937,7 +32937,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -33083,6 +33082,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -33304,7 +33304,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -33450,6 +33449,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -33671,7 +33671,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -33817,6 +33816,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -34038,7 +34038,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -34184,6 +34183,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -34405,7 +34405,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -34551,6 +34550,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -34772,7 +34772,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -34918,6 +34917,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -35139,7 +35139,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -35285,6 +35284,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -35506,7 +35506,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -35652,6 +35651,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -35873,7 +35873,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -36019,6 +36018,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -36240,7 +36240,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -36386,6 +36385,7 @@
      null,
      null,
      6,
+     null,
      null,
      null
     ],
@@ -36607,7 +36607,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -36754,6 +36753,7 @@
      null,
      6,
      null,
+     null,
      null
     ]
    }
@@ -36765,13 +36765,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "UCB.BR",
-   "last_close": 276.5,
-   "last_date": "2026-11-03",
+   "last_close": 282.6,
+   "last_date": "2026-11-04",
    "closes": [
-    [
-     "2025-06-03",
-     158.95
-    ],
     [
      "2025-06-04",
      161.45
@@ -38227,10 +38223,13 @@
     [
      "2026-11-03",
      276.5
+    ],
+    [
+     "2026-11-04",
+     282.6
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     [
@@ -39334,10 +39333,10 @@
      0.041269
     ],
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     0.01766666,
@@ -39701,6 +39700,7 @@
     null,
     0.03140485,
     null,
+    null,
     null
    ],
    "course": {
@@ -39922,7 +39922,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -40068,6 +40067,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -40289,7 +40289,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -40435,6 +40434,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -40656,7 +40656,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -40802,6 +40801,7 @@
      null,
      null,
      0,
+     null,
      null,
      null
     ],
@@ -41023,7 +41023,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -41169,6 +41168,7 @@
      null,
      null,
      5,
+     null,
      null,
      null
     ],
@@ -41390,7 +41390,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -41536,6 +41535,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -41757,7 +41757,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -41903,6 +41902,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -42124,7 +42124,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -42270,6 +42269,7 @@
      null,
      null,
      3,
+     null,
      null,
      null
     ],
@@ -42491,7 +42491,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -42637,6 +42636,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -42858,7 +42858,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -43004,6 +43003,7 @@
      null,
      null,
      4,
+     null,
      null,
      null
     ],
@@ -43225,7 +43225,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -43371,6 +43370,7 @@
      null,
      null,
      1,
+     null,
      null,
      null
     ],
@@ -43592,7 +43592,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -43738,6 +43737,7 @@
      null,
      null,
      9,
+     null,
      null,
      null
     ],
@@ -43959,7 +43959,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -44105,6 +44104,7 @@
      null,
      null,
      2,
+     null,
      null,
      null
     ],
@@ -44326,7 +44326,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -44472,6 +44471,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -44693,7 +44693,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -44839,6 +44838,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -45060,7 +45060,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -45206,6 +45205,7 @@
      null,
      null,
      8,
+     null,
      null,
      null
     ],
@@ -45427,7 +45427,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -45573,6 +45572,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ],
@@ -45794,7 +45794,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -45940,6 +45939,7 @@
      null,
      null,
      7,
+     null,
      null,
      null
     ]
@@ -65047,23 +65047,24 @@
    "live_weeks": 0,
    "live_positions": 0,
    "now": {
-    "running_day": "2026-11-04",
+    "running_day": "2026-11-05",
     "first_day": "2026-11-02",
     "last_day": false,
     "week_model": "Regime HMM ZeroMean Model",
-    "day_model": "RL Position Model",
+    "day_model": "TCN Base Model",
     "settled_days": [
      "2026-11-02",
-     "2026-11-03"
+     "2026-11-03",
+     "2026-11-04"
     ],
     "symbols": {
      "ABI": {
-      "action": "out",
-      "reason": "call",
-      "entry": null,
+      "action": "buy",
+      "reason": "first up call",
+      "entry": "2026-11-05",
       "scale": 1.0,
       "entry_price": null,
-      "call": "flat",
+      "call": "up",
       "sold_on": null,
       "realized": null,
       "trades": []
@@ -65280,7 +65281,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-03"
+    "traded_since": "2026-11-04"
    },
    "INGA": {
     "last_close": 28.255,
@@ -65485,7 +65486,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-11-03"
+    "traded_since": "2026-11-04"
    },
    "ABI": {
     "last_close": 71.96,
@@ -65690,7 +65691,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-03"
+    "traded_since": "2026-11-04"
    },
    "KBC": {
     "last_close": 114.1,
@@ -65895,7 +65896,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-11-03"
+    "traded_since": "2026-11-04"
    },
    "UCB": {
     "last_close": 281.4,
@@ -66100,7 +66101,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-11-03"
+    "traded_since": "2026-11-04"
    }
   }
  },
