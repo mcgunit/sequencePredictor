@@ -7,7 +7,7 @@
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
-        "Regime HMM Model": {"decidedOn": null, "flagDraws": 17, "flagMean": 0.4706, "flagNull": 0.2857, "flagP": 0.04335, "mean": null, "null": null, "p": null, "since": "2026-10-18", "state": "running", "verdictAt": null, "verdictLength": 17}
+        "Regime HMM Model": {"decidedOn": "2026-11-05", "flagDraws": 17, "flagMean": 0.4706, "flagNull": 0.2857, "flagP": 0.04335, "mean": 0.6471, "null": 0.7507, "p": 0.8428, "since": "2026-10-18", "state": "not confirmed", "verdictAt": "2026-11-04", "verdictLength": 17}
       }
     },
     "cryptoweek": {

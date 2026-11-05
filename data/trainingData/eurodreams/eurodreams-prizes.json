@@ -1,0 +1,5564 @@
+{
+ "2025-11-10": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 293.7,
+    "winners": 23,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 27.9,
+    "winners": 734,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.3,
+    "winners": 8619,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 47235,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-11-13": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 1,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 468.4,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.1,
+    "winners": 445,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.2,
+    "winners": 7129,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 41872,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-11-17": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 243.6,
+    "winners": 27,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 26.7,
+    "winners": 708,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 8141,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 44902,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-11-20": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 482.1,
+    "winners": 15,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.9,
+    "winners": 461,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.7,
+    "winners": 7066,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 41597,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-11-24": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 500.3,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 31.8,
+    "winners": 500,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.7,
+    "winners": 7228,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 41537,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-11-27": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 622.3,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 39.6,
+    "winners": 466,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.5,
+    "winners": 6738,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40341,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-01": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 351.4,
+    "winners": 19,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.5,
+    "winners": 632,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 8400,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 46463,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-04": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 809.0,
+    "winners": 13,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 47.0,
+    "winners": 488,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.5,
+    "winners": 6583,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40007,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-08": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 269.4,
+    "winners": 23,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 20.0,
+    "winners": 658,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.3,
+    "winners": 8723,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 46693,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-11": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 557.2,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 36.2,
+    "winners": 523,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.2,
+    "winners": 7215,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40610,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-15": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 517.6,
+    "winners": 11,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 35.8,
+    "winners": 454,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.0,
+    "winners": 6496,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40308,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-18": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 325.8,
+    "winners": 17,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 24.3,
+    "winners": 574,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.7,
+    "winners": 7593,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 41969,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-22": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 625.8,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.4,
+    "winners": 426,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.4,
+    "winners": 6802,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40776,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-25": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 523.5,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.1,
+    "winners": 388,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 6289,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 38325,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2025-12-29": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 370.2,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.4,
+    "winners": 480,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 7482,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 42594,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-01": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 434.6,
+    "winners": 11,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 31.7,
+    "winners": 533,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 7218,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40826,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-05": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 633.1,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 40.5,
+    "winners": 560,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.8,
+    "winners": 6992,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 40462,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-08": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 589.2,
+    "winners": 4,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 38.9,
+    "winners": 386,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.6,
+    "winners": 6145,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 37115,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-12": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 324.0,
+    "winners": 17,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 27.4,
+    "winners": 532,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.3,
+    "winners": 7134,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 39593,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-15": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 602.1,
+    "winners": 12,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 35.1,
+    "winners": 443,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 6308,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 35207,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-19": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 504.8,
+    "winners": 13,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.1,
+    "winners": 479,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 6379,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 37417,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-22": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 357.7,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 25.8,
+    "winners": 463,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.1,
+    "winners": 6305,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 36036,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-26": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 541.9,
+    "winners": 16,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 40.8,
+    "winners": 475,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.7,
+    "winners": 6327,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 36780,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-01-29": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 532.6,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 35.7,
+    "winners": 386,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 6044,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 35964,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-02": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 593.4,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.5,
+    "winners": 449,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.9,
+    "winners": 6458,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 38620,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-05": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 677.1,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 39.4,
+    "winners": 440,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.5,
+    "winners": 6533,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 38278,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-09": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 291.2,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 27.8,
+    "winners": 497,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.4,
+    "winners": 6885,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 38754,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-12": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 839.6,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 48.3,
+    "winners": 408,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.4,
+    "winners": 5593,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 34207,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-16": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 369.2,
+    "winners": 19,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.6,
+    "winners": 526,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 6976,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 39593,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-19": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 723.3,
+    "winners": 5,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 46.2,
+    "winners": 358,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.0,
+    "winners": 5488,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 35097,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-23": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 406.0,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.7,
+    "winners": 462,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.7,
+    "winners": 6880,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 39123,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-02-26": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 532.6,
+    "winners": 13,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.5,
+    "winners": 417,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 6432,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 36776,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-02": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 564.0,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.8,
+    "winners": 416,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.0,
+    "winners": 6388,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 36630,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-05": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 586.5,
+    "winners": 15,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 43.4,
+    "winners": 389,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.1,
+    "winners": 5843,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 34137,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-09": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 723.7,
+    "winners": 13,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 52.7,
+    "winners": 350,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 7.3,
+    "winners": 5022,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 31845,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-12": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 724.1,
+    "winners": 5,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 44.8,
+    "winners": 351,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.0,
+    "winners": 5574,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 33282,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-16": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 684.3,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 43.6,
+    "winners": 365,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.2,
+    "winners": 5550,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 34223,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-19": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 524.6,
+    "winners": 18,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.9,
+    "winners": 337,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 5202,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 32011,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-23": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 422.2,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.7,
+    "winners": 384,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 5925,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 33098,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-26": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 990.5,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 47.9,
+    "winners": 336,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.6,
+    "winners": 4739,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29561,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-03-30": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 481.8,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.6,
+    "winners": 428,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.9,
+    "winners": 5895,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 34000,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-02": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 472.4,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.9,
+    "winners": 542,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 7886,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 43051,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-06": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 559.8,
+    "winners": 16,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 36.1,
+    "winners": 362,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 5786,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 33301,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-09": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 30000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 291.8,
+    "winners": 17,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 21.2,
+    "winners": 548,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.4,
+    "winners": 7351,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 37554,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-13": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 400.0,
+    "winners": 17,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 28.8,
+    "winners": 418,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.4,
+    "winners": 5792,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 32550,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-16": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 728.5,
+    "winners": 5,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 43.5,
+    "winners": 251,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.6,
+    "winners": 4799,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 30486,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-20": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 314.9,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 26.6,
+    "winners": 401,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.3,
+    "winners": 5615,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 31642,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-23": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 1,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 268.0,
+    "winners": 15,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 19.2,
+    "winners": 531,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.2,
+    "winners": 6549,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 33789,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-27": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 552.5,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 40.3,
+    "winners": 335,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.8,
+    "winners": 4971,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29901,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-04-30": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 300.0,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 20.8,
+    "winners": 496,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.5,
+    "winners": 6289,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 33143,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-04": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 573.4,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.9,
+    "winners": 357,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.7,
+    "winners": 4573,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26241,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-07": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 474.3,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.6,
+    "winners": 346,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 5149,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 30856,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-11": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 555.9,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 38.7,
+    "winners": 327,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.5,
+    "winners": 4846,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28960,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-14": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 224.2,
+    "winners": 20,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 17.4,
+    "winners": 501,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.0,
+    "winners": 5903,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28577,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-18": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 515.1,
+    "winners": 5,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.6,
+    "winners": 329,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 5189,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 30176,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-21": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 1,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 498.6,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 41.4,
+    "winners": 283,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.7,
+    "winners": 4482,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26636,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-25": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 285.7,
+    "winners": 16,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 25.6,
+    "winners": 397,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.1,
+    "winners": 5017,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27092,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-05-28": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 499.2,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.7,
+    "winners": 320,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 4916,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28769,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-01": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 616.2,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.9,
+    "winners": 372,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.9,
+    "winners": 4755,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28757,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-04": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 473.9,
+    "winners": 12,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.9,
+    "winners": 321,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.4,
+    "winners": 4887,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29314,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-08": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 482.8,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.2,
+    "winners": 377,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.9,
+    "winners": 5655,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 31971,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-11": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 562.8,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 38.5,
+    "winners": 334,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.5,
+    "winners": 4969,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29892,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-15": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 464.7,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.5,
+    "winners": 357,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 5021,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29579,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-18": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 523.3,
+    "winners": 5,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.1,
+    "winners": 350,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 4932,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28427,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-22": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 571.8,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 39.6,
+    "winners": 334,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.5,
+    "winners": 4478,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26386,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-25": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 748.5,
+    "winners": 3,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 38.2,
+    "winners": 319,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.3,
+    "winners": 4234,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 25353,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-06-29": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 508.9,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 33.9,
+    "winners": 283,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.9,
+    "winners": 4721,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27645,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-02": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 434.1,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 31.2,
+    "winners": 353,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.7,
+    "winners": 4689,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27120,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-06": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 397.1,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.0,
+    "winners": 356,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.1,
+    "winners": 5238,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29535,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-09": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 493.4,
+    "winners": 4,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 33.9,
+    "winners": 314,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 4316,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 25431,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-13": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 365.5,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 23.9,
+    "winners": 380,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.8,
+    "winners": 5110,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28900,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-16": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 680.5,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.9,
+    "winners": 309,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.2,
+    "winners": 4404,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 25717,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-20": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 440.9,
+    "winners": 13,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.8,
+    "winners": 429,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 4995,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26818,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-23": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 441.1,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 33.7,
+    "winners": 295,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.7,
+    "winners": 4183,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 23895,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-27": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 425.9,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.0,
+    "winners": 333,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 4645,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26449,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-07-30": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 404.0,
+    "winners": 8,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.0,
+    "winners": 336,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.0,
+    "winners": 4540,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 25493,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-03": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 473.9,
+    "winners": 11,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 31.6,
+    "winners": 304,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 4528,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27007,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-06": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 518.6,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.6,
+    "winners": 338,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 4957,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29377,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-10": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 397.2,
+    "winners": 4,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 27.5,
+    "winners": 347,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.0,
+    "winners": 5256,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29899,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-13": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 364.5,
+    "winners": 16,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 31.6,
+    "winners": 423,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.0,
+    "winners": 5165,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27027,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-17": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 1,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 452.4,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 28.4,
+    "winners": 365,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.3,
+    "winners": 5251,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27987,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-20": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 584.3,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 39.4,
+    "winners": 268,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.2,
+    "winners": 4391,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26689,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-24": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 289.6,
+    "winners": 14,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 24.7,
+    "winners": 394,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.0,
+    "winners": 5258,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28041,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-27": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 670.0,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 43.6,
+    "winners": 311,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.9,
+    "winners": 4439,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 25624,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-08-31": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 602.4,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 42.0,
+    "winners": 240,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.0,
+    "winners": 4121,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26120,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-03": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 381.8,
+    "winners": 11,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 28.0,
+    "winners": 398,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.5,
+    "winners": 4677,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26681,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-07": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 567.4,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.4,
+    "winners": 290,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 4435,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27272,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-10": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 422.9,
+    "winners": 4,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 30.0,
+    "winners": 361,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.6,
+    "winners": 4775,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26856,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-14": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 508.1,
+    "winners": 9,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 40.1,
+    "winners": 340,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 6.0,
+    "winners": 4465,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26007,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-17": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 357.4,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 22.8,
+    "winners": 372,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.7,
+    "winners": 5221,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 27436,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-21": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 571.9,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.7,
+    "winners": 314,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.4,
+    "winners": 4604,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 26143,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-24": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 632.6,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 37.5,
+    "winners": 245,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.3,
+    "winners": 4084,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 25036,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-09-28": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 450.2,
+    "winners": 6,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 25.7,
+    "winners": 354,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 3.9,
+    "winners": 5027,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29265,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-01": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 559.9,
+    "winners": 7,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.7,
+    "winners": 346,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.1,
+    "winners": 5037,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 28396,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-05": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 460.7,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.1,
+    "winners": 397,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 5257,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 29689,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-08": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 20000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 443.1,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.0,
+    "winners": 379,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.3,
+    "winners": 5118,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 30004,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-12": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 468.8,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 33.1,
+    "winners": 429,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.8,
+    "winners": 5685,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 32074,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-15": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 320.0,
+    "winners": 32,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.5,
+    "winners": 781,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.4,
+    "winners": 10354,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 59816,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-19": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 495.9,
+    "winners": 22,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 32.3,
+    "winners": 753,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.9,
+    "winners": 9331,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 54186,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-22": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 470.4,
+    "winners": 13,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 26.8,
+    "winners": 640,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.0,
+    "winners": 9215,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 53490,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-26": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 381.3,
+    "winners": 20,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 34.4,
+    "winners": 667,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.0,
+    "winners": 9707,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 52820,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-10-29": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 2000.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 402.1,
+    "winners": 16,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.0,
+    "winners": 674,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.2,
+    "winners": 9254,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 51742,
+    "type": "FIXED"
+   }
+  ]
+ },
+ "2026-11-02": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 424.6,
+    "winners": 10,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 29.7,
+    "winners": 692,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 4.4,
+    "winners": 9359,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 53104,
+    "type": "FIXED"
+   }
+  ]
+ }
+}
