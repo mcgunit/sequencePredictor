@@ -39,6 +39,7 @@ export interface Shape {
   bonus: boolean; // lotto: the 7th drawn number supplements
   positional: boolean; // pick3, jokerplus, markets: scored by slot
   money: boolean; // keno, pick3, jokerplus
+  prizes: boolean; // lotto, euromillions, eurodreams: hits stay the figure, the profit by each draw's prize table next to them
   slots: string[]; // markets: the instrument per slot
   ticket: TicketInfo | null;
 }
@@ -48,7 +49,7 @@ export function shapeOf(v: unknown, game: string): Shape {
   const t = o(s.ticket);
   const sizes = nums(t.sizes);
   return {
-    family: fam, specials: strs(s.specials), bonus: bool(s.bonus), positional: bool(s.positional), money: bool(s.money), slots: strs(s.slots),
+    family: fam, specials: strs(s.specials), bonus: bool(s.bonus), positional: bool(s.positional), money: bool(s.money), prizes: bool(s.prizes), slots: strs(s.slots),
     ticket: has(s.ticket)
       ? { currency: str(t.currency, 'EUR'), price: opt(t.price), sizes: sizes.length === 2 ? [sizes[0], sizes[1]] : null, ranking: ostr(t.ranking),
           triple: opt(t.triple), bets: strs(t.bets), note: ostr(t.note) }
@@ -105,8 +106,9 @@ export function versionOf(v: unknown, metrics: Record<string, string> = {}): Ran
 export interface DayFigures {
   rows: number;
   tickets: number;
-  profit: number | null; // money games, net, EUR
+  profit: number | null; // money games, net, EUR; the prize-table games: over the grids it could score (null: none)
   stake: number | null;
+  grids: number | null; // the prize-table games: the grids scored on the draw's prize table
   best: Best | null;
   multi: number | null; // lotto: the best hits among a row's nine numbers, when a row had extras
 }
@@ -114,7 +116,7 @@ export function figuresOf(v: unknown): DayFigures | null {
   if (!has(v)) return null;
   const f = o(v);
   if (opt(f.rows) === null) return null;
-  return { rows: num(f.rows, 0), tickets: num(f.tickets, 0), profit: opt(f.profit), stake: opt(f.stake), best: bestOf(f.best), multi: opt(f.multi) };
+  return { rows: num(f.rows, 0), tickets: num(f.tickets, 0), profit: opt(f.profit), stake: opt(f.stake), grids: opt(f.grids), best: bestOf(f.best), multi: opt(f.multi) };
 }
 export interface DayLine {
   date: string;
@@ -139,6 +141,7 @@ export interface Month {
   tickets: number;
   profit: number | null;
   stake: number | null;
+  grids: number | null; // the prize-table games: the grids scored over the counted draws
   best: Best | null;
   multi: number | null;
   days: DayLine[] | null; // null: not the month this answer opened
@@ -193,7 +196,7 @@ export function normHistory(raw: unknown, game: string, scope: Scope): History {
       const m = o(x);
       return {
         month: str(m.month), draws: num(m.draws, 0), counted: num(m.counted, 0), afterClose: num(m.afterClose, 0), rows: num(m.rows, 0), rowsMin: opt(m.rowsMin), rowsMax: opt(m.rowsMax), tickets: num(m.tickets, 0),
-        profit: opt(m.profit), stake: opt(m.stake), best: bestOf(m.best), multi: opt(m.multi),
+        profit: opt(m.profit), stake: opt(m.stake), grids: opt(m.grids), best: bestOf(m.best), multi: opt(m.multi),
         days: Array.isArray(m.days) ? m.days.map(dayLineOf) : null,
       };
     }),

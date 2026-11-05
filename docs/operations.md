@@ -1,0 +1,236 @@
+# Operations: install, run, server, pages and schedule
+
+> Moved out of the README on 5 Nov 2026, word for word; see "Out of date" at the end of this page for what the 5 Nov check found.
+
+## Installation
+
+## For Predictor (Python)
+
+### Virtual env
+
+Create a virtual env:
+```
+python3 -m venv ~/sequencePredictor
+```
+
+Activate env:
+
+```
+source ~/sequencePredictor/bin/activate
+```
+
+To install, you will need to have Python 3.x and the following libraries installed:
+- numpy
+- tensorflow
+- keras
+- art
+- keras-tcn
+
+You can install these libraries using pip by running the following command:
+
+Using the requirements file:
+
+```
+    python3 -m pip install -r requirements.txt
+```
+
+For CPU only: 
+```
+    python3 -m pip install numpy tensorflow==2.18 keras art pandas scikit-learn matplotlib keras-tcn==3.1.2
+```
+
+For GPU enabled:
+
+```
+    python3 -m pip install numpy tensorflow[and-cuda]==2.18 keras art pandas scikit-learn matplotlib keras-tcn==3.1.2
+```
+
+### Docker
+
+Check the dockerfile.
+
+To build:
+
+```
+    docker build -t sequence_predictor .
+```
+
+Run:
+
+```
+    docker run --rm -it -u $(id -u) -v {absolute path to sequencePredictor repo}:/opt/sequencePredictor sequence_predictor /bin/bash
+```
+
+From this point you are inside the docker container with bash active. Now you can run or test code.
+
+## For server (NodeJs)
+
+Run in root of folder (where the package.json is located):
+
+```
+    npm i
+```
+
+If pm2 is needed also run:
+
+```
+    npm i pm2 -g
+```
+## How to run prediction
+
+To run the complete flow the way the daily cron does (`runPredictor.sh`):
+
+```
+    python3 Predictor.py -a true
+```
+
+`-a true` enables the heavy deep learning rows (LSTM/TCN/unified); without it only the lightweight research rows run, so a day built by hand without the flag lacks the LSTM row and any `SubsetEnsemble Model` selection that contains it is skipped for that day. `--dl-model-seconds` (default 240) caps each model's training, `--dl-timeout` (default auto) the whole per-day deep learning child - see *History rebuild & model-weight reuse*. `-s false` skips the commit and push at the end.
+
+To test model specific for example LSTM run:
+
+```
+    python3 LSTM.py
+```
+
+Check the __main__ section of the LSTM.py or GRU.py for pointing to data and set parameters for testing.
+
+## Run server
+
+The server is a NodeJS (Express) server: JSON APIs, and the React app from `web/` under `/app` (*The new user interface*, below); the only pages it renders itself are the sign-in, "page not found" and "something went wrong" (`shell.js`).
+The server listens on the interface and port set in `config.js` (`127.0.0.1:3001` by default).
+
+To run the server use the command:
+
+```
+    npm start
+```
+
+## The new user interface (`web/`, served under `/app`) - started 15 Oct 2026
+
+The redesign the owner asked for on 15 Oct 2026 (FreqUI as the model: positions, a trades log, profit per day and per instrument, little text) is a React application in `web/` (Vite, TypeScript, ECharts), built to `web/dist` and served by the same server under `/app`, behind the same session. Its market pages read three JSON routes (`api.js`): `GET /api/me` (who is signed in), `GET /api/markets/:market` (the user view of crypto or shares: the followed plan as open positions - today's calls of the followed day model and the week positions under the guard (below, "The guarded week"; a record without the guard block shows the plain week with today's daily call as information, the sell at the week's end) - and the record as closed positions per instrument, per day and cumulative, built from the same records and the same picks as the administrator's market workbench, `markets.pickPlan` / `pickWeek`) and `GET /api/quotes/:market` (live prices for the open positions: Binance for crypto, Nasdaq's delayed quote for shares, cached a minute; `{at: null, quotes: {}}` when a source is down - a live quote is information next to the close, never a booked figure; a quote of zero is no quote). A signed-out client gets a 401 with a JSON body on `/api/*` (`auth.middleware`), never the login page, and the app sends it to `/login` with the page to come back to. The headline figures (following the plan, against buying everything, win rate, days, best instrument, the charts) count what following the whole table made - the daily and the weekly positions together, a week's result on the day it settles (owner, 16 Oct 2026: one headline, and no "game" in the words the reader sees); the two parts stay in the record as `status.dailyTotal` / `status.weeklyTotal`; in the plain-week view a week position reads "buy now" through the week's first day (the ticket is up hours after the week's start) and "held" after it. The review of the batch (three readers, 30 findings applied) is what made these rules explicit. The per-instrument money of the followed row travels in the followed-plan points since 15 Oct 2026 (`MarketSettle.followed_plan`, the ninth element; an older record gives the days but no positions until the next run writes it). Build on the server after a pull: `npm run build:web` (installs `web/`'s dependencies and writes `web/dist`; both are git-ignored), then restart; a missing build answers `/app` with the instruction instead of a 404. The app has since taken over every page: the users' Home and Lottery (`lottery.js`, `/api/home`, `/api/lottery`), the Admin menu (`admin.js` and `workbench.js`, `/api/admin/*`), Jobs & services, People, Account and What's new (`system.js`) and the Council (`council.js`, `/council/api/*`); since the switch (batch 6, below) it is the only interface, and every old page address answers with its app page. Tests: `node test/api.test.js` (in `npm test`) covers the view on a hand-made record and, read-only, on production's own files.
+
+**What the old pages settled, and the app keeps.** Three sections by what is predicted (owner, 1 Oct 2026, who found the market "games" hard to read next to the lottery ones): Home is the choice between *Lottery games*, *Crypto* and *Shares*, each with its headline, and the menu repeats them, then the Council and the administrator's Admin menu. A market is explained in market terms first and its draws as digits (its game view, Admin › Games) come second: the market workbench's *Background: how a day becomes a draw* keeps the three steps written on 1 Oct 2026 for someone who has never seen the project (the owner found the first version too abstract; a newcomer and a trader persona reviewed the wording) - two closes give one number, the day's move; the move falls into one of ten bins cut from the instrument's own past moves, about one day in ten each - a ten-sided die, the bar every model has to beat; the bins side by side are the draw - with the newest settled day as the worked example. A call drawn as a price is the previous game day's close moved by the bin's representative return (`MarketGame.representative_return`: the middle, an end bin's edge moved out by half the neighbouring bin's width), as in the settlement; the price view is the default, and a flat call drawn as a price sits on the previous close, so a line of them looks like the close a day late - it is not a lag (1 Oct 2026); the moves view shows the real move against each call's interval. A deploy that changes what the market record carries shows empty charts until the next 09:00 run rewrites the record; `python3 MarketsDaily.py --no-fetch --settle` rewrites it by hand (the settlement and export `Predictor.py` runs after a day, nothing predicted). Which rows a table shows is display only: nothing is dropped from the day files.
+
+**Explanations behind a "?"** (owner, 13 Oct 2026). Every page shows its data and keeps the prose that explains it - how to read a table or chart, definitions, method, caveats, history notes - behind a small round **?** that opens in place (a native `<details>`, no hover: `Help` in `web/src/components/admin/Card.tsx`). What stays visible: titles and summary lines, the data and headline results, the plan's orders, and a one-line version of any warning a reader must see before acting.
+
+**The guarded week (17 Oct 2026, the owner's rule).** The user page's week positions follow the week game with a daily guard (`MarketSettle.guarded_week`, exported as `trading.guarded` in the week games' records; `GUARD_RULE`): the week's followed row says which instruments are in play (its up calls), and the daily followed row's call for each instrument decides the days they are held - bought at the entry of the first day whose daily call is up, held until a daily call is flat or down and sold at that day's close, bought again on the next up call, sold at the week's close at the latest; consecutive held days are one position and one fee pair, the stake scaled by a sized week row's size (the RL Position Model, as in every book; size 0 holds nothing). A day without a daily call keeps a held position and buys nothing (the daily book holds nothing on a missing call either). A flat or down call on the week's first day buys nothing (the owner's wording was "buy at the week's start"; this is the one deviation, so the page never says buy and sell on the same down day). A crypto week's days are Monday to its Sunday close (its ISO week), a share week's the NYSE sessions among them. The money of a position follows the week game's rule - the daily round trip compounding over the held days for crypto (from the close before the entry day, the paper book's convention), the entry day's open to the exit day's close for shares - so a week held on every day equals the plain week book to the cent (checked on production's 11 Oct week: BTC −3.38, BNB −5.37, XRP −7.45, SOL −8.62 either way). Weeks from before the daily record (the week history starts in March, the daily one on 1 Sep) carry the plain week; a week inside it is guarded over the days the daily record has (a missing day - an unscheduled closure, a day file not rebuilt yet - has no daily call: a held position is kept, and one still held runs to the week's last game day; a week none of whose days is in the daily record buys nothing), and a position's money runs from its entry price to its exit price (for crypto the close before the entry day to the exit day's close, which equals the sum of the daily returns on every settled day), so the money always matches the prices shown. A week is live only when its week ticket and every daily ticket of its days were, no day on which the market traded is missing from the daily record, and every position has its prices (a position without one keeps its place with money None). A week is live when its week ticket and every daily ticket of its days were. `now` is the week in progress: per instrument the rule's action for the running day (hold, sell at its close, buy, out), the entry day and price, and what this week's sold positions made; `api.js` turns it into the week rows (Buy, Sell with "at the latest" under the week's close, and the **Guard** column: Buy, Hold, Sell, Out or Week end with the daily call under it; after the running day's close a buy reads as held and a guard sale as Sold until the morning run; an Out row shows its sale and money under Buy and no entry; a coin bought back after a guard sale keeps "earlier: sold …" under Buy; on the week's last day an Out row promises no re-entry, and "the guard can sell sooner" shows only while a game day is left before the last one) and takes the weekly figures, positions and chart points from the guarded book - each position dated its week's close, with the market it is measured against, so no past day changes when the week settles; the Sold column says when it was bought and sold. The guard's state is used only when it is for the day the daily rows are for (`now.running_day`): a week record ahead of the daily one (the daily export failed) is applied as it is, the newer state (its closes too); a week record with the guard block but no state for the week (no daily ticket for its days yet) shows every up-called coin as Out - the guard buys nothing without a daily call, so the plain week's entry is never shown; a week record a run behind the daily one shows the book as of its running day's close (a sale stays a sale, a coin never bought stays out) with today's daily call as information until the next run. A sale whose money is not known (`realized` null) is shown without a figure, never as 0.00. The plain week book stays the week game's own record, in Admin. On production's records of 17 Oct the guard changes the one live crypto week from −24.82 to −21.69 USDT and the two live share weeks from −9.72 to −3.92 USD (the week to 16 Oct: NVDA's daily call was flat every day, so the guard never bought the position the plain week lost −6.58 on) - which says nothing yet; in the crypto week of 12-18 Oct the guard sold ETH on the 13th and SOL on the 14th and never bought BNB. These weeks are booked after the fact: the owner chose the rule on 16 Oct, when all of them but the newest had closed, and that week's two sales closed before the rule existed (`MarketSettle.GUARD_FORWARD_FROM`, 19 Oct 2026, exported as `forward_from`, is the first week it ran forward). So the user pages count what the page said each week (owner, 20 Oct 2026): the plain week book - bought at the week's start, held to its end - for every week closing before `markets.GUARD_SHOWN_FROM` (26 Oct 2026, the first full week the page showed the guard; production served the guard rows from the evening of 20 Oct), and the guarded book from then on; the week of 19 Oct shows the guard as information with the sell at the week's end (`api.marketView`'s `guardFrom`, which the tests move). The guarded book's own week-by-week record - against the plain week and buying everything, the weeks before `forward_from` marked "booked after the fact" - is the market workbench's card *The guard on the week positions* (Admin): on 20 Oct the two live crypto weeks gave guard −25.02, plain −41.00, market −57.84 USDT, and shares −3.92, −9.72, −19.05 USD, mostly from staying out of a falling market. The crypto figures carry `status.entryNote`: day and week positions are booked from the 00:00 UTC close, before the tickets exist.
+
+**The crypto order book (30 Oct 2026; on the user pages from Mon 2 Nov 2026).** The owner asked on 30 Oct 2026 that the crypto day and week cards tell a reader exactly what a paper book does: buy at market when the card appears, put a sell limit at X, sell at market at a deadline or on the week's daily-call exit. `src/MarketOrders.py` books that rule next to the existing books (daily, hold, open, followed, guarded - none of them changed) and `MarketSettle.export_page_json` exports it as `trading.orders` in `data/markets/crypto.json` and `cryptoweek.json` (the JSON shape is in the module docstring; an older node reading the record ignores the key). Daily bars cannot support it - a card appears around 08:30-10:30 UTC, and neither the price then nor whether the day's high came after it is in a daily bar - so the store gains two tables (`MarketData.SCHEMA`, additive, `CREATE TABLE IF NOT EXISTS`): `intraday_bars` (Binance 1h bars from 12 Oct 2026 on, and 1m bars in a window from the card's hour to two hours later around every card publication; `fetch_binance_klines`, `upsert_intraday`, `update_intraday`) and `ticket_published` (the moment a ticket's first export put it on the page, first seen only, so a re-run that restamps `madeAt` can never move an entry; not stamped when that export comes more than three hours after `madeAt`, a late hand run). The 1h bars are fetched in `MarketGame.daily_refresh` (crypto, with fetch on) and the 1m windows in `MarketSettle.settle_and_export` before the export (fetch on by default; `MarketsDaily.py --no-fetch --settle` passes it off), because a day order's deadline is the publication of the same run's card; an export reaches back three days, so the history since 13 Oct comes only from the one-time `python3 -m src.MarketOrders --backfill 2026-10-13 --root <root> --db <store> [--export]`, run with the owner's go (it needs `--root` and `--db` explicitly and takes no `process.lock`; it writes only the store and, with `--export`, the root's market records). The rules, decided with the owner on 30 Oct 2026 (design D1-D7): the entry is the open of the first 1m bar at or after the publication (before 30 Oct `madeAt` + 15 min, flagged "estimated"); no order when X sits less than 0.30 % above the base close ("target below fees"), at or below the price ("already reached") or less than 0.30 % above it ("too close to the limit") - a counted row, never a position; a limit fills at X, never better, only on a high of X × 1.0005 (a touch is no fill), scanned in 1m bars to the first full hour, then 1h bars, then the 1m bars of the exit's own hour up to the minute before the exit's, so in the same minute the card wins; the deadline is the publication of the next card of the same game (D1: not 00:00 UTC, which is 01:00 or 02:00 in Brussels and no reader's moment), 12:00 UTC the next day (Monday for the week) at the latest; a day position whose coin the next card calls up again with its new limit at least 0.30 % above the price is rolled - the limit moves, no fees (D5); the week buys a coin only when the week call is up and Monday's daily call is up too (D4), sells at market at the publication of the first later day card that turns it flat or down (D2, the early exit the owner kept) and never buys it back that week (D3); late entries, a separate ledger never added to the card's record, are shown on a Tuesday-Sunday day card while the week and day calls are up, the price is at least 1 % below X and the deadline at least 24 h away (D7), each showing booked as its own position; money is `cash_pnl` with 0.1 % on both legs and a sized row's size, as everywhere. A missing bar makes an order pending, never guessed; an order whose bars are still to come is open. X has three variants, all booked for Admin: `edge` (the predicted bin's lower edge from the base close - the previous day's close, Sunday's for the week - pre-registered on 30 Oct 2026 in `ORDER_VARIANT_LOG` as the primary before the back-test was read, because a right call then fills; D6), `mid` (the bin's representative return, the price the pages draw) and `fixed` (the entry plus 1 % a day, 4 % a week: a control that ignores the bin); the user record books per card the variant that card showed, and a switch is a logged decision at one review (60 live day orders or 31 Jan 2027, whichever is later; a paired per-order comparison whose lower bound is above 0, and the owner's yes), never a "best so far". Next to the books: the literal 00:00 UTC end as an Admin reference ledger (the same orders, no roll), the market under the same timing (every coin bought at every card, sold at the same deadline) and the intraday coverage. The back-test into a scratch copy (16 day cards 14-29 Oct, three week cards) is a mechanics check, nothing more: the edge book placed 8 day orders (15 of the 16 cards were BTC bin 6 from GARCH; 8 skips, half of them because the price was already at the limit when the card appeared) for +3.75 USDT against −6.41 for the old daily book on the same days and −58.46 for buying every coin at the card; the week book bought one coin in two closed weeks (ETH, sold the next morning on a down daily call), most week-up coins never got Monday's daily trigger. Self-check: `python3 -m src.MarketOrders` (in `npm test`; hand-made minute and hour paths for every rule, the store end to end). The node and web side: `markets.describeOrders` reads the block tolerantly; `api.marketView` builds the user card from `orders.now` from `ORDERS_SHOWN_FROM` on, every order row written from the reader's side (one branch per situation, each starting "If you ...", never the book's state as a bare word) and shown in the open-positions table as two compact cells (owner, 31 Oct 2026: the table stays as it was, every cell an instruction): Buy says what to do if you do not have the coin ("Buy now · market order", "Still good to enter", "Don't buy · today's call not up"), Sell what to do if you have it ("Sell limit X", "Hold · keep limit X" or "Hold · move limit to X" with whose line it is, "Sell now", "Done: limit filled"), the full branches only as the row's hover text and the labelled lines in "How to read this" (`order.cells`; the Admin workbench keeps every detail), with "Following this card so far" counted from the same rows the closed table lists; `workbench.ordersOf` and the Admin orders card (`OrdersCard.tsx`, per-order tables on `GET /api/admin/market/:market/workbench/orders/:game`) show every variant and ledger, and the plan and week cards carry the user card's lines as a shadow.
+
+**Newcomer entries on a roll day (31 Oct 2026, the owner's decision).** On a day when the day book rolls a position (yesterday's card bought the coin, today's card calls it up again, and the position is kept with a replaced limit, D5), a reader who did not buy yesterday used to read "no new order today". Now the card has two branches on that coin's row: "If you bought BTC yesterday (at about P0): keep it; replace your sell limit with X ..." and "If you did not buy BTC yesterday: buy now at market (about P), sell limit X, ...". From a second roll day in a row the branches read "If you bought BTC on an earlier card and still have it (...)" and "If you do not have BTC from an earlier card". Each such card books a **newcomer entry** in a separate ledger (`MarketOrders.newcomer_entry`, `trading.orders.newcomer`, kind `newcomer`, per variant like the week's late ledger):
+* bought at that card's publication price P, with the same new limit X (the shown variant's on the user card, every variant in Admin);
+* the same deadline rule (the next day card, 12:00 UTC the next day at the latest);
+* the same no-order tests as a fresh day order (no target, target below fees, already reached, too close to the limit);
+* a fee pair per round trip, as everywhere.
+
+The roll choice: a newcomer position rolls exactly like the main position. On the next card the same D5 test keeps it with the newer limit or sells it at market, and from its roll card on it shares the main position's limit and fill scan, so the two fill or sell together and only the entry price differs. A second roll day therefore rolls yesterday's newcomer and books a new one. The roll test is the fresh-order test at the same card and price, so in practice a newcomer entry is never skipped: a card whose test fails sells the position instead ("sell now"), and the not-bought branch then says why. The skip path is kept, and covered by the self-check, so the ledger still follows the fresh-order rule if the roll test changes. The ledger is never added to "Following this card so far" or to the closed table. It has its own labelled line, "Newcomer entries so far (a separate record): N shown, ...", counted from its own rows from `ORDERS_SHOWN_FROM` on, in the variant each card showed (`api.newcomerRecordOf`). Admin shows it next to the main and reference ledgers (a column per variant, a per-order table on the orders route, the shadow's line). On the 13-30 Oct back-test (scratch copy, all times estimated) the edge book rolled once, so it booked one newcomer entry (25 Oct BTC, sold at the next card, −0.07 USDT, against −0.57 for the position it sat next to); mid booked 4 (+1.22) and fixed 10 (+1.88). That is a mechanics check, not evidence.
+
+**Rollout: switched on 2 Nov 2026 (the owner's decision of 31 Oct 2026).** `markets.ORDERS_SHOWN_FROM` is `'2026-11-02'`: the user pages show the order card from the crypto day card of Mon 2 Nov 2026 and the week card of the week starting that day. That is the first full week after the deploy, when publication times are recorded instead of estimated. "Following this card so far" counts the order book from that day, and the old rule's positions before it. There was no shadow period, because the pages had no users yet. The gate is the card's day, not the clock (`api.marketView`: the day card's day or the week's first day on or after the switch). So between the deploy and the 2 Nov card the user page is exactly as before, with no order lines, the 00:00 UTC note and its old "How to read". A slow run on 2 Nov also keeps the old page until its card is out. Admin shows the order book throughout.
+
+## The switch to the app (batch 6, built 24 Oct 2026)
+
+The owner's decision of 21 Oct 2026: the app replaces the server-rendered pages fully, and at the switch the old pages retire at once, for every reader - no grace period and no `/legacy`. A user gets the slim view (Home, Lottery with today's top 5 and each past draw's top 5 as ranked before it, Crypto, Shares, the Council's ask box and their own sessions); the administrator gets everything else under the Admin menu.
+
+- **Old addresses** (`switchover.js`, `redirects`, mounted right after the sign-in middleware): each old page answers 302 with its app page, for the reader as the old page was - the administrator's view or the user's - with `Cache-Control: no-store` because the target depends on who asks. The map: `/` → `/app/`; `/lottery` → `/app/lottery`; `/database` → `/app/admin/games` (a user: `/app/lottery`); `/database/<folder>[?month=]` → `/app/admin/games/<game>` (a user: `/app/lottery/<game>`, or the market's own page for a market folder); `/database/<folder>/<day file>` → that draw (`draws.isoOfFile`); `/markets/<m>` → `/app/admin/markets/<m>` (a user: `/app/<m>`); `/council[?session=]` → `/app/council`; `/account`, `/whats-new` → the same under `/app`; `/admin/users`, `/admin/activity` → `/app/admin/people`; `/admin/jobs` → `/app/admin/jobs` (a user: `/app/`). Targets are built from known game names and checked dates only. The redirects stay after the cleanup (below); a POST to an old form address answers 404 like any unknown address.
+- **The pages the server still renders** (`shell.js`, one card in the app's look and the reader's Light / Dark / Auto choice): the sign-in page (`auth.js loginPage`), "page not found" and "something went wrong".
+- **The last handlers** (`switchover.finish`, after every route): an unknown address answers 404 and a thrown error 500 - JSON under `/api/` and `/council/api/`, the page otherwise - with the error and its stack in the error log and never in the answer (Express's own handler prints the stack whenever `NODE_ENV` is not `production`).
+- **Parity**: every element of the old pages was mapped to its app home before the switch (`web/PARITY.md`, sections A-D), and the gaps found were closed or listed there for the owner.
+- Tests: `node test/switchover.test.js` (in `npm test`; with express on `NODE_PATH` it also runs the 404 and error answers on a throwaway app).
+- **Cleanup (batch 6b, 26 Oct 2026)**: the old page handlers and everything only they used were removed with their tests - server.js's pages and their scoring imports (`draws.js` holds the one copy of the scoring), the market workbench page and its chart client, the Council page, the account, users, activity, jobs and What's new pages with their form posts, and `help.js`. `server.js` (about 110 lines, from 1761) now only wires the sign-in, the redirects, the JSON APIs, the app and the last handlers, and starts the supervised services and the schedule once it listens; `node test/server.test.js` (in `npm test`) checks its routes and their order, that none of the removed ones is back, and that loading it starts nothing.
+
+## Login and users
+
+Set two variables to require a login (`auth.js`, roadmap item 3) - either in the environment or in a `.env` file in the repo root (gitignored; copy `.env.example`), which `config.js` loads at startup with real environment variables taking precedence:
+
+```
+    cp .env.example .env      # then edit WEB_USER and WEB_PASSWORD
+    npm start
+```
+
+or, without a file:
+
+```
+    WEB_USER=admin WEB_PASSWORD='a long passphrase' npm start
+```
+
+A change to `.env` needs a server restart (nodemon does not watch it).
+
+- `WEB_USER` / `WEB_PASSWORD` are the **administrator**: they live only in the environment, never on disk. With both unset the app is open (local development) and the People page is read-only with a notice; with only one of them set the server refuses to start rather than silently running open.
+- The administrator sees everything plus the **People** page (`/app/admin/people`), where accounts are added, deleted and given a new password. A user signs in with their own password and sees Home, Lottery, Crypto, Shares, the Council, their account and What's new.
+- **Every signed-in user has an account page** (`/app/account`, reached from their name at the foot of the menu): a user changes their own password there (current password required, and the change signs their other browsers out while keeping the one that made it), and sees the sign-ins recorded for their name - so a session they did not start is visible to them, not only to the administrator. The administrator's own credential lives in `.env` and is deliberately not editable from the web, since it is the one that can change everyone else's; that page says so and how to change it.
+- **Sign-ins are recorded** (`audit.js`): successful and failed sign-ins, lockouts, sign-outs, password changes and account creation or deletion, each with the time, the user name, the caller's address and a truncated browser string. The administrator reads them on the People page's Activity card (`/app/admin/people#activity`), which also shows last seen and the number of sign-ins per account. The trail is `config/audit.jsonl`, gitignored like the accounts, one JSON object per line, rotated at 2 MB with one older file kept - so it is bounded by construction and a write can never corrupt an earlier line. A failure to write it is logged and swallowed: an audit trail that can break a sign-in is worse than one that misses a line.
+- Accounts are stored in `config/users.json` (user name, salted `scrypt` hash - never the password; every file account is a plain user, the administrator is only ever the environment one), the session cookie is signed with a secret from `WEB_SESSION_SECRET` (or `SESSION_SECRET`; at least 32 bytes - 64 hex characters or a long passphrase; shorter values are ignored with a warning) or, when unset, one generated once into `config/session.secret`. The `config/` folder is gitignored on purpose: the daily predictor commits everything under `data/`, which is why the accounts do not live there. Nodemon ignores the folder (`package.json`), and pm2 should run without `--watch` at all (see *Run server*).
+- Sessions last 24 hours, renewed while in use but never beyond 7 days from the sign-in; changing a user's password ends that user's sessions, rotating `WEB_PASSWORD` ends the administrator's, and a deleted user is out on the next request. The cookie is `HttpOnly` + `SameSite=Strict` and gets the `Secure` flag when the request arrived over HTTPS (directly or via `X-Forwarded-Proto`). Five failed sign-ins for a user name from one client address lock that combination for 15 minutes; a sign-in with an unknown name costs the same time as with a known one, so names cannot be enumerated. Every JSON POST of the app and the Council carries the session's form token (`_csrf`, read from `/api/me`; `auth.csrfOk`), and the token survives a session renewal. `WEB_TRUST_PROXY` (default `loopback`) tells Express which reverse proxy's `X-Forwarded-For` / `X-Forwarded-Proto` to believe, so the lockout keys on the real client behind a proxy on this machine instead of on the proxy.
+- The login form sends the password in clear text, so put the server behind HTTPS (a reverse proxy or TLS terminator) when it is reachable beyond the local machine.
+
+The Optuna dashboard is no longer started or linked by the server; start it by hand when you want it: `optuna-dashboard sqlite:///db.sqlite3`.
+
+## First login, and what's new
+
+A new account meets a short introduction the first time it opens any page: what this project is, the three sections and what each page is for - with the Admin menu step shown only to an administrator. After that, a feature that ships with a note pops that note once, and only for the accounts that may see it. `announcements.js` is the single file to edit: one entry per feature, newest first, `level: 'major'` to open the dialog or `'minor'` to count it only on the menu's What's new link, `audience: 'all'` or `'admin'`. Every string is escaped when rendered, so the file holds text rather than markup, and `npm test` checks the rules that keep it safe to edit - permanent unique ids matching their date, known level and audience, no HTML, newest first - because an edited id would pop an old note at everyone again.
+
+What an account has already seen lives in `config/user-state.json`, gitignored like the accounts, deliberately not in `users.json`: the administrator has no record there, and interface state should not sit next to password hashes. The dialog is the app's `WhatsNewDialog` (from `/api/whats-new`, `system.js` on `whatsnew.js`), so it finds the reader on whichever page they land on; "Later" hides it for the session, and What's new (`/app/whats-new`, at the foot of the menu) lists everything and can replay the introduction.
+
+## Is a run in progress?
+
+Every Python entry point takes the same `process.lock` in the repo root, so the server can answer "is the pipeline busy" without a scheduler (`pipeline.js`, the `running` field of `/api/home` and `/api/lottery`), and keeps answering it whether the job was started by the server's own schedule, by hand or by cron: Home and the Lottery page show a line that names the job (`Today's predictions are being computed`, `Weekly tuning: boosting models`, ...) and how long it has been running, and read their data again every minute while it lasts. The command line behind the locked PID is what names the job, and a lock whose process is gone shows nothing - the scripts clean stale locks up themselves. Every reader sees this, not just the administrator: a reader who wonders why today's draw is missing gets the answer instead of an empty card.
+
+## Jobs & services and the supervised services
+
+`services.js` keeps the processes the UI depends on running, and the administrator's **Jobs & services** page (`/app/admin/jobs`, from `/api/admin/jobs`, read every 15 s) shows them: state, pid, uptime, restart count, last exit, the tail of the service log and start/stop/restart buttons (`POST /api/admin/services/:name/:action`, CSRF-checked, admin only). Today it supervises one service, the **Council API** (`src/llmCouncil/api.py`), which before 20 Sep 2026 had to be started by hand - so the Council was a dead link whenever nobody had. It starts with the server, restarts with a growing backoff if it dies, is marked failed instead of hammered after five exits within ten minutes, and stops with the server. Something already answering on its port (the other checkout, or an instance started by hand) is adopted and shown as such rather than duplicated. `COUNCIL_API_AUTOSTART=off` disables it; the service log is `log/councilApi.log`, rotated at 10 MB.
+
+A service is an ordinary child on purpose: it is cheap to restart and must simply always be up, so it should come and go with the server. The scheduled pipeline jobs are the opposite case - a twelve-hour tuning run must survive a deploy - so they are launched differently, by the module described next, and shown on the same page.
+
+## The schedule (`jobs.js`)
+
+The daily predictor, the weekly tuning chain and the weekly control experiments are the server's own work now, not crontab's (roadmap item 8). Thirteen jobs: `Predictor.py -a true -g <every game but the shares>` at 09:00 every day; `Predictor.py -a true -g shares,sharesweek` at 18:30 Monday to Friday (since 31 Oct 2026: Euronext opens at 09:00, before the morning run's cards could be up, and its day is complete after 18:00 - the shares' card is up the evening before; it waits for `process.lock` like any job and never starts the weekly plans, which only the morning predictor does); `HyperoptStatistics.py`, `HyperoptBoost.py`, `HyperoptRLTicket.py`, `HyperoptEnsemble.py`, `HyperoptQuantum.py`, `TrainMetaLearner.py` and, since 26 Oct 2026, `HyperoptStatistics.py -g keno -s KenoSubsetTuning` (*Weekly tuning: keno sub-selections*, last because it scores the artifacts the retrain has just written - *Hyperopt & backtesting*) as the weekly chain of seven, started when Saturday's predictor finishes; and, since 27 Sept 2026, `RandomnessDiscrimination.py` and `NullControls.py` (joined on 28 Sept 2026 by `IrrelevantFeatureControl.py` between them, and on 30 Sept 2026 by `MarketRows.py` after it - roadmap item 4, M3; README *Null controls*) as a second weekly plan started when **Sunday's** predictor finishes - measurements of the rows, never inputs to them, and hours long, so they get their own day rather than the tail of the chain, where they would have pushed Sunday's predictions behind them. Both plans have the same catch-up net (from 23:00 of their day until 09:00 two days later). Every hour here is the box's local time: since 30 Sept 2026 that is Europe/Brussels (it was UTC before), so 09:00 means 09:00 Belgian time and the slot follows summer and winter time - a `pm2 restart` was needed once for the server process to read the new zone, because Node fixes its zone at start. The same commands, the same order and the same log files as `runPredictor.sh` and `runHyperopt.sh`, which stay as the hand-run path (`test/jobs.test.js` fails if the two drift apart). Since 26 Oct 2026 two steps run `HyperoptStatistics.py`, so the job holding `process.lock` is named by its script and arguments (`jobs.jobOfCmdline`; the home page's run banner, `pipeline.js`, names the step the same way), and the test matches the shell mirror on whole lines. The admin pages count the `KenoSubsetTuning` gate record - which still says `HyperoptStatistics` - as the keno step's decision by its row, from the day the step joined the chain (`gates.js` `TUNERS`), so each run's drawer shows its own decisions; and the job carries that day (`since: '2026-10-26'` in `jobs.js`), so *This week* expects it only of the weekends from then on and does not call it not run in the weekend of 24 Oct. The Python half of that change reaches production with each script's git pull, but the job list arrives only with a server restart, which has to come before Saturday 31 Oct's chain is queued. Otherwise that weekend runs no keno sub-selection tuning, and the served keys stay as they are. The same restart carries the Sunday plan's changes of 27 Oct 2026: Q2 runs `-n 20 --seed weekly` for every game (about 80 minutes, was about a quarter of an hour, so the first Sunday reads as over its usual time once), and the `NullControls.py` job is named *Weekly controls: null histories (Q0 band, context)*, its band no longer a label (*Null controls*). **30 Oct 2026, the owner's decision: the null band is monthly.** `NullControls.py` (about 14 h, context only since Q0 became the daily report's per-row test) runs only on the **first Sunday of the month** (the Sunday plan occurrence whose Sunday is day 1 to 7 of its month), from Sunday 1 Nov 2026 - itself a first Sunday - on; the other three controls stay weekly. The job is *Monthly controls: null histories (Q0 band, context)* and carries `monthly: { since: '2026-11-01' }` in `jobs.js`: `enqueuePlan` leaves it out of every other Sunday's occurrence (a catch-up on Monday or Tuesday morning counts as the Sunday before) and says so in the scheduler log, dry run included. It is now the plan's **first** job, so the plan's last job - the one whose finish writes the week's reading (`data/readings/<sunday>.json`) - is `MarketRows.py`, which runs every Sunday: the reading is written every week, and on a week without a fresh band it carries the latest band as context with its own date (named in `notThisWeek`, as any record from another week). On a first Sunday the three weekly controls (about 3 h together) start only after the band, so they and the reading land in the early hours of Monday rather than on Sunday afternoon; the whole plan ends when it did before (the same jobs, another order), so Monday's 09:00 predictor waits behind it only if the band overruns as it could before, and the controls' window (catch-up until Tuesday 09:00) is unchanged - a catch-up started late on Monday could now leave the market rows, and with them the reading, past Tuesday 09:00 on a first Sunday, as the band did every week before. *This week* expects the band only of a first Sunday's weekend; on the others it lists it as not due, with the Sunday it runs next, never as missing. `runHyperopt.sh` runs the band first too and, being the hand-run path, every time.
+
+What it does differently from cron:
+
+- **The chain starts when Saturday's predictor finishes**, not at 14:00. That is the 3.5 idle hours of 2026-09-19 gone. The trigger is observed either from the scheduler's own run or from `process.lock` being released by a predictor someone else started, so it works during the dry run too.
+- **A job that finds the pipeline busy waits** in a single-worker FIFO queue instead of exiting - the failure mode that could skip a week of tuning in silence. The same FIFO is why a Saturday chain running into Sunday 09:00 queues that day's predictor behind it rather than pre-empting the tuner, as agreed.
+- **A missed slot is caught up** for 20 h (so a box that comes back at 04:00 still runs the day it missed; the evening shares run until 08:30, after which its card would no longer be up before the open), and the chain until Monday 09:00. The first ever start records the slots in its window as already handled instead of firing them - they belong to the crontab era.
+- **A running job survives a deploy.** Every job is launched with `setsid --fork`, so its parent is PID 1 and pm2's `treekill` walks past it; the restarted server finds the run in `config/scheduler.json`, adopts it and reports its real duration and exit code when it ends. Only the timer stops on SIGTERM - never the job.
+- **A blocked queue stays noisy.** Waiting on the lock is re-logged every half hour, and after six hours - the point `runHyperopt.sh` used to give up at - the wait is recorded as a blocked entry on the Jobs & services page. A run that hangs alive while holding the lock (one did for two days in August 2026) must not be able to stop the site producing predictions with a single log line as the only evidence.
+- **Every run is recorded**: job, reason it started, duration, exit code and the git SHA it ran at, on the Jobs & services page and in `log/scheduler.log`. A job that was killed without writing an exit code is recorded as that, never as a success.
+
+Modes. `SCHEDULER=dry` (the default) records what it would have started without starting anything - that is what makes deploying this next to a live crontab safe; `SCHEDULER=on` runs the schedule; `SCHEDULER=off` disables it, as does `touch config/scheduler.disabled`, which takes effect without a restart and is the fallback lever. Rolling back is a real rollback: the queue survives in `config/scheduler.json` across a restart, so anything the schedule had queued is **discarded** when the mode is no longer `on` (a job started by hand is kept), rather than waiting to fire the next time the schedule comes up. *Run now*, *Cancel* and *Stop* on the Jobs & services page (`POST /api/admin/jobs/run|cancel|stop`) work in `dry` as well (they are explicit human actions; *Stop* signals the whole process group, so the Python process goes with its wrapper) and are admin-only, POST and CSRF-checked like everything else there. State lives in `config/scheduler.json` and the per-run files in `config/runs/`, gitignored like the accounts - `data/` is the pipeline's own, committed, territory.
+
+Pm2 can also be used (this is how production runs it). Leave `--watch` off: the Python pipeline writes into the repo on every run - predictions, tuned parameters, model artifacts - and a watching pm2 would restart the server underneath its own visitors several times a day. Restart deliberately after a deploy instead (`pm2 restart sequencePredictor`). The login variables come from `.env`:
+
+```
+    pm2 start server.js --name predictor --time
+```
+
+Then for saving this in the pm2 run list (needed for auto start):
+
+```
+    pm2 save
+```
+
+For having it with auto start at boot:
+
+```
+    pm2 startup
+```
+
+## Testing
+
+To test a model when modifying or tuning you can run the LSTM.py or GRU.py directly and check the __main__ section. Use the test folder for trainingData and models if you don't want to touch the actual data (highly recommended). 
+For testing You, in the `test` folder, can manually remove the last result from the .csv files and put it in the `sequenceToPredict_xxx.json` file. Then when tuning or changing the model, the results are compared. **It is of importance to take the latest result out of the test data**.
+
+## Fetching data
+
+It is possible to download the csv data containing the real draws on the website or via the url. But it is also possible to use the "API" with the following link: https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&previous-draws=5 or for specific: https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=1746057600000&size=62&date-to=1751414400000&game-names=Keno
+
+## Out of date (check of 5 Nov 2026)
+
+The text above was moved as it stood. Comparing it with the code on 5 Nov 2026 found these points no longer true; they are listed rather than rewritten so nothing changes meaning unseen:
+
+- *Installation*: the library list is incomplete (xgboost, lightgbm, catboost, optuna, statsmodels, pmdarima, pandas, scikit-learn are missing) and the pip lines pin TensorFlow 2.18 while `requirements.txt` pins `tensorflow[and-cuda]==2.16.2`; the `Dockerfile` pins differ the same way and `Dockerfile.gpu` is not mentioned; the Node steps lack `npm run build:web`.
+- *How to run prediction*: the scheduler in the server starts the runs, not cron/`runPredictor.sh` (09:00 every game but the shares, 18:30 Mon-Fri the shares, `-g`); `python3 LSTM.py` is `src/LSTM.py`; `GRU.py` does not exist.
+- *The new user interface*: shares quotes come from Yahoo's chart on the Euronext listing, not Nasdaq; the shares record is rewritten by the 18:30 run; a share week follows the Euronext sessions.
+- *The schedule*: `pm2 start server.js --name predictor` - the production process is named `sequencePredictor`.
+- *Login and users*: `COUNCIL_ACCESS` (admin-only Council) and `COUNCIL_API_HOST` are not documented here or in `.env.example`.
+- *Testing*: `npm test` (15 Node tests and the Python self-checks) is the test suite; the `sequenceToPredict_*.json` files it names do not exist.
+- `Council_Integration.md` (repo root) describes wiring the old server-rendered Council page into `server.js`; that page was replaced by /app/council.

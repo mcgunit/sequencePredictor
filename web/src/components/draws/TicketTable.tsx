@@ -238,7 +238,9 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
   if (!rows.length) return <div className="empty">No rows in this scope.</div>;
   const keno = shape.family === 'keno';
   const cols = columnsOf(shape, rows);
-  const money_ = shape.money && scored;
+  // the prize-table games: the profit of one grid by the draw's own table, next to the hits (null: no table, or not a
+  // full grid - an RL ticket stored before 3 Nov 2026 without its stars, dream or viking)
+  const money_ = (shape.money || shape.prizes) && scored;
   const pnl = shape.family === 'market' && scored && market !== null;
   const hitsHead =
     shape.family === 'lotto' || shape.family === 'specials'
@@ -285,6 +287,10 @@ export default function TicketTable({ shape, rows, result, market, mode, currenc
                       <td className="num hits">
                         {ranking ? (
                           <span className="mut">not played</span>
+                        ) : shape.prizes && !isNum(t.profit) ? (
+                          <span className="mut" title="no prize table for this draw, or the ticket is not a full grid (an RL ticket before 3 Nov 2026 has no stars, dream or viking number)">
+                            {DASH}
+                          </span>
                         ) : (
                           <>
                             <span className={isNum(t.profit) && t.profit > 0 ? 'strong' : undefined}>{money(t.profit)}</span>

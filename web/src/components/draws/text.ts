@@ -86,7 +86,14 @@ export const eurU = (v: number | null | undefined, decimals = 2) => `${unsigned(
 
 // One draw's figures, or one month's, on two lines: the figure in bold, then over how many rows and tickets it is.
 // The counts are the ones the table under it shows (draws.dayFigures over the same rows).
-export function figureLines(shape: Shape, f: DayFigures | { rows: number; tickets: number; profit: number | null; stake: number | null; best: Best | null; multi: number | null }, mode: Mode): { main: string; sub: string[] } {
+// The prize-table games (lotto, EuroMillions, EuroDreams; 4 Nov 2026) keep the best ticket as the figure; the profit of
+// the grids their draws' prize tables could score is the line under it.
+export function prizeLine(shape: Shape, f: { profit: number | null; stake: number | null; grids?: number | null }): string | null {
+  if (!shape.prizes || !isNum(f.profit)) return null;
+  const g = f.grids ?? 0;
+  return `${eur(f.profit)} net over ${g} ${g === 1 ? 'grid' : 'grids'} · stake ${eurU(f.stake)}, by each draw's prize table`;
+}
+export function figureLines(shape: Shape, f: DayFigures | { rows: number; tickets: number; profit: number | null; stake: number | null; grids?: number | null; best: Best | null; multi: number | null }, mode: Mode): { main: string; sub: string[] } {
   const rows = `${f.rows} ${f.rows === 1 ? 'row' : 'rows'}`;
   const whose = mode === 'user' ? `the ${rows} shown` : rows;
   if (shape.money) {
@@ -98,6 +105,8 @@ export function figureLines(shape: Shape, f: DayFigures | { rows: number; ticket
   if (!f.best) return { main: DASH, sub: [`no scored row among ${whose}`] };
   const sub = [`${bestMeaning(shape)} · best of ${whose}, by ${short(f.best.by)}`];
   if (shape.family === 'lotto' && isNum(f.multi)) sub.push(`best of 9 numbers (multi-pick): ${f.multi}`);
+  const p = prizeLine(shape, f);
+  if (p) sub.push(p);
   return { main: bestText(shape, f.best), sub };
 }
 

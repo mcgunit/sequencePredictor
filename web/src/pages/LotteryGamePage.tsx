@@ -7,7 +7,7 @@ import type { Shape } from '../workbench';
 import { Card } from '../components/admin/Card';
 import { Loading, PageHead } from '../components/admin/States';
 import HistoryView from '../components/draws/History';
-import { bestMeaning, bestText, eur, eurU, gameTitle } from '../components/draws/text';
+import { bestMeaning, bestText, eur, eurU, gameTitle, prizeLine } from '../components/draws/text';
 import { LotteryFailed, UserGamePicker, drawHref, fromTo, lotteryHref, userText } from '../components/lottery/bits';
 
 // /lottery/:game: the game's draws from its first saved ranking on, a folding card per month, newest first, all folded
@@ -122,5 +122,7 @@ function totalLines(shape: Shape, t: HistoryTotal, unit: string): { main: string
   if (!t.best) return { main: DASH, sub: ['no scored row', over, ...notCounted] };
   const sub = [`best ticket: ${bestMeaning(shape)}, by ${short(t.best.by)}`, over];
   if (shape.family === 'lotto' && t.multi !== null) sub.push(`best of 9 numbers (multi-pick): ${t.multi}`);
+  const p = prizeLine(shape, t);
+  if (p) sub.push(p);
   return { main: bestText(shape, t.best), sub: [...sub, ...notCounted] };
 }

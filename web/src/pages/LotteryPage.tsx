@@ -93,7 +93,8 @@ function lastFigure(shape: Shape, l: LastDraw): string {
   const f = l.figures;
   if (!f) return DASH;
   if (shape.money) return `${money(f.profit)} EUR net`;
-  return f.best ? `best ticket ${bestWords(shape, f.best)}` : 'no scored row';
+  const profit = shape.prizes && isNum(f.profit) ? `, ${money(f.profit)} EUR net` : '';
+  return f.best ? `best ticket ${bestWords(shape, f.best)}${profit}` : 'no scored row';
 }
 
 function GameCardView({ c, open, onToggle }: { c: GameCard; open: boolean; onToggle: () => void }) {
@@ -217,6 +218,7 @@ function LastRows({ shape, rows }: { shape: Shape; rows: LastDraw['rows'] }) {
             <th>Model</th>
             {shape.money ? <th className="num">Profit EUR</th> : null}
             {best ? <th>{hitsHead}</th> : null}
+            {shape.prizes ? <th className="num">Profit EUR</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -237,6 +239,18 @@ function LastRows({ shape, rows }: { shape: Shape; rows: LastDraw['rows'] }) {
                 <td data-l="Hits">
                   <span className="strong">{bestText(shape, r.best)}</span>
                   {lotto && r.multi !== null ? <span className="sub">of 9: {r.multi}</span> : null}
+                </td>
+              ) : null}
+              {shape.prizes ? (
+                <td className="num" data-l="Profit">
+                  {isNum(r.profit) ? (
+                    <>
+                      <span className={r.profit > 0 ? 'strong' : undefined}>{money(r.profit)}</span>
+                      <span className="sub">one grid · stake {unsigned(r.stake)}</span>
+                    </>
+                  ) : (
+                    <span className="mut">{DASH}</span>
+                  )}
                 </td>
               ) : null}
             </tr>

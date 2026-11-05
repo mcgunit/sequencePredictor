@@ -129,6 +129,14 @@ details.help summary { cursor: pointer; color: var(--accent); list-style: none; 
 details.help summary::-webkit-details-marker { display: none; }
 details.help[open] { flex-basis: 100%; }
 details.help p { margin: 8px 0 0; max-width: 80ch; }
+/* the disclaimer at the foot of every page (components/Disclaimer.tsx) */
+footer.disclaimer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--muted); }
+footer.disclaimer summary { color: var(--muted); }
+footer.disclaimer summary strong { color: var(--fg); font-weight: 600; }
+footer.disclaimer summary .more { color: var(--accent); margin-left: 4px; }
+footer.disclaimer details[open] summary .more { display: none; }
+footer.disclaimer ul { margin: 8px 0 0; padding-left: 18px; max-width: 90ch; }
+footer.disclaimer li + li { margin-top: 4px; }
 
 /* Tables: edge to edge in their card, first and last column on the card's padding */
 .scroll { overflow-x: auto; }

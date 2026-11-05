@@ -300,6 +300,85 @@ function ticketStake(prediction, realResult, game) {
   return 0;
 }
 
+// --- PRIZE TABLES (src/PrizeTables.py, docs/scoring.md) ---
+// The pari-mutuel games scored in euro since 3 Nov 2026 (Vikinglotto since 5 Nov) by each draw's own prize table, which the pipeline keeps in
+// data/trainingData/<game>/<game>-prizes.json ({ISO date: {price, jackpot, tiers: [{name, mains, special, amount}]}}).
+// Their pages keep the hits as the figure and add the profit next to it (4 Nov 2026, owner): one grid of the row's own
+// ticket at the draw's base price, the tier its hits reach, as Helpers' report counts it. A draw without a table, or a
+// ticket that is not a full grid (an RL Ticket row stored before 3 Nov 2026 without its stars, dream or viking), has no
+// profit: null, never 0.
+const PRIZE_GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto'];
+// one grid: [main numbers, specials] - lotto plays six, its bonus counts when one of the six is it
+const PRIZE_GRID = { lotto: [6, 0], euromillions: [5, 2], eurodreams: [6, 1], vikinglotto: [6, 1] };
+// EuroDreams' two annuities at their rule value: 20,000 EUR a month for 30 years, 2,000 a month for 5 years
+const PRIZE_ANNUITY = { eurodreams: { '6+1': 20000 * 12 * 30, '6+0': 2000 * 12 * 5 } };
+const prizeFile = (databaseDir, game) => path.join(path.dirname(databaseDir), 'trainingData', game, `${game}-prizes.json`);
+const median = (xs) => { const s = xs.slice().sort((a, b) => a - b); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+// A tier nobody won shows 0: its value is the draw's jackpot for the top tier, otherwise this median of the tier's
+// amount over the stored draws where it paid (PrizeTables.typical_amounts)
+function prizeTypical(table) {
+  const paid = {};
+  Object.values(table).forEach((entry) => (entry && Array.isArray(entry.tiers) ? entry.tiers : []).forEach((t) => {
+    if (t.amount) (paid[t.name] = paid[t.name] || []).push(Number(t.amount));
+  }));
+  return Object.fromEntries(Object.entries(paid).map(([name, xs]) => [name, median(xs)]));
+}
+// The game's tables and their medians, read again when the file changes; null for another game or no file yet
+const prizeCache = new Map();
+function prizesOf(databaseDir, game) {
+  if (!PRIZE_GAMES.includes(game)) return null;
+  const file = prizeFile(databaseDir, game);
+  let stat;
+  try { stat = fs.statSync(file); } catch (e) { return null; }
+  const hit = prizeCache.get(file);
+  if (hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size) return hit.prizes;
+  let prizes = null;
+  try {
+    const table = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (table && typeof table === 'object') prizes = { table, typical: prizeTypical(table) };
+  } catch (e) { prizes = null; }
+  prizeCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, prizes });
+  return prizes;
+}
+// a cache key part for the pages that remember a built history (lottery.js)
+function prizeStamp(databaseDir, game) {
+  if (!PRIZE_GAMES.includes(game)) return '';
+  try { const s = fs.statSync(prizeFile(databaseDir, game)); return `prizes@${s.mtimeMs}:${s.size}`; } catch (e) { return 'prizes@none'; }
+}
+// One draw's table with the game's medians: {entry, typical}, or null when the draw has none to score on
+function prizeOfDraw(prizes, iso) {
+  const entry = prizes && prizes.table ? prizes.table[iso] : null;
+  if (!entry || !entry.price || !Array.isArray(entry.tiers) || !entry.tiers.length) return null;
+  return { entry, typical: prizes.typical };
+}
+// Net EUR of one grid of the ticket on its draw (PrizeTables.ticket_profit), or null: no table, not a full grid
+function prizeTicketProfit(game, cells, split, prize) {
+  if (!prize || !PRIZE_GRID[game] || !split.mains.length) return null;
+  const [numbers, stars] = PRIZE_GRID[game];
+  const { mains: tm, specials: ts } = splitTicket(cells, split.mains, SPECIAL_COLUMN_COUNTS[game] || 0);
+  const mains = tm.slice(0, numbers).map(Number);
+  const specials = ts.slice(0, stars).map(Number);
+  if (mains.length < numbers || specials.length < stars) return null;
+  const realMains = new Set(split.mains.map(Number));
+  const realSpecials = new Set((game === 'lotto' ? split.bonus : split.specials).map(Number));
+  const mainHits = new Set(mains.filter((n) => realMains.has(n))).size;
+  const specialHits = new Set((game === 'lotto' ? mains : specials).filter((n) => realSpecials.has(n))).size;
+  const { entry, typical } = prize;
+  const tiers = entry.tiers;
+  const tier = tiers.find((t) => t.mains === mainHits && t.special === specialHits)
+    || tiers.find((t) => t.mains === mainHits && (t.special === null || t.special === undefined));
+  let payout = 0;
+  if (tier) {
+    const annuity = (PRIZE_ANNUITY[game] || {})[tier.name];
+    if (annuity !== undefined) payout = annuity;
+    else {
+      payout = Number(tier.amount || 0);
+      if (!payout) payout = tier === tiers[0] ? Number(entry.jackpot || 0) : Number((typical || {})[tier.name] || 0);
+    }
+  }
+  return Math.round((payout - Number(entry.price)) * 100) / 100;
+}
+
 // --- DAY FILES ---
 // A day file is named after the draw it scored, not zero padded: data/database/<game>/2026-9-16.json. Its
 // "newPrediction" is the prediction for the NEXT draw of that game (checked against the data: file D's
@@ -401,8 +480,10 @@ const keepAll = () => true;
 // games {mains, specials} - "N (M)", lotto's M the bonus -, the markets {mains} by slot, keno {mains}, pick3
 // {positional, membership} (membership is the old page's Hits column), Joker+ {left, right, sign} - "L/R (Z)".
 // Without a drawn row (the coming draw) only the cells; mainsRef, the drawn mains a row is split against (a row
-// longer than them carries specials), is then the newest drawn row's - by default the drawn row itself.
-function scoreTicket(game, row, realResult, split = splitRealResult(realResult, game), mainsRef = split.mains) {
+// longer than them carries specials), is then the newest drawn row's - by default the drawn row itself. prize: the
+// draw's prize table (prizeOfDraw) on a PRIZE_GAMES game - the ticket then carries its profit and stake next to its
+// hits, profit null (no stake) when the draw has no table or the ticket is not a full grid.
+function scoreTicket(game, row, realResult, split = splitRealResult(realResult, game), mainsRef = split.mains, prize = null) {
   const family = familyOf(game);
   const cells = Array.isArray(row) ? row : [];
   const { mains: realMains, specials: realSpecials, bonus: realBonus } = split;
@@ -442,14 +523,18 @@ function scoreTicket(game, row, realResult, split = splitRealResult(realResult, 
     out.stake = played ? ticketStake(cells, realResult, game) : 0;
     out.profit = played ? round2(calculateProfit(cells, realResult, game)) : null;
     if (family === 'pick3') { const b = pick3Bets(cells, realResult); out.bets = b ? b.bets : null; }
+  } else if (PRIZE_GAMES.includes(game)) {
+    const profit = prizeTicketProfit(game, cells, split, prize);
+    out.profit = profit;
+    out.stake = profit === null ? null : Number(prize.entry.price);
   }
   return out;
 }
 
 // One model row of a table: its tickets scored, and for a lotto row with extras the multi-pick (the 7th to 9th
 // numbers of its first ticket, nine: the hits among all nine).
-function scoreRow(game, model, realResult, split = splitRealResult(realResult, game), mainsRef = split.mains) {
-  const tickets = model.predictions.map((p) => scoreTicket(game, p, realResult, split, mainsRef));
+function scoreRow(game, model, realResult, split = splitRealResult(realResult, game), mainsRef = split.mains, prize = null) {
+  const tickets = model.predictions.map((p) => scoreTicket(game, p, realResult, split, mainsRef, prize));
   const out = { name: nameOf(model), tickets };
   if (multiPickFor(game) && Array.isArray(model.multiPick) && model.multiPick.length) {
     const extras = model.multiPick.map(Number);
@@ -468,20 +553,27 @@ function scoreRow(game, model, realResult, split = splitRealResult(realResult, g
 // specials (Joker+: L + R, then the sign; a market: hits by slot) - with lotto's best of nine. rows: the model rows
 // counted; tickets: their tickets (keno: the played sizes only, not the 20-number ranking); stake: what those tickets
 // cost on a money game. best is null for keno and pick3 (the old page showed their profit only) and with no row.
-function dayFigures(game, day, keep = keepAll) {
+// prize: the draw's prize table on a PRIZE_GAMES game (prizeOfDraw) - the best ticket stays the figure and the profit
+// and stake of the grids it could score are added, with grids their count; profit null when none could be scored.
+function dayFigures(game, day, keep = keepAll, prize = null) {
   const realResult = Array.isArray(day && day.realResult) ? day.realResult : [];
   const rows = rowsOf(day && day.currentPrediction).filter((m) => keep(nameOf(m)));
   const family = familyOf(game);
   const money = MONEY_GAMES.includes(game);
   const split = splitRealResult(realResult, game);
   const specialCount = SPECIAL_COLUMN_COUNTS[game] || 0;
-  let profit = 0; let stake = 0; let tickets = 0;
+  const priced = PRIZE_GAMES.includes(game);
+  let profit = 0; let stake = 0; let tickets = 0; let grids = 0;
   let best = null; let multi = null;
   rows.forEach((m) => {
     let rowProfit = 0;
     m.predictions.forEach((p) => {
       if (family === 'keno' ? kenoPlayed(p) : true) tickets += 1;
       if (money) { rowProfit += calculateProfit(p, realResult, game, nameOf(m)); stake += ticketStake(p, realResult, game); }
+      if (priced) {
+        const v = prizeTicketProfit(game, p, split, prize);
+        if (v !== null) { rowProfit += v; stake += Number(prize.entry.price); grids += 1; }
+      }
     });
     profit += rowProfit;
     if (money && family !== 'jokerplus') return;
@@ -504,6 +596,7 @@ function dayFigures(game, day, keep = keepAll) {
   });
   const out = { rows: rows.length, tickets };
   if (money) { out.profit = round2(profit); out.stake = round2(stake); }
+  if (priced) Object.assign(out, grids ? { profit: round2(profit), stake: round2(stake), grids } : { profit: null, stake: null, grids: 0 });
   out.best = best ? bestOut(family, best) : null;
   if (multi !== null) out.multi = multi;
   return out;
@@ -541,17 +634,19 @@ function resultOf(game, realResult) {
 // and its totals over the same rows: the profit and stake summed, the best line of the month; draws: every stored
 // draw of the month, counted: those with rows in scope (with Top, the draws that have a ranking recorded before
 // them) and not afterClose - every total is over the counted draws only; afterClose: the draws shown greyed with
-// their figures, left out of the totals (27 Oct 2026).
+// their figures, left out of the totals (27 Oct 2026). e.prize: the draw's prize table on a PRIZE_GAMES game
+// (prizeOfDraw); a month's profit, stake and grids sum the counted draws that had one (profit null: none had).
 function historyMonths(game, entries) {
   const family = familyOf(game);
   const money = MONEY_GAMES.includes(game);
+  const priced = PRIZE_GAMES.includes(game);
   const months = [];
   let current = null;
   entries.forEach((e) => {
     const month = e.date.slice(0, 7);
     if (!current || current.month !== month) {
       // rows: summed over the counted draws (row-draws); rowsMin / rowsMax: the rows of one counted draw, the header's words
-      current = { month, draws: 0, counted: 0, afterClose: 0, rows: 0, rowsMin: null, rowsMax: null, tickets: 0, ...(money ? { profit: 0, stake: 0 } : {}), best: null, multi: null, days: [] };
+      current = { month, draws: 0, counted: 0, afterClose: 0, rows: 0, rowsMin: null, rowsMax: null, tickets: 0, ...(money || priced ? { profit: 0, stake: 0 } : {}), ...(priced ? { grids: 0 } : {}), best: null, multi: null, days: [] };
       months.push(current);
     }
     const line = { date: e.date, weekday: weekdayOf(e.date), result: resultOf(game, e.day && e.day.realResult) };
@@ -559,16 +654,17 @@ function historyMonths(game, entries) {
     if (e.liveMarks) line.liveMarks = e.liveMarks;
     if (e.keep && e.afterClose) {
       // shown with its figures, greyed, out of every total
-      Object.assign(line, dayFigures(game, e.day, e.keep), { afterClose: true });
+      Object.assign(line, dayFigures(game, e.day, e.keep, e.prize || null), { afterClose: true });
       current.afterClose += 1;
     } else if (e.keep) {
-      const f = dayFigures(game, e.day, e.keep);
+      const f = dayFigures(game, e.day, e.keep, e.prize || null);
       Object.assign(line, f);
       current.counted += 1;
       current.rows += f.rows; current.tickets += f.tickets;
       current.rowsMin = current.rowsMin === null ? f.rows : Math.min(current.rowsMin, f.rows);
       current.rowsMax = current.rowsMax === null ? f.rows : Math.max(current.rowsMax, f.rows);
       if (money) { current.profit += f.profit; current.stake += f.stake; }
+      if (priced && f.grids) { current.profit += f.profit; current.stake += f.stake; current.grids += f.grids; }
       current.best = betterBest(family, current.best, f.best);
       if (f.multi !== undefined) current.multi = Math.max(current.multi === null ? 0 : current.multi, f.multi);
     }
@@ -577,6 +673,7 @@ function historyMonths(game, entries) {
   });
   months.forEach((m) => {
     if (money) { m.profit = round2(m.profit); m.stake = round2(m.stake); }
+    if (priced) { m.profit = m.grids ? round2(m.profit) : null; m.stake = m.grids ? round2(m.stake) : null; }
     if (m.multi === null) delete m.multi;
   });
   return months;
@@ -629,9 +726,16 @@ function multiPickLegend(game) {
 
 // The shape of a game's table: its main cells, its special columns by name, the lotto bonus, whether it is read by
 // slot, whether it has money, and the price of a ticket.
-function shapeOf(game, { slots = null } = {}) {
+// prizes: the game's tables are on hand (prizesOf) - its hits stay the figure, with the profit by the draw's own prize
+// table next to them.
+function shapeOf(game, { slots = null, prizes = false } = {}) {
   const family = familyOf(game);
   const out = { family, specials: SPECIAL_LABELS[game] || [], bonus: game === 'lotto', positional: POSITIONAL_GAMES.includes(game), money: MONEY_GAMES.includes(game) };
+  if (prizes && PRIZE_GAMES.includes(game)) {
+    out.prizes = true;
+    const [numbers, stars] = PRIZE_GRID[game];
+    out.ticket = { currency: 'EUR', price: null, note: `one grid of ${numbers} numbers${stars ? ` and ${stars === 1 ? 'the' : stars} ${SPECIAL_LABELS[game].length === 1 ? SPECIAL_LABELS[game][0].toLowerCase() + ' number' : 'stars'}` : ''} at the draw's own price; its prize from the draw's own prize table (a tier nobody won: the jackpot, or the tier's usual amount)` };
+  }
   if (slots) out.slots = slots;
   if (game === 'keno') out.ticket = { currency: 'EUR', price: 1, sizes: [KENO_SIZES.min, KENO_SIZES.max], ranking: 'a row of more than 10 numbers is the row\'s ranking, not played' };
   if (game === 'pick3') out.ticket = { currency: 'EUR', price: 4, triple: 3, bets: ['straight', 'box', 'front pair', 'back pair'], note: 'every bet type at 1 EUR; a triple cannot play box' };
@@ -640,7 +744,7 @@ function shapeOf(game, { slots = null } = {}) {
 }
 
 module.exports = {
-  SPECIAL_COLUMN_COUNTS, SPECIAL_LABELS, MARKET_GAMES, MONEY_GAMES, POSITIONAL_GAMES, MULTI_PICK, multiPickFor, multiHits, winChance,
+  SPECIAL_COLUMN_COUNTS, SPECIAL_LABELS, MARKET_GAMES, MONEY_GAMES, PRIZE_GAMES, prizesOf, prizeStamp, prizeOfDraw, prizeTicketProfit, POSITIONAL_GAMES, MULTI_PICK, multiPickFor, multiHits, winChance,
   ZODIAC, zodiacCode, zodiacName, jokerplusRuns, jokerplusSignHit, PAYOUT_TABLE_JOKERPLUS, jokerplusTicketProfit,
   chartFrequency, gameFromFolder, splitRealResult, splitTicket, PAYOUT_TABLE_KENO, KENO_SIZES, KENO_STAKE, kenoPlayed, kenoTicketProfit, PAYOUT_TABLE_PICK3, pick3Bets,
   calculateProfit, ticketStake, SCHEDULE_WINDOW, DAY_FILE, parseDayFileDate, nextDrawDate, isoOfFile, fileOfIso, nextDrawDay, weekdayOf, DRAW_CLOSE, salesClose,

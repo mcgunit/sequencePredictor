@@ -2,7 +2,7 @@
 Prize tables of the pari-mutuel games - what a ticket really won.
 
 Keno, Pick3 and Joker+ pay from fixed tables (Helpers.PAYOUT_TABLE_*). Lotto,
-EuroMillions and EuroDreams pay per draw: the National Lottery's draw API
+EuroMillions, EuroDreams and Vikinglotto pay per draw: the National Lottery's draw API
 (the same call DataFetcher reads the numbers from) carries every draw's
 prize tiers - per tier its name, the amount one winner got and how many
 Belgians won it - back to at least 2015 (checked 3 Nov 2026). This module
@@ -16,8 +16,9 @@ The rules a ticket is scored by (owner's decisions, 3 Nov 2026):
 
   one grid, the row's own ticket   Lotto: the six numbers (the 7th-9th of
       the multi-pick stay a hit-rate study), EuroMillions five numbers and
-      two stars, EuroDreams six numbers and the dream number - at the
-      draw's base price (1.50, 2.50, 2.50 EUR).
+      two stars, EuroDreams six numbers and the dream number, Vikinglotto
+      six numbers and the viking number - at the draw's base price (1.50,
+      2.50, 2.50, 2.00 EUR).
   a tier nobody won pays 0 in the API (the money rolls over), so a hit on
       it is valued as: the top tier the draw's announced jackpot; any other
       tier its median over the stored draws where it did pay; EuroDreams'
@@ -26,9 +27,10 @@ The rules a ticket is scored by (owner's decisions, 3 Nov 2026):
   the raffles (Lucky Lotto, My Bonus) are drawn on a code, not on the
       numbers: not scored.
 
-Vikinglotto is not here: its tiers ('6/', '5+Fav', ... '1') could not be
-matched to the game's rules (the winner counts do not fit "1 = one number"),
-so it keeps average hits until they are confirmed.
+Vikinglotto joined on 5 Nov 2026 (owner confirmed its tiers): 'k' is k
+numbers without the viking number, 'k+Fav' k numbers with it, '6/' all six
+whatever the viking number (the jackpot); one number already pays 2.00 EUR,
+the price back. The winner counts fit those odds (checked 4 Nov 2026).
 
     python3 -m src.PrizeTables      # self-check (in npm test)
 """
@@ -43,12 +45,12 @@ import tempfile
 from datetime import datetime, timezone
 
 # game folder -> the API's game-names parameter
-GAMES = {"lotto": "Lotto", "euromillions": "Euro+Millions", "eurodreams": "EuroDreams"}
+GAMES = {"lotto": "Lotto", "euromillions": "Euro+Millions", "eurodreams": "EuroDreams", "vikinglotto": "Viking+Lotto"}
 # one grid: (numbers, specials) - a longer ticket plays its first ones. Lotto's
 # statistical rows carried 7 values until 13 May 2026: the 7th a guess at the
 # bonus column (one Markov row's was 46, in a 1-45 game), not a 7th number one
 # can play - their grid is the first six.
-GRID = {"lotto": (6, 0), "euromillions": (5, 2), "eurodreams": (6, 1)}
+GRID = {"lotto": (6, 0), "euromillions": (5, 2), "eurodreams": (6, 1), "vikinglotto": (6, 1)}
 # EuroDreams' annuities, per their rule (the API shows the monthly amount, or 0)
 ANNUITY = {"eurodreams": {"6+1": 20000.0 * 12 * 30, "6+0": 2000.0 * 12 * 5}}
 API = "https://apim.prd.natlot.be/api/v4/draw-games/draws"
@@ -57,10 +59,10 @@ WINDOW_DAYS = 120       # one request per window: at most 2 draws a week, well u
 
 
 def game_of(name):
-    """The game folder name contains (lotto, euromillions, eurodreams), else None - 'vikinglotto' is not 'lotto'."""
+    """The game folder name contains (lotto, euromillions, eurodreams, vikinglotto), else None - 'vikinglotto' is not 'lotto'."""
     name = str(name or "").lower()
     if "vikinglotto" in name:
-        return None
+        return "vikinglotto"
     return next((g for g in GAMES if g in name), None)
 
 
@@ -82,17 +84,19 @@ def tier_key(game, name):
     """
     (main hits, special hits or None for any) a tier pays on, from the API's
     tier name: Lotto '  5' / '5+1' (the +1 is the bonus number), EuroMillions
-    '4+2' (stars), EuroDreams '6+1' / '5/' (the / is any dream number).
+    '4+2' (stars), EuroDreams '6+1' / '5/' (the / is any dream number),
+    Vikinglotto '5+Fav' (Fav is the viking number: special 1) / '6/'.
     None for a name that does not read.
     """
     text = str(name).strip()
-    match = re.fullmatch(r"(\d)\s*(?:\+\s*(\d)|(/))?", text)
+    match = re.fullmatch(r"(\d)\s*(?:\+\s*(\d|Fav)|(/))?", text, re.IGNORECASE)
     if not match:
         return None
     mains = int(match.group(1))
     if match.group(3):
         return (mains, None)
-    special = int(match.group(2)) if match.group(2) is not None else 0
+    special = match.group(2)
+    special = 0 if special is None else 1 if special.lower() == "fav" else int(special)
     return (mains, special)
 
 
@@ -263,7 +267,7 @@ def ticket_profit(game, mains, specials, real_mains, real_specials, entry, typic
 
 def _self_check():
     assert day_key("2026-11-2.json") == "2026-11-02" and day_key("2026-10-24") == "2026-10-24"
-    assert game_of("lotto") == "lotto" and game_of("vikinglotto") is None and game_of("keno") is None
+    assert game_of("lotto") == "lotto" and game_of("vikinglotto") == "vikinglotto" and game_of("keno") is None
     assert tier_key("lotto", "  5") == (5, 0) and tier_key("lotto", "5+1") == (5, 1)
     assert tier_key("eurodreams", "5/") == (5, None) and tier_key("euromillions", "4+2") == (4, 2) and tier_key("x", "COD") is None
     draw = {"drawTime": 1792861200000, "gameRuleSet": {"basePrice": 150}, "jackpots": [{"amount": 150000000}],
@@ -315,6 +319,20 @@ def _self_check():
     assert "2025-03-01" not in load(folder, "lotto")                                                     # an empty answer marks nothing
     spaced = dict(draw, prizeTiers=[dict(t, drawType="Regular ") for t in draw["prizeTiers"]])
     assert len(entry_of("euromillions", spaced)[1]["tiers"]) == 4
+    # Vikinglotto (a draw of Nov 2026 as the API gives it): 'Common ' tiers, Fav = the viking number
+    viking = {"drawTime": 1791388800000, "gameRuleSet": {"basePrice": 200}, "jackpots": [{"amount": 300000000}],
+              "prizeTiers": [{"drawType": "Common ", "name": name, "shareAmount": cents, "shareCount": 1}
+                             for name, cents in (("6/", 0), ("5+Fav", 0), ("5", 2154720), ("3+Fav", 6000), ("3", 3000),
+                                                 ("1+Fav", 400), ("1", 200))]}
+    assert tier_key("vikinglotto", "5+Fav") == (5, 1) and tier_key("vikinglotto", "6/") == (6, None) and tier_key("vikinglotto", "1") == (1, 0)
+    vk = entry_of("vikinglotto", viking)[1]
+    assert vk["price"] == 2.0 and vk["jackpot"] == 3000000.0 and len(vk["tiers"]) == 7
+    assert ticket_profit("vikinglotto", [1, 40, 41, 42, 43, 44], [2], real, [3], vk) == 0.0      # one number: the price back
+    assert ticket_profit("vikinglotto", [1, 40, 41, 42, 43, 44], [3], real, [3], vk) == 2.0      # 1+Fav
+    assert ticket_profit("vikinglotto", [1, 2, 3, 42, 43, 44], [3], real, [3], vk) == 58.0       # 3+Fav
+    assert ticket_profit("vikinglotto", real, [1], real, [3], vk) == 3000000.0 - 2.0             # 6/ whatever the viking
+    assert ticket_profit("vikinglotto", [40, 41, 42, 43, 44, 45], [3], real, [3], vk) == -2.0    # nothing (0+Fav pays nothing)
+    assert ticket_profit("vikinglotto", real, [], real, [3], vk) is None                         # an old RL ticket: hits only
     print("PrizeTables self-check OK")
 
 

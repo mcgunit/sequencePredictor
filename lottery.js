@@ -234,6 +234,11 @@ function totalOf(game, months, kept) {
   const out = { from: kept[kept.length - 1].date, to: kept[0].date, draws: sum('draws'), counted: sum('counted'), afterClose: sum('afterClose'), rows: sum('rows'),
     tickets: sum('tickets'), best };
   if (draws.MONEY_GAMES.includes(game)) { out.profit = round2(sum('profit')); out.stake = round2(sum('stake')); }
+  // the prize-table games: over the months that had a table (grids: the grids scored; null when none had)
+  if (draws.PRIZE_GAMES.includes(game)) {
+    const grids = sum('grids');
+    Object.assign(out, grids ? { profit: round2(sum('profit')), stake: round2(sum('stake')), grids } : { profit: null, stake: null, grids: 0 });
+  }
   if (multi !== null) out.multi = multi;
   return out;
 }
@@ -265,7 +270,7 @@ function historyOf(dirs, game, hist, month, now = new Date()) {
     return { game, ...extraOf(game), builtAt: isoNow(now), scope: 'top', topN: TOP_N, shape: draws.shapeOf(game), draws: 0, counted: 0, month: null, months: [],
       ranking: { first: savedOf(hist.first), firstOfGame: start.first, error: hist.error ? READ_ERROR : null, versions: [], metrics: {} }, total: null, leftOut };
   }
-  const stamp = [histStamp(hist), stampOf(path.join(dirs.databaseDir, workbench.LIVENESS_FILE)), ...kept.map((f) => `${f.file}@${stampOf(path.join(dir, f.file))}`)].join('|');
+  const stamp = [histStamp(hist), stampOf(path.join(dirs.databaseDir, workbench.LIVENESS_FILE)), draws.prizeStamp(dirs.databaseDir, game), ...kept.map((f) => `${f.file}@${stampOf(path.join(dir, f.file))}`)].join('|');
   return remember(`history:${dir}:${month || ''}`, stamp, () => {
     const view = workbench.historyView(dirs, game, 'top', hist, extraOf(game), month, now, { include: start.counts, afterClose: true });
     if (view.error) return view.status === 404 && month !== null ? { error: 'no counted draw in that month', status: 404 } : view;
@@ -283,8 +288,8 @@ function historyOf(dirs, game, hist, month, now = new Date()) {
 // ticket of the five was made after its sales close. past: the coming draw's date has gone and no newer run has
 // scored it yet; today: it is today's date in Brussels.
 const byRank = (a, b) => (a.rank === null ? 99 : a.rank) - (b.rank === null ? 99 : b.rank);
-function rowFigures(game, day, name) {
-  const { rows, best, ...f } = draws.dayFigures(game, day, (n) => n === name);
+function rowFigures(game, day, name, prize = null) {
+  const { rows, best, ...f } = draws.dayFigures(game, day, (n) => n === name, prize);
   if (!best) return { ...f, best: null };
   const { by, ...b } = best;
   return { ...f, best: b };
@@ -302,8 +307,9 @@ function cardOf(dirs, game, hist, report, now) {
   const today = brussels.dayOf(now.getTime());
   const last = { date: view.date, weekday: view.weekday, result: view.result };
   if (start && start.counts(view.date)) {
+    const prize = draws.prizeOfDraw(draws.prizesOf(dirs.databaseDir, game), view.date);
     Object.assign(last, { scope: plainScope(view.scope), figures: view.figures,
-      rows: view.rows.slice().sort(byRank).map((r) => ({ name: r.name, rank: r.rank, ...rowFigures(game, day, r.name) })), ...afterCloseOut(view.liveness) });
+      rows: view.rows.slice().sort(byRank).map((r) => ({ name: r.name, rank: r.rank, ...rowFigures(game, day, r.name, prize) })), ...afterCloseOut(view.liveness) });
   } else if (unreadStart(hist, start)) {
     // the history is not whole here: not "left out", nor "not saved yet" - the rankings could not be read just now
     last.none = { code: 'unavailable', text: 'the saved rankings could not be read just now' };
@@ -326,7 +332,8 @@ function cardOf(dirs, game, hist, report, now) {
 }
 function overviewOf(dirs, hist, report, now = new Date()) {
   const stamp = [histStamp(hist), stampOf(path.join(dirs.databaseDir, 'modelPerformance.json')), stampOf(path.join(dirs.databaseDir, workbench.LIVENESS_FILE)), brussels.dayOf(now.getTime()),
-    ...GAMES.map((g) => { const f = workbench.dayFilesOf(path.join(dirs.databaseDir, g)); return f.length ? `${f.length}:${f[0].file}@${stampOf(path.join(dirs.databaseDir, g, f[0].file))}` : '-'; })].join('|');
+    ...GAMES.map((g) => { const f = workbench.dayFilesOf(path.join(dirs.databaseDir, g)); return f.length ? `${f.length}:${f[0].file}@${stampOf(path.join(dirs.databaseDir, g, f[0].file))}` : '-'; }),
+    ...GAMES.map((g) => draws.prizeStamp(dirs.databaseDir, g))].join('|');
   return remember(`overview:${dirs.databaseDir}`, stamp, () => ({
     builtAt: isoNow(now), topN: TOP_N, firstSaved: savedOf(hist.first),
     games: GAMES.map((g) => cardOf(dirs, g, hist, report, now)),

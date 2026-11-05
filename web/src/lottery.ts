@@ -84,6 +84,7 @@ export interface LastRow {
   tickets: number;
   profit: number | null;
   stake: number | null;
+  grids: number | null; // the prize-table games: the grids scored on the draw's prize table
   best: Best | null;
   multi: number | null;
 }
@@ -124,7 +125,7 @@ function lastOf(v: unknown): LastDraw | null {
     scope: has(l.scope) ? drawScopeOf(l.scope, 'top') : null, figures: figuresOf(l.figures),
     rows: arr(l.rows).filter(has).map((x) => {
       const r = o(x);
-      return { name: str(r.name), rank: opt(r.rank), tickets: num(r.tickets, 0), profit: opt(r.profit), stake: opt(r.stake), best: bestOf(r.best), multi: opt(r.multi) };
+      return { name: str(r.name), rank: opt(r.rank), tickets: num(r.tickets, 0), profit: opt(r.profit), stake: opt(r.stake), grids: opt(r.grids), best: bestOf(r.best), multi: opt(r.multi) };
     }),
     leftOut: ostr(l.leftOut),
     none: noneOf(l.none),
@@ -159,6 +160,7 @@ export interface HistoryTotal {
   tickets: number;
   profit: number | null;
   stake: number | null;
+  grids: number | null; // the prize-table games: the grids scored over the counted draws
   best: Best | null;
   multi: number | null;
 }
@@ -180,7 +182,7 @@ export function normUserHistory(raw: unknown, game: string): UserHistory {
     ...normHistory(raw, game, 'top'),
     total: has(r.total)
       ? { from: ostr(t.from), to: ostr(t.to), draws: num(t.draws, 0), counted: num(t.counted, 0), afterClose: num(t.afterClose, 0), rows: num(t.rows, 0), tickets: num(t.tickets, 0),
-          profit: opt(t.profit), stake: opt(t.stake), best: bestOf(t.best), multi: opt(t.multi) }
+          profit: opt(t.profit), stake: opt(t.stake), grids: opt(t.grids), best: bestOf(t.best), multi: opt(t.multi) }
       : null,
     leftOut: has(r.leftOut) ? { draws: num(l.draws, 0), firstSaved: ostr(l.firstSaved), firstCounted: ostr(l.firstCounted), text: str(l.text) } : null,
   };

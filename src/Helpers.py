@@ -680,11 +680,11 @@ class Helpers():
           (the boosting rows are weeks old, the statistical rows months) and
           bet different numbers of Keno subsets, so totals aren't comparable.
           Joker+ bets its 7-value main ticket once per draw.
-        - lotto/euromillions/eurodreams (3 Nov 2026, src/PrizeTables.py): the
+        - lotto/euromillions/eurodreams (3 Nov 2026) and vikinglotto (5 Nov 2026, src/PrizeTables.py): the
           same profit bound, each row's one grid scored against its draw's
           own prize table from the draw API; a draw without a table has no
           bet, a game without any table ranks on average hits as below. The
-          combination search stays on hits for these three.
+          combination search stays on hits for these four.
         - every other game: average MAIN-number hits of the model's main
           ticket. avg_hits/best_hits/hits_total count main hits only - the
           special columns (stars/dream/viking) live in their own smaller range
@@ -776,7 +776,7 @@ class Helpers():
             recoveredDraws = {}                 # name -> recovered draws in the live record
 
             hasPayout = "keno" in game or "pick3" in game or is_jokerplus(game)
-            # Lotto, EuroMillions, EuroDreams: each draw's own prize table
+            # Lotto, EuroMillions, EuroDreams, Vikinglotto (5 Nov): each draw's own prize table
             # (src/PrizeTables.py, 3 Nov 2026). With tables the game ranks on
             # the profit bound like the payout games (moneyRank); a draw
             # without one is scored on hits only, a game without any keeps

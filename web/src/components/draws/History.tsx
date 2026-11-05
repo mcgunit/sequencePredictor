@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { count, dayYear, perUnit, short, stamp } from '../../format';
 import type { DayFigures, DayLine, History, Month, RankVersion, Shape } from '../../workbench';
 import ResultStrip from './ResultStrip';
-import { bestMeaning, bestText, eur, eurU, figureLines, monthTitle, prettyDates, type Mode } from './text';
+import { bestMeaning, bestText, eur, eurU, figureLines, monthTitle, prettyDates, prizeLine, type Mode } from './text';
 
 // One game's history of draws (the old /database/:folder page): a folding card per month, newest first and the newest
 // open, each draw a line with its date (a link to the draw), the drawn row and its figures over the rows in scope.
@@ -24,7 +24,7 @@ export function noneShort(code: string | null, first?: string | null): string {
 
 // One draw's figures over the rows in scope: the figure in bold, then over how many rows and tickets (the admin pages
 // colour no figure by its sign)
-export function FiguresLine({ shape, figures, mode }: { shape: Shape; figures: Pick<DayFigures, 'rows' | 'tickets' | 'profit' | 'stake' | 'best' | 'multi'>; mode: Mode }) {
+export function FiguresLine({ shape, figures, mode }: { shape: Shape; figures: Pick<DayFigures, 'rows' | 'tickets' | 'profit' | 'stake' | 'grids' | 'best' | 'multi'>; mode: Mode }) {
   const f = figureLines(shape, figures, mode);
   return (
     <span className="fig">
@@ -89,6 +89,8 @@ function monthLine(m: Month, shape: Shape, unit: string, scope: 'all' | 'top', m
   } else if (m.counted && m.best) {
     parts.push(`best ${bestText(shape, m.best)} over ${drawsText}`, `${bestMeaning(shape)}, by ${short(m.best.by)} · ${rowsText}`);
     if (shape.family === 'lotto' && m.multi !== null) parts.push(`best of 9 numbers (multi-pick): ${m.multi}`);
+    const p = prizeLine(shape, m);
+    if (p) parts.push(p);
   } else if (m.counted) {
     parts.push(`${drawsText}, no scored row`);
   }

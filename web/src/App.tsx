@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import Disclaimer from './components/Disclaimer';
 import Sidebar from './components/Sidebar';
 import WhatsNewDialog from './components/WhatsNewDialog';
 import AdminGuard, { Loading } from './components/admin/States';
@@ -62,6 +63,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        {/* the README's disclaimer, compact, on every page (5 Nov 2026) */}
+        <Disclaimer />
       </main>
       {/* the introduction, or the major notes, on whichever page a reader lands (the old pages' dialog) */}
       <WhatsNewDialog />

@@ -219,12 +219,14 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
   const files = dayFilesOf(dir).filter((f) => !include || include(f.date));
   if (!files.length) return { error: include ? 'no draw of this game in this history yet' : 'no stored draw for this game', status: 404 };
   const live = livenessOf(dirs, game);
+  // lotto, EuroMillions, EuroDreams: each draw's own prize table, the profit next to the hits (draws.PRIZE_GAMES)
+  const prizes = draws.prizesOf(dirs.databaseDir, game);
   const entries = files.map(({ file, date }) => {
     const day = readDay(path.join(dir, file)) || { realResult: [], currentPrediction: [] };
     const t = hist.topAt(game, date, namesOf(day.currentPrediction));
     const keep = scopeOfDraw(scope, t, 0).keep;
     const marks = drawLiveness(live, date, day.currentPrediction);
-    return { date, day, keep, ranking: t, ...(afterClose ? { afterClose: afterCloseOf(marks, day.currentPrediction, keep) } : { liveMarks: liveMarksOf(marks, day.currentPrediction, keep) }) };
+    return { date, day, keep, ranking: t, prize: draws.prizeOfDraw(prizes, date), ...(afterClose ? { afterClose: afterCloseOf(marks, day.currentPrediction, keep) } : { liveMarks: liveMarksOf(marks, day.currentPrediction, keep) }) };
   });
   const months = draws.historyMonths(game, entries);
   const open = month === null ? months[0].month : month;
@@ -250,7 +252,7 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
   return {
     game, ...extra, builtAt: isoDate(now), scope, topN: rankings.TOP_MODELS_SHOWN,
     // a market game's slots name its instruments in order, as on the draw view (the history's result lines read by slot)
-    shape: draws.shapeOf(game, { slots: draws.MARKET_GAMES.includes(game) ? slotsOf(marketView(dirs.marketsDir, game)) : null }),
+    shape: draws.shapeOf(game, { slots: draws.MARKET_GAMES.includes(game) ? slotsOf(marketView(dirs.marketsDir, game)) : null, prizes: Boolean(prizes) }),
     draws: entries.length, counted: months.reduce((s, m) => s + m.counted, 0), month: open,
     months: months.map((m) => {
       const { days, ...totals } = m;
@@ -282,6 +284,8 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
   const market = draws.MARKET_GAMES.includes(game) ? marketView(dirs.marketsDir, game) : null;
   const slots = slotsOf(market);
   const split = draws.splitRealResult(day.realResult, game);
+  const prizes = draws.prizesOf(dirs.databaseDir, game);
+  const prize = draws.prizeOfDraw(prizes, date);
   const present = namesOf(day.currentPrediction);
   const t = hist.topAt(game, date, present);
   const { keep, top, line } = scopeOfDraw(scope, t, present.length);
@@ -297,11 +301,11 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
     if (!mark) return null;
     if (mark.status !== 'recovered') return mark;
     const { ticket, ...rest } = mark;
-    return { ...rest, atClose: draws.scoreRow(game, { name: 'at the close', predictions: list(ticket && ticket.predictions), multiPick: ticket ? ticket.multiPick : null }, day.realResult, split) };
+    return { ...rest, atClose: draws.scoreRow(game, { name: 'at the close', predictions: list(ticket && ticket.predictions), multiPick: ticket ? ticket.multiPick : null }, day.realResult, split, split.mains, prize) };
   };
-  const rows = shown.map((m) => ({ ...draws.scoreRow(game, m, day.realResult, split), rank: rankOf(order, nameOf(m)), top: Boolean(top && top.has(nameOf(m))),
+  const rows = shown.map((m) => ({ ...draws.scoreRow(game, m, day.realResult, split, split.mains, prize), rank: rankOf(order, nameOf(m)), top: Boolean(top && top.has(nameOf(m))),
     liveMark: liveOut(markOf.get(m)) }));
-  const figures = keep ? draws.dayFigures(game, day, keep) : null;
+  const figures = keep ? draws.dayFigures(game, day, keep, prize) : null;
   // the stored vote: this file's, or - missing in 35 old vikinglotto files - the previous file's numberFrequency, the same vote
   let stored = day.currentNumberFrequency && typeof day.currentNumberFrequency === 'object' && Object.keys(day.currentNumberFrequency).length ? day.currentNumberFrequency : null;
   let from = 'file';
@@ -312,7 +316,7 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
   const out = {
     game, ...extra, builtAt: isoDate(now), date, weekday: draws.weekdayOf(date), file: files[at].file,
     prev: files[at + 1] ? files[at + 1].date : null, next: at > 0 ? files[at - 1].date : null, newest: at === 0,
-    shape: draws.shapeOf(game, { slots }), result: draws.resultOf(game, day.realResult),
+    shape: draws.shapeOf(game, { slots, prizes: Boolean(prizes) }), result: draws.resultOf(game, day.realResult),
     scope: { ...line, rows: shown.length, tickets: figures ? figures.tickets : 0 },
     rows, figures,
     // the shown rows not live as stored, by status (null: all live), and whether the users' rule greys the draw - judged
