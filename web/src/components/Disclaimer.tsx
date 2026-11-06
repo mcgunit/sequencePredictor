@@ -1,5 +1,5 @@
-// The README's disclaimer at the foot of every page (5 Nov 2026, owner): one compact line, the full text folded
-// behind "Read more" (every collapsible starts folded). Keep it in step with the README's.
+// The README's disclaimer at the foot of every page, sticky so it is always in view (5 Nov 2026, owner): one compact
+// line, the full text folded behind "Read more" (every collapsible starts folded). Keep it in step with the README's.
 export default function Disclaimer() {
   return (
     <footer className="disclaimer">

@@ -83,7 +83,8 @@ Open work, newest first. Finished items and the full text of every item are in d
 - [ ] Weekly control readings (every Sunday's jobs; docs/research.md).
 - [ ] Q3 and Q4 of the quantum track.
 - [ ] Wire or remove the dead LSTM layer-count setting and the unused `SelfAttentionBlock`.
-- [ ] A gate for the deep-learning tuner, the only tuner that still writes without one.
+- [x] A gate for the deep-learning tuner (6 Nov 2026), with resume, per-study saves, pruning and production's 240 s training budget.
+- [ ] The deep-learning tuner's score on validation windows outside the lockbox (its validation split still contains it).
 
 **Platform**
 - [ ] A mail to the admin when a scheduled job fails.

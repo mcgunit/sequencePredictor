@@ -395,7 +395,8 @@ def describe(tuning):
     score = tuning.get("score")
     text = f"score {score:+.4f}" if _number(score) else "score -inf"
     kind = {"capped_profit": "capped profit/bet bound", "positional": "slot-hit bound",
-            "hits": "hits bound", "log_score": "log-score bound"}.get(tuning.get("kind"), str(tuning.get("kind")))
+            "hits": "hits bound", "log_score": "log-score bound",
+            "val_loss": "minus validation loss"}.get(tuning.get("kind"), str(tuning.get("kind")))
     if _number(tuning.get("fair_capped_per_bet")):
         kind = f"{kind} above a fair ticket ({tuning['fair_capped_per_bet']:+.2f}/bet)"
     parts = [f"{text} ({kind}, {tuning.get('days', 0)} days)"]
@@ -409,6 +410,11 @@ def describe(tuning):
         parts.append(f"raw {raw_text}/bet over {tuning['bets']} bets, {tuning.get('lucky_strikes', 0)} lucky strike(s)")
     if _number(tuning.get("hits_mean")):
         parts.append(f"hits {tuning['hits_mean']:.2f}/day")
+    if _number(tuning.get("val_loss_mean")):
+        # the deep-learning tuner (src/DeepLearningTuning.day_score, 6 Nov 2026)
+        se = tuning.get("score_se")
+        parts.append(f"val_loss {tuning['val_loss_mean']:.4f}" + (f" +/- {se:.4f}" if _number(se) else "")
+                     + f", profit tie-breaker {tuning.get('profit_term', 0):+.3f}")
     return " | ".join(parts)
 
 

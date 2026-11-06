@@ -1,4 +1,4 @@
-import os, argparse, json, sys
+import os, argparse, json, signal, sys
 
 # Must be set before TensorFlow is imported (the src imports below pull it in):
 # without it TF's first process grabs virtually the whole GPU at startup, so
@@ -7,6 +7,7 @@ import os, argparse, json, sys
 # TF allocate only what it actually uses.
 os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
 import gc
+import time
 import optuna
 import numpy as np
 
@@ -35,6 +36,9 @@ from src.Command import Command
 from src.Helpers import Helpers
 from src.DataFetcher import DataFetcher
 from src.HyperoptRunner import fail_stale_running_trials
+from src.TuningGate import challenge, make_defaults
+from src.TuningScore import attrs_for_trial
+from src import DeepLearningTuning as dlt
 
 tcn = TCNModel()
 lstm = LSTMModel()
@@ -538,7 +542,7 @@ def update_matching_numbers(name, path):
 
 def process_single_history_entry(args):
     (historyIndex, historyEntry, historyData, name, model_type, dataPath, modelPath,
-        skipLastColumns, years_back, previousJsonFilePath, path, modelParams, specialColumnCount) = args
+        skipLastColumns, years_back, previousJsonFilePath, path, modelParams, specialColumnCount, trainSeconds) = args
 
     modelToUse = MODEL_REGISTRY[model_type]["instance"]
     historyDate, historyResult = historyEntry
@@ -587,6 +591,10 @@ def process_single_history_entry(args):
     modelToUse.setModelPath(modelPath)
     modelToUse.setLoadModelWeights(True)
     MODEL_REGISTRY[model_type]["configure"](modelToUse, modelParams)
+    # Production's budget per training run (6 Nov 2026, src/DeepLearningTuning.py E): the daily predictor trains
+    # every DL row for --dl-model-seconds; None/0 trains unlimited, as before
+    if hasattr(modelToUse, "setTrainSeconds"):
+        modelToUse.setTrainSeconds(trainSeconds or None)
 
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
@@ -630,9 +638,11 @@ def process_single_history_entry(args):
 # Wall-clock budget per trial (CLI --trial-timeout; module level so the
 # spawned children, which re-import this file, see a value too).
 TRIAL_TIMEOUT_SECONDS = 7200
+# How often the parent looks for a finished day while the child trains
+PROGRESS_POLL_SECONDS = 15
 
 
-def runPredictInChild(*args, **kwargs):
+def runPredictInChild(trial, progressPath, *args, **kwargs):
     """
     Runs one trial's predict() (the daysToRebuild training loop) in a
     one-shot spawned child process, for the same two hard-learned reasons as
@@ -649,21 +659,98 @@ def runPredictInChild(*args, **kwargs):
 
     Costs one TF import + CUDA init per trial (~15-30s) - noise next to the
     minutes of training a trial performs.
+
+    While the child trains, the parent reads each finished day's validation
+    loss from progressPath (6 Nov 2026, src/DeepLearningTuning.py C, D): one
+    progress line per day, and the running score reported to Optuna, whose
+    pruner may stop the trial - the child is then killed and the trial
+    recorded as pruned. trial may be a FixedTrial (the gate's references:
+    never pruned) or None.
     """
-    executor = ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn"))
     try:
-        return executor.submit(predict, *args, **kwargs).result(timeout=TRIAL_TIMEOUT_SECONDS)
-    except FuturesTimeoutError:
-        # A hung or runaway trial (a healthy-looking study was once killed by
-        # hand after hours of silence) must not block the study: kill the
-        # child - the pool has exactly this one process - and record the
-        # trial as pruned, not as a score.
+        os.remove(progressPath)
+    except OSError:
+        pass
+    global CURRENT_EXECUTOR
+    executor = ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn"))
+    CURRENT_EXECUTOR = executor
+
+    def killChild():
         for child in list(executor._processes.values()):
             child.kill()
-        print(f"Trial exceeded the {TRIAL_TIMEOUT_SECONDS}s budget - child killed, trial pruned")
-        raise optuna.TrialPruned()
+
+    reported = 0
+    started = time.time()
+    try:
+        future = executor.submit(predict, *args, progressPath=progressPath, **kwargs)
+        while True:
+            result, done = None, False
+            try:
+                result, done = future.result(timeout=PROGRESS_POLL_SECONDS), True
+            except FuturesTimeoutError:
+                pass
+            losses = dlt.read_progress(progressPath)
+            while reported < len(losses):
+                value = dlt.running_value(losses[:reported + 1])
+                loss = losses[reported]
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] day {reported + 1}/{kwargs.get('daysToRebuild')}: "
+                      f"val_loss {'n/a' if loss is None else f'{loss:.4f}'}, running score {value:+.4f} "
+                      f"({(time.time() - started) / 60:.1f} min)")
+                if trial is not None:
+                    trial.report(value, reported)
+                    if not done and trial.should_prune():
+                        killChild()
+                        print(f"Pruned after day {reported + 1}: below the median of the earlier trials at this day")
+                        raise optuna.TrialPruned()
+                reported += 1
+            if done:
+                # a trial that finished between two looks is scored in full, not pruned on its last day
+                return result
+            if time.time() - started > TRIAL_TIMEOUT_SECONDS:
+                # A hung or runaway trial (a healthy-looking study was once killed by
+                # hand after hours of silence) must not block the study: kill the
+                # child - the pool has exactly this one process - and record the
+                # trial as pruned, not as a score.
+                killChild()
+                print(f"Trial exceeded the {TRIAL_TIMEOUT_SECONDS}s budget - child killed, trial pruned")
+                raise optuna.TrialPruned()
     finally:
+        CURRENT_EXECUTOR = None
         executor.shutdown(wait=True, cancel_futures=True)
+
+
+class ReferenceTrial(optuna.trial.FixedTrial):
+    """
+    The gate's references (the served parameters, Predictor.py's defaults) run through the objective like a trial.
+    A served or default value outside a categorical's choices - LSTMModel's useFinalLSTMLayer True against the
+    search space's [False] - makes a FixedTrial raise; here it is used as is, since scoring what is served is the
+    point (TuningGate.evaluate_reference does the same for numeric ranges, which only warn).
+    """
+    def suggest_categorical(self, name, choices):
+        if name in self._params and self._params[name] not in choices:
+            return self._params[name]
+        return super().suggest_categorical(name, choices)
+
+
+# The training child's pool while a trial runs, for the interrupt handler below
+CURRENT_EXECUTOR = None
+
+
+def onInterrupt(signum, frame):
+    """
+    Ctrl+C or kill: the training child dies with the run (runPredictInChild's finally would otherwise wait for it),
+    the lock goes, and the run's marker stays on disk - the same command resumes (src/DeepLearningTuning.py A).
+    """
+    if CURRENT_EXECUTOR is not None:
+        for child in list(CURRENT_EXECUTOR._processes.values()):
+            try:
+                child.kill()
+            except Exception:
+                pass
+    remove_lock()
+    print("\nInterrupted - the finished trials are in db.sqlite3; run the same command again to resume this run "
+          "(--fresh starts over)")
+    sys.exit(130)
 
 
 def clearFolder(folderPath):
@@ -678,7 +765,8 @@ def clearFolder(folderPath):
     except Exception as e:
         pass
 
-def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, modelParams={}, specialColumnCount=0):
+def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxRows=0, years_back=None, daysToRebuild=31, modelParams={}, specialColumnCount=0,
+            trainSeconds=None, progressPath=None):
     """
         Predicts the next sequence of numbers for a given dataset or rebuild the prediction for the last n months
 
@@ -692,6 +780,11 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param years_back: The number of years to go back
         @param daysToRebuild: The number of days to rebuild
         @param ai: To use ai tech to do predictions
+        @param trainSeconds: the wall-clock budget of each training run (None = unlimited)
+        @param progressPath: where each rebuilt day's validation loss is written as it is trained, for the
+            parent's progress lines and pruning (src/DeepLearningTuning.py C, D)
+
+        Returns (profit, avg_val_loss, val_losses): val_losses one per rebuilt day, None for a non-finite one.
     """
 
     modelToUse = MODEL_REGISTRY[model_type]["instance"]
@@ -751,16 +844,20 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
             argsList = [
                 (historyIndex, historyEntry, historyData, name, model_type, dataPath,
-                modelPath, skipLastColumns, years_back, previousJsonFilePath, path, modelParams, specialColumnCount)
+                modelPath, skipLastColumns, years_back, previousJsonFilePath, path, modelParams, specialColumnCount,
+                trainSeconds)
                 for historyIndex, historyEntry in enumerate(historyData)
             ]
 
 
             val_losses = []
+            dayLosses = []
             for args in argsList:
                 _, val_loss = process_single_history_entry(args)
                 if np.isfinite(val_loss):
                     val_losses.append(val_loss)
+                dayLosses.append(float(val_loss) if np.isfinite(val_loss) else None)
+                dlt.write_progress(progressPath, dayLosses)
 
             print("Finished rebuild of history entries.")
 
@@ -779,7 +876,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             # objective() for how the two are combined.
             avg_val_loss = sum(val_losses) / len(val_losses) if val_losses else float("inf")
 
-            return profit, avg_val_loss
+            return profit, avg_val_loss, dayLosses
         else:
             print("Prediction already made")
     else:
@@ -857,12 +954,34 @@ if __name__ == "__main__":
 
     parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
     parser.add_argument('-d', '--days', type=int, default=8)
-    parser.add_argument('-t', '--trials', type=int, default=15)
+    parser.add_argument('-t', '--trials', type=int, default=15,
+                        help='Trials per study in this run; a resumed run runs only the ones a study still lacks')
     parser.add_argument(
         '--trial-timeout', type=int, default=7200,
         help='Wall-clock budget in seconds per trial (the spawned training child is killed and the '
              'trial recorded as pruned). Default 2 hours - the unified LSTM/TCN trials are the long ones.')
-    parser.add_argument('-s', '--save', type=helpers.str2bool, default=True)
+    parser.add_argument('-s', '--save', type=helpers.str2bool, default=True,
+                        help='Commit and push each study\'s bestParams when it ends, and the rest at the end of the run')
+    parser.add_argument(
+        '--train-seconds', type=int, default=dlt.TRAIN_SECONDS,
+        help='Wall-clock budget of every training run, in seconds - Predictor.py\'s --dl-model-seconds, so the '
+             'tuner scores parameters the way production trains them (6 Nov 2026). 0 = unlimited (up to 1,000 '
+             'epochs, as before).')
+    parser.add_argument(
+        '--prune-after-days', type=int, default=dlt.PRUNE_AFTER_DAYS,
+        help='Stop a trial whose running score after this many rebuilt days is below the median of the earlier '
+             'trials at that day (Optuna MedianPruner; the first %d trials of a study are never pruned). '
+             '0 = no pruning.' % dlt.PRUNE_STARTUP_TRIALS)
+    parser.add_argument(
+        '--gate', type=helpers.str2bool, default=True,
+        help='Champion/challenger (src/TuningGate.py): this run\'s best trial is written only if it beats the '
+             'served parameters and Predictor.py\'s defaults, re-scored on the same days. false = write it anyway.')
+    parser.add_argument(
+        '--gate-se-margin', type=float, default=dlt.GATE_SE_MARGIN,
+        help='How many standard errors of its own score the challenger must win by (default %(default)s).')
+    parser.add_argument(
+        '--fresh', action='store_true',
+        help='Start a new run even if an unfinished one with the same settings is on disk (default: resume it).')
     parser.add_argument(
         '-g', '--games',
         type=str,
@@ -892,9 +1011,17 @@ if __name__ == "__main__":
     n_trials = int(args.trials)
     TRIAL_TIMEOUT_SECONDS = int(args.trial_timeout)
     pushToGit = bool(args.save)
+    trainSeconds = max(0, int(args.train_seconds))
+    pruneAfterDays = max(0, int(args.prune_after_days))
+    gateEnabled = bool(args.gate)
+    gateSeMargin = float(args.gate_se_margin)
 
     print("Push to git: ", pushToGit)
     print("Running ", n_trials, "trials")
+    print(f"Training budget: {trainSeconds or 'unlimited'} s per training run, pruning "
+          f"{f'after day {pruneAfterDays}' if pruneAfterDays else 'off'}, gate "
+          f"{f'on ({gateSeMargin:g} SE)' if gateEnabled else 'OFF'}")
+    print(f"Lockbox: {dlt.LOCKBOX_NOTE}")
 
     # Convert the comma-separated string into a clean list
     games = [g.strip() for g in args.games.split(',') if g.strip()]
@@ -942,10 +1069,24 @@ if __name__ == "__main__":
         for model_type in dl_model_types
     ]
 
+    # The run's marker (src/DeepLearningTuning.py A): the same command after a kill resumes it
+    runFolder = os.path.join(path, "data", "hyperOptCache")
+    runMarker, resumed = dlt.open_run(runFolder, dlt.run_settings(
+        games, dl_model_types, n_trials, daysToRebuild,
+        trainSeconds, gateEnabled), fresh=args.fresh)
+    studyKeys = [f"{d[0]}-{d[1]}" for d in datasets if d[0] in games]
+    signal.signal(signal.SIGINT, onInterrupt)
+    signal.signal(signal.SIGTERM, onInterrupt)
+
     for dataset_name, model_type, skip_last_columns, special_column_count in datasets:
         if dataset_name in games:
             try:
                 print(f"\n{dataset_name.capitalize()}")
+                studyKey = f"{dataset_name}-{model_type}"
+                if studyKey in runMarker["done"]:
+                    print(f"{studyKey}: finished earlier in this run - skipped")
+                    continue
+                progressPath = os.path.join(runFolder, f"progress-{studyKey}.json")
                 modelPath = os.path.join(path, "data", "hyperOptCache", "models", model_type)
                 dataPath = os.path.join(path, "data", "trainingData", dataset_name)
                 file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
@@ -1055,7 +1196,7 @@ if __name__ == "__main__":
                           f"progress prints every 50 epochs per rebuilt day")
 
                     for _ in range(numOfRepeats):
-                        result = runPredictInChild(f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count)
+                        result = runPredictInChild(trial, progressPath, f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count, trainSeconds=trainSeconds)
                         if result is not None:
                             results.append(result)
 
@@ -1067,9 +1208,11 @@ if __name__ == "__main__":
                         # silently scoring it as a tie with real trials.
                         return -float("inf")
 
-                    avgProfit = sum(profit for profit, _ in results) / len(results)
-                    avgValLoss = sum(val_loss for _, val_loss in results) / len(results)
-
+                    # The score (src/DeepLearningTuning.day_score, 6 Nov 2026): minus the
+                    # mean validation loss over the rebuilt days plus the capped profit
+                    # tie-breaker, as before, now with the standard error over the days
+                    # that the gate's margin is taken in.
+                    #
                     # val_loss is the primary signal - it's backed by ~hundreds
                     # of held-out validation windows per trial, versus profit's
                     # `daysToRebuild` real draws (often just 1-2), which is far
@@ -1085,12 +1228,11 @@ if __name__ == "__main__":
                     # exactly one such hit (+0.34 vs ~-3.7 for every other
                     # trial). The cap keeps profit a tie-breaker instead of a
                     # lottery on which trial got lucky.
-                    PROFIT_WEIGHT = 0.05
-                    PROFIT_CONTRIBUTION_CAP = 0.5
-                    profitTerm = max(-PROFIT_CONTRIBUTION_CAP,
-                                     min(PROFIT_CONTRIBUTION_CAP, PROFIT_WEIGHT * avgProfit))
-                    return -avgValLoss + profitTerm
-                
+                    profit, _, dayLosses = results[0]
+                    tuning = dlt.day_score(dayLosses, profit)
+                    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+                    return tuning["score"]
+
                 # Write best params to json
                 jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
                 existingData = {}
@@ -1098,15 +1240,27 @@ if __name__ == "__main__":
                     with open(jsonBestParamsFilePath, "r") as infile:
                         existingData = json.load(infile)
 
-                # Create an Optuna study object
+                # Create an Optuna study object. The pruner (D) is not stored with
+                # the study: every run sets it.
                 study = optuna.create_study(
                     direction='maximize',
                     storage="sqlite:///db.sqlite3",  # Specify the storage URL here.
-                    study_name=f"{dataset_name}-{model_type}",
-                    load_if_exists=True
+                    study_name=studyKey,
+                    load_if_exists=True,
+                    pruner=(optuna.pruners.MedianPruner(n_startup_trials=dlt.PRUNE_STARTUP_TRIALS,
+                                                        n_warmup_steps=pruneAfterDays - 1)
+                            if pruneAfterDays else optuna.pruners.NopPruner())
                 )
                 # Trials left RUNNING by a killed run (Ctrl+C, OOM, reboot).
                 fail_stale_running_trials(study)
+
+                # A (resume): the trials the study had before this run, recorded
+                # the first time the run opened it, and how many it still needs.
+                known = dlt.known_trials(runFolder, runMarker, studyKey,
+                                         [t.number for t in study.get_trials(deepcopy=False)])
+                remaining = dlt.remaining_trials(
+                    [(t.number, t.state.name) for t in study.get_trials(deepcopy=False)], known, n_trials)
+                print(f"{studyKey}: {n_trials - remaining} of {n_trials} trials done in this run, {remaining} to go")
 
                 # Run the automatic tuning process. catch: a single failed
                 # trial (e.g. a GPU-OOM on an oversized lstmUnits/tcnUnits
@@ -1114,23 +1268,54 @@ if __name__ == "__main__":
                 # OOMing killed the entire study) is recorded as a FAILED
                 # trial and the study moves on to the next suggestion instead
                 # of aborting the whole game.
-                study.optimize(objective, n_trials=n_trials, catch=(Exception,))
+                if remaining:
+                    study.optimize(objective, n_trials=remaining, catch=(Exception,))
 
-                if not any(t.state == optuna.trial.TrialState.COMPLETE for t in study.trials):
-                    # Every trial failed or timed out - best_params would raise
-                    # and abort the remaining model types of this game.
-                    print(f"No completed trials for {dataset_name}-{model_type} - keeping existing params")
-                    continue
+                # Champion/challenger (src/TuningGate.py, 6 Nov 2026): this run's
+                # best completed trial is written only if it beats the served
+                # parameters and Predictor.py's defaults - both trained and scored
+                # here on the same days with the same budget - by gateSeMargin of
+                # its own standard errors; the defaults are served back when they
+                # score above the served ones. Never study.best_params: older
+                # trials (other budgets, other days) are sampler history only.
+                displayName = MODEL_DISPLAY_NAMES[model_type]
 
-                # Output the best hyperparameters and score
-                print("Best Parameters: ", study.best_params)
-                print("Best Score: ", study.best_value)
+                def evaluateReference(params, role, objective=objective, studyKey=studyKey):
+                    print(f"{studyKey}: scoring the {role} (a full trial, never pruned)")
+                    reference = ReferenceTrial(dict(params))
+                    try:
+                        value = objective(reference)
+                    except optuna.TrialPruned:
+                        print(f"{studyKey}: the {role} timed out - it cannot block")
+                        return None, None
+                    except Exception as e:
+                        print(f"{studyKey}: the {role} could not be scored ({e}) - it cannot block")
+                        return None, None
+                    return value, reference.user_attrs.get("tuning")
 
-                existingData.update(study.best_params)
+                outcome = challenge(
+                    study, known, objective, existingData,
+                    make_defaults(dlt.predictor_defaults(MODEL_PARAM_PREFIX.get(model_type), existingData), existingData),
+                    timeout_seconds=TRIAL_TIMEOUT_SECONDS, label=studyKey, enabled=gateEnabled,
+                    window_days=daysToRebuild, evaluate=evaluateReference, se_margin=gateSeMargin,
+                    revert_margin=dlt.GATE_REVERT_MARGIN)
+                print(outcome["summary"])
+                outcome["record"]["lockbox"] = dlt.LOCKBOX_NOTE
+                outcome["record"]["train_seconds"] = trainSeconds or None
+                existingData.setdefault("tuningGate", {})[displayName] = outcome["record"]
+                if outcome["params"] is not None:
+                    existingData.update(outcome["params"])
 
+                # B: written and committed now, not at the end of the run
                 with open(jsonBestParamsFilePath, "w+") as outfile:
                     json.dump(existingData, outfile, indent=4)
-                
+                dlt.mark_done(runFolder, runMarker, studyKey)
+                if pushToGit:
+                    try:
+                        helpers.git_push(commit_message=f"Deep learning hyperopt: {studyKey} {outcome['decision']}")
+                    except Exception as e:
+                        print(f"Could not commit {studyKey}: {e} - the file is written, the end of the run tries again")
+
                 clearFolder(os.path.join(path, "data", "hyperOptCache", f"{dataset_name}"))
                 clearFolder(os.path.join(path, "data", "hyperOptCache", "models", model_type))
 
@@ -1146,6 +1331,13 @@ if __name__ == "__main__":
                     print(f"Deleted: {file_path}")
     except Exception as e:
         print("Failed to cleanup folder")
+
+    if all(key in runMarker["done"] for key in studyKeys):
+        dlt.finish_run(runFolder, runMarker)
+    else:
+        print("Studies not finished (see the errors above): "
+              + ", ".join(key for key in studyKeys if key not in runMarker["done"])
+              + " - the same command runs only those")
 
     try:
         if pushToGit:

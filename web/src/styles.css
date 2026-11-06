@@ -130,7 +130,9 @@ details.help summary::-webkit-details-marker { display: none; }
 details.help[open] { flex-basis: 100%; }
 details.help p { margin: 8px 0 0; max-width: 80ch; }
 /* the disclaimer at the foot of every page (components/Disclaimer.tsx) */
-footer.disclaimer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--muted); }
+/* sticky at the bottom of the window, always in view (5 Nov 2026, owner); opened it scrolls within half the window */
+footer.disclaimer { position: sticky; bottom: 0; z-index: 4; margin-top: 32px; padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg); border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--muted); max-height: 50vh; overflow-y: auto; }
 footer.disclaimer summary { color: var(--muted); }
 footer.disclaimer summary strong { color: var(--fg); font-weight: 600; }
 footer.disclaimer summary .more { color: var(--accent); margin-left: 4px; }
