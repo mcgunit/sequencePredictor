@@ -1,6 +1,6 @@
 {
  "market": "sharesweek",
- "generated_at": "2026-11-04T17:41:51+00:00",
+ "generated_at": "2026-11-05T17:46:40+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -17,13 +17,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "SHELL.AS",
-   "last_close": 45.64,
-   "last_date": "2026-11-04",
+   "last_close": 45.44,
+   "last_date": "2026-11-05",
    "closes": [
-    [
-     "2025-06-04",
-     29.6
-    ],
     [
      "2025-06-05",
      29.575
@@ -1479,10 +1475,13 @@
     [
      "2026-11-04",
      45.64
+    ],
+    [
+     "2026-11-05",
+     45.44
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.037371,
@@ -2586,10 +2585,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     0.0223284,
     null,
@@ -2953,11 +2952,11 @@
     0.00794023,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -3319,6 +3318,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -3540,7 +3540,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -3686,6 +3685,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -3907,7 +3907,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -4053,6 +4052,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -4274,7 +4274,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -4420,6 +4419,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -4641,7 +4641,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -4787,6 +4786,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -5008,7 +5008,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -5154,6 +5153,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -5375,7 +5375,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -5521,6 +5520,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -5742,7 +5742,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -5888,6 +5887,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -6109,7 +6109,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -6255,6 +6254,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -6476,7 +6476,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -6622,6 +6621,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -6843,7 +6843,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -6989,6 +6988,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -7210,7 +7210,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -7356,6 +7355,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -7577,7 +7577,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -7723,6 +7722,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -7944,7 +7944,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -8090,6 +8089,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -8311,7 +8311,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -8457,6 +8456,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -8678,7 +8678,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -8824,6 +8823,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -9045,7 +9045,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -9193,6 +9192,7 @@
      4,
      null,
      null,
+     null,
      null
     ]
    }
@@ -9204,13 +9204,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "INGA.AS",
-   "last_close": 29.095,
-   "last_date": "2026-11-04",
+   "last_close": 29.225,
+   "last_date": "2026-11-05",
    "closes": [
-    [
-     "2025-06-04",
-     18.401304
-    ],
     [
      "2025-06-05",
      18.385415
@@ -10666,10 +10662,13 @@
     [
      "2026-11-04",
      29.095
+    ],
+    [
+     "2026-11-05",
+     29.225
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.048614,
@@ -11773,10 +11772,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     -0.00429183,
     null,
@@ -12140,11 +12139,11 @@
     -0.00722916,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -12506,6 +12505,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -12727,7 +12727,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -12873,6 +12872,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -13094,7 +13094,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -13240,6 +13239,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -13461,7 +13461,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -13607,6 +13606,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -13828,7 +13828,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -13974,6 +13973,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -14195,7 +14195,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -14341,6 +14340,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -14562,7 +14562,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -14708,6 +14707,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -14929,7 +14929,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -15075,6 +15074,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -15296,7 +15296,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -15442,6 +15441,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -15663,7 +15663,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -15809,6 +15808,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -16030,7 +16030,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -16176,6 +16175,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -16397,7 +16397,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -16543,6 +16542,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -16764,7 +16764,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -16910,6 +16909,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -17131,7 +17131,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -17277,6 +17276,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -17498,7 +17498,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -17644,6 +17643,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -17865,7 +17865,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18011,6 +18010,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -18232,7 +18232,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18380,6 +18379,7 @@
      5,
      null,
      null,
+     null,
      null
     ]
    }
@@ -18391,13 +18391,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "ABI.BR",
-   "last_close": 75.28,
-   "last_date": "2026-11-04",
+   "last_close": 75.66,
+   "last_date": "2026-11-05",
    "closes": [
-    [
-     "2025-06-04",
-     62.78
-    ],
     [
      "2025-06-05",
      62.36
@@ -19853,10 +19849,13 @@
     [
      "2026-11-04",
      75.28
+    ],
+    [
+     "2026-11-05",
+     75.66
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.040569,
@@ -20960,10 +20959,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     0.00225407,
     null,
@@ -21327,11 +21326,11 @@
     -0.04669687,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -21693,6 +21692,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -21914,7 +21914,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -22060,6 +22059,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -22281,7 +22281,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -22427,6 +22426,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -22648,7 +22648,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -22794,6 +22793,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -23015,7 +23015,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -23161,6 +23160,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -23382,7 +23382,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -23528,6 +23527,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -23749,7 +23749,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -23895,6 +23894,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -24116,7 +24116,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -24262,6 +24261,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -24483,7 +24483,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -24629,6 +24628,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -24850,7 +24850,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -24996,6 +24995,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -25217,7 +25217,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -25363,6 +25362,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -25584,7 +25584,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -25730,6 +25729,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -25951,7 +25951,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -26097,6 +26096,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -26318,7 +26318,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -26464,6 +26463,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -26685,7 +26685,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -26831,6 +26830,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -27052,7 +27052,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -27198,6 +27197,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -27419,7 +27419,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -27567,6 +27566,7 @@
      9,
      null,
      null,
+     null,
      null
     ]
    }
@@ -27578,13 +27578,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "KBC.BR",
-   "last_close": 116.8,
-   "last_date": "2026-11-04",
+   "last_close": 117.05,
+   "last_date": "2026-11-05",
    "closes": [
-    [
-     "2025-06-04",
-     86.36
-    ],
     [
      "2025-06-05",
      86.28
@@ -29040,10 +29036,13 @@
     [
      "2026-11-04",
      116.8
+    ],
+    [
+     "2026-11-05",
+     117.05
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.048634,
@@ -30147,10 +30146,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     0.0036731,
     null,
@@ -30514,6 +30513,7 @@
     0.0030722,
     null,
     null,
+    null,
     null
    ],
    "course": {
@@ -30734,7 +30734,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -30880,6 +30879,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -31101,7 +31101,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -31247,6 +31246,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -31468,7 +31468,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -31614,6 +31613,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -31835,7 +31835,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -31981,6 +31980,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -32202,7 +32202,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -32348,6 +32347,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -32569,7 +32569,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -32715,6 +32714,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -32936,7 +32936,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -33082,6 +33081,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -33303,7 +33303,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -33449,6 +33448,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -33670,7 +33670,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -33816,6 +33815,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -34037,7 +34037,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -34183,6 +34182,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -34404,7 +34404,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -34550,6 +34549,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -34771,7 +34771,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -34917,6 +34916,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -35138,7 +35138,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -35284,6 +35283,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -35505,7 +35505,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -35651,6 +35650,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -35872,7 +35872,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -36018,6 +36017,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -36239,7 +36239,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -36385,6 +36384,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null
@@ -36606,7 +36606,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -36754,6 +36753,7 @@
      6,
      null,
      null,
+     null,
      null
     ]
    }
@@ -36765,13 +36765,9 @@
    "quote": "EUR",
    "active": true,
    "quote_symbol": "UCB.BR",
-   "last_close": 282.6,
-   "last_date": "2026-11-04",
+   "last_close": 290.2,
+   "last_date": "2026-11-05",
    "closes": [
-    [
-     "2025-06-04",
-     161.45
-    ],
     [
      "2025-06-05",
      162.7
@@ -38227,10 +38223,13 @@
     [
      "2026-11-04",
      282.6
+    ],
+    [
+     "2026-11-05",
+     290.2
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.042802,
@@ -39334,10 +39333,10 @@
     ],
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     0.01766666,
     null,
@@ -39701,11 +39700,11 @@
     0.03140485,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -40067,6 +40066,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -40288,7 +40288,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -40434,6 +40433,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -40655,7 +40655,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -40801,6 +40800,7 @@
      null,
      null,
      0,
+     null,
      null,
      null,
      null
@@ -41022,7 +41022,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -41168,6 +41167,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null
@@ -41389,7 +41389,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -41535,6 +41534,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -41756,7 +41756,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -41902,6 +41901,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -42123,7 +42123,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -42269,6 +42268,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null
@@ -42490,7 +42490,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -42636,6 +42635,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -42857,7 +42857,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -43003,6 +43002,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null
@@ -43224,7 +43224,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -43370,6 +43369,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null
@@ -43591,7 +43591,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -43737,6 +43736,7 @@
      null,
      null,
      9,
+     null,
      null,
      null,
      null
@@ -43958,7 +43958,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -44104,6 +44103,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null
@@ -44325,7 +44325,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -44471,6 +44470,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -44692,7 +44692,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -44838,6 +44837,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -45059,7 +45059,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -45205,6 +45204,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null
@@ -45426,7 +45426,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -45572,6 +45571,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -45793,7 +45793,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -45939,6 +45938,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null
@@ -65047,23 +65047,24 @@
    "live_weeks": 0,
    "live_positions": 0,
    "now": {
-    "running_day": "2026-11-05",
+    "running_day": "2026-11-06",
     "first_day": "2026-11-02",
-    "last_day": false,
+    "last_day": true,
     "week_model": "Regime HMM ZeroMean Model",
-    "day_model": "TCN Base Model",
+    "day_model": "TimesFM Model",
     "settled_days": [
      "2026-11-02",
      "2026-11-03",
-     "2026-11-04"
+     "2026-11-04",
+     "2026-11-05"
     ],
     "symbols": {
      "ABI": {
-      "action": "buy",
-      "reason": "first up call",
+      "action": "sell",
+      "reason": "week end",
       "entry": "2026-11-05",
       "scale": 1.0,
-      "entry_price": null,
+      "entry_price": 74.9,
       "call": "up",
       "sold_on": null,
       "realized": null,
@@ -65281,7 +65282,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-04"
+    "traded_since": "2026-11-05"
    },
    "INGA": {
     "last_close": 28.255,
@@ -65486,7 +65487,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-11-04"
+    "traded_since": "2026-11-05"
    },
    "ABI": {
     "last_close": 71.96,
@@ -65691,7 +65692,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-04"
+    "traded_since": "2026-11-05"
    },
    "KBC": {
     "last_close": 114.1,
@@ -65896,7 +65897,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-11-04"
+    "traded_since": "2026-11-05"
    },
    "UCB": {
     "last_close": 281.4,
@@ -66101,7 +66102,7 @@
       "size": 0.5
      }
     ],
-    "traded_since": "2026-11-04"
+    "traded_since": "2026-11-05"
    }
   }
  },
