@@ -1315,6 +1315,52 @@
             },
             "lockbox": "not withheld: the score is the validation loss on the last 20% of each retrain's history, which contains the lockbox period",
             "train_seconds": 240
+        },
+        "GNN Model": {
+            "date": "2026-11-06T23:46:13+00:00",
+            "tuner": "HyperoptDeepLearning",
+            "window_days": 8,
+            "margin_se": 1.0,
+            "study_best": -2.9602659344673157,
+            "margin": 0.0005010392670372958,
+            "revert_margin": 0.0,
+            "decision": "replaced",
+            "run_trials": 9,
+            "study_trials": 9,
+            "reason": "challenger -2.9603 beats incumbent -3.0318 and default -3.0318 (margin 1 x the challenger's standard error 0.0005; untuned so far - the incumbent is the default)",
+            "trial": 10,
+            "challenger": -2.9602659344673157,
+            "incumbent": -3.0318441092967987,
+            "default": -3.0318441092967987,
+            "challenger_tuning": {
+                "kind": "val_loss",
+                "score": -2.9602659344673157,
+                "score_se": 0.0005010392670372958,
+                "days": 8,
+                "val_loss_mean": 3.2102659344673157,
+                "profit": 5.0,
+                "profit_term": 0.25
+            },
+            "incumbent_tuning": {
+                "kind": "val_loss",
+                "score": -3.0318441092967987,
+                "score_se": 0.001302762931805229,
+                "days": 8,
+                "val_loss_mean": 3.2818441092967987,
+                "profit": 5.0,
+                "profit_term": 0.25
+            },
+            "default_tuning": {
+                "kind": "val_loss",
+                "score": -3.0318441092967987,
+                "score_se": 0.001302762931805229,
+                "days": 8,
+                "val_loss_mean": 3.2818441092967987,
+                "profit": 5.0,
+                "profit_term": 0.25
+            },
+            "lockbox": "not withheld: the score is the validation loss on the last 20% of each retrain's history, which contains the lockbox period",
+            "train_seconds": 240
         }
     },
     "classicalSvm_nFeatures": 4,
@@ -1337,5 +1383,20 @@
     "transformer_reduceLearningRateFactor": 0.9,
     "transformer_windowSize": 40,
     "transformer_labelSmoothing": 0.02,
-    "transformer_yearsOfHistory": 10
+    "transformer_yearsOfHistory": 10,
+    "gnn_batchSize": 8,
+    "gnn_epochs": 1000,
+    "gnn_gcnUnits": 16,
+    "gnn_numGcnLayers": 3,
+    "gnn_embeddingDim": 32,
+    "gnn_decay": 0.9965000277140736,
+    "gnn_dropout": 0.2,
+    "gnn_l2Regularization": 0.0034,
+    "gnn_learningRate": 0.001,
+    "gnn_earlyStopPatience": 70,
+    "gnn_reduceLearningRatePatience": 100,
+    "gnn_reduceLearningRateFactor": 0.6,
+    "gnn_windowSize": 18,
+    "gnn_labelSmoothing": 0.01,
+    "gnn_yearsOfHistory": 10
 }
