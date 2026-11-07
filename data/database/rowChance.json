@@ -70,7 +70,7 @@
       "testFrom": "2026-09-27",
       "rows": {
         "LightGBM Model": {"decidedOn": null, "flagDraws": 41, "flagMean": 0.9268, "flagNull": 0.7337, "flagP": 0.0419, "mean": null, "null": null, "p": null, "since": "2026-10-11", "state": "running", "verdictAt": null, "verdictLength": 41},
-        "TCN Base Model": {"decidedOn": null, "flagDraws": 26, "flagMean": 1.0385, "flagNull": 0.7192, "flagP": 0.01143, "mean": null, "null": null, "p": null, "since": "2026-10-11", "state": "running", "verdictAt": null, "verdictLength": 26},
+        "TCN Base Model": {"decidedOn": "2026-11-07", "flagDraws": 26, "flagMean": 1.0385, "flagNull": 0.7192, "flagP": 0.01143, "mean": 0.6923, "null": 0.7922, "p": 0.8124, "since": "2026-10-11", "state": "not confirmed", "verdictAt": "2026-11-06", "verdictLength": 26},
         "UnifiedLstmGruTcn Model": {"decidedOn": "2026-10-28", "flagDraws": 14, "flagMean": 1.2857, "flagNull": 0.7356, "flagP": 0.002385, "mean": 0.6429, "null": 0.7356, "p": 0.7626, "since": "2026-09-27", "state": "not confirmed", "verdictAt": "2026-10-10", "verdictLength": 14}
       }
     },
