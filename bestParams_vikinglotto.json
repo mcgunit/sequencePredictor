@@ -1086,42 +1086,42 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-31T23:12:55+00:00",
+            "date": "2026-11-07T23:23:11+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 49,
+            "window_days": 50,
             "margin_se": 1.0,
             "lockbox_days_withheld": 12,
             "study_best": 1.0503510359691672,
-            "margin": 0.138838153220022,
+            "margin": 0.13522681624588448,
             "revert_margin": 0.0,
             "decision": "kept",
             "run_trials": 256,
-            "study_trials": 2439,
-            "reason": "challenger +1.0504 does not beat incumbent +1.0000 by 0.138838 (margin 1 x the challenger's standard error 0.1388)",
-            "trial": 2184,
-            "challenger": 1.0503510359691672,
+            "study_trials": 2695,
+            "reason": "challenger +1.0490 does not beat incumbent +1.0000 by 0.135227 (margin 1 x the challenger's standard error 0.1352)",
+            "trial": 2440,
+            "challenger": 1.0489837100699049,
             "incumbent": 1.0,
-            "default": 0.7623869944618402,
+            "default": 0.7694158896312193,
             "challenger_tuning": {
-                "score": 1.0503510359691672,
+                "score": 1.0489837100699049,
                 "kind": "subset_bound",
-                "days": 37,
-                "mean": 1.1891891891891893,
-                "score_se": 0.138838153220022
+                "days": 38,
+                "mean": 1.1842105263157894,
+                "score_se": 0.13522681624588448
             },
             "incumbent_tuning": {
                 "score": 1.0,
                 "kind": "subset_bound",
-                "days": 37,
-                "mean": 1.135135135135135,
-                "score_se": 0.13513513513513511
+                "days": 38,
+                "mean": 1.131578947368421,
+                "score_se": 0.13157894736842105
             },
             "default_tuning": {
-                "score": 0.7623869944618402,
+                "score": 0.7694158896312193,
                 "kind": "subset_bound",
-                "days": 33,
-                "mean": 0.9090909090909091,
-                "score_se": 0.14670391462906882
+                "days": 34,
+                "mean": 0.9117647058823529,
+                "score_se": 0.14234881625113355
             },
             "candidates": [
                 "HybridStatisticalModel",

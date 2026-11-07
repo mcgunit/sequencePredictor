@@ -687,32 +687,38 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-31T23:12:57+00:00",
+            "date": "2026-11-07T23:23:13+00:00",
             "tuner": "HyperoptEnsemble",
             "window_days": 120,
             "margin_se": 1.0,
             "lockbox_days_withheld": 0,
             "study_best": -1.6841009624722807,
-            "margin": 1.0480696764458655,
+            "margin": 1.0482007949955574,
             "revert_margin": 0.0,
-            "decision": "reverted",
+            "decision": "kept",
             "run_trials": 5,
-            "study_trials": 53,
-            "reason": "default -2.6897 is not beaten by challenger -2.5802 by 1.04807 and scores above incumbent -inf (no margin: the default is not picked from trials) - reverted to the untuned defaults (margin 1 x the challenger's standard error 1.0481)",
-            "trial": 48,
-            "challenger": -2.5802085653347544,
-            "incumbent": null,
-            "default": -2.6896791703121945,
+            "study_trials": 58,
+            "reason": "challenger -2.5887 does not beat incumbent -2.6896 or default -2.6896 by 1.0482 (margin 1 x the challenger's standard error 1.0482)",
+            "trial": 53,
+            "challenger": -2.588700794995557,
+            "incumbent": -2.689623614756639,
+            "default": -2.689623614756639,
             "challenger_tuning": {
-                "score": -2.5802085653347544,
+                "score": -2.588700794995557,
                 "kind": "subset_bound",
                 "days": 120,
-                "mean": -1.5333333333333334,
-                "score_se": 1.0480696764458655
+                "mean": -1.5416666666666667,
+                "score_se": 1.0482007949955574
             },
-            "incumbent_tuning": null,
+            "incumbent_tuning": {
+                "score": -2.689623614756639,
+                "kind": "subset_bound",
+                "days": 120,
+                "mean": -1.475,
+                "score_se": 1.2157902814233057
+            },
             "default_tuning": {
-                "score": -2.6896791703121945,
+                "score": -2.689623614756639,
                 "kind": "subset_bound",
                 "days": 120,
                 "mean": -1.475,
@@ -723,7 +729,6 @@
                 "Markov Model",
                 "PoissonMonteCarlo Model"
             ],
-            "incumbent_note": "the served selection is Markov Model's ticket under this run's weights (it outweighs the other member(s) together) - scored as nothing",
             "effectiveMembers": [
                 "LaplaceMonteCarlo Model",
                 "Markov Model",

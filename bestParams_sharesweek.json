@@ -442,6 +442,80 @@
             "sit_out_se_margin": 1.0,
             "served_mean_size": 0.13333333333333333,
             "served_mean_nonzero_size": 0.5555555555555556
+        },
+        "SubsetEnsemble Model": {
+            "date": "2026-11-07T23:24:59+00:00",
+            "tuner": "HyperoptEnsemble",
+            "window_days": 30,
+            "margin_se": 1.0,
+            "lockbox_days_withheld": 0,
+            "study_best": 0.49272765120090145,
+            "margin": 0.29500568213243195,
+            "revert_margin": 0.0,
+            "decision": "replaced",
+            "run_trials": 256,
+            "study_trials": 256,
+            "reason": "challenger +0.4927 beats incumbent -inf and default -0.1747 (margin 1 x the challenger's standard error 0.2950)",
+            "trial": 0,
+            "challenger": 0.49272765120090145,
+            "incumbent": null,
+            "default": -0.17473803823178166,
+            "challenger_tuning": {
+                "score": 0.49272765120090145,
+                "kind": "subset_bound",
+                "days": 30,
+                "mean": 0.7866666666666667,
+                "score_se": 0.29500568213243195
+            },
+            "incumbent_tuning": null,
+            "default_tuning": {
+                "score": -0.17473803823178166,
+                "kind": "subset_bound",
+                "days": 30,
+                "mean": 0.20666666666666653,
+                "score_se": 0.38233803823178153
+            },
+            "candidates": [
+                "Autoencoder Model",
+                "CatBoost Model",
+                "GARCH Model",
+                "GNN Model",
+                "LaplaceMonteCarlo Model",
+                "LightGBM Model",
+                "Markov Model",
+                "MarkovMonteCarlo Model",
+                "OrderStatistics Baseline",
+                "PoissonMonteCarlo Model",
+                "Regime HMM Model",
+                "Regime HMM Single Model",
+                "Regime HMM ZeroMean Model",
+                "Transformer Model",
+                "XGBoost Model"
+            ],
+            "incumbent_note": "nothing served before this run - the incumbent is scored as nothing",
+            "memberScores": {
+                "Autoencoder Model": -0.1434,
+                "CatBoost Model": -0.4068,
+                "GARCH Model": -0.0651,
+                "GNN Model": -0.0981,
+                "LaplaceMonteCarlo Model": -0.2644,
+                "LightGBM Model": -0.0585,
+                "Markov Model": 0.1101,
+                "MarkovMonteCarlo Model": -0.0759,
+                "OrderStatistics Baseline": -0.0983,
+                "PoissonMonteCarlo Model": -0.0924,
+                "Regime HMM Model": 0.217,
+                "Regime HMM Single Model": -0.1339,
+                "Regime HMM ZeroMean Model": -0.0809,
+                "Transformer Model": -0.0604,
+                "XGBoost Model": -0.1924
+            },
+            "effectiveMembers": [
+                "LaplaceMonteCarlo Model",
+                "PoissonMonteCarlo Model",
+                "Regime HMM Model"
+            ],
+            "weightedEqualsFlat": false
         }
     },
     "markovSoftMaxTemperature": 0.5374160378984073,
@@ -478,5 +552,41 @@
     "rlPositionSamplesPerDay": 32,
     "rlPositionTrainDays": 120,
     "rlPositionRiskAversion": 0.45031955248989275,
-    "rlPositionSitOut": true
+    "rlPositionSitOut": true,
+    "subsetEnsembleModels": [
+        "LaplaceMonteCarlo Model",
+        "PoissonMonteCarlo Model",
+        "Regime HMM Model"
+    ],
+    "subsetEnsembleWeighted": false,
+    "subsetEnsembleObjective": 0.4927,
+    "subsetEnsembleMean": 0.7867,
+    "subsetEnsembleTunedOn": {
+        "days": 30,
+        "from": "2026-04-10",
+        "to": "2026-10-30",
+        "lockboxDaysWithheld": 0,
+        "candidates": 15,
+        "evaluated": 368,
+        "search": "local search",
+        "confidencePenalty": 1.0,
+        "decision": "replaced"
+    },
+    "subsetEnsembleWeights": {
+        "Autoencoder Model": 1.4223,
+        "CatBoost Model": 1.0,
+        "GARCH Model": 1.5478,
+        "GNN Model": 1.4949,
+        "LaplaceMonteCarlo Model": 1.2284,
+        "LightGBM Model": 1.5584,
+        "Markov Model": 1.8287,
+        "MarkovMonteCarlo Model": 1.5305,
+        "OrderStatistics Baseline": 1.4946,
+        "PoissonMonteCarlo Model": 1.504,
+        "Regime HMM Model": 2.0,
+        "Regime HMM Single Model": 1.4376,
+        "Regime HMM ZeroMean Model": 1.5224,
+        "Transformer Model": 1.5554,
+        "XGBoost Model": 1.3437
+    }
 }

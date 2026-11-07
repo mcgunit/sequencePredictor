@@ -1092,36 +1092,42 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-10-31T23:12:15+00:00",
+            "date": "2026-11-07T23:22:28+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 101,
+            "window_days": 103,
             "margin_se": 1.0,
             "lockbox_days_withheld": 26,
             "study_best": 1.0982505062805845,
-            "margin": 0.08841616038608223,
+            "margin": 0.0861718559931355,
             "revert_margin": 0.0,
-            "decision": "reverted",
+            "decision": "kept",
             "run_trials": 220,
-            "study_trials": 1962,
-            "reason": "default +1.0211 is not beaten by challenger +1.0983 by 0.0884162 and scores above incumbent -inf (no margin: the default is not picked from trials) - reverted to the untuned defaults (margin 1 x the challenger's standard error 0.0884)",
-            "trial": 1742,
-            "challenger": 1.0982505062805845,
-            "incumbent": null,
-            "default": 1.0210603680235857,
+            "study_trials": 2182,
+            "reason": "challenger +1.0956 does not beat incumbent +1.0504 or default +1.0504 by 0.0861719 (margin 1 x the challenger's standard error 0.0862)",
+            "trial": 1962,
+            "challenger": 1.0956463258250464,
+            "incumbent": 1.0504419832779706,
+            "default": 1.0504419832779706,
             "challenger_tuning": {
-                "score": 1.0982505062805845,
+                "score": 1.0956463258250464,
                 "kind": "subset_bound",
-                "days": 75,
-                "mean": 1.1866666666666668,
-                "score_se": 0.08841616038608223
+                "days": 77,
+                "mean": 1.1818181818181819,
+                "score_se": 0.0861718559931355
             },
-            "incumbent_tuning": null,
-            "default_tuning": {
-                "score": 1.0210603680235857,
+            "incumbent_tuning": {
+                "score": 1.0504419832779706,
                 "kind": "subset_bound",
-                "days": 66,
-                "mean": 1.121212121212121,
-                "score_se": 0.10015175318853536
+                "days": 68,
+                "mean": 1.1470588235294117,
+                "score_se": 0.09661684025144111
+            },
+            "default_tuning": {
+                "score": 1.0504419832779706,
+                "kind": "subset_bound",
+                "days": 68,
+                "mean": 1.1470588235294117,
+                "score_se": 0.09661684025144111
             },
             "candidates": [
                 "HybridStatisticalModel",
@@ -1132,7 +1138,6 @@
                 "PoissonMarkov Model",
                 "PoissonMonteCarlo Model"
             ],
-            "incumbent_note": "the served selection is LaplaceMonteCarlo Model's ticket under this run's weights (it outweighs the other member(s) together) - scored as nothing",
             "effectiveMembers": [
                 "HybridStatisticalModel",
                 "LSTM Base Model",
