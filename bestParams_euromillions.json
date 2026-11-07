@@ -208,10 +208,10 @@
     "quantumVqc_batchSize": 64,
     "catBoostBorderCount": 254,
     "catBoostMlBorderCount": 254,
-    "rlTicketLearningRate": 0.19270508967583486,
-    "rlTicketEpochs": 40,
+    "rlTicketLearningRate": 0.05,
+    "rlTicketEpochs": 30,
     "rlTicketSamplesPerDay": 32,
-    "rlTicketTrainDays": 240,
+    "rlTicketTrainDays": 120,
     "subsetEnsembleModels": [
         "HybridStatisticalModel",
         "LSTM Base Model",
@@ -1032,34 +1032,34 @@
             }
         },
         "RL Ticket Model": {
-            "date": "2026-10-31T22:27:32+00:00",
+            "date": "2026-11-07T22:41:55+00:00",
             "tuner": "HyperoptRLTicket",
             "window_days": 40,
             "margin_se": 1.0,
             "lockbox_days_withheld": 0,
             "study_best": 0.5541721928761473,
-            "margin": 0.11258899613764237,
+            "margin": 0.09999999999999999,
             "revert_margin": 0.0,
-            "decision": "kept",
+            "decision": "reverted",
             "run_trials": 20,
-            "study_trials": 60,
-            "reason": "challenger +0.4624 does not beat incumbent +0.4371 or default +0.4371 by 0.112589 (margin 1 x the challenger's standard error 0.1126)",
-            "trial": 40,
-            "challenger": 0.46241100386235756,
+            "study_trials": 80,
+            "reason": "default +0.4569 is not beaten by challenger +0.5000 by 0.1 and scores above incumbent +0.4371 (no margin: the default is not picked from trials) - reverted to the untuned defaults (margin 1 x the challenger's standard error 0.1000)",
+            "trial": 78,
+            "challenger": 0.5,
             "incumbent": 0.4370557205680153,
-            "default": 0.4370557205680153,
+            "default": 0.4568546093436847,
             "challenger_tuning": {
-                "score": 0.46241100386235756,
+                "score": 0.5,
                 "kind": "hits",
                 "days": 40,
                 "bets": 0,
                 "profit_per_bet": null,
                 "capped_profit_bound": null,
                 "fair_capped_per_bet": null,
-                "hits_mean": 0.575,
-                "hits_bound": 0.46241100386235756,
+                "hits_mean": 0.6,
+                "hits_bound": 0.5,
                 "lucky_strikes": 0,
-                "score_se": 0.11258899613764237
+                "score_se": 0.09999999999999999
             },
             "incumbent_tuning": {
                 "score": 0.4370557205680153,
@@ -1072,20 +1072,20 @@
                 "hits_mean": 0.55,
                 "hits_bound": 0.4370557205680153,
                 "lucky_strikes": 0,
-                "score_se": 0.11294427943198476
+                "score_se": 0.11294427943198475
             },
             "default_tuning": {
-                "score": 0.4370557205680153,
+                "score": 0.4568546093436847,
                 "kind": "hits",
                 "days": 40,
                 "bets": 0,
                 "profit_per_bet": null,
                 "capped_profit_bound": null,
                 "fair_capped_per_bet": null,
-                "hits_mean": 0.55,
-                "hits_bound": 0.4370557205680153,
+                "hits_mean": 0.575,
+                "hits_bound": 0.4568546093436847,
                 "lucky_strikes": 0,
-                "score_se": 0.11294427943198476
+                "score_se": 0.11814539065631521
             }
         },
         "SubsetEnsemble Model": {
