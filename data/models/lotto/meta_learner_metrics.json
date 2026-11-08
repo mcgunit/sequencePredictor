@@ -1,6 +1,6 @@
 {
   "game": "lotto",
-  "trained_at": "2026-11-01T06:20:05.414435+00:00",
+  "trained_at": "2026-11-08T05:33:00.463755+00:00",
   "days": 300,
   "table_days": 275,
   "lockbox": {
@@ -23,25 +23,25 @@
       "metrics": {
         "rows": 2475,
         "base_rate": 0.1333,
-        "brier": 0.2498,
+        "brier": 0.2497,
         "brier_base_rate": 0.1156,
-        "log_loss": 0.6927,
+        "log_loss": 0.6926,
         "log_loss_base_rate": 0.3927,
-        "auc": 0.5123,
+        "auc": 0.5227,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1324,
-            "mean_predicted": 0.4885,
-            "observed": 0.1276
+            "count": 1389,
+            "mean_predicted": 0.4896,
+            "observed": 0.1274
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1151,
-            "mean_predicted": 0.5124,
-            "observed": 0.1399
+            "count": 1086,
+            "mean_predicted": 0.5125,
+            "observed": 0.1409
           }
         ],
         "ece": 0.3663,
@@ -53,7 +53,7 @@
         "k": 6,
         "train_days": 220,
         "test_days": 55,
-        "accuracy": 0.5317
+        "accuracy": 0.5515
       }
     },
     "lotto (v2)": {
@@ -62,79 +62,65 @@
       "metrics": {
         "rows": 2475,
         "base_rate": 0.1333,
-        "brier": 0.2378,
+        "brier": 0.2411,
         "brier_base_rate": 0.1156,
-        "log_loss": 0.6678,
+        "log_loss": 0.6746,
         "log_loss_base_rate": 0.3927,
-        "auc": 0.543,
+        "auc": 0.5165,
         "reliability": [
-          {
-            "lo": 0.0,
-            "hi": 0.1,
-            "count": 2,
-            "mean_predicted": 0.0956,
-            "observed": 0.0
-          },
           {
             "lo": 0.1,
             "hi": 0.2,
-            "count": 15,
-            "mean_predicted": 0.1615,
-            "observed": 0.1333
+            "count": 11,
+            "mean_predicted": 0.1505,
+            "observed": 0.0909
           },
           {
             "lo": 0.2,
             "hi": 0.3,
-            "count": 50,
-            "mean_predicted": 0.2702,
-            "observed": 0.1
+            "count": 39,
+            "mean_predicted": 0.26,
+            "observed": 0.0769
           },
           {
             "lo": 0.3,
             "hi": 0.4,
-            "count": 217,
-            "mean_predicted": 0.3612,
-            "observed": 0.0968
+            "count": 161,
+            "mean_predicted": 0.3624,
+            "observed": 0.1242
           },
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1110,
-            "mean_predicted": 0.4655,
-            "observed": 0.1234
+            "count": 1165,
+            "mean_predicted": 0.4661,
+            "observed": 0.1279
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1053,
-            "mean_predicted": 0.5284,
-            "observed": 0.1557
+            "count": 1072,
+            "mean_predicted": 0.5274,
+            "observed": 0.1455
           },
           {
             "lo": 0.6,
             "hi": 0.7,
             "count": 27,
-            "mean_predicted": 0.6297,
+            "mean_predicted": 0.625,
             "observed": 0.037
-          },
-          {
-            "lo": 0.7,
-            "hi": 0.8,
-            "count": 1,
-            "mean_predicted": 0.7589,
-            "observed": 0.0
           }
         ],
-        "ece": 0.3456,
-        "precision_at_k": 0.1455,
-        "hits_at_k": 0.8727,
+        "ece": 0.3497,
+        "precision_at_k": 0.1394,
+        "hits_at_k": 0.8364,
         "chance_precision": 0.1333,
         "chance_hits": 0.8,
         "days": 55,
         "k": 6,
         "train_days": 220,
         "test_days": 55,
-        "accuracy": 0.5632
+        "accuracy": 0.5495
       }
     },
     "lotto (quantum kernel)": {
@@ -143,37 +129,37 @@
       "metrics": {
         "rows": 2475,
         "base_rate": 0.1333,
-        "brier": 0.2501,
+        "brier": 0.2513,
         "brier_base_rate": 0.1156,
-        "log_loss": 0.6934,
+        "log_loss": 0.6958,
         "log_loss_base_rate": 0.3927,
-        "auc": 0.5234,
+        "auc": 0.4908,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 214,
-            "mean_predicted": 0.4929,
-            "observed": 0.1355
+            "count": 714,
+            "mean_predicted": 0.4887,
+            "observed": 0.1303
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 2261,
-            "mean_predicted": 0.501,
-            "observed": 0.1331
+            "count": 1761,
+            "mean_predicted": 0.5068,
+            "observed": 0.1346
           }
         ],
-        "ece": 0.3669,
-        "precision_at_k": 0.1758,
-        "hits_at_k": 1.0545,
+        "ece": 0.3682,
+        "precision_at_k": 0.1121,
+        "hits_at_k": 0.6727,
         "chance_precision": 0.1333,
         "chance_hits": 0.8,
         "days": 55,
         "k": 6,
         "train_days": 220,
         "test_days": 55,
-        "accuracy": 0.7863
+        "accuracy": 0.5539
       }
     },
     "lotto (quantum vqc)": {
@@ -182,51 +168,44 @@
       "metrics": {
         "rows": 2475,
         "base_rate": 0.1333,
-        "brier": 0.2535,
+        "brier": 0.2295,
         "brier_base_rate": 0.1156,
-        "log_loss": 0.7003,
+        "log_loss": 0.6519,
         "log_loss_base_rate": 0.3927,
-        "auc": 0.5137,
+        "auc": 0.5186,
         "reliability": [
           {
             "lo": 0.3,
             "hi": 0.4,
-            "count": 31,
-            "mean_predicted": 0.3818,
-            "observed": 0.0968
+            "count": 57,
+            "mean_predicted": 0.3859,
+            "observed": 0.0175
           },
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1088,
-            "mean_predicted": 0.4701,
-            "observed": 0.1342
+            "count": 2062,
+            "mean_predicted": 0.4632,
+            "observed": 0.1358
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1288,
-            "mean_predicted": 0.5282,
-            "observed": 0.1335
-          },
-          {
-            "lo": 0.6,
-            "hi": 0.7,
-            "count": 68,
-            "mean_predicted": 0.6162,
-            "observed": 0.1324
+            "count": 356,
+            "mean_predicted": 0.5246,
+            "observed": 0.1376
           }
         ],
-        "ece": 0.3699,
-        "precision_at_k": 0.1303,
-        "hits_at_k": 0.7818,
+        "ece": 0.3369,
+        "precision_at_k": 0.1515,
+        "hits_at_k": 0.9091,
         "chance_precision": 0.1333,
         "chance_hits": 0.8,
         "days": 55,
         "k": 6,
         "train_days": 220,
         "test_days": 55,
-        "accuracy": 0.4651
+        "accuracy": 0.7624
       }
     },
     "lotto (classical svm)": {
@@ -235,30 +214,30 @@
       "metrics": {
         "rows": 2475,
         "base_rate": 0.1333,
-        "brier": 0.1549,
+        "brier": 0.155,
         "brier_base_rate": 0.1156,
-        "log_loss": 0.4961,
+        "log_loss": 0.4964,
         "log_loss_base_rate": 0.3927,
-        "auc": 0.5026,
+        "auc": 0.4976,
         "reliability": [
           {
             "lo": 0.2,
             "hi": 0.3,
-            "count": 190,
-            "mean_predicted": 0.2901,
-            "observed": 0.1263
+            "count": 15,
+            "mean_predicted": 0.2968,
+            "observed": 0.1333
           },
           {
             "lo": 0.3,
             "hi": 0.4,
-            "count": 2285,
-            "mean_predicted": 0.3342,
-            "observed": 0.1339
+            "count": 2460,
+            "mean_predicted": 0.3314,
+            "observed": 0.1333
           }
         ],
-        "ece": 0.1975,
-        "precision_at_k": 0.1788,
-        "hits_at_k": 1.0727,
+        "ece": 0.1979,
+        "precision_at_k": 0.1182,
+        "hits_at_k": 0.7091,
         "chance_precision": 0.1333,
         "chance_hits": 0.8,
         "days": 55,
