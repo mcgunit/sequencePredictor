@@ -57,6 +57,10 @@ function isoUtc(value) {
 }
 const nameOf = (m) => (m && m.name) || 'not known';
 const rowsOf = (v) => list(v).filter((m) => m && typeof m === 'object' && Array.isArray(m.predictions));
+// The settings a row ran on by hand (Admin > Parameters; Predictor labels the row "manual": [keys], 8 Nov 2026), or
+// null. Admin only: lottery.js takes it off every row a user is sent.
+const manualOf = (m) => (m && Array.isArray(m.manual) && m.manual.length ? m.manual.map(String) : null);
+const withManual = (m) => (manualOf(m) ? { manual: manualOf(m) } : {});
 const namesOf = (rows) => [...new Set(rowsOf(rows).map(nameOf))];
 // "2026-9-5" or "2026-09-05" -> "2026-09-05", or null
 function isoDay(text) {
@@ -226,8 +230,11 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
     const t = hist.topAt(game, date, namesOf(day.currentPrediction));
     const keep = scopeOfDraw(scope, t, 0).keep;
     const marks = drawLiveness(live, date, day.currentPrediction);
-    return { date, day, keep, ranking: t, prize: draws.prizeOfDraw(prizes, date), ...(afterClose ? { afterClose: afterCloseOf(marks, day.currentPrediction, keep) } : { liveMarks: liveMarksOf(marks, day.currentPrediction, keep) }) };
+    // the admin's history: how many of the draw's kept rows ran on a manual setting (Admin > Parameters)
+    const manual = afterClose ? 0 : day.currentPrediction.filter((m) => manualOf(m) && (!keep || keep(nameOf(m)))).length;
+    return { date, day, keep, ranking: t, prize: draws.prizeOfDraw(prizes, date), manual, ...(afterClose ? { afterClose: afterCloseOf(marks, day.currentPrediction, keep) } : { liveMarks: liveMarksOf(marks, day.currentPrediction, keep) }) };
   });
+  const manualOn = new Map(entries.filter((e) => e.manual).map((e) => [e.date, e.manual]));
   const months = draws.historyMonths(game, entries);
   const open = month === null ? months[0].month : month;
   if (!months.some((m) => m.month === open)) return { error: 'no stored draw in that month', status: 404 };
@@ -256,7 +263,7 @@ function historyView(dirs, game, scope, hist, extra = {}, month = null, now = ne
     draws: entries.length, counted: months.reduce((s, m) => s + m.counted, 0), month: open,
     months: months.map((m) => {
       const { days, ...totals } = m;
-      return m.month === open ? { ...totals, days: days.map((d) => ({ ...d, ranking: ref(d.ranking) })) } : { ...totals, days: null };
+      return m.month === open ? { ...totals, days: days.map((d) => ({ ...d, ranking: ref(d.ranking), ...(manualOn.has(d.date) ? { manual: manualOn.get(d.date) } : {}) })) } : { ...totals, days: null };
     }),
     // first: the first saved ranking of any game (25 Aug 2026); firstOfGame: the first that ranks this game (a game can
     // have entered it later); error: a version git could not read (the draws it decides have no Top, ranking.none)
@@ -304,7 +311,7 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
     return { ...rest, atClose: draws.scoreRow(game, { name: 'at the close', predictions: list(ticket && ticket.predictions), multiPick: ticket ? ticket.multiPick : null }, day.realResult, split, split.mains, prize) };
   };
   const rows = shown.map((m) => ({ ...draws.scoreRow(game, m, day.realResult, split, split.mains, prize), rank: rankOf(order, nameOf(m)), top: Boolean(top && top.has(nameOf(m))),
-    liveMark: liveOut(markOf.get(m)) }));
+    liveMark: liveOut(markOf.get(m)), ...withManual(m) }));
   const figures = keep ? draws.dayFigures(game, day, keep, prize) : null;
   // the stored vote: this file's, or - missing in 35 old vikinglotto files - the previous file's numberFrequency, the same vote
   let stored = day.currentNumberFrequency && typeof day.currentNumberFrequency === 'object' && Object.keys(day.currentNumberFrequency).length ? day.currentNumberFrequency : null;
@@ -362,7 +369,7 @@ function drawView(dirs, game, date, scope, hist, report, extra = {}, now = new D
           // ranked on the live record (rankedOn 'live'): its guard is on live draws
           minDraws: info ? num(info.rankedOn === 'live' && info.live ? info.live.minDrawsForRanking : info.minDrawsForRanking) : null } : null,
         none: scope === 'top' && !todayTop.length ? { code: today ? 'no-ranked-row' : 'not-ranked', text: today ? 'no row of this table is in today\'s ranking' : 'the game is not in today\'s ranking' } : null },
-      rows: comingRows.map((m) => ({ ...draws.scoreRow(game, m, [], empty, split.mains), rank: rankOf(today ? today.names : null, nameOf(m)), top: todayTop.includes(nameOf(m)) })),
+      rows: comingRows.map((m) => ({ ...draws.scoreRow(game, m, [], empty, split.mains), rank: rankOf(today ? today.names : null, nameOf(m)), top: todayTop.includes(nameOf(m)), ...withManual(m) })),
       votes: draws.votesOf(game, comingRows, [], scope === 'all' ? day.numberFrequency : null, 'file', split.mains),
     };
   } else {

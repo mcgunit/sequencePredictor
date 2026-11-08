@@ -769,7 +769,23 @@ function comboBrief(info) {
   return brief;
 }
 // input (one game's control records) is read by nothing since 27 Oct 2026, as in modelsSummary
-function modelsGame(report, game, scope = 'all', input = {}, { today = null, follows = null } = {}, now = new Date()) {
+// The rows that run on a manual setting now (config/paramOverrides.json, params.js; owner 8 Nov 2026): {row: [keys]}.
+// A variant row ("<row> · Sampled") runs on its parent's settings, so it is looked up by the parent's name.
+function manualRowsOf(root, game) {
+  const out = {};
+  try {
+    const { overrides } = require('./params').gameOverrides(root, game);
+    Object.keys(overrides).forEach((key) => {
+      const rec = overrides[key];
+      if (!rec || typeof rec !== 'object' || !Object.prototype.hasOwnProperty.call(rec, 'value')) return;
+      list(rec.rows).forEach((row) => { (out[row] = out[row] || []).push(key); });
+    });
+  } catch (e) { /* an unreadable overrides file: no labels, the page still answers */ }
+  return out;
+}
+const manualFor = (manual, name) => (manual && (manual[name] || manual[String(name).split(' · ')[0]])) || null;
+
+function modelsGame(report, game, scope = 'all', input = {}, { today = null, follows = null, manual = null } = {}, now = new Date()) {
   const info = gameInfo(report, game);
   if (!info) return null;
   const top = topOf(report, game, today);
@@ -795,6 +811,8 @@ function modelsGame(report, game, scope = 'all', input = {}, { today = null, fol
       since: since ? (sm ? { value: num(sm[info.metric]), draws: sm.draws, young: sm.draws < since.minDrawsForRanking } : null) : undefined,
       learning: learningOf(m),
     };
+    const keys = manualFor(manual, m.name);
+    if (keys) out.manual = keys.slice().sort();
     if (game === 'keno') {
       out.bySize = m.profit_by_size ? Object.keys(m.profit_by_size).map((k) => ({ size: Number(k), profitPerBet: num(m.profit_by_size[k].profit_per_bet), bets: num(m.profit_by_size[k].bets) })) : null;
     }
@@ -1710,7 +1728,8 @@ function install(app, options = {}) {
     const bad = badRequest(req);
     if (bad) return bad;
     if (!report()) return noReport;
-    return modelsGame(report(), gameOf(req), scopeOf(req), {}, { today: todayOf(gameOf(req)), follows: readFollows(dirs, gameOf(req)) }) || { error: 'no ranking for this game yet', status: 404 };
+    return modelsGame(report(), gameOf(req), scopeOf(req), {}, { today: todayOf(gameOf(req)), follows: readFollows(dirs, gameOf(req)), manual: manualRowsOf(dirs.root, gameOf(req)) })
+      || { error: 'no ranking for this game yet', status: 404 };
   }));
   app.get('/api/admin/phase-shift', (req, res) => answer(res, () => (report() ? phaseShiftSummary(report(), todayAll()) : noReport)));
   app.get('/api/admin/phase-shift/:game', (req, res) => answer(res, () => {
@@ -1759,7 +1778,7 @@ function install(app, options = {}) {
 
 module.exports = {
   GAMES, LOTTERY_GAMES, MARKET_GAMES, UNIT, isoUtc, resolveDirs, readControls, readRegimes, readAll, readReport,
-  q0Of, q2Of, fcOf, rowsOf, controlsOverview, controlsDrawer, modelsSummary, modelsGame, phaseShiftSummary, phaseShiftGame,
+  q0Of, q2Of, fcOf, rowsOf, controlsOverview, controlsDrawer, modelsSummary, modelsGame, manualRowsOf, phaseShiftSummary, phaseShiftGame,
   randomnessSummary, randomnessGame, guard, install,
   READING_VERSION, PARTS, sundayOf, weekReading, loadReadings, stateOf, streakOf, historyOf, withHistory,
   slicesOf, readSlices, readScheduler, runLine, weekView, tuningRecords, tuningSummary, tuningGame,

@@ -129,6 +129,8 @@ export interface DayLine {
   liveMarks: Record<string, number> | null;
   // the users: a ticket of the five was made after the draw's sales close - shown greyed, out of the totals
   afterClose: boolean;
+  // the admin: how many of the rows in scope ran on a manual setting (Admin > Parameters; 0 for the users)
+  manual: number;
 }
 export interface Month {
   month: string; // YYYY-MM
@@ -179,7 +181,7 @@ function dayLineOf(v: unknown): DayLine {
   const r = o(d.ranking);
   return {
     date: str(d.date), weekday: str(d.weekday), result: resultOf(d.result), figures: figuresOf(d),
-    version: opt(r.v), none: ostr(r.none), liveMarks: countsOf(d.liveMarks), afterClose: bool(d.afterClose),
+    version: opt(r.v), none: ostr(r.none), liveMarks: countsOf(d.liveMarks), afterClose: bool(d.afterClose), manual: num(d.manual, 0),
   };
 }
 export function normHistory(raw: unknown, game: string, scope: Scope): History {
@@ -248,6 +250,7 @@ export interface Row {
   tickets: Ticket[];
   multiPick: { numbers: number[]; mark: string; nine: number | null } | null; // lotto: the 7th-9th numbers
   liveMark: LiveMark | null; // null: live as stored (or not judged)
+  manual: string[] | null; // the admin: the settings this row ran on by hand (Admin > Parameters), null when none
 }
 const LIVE_MARKS: LiveMark['status'][] = ['late', 'recovered', 'duplicate', 'unchecked'];
 function liveMarkOf(v: unknown): LiveMark | null {
@@ -279,6 +282,7 @@ export function rowOf(v: unknown): Row {
     name: str(r.name), rank: opt(r.rank), top: bool(r.top), tickets: arr(r.tickets).filter(has).map(ticketOf),
     multiPick: has(r.multiPick) && nums(mp.numbers).length ? { numbers: nums(mp.numbers), mark: str(mp.mark), nine: opt(mp.nine) } : null,
     liveMark: liveMarkOf(r.liveMark),
+    manual: Array.isArray(r.manual) && r.manual.length ? r.manual.filter((x): x is string => typeof x === 'string') : null,
   };
 }
 

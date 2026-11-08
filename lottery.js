@@ -214,7 +214,9 @@ function drawOf(dirs, game, date, hist, report, now = new Date()) {
   const { file, liveness, ...out } = view;
   if (out.prev && !start.counts(out.prev)) out.prev = null;
   // a user gets the draw's verdict, not the admin's per-row markers
-  return { ...out, rows: out.rows.map(({ liveMark, ...r }) => r), scope: plainScope(out.scope), ...afterCloseOut(liveness) };
+  // (nor the admin's "manual" label: the parameters and their overrides are admin only, owner 8 Nov 2026)
+  return { ...out, rows: out.rows.map(({ liveMark, manual, ...r }) => r), ...(out.coming ? { coming: { ...out.coming, rows: out.coming.rows.map(({ manual, ...r }) => r) } } : {}),
+    scope: plainScope(out.scope), ...afterCloseOut(liveness) };
 }
 // the users' greyed-draw line (workbench afterCloseOf over the five shown): {afterClose, afterCloseText}
 const afterCloseOut = (liveness) => (liveness && liveness.afterClose ? { afterClose: true, afterCloseText: liveness.afterCloseText } : { afterClose: false });
@@ -325,7 +327,7 @@ function cardOf(dirs, game, hist, report, now) {
       madeAt: c.madeAt, closeAt: close ? close.at : null, afterClose: Boolean(close && close.afterClose),
       afterCloseText: close && close.afterClose ? `These tickets were made after sales closed (${close.time}): for reading, not for playing.` : null },
     // every coming row is one of today's five: their `top` flag (the admin's All marks them) is left out
-    coming: { scope: c.scope, rows: c.rows.slice().sort(byRank).map(({ top, ...r }) => r) },
+    coming: { scope: c.scope, rows: c.rows.slice().sort(byRank).map(({ top, manual, ...r }) => r) },
     multiPick: view.multiPick,
     last,
   };

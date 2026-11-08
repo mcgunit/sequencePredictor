@@ -973,6 +973,7 @@ export interface RankRow {
   since: { value: number | null; draws: number | null; young: boolean } | null | undefined; // undefined: the game has no since record
   bySize: { size: number; profitPerBet: number | null; bets: number | null }[] | null;
   learning: LearningCheck | null; // null: not a deep-learning row, or none since 25 Oct 2026
+  manual: string[] | null; // the settings it runs on by hand now (Admin > Parameters), null when none
 }
 export interface MultiPick {
   draw: number;
@@ -1896,6 +1897,7 @@ function normModelsGame(raw: unknown, game: string, scope: Scope): ModelsGameVie
         avgHits: opt(w.avgHits), bestDay: opt(w.bestDay), draws: opt(w.draws), live: opt(w.live), recovered: opt(w.recovered), young: bool(w.young), chance: q0LineOf(w.chance), since,
         bySize: Array.isArray(w.bySize) ? w.bySize.map((y) => ({ size: num(o(y).size, 0), profitPerBet: opt(o(y).profitPerBet), bets: opt(o(y).bets) })) : null,
         learning: learningCheckOf(w.learning),
+        manual: Array.isArray(w.manual) && w.manual.length ? strs(w.manual) : null,
       };
     }),
     multiPick: multiPickOf(r.multiPick),

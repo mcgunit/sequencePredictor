@@ -397,6 +397,25 @@ const plainLotto = admin.modelsSummary(unlabelled).games.find((g) => g.game === 
 ok(JSON.stringify(plain.rows.map((r) => [r.rank, r.row, r.value, r.top, r.chance])) === JSON.stringify(labelled.rows.map((r) => [r.rank, r.row, r.value, r.top, r.chance]))
   && plain.top.join() === labelled.top.join() && plainLotto.best.row === ml.best.row && plainLotto.top.join() === ml.top.join() && Object.keys(plainLotto.learning).length === 0
   && plain.rows.every((r) => r.learning === null), 'the label moves no row: the same ranking, values, best row and top five without it');
+// the "manual" label (Admin > Parameters, 8 Nov 2026): the rows on a manual setting now, from config/paramOverrides.json; a
+// variant row is looked up by its parent; nothing is labelled without the file, and the ranking does not move
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-manual-'));
+  ok(JSON.stringify(admin.manualRowsOf(root, 'lotto')) === '{}', 'no overrides file: no manual rows');
+  fs.mkdirSync(path.join(root, 'config'));
+  fs.writeFileSync(path.join(root, 'config', 'paramOverrides.json'), JSON.stringify({ version: 1, games: { lotto: { overrides: {
+    markovAlpha: { value: 0.5, rows: ['A Model'] }, useMarkov: { value: false, rows: ['A Model'] }, broken: { rows: ['B Model'] } } } } }));
+  const manual = admin.manualRowsOf(root, 'lotto');
+  ok(JSON.stringify(manual) === '{"A Model":["markovAlpha","useMarkov"]}', `the rows on a manual setting, an entry without a value left out: ${JSON.stringify(manual)}`);
+  const withManual = admin.modelsGame(report, 'lotto', 'all', {}, { manual: { ...manual, 'C Model': ['x'] } });
+  ok(JSON.stringify(withManual.rows.find((r) => r.row === 'A Model').manual) === '["markovAlpha","useMarkov"]' && withManual.rows.filter((r) => r.manual).length === 2
+    && labelled.rows.every((r) => r.manual === undefined)
+    && JSON.stringify(withManual.rows.map((r) => [r.rank, r.row, r.value])) === JSON.stringify(labelled.rows.map((r) => [r.rank, r.row, r.value])),
+    'models drawer: the manual rows labelled, the ranking unchanged');
+  fs.writeFileSync(path.join(root, 'config', 'paramOverrides.json'), '{broken');
+  ok(JSON.stringify(admin.manualRowsOf(root, 'lotto')) === '{}', 'an unreadable overrides file: no labels, no error');
+  fs.rmSync(root, { recursive: true, force: true });
+}
 
 // phase shift and randomness
 const ps = request(app, '/api/admin/phase-shift/lotto', ADMIN).body;

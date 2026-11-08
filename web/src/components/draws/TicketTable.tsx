@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { DASH, isNum, money, pct, rate, short, stamp, unsigned } from '../../format';
 import { binInterval, type DrawResult, type LiveMark, type MarketDay, type Row, type Shape, type Ticket } from '../../workbench';
 import { Legend, Scroll } from '../admin/Card';
-import Chip from '../admin/Chip';
+import Chip, { ManualChip } from '../admin/Chip';
 import { specialsLabel, type Mode } from './text';
 
 // Every row's tickets in the old History table's grid (owner, 24 Oct 2026: "the table with the hits like it was"):
@@ -61,6 +61,7 @@ function NameCell({ row, mode, ranked, showTop, rankWhose, first }: { row: Row; 
       ) : null}
       {mode === 'admin' && ranked ? <span className="sub">{row.rank ? `#${row.rank} ${rankWhose}` : `not ${rankWhose}`}</span> : null}
       {mode === 'admin' && row.liveMark ? <span className="sub">{liveMarkText(row.liveMark)}</span> : null}
+      {mode === 'admin' ? <ManualChip keys={row.manual} /> : null}
     </td>
   );
 }

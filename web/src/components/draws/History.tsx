@@ -66,6 +66,7 @@ export function DayRow({ d, shape, mode, scope, version, first, href }: { d: Day
           <FiguresLine shape={shape} figures={d.figures} mode={mode} />
           {mode === 'admin' && scope === 'top' && version ? <small>top 5 by {version.metricText}, ranking saved {stamp(version.committedAt ?? version.generatedAt)}</small> : null}
           {mode === 'admin' && d.liveMarks ? <small>not live as stored: {liveMarksText(d.liveMarks)}</small> : null}
+          {mode === 'admin' && d.manual ? <small>{d.manual === 1 ? '1 row' : `${d.manual} rows`} ran on a manual setting (Admin › Parameters)</small> : null}
           {late ? <small>Tickets for this draw were made after its sales closed - shown, not counted in the totals.</small> : null}
         </span>
       ) : (

@@ -4,7 +4,7 @@ import { DASH, cap, count, day, fixed, isNum, perUnit, plural, range, share, sho
 import { useLoad } from '../../hooks/useLoad';
 import { useScope } from '../../hooks/useUrlState';
 import Drawer, { Section } from '../../components/admin/Drawer';
-import Chip from '../../components/admin/Chip';
+import Chip, { ManualChip } from '../../components/admin/Chip';
 import { Scroll } from '../../components/admin/Card';
 import ScopeSwitch from '../../components/admin/ScopeSwitch';
 import { Failed, Loading } from '../../components/admin/States';
@@ -192,6 +192,7 @@ function RankLine({ d, r, liveSince, sizesOpen, onSizes }: { d: ModelsGameView; 
         {short(r.row)}
         {r.top && d.scope === 'all' ? <span className="tag">top 5</span> : null}
         <LearningTag l={r.learning} />
+        <ManualChip keys={r.manual} now />
         {r.young ? (
           <>
             {' '}

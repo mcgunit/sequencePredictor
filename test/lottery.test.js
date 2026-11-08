@@ -431,6 +431,35 @@ async function partOne() {
     fs.rmSync(liveFile, { force: true });
     writeDays();
   }
+
+  // the "manual" label (Admin > Parameters, 8 Nov 2026): Predictor marks a row that ran on a manual setting; the admin's
+  // draw view, coming rows and history carry it, a user is never sent it
+  const relabel = (file, mark) => {
+    const f = path.join(db, 'lotto', file);
+    const d = JSON.parse(fs.readFileSync(f, 'utf-8'));
+    mark(d);
+    fs.writeFileSync(f, JSON.stringify(d));
+  };
+  relabel('2026-10-7.json', (d) => { d.currentPrediction.find((r) => r.name === 'G Model').manual = ['markovAlpha']; });
+  relabel('2026-10-10.json', (d) => { d.newPrediction.forEach((r) => { r.manual = ['batchSize', 'useMarkov']; }); });
+  try {
+    const d7 = workbench.drawView(dirs, 'lotto', '2026-10-07', 'all', full, todays, {}, new Date());
+    ok(JSON.stringify(d7.rows.find((r) => r.name === 'G Model').manual) === '["markovAlpha"]' && d7.rows.filter((r) => r.manual).length === 1,
+      'admin draw: the row that ran on a manual setting carries its keys, the others nothing');
+    const d10 = workbench.drawView(dirs, 'lotto', '2026-10-10', 'all', full, todays, {}, new Date());
+    ok(d10.coming.rows.length > 0 && d10.coming.rows.every((r) => JSON.stringify(r.manual) === '["batchSize","useMarkov"]'), 'admin coming draw: the label on the coming rows');
+    const hm = workbench.historyView(dirs, 'lotto', 'all', full, {}, null, new Date());
+    ok(hm.months[0].days.find((x) => x.date === '2026-10-07').manual === 1 && hm.months[0].days.find((x) => x.date === '2026-10-06').manual === undefined,
+      'admin history: the draw counts its rows that ran on a manual setting');
+    const u7 = (await get('/api/lottery/lotto/2026-10-07')).body;
+    const u10 = (await get('/api/lottery/lotto/2026-10-10')).body;
+    const card = (await get('/api/lottery')).body.games.find((g) => g.game === 'lotto');
+    const uh = (await get('/api/lottery/lotto')).body;
+    ok(!JSON.stringify([u7, u10, card, uh]).includes('"manual"') && u7.rows.length > 0 && card.coming.rows.length > 0,
+      'a user is never sent the manual label: draw, coming rows, card or history');
+  } finally {
+    writeDays();
+  }
 }
 
 // ===================================================================================================================
