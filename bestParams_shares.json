@@ -522,6 +522,136 @@
                 "Transformer Model"
             ],
             "weightedEqualsFlat": false
+        },
+        "QuantumMetaLearner Model": {
+            "date": "2026-11-08T04:51:41+00:00",
+            "tuner": "HyperoptQuantum",
+            "window_days": 60,
+            "margin_se": 2.5,
+            "lockbox_days_withheld": 62,
+            "study_best": 0.4078999999999998,
+            "margin": 0.5241978896326194,
+            "revert_margin": 0.5241978896326194,
+            "decision": "replaced",
+            "run_trials": 15,
+            "study_trials": 15,
+            "reason": "challenger +0.4079 beats incumbent -0.1823 and default -0.1823 (margin 2.5 x the challenger's standard error 0.2097; untuned so far - the incumbent is the default)",
+            "trial": 10,
+            "challenger": 0.4078999999999998,
+            "incumbent": -0.1822666666666668,
+            "default": -0.1822666666666668,
+            "challenger_tuning": {
+                "score": 0.4078999999999998,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.4066666666666665,
+                "top1_accuracy": 0.12333333333333334,
+                "score_se": 0.20967915585304775
+            },
+            "incumbent_tuning": {
+                "score": -0.1822666666666668,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": -0.18333333333333346,
+                "top1_accuracy": 0.10666666666666666,
+                "score_se": 0.2398465454168545
+            },
+            "default_tuning": {
+                "score": -0.1822666666666668,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": -0.18333333333333346,
+                "top1_accuracy": 0.10666666666666666,
+                "score_se": 0.2398465454168545
+            },
+            "lockbox_withheld_from": "table"
+        },
+        "QuantumVQC Model": {
+            "date": "2026-11-08T04:55:25+00:00",
+            "tuner": "HyperoptQuantum",
+            "window_days": 60,
+            "margin_se": 2.5,
+            "lockbox_days_withheld": 62,
+            "study_best": 0.1911666666666666,
+            "margin": 0.4885952133268148,
+            "revert_margin": 0.4885952133268148,
+            "decision": "kept",
+            "run_trials": 15,
+            "study_trials": 15,
+            "reason": "challenger +0.1912 does not beat incumbent +0.0780 or default +0.0780 by 0.488595 (margin 2.5 x the challenger's standard error 0.1954; untuned so far - the incumbent is the default)",
+            "trial": 7,
+            "challenger": 0.1911666666666666,
+            "incumbent": 0.07803333333333327,
+            "default": 0.07803333333333327,
+            "challenger_tuning": {
+                "score": 0.1911666666666666,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.18999999999999992,
+                "top1_accuracy": 0.11666666666666665,
+                "score_se": 0.19543808533072593
+            },
+            "incumbent_tuning": {
+                "score": 0.07803333333333327,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.0766666666666666,
+                "top1_accuracy": 0.13666666666666666,
+                "score_se": 0.2522370719970445
+            },
+            "default_tuning": {
+                "score": 0.07803333333333327,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.0766666666666666,
+                "top1_accuracy": 0.13666666666666666,
+                "score_se": 0.2522370719970445
+            },
+            "lockbox_withheld_from": "table"
+        },
+        "ClassicalSVM Model": {
+            "date": "2026-11-08T04:56:54+00:00",
+            "tuner": "HyperoptQuantum",
+            "window_days": 60,
+            "margin_se": 2.5,
+            "lockbox_days_withheld": 62,
+            "study_best": 0.06936666666666662,
+            "margin": 0.44849448671520586,
+            "revert_margin": 0.44849448671520586,
+            "decision": "kept",
+            "run_trials": 15,
+            "study_trials": 15,
+            "reason": "challenger +0.0694 does not beat incumbent +0.0778 or default +0.0778 by 0.448494 (margin 2.5 x the challenger's standard error 0.1794; untuned so far - the incumbent is the default)",
+            "trial": 2,
+            "challenger": 0.06936666666666662,
+            "incumbent": 0.0777666666666665,
+            "default": 0.0777666666666665,
+            "challenger_tuning": {
+                "score": 0.06936666666666662,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.06833333333333329,
+                "top1_accuracy": 0.10333333333333335,
+                "score_se": 0.17939779468608236
+            },
+            "incumbent_tuning": {
+                "score": 0.0777666666666665,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.0766666666666665,
+                "top1_accuracy": 0.10999999999999999,
+                "score_se": 0.26224117362651006
+            },
+            "default_tuning": {
+                "score": 0.0777666666666665,
+                "kind": "holdout_profit",
+                "days": 60,
+                "profit_per_day": 0.0766666666666665,
+                "top1_accuracy": 0.10999999999999999,
+                "score_se": 0.26224117362651006
+            },
+            "lockbox_withheld_from": "table",
+            "default_note": "classicalSvm_gamma 0.25 stands in for sklearn's \"scale\" in the default reference, and is served on a revert"
         }
     },
     "markovSoftMaxTemperature": 0.4405040854553761,
@@ -600,5 +730,10 @@
         "Regime HMM ZeroMean Model": 2.0,
         "Transformer Model": 1.4163,
         "XGBoost Model": 1.7882
-    }
+    },
+    "quantumKernel_nQubits": 4,
+    "quantumKernel_encodingLayers": 2,
+    "quantumKernel_encodingScale": 2.0,
+    "quantumKernel_C": 0.4937176527612303,
+    "quantumKernel_maxTrainSamples": 1000
 }
