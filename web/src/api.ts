@@ -2598,6 +2598,7 @@ export type ParamCard = {
   gates: ParamGate[]; scores: { row: string; score: number }[];
   variants: { sampled: { row: string; temperature: ParamValue; set: boolean; key: string; override: ParamOverride | null }[]; sampledWhy: string | null; memorise: { state: 'on' | 'off' | 'none'; why: string } };
   retrain: { row: string; asked: string; pending: boolean }[]; manual: number; deepLearning: boolean;
+  backtest: string[]; // the card's rows a backtest can be started for
 };
 export type ParametersView = {
   game: string; group: string; builtAt: string | null;
@@ -2643,7 +2644,7 @@ function normParameters(raw: unknown, game: string): ParametersView {
             sampled: objs(v.sampled).map((x) => ({ row: str(x.row), temperature: x.temperature, set: bool(x.set), key: str(x.key), override: ov(x.override) })), sampledWhy: ostr(v.sampledWhy),
             memorise: { state: m.state === 'on' || m.state === 'off' ? m.state : 'none', why: str(m.why) },
           },
-          retrain: objs(c.retrain).map((x) => ({ row: str(x.row), asked: str(x.asked), pending: bool(x.pending) })), manual: num(c.manual, 0), deepLearning: bool(c.deepLearning),
+          retrain: objs(c.retrain).map((x) => ({ row: str(x.row), asked: str(x.asked), pending: bool(x.pending) })), manual: num(c.manual, 0), deepLearning: bool(c.deepLearning), backtest: strs(c.backtest),
         };
       }),
     })),
@@ -2655,3 +2656,56 @@ function normParameters(raw: unknown, game: string): ParametersView {
     nextRun: str(r.nextRun, 'the next run'),
   };
 }
+
+// --- Admin › Backtests (GET /api/admin/backtests[/:id], backtests.js; RunBacktest.py writes progress and result) -------
+export type BacktestStatus = 'queued' | 'running' | 'done' | 'failed' | 'out of time' | 'stopped' | 'cancelled' | 'ended';
+export type BacktestDay = { date: string | null; hits: number | null; profit: number | null };
+export type Backtest = {
+  id: string; game: string; row: string; days: number; values: 'served' | 'tuned'; by: string; requestedAt: string | null;
+  status: BacktestStatus; place: number | null; runId: string | null; startedAt: string | null; finishedAt: string | null; seconds: number | null;
+  error: string | null; progress: { done: number; total: number; seconds: number; eta: number | null } | null;
+  manual: { key: string; value: ParamValue; tuned: ParamValue }[];
+  result: {
+    score: number | null; tuning: Record<string, unknown>; lockboxWithheld: number; dayCount: number; fromDefault: string[];
+    gate: { date: string | null; windowDays: number | null; incumbent: number | null; default: number | null; decision: string | null } | null;
+    days: BacktestDay[]; values: Record<string, ParamValue>;
+  } | null;
+};
+export type BacktestList = {
+  backtests: Backtest[]; rows: Record<string, string[]>; daysDefault: number; daysMax: number;
+  scheduler: { budget: number; nextSlotSeconds: number; running: string | null; queued: number } | null;
+};
+const BT_STATUS: BacktestStatus[] = ['queued', 'running', 'done', 'failed', 'out of time', 'stopped', 'cancelled', 'ended'];
+function normBacktest(v: unknown): Backtest {
+  const b = o(v);
+  const p = has(b.progress) ? o(b.progress) : null;
+  const r = has(b.result) ? o(b.result) : null;
+  const g = r && has(r.gate) ? o(r.gate) : null;
+  return {
+    id: str(b.id), game: str(b.game), row: str(b.row), days: num(b.days, 0), values: b.values === 'tuned' ? 'tuned' : 'served', by: str(b.by),
+    requestedAt: ostr(b.requestedAt), status: BT_STATUS.includes(b.status as BacktestStatus) ? (b.status as BacktestStatus) : 'ended',
+    place: opt(b.place), runId: ostr(b.runId), startedAt: ostr(b.startedAt), finishedAt: ostr(b.finishedAt), seconds: opt(b.seconds), error: ostr(b.error),
+    progress: p ? { done: num(p.done, 0), total: num(p.total, 0), seconds: num(p.seconds, 0), eta: opt(p.eta) } : null,
+    manual: arr(b.manual as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), value: o(x).value, tuned: o(x).tuned })),
+    result: r
+      ? {
+          score: opt(r.score), tuning: o(r.tuning), lockboxWithheld: num(r.lockboxWithheld, 0), fromDefault: strs(r.fromDefault),
+          dayCount: Array.isArray(r.days) ? r.days.length : num(r.dayCount, 0),
+          gate: g ? { date: ostr(g.date), windowDays: opt(g.windowDays), incumbent: opt(g.incumbent), default: opt(g.default), decision: ostr(g.decision) } : null,
+          days: arr(r.days as unknown[]).filter(has).map((x) => ({ date: ostr(o(x).date), hits: opt(o(x).hits), profit: opt(o(x).profit) })),
+          values: o(r.values),
+        }
+      : null,
+  };
+}
+export const getAdminBacktests = async (): Promise<BacktestList> => {
+  const r = o(await getJson<unknown>('/api/admin/backtests'));
+  const s = has(r.scheduler) ? o(r.scheduler) : null;
+  return {
+    backtests: arr(r.backtests as unknown[]).filter(has).map(normBacktest),
+    rows: Object.fromEntries(Object.entries(o(r.rows)).map(([k, v]) => [k, strs(v)])),
+    daysDefault: num(r.daysDefault, 90), daysMax: num(r.daysMax, 1000),
+    scheduler: s ? { budget: num(s.budget, 0), nextSlotSeconds: num(s.nextSlotSeconds, 0), running: ostr(s.running), queued: num(s.queued, 0) } : null,
+  };
+};
+export const getAdminBacktest = async (id: string): Promise<Backtest> => normBacktest(await getJson<unknown>(`/api/admin/backtests/${encodeURIComponent(id)}`));

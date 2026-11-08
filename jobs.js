@@ -267,7 +267,23 @@ const JOBS = [
                + 'market; the verdicts on the Controls page).',
     script: 'MarketRows.py', args: ['-g', 'crypto,shares,cryptoweek,sharesweek', '-d', '250'], log: 'marketRows.log', plan: CONTROLS_PLAN,
   },
+  {
+    // The owner's roadmap step 4 (8 Nov 2026): a backtest of one model on one game, started by an administrator from
+    // Admin › Parameters (backtests.js). Never scheduled and never "Run now": each queue entry carries its own id
+    // (RunBacktest.py --id), several can wait, and the scheduled jobs always go first (startNext). A backtest only
+    // starts when it has at least BACKTEST_MIN_SECONDS before the next scheduled run, and gets --budget to end
+    // BACKTEST_MARGIN_SECONDS before it (at most BACKTEST_MAX_SECONDS).
+    key: 'backtest',
+    name: 'Backtest (started from Admin › Parameters)',
+    description: 'One model on one game, walked forward over the newest draws with the weekend tuner\'s own score, the lockbox days '
+               + 'withheld (RunBacktest.py). Started from Admin › Parameters; queued behind every scheduled job, and only started '
+               + 'when it can finish well before the next scheduled run.',
+    script: 'RunBacktest.py', args: [], log: 'backtest.log', manualOnly: true,
+  },
 ];
+const BACKTEST_MAX_SECONDS = 3 * 3600;
+const BACKTEST_MARGIN_SECONDS = 10 * 60;
+const BACKTEST_MIN_SECONDS = 15 * 60;
 
 const planKeys = (plan) => JOBS.filter((j) => j.plan === plan).map((j) => j.key);
 const CHAIN_KEYS = planKeys(CHAIN_PLAN);
@@ -558,6 +574,26 @@ function enqueue(key, reason, manual) {
   return true;
 }
 
+// A backtest's queue entry: its own id and arguments, so several can wait (enqueue keeps one entry per job key).
+function enqueueBacktest(id, reason) {
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(id || ''))) return false;
+  if (state.queue.some((q) => q.backtestId === id) || (state.current && state.current.backtestId === id)) return false;
+  state.queue.push({ key: 'backtest', backtestId: id, args: ['--id', id], reason, queuedAt: Date.now(), manual: true });
+  log(`queued backtest ${id} (${reason})`);
+  return true;
+}
+
+// Seconds from now to the next scheduled daily run (any daily job), the slot a backtest must end before.
+function secondsToNextSlot(now = new Date()) {
+  const next = JOBS.filter((j) => j.daily).map((j) => nextDaily(now, j.daily).getTime());
+  return next.length ? Math.max(0, Math.round((Math.min(...next) - now.getTime()) / 1000)) : BACKTEST_MAX_SECONDS + BACKTEST_MARGIN_SECONDS;
+}
+// The budget a backtest starting now gets, or 0 when it should not start (too close to the next scheduled run).
+function backtestBudget(now = new Date()) {
+  const room = secondsToNextSlot(now) - BACKTEST_MARGIN_SECONDS;
+  return room >= BACKTEST_MIN_SECONDS ? Math.min(BACKTEST_MAX_SECONDS, room) : 0;
+}
+
 // A plan is one occurrence that may expand into several queued jobs: the
 // weekly tuning chain is seven of them and the control plan four (three on a
 // Sunday that is not the month's first), kept in order by the FIFO queue.
@@ -612,6 +648,8 @@ function launch(entry) {
   rotate(logFile);
 
   const runId = `${job.key}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  // a backtest's entry carries its own arguments (its id) and gets the budget that ends it before the next scheduled run
+  const args = entry.args ? [...entry.args, ...(job.key === 'backtest' ? ['--budget', String(entry.budget || backtestBudget())] : [])] : job.args;
   const pidFile = path.join(RUN_DIR, `${runId}.pid`);
   const exitFile = path.join(RUN_DIR, `${runId}.exit`);
   const sha = gitSha();
@@ -625,7 +663,7 @@ function launch(entry) {
     `cd ${shellQuote(ROOT)} || exit 97`,
     `printf '=== scheduler: %s started %s UTC ===\n' ${shellQuote(job.name)} "$(date -u '+%F %T')${sha ? ` ${sha}` : ''}" >> ${shellQuote(logFile)}`,
     'started=$(date +%s)',
-    `python3 ${shellQuote(job.script)}${job.args.length ? ` ${job.args.map(shellQuote).join(' ')}` : ''} >> ${shellQuote(logFile)} 2>&1`,
+    `python3 ${shellQuote(job.script)}${args.length ? ` ${args.map(shellQuote).join(' ')}` : ''} >> ${shellQuote(logFile)} 2>&1`,
     'status=$?',
     `printf '=== scheduler: %s finished status=%s after %ss ===\n' ${shellQuote(job.name)} "$status" "$(( $(date +%s) - started ))" >> ${shellQuote(logFile)}`,
     `echo "$status" > ${shellQuote(exitFile)}`,
@@ -649,7 +687,7 @@ function launch(entry) {
 
   state.current = {
     runId, key: job.key, name: job.name, reason: entry.reason, startedAt: Date.now(),
-    pid: null, pidFile, exitFile, logFile, sha, mode: mode(),
+    pid: null, pidFile, exitFile, logFile, sha, mode: mode(), ...(entry.backtestId ? { backtestId: entry.backtestId } : {}),
   };
   saveState();
   log(`started ${job.name}${sha ? ` at ${sha}` : ''} (${entry.reason})`);
@@ -980,9 +1018,25 @@ function startNext() {
     return;
   }
   waiting = null;
-  const entry = state.queue.shift();
+  const pick = pickNext(state.queue, backtestBudget());
+  if (!pick) {
+    if (!backtestWaitLogged) log(`backtest ${state.queue[0].backtestId || ''} waits: less than ${BACKTEST_MIN_SECONDS / 60} min before the next scheduled run`);
+    backtestWaitLogged = true;
+    return;
+  }
+  backtestWaitLogged = false;
+  const [entry] = state.queue.splice(pick.index, 1);
   saveState();
-  launch(entry);
+  launch(pick.budget ? { ...entry, budget: pick.budget } : entry);
+}
+let backtestWaitLogged = false;
+
+// Which queue entry starts next: the first scheduled job (anything but a backtest), wherever it waits; with only
+// backtests queued, the first of them when `budget` (backtestBudget) allows one now. {index, budget} or null.
+function pickNext(queue, budget) {
+  const at = queue.findIndex((q) => q.key !== 'backtest');
+  if (at >= 0) return { index: at, budget: 0 };
+  return queue.length && budget > 0 ? { index: 0, budget } : null;
 }
 
 function tick() {
@@ -1064,6 +1118,7 @@ function stop() {
 // --- status -----------------------------------------------------------------
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function nextDueText(job, now) {
+  if (job.manualOnly) return 'when an administrator starts one (Admin › Parameters)';
   if (job.daily) return `${stamp(nextDaily(now, job.daily))} (${job.daily.weekdays ? 'Monday to Friday' : 'daily'} ${slotText(job.daily)})`;
   const spec = job.plan && PLANS[job.plan];
   const day = spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday';
@@ -1091,6 +1146,7 @@ function lastRunOf(key) {
 function runRefusal(key, current = mode()) {
   const job = jobByKey(key);
   if (!job) return { status: 400, message: 'unknown job' };
+  if (job.manualOnly) return { status: 400, message: `${job.name}: start it from Admin › Parameters` };
   if (current === 'off') return { status: 409, message: 'the schedule is disabled - remove config/scheduler.disabled first' };
   if ((state.current && state.current.key === key) || state.queue.some((q) => q.key === key)) {
     return { status: 409, message: `${job.name}: already running or queued` };
@@ -1111,6 +1167,32 @@ function runNow(key, by) {
   const started = Boolean(state.current && state.current.key === job.key);
   const place = state.queue.findIndex((q) => q.key === job.key) + 1;
   return { ok: true, status: 200, message: `${job.name}: ${started ? 'started' : `queued${place ? `, ${place === 1 ? 'first' : `number ${place}`} in the queue` : ''}`}`, started };
+}
+
+// Takes one backtest out of the queue (a running one is stopped with stopRun).
+function cancelBacktest(id, by) {
+  const before = state.queue.length;
+  state.queue = state.queue.filter((q) => q.backtestId !== id);
+  if (before === state.queue.length) return { ok: false, status: 409, message: 'that backtest is not in the queue' };
+  saveState();
+  log(`backtest ${id} removed from the queue by ${by}`);
+  return { ok: true, status: 200, message: 'Backtest removed from the queue' };
+}
+// Queue a backtest and start it when allowed (backtests.js has written its record).
+function queueBacktest(id, by) {
+  if (mode() === 'off') return { ok: false, status: 409, message: 'the schedule is disabled - remove config/scheduler.disabled first' };
+  if (!enqueueBacktest(id, `started by hand (${by})`)) return { ok: false, status: 409, message: 'that backtest is already queued' };
+  saveState();
+  startNext();
+  const started = Boolean(state.current && state.current.backtestId === id);
+  const place = state.queue.findIndex((q) => q.backtestId === id) + 1;
+  return { ok: true, status: 200, started, place,
+    message: started ? 'Backtest started' : `Backtest queued${place ? ` (number ${place} in the queue)` : ''}: it starts after the scheduled jobs, when it can finish before the next scheduled run` };
+}
+// What the Backtests page reads: the backtest running now (its id and run id, for Stop) and the queued ids in order.
+function backtestState() {
+  return { current: state.current && state.current.backtestId ? { id: state.current.backtestId, runId: state.current.runId } : null,
+    queued: state.queue.filter((q) => q.backtestId).map((q) => q.backtestId), budget: backtestBudget(), nextSlotSeconds: secondsToNextSlot() };
 }
 
 // Cancel: takes a job out of the queue; a running job is stopped, not cancelled.
@@ -1190,6 +1272,8 @@ function tail(file, lines) {
 
 module.exports = {
   start, stop, status, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun,
+  // the backtests started from Admin › Parameters (backtests.js)
+  queueBacktest, cancelBacktest, backtestState,
   // pipeline.js names the lock holder's step by it (the keno step runs the statistical tuner's script)
   jobOfCmdline,
   // Pure schedule logic for test/jobs.test.js, plus the few entry points the
@@ -1200,6 +1284,6 @@ module.exports = {
     CONTROL_KEYS, CONTROLS_PLAN, PLANS, planKeys, planTriggerAt, nextDueText, planBaseline,
     enqueue, startNext, tick, lockHolder, jobOfCmdline, maybeTriggerChain, state: () => state,
     chainTriggerAt, exitCodeFrom, allowedQueue, READING_JOB, readingSundayOf, writeWeekReading, scheduleReading,
-    runsOnDay, planDayOf, planKeysOn, nextMonthlyDay, enqueuePlan,
+    runsOnDay, planDayOf, planKeysOn, nextMonthlyDay, enqueuePlan, enqueueBacktest, backtestBudget, secondsToNextSlot, pickNext,
   },
 };

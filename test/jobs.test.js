@@ -24,7 +24,7 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 14, 'fourteen jobs: the night crypto and lottery runs, the evening stocks run, the seven steps of the weekly tuning chain and the four control experiments');
+ok(jobs.JOBS.length === 15, 'fifteen jobs: the night crypto and lottery runs, the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
 ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto',
   'the lottery job is Predictor.py -a true as runPredictor.sh had it, for the seven lottery games (8 Nov 2026)');
 ok(byKey.predictor.daily.hour === 0 && byKey.predictor.daily.minute === 30 && byKey.predictor.daily.utc === true,
@@ -355,6 +355,24 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
     if (copy) copy.stop();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+// --- backtests (Admin › Parameters, 8 Nov 2026): never Run now, behind every scheduled job, a budget before the next slot
+{
+  const { backtestBudget, secondsToNextSlot, pickNext, nextDueText } = jobs._internals;
+  ok(jobs.runRefusal('backtest').status === 400 && /Admin › Parameters/.test(jobs.runRefusal('backtest').message), 'a backtest is never "Run now"');
+  ok(nextDueText(byKey.backtest, at('2026-11-09T12:00:00')) === 'when an administrator starts one (Admin › Parameters)', 'the Jobs page says how one starts');
+  // Monday 9 Nov, winter: crypto 01:05, lottery 01:30, stocks 18:05 (Brussels)
+  ok(secondsToNextSlot(at('2026-11-09T12:00:00')) === (6 * 60 + 5) * 60, 'noon on a weekday: the stocks run at 18:05 is next');
+  ok(backtestBudget(at('2026-11-09T12:00:00')) === 3 * 3600, 'six hours of room: the 3 h maximum');
+  ok(backtestBudget(at('2026-11-09T17:00:00')) === 55 * 60, 'an hour and five before 18:05: ends 10 min before it');
+  ok(backtestBudget(at('2026-11-09T17:45:00')) === 0, '20 min before a slot: too little room, waits');
+  ok(secondsToNextSlot(at('2026-11-07T19:00:00')) === (6 * 60 + 5) * 60, 'Saturday 19:00: the 01:05 crypto run is next (no stocks run on a Saturday)');
+  ok(backtestBudget(at('2026-11-10T00:50:00')) === 0, 'between the crypto and lottery runs: no room');
+  const bt = (id) => ({ key: 'backtest', backtestId: id });
+  ok(JSON.stringify(pickNext([bt('a'), { key: 'predictor' }, bt('b')], 0)) === '{"index":1,"budget":0}', 'a scheduled job jumps every queued backtest');
+  ok(JSON.stringify(pickNext([bt('a'), bt('b')], 1800)) === '{"index":0,"budget":1800}', 'only backtests: the first, with its budget');
+  ok(pickNext([bt('a')], 0) === null && pickNext([], 3600) === null, 'no room, or nothing queued: nothing starts');
 }
 
 console.log(`jobs.js: ${checks} checks passed (${jobs.JOBS.length} jobs, ${CHAIN_KEYS.length} in the weekly chain)`);

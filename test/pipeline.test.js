@@ -43,8 +43,8 @@ try {
     const s = pipeline.pipelineStatus(lock, procOf({ 4242: `python3\0${script}\0--game\0lotto\0` }));
     ok(s && s.pid === 4242 && s.since === since.getTime() && s.what === what, `${script}: "${what}" since the lock was written`);
   });
-  ok(pipeline.JOB_NAMES['Predictor.py'] === 'The next draws\' predictions are being computed' && Object.keys(pipeline.JOB_NAMES).length === 12,
-    'the twelve jobs the old banner named, in its words');
+  ok(pipeline.JOB_NAMES['Predictor.py'] === 'The next draws\' predictions are being computed' && Object.keys(pipeline.JOB_NAMES).length === 13 && pipeline.JOB_NAMES['RunBacktest.py'] === 'A model backtest is running',
+    'the twelve jobs the old banner named, in its words, and the backtest (8 Nov 2026)');
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0SomethingElse.py\0' })).what === 'A pipeline job is running', 'an unknown script: a pipeline job is running');
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: '/usr/bin/python3\0/root/sequencePredictor/HyperoptBoost.py\0' })).what === 'Weekly tuning: boosting models',
     'a script started by its full path is still named');

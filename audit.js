@@ -36,6 +36,8 @@ const LABELS = {
   'session.rejected': 'session no longer valid',
   'params.override': 'set a manual parameter override',
   'params.released': 'released a manual parameter override',
+  'backtest.started': 'started a backtest',
+  'backtest.cancelled': 'cancelled or stopped a backtest',
 };
 
 function clientAddress(req) {

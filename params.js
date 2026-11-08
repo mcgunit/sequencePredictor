@@ -355,6 +355,8 @@ function parametersView(game, params, stat = null, now = new Date(), manual = {}
       title: f.title || f.rows.join(' and '), group: f.group, rows: f.rows, switches, params: list,
       stored: list.length + switches.filter((x) => x.set).length, gates: gate, scores: score, variants, retrain, manual: manualCount,
       deepLearning: f.rows.some((r) => DL_ROWS.includes(r)),
+      // the card's rows a backtest can be started for (backtests.js / RunBacktest.py)
+      backtest: f.rows.filter((r) => require('./backtests').canBacktest(game, r)),
     };
   });
   const groups = GROUP_ORDER.map((label) => ({ label, cards: cards.filter((c) => c.group === label && (c.stored || c.gates.length || c.manual)) }))

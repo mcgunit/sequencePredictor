@@ -25,6 +25,7 @@ const JOB_NAMES = {
   'NullControls.py': 'Monthly controls: null histories',
   'IrrelevantFeatureControl.py': 'Weekly controls: irrelevant-feature control',
   'MarketsDaily.py': 'Refreshing the market games (bars and bins)',
+  'RunBacktest.py': 'A model backtest is running',
 };
 // A step that runs another step's script, named by its job: the script and its arguments, as jobs.js reads the lock
 // (jobOfCmdline). Since 26 Oct 2026 the keno sub-selection step runs HyperoptStatistics.py -g keno -s KenoSubsetTuning,

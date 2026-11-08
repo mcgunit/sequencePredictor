@@ -18,6 +18,8 @@ import { Card } from '../../components/admin/Card';
 import Chip from '../../components/admin/Chip';
 import Confirm from '../../components/admin/Confirm';
 import Toast from '../../components/admin/Toast';
+import { useNavigate } from 'react-router-dom';
+import BacktestStart from './BacktestStart';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 
 // /admin/parameters (owner's roadmap steps 2 and 3, 8 Nov 2026): every setting in one game's bestParams_<game>.json,
@@ -47,6 +49,8 @@ export default function ParametersPage() {
   const [ask, setAsk] = useState<Ask | null>(null);
   const [value, setValue] = useState('');
   const [note, setNote] = useState('');
+  const [backtest, setBacktest] = useState<ParamCard | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = 'Parameters · Predictor';
@@ -133,7 +137,7 @@ export default function ParametersPage() {
           <div key={g.label} className="stack">
             <div className="grp-label">{g.label}</div>
             {g.cards.map((c) => (
-              <ModelCard key={c.id} c={c} open={open.has(c.id)} onToggle={() => toggle(c.id)} onAct={start} />
+              <ModelCard key={c.id} c={c} open={open.has(c.id)} onToggle={() => toggle(c.id)} onAct={start} onBacktest={() => { sender.reset(); setBacktest(c); }} />
             ))}
           </div>
         ))}
@@ -200,6 +204,18 @@ export default function ParametersPage() {
             </>
           ) : null}
         </Confirm>
+      ) : null}
+      {backtest ? (
+        <BacktestStart
+          sender={sender}
+          game={game}
+          rows={backtest.backtest}
+          onStarted={() => {
+            setBacktest(null);
+            navigate('/admin/backtests');
+          }}
+          onCancel={() => setBacktest(null)}
+        />
       ) : null}
       <Toast toast={sender.toast} onClose={sender.dismiss} />
     </div>
@@ -288,7 +304,7 @@ function SharedCard({ d, onAct }: { d: ParametersView; onAct: (mode: 'set' | 're
   );
 }
 
-function ModelCard({ c, open, onToggle, onAct }: { c: ParamCard; open: boolean; onToggle: () => void; onAct: (mode: 'set' | 'release', t: Target) => void }) {
+function ModelCard({ c, open, onToggle, onAct, onBacktest }: { c: ParamCard; open: boolean; onToggle: () => void; onAct: (mode: 'set' | 'release', t: Target) => void; onBacktest: () => void }) {
   const off = c.switches.filter((s) => (s.override ? s.override.value === false : s.set && s.value === false));
   const newest = [...c.gates].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))[0];
   const pending = c.retrain.filter((r) => r.pending);
@@ -317,6 +333,16 @@ function ModelCard({ c, open, onToggle, onAct }: { c: ParamCard; open: boolean; 
       </h2>
       {open ? (
         <div id={`pm-${c.id}-b`} className="card-b">
+          {c.backtest.length ? (
+            <p className="line">
+              <button type="button" className="linkbtn" onClick={onBacktest}>
+                Backtest {c.backtest.length === 1 ? short(c.backtest[0]) : 'this model'}
+              </button>{' '}
+              <span className="mut">with these values over the newest draws (the gate&apos;s own score; queued behind the scheduled jobs)</span>
+            </p>
+          ) : c.deepLearning ? (
+            <p className="line mut">Backtests of the deep-learning rows come later (a training per draw: with the GPU worker).</p>
+          ) : null}
           {c.switches.length ? (
             <p className="line">
               <b>Switch:</b>{' '}
