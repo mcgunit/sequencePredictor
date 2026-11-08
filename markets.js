@@ -405,7 +405,7 @@ function describeDays(days) {
 }
 
 // --- when a call is judged ------------------------------------------------
-// A ticket is made by the daily run (crypto 09:00, shares 18:30 Belgian time) after the newest
+// A ticket is made by the daily run (crypto 00:05 UTC, shares 18:05 Belgian time, since 8 Nov 2026) after the newest
 // candle has closed, for the game day after that candle; the day file carries
 // the newest candle's date (made_on) and its write time (made_at), so the day
 // a ticket is for is the next game day, and the moment it is judged is that
@@ -415,9 +415,10 @@ function describeDays(days) {
 // a share's day is the Euronext session of Brussels and Amsterdam (09:00-17:30
 // Belgian time, 31 Oct 2026: the five shares moved there from New York), and
 // every instant is computed for its date, never hard-coded in UTC.
-// Which daily run brings a market's next call and results (jobs.js): crypto's at 09:00, the shares' at 18:30 on
-// weekdays since 31 Oct 2026, so their card is up before Euronext's 09:00 open.
-const RUN_NAME = { crypto: 'the morning run', shares: 'the evening run' };
+// Which daily run brings a market's next call and results (jobs.js): crypto's at 00:05 UTC, minutes after its day
+// closes (09:00 Brussels until 8 Nov 2026), the shares' at 18:05 on weekdays, so their card is up before Euronext's
+// 09:00 open.
+const RUN_NAME = { crypto: 'the night run', shares: 'the evening run' };
 const runName = (market) => RUN_NAME[market] || 'the daily run';
 const BRUSSELS = 'Europe/Brussels';
 const HOUR_MS = 3600 * 1000;

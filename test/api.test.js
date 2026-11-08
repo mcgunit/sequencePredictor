@@ -216,7 +216,7 @@ ok(ethBuy && ethBuy.status === 'buy now' && ethBuy.buyText === 'now' && ethBuy.s
 const overnight = new Date('2026-10-16T05:00:00Z');
 const ethHeld = api.marketView('crypto', record, buyWeek, overnight, G).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
 ok(ethHeld && ethHeld.status === 'held' && ethHeld.buyText === 'Thu 15 Oct' && ethHeld.since === 'since Thu 15 Oct' && ethHeld.sellText === 'Mon 19 Oct 02:00'
-   && ethHeld.guard.state === 'hold' && ethHeld.guard.text === 'next call after the morning run' && ethHeld.statusText.includes('still held'),
+   && ethHeld.guard.state === 'hold' && ethHeld.guard.text === 'next call after the night run' && ethHeld.statusText.includes('still held'),
    `a position bought on the running day is still held after its close: ${JSON.stringify(ethHeld)}`);
 const ethSold = api.marketView('crypto', record, guardedWeek, overnight, G).open.find((q) => q.game === 'week' && q.symbol === 'ETH');
 ok(ethSold && ethSold.status === 'sold' && ethSold.buyText === 'Tue 13 Oct' && ethSold.sellText === '—' && ethSold.statusText.includes('money when the week closes'),

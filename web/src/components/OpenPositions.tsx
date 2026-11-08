@@ -74,7 +74,7 @@ function Row({
   models: { day: string; week: string };
   stake: number | null | undefined;
   unit: string;
-  run: string; // the daily run that brings the market's next call and results (crypto the morning run, shares the evening run)
+  run: string; // the daily run that brings the market's next call and results (crypto the night run, stocks the evening run)
 }) {
   // Only a held position has a live move: a "buy now" row has nothing to measure yet, a "too late" or "sold"
   // row was sold at the close - its result comes with the next run - and an "out" row holds nothing.
@@ -313,7 +313,7 @@ export default function OpenPositions({ data, quotes }: { data: MarketView; quot
                 </tr>
               ) : (
                 open.map((p, i) => (
-                  <Row key={`${p.symbol}-${p.game}-${i}`} p={p} quote={quotes?.quotes[p.symbol]} withCall={withCall} models={models} stake={d?.stake} unit={data.unit} run={market === 'crypto' ? 'the morning run' : 'the evening run'} />
+                  <Row key={`${p.symbol}-${p.game}-${i}`} p={p} quote={quotes?.quotes[p.symbol]} withCall={withCall} models={models} stake={d?.stake} unit={data.unit} run={market === 'crypto' ? 'the night run' : 'the evening run'} />
                 ))
               )}
             </tbody>

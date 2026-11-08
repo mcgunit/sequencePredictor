@@ -13,7 +13,7 @@ const jobs = require('./jobs');
 
 const PIPELINE_LOCK = path.join(__dirname, 'process.lock');
 const JOB_NAMES = {
-  'Predictor.py': 'Today\'s predictions are being computed',
+  'Predictor.py': 'The next draws\' predictions are being computed',
   'HyperoptStatistics.py': 'Weekly tuning: statistical models',
   'HyperoptBoost.py': 'Weekly tuning: boosting models',
   'HyperoptRLTicket.py': 'Weekly tuning: RL ticket model',
@@ -31,8 +31,10 @@ const JOB_NAMES = {
 // which the script alone named "Weekly tuning: statistical models".
 const STEP_NAMES = {
   kenoSubsetTuning: 'Weekly tuning: keno sub-selections',
-  // the evening shares run (31 Oct 2026): Predictor.py too, for the next Euronext session
-  sharesPredictor: "Tomorrow's share predictions are being computed",
+  // the night crypto run (8 Nov 2026): Predictor.py too, minutes after the UTC day closed
+  cryptoPredictor: "The crypto day's predictions are being computed",
+  // the evening stocks run (31 Oct 2026): Predictor.py too, for the next Euronext session
+  sharesPredictor: "Tomorrow's stock predictions are being computed",
 };
 const readProcCmdline = (pid) => fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8');
 

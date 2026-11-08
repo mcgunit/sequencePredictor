@@ -43,7 +43,7 @@ try {
     const s = pipeline.pipelineStatus(lock, procOf({ 4242: `python3\0${script}\0--game\0lotto\0` }));
     ok(s && s.pid === 4242 && s.since === since.getTime() && s.what === what, `${script}: "${what}" since the lock was written`);
   });
-  ok(pipeline.JOB_NAMES['Predictor.py'] === 'Today\'s predictions are being computed' && Object.keys(pipeline.JOB_NAMES).length === 12,
+  ok(pipeline.JOB_NAMES['Predictor.py'] === 'The next draws\' predictions are being computed' && Object.keys(pipeline.JOB_NAMES).length === 12,
     'the twelve jobs the old banner named, in its words');
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0SomethingElse.py\0' })).what === 'A pipeline job is running', 'an unknown script: a pipeline job is running');
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: '/usr/bin/python3\0/root/sequencePredictor/HyperoptBoost.py\0' })).what === 'Weekly tuning: boosting models',
@@ -51,11 +51,12 @@ try {
 
   // --- a step that runs another step's script, by its job (jobs.js jobOfCmdline: the script and its arguments) ---------
   const jobKeys = require('../jobs').JOBS.map((j) => j.key);
-  ok(Object.keys(pipeline.STEP_NAMES).join() === 'kenoSubsetTuning,sharesPredictor' && Object.keys(pipeline.STEP_NAMES).every((key) => jobKeys.includes(key)),
-    'two steps are named by their job rather than their script, and they are jobs of the schedule');
-  ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0shares,sharesweek\0' })).what === "Tomorrow's share predictions are being computed"
-    && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,cryptoweek\0' })).what === "Today's predictions are being computed",
-    'the evening shares run says it computes tomorrow\'s share predictions; the morning run is still today\'s');
+  ok(Object.keys(pipeline.STEP_NAMES).join() === 'kenoSubsetTuning,cryptoPredictor,sharesPredictor' && Object.keys(pipeline.STEP_NAMES).every((key) => jobKeys.includes(key)),
+    'three steps are named by their job rather than their script, and they are jobs of the schedule');
+  ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0shares,sharesweek\0' })).what === "Tomorrow's stock predictions are being computed"
+    && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0crypto,cryptoweek\0' })).what === "The crypto day's predictions are being computed"
+    && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto\0' })).what === "The next draws' predictions are being computed",
+    'the evening stocks run says it computes tomorrow\'s stock predictions, the night crypto run the crypto day\'s, the night lottery run the next draws\'');
   const keno = pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0-g\0keno\0-s\0KenoSubsetTuning\0' }));
   ok(keno && keno.what === 'Weekly tuning: keno sub-selections', `the keno step (HyperoptStatistics.py -g keno -s KenoSubsetTuning) is not the statistical models: "${keno && keno.what}"`);
   ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0' })).what === 'Weekly tuning: statistical models'
@@ -72,7 +73,7 @@ try {
   ok(r && Object.keys(r).join() === 'what,since' && r.what === 'A pipeline job is running' && r.since === '2026-10-24T03:15:00Z',
     `runningNow: {what, since} only, since in ISO to the second (${JSON.stringify(r)})`);
   writeLock('4242');
-  ok(JSON.stringify(pipeline.runningNow(lock, procOf({ 4242: 'python3\0Predictor.py\0' }))) === '{"what":"Today\'s predictions are being computed","since":"2026-10-24T03:15:00Z"}',
+  ok(JSON.stringify(pipeline.runningNow(lock, procOf({ 4242: 'python3\0Predictor.py\0' }))) === '{"what":"The next draws\' predictions are being computed","since":"2026-10-24T03:15:00Z"}',
     'runningNow names the job as the old banner did');
 
   // --- lottery.js reads this module; no server file keeps a copy of its own --------------------------------------------

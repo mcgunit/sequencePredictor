@@ -303,7 +303,7 @@ fs.writeFileSync(councilLog, [
   '20:03:07 INFO    council api on http://127.0.0.1:8099',
   '20:04:16 INFO    127.0.0.1 - "GET /endpoints HTTP/1.1" 200 -',
 ].join('\n') + '\n');
-ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 13, 'the copies log into their own temp dirs');
+ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 14, 'the copies log into their own temp dirs');
 
 // --- the app under test ------------------------------------------------------------------------------------------
 const app = standIn();
@@ -360,7 +360,7 @@ async function main() {
   const j = (await call(app, 'GET', '/api/admin/jobs', { user: ADMIN })).body;
   ok(j.mode.mode === 'dry' && j.lock.held && j.lock.pid === process.pid && j.lock.key === null && j.lock.ours === false && j.running === null
     && j.lock.script && !j.lock.script.includes('/'), `jobs: the mode, the lock and who holds it (not a job of the schedule, its script by file name), nothing running: ${j.lock.script}`);
-  ok(j.jobs.length === 13 && j.jobs.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every job may run now, its log named by file name only');
+  ok(j.jobs.length === 14 && j.jobs.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every job may run now, its log named by file name only');
   const boost = j.jobs.find((x) => x.key === 'hyperoptBoost');
   ok(boost.usual.median === 65 && boost.usual.n === 2 && boost.usual.basis === 'earlier runs in the job log' && boost.last.result === 'unknown' && boost.trigger.includes('Saturday'),
     `jobs: the usual duration is the median of the earlier successful runs in the log (60 and 70 min): ${JSON.stringify(boost.usual)}`);
@@ -411,13 +411,13 @@ async function main() {
   // --- POST /api/admin/jobs/run | cancel ---
   const run = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
   const q = jobs._internals.state().queue;
-  ok(run.status === 200 && run.body.message === 'Daily predictor: queued, first in the queue' && run.body.started === false && q.length === 1 && q[0].manual && q[0].reason === 'started by hand (boss)',
+  ok(run.status === 200 && run.body.message === 'Night predictor: lottery games: queued, first in the queue' && run.body.started === false && q.length === 1 && q[0].manual && q[0].reason === 'started by hand (boss)',
     'run: queued by hand, waiting behind the lock - nothing started, and the message says where it waits');
   ok(!spawned.length && logged.some((l) => /waiting for process.lock \(held by PID \d+/.test(l)), 'run: the queue waits for the lock and says so; no process was started');
   const again = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
-  ok(again.status === 409 && again.body.error === 'Daily predictor: already running or queued', 'run: a job is never queued twice (409)');
+  ok(again.status === 409 && again.body.error === 'Night predictor: lottery games: already running or queued', 'run: a job is never queued twice (409)');
   const jq = (await call(app, 'GET', '/api/admin/jobs', { user: ADMIN })).body;
-  ok(jq.queue.length === 1 && jq.queue[0].manual && jq.jobs.find((x) => x.key === 'predictor').refusal === 'Daily predictor: already running or queued'
+  ok(jq.queue.length === 1 && jq.queue[0].manual && jq.jobs.find((x) => x.key === 'predictor').refusal === 'Night predictor: lottery games: already running or queued'
     && jq.jobs.find((x) => x.key === 'nullControls').canRun, 'jobs: the queue, and the Run now refusal on the queued job only');
   ok((await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'rm -rf' }) })).status === 400, 'run: an unknown job is a 400');
   fs.writeFileSync(path.join(CONFIG_DIR, 'scheduler.disabled'), '');
@@ -427,7 +427,7 @@ async function main() {
   ok(off.status === 409 && /schedule is disabled/.test(off.body.error) && offView.mode.mode === 'off' && offView.jobs.every((x) => !x.canRun),
     'run: refused while the schedule is off (409), and every job says so');
   const cancel = await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
-  ok(cancel.status === 200 && cancel.body.message === 'Daily predictor: removed from the queue' && jobs._internals.state().queue.length === 0, 'cancel: out of the queue, the job named');
+  ok(cancel.status === 200 && cancel.body.message === 'Night predictor: lottery games: removed from the queue' && jobs._internals.state().queue.length === 0, 'cancel: out of the queue, the job named');
   ok((await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) })).status === 409
     && (await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'bingo' }) })).status === 400, 'cancel: not queued 409, unknown 400');
 

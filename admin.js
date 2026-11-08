@@ -1482,7 +1482,8 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
   const nowMs = now.getTime();
   const history = list(sched && sched.history).filter(ran);
   const byKey = Object.fromEntries(list(jobs).map((j) => [j.key, j]));
-  const daily = list(jobs).find((j) => j.daily) || null;
+  // the lottery predictor, whose runs start the weekly plans (jobs.js: since 8 Nov 2026 the crypto run is the first daily job)
+  const daily = list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
   const current = live.current !== undefined ? live.current : (sched && sched.current) || null;
   const queue = live.queue !== undefined ? live.queue : list(sched && sched.queue);
   const currentRun = current && Number.isFinite(current.startedAt) ? { key: current.key, at: current.startedAt } : null;

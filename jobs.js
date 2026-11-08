@@ -96,53 +96,72 @@ const CONTROLS_PLAN = 'weeklyControls';
 const PLANS = {
   [CHAIN_PLAN]: {
     name: 'Weekly tuning chain', label: "this week's tuning chain",
-    weekday: 6, anchorHour: 9,                       // Saturday, its predictor slot
-    catchUpAfterMs: 14 * 3600 * 1000,                // Saturday 23:00
-    catchUpUntilMs: 48 * 3600 * 1000,                // Monday 09:00
+    weekday: 6, anchorHour: 3,                       // Saturday, after its night predictor's slot (00:30 UTC)
+    catchUpAfterMs: 20 * 3600 * 1000,                // Saturday 23:00
+    catchUpUntilMs: 54 * 3600 * 1000,                // Monday 09:00
   },
   [CONTROLS_PLAN]: {
     name: 'Weekly control experiments', label: "this week's control experiments",
-    weekday: 0, anchorHour: 9,                       // Sunday, its predictor slot
-    catchUpAfterMs: 14 * 3600 * 1000,                // Sunday 23:00
-    catchUpUntilMs: 48 * 3600 * 1000,                // Tuesday 09:00
+    weekday: 0, anchorHour: 3,                       // Sunday, after its night predictor's slot (00:30 UTC)
+    catchUpAfterMs: 20 * 3600 * 1000,                // Sunday 23:00
+    catchUpUntilMs: 54 * 3600 * 1000,                // Tuesday 09:00
   },
 };
 
-// The games of the two daily runs (Predictor.py -g): the shares in the evening, everything else in the morning.
+// The games of the three daily runs (Predictor.py -g), the owner's schedule of 8 Nov 2026: crypto right after its UTC
+// day closes, the lottery games behind it in the night, the shares in the evening once Euronext's day is complete.
+const CRYPTO_GAMES = 'crypto,cryptoweek';
+const NIGHT_GAMES = 'euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto';
 const EVENING_GAMES = 'shares,sharesweek';
-const MORNING_GAMES = 'euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,cryptoweek';
 
 const JOBS = [
   {
-    key: 'predictor',
-    name: 'Daily predictor',
-    description: "Today's predictions for every game but the shares, deep learning rows included and time-boxed "
-               + '(Predictor.py -a true). Replaces the two 09:00 crontab entries. The shares have their own evening run since '
-               + 'Nov 2026: Euronext opens at 09:00, before this run\'s cards could be up.',
+    // First in this list: a catch-up after a night the box was down queues crypto ahead of the lottery games.
+    key: 'cryptoPredictor',
+    name: 'Night predictor: crypto',
+    description: "The crypto day's predictions (Predictor.py -a true -g crypto,cryptoweek) at 00:05 UTC, five minutes after the "
+               + 'UTC day closes: the daily book buys at 00:00 UTC, so the card is up minutes after it instead of hours (01:05 Brussels '
+               + 'in winter, 02:05 in summer; until 8 Nov 2026 it came with the 09:00 run). A crypto week closes on Monday 00:00 UTC, '
+               + 'so Monday\'s run brings the new week too.',
     script: 'Predictor.py',
-    args: ['-a', 'true', '-g', MORNING_GAMES],
+    args: ['-a', 'true', '-g', CRYPTO_GAMES],
+    log: 'cryptoPredictor.log',
+    daily: { hour: 0, minute: 5, utc: true },
+    catchUpHours: 20,
+  },
+  {
+    key: 'predictor',
+    name: 'Night predictor: lottery games',
+    description: "The next draw's predictions for the seven lottery games, deep learning rows included and time-boxed "
+               + '(Predictor.py -a true), at 00:30 UTC (01:30 Brussels in winter, 02:30 in summer) - behind the crypto run, whose '
+               + 'lock it waits for. Every draw\'s results are published within about two and a half hours of it (the latest around '
+               + '22:30 Brussels), so the night has them all. Its finishing starts the Saturday tuning chain and the Sunday controls. '
+               + 'At 09:00 Brussels until 8 Nov 2026.',
+    script: 'Predictor.py',
+    args: ['-a', 'true', '-g', NIGHT_GAMES],
     log: 'predictor.log',
-    daily: { hour: 9, minute: 0 },
+    daily: { hour: 0, minute: 30, utc: true },
     // How long after its slot a missed run is still worth starting. The box
     // being down over a night is the case this exists for; past 20 h the
-    // next morning's run is close enough to supersede it.
+    // next night's run is close enough to supersede it.
     catchUpHours: 20,
   },
   {
     // The owner's decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
     // open-to-close book is one nobody could have followed. Euronext's day is complete after 18:00 Brussels
-    // (src/MarketData.py EURONEXT_READY), so the run is at 18:30 and the card is up the evening before.
+    // (src/MarketData.py EURONEXT_READY), so the run is at 18:05 (18:30 until 8 Nov 2026) and the card is up the
+    // evening before.
     key: 'sharesPredictor',
-    name: 'Evening predictor: shares',
-    description: "Tomorrow's shares predictions, from the Euronext day that just closed (Predictor.py -a true -g shares,sharesweek), "
-               + 'Monday to Friday at 18:30 Brussels so the card is up before the 09:00 open. Waits for process.lock like any job: '
-               + 'a tuner or control holding it delays the card.',
+    name: 'Evening predictor: stocks',
+    description: "Tomorrow's stock predictions, from the Euronext day that just closed (Predictor.py -a true -g shares,sharesweek), "
+               + 'Monday to Friday at 18:05 Brussels, as soon as the day is complete (18:00), so the card is up before the 09:00 open. '
+               + 'Waits for process.lock like any job: a tuner or control holding it delays the card.',
     script: 'Predictor.py',
     args: ['-a', 'true', '-g', EVENING_GAMES],
     log: 'sharesPredictor.log',
-    daily: { hour: 18, minute: 30, weekdays: [1, 2, 3, 4, 5] },
-    // until 08:30 the next morning: a card started later is no longer up before the open
-    catchUpHours: 14,
+    daily: { hour: 18, minute: 5, weekdays: [1, 2, 3, 4, 5] },
+    // until 08:30 the next morning: a card started later is no longer up before the open (14 h 25 min after 18:05)
+    catchUpHours: 14 + 25 / 60,
   },
   {
     key: 'hyperoptStatistics',
@@ -322,25 +341,37 @@ function weekId(date) {
   return `${d.getUTCFullYear()}-W${pad(week)}`;
 }
 
+// A daily slot is Brussels (the box's local) time, or UTC with daily.utc (the night runs since 8 Nov 2026: crypto's
+// day closes at 00:00 UTC whatever the season, and the lottery run must stay behind it in summer too).
 function dailySlot(now, at) {
+  if (at.utc) return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), at.hour, at.minute, 0, 0));
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), at.hour, at.minute, 0, 0);
 }
 
-// A daily job with weekdays (JOBS daily.weekdays, the evening shares run: Monday to Friday) runs on those days only.
-const onWeekday = (slot, at) => !at.weekdays || at.weekdays.includes(slot.getDay());
+// A day on: in UTC for a UTC slot (a local setDate would move it an hour across a clock change).
+function shiftDays(slot, at, days) {
+  if (at.utc) slot.setUTCDate(slot.getUTCDate() + days);
+  else slot.setDate(slot.getDate() + days);
+}
+
+// A daily job with weekdays (JOBS daily.weekdays, the evening stocks run: Monday to Friday) runs on those days only.
+const onWeekday = (slot, at) => !at.weekdays || at.weekdays.includes(at.utc ? slot.getUTCDay() : slot.getDay());
+
+// How a daily slot reads: "18:05", or "00:05 UTC".
+const slotText = (at) => `${pad(at.hour)}:${pad(at.minute)}${at.utc ? ' UTC' : ''}`;
 
 function nextDaily(now, at) {
   const next = dailySlot(now, at);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  while (!onWeekday(next, at)) next.setDate(next.getDate() + 1);
+  if (next <= now) shiftDays(next, at, 1);
+  while (!onWeekday(next, at)) shiftDays(next, at, 1);
   return next;
 }
 
 // The most recent slot of a daily job that is not in the future (before its hour: yesterday's, or the last weekday's).
 function lastDaily(now, at) {
   const slot = dailySlot(now, at);
-  if (slot > now) slot.setDate(slot.getDate() - 1);
-  while (!onWeekday(slot, at)) slot.setDate(slot.getDate() - 1);
+  if (slot > now) shiftDays(slot, at, -1);
+  while (!onWeekday(slot, at)) shiftDays(slot, at, -1);
   return slot;
 }
 
@@ -453,8 +484,9 @@ function lockHolder() {
 // the schedule's own run a lock "not started by the schedule".
 function jobOfCmdline(cmdline) {
   const named = JOBS.filter((j) => cmdline.includes(j.script));
+  // a bare "Predictor.py" (a hand run) is the lottery predictor, the one whose finishing starts the weekly plans
   return named.find((j) => j.args.length && cmdline.includes([j.script, ...j.args].join(' ')))
-    || named.find((j) => !j.args.length) || named[0] || null;
+    || named.find((j) => !j.args.length) || named.find((j) => j.key === 'predictor') || named[0] || null;
 }
 
 // --- state ------------------------------------------------------------------
@@ -796,7 +828,7 @@ function dueAt(occurrences, now) {
   JOBS.filter((j) => j.daily).forEach((job) => {
     const slot = lastDaily(now, job.daily);
     const late = now - slot;
-    const when = `${pad(job.daily.hour)}:${pad(job.daily.minute)}`;
+    const when = slotText(job.daily);
     if (late >= 0 && late <= job.catchUpHours * 3600 * 1000) {
       const id = `${job.key}@${dayId(slot)}`;
       if (!occurrences[id]) {
@@ -829,13 +861,13 @@ function planTriggerAt(plan, occurrences, now) {
   const spec = PLANS[plan];
   if (now.getDay() !== spec.weekday) return null;
   const anchor = lastWeekdaySlot(now, spec.weekday, spec.anchorHour, 0);
-  // Only a predictor finishing AFTER Saturday's own 09:00 slot is the
+  // Only a predictor finishing AFTER Saturday's anchor (03:00, after the night slot; 09:00 until 8 Nov 2026) is the
   // trigger. Before it - a Friday catch-up run spilling past midnight, a
   // hand-started run at 04:00, a restart finalizing a Friday-evening run -
   // the anchor is LAST Saturday, and firing then would both start a ten-hour
   // chain at 04:00 ahead of the day's predictions and consume the previous
   // week's occurrence id, leaving this week's free to fire the whole chain a
-  // second time at 23:00. Recording nothing is right: the 09:00 predictor,
+  // second time at 23:00. Recording nothing is right: the night predictor,
   // or the 23:00 safety net, still starts it exactly once.
   if (dayId(anchor) !== dayId(now)) return null;
   const id = `${plan}@${weekId(anchor)}`;
@@ -1032,7 +1064,7 @@ function stop() {
 // --- status -----------------------------------------------------------------
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function nextDueText(job, now) {
-  if (job.daily) return `${stamp(nextDaily(now, job.daily))} (${job.daily.weekdays ? 'Monday to Friday' : 'daily'} ${pad(job.daily.hour)}:${pad(job.daily.minute)})`;
+  if (job.daily) return `${stamp(nextDaily(now, job.daily))} (${job.daily.weekdays ? 'Monday to Friday' : 'daily'} ${slotText(job.daily)})`;
   const spec = job.plan && PLANS[job.plan];
   const day = spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday';
   if (job.monthly && spec) {

@@ -185,7 +185,8 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
     ours: Boolean(cur && s.lock.key === cur.key) }
     : { held: false }) : null;
 
-  const daily = list(jobs).find((j) => j.daily) || null;
+  // the lottery predictor, whose runs start the weekly plans (jobs.js: since 8 Nov 2026 the crypto run is the first daily job)
+  const daily = list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
   const today = brussels.dayOf(nowMs);
   const todays = daily ? ran.filter((h) => h.key === daily.key && brussels.dayOf(h.at) === today) : [];
   const failed = ran.filter((h) => h.exit !== 0);

@@ -22,7 +22,7 @@ A Node.js server runs the pipeline on a schedule and shows the results on a web 
 
 ## How it works, in one paragraph
 
-Every morning (09:00, Brussels) the server's scheduler fetches the new draws and their prize tables, lets every model predict the next draw of every lottery game and the next day and week of crypto, scores the previous predictions, and writes a performance report and a ranking; at 18:30 on weekdays it does the same for the shares after Euronext's close. On Saturdays a chain of tuners (Optuna, with a champion/challenger gate) and the meta-learners retrain; on Sundays the negative controls run. Everything is committed to git, so each ranking can be read back as it stood on any day.
+Every night the server's scheduler runs the models: at 00:05 UTC for the next day and week of crypto, just after the crypto day closes, and at 00:30 UTC for the next draw of every lottery game, after fetching the new draws and their prize tables. Each run scores the previous predictions and writes a performance report and a ranking. At 18:05 Brussels on weekdays it does the same for the stocks, after Euronext's close. On Saturdays a chain of tuners (Optuna, with a champion/challenger gate) and the meta-learners retrain; on Sundays the negative controls run. Everything is committed to git, so each ranking can be read back as it stood on any day.
 
 ## Technologies
 
@@ -88,7 +88,7 @@ Open work, newest first. Finished items and the full text of every item are in d
 
 **Platform**
 - [ ] A mail to the admin when a scheduled job fails.
-- [ ] A predictor job per game (today: one morning run for every game but the shares, one evening run for the shares).
+- [ ] A predictor job per game (today: a night run for crypto, a night run for the lottery games, an evening run for the stocks).
 - [ ] Day files to SQLite, when its trigger is reached (docs/roadmap.md item 9).
 - [ ] Clean up the stale shares control files in `/root/controls` and the old `Council_Integration.md`.
 - [ ] Bring the "Out of date" points listed at the end of each docs page back in line with the code.

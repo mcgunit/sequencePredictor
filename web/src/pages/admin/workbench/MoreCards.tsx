@@ -247,7 +247,7 @@ export function BackgroundCard({ w }: { w: Workbench }) {
             only: bin 0 its worst tenth, bin {w.k - 1} its best. A blind pick is right 1 time in {w.k}, the bar every model has to beat.
           </p>
           <p>
-            <span className="lbl">3. The bins side by side are the draw.</span> One slot per {w.noun}; a model&apos;s ticket is one bin per slot, made by {crypto ? 'the morning run' : 'the evening run'} after the
+            <span className="lbl">3. The bins side by side are the draw.</span> One slot per {w.noun}; a model&apos;s ticket is one bin per slot, made by {crypto ? 'the night run' : 'the evening run'} after the
             previous close and judged at the day&apos;s close. A hit is the right bin in the right slot.
           </p>
         </div>
