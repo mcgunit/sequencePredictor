@@ -1751,6 +1751,8 @@ function install(app, options = {}) {
   // reads git at the checkout's root; its cache goes to the server's own gitignored config/ unless the caller names a file
   workbench.install(app, { dirs, answerLater, games: { GAMES, UNIT, groupOf },
     rankCacheFile: options.rankCacheFile || path.join(__dirname, 'config', 'rankhistory-cache.json') });
+  // Admin › Parameters (params.js): one game's bestParams_<game>.json, one card per model, read-only
+  require('./params').install(app, { root: dirs.root, answer });
   // anything else under /api/admin is a JSON 404, never a page
   app.use('/api/admin', (req, res) => json(res, { error: 'not found' }, 404));
 }

@@ -47,6 +47,7 @@ from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
 from src import RowVariants as rowVariants
+from src import ParamOverrides as paramOverrides
 from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder, order_for as probabilityOrder, in_score_order as inScoreOrder
 from src.PrizeTables import game_of as prizeTableGame, backfill as prizeBackfill
 from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, effective_members, positional_vote, voter_count, subset_vote_scores
@@ -461,6 +462,25 @@ LSTM_ROWS = [
 ]
 
 
+def freshRetrainAsked(repoPath, name, displayName):
+    """The pending fresh-retrain request of a deep-learning row (src/ParamOverrides.py), or None; never raises."""
+    try:
+        asked = paramOverrides.needs_fresh(repoPath, name, displayName)
+        if asked:
+            print(f"{displayName} ({name}): a manual setting changed - training from new weights")
+        return asked
+    except Exception as e:
+        print(f"{displayName} ({name}): fresh-retrain request not read: {e}")
+        return None
+
+
+def freshRetrainDone(repoPath, name, displayName, asked):
+    try:
+        paramOverrides.mark_fresh_done(repoPath, name, displayName, asked)
+    except Exception as e:
+        print(f"{displayName} ({name}): fresh retrain not recorded (it repeats next run): {e}")
+
+
 def configureLstmModel(model, name, displayName, labelSmoothed, bestParams_json_object, trainSeconds=None):
     """An LSTM_ROWS row's tuned keys (the bare LSTM keys; the LSTMModel defaults when absent) and budget."""
     model.setApplyLabelSmoothing(labelSmoothed)
@@ -592,7 +612,9 @@ def runMemoriseDeepLearningRows(dlRows, repoPath, name, dataPath, skipLastColumn
                 configureUnifiedModel(model, key, defaults, bestParams_json_object, None)
             applyMemorise(model, repoPath, folder, kind)
             latest_raw_predictions, rowLabels = model.run(
-                name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
+                name, skipLastColumns, skipRows=skipRows,
+                years_back=rowYearsOfHistory(bestParams_json_object, None if kind == "lstm" else key, years_back),
+                specialColumnCount=specialColumnCount)
             before = len(dlRows)
             dlRows = deepLearningMethod(
                 dlRows, latest_raw_predictions.tolist(), rowLabels, modelDisplayName=rowName, gameName=name,
@@ -675,6 +697,9 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
         modelToUse.setDataPath(dataPath)
         modelToUse.setModelPath(os.path.join(repoPath, "data", "models", modelTypeFolder) if modelTypeFolder else modelPath)
         configureLstmModel(modelToUse, name, displayName, labelSmoothed, bestParams_json_object, trainSeconds)
+        # a setting of this row was overridden or released on Admin > Parameters: train once from new weights
+        freshAsked = freshRetrainAsked(repoPath, name, displayName)
+        modelToUse.setLoadModelWeights(not freshAsked)
 
         # Own try/except (like every other model): the LSTM raising - e.g.
         # training went NaN with no healthy checkpoint (see LSTM.run) - must cost
@@ -685,6 +710,8 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
                 name, skipLastColumns, skipRows=skipRows, years_back=years_back,
                 specialColumnCount=specialColumnCount)
             # newPredictionRaw and the day's labels stay LSTM Base Model's, as before the twin
+            if freshAsked:
+                freshRetrainDone(repoPath, name, displayName, freshAsked)
             if modelToUse is lstm:
                 predictedSequence = latest_raw_predictions.tolist()
                 unique_labels = rowLabels
@@ -923,6 +950,7 @@ def process_single_history_entry_second_step(args):
                           cutoffDate=historyDate)
     current_json_object["newPrediction"].extend(heldVariants)
     addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object)
+    labelManualRows(current_json_object, name, path)
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile, indent=2)
@@ -930,6 +958,37 @@ def process_single_history_entry_second_step(args):
 
 
     return jsonFilePath
+
+
+def readServedParams(path, name, verbose=False):
+    """
+    bestParams_<game>.json with the manual overrides of Admin > Parameters in place (src/ParamOverrides.py, owner
+    8 Nov 2026: an override wins over the tuners until someone releases it). {} when the game has no file; raises
+    when the file cannot be parsed, like the json.load it replaces. verbose prints one line per override (the run's
+    first read only, not every rebuilt day's).
+    """
+    hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
+    tuned = {}
+    if os.path.exists(hyperoptParamsJsonFile):
+        with open(hyperoptParamsJsonFile, 'r') as openfile:
+            tuned = json.load(openfile)
+    entry = paramOverrides.game_entry(path, name)
+    served, applied = paramOverrides.apply(tuned, entry["overrides"])
+    if verbose:
+        for key, value, was in applied:
+            print(f"Manual override for {name}: {key} = {value!r} (tuned: {was!r})")
+    return served
+
+
+def labelManualRows(current_json_object, name, path):
+    """Marks the day's rows that run on a manual setting ("manual": [keys]; their sampled and memorise twins too)."""
+    try:
+        marked = paramOverrides.label_manual_rows(current_json_object.get("newPrediction") or [],
+                                                  paramOverrides.manual_rows(path, name))
+        if marked:
+            print(f"Manual settings ({name}): {marked} rows labelled")
+    except Exception as e:
+        print(f"Manual settings ({name}): rows not labelled: {e}")
 
 
 def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebuild=31, ai=False, boost=False, forceRebuild=False):
@@ -959,14 +1018,12 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
     try:
         # Load hyperopt parameters if exists
-        hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
-        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-            with open(hyperoptParamsJsonFile, 'r') as openfile:
-                # Merge over the in-code defaults rather than replacing them
-                # outright - an existing bestParams_<game>.json predating a
-                # newer default key (e.g. useMarkovMonteCarlo) would otherwise
-                # crash every lookup of that key with a KeyError.
-                bestParams_json_object.update(json.load(openfile))
+        # Merge over the in-code defaults rather than replacing them
+        # outright - an existing bestParams_<game>.json predating a
+        # newer default key (e.g. useMarkovMonteCarlo) would otherwise
+        # crash every lookup of that key with a KeyError. The manual
+        # overrides (Admin > Parameters) are applied on top.
+        bestParams_json_object.update(readServedParams(path, name, verbose=True))
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
@@ -1118,6 +1175,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                                           SPECIAL_COLUMN_COUNTS.get(name, 0), bestParams_json_object)
                     current_json_object["newPrediction"].extend(heldVariants)
                     addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object)
+                    labelManualRows(current_json_object, name, path)
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile, indent=2)
@@ -1695,6 +1753,22 @@ def lightDlModelsEnabled(bestParams_json_object):
         if not modelDefaults.get("requiresFullAi", True))
 
 
+def rowYearsOfHistory(bestParams_json_object, prefix, years_back):
+    """
+    The years of draws one deep-learning row trains on (owner, 8 Nov 2026: every model its own parameters). The two
+    LSTM rows (prefix None) read the bare yearsOfHistory, which the caller passes as years_back; every other row reads
+    its own "<prefix>_yearsOfHistory", which HyperoptDeepLearning.py tunes and writes per study, and falls back to the
+    bare key when the file has none. Until 8 Nov 2026 every row read the bare key and the prefixed ones were stored
+    unread; on that day every game's prefixed values equalled the bare one, so no row's history changed.
+    """
+    if years_back is None or prefix is None:
+        return years_back
+    value = (bestParams_json_object or {}).get(f"{prefix}_yearsOfHistory")
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return int(value)
+    return years_back
+
+
 def configureUnifiedModel(model, prefix, modelDefaults, bestParams_json_object, trainSeconds=None):
     """A UNIFIED_DL_MODELS row's tuned keys (bestParams "<prefix>_<key>", the defaults when absent) and budget."""
     model.setBatchSize(bestParams_json_object.get(f"{prefix}_batchSize", 16))
@@ -1783,17 +1857,23 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
             modelPath = os.path.join(path, "data", "models", modelTypeFolder)
             model.setDataPath(dataPath)
             model.setModelPath(modelPath)
-            model.setLoadModelWeights(True)
+            # a setting of this row was overridden or released on Admin > Parameters: train once from new weights
+            freshAsked = freshRetrainAsked(path, name, displayName)
+            model.setLoadModelWeights(not freshAsked)
             configureUnifiedModel(model, prefix, modelDefaults, bestParams_json_object, trainSeconds)
 
             latest_raw_predictions, unique_labels = model.run(
-                name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
+                name, skipLastColumns, skipRows=skipRows,
+                years_back=rowYearsOfHistory(bestParams_json_object, prefix, years_back),
+                specialColumnCount=specialColumnCount)
 
             listOfDecodedPredictions = deepLearningMethod(
                 listOfDecodedPredictions, latest_raw_predictions.tolist(), unique_labels, modelDisplayName=displayName,
                 gameName=name, kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object),
                 learningCheck=getattr(model, "last_learning_check", None))
 
+            if freshAsked:
+                freshRetrainDone(path, name, displayName, freshAsked)
             if model is autoencoderAnomaly:
                 autoencoderRan = True
             print(f"{displayName}: {time.time() - started:.0f}s")
@@ -1816,7 +1896,8 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
     if autoencoderRan:
         try:
             scores = autoencoderAnomaly.computeAnomalyScores(
-                name, skipLastColumns, skipRows=skipRows, years_back=years_back,
+                name, skipLastColumns, skipRows=skipRows,
+                years_back=rowYearsOfHistory(bestParams_json_object, "autoencoder", years_back),
                 specialColumnCount=specialColumnCount)
             if scores:
                 recent = [entry["z"] for entry in scores[-30:] if entry.get("z") is not None]
@@ -2002,14 +2083,13 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
     try:
         # Load hyperopt parameters if exists
         hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
-        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-            with open(hyperoptParamsJsonFile, 'r') as openfile:
-                # Merge over the in-code defaults rather than replacing them
-                # outright - an existing bestParams_<game>.json predating a
-                # newer default key (e.g. useMarkovMonteCarlo) would otherwise
-                # crash every lookup of that key with a KeyError.
-                bestParams_json_object.update(json.load(openfile))
-                tunedParamsLoaded = True
+        # Merge over the in-code defaults rather than replacing them
+        # outright - an existing bestParams_<game>.json predating a
+        # newer default key (e.g. useMarkovMonteCarlo) would otherwise
+        # crash every lookup of that key with a KeyError. The manual
+        # overrides (Admin > Parameters) are applied on top.
+        bestParams_json_object.update(readServedParams(path, name))
+        tunedParamsLoaded = os.path.exists(hyperoptParamsJsonFile)
     except Exception as e:
         print("Failed to parse parameter file: ", e)
 
@@ -2023,11 +2103,9 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         # and silently leave the game with zero statistical rows (pick3 only
         # escapes because its file carries useMarkov etc. from an old commit).
         # A use* flag that IS present in the tuned file stays authoritative.
-        tunedKeys = set()
+        # (a manual override of a use* flag counts as present: it is authoritative too)
         try:
-            if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-                with open(hyperoptParamsJsonFile, 'r') as openfile:
-                    tunedKeys = set(json.load(openfile).keys())
+            tunedKeys = set(readServedParams(path, name).keys())
         except Exception:
             tunedKeys = set()
         for flag in ("useMarkov", "useMarkovMonteCarlo", "usePoissonMonteCarlo", "useLaplaceMonteCarlo"):
@@ -2848,14 +2926,12 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
 
     try:
         # Load hyperopt parameters if exists
-        hyperoptParamsJsonFile = os.path.join(path, f"bestParams_{name}.json")
-        if hyperoptParamsJsonFile and os.path.exists(hyperoptParamsJsonFile):
-            with open(hyperoptParamsJsonFile, 'r') as openfile:
-                # Merged over the in-code defaults (not replacing them) for the
-                # same reason statisticalMethod does it: a
-                # bestParams_<game>.json written before a newer key exists
-                # would otherwise KeyError on every lookup of that key.
-                bestParams_json_object.update(json.load(openfile))
+        # Merged over the in-code defaults (not replacing them) for the
+        # same reason statisticalMethod does it: a
+        # bestParams_<game>.json written before a newer key exists
+        # would otherwise KeyError on every lookup of that key. The
+        # manual overrides (Admin > Parameters) are applied on top.
+        bestParams_json_object.update(readServedParams(path, name))
     except Exception as e:
         print("Failed to parse parameter file in boost method: ", e)
 

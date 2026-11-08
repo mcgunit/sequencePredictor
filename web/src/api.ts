@@ -2579,3 +2579,77 @@ export const ACTIONS = {
   seen: '/api/whats-new/seen', // {ids?, all?, tour?}
   replay: '/api/whats-new/replay',
 };
+
+// --- Admin › Parameters (GET /api/admin/parameters/:game, params.js) -------------------------------------------------
+// One game's bestParams_<game>.json, one card per model. A value is whatever the file holds (number, string, boolean,
+// list or object); a switch or shared setting the file does not have is "not set" (set false), and the model runs on
+// its code default.
+export type ParamValue = unknown;
+export type ParamOverride = { value: ParamValue; by: string | null; at: string | null; note: string | null };
+export type ParamKind = 'bool' | 'int' | 'float' | 'string' | null;
+export type ParamLine = { key: string; value: ParamValue; read: boolean; note: string | null; override: ParamOverride | null; editable: boolean; type: ParamKind };
+export type ParamSwitch = { key: string; value: ParamValue; set: boolean; override: ParamOverride | null; editable: boolean };
+export type ParamGate = { row: string; date: string | null; tuner: string | null; decision: string | null; reason: string | null;
+  windowDays: number | null; runTrials: number | null; studyTrials: number | null; trial: number | null };
+export type ParamCard = {
+  id: string; title: string; group: string; rows: string[]; switches: ParamSwitch[]; params: ParamLine[]; stored: number;
+  gates: ParamGate[]; scores: { row: string; score: number }[];
+  variants: { sampled: { row: string; temperature: ParamValue; set: boolean; key: string; override: ParamOverride | null }[]; sampledWhy: string | null; memorise: { state: 'on' | 'off' | 'none'; why: string } };
+  retrain: { row: string; asked: string; pending: boolean }[]; manual: number; deepLearning: boolean;
+};
+export type ParametersView = {
+  game: string; group: string; builtAt: string | null;
+  file: { name: string; exists: boolean; modified: string | null; keys: number };
+  shared: { key: string; value: ParamValue; set: boolean; note: string; override: ParamOverride | null; editable: boolean; type: ParamKind; retrains: string[] }[];
+  groups: { label: string; cards: ParamCard[] }[];
+  empty: string[];
+  unread: { key: string; value: ParamValue; note: string }[];
+  unassigned: { key: string; value: ParamValue; note: string | null }[];
+  variants: { sampled: boolean; memorise: boolean };
+  overrides: (ParamOverride & { key: string; tuned: ParamValue; rows: string[]; orphan: boolean; retrains: string[] })[];
+  nextRun: string;
+};
+export const getAdminParameters = async (game: string): Promise<ParametersView> =>
+  normParameters(await getJson<unknown>(`/api/admin/parameters/${encodeURIComponent(game)}`), game);
+function normParameters(raw: unknown, game: string): ParametersView {
+  const r = o(raw);
+  const f = o(r.file);
+  const objs = (v: unknown): Raw[] => arr(v as unknown[]).filter((x) => x && typeof x === 'object').map(o);
+  const ov = (v: unknown): ParamOverride | null => {
+    if (!has(v)) return null;
+    const x = o(v);
+    return { value: x.value, by: ostr(x.by), at: ostr(x.at), note: ostr(x.note) };
+  };
+  const kind = (v: unknown): ParamKind => (v === 'bool' || v === 'int' || v === 'float' || v === 'string' ? v : null);
+  return {
+    game: str(r.game, game), group: str(r.group), builtAt: ostr(r.builtAt),
+    file: { name: str(f.name, `bestParams_${game}.json`), exists: bool(f.exists), modified: ostr(f.modified), keys: num(f.keys, 0) },
+    shared: objs(r.shared).map((s) => ({ key: str(s.key), value: s.value, set: bool(s.set), note: str(s.note), override: ov(s.override), editable: bool(s.editable), type: kind(s.type), retrains: strs(s.retrains) })),
+    groups: objs(r.groups).map((g) => ({
+      label: str(g.label),
+      cards: objs(g.cards).map((c) => {
+        const v = o(c.variants);
+        const m = o(v.memorise);
+        return {
+          id: str(c.id), title: str(c.title), group: str(c.group), rows: strs(c.rows), stored: num(c.stored, 0),
+          switches: objs(c.switches).map((s) => ({ key: str(s.key), value: s.value, set: bool(s.set), override: ov(s.override), editable: bool(s.editable) })),
+          params: objs(c.params).map((p) => ({ key: str(p.key), value: p.value, read: p.read !== false, note: ostr(p.note), override: ov(p.override), editable: bool(p.editable), type: kind(p.type) })),
+          gates: objs(c.gates).map((x) => ({ row: str(x.row), date: ostr(x.date), tuner: ostr(x.tuner), decision: ostr(x.decision), reason: ostr(x.reason),
+            windowDays: opt(x.windowDays), runTrials: opt(x.runTrials), studyTrials: opt(x.studyTrials), trial: opt(x.trial) })),
+          scores: objs(c.scores).filter((x) => opt(x.score) !== null).map((x) => ({ row: str(x.row), score: num(x.score, 0) })),
+          variants: {
+            sampled: objs(v.sampled).map((x) => ({ row: str(x.row), temperature: x.temperature, set: bool(x.set), key: str(x.key), override: ov(x.override) })), sampledWhy: ostr(v.sampledWhy),
+            memorise: { state: m.state === 'on' || m.state === 'off' ? m.state : 'none', why: str(m.why) },
+          },
+          retrain: objs(c.retrain).map((x) => ({ row: str(x.row), asked: str(x.asked), pending: bool(x.pending) })), manual: num(c.manual, 0), deepLearning: bool(c.deepLearning),
+        };
+      }),
+    })),
+    empty: strs(r.empty),
+    unread: objs(r.unread).map((x) => ({ key: str(x.key), value: x.value, note: str(x.note) })),
+    unassigned: objs(r.unassigned).map((x) => ({ key: str(x.key), value: x.value, note: ostr(x.note) })),
+    variants: { sampled: bool(o(r.variants).sampled), memorise: bool(o(r.variants).memorise) },
+    overrides: objs(r.overrides).map((x) => ({ key: str(x.key), value: x.value, by: ostr(x.by), at: ostr(x.at), note: ostr(x.note), tuned: x.tuned, rows: strs(x.rows), orphan: bool(x.orphan), retrains: strs(x.retrains) })),
+    nextRun: str(r.nextRun, 'the next run'),
+  };
+}

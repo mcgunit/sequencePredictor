@@ -16,6 +16,7 @@ from src.Helpers import Helpers
 from src.ModelFactory import BASE_MODEL_NAMES, build_models, expected_model_names, prepare_foundation_scores
 from src.QuantumModels import fit_quantum_kernel, fit_quantum_vqc, fit_classical_svm
 from src.Calibration import calibration_report, describe as describe_calibration
+from src import ParamOverrides as paramOverrides
 from src.Lockbox import load as load_lockbox, split_rows as lockbox_split, describe as describe_lockbox, as_json as lockbox_json
 
 from HyperoptStatistics import GAME_CONFIG
@@ -601,6 +602,11 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     if os.path.exists(bestParamsPath):
         with open(bestParamsPath, "r") as infile:
             bestParams = json.load(infile)
+    # The served settings, as Predictor.py serves them (owner, 8 Nov 2026): the manual overrides of Admin >
+    # Parameters on top of the tuned file, so the meta-learners are trained on the base rows the daily run uses. A
+    # manual value of a base row changes base_param_subset, so the cached score table is recollected, not reused.
+    bestParams, manualApplied = paramOverrides.apply_for_game(path, dataset_name, bestParams)
+    manualRecord = {key: {"value": value, "tuned": tuned} for key, value, tuned in manualApplied}
 
     specialColumnCount = game_cfg["special_column_count"]
 
@@ -765,6 +771,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
 
             artifact["metrics"] = metrics
             artifact["lockbox"] = lockbox_json(lockbox)
+            artifact["manualOverrides"] = manualRecord
             metrics_out[label] = {"artifact": artifact_filename, "positional": True, "metrics": metrics}
             if lockbox_report and locked_rows:
                 X_lock, _ = build_positional_training_table(locked_rows, model_names, positions, POSITIONAL_CLASSES)
@@ -814,6 +821,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
 
         artifact["metrics"] = metrics
         artifact["lockbox"] = lockbox_json(lockbox)
+        artifact["manualOverrides"] = manualRecord
         metrics_out[label] = {"artifact": artifact_filename, "positional": False, "metrics": metrics}
         if lockbox_report and locked_rows:
             report = score_rows_with(meta_model, locked_rows, model_names, game_cfg["min"], game_cfg["max"],
@@ -834,7 +842,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     with open(os.path.join(modelDir, "meta_learner_metrics.json"), "w") as handle:
         json.dump({"game": dataset_name, "trained_at": datetime.now(timezone.utc).isoformat(), "days": days_back,
                    "table_days": len(results), "lockbox": lockbox_json(lockbox), "lockbox_days_withheld": len(locked_rows),
-                   "versions": versions, "variants": metrics_out}, handle, indent=2)
+                   "manualOverrides": manualRecord, "versions": versions, "variants": metrics_out}, handle, indent=2)
     if lockbox_report:
         if not lockbox:
             print(f"{dataset_name}: --lockbox-report asked, but no lockbox is declared (lockbox.json)")

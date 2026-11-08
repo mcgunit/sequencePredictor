@@ -46,6 +46,7 @@ const ADMIN_GROUPS: Group[] = [
     label: 'Models',
     items: [
       { label: 'Tuning gates', to: '/admin/tuning' },
+      { label: 'Parameters', to: '/admin/parameters' },
       { label: 'Best model & rankings', to: '/admin/models' },
       { label: 'Phase-shift', to: '/admin/phase-shift' },
       { label: 'Randomness watch', to: '/admin/randomness' },
@@ -72,6 +73,7 @@ const HERE: [string, string][] = [
   ['/crypto', 'Crypto'],
   ['/shares', 'Stocks'],
   ['/admin/tuning', 'Tuning gates'],
+  ['/admin/parameters', 'Parameters'],
   ['/admin/controls', 'Controls'],
   ['/admin/models', 'Models'],
   ['/admin/phase-shift', 'Phase-shift'],

@@ -92,9 +92,9 @@ _LSTM_DEFAULTS = {
 def predictor_defaults(prefix, served):
     """
     {tuner parameter name: what Predictor.py serves without it} for one model type (prefix None = the LSTM's bare
-    keys). yearsOfHistory is shared by every DL row (Predictor reads the bare key for all of them; the prefixed
-    "<prefix>_yearsOfHistory" is not read at all), so its default is the served value: a revert of one study must
-    not move the history every other row trains on.
+    keys). The LSTM rows read the bare yearsOfHistory; since 8 Nov 2026 every other row reads its own
+    "<prefix>_yearsOfHistory" and falls back to the bare key without one (Predictor.rowYearsOfHistory), so a
+    prefixed row's default is the served bare value: a revert of one study puts that row back on the shared history.
     """
     years = served.get("yearsOfHistory", 20)
     if prefix is None:

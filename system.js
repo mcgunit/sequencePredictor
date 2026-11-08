@@ -32,6 +32,7 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('./admin');
 const audit = require('./audit');
+const params = require('./params');
 const auth = require('./auth');
 const brussels = require('./brussels');
 const whatsnew = require('./whatsnew');
@@ -509,6 +510,21 @@ function install(app, options = {}) {
   app.post('/api/admin/people/add', admin.guard, jsonBody, csrf, safe((req, res) => reply(res, auth.addUser(req, body(req).username, body(req).password))));
   app.post('/api/admin/people/password', admin.guard, jsonBody, csrf, safe((req, res) => reply(res, auth.setUserPassword(req, body(req).username, body(req).password))));
   app.post('/api/admin/people/delete', admin.guard, jsonBody, csrf, safe((req, res) => reply(res, auth.deleteUser(req, body(req).username))));
+
+  // --- Parameters: manual overrides (params.js; the predictor applies them, src/ParamOverrides.py) ---
+  // set: { key, value, note }; release: { key }. Each one goes to the audit log with the game, the key and the value.
+  const paramsRoot = options.paramsRoot || dirs.root;
+  app.post('/api/admin/parameters/:game/override', admin.guard, jsonBody, csrf, safe((req, res) => {
+    const b = body(req);
+    const result = params.setOverride(paramsRoot, String(req.params.game || ''), b.key, b.value, b.note, req.user.name);
+    if (result.ok) audit.record('params.override', req, req.user.name, result.detail);
+    reply(res, result);
+  }));
+  app.post('/api/admin/parameters/:game/release', admin.guard, jsonBody, csrf, safe((req, res) => {
+    const result = params.releaseOverride(paramsRoot, String(req.params.game || ''), String(body(req).key || ''), req.user.name);
+    if (result.ok) audit.record('params.released', req, req.user.name, result.detail);
+    reply(res, result);
+  }));
 
   // --- Account and What's new (every signed-in reader; always the reader's own) ---
   app.get('/api/account', signedIn, (req, res) => {

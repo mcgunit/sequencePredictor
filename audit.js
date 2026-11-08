@@ -34,6 +34,8 @@ const LABELS = {
   'user.added': 'account created',
   'user.deleted': 'account deleted',
   'session.rejected': 'session no longer valid',
+  'params.override': 'set a manual parameter override',
+  'params.released': 'released a manual parameter override',
 };
 
 function clientAddress(req) {
