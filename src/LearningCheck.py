@@ -26,6 +26,15 @@ losses:
   verdict       'learns' when valLoss < baselineLoss - margin, else
                 'counts-only' (also a row that does worse than the
                 frequencies: it is no better than them either)
+  excessLoss    valLoss minus baselineLoss with NO label smoothing on either
+                (7 Nov 2026, the deep-learning tuner's score): the row's
+                plain cross-entropy above the training frequencies', in nats.
+                The smoothed pair moves with the smoothing itself - on
+                lotto 0.05 against 0 shifts both by ~0.08 - so two rows
+                trained with different smoothing compare only on this one.
+                Below zero = the row beats the frequencies on its held-out
+                windows (which, on a drifted draw, an input-blind output
+                can also do: see margin)
   sameTicket    the share of the validation windows whose argmax ticket is
                 the most common one; inputBlind when that is 95% or more
   windows       the number of validation windows
@@ -108,7 +117,7 @@ def check_predictions(heads):
     targets as 0-based class indices (windows, positions) - run()'s y and
     y_val sliced to the head's positions - and the head's label smoothing.
     """
-    val_loss = baseline = floor = 0.0
+    val_loss = baseline = floor = excess = 0.0
     tickets = []
     windows = 0
     for probs, train_targets, val_targets, smoothing in heads:
@@ -125,6 +134,8 @@ def check_predictions(heads):
         val_loss += cross_entropy(probs, val_targets, smoothing)
         baseline += cross_entropy(smoothed_frequencies(train_targets, num_classes, smoothing), val_targets, smoothing)
         floor += cross_entropy(smoothed_frequencies(val_targets, num_classes, smoothing), val_targets, smoothing)
+        excess += (cross_entropy(probs, val_targets)
+                   - cross_entropy(class_frequencies(train_targets, num_classes), val_targets))
         tickets.append(probs.argmax(axis=-1))
         windows = len(val_targets)
     if not windows:
@@ -139,6 +150,7 @@ def check_predictions(heads):
         "valLoss": round(val_loss, 4),
         "baselineLoss": round(baseline, 4),
         "margin": round(margin, 4),
+        "excessLoss": round(excess, 6),
         "verdict": "learns" if val_loss < baseline - margin else "counts-only",
         "sameTicket": round(float(same_ticket), 3),
         "inputBlind": bool(same_ticket >= INPUT_BLIND_SHARE),
@@ -211,6 +223,13 @@ if __name__ == "__main__":
     check(collapsed["verdict"] == "counts-only" and collapsed["inputBlind"] and collapsed["sameTicket"] == 1.0,
           f"the collapsed row is counts-only and input-blind: {collapsed}")
     check(0 < collapsed["margin"] < 0.05, f"the hindsight margin is small on a fair draw: {collapsed['margin']}")
+    # excessLoss ignores the smoothing: the unsmoothed frequencies score exactly 0 whatever the row was trained with,
+    # and the smoothed ones (what the collapsed row serves) only the small cost of the shrinkage
+    raw = check_predictions([(np.broadcast_to(class_frequencies(train, K), (val_n, positions, K)), train, val, s)])
+    check(raw["excessLoss"] == 0.0 and check_predictions([(np.broadcast_to(class_frequencies(train, K), (val_n, positions, K)),
+                                                           train, val, 0.0)])["excessLoss"] == 0.0,
+          f"the unsmoothed frequencies have no excess at any smoothing: {raw}")
+    check(abs(collapsed["excessLoss"]) < 0.01, f"the collapsed row's excess is near zero: {collapsed}")
 
     # 2. an input-blind row that beats the training frequencies without reading anything: uniform, when the
     #    frequencies drifted (the pick3 case) - below the baseline, still counts-only
@@ -226,6 +245,7 @@ if __name__ == "__main__":
     np.put_along_axis(informative, val[..., None], 0.7, axis=-1)
     learner = check_predictions([(informative, train, val, s)])
     check(learner["verdict"] == "learns" and not learner["inputBlind"], f"an informative row learns: {learner}")
+    check(learner["excessLoss"] < -0.5, f"an informative row is far below the frequencies: {learner}")
 
     # 4. the memorising row: confident and wrong as often as chance - worse than the frequencies, counts-only
     noisy = rng.dirichlet(np.full(K, 0.2), size=(val_n, positions))

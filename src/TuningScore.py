@@ -396,7 +396,8 @@ def describe(tuning):
     text = f"score {score:+.4f}" if _number(score) else "score -inf"
     kind = {"capped_profit": "capped profit/bet bound", "positional": "slot-hit bound",
             "hits": "hits bound", "log_score": "log-score bound",
-            "val_loss": "minus validation loss"}.get(tuning.get("kind"), str(tuning.get("kind")))
+            "val_loss": "minus validation loss",
+            "skill_vs_counts": "skill over the counts-only baseline"}.get(tuning.get("kind"), str(tuning.get("kind")))
     if _number(tuning.get("fair_capped_per_bet")):
         kind = f"{kind} above a fair ticket ({tuning['fair_capped_per_bet']:+.2f}/bet)"
     parts = [f"{text} ({kind}, {tuning.get('days', 0)} days)"]
@@ -410,7 +411,14 @@ def describe(tuning):
         parts.append(f"raw {raw_text}/bet over {tuning['bets']} bets, {tuning.get('lucky_strikes', 0)} lucky strike(s)")
     if _number(tuning.get("hits_mean")):
         parts.append(f"hits {tuning['hits_mean']:.2f}/day")
-    if _number(tuning.get("val_loss_mean")):
+    if _number(tuning.get("excess_mean")):
+        # the deep-learning tuner since 7 Nov 2026 (src/DeepLearningTuning.day_score): the hits are not in the score
+        se = tuning.get("score_se")
+        hits = tuning.get("hits")
+        parts.append(f"excess loss {tuning['excess_mean']:+.4f} nats over the counts" + (f" +/- {se:.4f}" if _number(se) else "")
+                     + f", learns on {tuning.get('learns_days', 0)} of {tuning.get('days', 0)} days"
+                     + (f", {hits:g} hits (record only)" if _number(hits) else ""))
+    elif _number(tuning.get("val_loss_mean")):
         # the deep-learning tuner (src/DeepLearningTuning.day_score, 6 Nov 2026)
         se = tuning.get("score_se")
         parts.append(f"val_loss {tuning['val_loss_mean']:.4f}" + (f" +/- {se:.4f}" if _number(se) else "")

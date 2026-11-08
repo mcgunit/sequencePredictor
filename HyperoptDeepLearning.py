@@ -596,15 +596,20 @@ def process_single_history_entry(args):
     if hasattr(modelToUse, "setTrainSeconds"):
         modelToUse.setTrainSeconds(trainSeconds or None)
 
+    # The day's tuner value is this run's learning check (src/LearningCheck.py excessLoss, 7 Nov 2026); never the
+    # previous day's when this one has none
+    modelToUse.last_learning_check = None
+
     # Perform training
     latest_raw_predictions, unique_labels = modelToUse.run(
         name, skipLastColumns, skipRows=len(historyData)-historyIndex, years_back=years_back, strict_val=False,
         specialColumnCount=specialColumnCount)
 
-    # Set by run() on every model in MODEL_REGISTRY (best val_loss across
-    # epochs) - used by predict()/objective() below as the primary hyperopt
-    # signal instead of relying solely on the tiny real-draw profit sample.
+    # Set by run() on every model in MODEL_REGISTRY: the best val_loss across epochs (on the record only - it
+    # carries the label smoothing and the L2 penalty, both tuned knobs) and the learning check, whose
+    # smoothing-free excess loss over the training frequencies is the score (src/DeepLearningTuning.day_score).
     val_loss = getattr(modelToUse, "last_val_loss", float("inf"))
+    check = getattr(modelToUse, "last_learning_check", None)
 
     predictedSequence = latest_raw_predictions.tolist()
     # TCN/Transformer/GNN/Autoencoder return unique_labels as the raw numpy
@@ -631,7 +636,7 @@ def process_single_history_entry(args):
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile)
 
-    return jsonFilePath, val_loss
+    return jsonFilePath, val_loss, check
 
 
 
@@ -660,8 +665,8 @@ def runPredictInChild(trial, progressPath, *args, **kwargs):
     Costs one TF import + CUDA init per trial (~15-30s) - noise next to the
     minutes of training a trial performs.
 
-    While the child trains, the parent reads each finished day's validation
-    loss from progressPath (6 Nov 2026, src/DeepLearningTuning.py C, D): one
+    While the child trains, the parent reads each finished day's excess loss
+    over the counts (7 Nov 2026; the validation loss until then) from progressPath (6 Nov 2026, src/DeepLearningTuning.py C, D): one
     progress line per day, and the running score reported to Optuna, whose
     pruner may stop the trial - the child is then killed and the trial
     recorded as pruned. trial may be a FixedTrial (the gate's references:
@@ -694,7 +699,7 @@ def runPredictInChild(trial, progressPath, *args, **kwargs):
                 value = dlt.running_value(losses[:reported + 1])
                 loss = losses[reported]
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] day {reported + 1}/{kwargs.get('daysToRebuild')}: "
-                      f"val_loss {'n/a' if loss is None else f'{loss:.4f}'}, running score {value:+.4f} "
+                      f"excess loss over the counts {'n/a' if loss is None else f'{loss:+.4f}'}, running score {value:+.4f} "
                       f"({(time.time() - started) / 60:.1f} min)")
                 if trial is not None:
                     trial.report(value, reported)
@@ -781,10 +786,12 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param daysToRebuild: The number of days to rebuild
         @param ai: To use ai tech to do predictions
         @param trainSeconds: the wall-clock budget of each training run (None = unlimited)
-        @param progressPath: where each rebuilt day's validation loss is written as it is trained, for the
-            parent's progress lines and pruning (src/DeepLearningTuning.py C, D)
+        @param progressPath: where each rebuilt day's excess loss over the counts is written as it is trained, for
+            the parent's progress lines and pruning (src/DeepLearningTuning.py C, D)
 
-        Returns (profit, avg_val_loss, val_losses): val_losses one per rebuilt day, None for a non-finite one.
+        Returns (profit, avg_val_loss, dayExcess, dayLosses, verdicts), one entry per rebuilt day in the lists:
+        the learning check's excessLoss (None without one), the val_loss (None for a non-finite one) and the
+        learning check's verdict (None without one).
     """
 
     modelToUse = MODEL_REGISTRY[model_type]["instance"]
@@ -852,12 +859,16 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
 
             val_losses = []
             dayLosses = []
+            dayExcess = []
+            verdicts = []
             for args in argsList:
-                _, val_loss = process_single_history_entry(args)
+                _, val_loss, check = process_single_history_entry(args)
                 if np.isfinite(val_loss):
                     val_losses.append(val_loss)
                 dayLosses.append(float(val_loss) if np.isfinite(val_loss) else None)
-                dlt.write_progress(progressPath, dayLosses)
+                dayExcess.append(dlt.day_excess(check))
+                verdicts.append(check.get("verdict") if isinstance(check, dict) else None)
+                dlt.write_progress(progressPath, dayExcess)
 
             print("Finished rebuild of history entries.")
 
@@ -876,7 +887,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             # objective() for how the two are combined.
             avg_val_loss = sum(val_losses) / len(val_losses) if val_losses else float("inf")
 
-            return profit, avg_val_loss, dayLosses
+            return profit, avg_val_loss, dayExcess, dayLosses, verdicts
         else:
             print("Prediction already made")
     else:
@@ -953,7 +964,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-r', '--rebuild_history', type=helpers.str2bool, default=False)
-    parser.add_argument('-d', '--days', type=int, default=8)
+    parser.add_argument('-d', '--days', type=int, default=dlt.DAYS,
+                        help='Rebuilt days per trial (default %(default)s since 7 Nov 2026, 8 until then: the '
+                             'warm-started days barely differ, so more days mostly cost time)')
     parser.add_argument('-t', '--trials', type=int, default=15,
                         help='Trials per study in this run; a resumed run runs only the ones a study still lacks')
     parser.add_argument(
@@ -1074,7 +1087,7 @@ if __name__ == "__main__":
     runMarker, resumed = dlt.open_run(runFolder, dlt.run_settings(
         games, dl_model_types, n_trials, daysToRebuild,
         trainSeconds, gateEnabled), fresh=args.fresh)
-    studyKeys = [f"{d[0]}-{d[1]}" for d in datasets if d[0] in games]
+    studyKeys = [dlt.study_name(d[0], d[1]) for d in datasets if d[0] in games]
     signal.signal(signal.SIGINT, onInterrupt)
     signal.signal(signal.SIGTERM, onInterrupt)
 
@@ -1082,7 +1095,9 @@ if __name__ == "__main__":
         if dataset_name in games:
             try:
                 print(f"\n{dataset_name.capitalize()}")
-                studyKey = f"{dataset_name}-{model_type}"
+                # the score's own studies (src/DeepLearningTuning.STUDY_SUFFIX, 7 Nov 2026): the old ones hold
+                # minus-val_loss values, whose scale would mislead the sampler and the pruner's median
+                studyKey = dlt.study_name(dataset_name, model_type)
                 if studyKey in runMarker["done"]:
                     print(f"{studyKey}: finished earlier in this run - skipped")
                     continue
@@ -1208,28 +1223,14 @@ if __name__ == "__main__":
                         # silently scoring it as a tie with real trials.
                         return -float("inf")
 
-                    # The score (src/DeepLearningTuning.day_score, 6 Nov 2026): minus the
-                    # mean validation loss over the rebuilt days plus the capped profit
-                    # tie-breaker, as before, now with the standard error over the days
-                    # that the gate's margin is taken in.
-                    #
-                    # val_loss is the primary signal - it's backed by ~hundreds
-                    # of held-out validation windows per trial, versus profit's
-                    # `daysToRebuild` real draws (often just 1-2), which is far
-                    # too small a sample to reliably separate a genuinely better
-                    # model from a lucky one. Profit is kept only as a small
-                    # tie-breaker between models with similar val_loss.
-                    #
-                    # The tie-breaker is CLIPPED: at pick3/keno payout scale a
-                    # single lucky mid-tier hit in the scored week adds +2.75
-                    # or more to the score, an order of magnitude above the
-                    # val_loss spread between trials (~0.1-0.3) - a 2026-08-30
-                    # pick3 transformer study had its "best" trial selected by
-                    # exactly one such hit (+0.34 vs ~-3.7 for every other
-                    # trial). The cap keeps profit a tie-breaker instead of a
-                    # lottery on which trial got lucky.
-                    profit, _, dayLosses = results[0]
-                    tuning = dlt.day_score(dayLosses, profit)
+                    # The score (src/DeepLearningTuning.day_score, 7 Nov 2026): minus the mean over the
+                    # rebuilt days of the learning check's excess loss - the row's plain cross-entropy on its
+                    # validation windows above the training frequencies', with no label smoothing and no L2
+                    # on either, so the tuned smoothing/L2 can no longer move the yardstick. 0 = as good as
+                    # serving the counts. The hits (calculate_profit over the days) are on the record only:
+                    # 0.05 a hit was ~100 standard errors of the old score (the 6 Nov lotto run).
+                    profit, _, dayExcess, dayLosses, verdicts = results[0]
+                    tuning = dlt.day_score(dayExcess, hits=profit, val_losses=dayLosses, verdicts=verdicts)
                     trial.set_user_attr("tuning", attrs_for_trial(tuning))
                     return tuning["score"]
 

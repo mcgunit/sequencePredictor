@@ -25,8 +25,20 @@ by GATE_SE_MARGIN standard errors of its own score; the defaults are served back
 incumbent. The defaults are what Predictor.py trains when a key is missing (PREDICTOR_DEFAULTS below, kept in step
 with Predictor.runUnifiedDeepLearningModels and LSTMModel's constructor).
 
-What the score is, and what it is not: minus the mean validation loss over the rebuilt days, plus the old capped
-profit tie-breaker. Its standard error is taken over those days, which are warm-started retrains on almost the same
+What the score is, and what it is not (7 Nov 2026, the owner's go-ahead after the first production run): minus the
+mean over the rebuilt days of the row's excess loss - its plain cross-entropy on its validation windows minus that
+of the training frequencies, no label smoothing and no L2 on either (src/LearningCheck.py, excessLoss). 0 = as good
+as serving the counts, above 0 = better. Until then it was minus the mean val_loss plus 0.05 x the hits (capped):
+val_loss carries the smoothing and the L2 penalty, which are tuned knobs, so the first run (6 Nov, lotto) "won" by
+lowering the smoothing - the transformer's 3.304 -> 3.241 and the GNN's 3.282 -> 3.210 are mostly the yardstick
+moving (the counts-only baseline is ~3.27 at smoothing 0.05 and ~3.19 at 0), and every one of those rows still read
+counts-only. The hits are on the record, not in the score: 0.05 a hit was ~100 standard errors. The old trials
+live in the old studies (<game>-<model_type>); this score writes to <game>-<model_type>-skill (STUDY_SUFFIX), since
+the sampler and the pruner's median would otherwise mix the two scales. Days default to 3 (DAYS): the 8 warm-started
+days of the first run agreed to the third decimal. Still to know: on a game whose frequencies drift, an output that
+only shrinks the counts toward uniform also gets above 0, without reading its input - so a positive score is not by
+itself learning; the learning check's verdict, counted per day on the record (learns_days), is that test. Its
+standard error is taken over those days, which are warm-started retrains on almost the same
 history - strongly correlated, so it understates how much a retrain varies; one SE is a floor, not a test. The
 validation split is the last 20% of each retrain's history (10 years), which contains the lockbox period
 (src/Lockbox.py): this tuner does not withhold it, and its gate records say so (LOCKBOX_NOTE).
@@ -48,9 +60,11 @@ PRUNE_AFTER_DAYS = 2
 PRUNE_STARTUP_TRIALS = 3
 GATE_SE_MARGIN = 1.0
 GATE_REVERT_MARGIN = 0.0
-# the old objective's profit tie-breaker (HyperoptDeepLearning.objective, 30 Aug 2026)
-PROFIT_WEIGHT = 0.05
-PROFIT_CONTRIBUTION_CAP = 0.5
+# rebuilt days per trial (-d): the warm-started days barely differ (the 6 Nov lotto run: 3.2917 .. 3.2907 over 8)
+DAYS = 3
+SCORE_KIND = "skill_vs_counts"
+# the studies of this score (old trials scored minus val_loss + hits; their scale must not feed the sampler/pruner)
+STUDY_SUFFIX = "skill"
 RUN_FILE = "deeplearning-run.json"
 LOCKBOX_NOTE = ("not withheld: the score is the validation loss on the last 20% of each retrain's history, "
                 "which contains the lockbox period")
@@ -91,33 +105,45 @@ def predictor_defaults(prefix, served):
     return out
 
 
-def day_score(val_losses, profit=0.0):
-    """
-    The trial's score and its diagnostics (the gate's "tuning" record) from its rebuilt days' validation losses
-    (None or non-finite for a day whose training went NaN) and the profit over those days: minus the mean finite
-    loss plus the capped profit tie-breaker; score_se the standard error of minus the loss over the days (None
-    with fewer than two). No finite day: score -inf, which the gate never writes.
-    """
-    finite = [-float(v) for v in val_losses if isinstance(v, (int, float)) and math.isfinite(v)]
-    profit = float(profit or 0.0)
-    term = max(-PROFIT_CONTRIBUTION_CAP, min(PROFIT_CONTRIBUTION_CAP, PROFIT_WEIGHT * profit))
-    if not finite:
-        return {"kind": "val_loss", "score": float("-inf"), "score_se": None, "days": 0,
-                "val_loss_mean": None, "profit": profit, "profit_term": term}
-    mean = statistics.fmean(finite)
-    se = statistics.stdev(finite) / math.sqrt(len(finite)) if len(finite) > 1 else None
-    return {"kind": "val_loss", "score": mean + term, "score_se": se, "days": len(finite),
-            "val_loss_mean": -mean, "profit": profit, "profit_term": term}
+def study_name(game, model_type):
+    return f"{game}-{model_type}-{STUDY_SUFFIX}"
 
 
-def running_value(val_losses):
-    """What the parent reports to Optuna after a day: minus the mean finite loss so far (-1e9 when none is)."""
-    finite = [float(v) for v in val_losses if isinstance(v, (int, float)) and math.isfinite(v)]
+def day_excess(check):
+    """One rebuilt day's value from the row's learning check (src/LearningCheck.py): its excessLoss, None when the
+    check was skipped or is not finite."""
+    value = (check or {}).get("excessLoss") if isinstance(check, dict) else None
+    return float(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
+
+
+def day_score(excess_losses, hits=None, val_losses=None, verdicts=None):
+    """
+    The trial's score and its diagnostics (the gate's "tuning" record): minus the mean finite excess loss over the
+    rebuilt days (None or non-finite for a day without a learning check); score_se the standard error of that over
+    the days (None with fewer than two). No finite day: score -inf, which the gate never writes. hits (the profit
+    calculate_profit gives over the days), the days' val_loss and the learning-check verdicts are on the record only.
+    """
+    finite = [-float(v) for v in excess_losses if isinstance(v, (int, float)) and math.isfinite(v)]
+    losses = [float(v) for v in (val_losses or []) if isinstance(v, (int, float)) and math.isfinite(v)]
+    out = {"kind": SCORE_KIND, "score": float("-inf"), "score_se": None, "days": len(finite), "excess_mean": None,
+           "hits": None if hits is None else float(hits),
+           "val_loss_mean": statistics.fmean(losses) if losses else None,
+           "learns_days": sum(1 for v in (verdicts or []) if v == "learns")}
+    if finite:
+        mean = statistics.fmean(finite)
+        out.update(score=mean, excess_mean=-mean,
+                   score_se=statistics.stdev(finite) / math.sqrt(len(finite)) if len(finite) > 1 else None)
+    return out
+
+
+def running_value(excess_losses):
+    """What the parent reports to Optuna after a day: minus the mean finite excess so far (-1e9 when none is)."""
+    finite = [float(v) for v in excess_losses if isinstance(v, (int, float)) and math.isfinite(v)]
     return -statistics.fmean(finite) if finite else -1e9
 
 
 def write_progress(path, val_losses):
-    """The child's per-day losses, replaced atomically so the parent never reads half a file."""
+    """The child's per-day values (excess losses), replaced atomically so the parent never reads half a file."""
     if not path:
         return
     tmp = path + ".tmp"
@@ -141,7 +167,7 @@ def read_progress(path):
 def run_settings(games, models, trials, days, train_seconds, gate):
     """What makes two runs the same run: a resume only continues a run with these settings."""
     return {"games": list(games), "models": list(models), "trials": int(trials), "days": int(days),
-            "trainSeconds": int(train_seconds or 0), "gate": bool(gate)}
+            "trainSeconds": int(train_seconds or 0), "gate": bool(gate), "score": SCORE_KIND}
 
 
 def open_run(folder, settings, fresh=False, log=print, now=None):
@@ -215,12 +241,18 @@ def _self_check():
     ae = predictor_defaults("autoencoder", {"yearsOfHistory": 10})
     assert ae["autoencoder_labelSmoothing"] == 0.0 and ae["autoencoder_dropout"] == 0.2 and ae["autoencoder_yearsOfHistory"] == 10
 
-    s = day_score([2.0, 2.2, None, float("nan")], profit=-4.0)
-    assert s["days"] == 2 and abs(s["val_loss_mean"] - 2.1) < 1e-12 and abs(s["profit_term"] + 0.2) < 1e-12
-    assert abs(s["score"] - (-2.1 - 0.2)) < 1e-12 and abs(s["score_se"] - 0.1) < 1e-12
-    assert day_score([3.0])["score_se"] is None and day_score([None])["score"] == float("-inf")
-    assert day_score([1.0, 1.0], profit=100)["profit_term"] == PROFIT_CONTRIBUTION_CAP
-    assert running_value([2.0, None, 4.0]) == -3.0 and running_value([]) == -1e9
+    s = day_score([0.02, -0.01, None, float("nan")], hits=4, val_losses=[3.2, 3.3, None],
+                  verdicts=["counts-only", "learns", None])
+    assert s["kind"] == SCORE_KIND and s["days"] == 2 and abs(s["excess_mean"] - 0.005) < 1e-12
+    assert abs(s["score"] + 0.005) < 1e-12 and abs(s["score_se"] - 0.015) < 1e-12
+    assert s["hits"] == 4.0 and abs(s["val_loss_mean"] - 3.25) < 1e-12 and s["learns_days"] == 1
+    # the hits never move the score
+    assert day_score([0.02, -0.01], hits=100)["score"] == day_score([0.02, -0.01], hits=0)["score"]
+    assert day_score([0.01])["score_se"] is None and day_score([None])["score"] == float("-inf")
+    assert running_value([0.02, None, 0.04]) == -0.03 and running_value([]) == -1e9
+    assert day_excess({"excessLoss": -0.004}) == -0.004 and day_excess(None) is None
+    assert day_excess({"excessLoss": float("nan")}) is None and day_excess({}) is None
+    assert study_name("lotto", "gnn_model") == "lotto-gnn_model-skill"
 
     folder = tempfile.mkdtemp()
     progress = os.path.join(folder, "p.json")
@@ -228,7 +260,8 @@ def _self_check():
     write_progress(progress, [2.5, float("inf")])
     assert read_progress(progress) == [2.5, None]
 
-    settings = run_settings(["lotto"], ["gnn_model", "transformer_model"], 15, 8, 240, True)
+    settings = run_settings(["lotto"], ["gnn_model", "transformer_model"], 15, DAYS, 240, True)
+    assert settings["score"] == SCORE_KIND
     quiet = lambda message: None
     marker, resumed = open_run(folder, settings, log=quiet)
     assert not resumed and marker["done"] == []
@@ -262,7 +295,7 @@ def _self_check():
         study = optuna.create_study(direction="maximize")
         old = optuna.trial.create_trial(value=9.0, params={"gnn_gcnUnits": 16, "gnn_yearsOfHistory": 10}, distributions=dist)
         new = optuna.trial.create_trial(value=score, params={"gnn_gcnUnits": 64, "gnn_yearsOfHistory": 10}, distributions=dist,
-                                        user_attrs={"tuning": attrs_for_trial({"kind": "val_loss", "score": score, "score_se": se, "days": 8})})
+                                        user_attrs={"tuning": attrs_for_trial({"kind": SCORE_KIND, "score": score, "score_se": se, "days": DAYS})})
         study.add_trial(old)
         study.add_trial(new)
         return study
