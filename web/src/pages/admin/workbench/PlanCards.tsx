@@ -175,7 +175,7 @@ export function PlanCard({ w }: { w: Workbench }) {
         <table className="tbl">
           <thead>
             <tr>
-              <th>{w.noun === 'coin' ? 'Coin' : 'Share'}</th>
+              <th>{w.noun === 'coin' ? 'Coin' : 'Stock'}</th>
               <th>Call</th>
               <th className="hide-sm">Band</th>
               <th>Order now</th>
@@ -265,7 +265,7 @@ export function WeekGameCard({ w }: { w: Workbench }) {
         <table className="tbl">
           <thead>
             <tr>
-              <th>{w.noun === 'coin' ? 'Coin' : 'Share'}</th>
+              <th>{w.noun === 'coin' ? 'Coin' : 'Stock'}</th>
               <th>Call</th>
               <th className="hide-sm">Band at the week&apos;s close</th>
               <th>So far</th>

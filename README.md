@@ -6,7 +6,7 @@
 >
 > - Nothing in this repository or on its pages - a lottery ticket, a "buy" or "sell" on a crypto or shares card, a profit figure, a ranking of models - is a recommendation to buy, sell, bet or play anything.
 > - Lottery draws are designed to be random. No model here has shown a reproducible edge over chance; the project's own controls (docs/research.md) exist to check exactly that, and so far they find none.
-> - Crypto and share prices can fall as well as rise. Past results, paper profits and backtests say nothing reliable about the future. Every euro shown on the pages is paper money, not a trade that was made.
+> - Crypto and stock prices can fall as well as rise. Past results, paper profits and backtests say nothing reliable about the future. Every euro shown on the pages is paper money, not a trade that was made.
 > - **You use this software and anything it shows entirely at your own risk. The authors and contributors accept no responsibility or liability for any loss of money, or any other damage, that results from using it** - whether you play, trade or invest on the strength of what it shows or not.
 > - The code comes as is, without warranty of any kind (see the license below).
 >

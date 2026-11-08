@@ -18,7 +18,7 @@ export default function Disclaimer() {
             project's own controls exist to check exactly that, and so far they find none.
           </li>
           <li>
-            Crypto and share prices can fall as well as rise. Past results, paper profits and backtests say nothing
+            Crypto and stock prices can fall as well as rise. Past results, paper profits and backtests say nothing
             reliable about the future.
           </li>
           <li>

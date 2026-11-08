@@ -240,7 +240,7 @@ export function BackgroundCard({ w }: { w: Workbench }) {
         <div className="plines">
           <p>
             <span className="lbl">1. Two closes, one number.</span> A day&apos;s move is the change from the previous close to its close; nothing within the day is used.{' '}
-            {crypto ? 'A crypto day is the UTC day: its close is 00:00 UTC, 02:00 Belgian time in summer, 01:00 in winter.' : 'A share day is the Euronext session of Brussels and Amsterdam, 09:00 to 17:30 Belgian time: its close is the 17:30 closing price (14:00 on the half days, 24 and 31 December).'}
+            {crypto ? 'A crypto day is the UTC day: its close is 00:00 UTC, 02:00 Belgian time in summer, 01:00 in winter.' : 'A stock-market day is the Euronext session of Brussels and Amsterdam, 09:00 to 17:30 Belgian time: its close is the 17:30 closing price (14:00 on the half days, 24 and 31 December).'}
           </p>
           <p>
             <span className="lbl">2. The move goes into one of {w.k} bins.</span> Each {w.noun}&apos;s past daily moves, sorted and cut into {w.k} equal piles, from the days before
