@@ -34,7 +34,7 @@ export default function App() {
       <main className="wrap">
         <Suspense fallback={<Loading />}>
         <Routes>
-          {/* Home: the Lottery, Crypto and Shares sections and the Council (the owner's rule of 1 Oct 2026) */}
+          {/* Home: the Lottery, Crypto and Stocks sections and the Council (the owner's rule of 1 Oct 2026) */}
           <Route path="/" element={<HomePage />} />
           {/* the admin section: before /:market, and only for the administrator (the API answers 403 anyway) */}
           <Route path="/admin" element={<AdminGuard><WeekPage /></AdminGuard>} />

@@ -43,7 +43,7 @@ export default function GamesPage() {
           ))}
           {['crypto', 'shares'].map((m) => (
             <Link key={m} className="card" to={`/admin/markets/${m}`}>
-              <b>{m === 'crypto' ? 'Crypto' : 'Shares'} workbench ›</b>
+              <b>{m === 'crypto' ? 'Crypto' : 'Stocks'} workbench ›</b>
               <small>the plan in detail, paper books, models, prices, the guard, regimes</small>
             </Link>
           ))}

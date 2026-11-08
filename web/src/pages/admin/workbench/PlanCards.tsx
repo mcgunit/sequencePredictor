@@ -156,7 +156,7 @@ export function PlanCard({ w }: { w: Workbench }) {
           Today&apos;s plan<span className="q2">for {stamp(p.day)}</span>
         </>
       }
-      help={`The calls of one model, the one the users' ${crypto ? 'Crypto' : 'Shares'} page follows: the best paper book under the ${p.rule} rule among the rows with at least ${p.minTrades} positions, else the best exact rate. Up is a bin in the upper half; the band is the predicted bin as prices, the range the close must land in for the call to be right. The last column is context, not a vote.`}
+      help={`The calls of one model, the one the users' ${crypto ? 'Crypto' : 'Stocks'} page follows: the best paper book under the ${p.rule} rule among the rows with at least ${p.minTrades} positions, else the best exact rate. Up is a bin in the upper half; the band is the predicted bin as prices, the range the close must land in for the call to be right. The last column is context, not a vote.`}
       meta={[p.status, p.madeAt ? `ticket ${stamp(p.madeAt)}` : '', p.calendarKnown ? '' : 'a trading day as far as the calendar is published']}
       flush
     >

@@ -418,7 +418,7 @@ class GNNModel:
                             epochs=self.epochs,
                             batch_size=self.batchSize,
                             verbose=False,
-                            callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), *self._timeBudgetCallbacks(model_name), SelectiveProgbarLogger(verbose=1, epoch_interval=50)])
+                            callbacks=[*helpers.val_loss_callbacks(self, early_stopping, reduce_lr), checkpoint, TerminateOnNaN(), *self._timeBudgetCallbacks(model_name), SelectiveProgbarLogger(verbose=1, epoch_interval=50)])
         return history
 
     # ---------------------------

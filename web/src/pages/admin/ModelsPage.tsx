@@ -67,7 +67,7 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
           against its own tickets shuffled within blocks of 7 live days - with its hits per draw, live draws and null on the p&apos;s line, the p corrected
           for the rows compared (Holm), how many of the game&apos;s rows are under 5% next to what chance puts there, and, for a followed row, its record on new
           draws: only a row confirmed there has shown something. Nothing is greyed. For the payout games the test is on hits, information only. Top 5: for a lottery game the five rows a user sees today, the first five ranked rows in the newest day&apos;s table
-          (a ranked row missing from it is passed over); for a market game the first five of its History game view, while the users&apos; Crypto and Shares pages
+          (a ranked row missing from it is passed over); for a market game the first five of its History game view, while the users&apos; Crypto and Stocks pages
           follow the row named under them, by best book. No better than the frequencies (deep-learning rows, from 25 Oct 2026): on the newest day it ran, the
           row&apos;s validation loss did not get below that of the training split&apos;s frequencies per position by more than an output that ignores its input
           gets on the same windows; the tag&apos;s title gives the losses and whether the row ignores its input, and it is a label only, read by neither the

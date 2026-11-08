@@ -14,6 +14,7 @@ if src_dir not in sys.path:
     sys.path.append(src_dir)
 
 from Helpers import Helpers
+from RowVariants import without_variants
 
 helpers = Helpers()
 
@@ -159,7 +160,8 @@ class RLTicketModel():
                 continue
             if mainCount:
                 realResult = realResult[:mainCount]
-            rows = dayData.get("currentPrediction") or []
+            # the variant rows (src/RowVariants.py, 8 Nov 2026) are not features: kept out like today's rows
+            rows = without_variants(dayData.get("currentPrediction") or [])
             entries.append((fileDate, rows, realResult))
 
         entries.sort(key=lambda entry: entry[0])

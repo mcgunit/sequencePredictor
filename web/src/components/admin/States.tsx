@@ -35,7 +35,7 @@ export function AdminOnly() {
         <h2>This page is for the admin</h2>
       </div>
       <div className="card-b">
-        <p className="note">Lottery, Crypto, Shares and Council are in the menu.</p>
+        <p className="note">Lottery, Crypto, Stocks and Council are in the menu.</p>
       </div>
     </div>
   );

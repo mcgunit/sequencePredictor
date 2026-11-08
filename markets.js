@@ -23,7 +23,7 @@ const path = require('path');
 
 const MARKETS = {
   crypto: { title: 'Crypto predictor', noun: 'coin', unit: 'USDT', calendar: 'every day (UTC)' },
-  shares: { title: 'Shares predictor', noun: 'share', unit: 'EUR', calendar: 'every trading day (Euronext Brussels and Amsterdam)' },
+  shares: { title: 'Stocks predictor', noun: 'stock', unit: 'EUR', calendar: 'every trading day (Euronext Brussels and Amsterdam)' },
 };
 // The week games (README roadmap item 4, M5): one draw per week, cut from the
 // same bars (MarketGame.weekly_returns), settled and exported like a market

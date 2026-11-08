@@ -355,7 +355,7 @@ class LSTMModel:
         checkpoint = ModelCheckpoint(os.path.join(self.modelPath, f"model_{model_name}_checkpoint.keras"), save_best_only=True)
 
         history = model.fit(train_data, train_labels, validation_data=(val_data, val_labels),
-                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[early_stopping, reduce_lr, checkpoint, TerminateOnNaN(), *self._timeBudgetCallbacks(model_name), SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
+                            epochs=self.epochs, batch_size=self.batchSize, verbose=False, callbacks=[*helpers.val_loss_callbacks(self, early_stopping, reduce_lr), checkpoint, TerminateOnNaN(), *self._timeBudgetCallbacks(model_name), SelectiveProgbarLogger(verbose=1, epoch_interval=int(50))])
         return history
 
     def run(self, name='pick3', skipLastColumns=0, maxRows=0, skipRows=0, years_back=None, strict_val=False, specialColumnCount=0):

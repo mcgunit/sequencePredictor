@@ -1,5 +1,5 @@
 // admin.js - the JSON behind the admin section of the React app (21 Oct 2026: the owner's decision to replace the
-// old pages with the app; the users get a slim Lottery / Crypto / Shares / Council, the administrator everything).
+// old pages with the app; the users get a slim Lottery / Crypto / Stocks / Council, the administrator everything).
 // Read-only routes under /api/admin, all behind the session (auth.middleware answers a signed-out request with a
 // JSON 401 first) and behind the admin guard below (a signed-in user who is not the administrator gets a JSON 403):
 //
@@ -185,7 +185,7 @@ function followsOf(game, record) {
   const market = game.replace(/week$/, '');
   const week = game !== market;
   const pick = (week ? markets.pickWeek : markets.pickPlan)(markets.describeMarket(record), market);
-  return pick.model ? { row: pick.model.name, page: market === 'crypto' ? 'Crypto' : 'Shares', book: week ? 'week' : 'daily', byBook: pick.byBook, rule: pick.ruleName } : null;
+  return pick.model ? { row: pick.model.name, page: market === 'crypto' ? 'Crypto' : 'Stocks', book: week ? 'week' : 'daily', byBook: pick.byBook, rule: pick.ruleName } : null;
 }
 function readFollows(dirs, game) {
   if (!isMarketGame(game)) return null;

@@ -128,7 +128,7 @@ function UsersCard({ d, onAsk }: { d: PeopleView; onAsk: (a: PeopleAsk) => void 
       help={
         <>
           The administrator signs in with WEB_USER and WEB_PASSWORD from the server&apos;s .env; that account cannot be changed here. Users sign in with their own
-          password and see Home, Lottery (the top 5 models only, as ranked before each draw), Crypto, Shares, the Council (asking it, and their own sessions),
+          password and see Home, Lottery (the top 5 models only, as ranked before each draw), Crypto, Stocks, the Council (asking it, and their own sessions),
           their own account and What&apos;s new. Last sign-in: the newest in the activity log (with the browser), or the account&apos;s own record when that is newer. Setting a
           password ends that user&apos;s open sessions.
         </>
@@ -358,7 +358,7 @@ function AddDialog({ d, sender, onClose }: { d: PeopleView; sender: Sender; onCl
     <Confirm
       title="Add a user"
       lines={[
-        "The user signs in with this name and password and sees Home, Lottery (the top 5 models only, as ranked before each draw), Crypto, Shares, the Council (asking it, and their own sessions), their own account and What's new.",
+        "The user signs in with this name and password and sees Home, Lottery (the top 5 models only, as ranked before each draw), Crypto, Stocks, the Council (asking it, and their own sessions), their own account and What's new.",
       ]}
       action="Add user"
       busy={sender.busy}

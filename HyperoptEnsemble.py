@@ -15,6 +15,7 @@ from src.HyperoptRunner import open_study, fail_stale_running_trials, install_si
 from src.TuningGate import challenge, make_defaults
 from src.Lockbox import (load_or_warn as load_lockbox, split_by_date as lockbox_split_days, describe as describe_lockbox,
                          describe_withheld as describe_lockbox_withheld)
+from src.RowVariants import is_variant
 from src.VoteRows import effective_members, weighted_is_flat, positional_vote, voter_count, SUBSET_WEIGHTS_KEY
 
 helpers = Helpers()
@@ -277,7 +278,8 @@ def candidate_rows(evaluation_days):
         seen = set()
         for row in rows:
             name = row.get("name")
-            if not name or name in EXCLUDED_ROWS or name in seen:
+            # the variant rows (src/RowVariants.py, 8 Nov 2026) join only through a gated decision, later
+            if not name or name in EXCLUDED_ROWS or name in seen or is_variant(name):
                 continue
             if row.get("predictions") and row["predictions"][0]:
                 presence[name] = presence.get(name, 0) + 1

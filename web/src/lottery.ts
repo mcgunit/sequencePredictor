@@ -262,7 +262,7 @@ function homeGameOf(v: unknown): HomeGame {
     last: has(g.last) ? { date: ostr(l.date), rows: num(l.rows, 0), figures: figuresOf(l.figures), none: noneOf(l.none), leftOut: ostr(l.leftOut), afterClose: l.afterClose === true } : null,
   };
 }
-const TITLE: Record<string, string> = { crypto: 'Crypto', shares: 'Shares' };
+const TITLE: Record<string, string> = { crypto: 'Crypto', shares: 'Stocks' };
 function headlineOf(v: unknown, market: string): MarketHeadline {
   const m = o(v);
   const p = o(m.plan);

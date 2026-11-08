@@ -31,9 +31,15 @@ function rankingOf(report, game) {
 
 // The first n names of a ranking - the users' top five. With `present` (the names a day's table has), the first n
 // of those: a ranked row can be missing from a day.
+// A model's variant row ("<row> · Sampled" / "<row> · Memorise", src/RowVariants.py, 8 Nov 2026): admin only, never
+// in a top five (the report ranks them last as well).
+const VARIANT_ROW = / · (Sampled|Memorise)$/;
+const isVariantRow = (name) => VARIANT_ROW.test(String(name));
+
 function topNames(ranking, n = TOP_MODELS_SHOWN, present = null) {
   if (!ranking || !Array.isArray(ranking.names)) return [];
-  const names = Array.isArray(present) ? ranking.names.filter((name) => present.includes(name)) : ranking.names;
+  const names = (Array.isArray(present) ? ranking.names.filter((name) => present.includes(name)) : ranking.names)
+    .filter((name) => !isVariantRow(name));
   return names.slice(0, n);
 }
 
@@ -93,4 +99,4 @@ function usersTop(report, game, present) {
   return topNames(rankingOf(report, game), TOP_MODELS_SHOWN, Array.isArray(present) ? present : null);
 }
 
-module.exports = { TOP_MODELS_SHOWN, METRIC_TEXT, metricTextOf, rankingOf, topNames, loadReport, rankingFor, namesToday, usersTop };
+module.exports = { isVariantRow, TOP_MODELS_SHOWN, METRIC_TEXT, metricTextOf, rankingOf, topNames, loadReport, rankingFor, namesToday, usersTop };

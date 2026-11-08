@@ -149,6 +149,27 @@ except ImportError:  # imported as src.Helpers from the repository root
     from src.Since import on_or_after as since_on_or_after
 
 
+
+def _variant_row(name):
+    """A model's variant row ("<row> · Sampled" / "<row> · Memorise", src/RowVariants.py, 8 Nov 2026)."""
+    try:
+        from src.RowVariants import is_variant
+    except ImportError:
+        from RowVariants import is_variant
+    return is_variant(name)
+
+
+def variants_last(ranked):
+    """
+    A ranking with the variant rows after every other row, each order kept, and those rows marked "variant": they
+    are scored and shown to the admins, but never the best model, the users' top five, a member of the per-row
+    chance test's family or of the combination search (owner, 8 Nov 2026: they join only through the gate).
+    """
+    variants = [m for m in ranked if _variant_row(m.get("name"))]
+    for m in variants:
+        m["variant"] = True
+    return [m for m in ranked if not _variant_row(m.get("name"))] + variants
+
 class Helpers():
 
     # Module-level codec/predicates exposed on the class as well, so both
@@ -1164,6 +1185,7 @@ class Helpers():
                     liveMinDraws = min(10, max(m["draws"] for m in liveModels))
                     liveModels = (sorted([m for m in liveModels if m["draws"] >= liveMinDraws], key=liveValue, reverse=True)
                                   + sorted([m for m in liveModels if m["draws"] < liveMinDraws], key=liveValue, reverse=True))
+                    liveModels = variants_last(liveModels)
                     liveBlock = {"metric": metric, "minDrawsForRanking": liveMinDraws, "bestModel": liveModels[0]["name"],
                                  "models": liveModels}
                 livenessBlock = {
@@ -1198,6 +1220,7 @@ class Helpers():
                 livenessBlock = {"checked": "unchecked", "error": liveError or "not judged"}
                 print(f"liveness {game}: not judged ({livenessBlock['error']}) - no live record; the ranking stays on every stored draw")
 
+            models = variants_last(models)
             report["games"][game] = {
                 "metric": metric,
                 "minDrawsForRanking": minDraws,
@@ -1260,8 +1283,9 @@ class Helpers():
                         "bets": entry["bets"],
                     } for name, entry in sinceStats.items()]
                     sinceMinDraws = min(10, max(m["draws"] for m in sinceModels))
-                    sinceModels = (sorted([m for m in sinceModels if m["draws"] >= sinceMinDraws], key=sortKey, reverse=True)
-                                   + sorted([m for m in sinceModels if m["draws"] < sinceMinDraws], key=sortKey, reverse=True))
+                    sinceModels = variants_last(
+                        sorted([m for m in sinceModels if m["draws"] >= sinceMinDraws], key=sortKey, reverse=True)
+                        + sorted([m for m in sinceModels if m["draws"] < sinceMinDraws], key=sortKey, reverse=True))
                     report["games"][game]["since"] = {
                         "date": since["since"].isoformat(),
                         "label": since["label"],
@@ -1290,7 +1314,8 @@ class Helpers():
                                       for day in dayTable if day["date"] is not None and day["liveRows"] is not None]
                         persist = chanceStore is not None and (liveDays is not None or judged["checked"] == "stamp+git")
                         rowsChance, gameChance, keep = RowChance.game_chance(
-                            game, chanceDays, [{"name": m["name"], "draws": m["draws"]} for m in models], minDraws, chanceToday,
+                            game, chanceDays, [{"name": m["name"], "draws": m["draws"]} for m in models if not m.get("variant")],
+                            minDraws, chanceToday,
                             stored=(chanceStore or {}).get("games", {}).get(game), freeze=since["since"] if since else None, persist=persist)
                         if persist and keep is not None:
                             chanceStore["games"][game] = keep
@@ -1999,7 +2024,8 @@ class Helpers():
             "control": None,
         }
 
-        established = [m for m in models if m["draws"] >= minDraws and (m["bets"] > 0 if hasPayout else True)]
+        established = [m for m in models if m["draws"] >= minDraws and (m["bets"] > 0 if hasPayout else True)
+                       and not _variant_row(m.get("name"))]
         # `models` is ranked best-first, so the cap keeps the strongest rows.
         established = established[:maxRows]
         names = sorted(m["name"] for m in established)
@@ -2302,6 +2328,17 @@ class Helpers():
                 json.dump(self._versioned_fingerprint(fingerprint), outfile, indent=2)
         except Exception as e:
             print(f"Failed to write weights fingerprint for {model_path}: {e}")
+
+    @staticmethod
+    def val_loss_callbacks(row, early_stopping, reduce_lr):
+        """
+        The callbacks that steer training by val_loss - EarlyStopping (restore_best_weights) and ReduceLROnPlateau -
+        for a deep-learning row, none for its memorise variant (row.memorise, src/RowVariants.py, 8 Nov 2026): that
+        row trains until its time budget or its epochs run out and keeps its last weights, so it fits the training
+        draws as far as it can. Patience alone would not do: Keras 3.7's EarlyStopping puts the best val_loss
+        weights back at the end of every run, stopped early or not.
+        """
+        return [] if getattr(row, "memorise", False) else [early_stopping, reduce_lr]
 
     def fit_with_warm_start_guard(self, model, fit, val_data, val_labels, batch_size=None, label=""):
         """
@@ -2791,6 +2828,35 @@ class Helpers():
                 return parse(first)
         return None
 
+    # The memorise rows' recent window (src/RowVariants.py, 8 Nov 2026): while set, load_data keeps only the last
+    # RECENT_ROWS draws of what it would return (after the history rebuild's skipRows). None = the whole window.
+    RECENT_ROWS = None
+
+    @staticmethod
+    def recent_window(rows):
+        """
+        A context in which every load_data call keeps only the last `rows` draws - how a statistical memorise row
+        fits a short recent history with the settle row's own code. Set on the class under both of its import
+        names (Predictor imports src.Helpers, the model modules import Helpers: two class objects), restored on
+        exit.
+        """
+        import contextlib
+        import sys as _sys
+
+        @contextlib.contextmanager
+        def window():
+            classes = [getattr(_sys.modules[m], "Helpers") for m in ("Helpers", "src.Helpers")
+                       if m in _sys.modules and hasattr(_sys.modules[m], "Helpers")]
+            before = [(c, c.RECENT_ROWS) for c in classes]
+            try:
+                for c in classes:
+                    c.RECENT_ROWS = int(rows) if rows else None
+                yield
+            finally:
+                for c, value in before:
+                    c.RECENT_ROWS = value
+        return window()
+
     def load_data(self, dataPath, skipLastColumns=0, nth_row=5, maxRows=0, skipRows=0, years_back=None, specialColumnCount=0):
         # Initialize an empty list to hold the data
         data = []
@@ -2877,6 +2943,11 @@ class Helpers():
             dates = dates[:-skipRows]
             #print("Length after skipping rows: ", len(numbers))
             #print("last entry: ", numbers[len(numbers)-1])
+
+        recent = type(self).RECENT_ROWS
+        if recent and recent > 0 and len(numbers) > recent:
+            numbers = numbers[-recent:]
+            dates = dates[-recent:]
 
         # The draw dates aligned with `numbers`, for callers that need to map a
         # row index back to a date (src/Lockbox.py); read through DataLoader.dates.

@@ -1,4 +1,4 @@
-import os, argparse, json, sys, time
+import os, argparse, json, sys, time, copy
 
 # Must be set before TensorFlow is imported (the src imports below pull it in):
 # without it TF's first process grabs virtually the whole GPU at startup, so
@@ -46,6 +46,7 @@ from src.DataFetcher import DataFetcher
 from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
+from src import RowVariants as rowVariants
 from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder, order_for as probabilityOrder, in_score_order as inScoreOrder
 from src.PrizeTables import game_of as prizeTableGame, backfill as prizeBackfill
 from src.VoteRows import POSITIONAL_VOTE_DEFAULT_ROWS, effective_members, positional_vote, voter_count, subset_vote_scores
@@ -112,6 +113,9 @@ DL_MODEL_SECONDS = 240
 DL_TIMEOUT_SECONDS = 0
 DL_PER_MODEL_OVERHEAD_SECONDS = 60
 DL_CHILD_STARTUP_SECONDS = 120
+# The memorise rows' training budget (owner, 8 Nov 2026): a fresh shallow network fitted to the training draws for
+# this long, after every settle row has finished (src/RowVariants.py)
+DL_MEMORISE_SECONDS = 120
 
 # --- POSITIONAL VOTE ROWS (pick3, Joker+ - README roadmap item 7) ---
 # The untuned WeightedEnsemble Model votes per slot over the rows that own a
@@ -155,6 +159,9 @@ def applyMultiPick(name, row, scores):
     ordered, mainsCount = probabilityOrder(name)
     if not ordered or not scores or not row.get("predictions") or not row["predictions"][0]:
         return False
+    # the row's own scores, for its sampled variant row (src/RowVariants.py, 8 Nov 2026): addSampledRows reads and
+    # removes them once the day's ensembles and RL ticket have read the rows
+    rowVariants.stash_scores(row, scores)
     cfg = multiPickConfig(name)
     if not cfg:
         row["predictions"] = [inScoreOrder(ticket, mainsCount, scores) if ticket else ticket for ticket in row["predictions"]]
@@ -166,6 +173,43 @@ def applyMultiPick(name, row, scores):
     if extras:
         row["multiPick"] = [int(n) for n in extras]
     return bool(extras)
+
+
+def holdVariantRows(rows):
+    """
+    Takes the variant rows (memorise rows: made by the DL child, statisticalMethod and boostingMethod alongside the
+    settle rows) out of the day's rows, in place, and returns them: the vote chart, the vote rows, SubsetEnsemble
+    and the RL ticket read the rows next, and the variants enter none of them (owner, 8 Nov 2026). The caller puts
+    them back after the RL ticket, before addSampledRows.
+    """
+    held = [row for row in rows if isinstance(row, dict) and rowVariants.is_variant(row.get("name"))]
+    rows[:] = [row for row in rows if not (isinstance(row, dict) and rowVariants.is_variant(row.get("name")))]
+    return held
+
+
+def addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object):
+    """
+    The "<row> · Sampled" rows of a number game's day (src/RowVariants.py, owner 8 Nov 2026): each row that has
+    scores gets a twin whose ticket is drawn from them with its tuned temperature instead of taking their top.
+    Called after the last consumer of the day's rows (the vote rows, SubsetEnsemble, the RL ticket), so the
+    variants never vote or feed them, and before the day file is written; it also removes the stashed scores.
+    Never costs the day its other rows.
+    """
+    rows = current_json_object.get("newPrediction") or []
+    try:
+        ordered, mainsCount = probabilityOrder(name)
+        if ordered:
+            cfg = multiPickConfig(name)
+            day = os.path.splitext(os.path.basename(jsonFilePath))[0]
+            added = rowVariants.add_sampled_rows(rows, name, day, bestParams_json_object, mainsCount,
+                                                 cfg["extra"] if cfg else 0)
+            print(f"Sampled rows ({name}): {len(added)} added")
+    except Exception as e:
+        print(f"Sampled rows ({name}) skipped: {e}")
+    finally:
+        for row in rows:
+            if isinstance(row, dict):
+                row.pop(rowVariants.SCORES_KEY, None)
 
 
 def orderedGame(name):
@@ -417,6 +461,156 @@ LSTM_ROWS = [
 ]
 
 
+def configureLstmModel(model, name, displayName, labelSmoothed, bestParams_json_object, trainSeconds=None):
+    """An LSTM_ROWS row's tuned keys (the bare LSTM keys; the LSTMModel defaults when absent) and budget."""
+    model.setApplyLabelSmoothing(labelSmoothed)
+    # Tuned keys are applied when present; a game that HyperoptDeepLearning.py
+    # has never tuned (jokerplus on 2026-09-17: none of the 16 keys) keeps
+    # the LSTMModel defaults instead of taking the whole DL step down with a
+    # KeyError before the TCN/unified rows ran - the same .get() stance the
+    # unified rows have always taken.
+    lstmSetters = [
+        ("batchSize", model.setBatchSize),
+        ("epochs", model.setEpochs),
+        ("num_lstm_layers", model.setNumberOfLSTMLayers),
+        ("lstm_units", model.setNumberOfLstmUnits),
+        ("num_bidirectional_layers", model.setNumberOfBidrectionalLayers),
+        ("bidirectional_lstm_units", model.setNumberOfBidirectionalLstmUnits),
+        ("optimizer_type", model.setOptimizer),
+        ("learningRate", model.setLearningRate),
+        ("dropout", model.setDropout),  # 0.2 - 0.5
+        ("l2Regularization", model.setL2Regularization),  # 0.0001 - 0.001
+        ("useFinalLSTMLayer", model.setUseFinalLSTMLayer),
+        ("earlyStopPatience", model.setEarlyStopPatience),
+        ("reduceLearningRatePatience", model.setReduceLearningRatePAience),
+        ("reduceLearningRateFactor", model.setReducedLearningRateFactor),
+        ("windowSize", model.setWindowSize),  # 50 - 100
+        ("labelSmoothing", model.setLabelSmoothing),  # in the loss of the LSTM Smoothed Model only
+    ]
+    missingKeys = [key for key, _ in lstmSetters if key not in bestParams_json_object]
+    if missingKeys:
+        print(f"{displayName} for {name}: {len(missingKeys)} untuned key(s) ({', '.join(missingKeys[:4])}"
+              f"{', ...' if len(missingKeys) > 4 else ''}) - using the model defaults; "
+              f"tune with HyperoptDeepLearning.py -g {name} --models lstm_model")
+    for key, setter in lstmSetters:
+        if key in bestParams_json_object:
+            setter(bestParams_json_object[key])
+    model.setPredictionWindowSize(model.window_size)
+    model.setTrainSeconds(trainSeconds)
+
+
+# The deep-learning rows that get a memorise variant (owner, 8 Nov 2026; src/RowVariants.py): (instance whose class is
+# built fresh, LSTM_ROWS-style or UNIFIED_DL_MODELS-style, prefix or use key, display name, model folder, defaults).
+# LSTM Smoothed Model has none: memorising drops the label smoothing that is the only difference between the two
+# LSTM rows, so its memorise row would be LSTM Base Model's.
+def memoriseDlModels():
+    rows = [(lstm, "lstm", "useLstm", "LSTM Base Model", "lstm_model", {"requiresFullAi": True})]
+    for model, prefix, displayName, folder, defaults in UNIFIED_DL_MODELS:
+        rows.append((model, "unified", prefix, displayName, folder, defaults))
+    return rows
+
+
+# The architecture a memorise row trains (the early shallow networks that "were good number generators": one or two
+# layers, at most 64 units), with no dropout, no L2 and no label smoothing.
+MEMORISE_UNITS = 64
+MEMORISE_LAYERS = 1
+
+
+def applyMemorise(model, repoPath, folder, kind):
+    """Turns a configured fresh DL instance into its memorise variant: fresh weights in its own folder (never the
+    settle row's), shallow, unregularised, trained without the val_loss callbacks (Helpers.val_loss_callbacks) for
+    DL_MEMORISE_SECONDS."""
+    model.memorise = True
+    model.setModelPath(os.path.join(repoPath, "data", "models", f"{folder}_memorise"))
+    model.setLoadModelWeights(False)
+    model.setDropout(0.0)
+    model.setL2Regularization(0.0)
+    if kind == "lstm":
+        model.setApplyLabelSmoothing(False)
+        model.setNumberOfLSTMLayers(MEMORISE_LAYERS)
+        model.setNumberOfLstmUnits(MEMORISE_UNITS)
+        model.setNumberOfBidrectionalLayers(MEMORISE_LAYERS)
+        model.setNumberOfBidirectionalLstmUnits(MEMORISE_UNITS)
+        model.setUseFinalLSTMLayer(False)
+    else:
+        model.setLabelSmoothing(0.0)
+        for setter, value in (("setLstmUnits", MEMORISE_UNITS), ("setTcnUnits", MEMORISE_UNITS), ("setGruUnits", MEMORISE_UNITS),
+                              ("setDModel", MEMORISE_UNITS), ("setGcnUnits", MEMORISE_UNITS), ("setEncoderUnits", MEMORISE_UNITS),
+                              ("setNumTcnLayers", MEMORISE_LAYERS), ("setNumLayers", MEMORISE_LAYERS),
+                              ("setNumGcnLayers", MEMORISE_LAYERS), ("setNumEncoderLayers", MEMORISE_LAYERS)):
+            if hasattr(model, setter):
+                getattr(model, setter)(value)
+    model.setTrainSeconds(DL_MEMORISE_SECONDS if DL_MEMORISE_SECONDS and DL_MEMORISE_SECONDS > 0 else None)
+
+
+def memoriseRowsEnabled(bestParams_json_object, name=None):
+    """The memorise rows' switch (bestParams "useMemoriseRows", default on). Not for the market games: their rows
+    are settled into paper books and plans, which the variants must not enter."""
+    if name is not None and Helpers.is_market_game(name):
+        return False
+    return bool((bestParams_json_object or {}).get("useMemoriseRows", True))
+
+
+def enabledMemoriseDlCount(bestParams_json_object, fullAi, name=None):
+    if not memoriseRowsEnabled(bestParams_json_object, name):
+        return 0
+    count = 0
+    for _, kind, key, _, _, defaults in memoriseDlModels():
+        if defaults.get("requiresFullAi", True) and not fullAi:
+            continue
+        useKey = key if kind == "lstm" else "use" + key[0].upper() + key[1:]
+        if bestParams_json_object.get(useKey, True):
+            count += 1
+    return count
+
+
+def runMemoriseDeepLearningRows(dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object,
+                                skipRows=0, years_back=None, specialColumnCount=0, fullAi=True, onModelDone=None):
+    """
+    "<row> · Memorise" for each deep-learning row that ran today (src/RowVariants.py): the same model, tuned keys
+    and window, on a FRESH instance (the shared instances keep their settle configuration), made shallow and
+    unregularised by applyMemorise and trained from new weights until DL_MEMORISE_SECONDS run out. Runs after
+    every settle row, so a deadline kill costs a memorise row first. Each row in its own try/except.
+    """
+    if not memoriseRowsEnabled(bestParams_json_object, name):
+        return dlRows
+    for instance, kind, key, displayName, folder, defaults in memoriseDlModels():
+        if defaults.get("requiresFullAi", True) and not fullAi:
+            continue
+        useKey = key if kind == "lstm" else "use" + key[0].upper() + key[1:]
+        if not bestParams_json_object.get(useKey, True):
+            continue
+        rowName = rowVariants.variant_name(displayName, rowVariants.MEMORISE)
+        started = time.time()
+        try:
+            model = type(instance)()
+            model.setDataPath(dataPath)
+            model.setModelPath(os.path.join(repoPath, "data", "models", f"{folder}_memorise"))
+            if kind == "lstm":
+                configureLstmModel(model, name, displayName, False, bestParams_json_object, None)
+            else:
+                configureUnifiedModel(model, key, defaults, bestParams_json_object, None)
+            applyMemorise(model, repoPath, folder, kind)
+            latest_raw_predictions, rowLabels = model.run(
+                name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
+            before = len(dlRows)
+            dlRows = deepLearningMethod(
+                dlRows, latest_raw_predictions.tolist(), rowLabels, modelDisplayName=rowName, gameName=name,
+                kenoSubsetSizes=getKenoSubsetSizes(name, bestParams_json_object),
+                learningCheck=getattr(model, "last_learning_check", None))
+            for row in dlRows[before:]:
+                row["variant"], row["parent"] = rowVariants.MEMORISE, displayName
+            print(f"{rowName}: {time.time() - started:.0f}s")
+        except Exception as e:
+            print(f"Failed to perform {rowName} prediction: ", e)
+        if onModelDone is not None:
+            try:
+                onModelDone(dlRows)
+            except Exception as e:
+                print("Could not checkpoint the deep learning rows: ", e)
+    return dlRows
+
+
 def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json_object,
                      years_back, specialColumnCount, skipRows, repoPath, fullAi=True,
                      trainSeconds=None, partialPath=None):
@@ -469,6 +663,9 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
     checkpoint()
 
     if not fullAi:
+        dlRows = runMemoriseDeepLearningRows(
+            dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object, skipRows=skipRows,
+            years_back=years_back, specialColumnCount=specialColumnCount, fullAi=False, onModelDone=checkpoint)
         return predictedSequence, unique_labels, dlRows, anomalyWatch
 
     for modelToUse, useKey, displayName, modelTypeFolder, labelSmoothed in LSTM_ROWS:
@@ -477,40 +674,7 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
             continue
         modelToUse.setDataPath(dataPath)
         modelToUse.setModelPath(os.path.join(repoPath, "data", "models", modelTypeFolder) if modelTypeFolder else modelPath)
-        modelToUse.setApplyLabelSmoothing(labelSmoothed)
-        # Tuned keys are applied when present; a game that HyperoptDeepLearning.py
-        # has never tuned (jokerplus on 2026-09-17: none of the 16 keys) keeps
-        # the LSTMModel defaults instead of taking the whole DL step down with a
-        # KeyError before the TCN/unified rows ran - the same .get() stance the
-        # unified rows have always taken.
-        lstmSetters = [
-            ("batchSize", modelToUse.setBatchSize),
-            ("epochs", modelToUse.setEpochs),
-            ("num_lstm_layers", modelToUse.setNumberOfLSTMLayers),
-            ("lstm_units", modelToUse.setNumberOfLstmUnits),
-            ("num_bidirectional_layers", modelToUse.setNumberOfBidrectionalLayers),
-            ("bidirectional_lstm_units", modelToUse.setNumberOfBidirectionalLstmUnits),
-            ("optimizer_type", modelToUse.setOptimizer),
-            ("learningRate", modelToUse.setLearningRate),
-            ("dropout", modelToUse.setDropout),  # 0.2 - 0.5
-            ("l2Regularization", modelToUse.setL2Regularization),  # 0.0001 - 0.001
-            ("useFinalLSTMLayer", modelToUse.setUseFinalLSTMLayer),
-            ("earlyStopPatience", modelToUse.setEarlyStopPatience),
-            ("reduceLearningRatePatience", modelToUse.setReduceLearningRatePAience),
-            ("reduceLearningRateFactor", modelToUse.setReducedLearningRateFactor),
-            ("windowSize", modelToUse.setWindowSize),  # 50 - 100
-            ("labelSmoothing", modelToUse.setLabelSmoothing),  # in the loss of the LSTM Smoothed Model only
-        ]
-        missingKeys = [key for key, _ in lstmSetters if key not in bestParams_json_object]
-        if missingKeys:
-            print(f"{displayName} for {name}: {len(missingKeys)} untuned key(s) ({', '.join(missingKeys[:4])}"
-                  f"{', ...' if len(missingKeys) > 4 else ''}) - using the model defaults; "
-                  f"tune with HyperoptDeepLearning.py -g {name} --models lstm_model")
-        for key, setter in lstmSetters:
-            if key in bestParams_json_object:
-                setter(bestParams_json_object[key])
-        modelToUse.setPredictionWindowSize(modelToUse.window_size)
-        modelToUse.setTrainSeconds(trainSeconds)
+        configureLstmModel(modelToUse, name, displayName, labelSmoothed, bestParams_json_object, trainSeconds)
 
         # Own try/except (like every other model): the LSTM raising - e.g.
         # training went NaN with no healthy checkpoint (see LSTM.run) - must cost
@@ -539,6 +703,12 @@ def deepLearningStep(name, dataPath, modelPath, skipLastColumns, bestParams_json
         fullAi=fullAi, tier="heavy", trainSeconds=trainSeconds, onModelDone=checkpoint)
     if anomalyWatch is None:
         anomalyWatch = heavyAnomalyWatch
+    checkpoint()
+
+    # the memorise rows last: a deadline kill costs one of them, never a settle row
+    dlRows = runMemoriseDeepLearningRows(
+        dlRows, repoPath, name, dataPath, skipLastColumns, bestParams_json_object, skipRows=skipRows,
+        years_back=years_back, specialColumnCount=specialColumnCount, fullAi=True, onModelDone=checkpoint)
 
     return predictedSequence, unique_labels, dlRows, anomalyWatch
 
@@ -554,7 +724,7 @@ def enabledDlModelCount(bestParams_json_object, fullAi):
     return count
 
 
-def dlChildDeadline(bestParams_json_object, fullAi):
+def dlChildDeadline(bestParams_json_object, fullAi, name=None):
     """
     Seconds the parent waits for the per-day DL child: --dl-timeout when
     given, else auto = enabled models x (--dl-model-seconds +
@@ -569,7 +739,9 @@ def dlChildDeadline(bestParams_json_object, fullAi):
     if not DL_MODEL_SECONDS or DL_MODEL_SECONDS <= 0:
         return None
     count = enabledDlModelCount(bestParams_json_object, fullAi)
-    return count * (float(DL_MODEL_SECONDS) + DL_PER_MODEL_OVERHEAD_SECONDS) + DL_CHILD_STARTUP_SECONDS
+    memorise = enabledMemoriseDlCount(bestParams_json_object, fullAi, name)
+    return (count * (float(DL_MODEL_SECONDS) + DL_PER_MODEL_OVERHEAD_SECONDS)
+            + memorise * (float(DL_MEMORISE_SECONDS or 0) + DL_PER_MODEL_OVERHEAD_SECONDS) + DL_CHILD_STARTUP_SECONDS)
 
 
 def readPartialDlResults(partialPath, name, skipRows):
@@ -636,7 +808,7 @@ def runDeepLearningStepInChild(name, dataPath, modelPath, skipLastColumns, bestP
             except Exception:
                 pass
     partialPath = os.path.join(cacheDir, f"dl_partial_{name}_{os.getpid()}_{time.time_ns()}.json")
-    deadline = dlChildDeadline(bestParams_json_object, fullAi)
+    deadline = dlChildDeadline(bestParams_json_object, fullAi, name)
     trainSeconds = float(DL_MODEL_SECONDS) if DL_MODEL_SECONDS and DL_MODEL_SECONDS > 0 else None
     print(f"Deep learning step for {name}: {enabledDlModelCount(bestParams_json_object, fullAi)} model(s), "
           f"{'no training budget' if trainSeconds is None else f'{trainSeconds:.0f}s training budget per model'}, "
@@ -728,6 +900,7 @@ def process_single_history_entry_second_step(args):
            skipRows=(len(historyData)-historyIndex), skipLastColumns=skipLastColumns)
 
     
+    heldVariants = holdVariantRows(listOfDecodedPredictions)
     current_json_object["newPrediction"] = listOfDecodedPredictions
     stampTicket(current_json_object)
     current_json_object["labels"] = unique_labels
@@ -748,6 +921,8 @@ def process_single_history_entry_second_step(args):
                           # of the special columns - drop both.
                           fallbackDrawSize=len(historyResult) - specialColumnCount - skipLastColumns,
                           cutoffDate=historyDate)
+    current_json_object["newPrediction"].extend(heldVariants)
+    addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object)
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile, indent=2)
@@ -926,6 +1101,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                         listOfDecodedPredictions = boostingMethod(
                             listOfDecodedPredictions, dataPath, path, name, skipLastColumns=skipLastColumns)
 
+                    heldVariants = holdVariantRows(listOfDecodedPredictions)
                     current_json_object["newPrediction"] = listOfDecodedPredictions
                     stampTicket(current_json_object)
 
@@ -940,6 +1116,8 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
 
                     addRLTicketPrediction(listOfDecodedPredictions, dataPath, path, name,
                                           SPECIAL_COLUMN_COUNTS.get(name, 0), bestParams_json_object)
+                    current_json_object["newPrediction"].extend(heldVariants)
+                    addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object)
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile, indent=2)
@@ -1517,6 +1695,60 @@ def lightDlModelsEnabled(bestParams_json_object):
         if not modelDefaults.get("requiresFullAi", True))
 
 
+def configureUnifiedModel(model, prefix, modelDefaults, bestParams_json_object, trainSeconds=None):
+    """A UNIFIED_DL_MODELS row's tuned keys (bestParams "<prefix>_<key>", the defaults when absent) and budget."""
+    model.setBatchSize(bestParams_json_object.get(f"{prefix}_batchSize", 16))
+    model.setEpochs(bestParams_json_object.get(f"{prefix}_epochs", 1000))
+    # Architecture-specific setters are all hasattr-guarded: the
+    # registry mixes TCN-, LSTM-, attention-, graph- and
+    # autoencoder-shaped models, and an unconditional call to a
+    # setter a model doesn't have would land in this try/except and
+    # silently cost that model's row for the day.
+    if hasattr(model, "setLstmUnits"):
+        model.setLstmUnits(bestParams_json_object.get(f"{prefix}_lstmUnits", 64))
+    if hasattr(model, "setTcnUnits"):
+        model.setTcnUnits(bestParams_json_object.get(f"{prefix}_tcnUnits", 64))
+    if hasattr(model, "setNumTcnLayers"):
+        model.setNumTcnLayers(bestParams_json_object.get(f"{prefix}_numTcnLayers", 2))
+    if hasattr(model, "setGruUnits"):
+        model.setGruUnits(bestParams_json_object.get(f"{prefix}_gruUnits", 64))
+    if hasattr(model, "setDModel"):
+        model.setDModel(bestParams_json_object.get(f"{prefix}_dModel", 64))
+    if hasattr(model, "setNumLayers"):
+        model.setNumLayers(bestParams_json_object.get(f"{prefix}_numLayers", 2))
+    if hasattr(model, "setFfnFactor"):
+        model.setFfnFactor(bestParams_json_object.get(f"{prefix}_ffnFactor", 4))
+    if hasattr(model, "setGcnUnits"):
+        model.setGcnUnits(bestParams_json_object.get(f"{prefix}_gcnUnits", 32))
+    if hasattr(model, "setNumGcnLayers"):
+        model.setNumGcnLayers(bestParams_json_object.get(f"{prefix}_numGcnLayers", 2))
+    if hasattr(model, "setEmbeddingDim"):
+        model.setEmbeddingDim(bestParams_json_object.get(f"{prefix}_embeddingDim", 16))
+    if hasattr(model, "setDecay"):
+        model.setDecay(bestParams_json_object.get(f"{prefix}_decay", 0.999))
+    if hasattr(model, "setLatentDim"):
+        model.setLatentDim(bestParams_json_object.get(f"{prefix}_latentDim", 16))
+    if hasattr(model, "setEncoderUnits"):
+        model.setEncoderUnits(bestParams_json_object.get(f"{prefix}_encoderUnits", 64))
+    if hasattr(model, "setNumEncoderLayers"):
+        model.setNumEncoderLayers(bestParams_json_object.get(f"{prefix}_numEncoderLayers", 2))
+    model.setDropout(bestParams_json_object.get(f"{prefix}_dropout", modelDefaults.get("dropout", 0.3)))
+    model.setL2Regularization(bestParams_json_object.get(f"{prefix}_l2Regularization", 0.0005))
+    model.setLearningRate(bestParams_json_object.get(f"{prefix}_learningRate", 0.001))
+    model.setEarlyStopPatience(bestParams_json_object.get(f"{prefix}_earlyStopPatience", 20))
+    model.setReduceLearningRatePatience(bestParams_json_object.get(f"{prefix}_reduceLearningRatePatience", 5))
+    model.setReducedLearningRateFactor(bestParams_json_object.get(f"{prefix}_reduceLearningRateFactor", 0.5))
+    model.setWindowSize(bestParams_json_object.get(f"{prefix}_windowSize", modelDefaults.get("windowSize", 20)))
+    model.setPredictionWindowSize(model.window_size)
+    model.setLabelSmoothing(bestParams_json_object.get(f"{prefix}_labelSmoothing", modelDefaults.get("labelSmoothing", 0.05)))
+    if hasattr(model, "setNumHeads"):
+        model.setNumHeads(bestParams_json_object.get(f"{prefix}_numHeads", 4))
+    if hasattr(model, "setKeyDim"):
+        model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
+    if hasattr(model, "setTrainSeconds"):
+        model.setTrainSeconds(trainSeconds)
+
+
 def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath, skipLastColumns,
                                   bestParams_json_object, skipRows=0, years_back=None, specialColumnCount=0,
                                   fullAi=True, tier=None, trainSeconds=None, onModelDone=None):
@@ -1552,56 +1784,7 @@ def runUnifiedDeepLearningModels(listOfDecodedPredictions, path, name, dataPath,
             model.setDataPath(dataPath)
             model.setModelPath(modelPath)
             model.setLoadModelWeights(True)
-            model.setBatchSize(bestParams_json_object.get(f"{prefix}_batchSize", 16))
-            model.setEpochs(bestParams_json_object.get(f"{prefix}_epochs", 1000))
-            # Architecture-specific setters are all hasattr-guarded: the
-            # registry mixes TCN-, LSTM-, attention-, graph- and
-            # autoencoder-shaped models, and an unconditional call to a
-            # setter a model doesn't have would land in this try/except and
-            # silently cost that model's row for the day.
-            if hasattr(model, "setLstmUnits"):
-                model.setLstmUnits(bestParams_json_object.get(f"{prefix}_lstmUnits", 64))
-            if hasattr(model, "setTcnUnits"):
-                model.setTcnUnits(bestParams_json_object.get(f"{prefix}_tcnUnits", 64))
-            if hasattr(model, "setNumTcnLayers"):
-                model.setNumTcnLayers(bestParams_json_object.get(f"{prefix}_numTcnLayers", 2))
-            if hasattr(model, "setGruUnits"):
-                model.setGruUnits(bestParams_json_object.get(f"{prefix}_gruUnits", 64))
-            if hasattr(model, "setDModel"):
-                model.setDModel(bestParams_json_object.get(f"{prefix}_dModel", 64))
-            if hasattr(model, "setNumLayers"):
-                model.setNumLayers(bestParams_json_object.get(f"{prefix}_numLayers", 2))
-            if hasattr(model, "setFfnFactor"):
-                model.setFfnFactor(bestParams_json_object.get(f"{prefix}_ffnFactor", 4))
-            if hasattr(model, "setGcnUnits"):
-                model.setGcnUnits(bestParams_json_object.get(f"{prefix}_gcnUnits", 32))
-            if hasattr(model, "setNumGcnLayers"):
-                model.setNumGcnLayers(bestParams_json_object.get(f"{prefix}_numGcnLayers", 2))
-            if hasattr(model, "setEmbeddingDim"):
-                model.setEmbeddingDim(bestParams_json_object.get(f"{prefix}_embeddingDim", 16))
-            if hasattr(model, "setDecay"):
-                model.setDecay(bestParams_json_object.get(f"{prefix}_decay", 0.999))
-            if hasattr(model, "setLatentDim"):
-                model.setLatentDim(bestParams_json_object.get(f"{prefix}_latentDim", 16))
-            if hasattr(model, "setEncoderUnits"):
-                model.setEncoderUnits(bestParams_json_object.get(f"{prefix}_encoderUnits", 64))
-            if hasattr(model, "setNumEncoderLayers"):
-                model.setNumEncoderLayers(bestParams_json_object.get(f"{prefix}_numEncoderLayers", 2))
-            model.setDropout(bestParams_json_object.get(f"{prefix}_dropout", modelDefaults.get("dropout", 0.3)))
-            model.setL2Regularization(bestParams_json_object.get(f"{prefix}_l2Regularization", 0.0005))
-            model.setLearningRate(bestParams_json_object.get(f"{prefix}_learningRate", 0.001))
-            model.setEarlyStopPatience(bestParams_json_object.get(f"{prefix}_earlyStopPatience", 20))
-            model.setReduceLearningRatePatience(bestParams_json_object.get(f"{prefix}_reduceLearningRatePatience", 5))
-            model.setReducedLearningRateFactor(bestParams_json_object.get(f"{prefix}_reduceLearningRateFactor", 0.5))
-            model.setWindowSize(bestParams_json_object.get(f"{prefix}_windowSize", modelDefaults.get("windowSize", 20)))
-            model.setPredictionWindowSize(model.window_size)
-            model.setLabelSmoothing(bestParams_json_object.get(f"{prefix}_labelSmoothing", modelDefaults.get("labelSmoothing", 0.05)))
-            if hasattr(model, "setNumHeads"):
-                model.setNumHeads(bestParams_json_object.get(f"{prefix}_numHeads", 4))
-            if hasattr(model, "setKeyDim"):
-                model.setKeyDim(bestParams_json_object.get(f"{prefix}_keyDim", 32))
-            if hasattr(model, "setTrainSeconds"):
-                model.setTrainSeconds(trainSeconds)
+            configureUnifiedModel(model, prefix, modelDefaults, bestParams_json_object, trainSeconds)
 
             latest_raw_predictions, unique_labels = model.run(
                 name, skipLastColumns, skipRows=skipRows, years_back=years_back, specialColumnCount=specialColumnCount)
@@ -1668,6 +1851,64 @@ def marketRowsFor(name, dataPath, path, bestParams_json_object):
                                                       state_dir=os.path.join(path, "data", "models", name),
                                                       regime_log=os.path.join(path, "data", "markets", f"{name}-regimes.json"))
     return _marketRowCache["rows"]
+
+
+# The statistical memorise rows (owner, 8 Nov 2026; src/RowVariants.py): the row's own configured model on the last
+# MEMORISE_WINDOW_DRAWS draws only, with nothing that pulls it back to the long-run counts - alpha 1 (the transitions
+# alone, no blend with the frequencies), every transition kept (min occurrences 1), no smoothing. It chases the
+# latest draws, the statistical counterpart of a network fitting its training draws.
+MEMORISE_WINDOW_DRAWS = 30
+
+
+def statisticalMemoriseModels():
+    return [("Markov Model", markov), ("MarkovMonteCarlo Model", markovMonteCarlo), ("MarkovBayesian Model", markovBayesian),
+            ("MarkovBayesianEnhanched Model", markovBayesianEnhanced), ("PoissonMonteCarlo Model", poissonMonteCarlo),
+            ("PoissonMarkov Model", poissonMarkov), ("LaplaceMonteCarlo Model", laplaceMonteCarlo)]
+
+
+def runStatisticalMemoriseRows(rows, name, skipRows, skipLastColumns, specialColumnCount, subsets, bestParams_json_object,
+                               rowScores):
+    """
+    Appends "<row> · Memorise" for each statistical row made today: a copy of the configured model (its caches
+    cleared; the module-level instance keeps its settle state), memorise settings, run inside
+    Helpers.recent_window. Its number scores (computed inside the same window) go into rowScores under the
+    variant's name, so statisticalMethod's ranking loop orders its ticket like any row's; a variant gets no sampled
+    twin of its own (RowVariants.add_sampled_rows). Each row in its own try/except.
+    """
+    if not memoriseRowsEnabled(bestParams_json_object, name):
+        return
+    window = int(bestParams_json_object.get("memoriseWindowDraws", MEMORISE_WINDOW_DRAWS) or MEMORISE_WINDOW_DRAWS)
+    present = {row.get("name") for row in rows if isinstance(row, dict)}
+    mainSkip = specialColumnCount if specialColumnCount > 0 else skipLastColumns
+    for rowName, instance in statisticalMemoriseModels():
+        if rowName not in present:
+            continue
+        variantName = rowVariants.variant_name(rowName, rowVariants.MEMORISE)
+        try:
+            model = copy.deepcopy(instance)
+            targets = [model] + ([model.model] if isinstance(model, MarkovMonteCarlo) else [])
+            for target in targets:
+                if hasattr(target, "clear"):
+                    target.clear()
+                if hasattr(target, "setAlpha"):
+                    target.setAlpha(1.0)
+                if hasattr(target, "setMinOccurrences"):
+                    target.setMinOccurrences(1)
+                if hasattr(target, "setSmoothingFactor"):
+                    target.setSmoothingFactor(0.0)
+            with Helpers.recent_window(window):
+                sequence, variantSubsets = helpers.run_model_with_special_column(
+                    model, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns,
+                    specialColumnCount=specialColumnCount)
+                if orderedGame(name) and hasattr(model, "score_numbers"):
+                    try:
+                        rowScores[variantName] = model.score_numbers(skipRows=skipRows, skipLastColumns=mainSkip)
+                    except Exception as e:
+                        print(f"No number ranking for {variantName}: {e}")
+            rows.append({"name": variantName, "predictions": [sequence] + [variantSubsets[k] for k in variantSubsets],
+                         "variant": rowVariants.MEMORISE, "parent": rowName, "memoriseWindowDraws": window})
+        except Exception as e:
+            print(f"Failed to perform {variantName}: ", e)
 
 
 def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, skipLastColumns=0):
@@ -2467,6 +2708,9 @@ def statisticalMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0
         except Exception as e:
             print("Failed to perform Meta-Learner prediction: ", e)
 
+    runStatisticalMemoriseRows(listOfDecodedPredictions, name, skipRows, skipLastColumns, specialColumnCount, subsets,
+                               bestParams_json_object, rowScores)
+
     if orderedGame(name):
         mainSkip = specialColumnCount if specialColumnCount > 0 else skipLastColumns
         rankable = {
@@ -2523,6 +2767,56 @@ BOOSTING_MODELS = [
     (CatBoostPredictor(), "catBoost", "CatBoost Model", "useCatBoost", False),
     (CatBoostMultiLabelPredictor(), "catBoostMl", "CatBoostMultiLabel Model", "useCatBoostMultiLabel", True),
 ]
+
+
+# The boosting memorise rows (owner, 8 Nov 2026; src/RowVariants.py): the row's tuned parameters with deep,
+# unregularised trees - no minimum child weight, no L2, every row and column, a high learning rate and many
+# rounds - so the ensemble fits its training draws instead of stopping at the counts. CatBoost's are off by
+# default (bestParams "memoriseCatBoost"): depth is its real cost knob (a keno multi-label fit at the tuned depth
+# took ~17 minutes) and depth 8 every day would cost hours.
+MEMORISE_BOOSTING = {"setMaxDepth": 8, "setEstimators": 300, "setLearningRate": 0.3, "setMinChildWeight": 0.0,
+                     "setRegLambda": 0.0, "setSubsample": 1.0, "setColsampleByTree": 1.0}
+
+
+def boostingMemoriseEnabled(prefix, bestParams_json_object, name):
+    if not memoriseRowsEnabled(bestParams_json_object, name):
+        return False
+    if prefix.lower().startswith("catboost"):
+        return bool(bestParams_json_object.get("memoriseCatBoost", False))
+    return True
+
+
+def runBoostingMemoriseRow(model, prefix, displayName, rows, dataPath, path, name, bestParams_json_object, subsets,
+                           skipRows, skipLastColumns, specialColumnCount, isPositional):
+    """"<row> · Memorise" for one boosting row: a fresh instance (its own empty fit cache, nothing saved), the tuned
+    parameters, then MEMORISE_BOOSTING."""
+    variantName = rowVariants.variant_name(displayName, rowVariants.MEMORISE)
+    started = time.time()
+    try:
+        fresh = type(model)()
+        apply_boosting_params(fresh, bestParams_json_object, prefix)
+        for setter, value in MEMORISE_BOOSTING.items():
+            getattr(fresh, setter)(value)
+        fresh.setDataPath(dataPath)
+        fresh.setModelPath(os.path.join(path, "data", "models", f"{prefix.lower()}_{name}_memorise_models"))
+        fresh.setSortedPrediction(not isPositional)
+        fresh.setNumThreads(1)
+        fresh.setSaveModels(False)
+        sequence, modelSubsets = helpers.run_model_with_special_column(
+            fresh, generateSubsets=subsets, skipRows=skipRows, skipLastColumns=skipLastColumns,
+            specialColumnCount=specialColumnCount)
+        row = {"name": variantName, "predictions": [sequence] + [modelSubsets[k] for k in modelSubsets],
+               "variant": rowVariants.MEMORISE, "parent": displayName}
+        if orderedGame(name):
+            try:
+                applyMultiPick(name, row, fresh.score_numbers(
+                    skipRows=skipRows, skipLastColumns=specialColumnCount if specialColumnCount > 0 else skipLastColumns))
+            except Exception as e:
+                print(f"No multi-pick for {variantName}: {e}")
+        rows.append(row)
+        print(f"{variantName}: {time.time() - started:.0f}s")
+    except Exception as e:
+        print(f"Failed to perform {variantName}: ", e)
 
 
 def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, skipLastColumns=0):
@@ -2619,6 +2913,12 @@ def boostingMethod(listOfDecodedPredictions, dataPath, path, name, skipRows=0, s
             listOfDecodedPredictions.append(prediction)
         except Exception as e:
             print(f"Failed to perform {displayName}: ", e)
+            continue
+
+        if boostingMemoriseEnabled(prefix, bestParams_json_object, name):
+            runBoostingMemoriseRow(model, prefix, displayName, listOfDecodedPredictions, dataPath, path, name,
+                                   bestParams_json_object, subsets, skipRows, skipLastColumns, specialColumnCount,
+                                   isPositional)
 
     return listOfDecodedPredictions
 

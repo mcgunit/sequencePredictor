@@ -15,8 +15,8 @@ export const GAME_TITLES: Record<string, string> = {
   keno: 'Keno',
   crypto: 'Crypto day',
   cryptoweek: 'Crypto week',
-  shares: 'Shares day',
-  sharesweek: 'Shares week',
+  shares: 'Stocks day',
+  sharesweek: 'Stocks week',
 };
 export const gameTitle = (game: string) => GAME_TITLES[game] ?? game;
 

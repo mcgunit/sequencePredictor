@@ -8,7 +8,7 @@ import { readTheme, setTheme, type ThemeChoice } from '../theme';
 const NARROW = '(max-width: 860px)';
 
 // The menu as data: every item is a route of this app. The users see the five top items (Home, Lottery,
-// Crypto, Shares, Council: the slim app of 21-23 Oct 2026), and in the footer their account, What's new and Sign out;
+// Crypto, Stocks, Council: the slim app of 21-23 Oct 2026), and in the footer their account, What's new and Sign out;
 // the administrator the same and also This week (with its status dot) and the three groups, What's new among the
 // System items.
 interface Item {
@@ -27,7 +27,7 @@ const USER_ITEMS: Item[] = [
   { label: 'Home', to: '/' },
   { label: 'Lottery', to: '/lottery', prefix: true },
   { label: 'Crypto', to: '/crypto' },
-  { label: 'Shares', to: '/shares' },
+  { label: 'Stocks', to: '/shares' },
   { label: 'Council', to: '/council' },
 ];
 
@@ -52,7 +52,7 @@ const ADMIN_GROUPS: Group[] = [
       { label: 'Games in detail', to: '/admin/games', prefix: true },
       // the market workbench, one item per market (owner 31 Oct 2026: the one line with two small links was unclear)
       { label: 'Crypto workbench', to: '/admin/markets/crypto' },
-      { label: 'Shares workbench', to: '/admin/markets/shares' },
+      { label: 'Stocks workbench', to: '/admin/markets/shares' },
     ],
   },
   {
@@ -70,7 +70,7 @@ const HERE: [string, string][] = [
   ['/lottery', 'Lottery'],
   ['/council', 'Council'],
   ['/crypto', 'Crypto'],
-  ['/shares', 'Shares'],
+  ['/shares', 'Stocks'],
   ['/admin/tuning', 'Tuning gates'],
   ['/admin/controls', 'Controls'],
   ['/admin/models', 'Models'],
@@ -80,7 +80,7 @@ const HERE: [string, string][] = [
   ['/admin/people', 'People'],
   ['/admin/games', 'Games in detail'],
   ['/admin/markets/crypto', 'Crypto workbench'],
-  ['/admin/markets/shares', 'Shares workbench'],
+  ['/admin/markets/shares', 'Stocks workbench'],
   ['/admin', 'This week'],
   ['/account', 'Account'],
   ['/whats-new', "What's new"],

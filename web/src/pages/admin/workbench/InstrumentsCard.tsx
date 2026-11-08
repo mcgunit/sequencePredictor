@@ -254,7 +254,7 @@ export default function InstrumentsCard({ w }: { w: Workbench }) {
   return (
     <Card
       id="instruments"
-      title={w.noun === 'coin' ? 'Coins' : 'Shares'}
+      title={w.noun === 'coin' ? 'Coins' : 'Stocks'}
       help="A call is scored close to close: right when the close lands in the band, whatever happened in between. The model drawn by default has the best exact rate over the scored days; Today's plan follows the best book instead, so the two can differ."
       meta={[`${list.length} ${w.noun}s`, w.calendar]}
     >

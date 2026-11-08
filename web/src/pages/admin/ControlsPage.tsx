@@ -615,7 +615,7 @@ function RowsCard({ d, onOpen }: { d: ControlsView; onOpen: (g: string) => void 
           interval. A row beats {reference} only when the whole interval is above zero. Beating uniform can be no more than knowing which bins the period
           favoured, so each row is also held against the frequencies - each instrument&apos;s bins as often as they came up before the day - and is credited
           only when it beats those too. The last column shows {reference} itself against uniform and against the frequencies. Window: the
-          days (trading days for shares, weeks for the week games) scored; the lockbox days were withheld from those asked for. Profit and loss is left out: it
+          days (trading days for stocks, weeks for the week games) scored; the lockbox days were withheld from those asked for. Profit and loss is left out: it
           is in price units, unlike every other figure here.
         </>
       }

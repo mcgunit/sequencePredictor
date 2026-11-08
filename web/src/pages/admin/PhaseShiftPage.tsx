@@ -11,7 +11,7 @@ import { Failed, Loading, PageHead } from '../../components/admin/States';
 import { isMarketGame, units } from './bits';
 
 // Whose top five a game's are: a lottery game's are the rows its users see today; a market game's are the first
-// five of its History game view, while the users' Crypto and Shares pages follow one row by best book (topWhose).
+// five of its History game view, while the users' Crypto and Stocks pages follow one row by best book (topWhose).
 const topLabel = (game: string) => (isMarketGame(game) ? 'History top 5' : 'top 5');
 
 // /admin/phase-shift: the old "Phase-shift check (tracked peaks)" card. Per game a collapsible card with each
@@ -211,7 +211,7 @@ function GameRows({ game, unit, scope, onRow }: { game: string; unit: string; sc
               ? ' (History top 5)'
               : ' (the users’ top 5)'
             : isMarketGame(game)
-              ? ' · tagged: the History top 5, not the users’ rows (their Crypto and Shares pages follow one row by best book)'
+              ? ' · tagged: the History top 5, not the users’ rows (their Crypto and Stocks pages follow one row by best book)'
               : ' · tagged: the users’ top 5'}
           {d.scope === 'top' && d.topMissing.length ? ` · ${d.topMissing.length} of the top 5 ${d.topMissing.length === 1 ? 'has' : 'have'} no lag record: ${d.topMissing.map(short).join(', ')}` : ''} · in
           ranking order · lags in {units(unit)} · up to {d.meta.runsKept ?? DASH} runs kept

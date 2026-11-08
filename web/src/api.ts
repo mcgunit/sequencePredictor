@@ -394,7 +394,7 @@ export function isMarket(s: string | undefined): s is Market {
   return s === 'crypto' || s === 'shares';
 }
 
-export const TITLES: Record<Market, string> = { crypto: 'Crypto', shares: 'Shares' };
+export const TITLES: Record<Market, string> = { crypto: 'Crypto', shares: 'Stocks' };
 
 export async function getMe(): Promise<Me> {
   const me = await getJson<Partial<Me> | null>('/api/me');
@@ -429,7 +429,7 @@ function normalize(raw: Partial<MarketView> | null | undefined, market: Market):
     market: isMarket(r.market) ? r.market : market,
     title: str(r.title, TITLES[market]),
     unit: str(r.unit),
-    noun: str(r.noun, market === 'crypto' ? 'coin' : 'share'),
+    noun: str(r.noun, market === 'crypto' ? 'coin' : 'stock'),
     instruments: arr(r.instruments).filter((x): x is string => typeof x === 'string'),
     generatedAt: typeof r.generatedAt === 'string' ? r.generatedAt : null,
     now: str(r.now, new Date().toISOString()),
@@ -908,10 +908,10 @@ export interface BestModel {
   recovered: number | null;
   chance: Q0Line | null; // its Q0 row test (null: not tested)
 }
-// a market game: the row its users' page (Crypto, Shares) follows, by best book - not the History top five
+// a market game: the row its users' page (Crypto, Stocks) follows, by best book - not the History top five
 export interface Follows {
   row: string;
-  page: string; // 'Crypto' | 'Shares'
+  page: string; // 'Crypto' | 'Stocks'
   book: string; // 'daily' | 'week'
   byBook: boolean; // false: no book long enough yet, the best exact rate stands in
   rule: string; // the book's rule, 'daily round trip', 'open to close' ...
