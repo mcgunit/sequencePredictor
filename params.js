@@ -259,9 +259,9 @@ function checkValue(t, value) {
   return { value };
 }
 
-// When the change is used: the game's next predictor run (jobs.js: crypto 00:05 UTC, the lottery games 00:30 UTC,
+// When the change is used: the game's next predictor run (jobs.js: crypto 00:05 UTC, the lottery games 06:00 Brussels,
 // the stocks 18:05 Brussels on weekdays).
-const nextRun = (game) => (game.startsWith('crypto') ? 'the next crypto run (00:05 UTC)' : game.startsWith('shares') ? 'the next stocks run (18:05, Monday to Friday)' : 'the next lottery run (00:30 UTC)');
+const nextRun = (game) => (game.startsWith('crypto') ? 'the next crypto run (00:05 UTC)' : game.startsWith('shares') ? 'the next stocks run (18:05, Monday to Friday)' : 'the next lottery run (06:00)');
 const retrainText = (game, rows) => (rows.length
   ? ` ${rows.map((r) => r.replace(/ Model$/, '')).join(', ')} ${rows.length === 1 ? 'trains' : 'train'} from new weights on ${nextRun(game)}, so that run takes longer than usual.`
   : '');

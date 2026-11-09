@@ -96,20 +96,21 @@ const CONTROLS_PLAN = 'weeklyControls';
 const PLANS = {
   [CHAIN_PLAN]: {
     name: 'Weekly tuning chain', label: "this week's tuning chain",
-    weekday: 6, anchorHour: 3,                       // Saturday, after its night predictor's slot (00:30 UTC)
-    catchUpAfterMs: 20 * 3600 * 1000,                // Saturday 23:00
-    catchUpUntilMs: 54 * 3600 * 1000,                // Monday 09:00
+    weekday: 6, anchorHour: 6,                       // Saturday, its lottery predictor's slot (06:00; 03:00 from 8 to 9 Nov 2026)
+    catchUpAfterMs: 17 * 3600 * 1000,                // Saturday 23:00
+    catchUpUntilMs: 51 * 3600 * 1000,                // Monday 09:00
   },
   [CONTROLS_PLAN]: {
     name: 'Weekly control experiments', label: "this week's control experiments",
-    weekday: 0, anchorHour: 3,                       // Sunday, after its night predictor's slot (00:30 UTC)
-    catchUpAfterMs: 20 * 3600 * 1000,                // Sunday 23:00
-    catchUpUntilMs: 54 * 3600 * 1000,                // Tuesday 09:00
+    weekday: 0, anchorHour: 6,                       // Sunday, its lottery predictor's slot (06:00; 03:00 from 8 to 9 Nov 2026)
+    catchUpAfterMs: 17 * 3600 * 1000,                // Sunday 23:00
+    catchUpUntilMs: 51 * 3600 * 1000,                // Tuesday 09:00
   },
 };
 
 // The games of the three daily runs (Predictor.py -g), the owner's schedule of 8 Nov 2026: crypto right after its UTC
-// day closes, the lottery games behind it in the night, the shares in the evening once Euronext's day is complete.
+// day closes, the lottery games in the early morning (06:00 Brussels since 9 Nov 2026: at 00:30 UTC the Nationale
+// Loterij API answered every game with an empty reply), the shares in the evening once Euronext's day is complete.
 const CRYPTO_GAMES = 'crypto,cryptoweek';
 const NIGHT_GAMES = 'euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto';
 const EVENING_GAMES = 'shares,sharesweek';
@@ -131,19 +132,20 @@ const JOBS = [
   },
   {
     key: 'predictor',
-    name: 'Night predictor: lottery games',
+    name: 'Morning predictor: lottery games',
     description: "The next draw's predictions for the seven lottery games, deep learning rows included and time-boxed "
-               + '(Predictor.py -a true), at 00:30 UTC (01:30 Brussels in winter, 02:30 in summer) - behind the crypto run, whose '
-               + 'lock it waits for. Every draw\'s results are published within about two and a half hours of it (the latest around '
-               + '22:30 Brussels), so the night has them all. Its finishing starts the Saturday tuning chain and the Sunday controls. '
-               + 'At 09:00 Brussels until 8 Nov 2026.',
+               + '(Predictor.py -a true), at 06:00 Brussels, usually done by about 08:00 - well before the first sales close '
+               + '(13:00 on Sundays for Keno, Pick3 and Joker+). Every draw\'s results are published within about two and a half '
+               + 'hours of it, but on the first night run (00:30 UTC, 9 Nov 2026) the Nationale Loterij API answered every game '
+               + 'with an empty reply. Its finishing starts the Saturday tuning chain and the Sunday controls. '
+               + 'At 09:00 Brussels until 8 Nov 2026, at 00:30 UTC on the night of 8 to 9 Nov.',
     script: 'Predictor.py',
     args: ['-a', 'true', '-g', NIGHT_GAMES],
     log: 'predictor.log',
-    daily: { hour: 0, minute: 30, utc: true },
+    daily: { hour: 6, minute: 0 },
     // How long after its slot a missed run is still worth starting. The box
-    // being down over a night is the case this exists for; past 20 h the
-    // next night's run is close enough to supersede it.
+    // being down over a night is the case this exists for; past 20 h (02:00)
+    // the next morning's run is close enough to supersede it.
     catchUpHours: 20,
   },
   {
@@ -899,7 +901,7 @@ function planTriggerAt(plan, occurrences, now) {
   const spec = PLANS[plan];
   if (now.getDay() !== spec.weekday) return null;
   const anchor = lastWeekdaySlot(now, spec.weekday, spec.anchorHour, 0);
-  // Only a predictor finishing AFTER Saturday's anchor (03:00, after the night slot; 09:00 until 8 Nov 2026) is the
+  // Only a predictor finishing AFTER Saturday's anchor (06:00, its slot; 09:00 until 8 Nov 2026, 03:00 until 9 Nov) is the
   // trigger. Before it - a Friday catch-up run spilling past midnight, a
   // hand-started run at 04:00, a restart finalizing a Friday-evening run -
   // the anchor is LAST Saturday, and firing then would both start a ten-hour

@@ -23,7 +23,7 @@
 // close in the evening: lotto (Wed, Sat 19:00), euromillions (Tue, Fri 20:00), eurodreams (Mon, Thu 20:00),
 // vikinglotto (Wed 18:00), keno, pick3 and Joker+ on the other days (19:00 or 20:00); a crypto day closes at 00:00
 // UTC (02:00 Brussels in summer, 01:00 in winter), a share session at 17:30 Brussels (Euronext since 31 Oct 2026,
-// 14:00 on its half days; New York's 16:00 before, never before 19:00 Brussels). The daily run started at 09:00 Brussels until 8 Nov 2026 (since then at 00:30 UTC, crypto at 00:05 UTC) and its commit had landed by 12:36
+// 14:00 on its half days; New York's 16:00 before, never before 19:00 Brussels). The daily run started at 09:00 Brussels until 8 Nov 2026 (00:30 UTC on 9 Nov, 06:00 since; crypto at 00:05 UTC) and its commit had landed by 12:36
 // Brussels on every day of the history (3 Sep). A hand run in the afternoon or evening (25 Aug, 2, 7, 8 and 10 Sep)
 // counts from the next draw on: it may hold that day's own result, so 15:00 keeps it out even where it came before
 // the draw. A run later than the cut-off on a normal day means that day's draw is read on the day before's version -

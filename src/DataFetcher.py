@@ -87,6 +87,32 @@ class DataFetcher():
             # File doesn't exist, so fetch data for the last 6 days
             return int(datetime.now().timestamp() - (30 * 24 * 3600)) * 1000
 
+    # A failed answer is tried again before the caller falls back to the CSV on disk: on 9 Nov 2026, at 00:30 UTC, the
+    # API answered every game with a reply that was not JSON, and the day's lottery predictions were skipped (the run
+    # moved to 06:00 Brussels). Each failure is logged with its HTTP status and the start of the reply, so the next one
+    # says what the API sent. RETRY_WAITS: the seconds before the second and third attempt.
+    RETRY_WAITS = (30, 120)
+
+    def fetch_json(self, url, headers, game, sleep=time.sleep, get=None):
+        get = get or requests.get
+        waits = list(self.RETRY_WAITS)
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                response = get(url=url, headers=headers, timeout=(10, 120))
+                try:
+                    return response.json()
+                except ValueError as e:
+                    body = (getattr(response, "text", "") or "")[:160].replace("\n", " ")
+                    raise ValueError(f"HTTP {getattr(response, 'status_code', '?')}, not JSON ({e}): {body!r}")
+            except Exception as e:
+                if not waits:
+                    raise
+                wait = waits.pop(0)
+                print(f"Data fetch for {game} failed (attempt {attempt}): {e} - trying again in {wait} s")
+                sleep(wait)
+
     def getLatestData(self, game, filePath, dryRun=False):
         if not game:
             # game-names= empty answers with EVERY game's draws, which would
@@ -111,10 +137,7 @@ class DataFetcher():
         # indefinitely (observed 2026-09-08: a tuning run sat 9+ minutes in
         # this call). A timeout raises, and every caller falls back to the
         # CSV already on disk.
-        response = requests.get(url=url, headers=headers, timeout=(10, 120))
-        
-        #print("response: ", response.json())
-        data = response.json()
+        data = self.fetch_json(url, headers, game)
         
         draws = data.get("draws", [])
 

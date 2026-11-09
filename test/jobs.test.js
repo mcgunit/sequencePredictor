@@ -27,8 +27,8 @@ const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
 ok(jobs.JOBS.length === 15, 'fifteen jobs: the night crypto and lottery runs, the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
 ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto',
   'the lottery job is Predictor.py -a true as runPredictor.sh had it, for the seven lottery games (8 Nov 2026)');
-ok(byKey.predictor.daily.hour === 0 && byKey.predictor.daily.minute === 30 && byKey.predictor.daily.utc === true,
-  'the lottery predictor runs at 00:30 UTC (the owner\'s schedule of 8 Nov 2026; 09:00 Brussels until then)');
+ok(byKey.predictor.daily.hour === 6 && byKey.predictor.daily.minute === 0 && !byKey.predictor.daily.utc,
+  'the lottery predictor runs at 06:00 Brussels (since 9 Nov 2026; 00:30 UTC on the night before, 09:00 until 8 Nov)');
 ok(byKey.cryptoPredictor.script === 'Predictor.py' && byKey.cryptoPredictor.args.join(' ') === '-a true -g crypto,cryptoweek'
   && byKey.cryptoPredictor.daily.hour === 0 && byKey.cryptoPredictor.daily.minute === 5 && byKey.cryptoPredictor.daily.utc === true && !byKey.cryptoPredictor.daily.weekdays,
   'crypto runs every day at 00:05 UTC, five minutes after its day closes, ahead of the lottery run');
@@ -132,8 +132,8 @@ ok(PLANS[CONTROLS_PLAN].weekday === 0 && PLANS[CHAIN_PLAN].weekday === 6, 'tunin
 ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T10:30:00`)) === `${CONTROLS_PLAN}@2026-W39`,
   "a predictor finishing after Sunday's slot starts this week's controls");
 ok(planTriggerAt(CONTROLS_PLAN, {}, at('2026-09-26T10:30:00')) === null, 'Saturday starts no controls');
-ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T07:30:00`)) === `${CONTROLS_PLAN}@2026-W39`, "Sunday's night predictor finishing in the morning starts the controls");
-ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T02:30:00`)) === null, "a chain-delayed Saturday run finishing before Sunday's 03:00 anchor starts nothing");
+ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T08:00:00`)) === `${CONTROLS_PLAN}@2026-W39`, "Sunday's 06:00 predictor finishing in the morning starts the controls");
+ok(planTriggerAt(CONTROLS_PLAN, {}, at(`${SUN}T05:30:00`)) === null, "a chain-delayed Saturday run finishing before Sunday's 06:00 anchor starts nothing");
 ok(planTriggerAt(CHAIN_PLAN, {}, at(`${SUN}T10:30:00`)) === null, 'Sunday starts no tuning chain');
 ok(planTriggerAt(CONTROLS_PLAN, { [`${CONTROLS_PLAN}@2026-W39`]: { at: 'x' } }, at(`${SUN}T10:30:00`)) === null,
   'controls that already ran this week are not started again');
@@ -146,23 +146,25 @@ ok(dueAt({}, at('2026-09-28T12:00:00')).find((d) => d.plan === CONTROLS_PLAN).oc
 ok(dueAt({}, at('2026-09-28T08:00:00')).map((d) => d.plan).filter((k) => PLANS[k]).join(',') === `${CHAIN_PLAN},${CONTROLS_PLAN}`,
   'when both weekly plans are owed at once the tuning chain is queued first');
 
-// --- the night lottery predictor (00:30 UTC since 8 Nov 2026) ------------------
-// at() is local (Brussels) time: 00:30 UTC is 01:30 in winter (CET) and 02:30 in summer (CEST)
-ok(plans({}, at('2026-11-11T01:30:00')).includes('predictor'), 'due at its slot: 01:30 Brussels in winter');
-ok(reasonFor({}, at('2026-11-11T01:30:00'), 'predictor') === 'schedule 00:30 UTC', 'on time, so not reported as a catch-up, and named in UTC');
-ok(!plans({}, at('2026-11-11T01:29:00')).includes('predictor'), 'nothing is due before the slot');
-ok(plans({}, at('2026-07-15T02:30:00')).includes('predictor') && !plans({}, at('2026-07-15T02:29:00')).includes('predictor'),
-  'in summer the same UTC slot is 02:30 Brussels');
-ok(reasonFor({}, at('2026-11-11T05:00:00'), 'predictor').startsWith('catch-up'), 'three and a half hours late is a catch-up');
-ok(!plans({ 'predictor@2026-11-11': { at: 'x' } }, at('2026-11-11T05:00:00')).includes('predictor'),
+// --- the morning lottery predictor (06:00 Brussels since 9 Nov 2026) -----------
+// at() is local (Brussels) time; the slot is local too, so it is 06:00 in summer and winter alike
+ok(plans({}, at('2026-11-11T06:00:00')).includes('predictor'), 'due at its slot: 06:00 Brussels');
+ok(reasonFor({}, at('2026-11-11T06:00:00'), 'predictor') === 'schedule 06:00', 'on time, so not reported as a catch-up');
+ok(!plans({}, at('2026-11-11T05:59:00')).includes('predictor'), 'nothing is due before the slot');
+ok(plans({}, at('2026-07-15T06:00:00')).includes('predictor') && !plans({}, at('2026-07-15T05:59:00')).includes('predictor'),
+  'in summer the same 06:00 Brussels');
+ok(reasonFor({}, at('2026-11-11T09:30:00'), 'predictor').startsWith('catch-up'), 'three and a half hours late is a catch-up');
+ok(!plans({ 'predictor@2026-11-11': { at: 'x' } }, at('2026-11-11T09:30:00')).includes('predictor'),
   'an occurrence that has been handled is never started twice');
 ok(dueAt({}, at('2026-11-11T20:00:00')).find((d) => d.plan === 'predictor').occurrence === 'predictor@2026-11-11',
-  'a run missed in the night is caught up the same evening, as that day\'s occurrence');
-ok(!plans({}, at('2026-11-11T22:00:00')).includes('predictor'), 'past the 20 h window it is dropped: the next night\'s run supersedes it');
-ok(nextDaily(at('2026-10-24T03:00:00'), byKey.predictor.daily).getTime() === at('2026-10-25T02:30:00').getTime()
-  && nextDaily(at('2026-10-25T12:00:00'), byKey.predictor.daily).getTime() === at('2026-10-26T01:30:00').getTime(),
-  'across the end of summer time (01:00 UTC on 25 Oct 2026) the slot stays 00:30 UTC: 02:30 Brussels that night, 01:30 from the next');
-ok(jobs._internals.nextDueText(byKey.predictor, at('2026-11-11T12:00:00')).endsWith('(daily 00:30 UTC)'), 'and the Jobs page says when it runs');
+  'a run missed in the morning is caught up the same evening, as that day\'s occurrence');
+ok(dueAt({}, at('2026-11-12T01:30:00')).find((d) => d.plan === 'predictor').occurrence === 'predictor@2026-11-11'
+  && !plans({}, at('2026-11-12T02:30:00')).includes('predictor'),
+  'past the 20 h window (02:00 the next night) it is dropped: that morning\'s run supersedes it');
+ok(nextDaily(at('2026-10-24T07:00:00'), byKey.predictor.daily).getTime() === at('2026-10-25T06:00:00').getTime()
+  && nextDaily(at('2026-10-25T12:00:00'), byKey.predictor.daily).getTime() === at('2026-10-26T06:00:00').getTime(),
+  'across the end of summer time (25 Oct 2026) the slot stays 06:00 Brussels');
+ok(jobs._internals.nextDueText(byKey.predictor, at('2026-11-11T12:00:00')).endsWith('(daily 06:00)'), 'and the Jobs page says when it runs');
 
 // --- the night crypto run (8 Nov 2026) ------------------------------------------
 ok(reasonFor({}, at('2026-11-11T01:05:00'), 'cryptoPredictor') === 'schedule 00:05 UTC', 'crypto at 00:05 UTC, 01:05 Brussels in winter');
@@ -171,8 +173,8 @@ ok(plans({}, at('2026-07-15T02:05:00')).includes('cryptoPredictor') && !plans({}
   'in summer at 02:05 Brussels - never before 00:00 UTC, when the day closes');
 ok(plans({}, at('2026-11-14T01:05:00')).includes('cryptoPredictor') && plans({}, at('2026-11-15T01:05:00')).includes('cryptoPredictor'),
   'every day, the weekend included');
-ok(dueAt({}, at('2026-11-11T03:00:00')).map((d) => d.plan).filter((k) => k === 'cryptoPredictor' || k === 'predictor').join() === 'cryptoPredictor,predictor',
-  'after a night the box was down both are owed, crypto queued first');
+ok(dueAt({}, at('2026-11-11T07:00:00')).map((d) => d.plan).filter((k) => k === 'cryptoPredictor' || k === 'predictor').join() === 'cryptoPredictor,predictor',
+  'after a night and morning the box was down both are owed, crypto queued first');
 
 // --- the evening stocks run (31 Oct 2026; 18:05 since 8 Nov 2026) ---------------
 ok(reasonFor({}, at('2026-09-23T18:05:00'), 'sharesPredictor') === 'schedule 18:05', 'a Wednesday evening at 18:05');
@@ -193,9 +195,9 @@ ok(jobs._internals.nextDueText(byKey.sharesPredictor, at('2026-09-25T19:00:00'))
 // Normally started by Saturday's predictor finishing (maybeTriggerChain);
 // dueAt is only the safety net for a week that would otherwise be skipped.
 const SAT = '2026-09-26';                                  // a Saturday
-ok(PLANS[CHAIN_PLAN].anchorHour === 3 && PLANS[CONTROLS_PLAN].anchorHour === 3
-  && lastWeekdaySlot(at(`${SAT}T20:00:00`), 6, 3, 0).getTime() === at(`${SAT}T03:00:00`).getTime(),
-  'the weekly plans are anchored to 03:00, after the night predictor\'s slot that triggers them (09:00 until 8 Nov 2026)');
+ok(PLANS[CHAIN_PLAN].anchorHour === 6 && PLANS[CONTROLS_PLAN].anchorHour === 6
+  && lastWeekdaySlot(at(`${SAT}T20:00:00`), 6, 6, 0).getTime() === at(`${SAT}T06:00:00`).getTime(),
+  'the weekly plans are anchored to 06:00, the lottery predictor\'s slot that triggers them (09:00 until 8 Nov 2026, 03:00 until 9 Nov)');
 ok(!plans({}, at(`${SAT}T22:00:00`)).includes(CHAIN_PLAN), 'no catch-up while Saturday\'s run could still be going');
 ok(plans({}, at(`${SAT}T23:30:00`)).includes(CHAIN_PLAN), 'by Saturday night a chain that never started is caught up');
 ok(plans({}, at('2026-09-27T12:00:00')).includes(CHAIN_PLAN), 'still caught up on Sunday');
@@ -206,17 +208,17 @@ ok(!plans({ [`${CHAIN_PLAN}@2026-W39`]: { at: 'x' } }, at('2026-09-27T12:00:00')
 ok(dueAt({}, at('2026-09-27T12:00:00')).find((d) => d.plan === CHAIN_PLAN).occurrence === `${CHAIN_PLAN}@2026-W39`,
   'Sunday still belongs to the week of the Saturday that anchors it');
 
-// --- the trigger, and why it must not fire before Saturday's 03:00 anchor ------
+// --- the trigger, and why it must not fire before Saturday's 06:00 anchor ------
 // A review of this module found the chain could run twice in one weekend: a
 // Friday catch-up predictor finishing at 04:30 on Saturday anchors to LAST
 // Saturday, so it fired under the previous week's id and left this week's id
 // free for the 23:00 safety net to fire the whole chain again.
 ok(chainTriggerAt({}, at(`${SAT}T10:30:00`)) === `${CHAIN_PLAN}@2026-W39`,
   "a predictor finishing after Saturday's slot starts this week's chain");
-ok(chainTriggerAt({}, at(`${SAT}T07:00:00`)) === `${CHAIN_PLAN}@2026-W39`,
-  "Saturday's night predictor finishing in the morning starts this week's chain");
-ok(chainTriggerAt({}, at(`${SAT}T02:30:00`)) === null,
-  'a run finishing before Saturday 03:00 belongs to no chain - it is Friday\'s run spilling over');
+ok(chainTriggerAt({}, at(`${SAT}T08:00:00`)) === `${CHAIN_PLAN}@2026-W39`,
+  "Saturday's 06:00 predictor finishing in the morning starts this week's chain");
+ok(chainTriggerAt({}, at(`${SAT}T02:30:00`)) === null && chainTriggerAt({}, at(`${SAT}T05:30:00`)) === null,
+  'a run finishing before Saturday 06:00 belongs to no chain - it is Friday\'s run spilling over');
 ok(chainTriggerAt({}, at(`${SAT}T23:59:00`)) === `${CHAIN_PLAN}@2026-W39`,
   'late on Saturday it is still this week');
 ok(chainTriggerAt({ [`${CHAIN_PLAN}@2026-W39`]: { at: 'x' } }, at(`${SAT}T10:30:00`)) === null,

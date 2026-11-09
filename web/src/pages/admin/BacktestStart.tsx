@@ -51,7 +51,7 @@ export default function BacktestStart({
       onCancel={onCancel}
       lines={[
         'The weekend tuner’s own score: each draw predicted from the history before it only. The lockbox draws are backtested but never scored or shown.',
-        'It waits behind every scheduled job and only starts when it can finish before the next scheduled run (crypto 00:05 UTC, lottery 00:30 UTC, stocks 18:05); boosting rows can take an hour or more.',
+        'It waits behind every scheduled job and only starts when it can finish before the next scheduled run (crypto 00:05 UTC, lottery 06:00, stocks 18:05); boosting rows can take an hour or more.',
       ]}
     >
       {!fixedGame || allRows.length > 1 ? (
