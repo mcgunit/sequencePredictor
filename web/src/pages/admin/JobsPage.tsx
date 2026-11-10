@@ -16,6 +16,7 @@ import { GroupRow } from './bits';
 import { JobDrawer, RunLogDrawer } from './JobsDrawers';
 import { MODE_NOTE, MODE_WORD, PLAN_GROUPS, POLL_MS, SERVICE_SHORT, SERVICE_WORD, afterText, basisText, cancelAsk, lockText, runsWindow, serviceAsk, stopAsk, type Ask } from './jobs';
 import { durationText, jobLabel, usualRange, usualText } from './week';
+import WorkersCard from './WorkersCard';
 
 // /admin/jobs: the schedule's health at a glance - the mode, what runs and for how long against its usual, what
 // waits, today's predictor, the Council API, the last failure - and the actions one step away behind a confirmation
@@ -76,6 +77,7 @@ export default function JobsPage() {
       <div className="grid">
         <RunningCard d={d} onAsk={onAsk} onOpenRun={run.open} />
         <CouncilCard d={d} onAsk={onAsk} />
+        <WorkersCard onAsk={onAsk} />
         <ScheduleCard d={d} onOpenJob={job.open} onOpenRun={run.open} />
         <RunsCard d={d} filter={filter} setFilter={setFilter} onOpenRun={run.open} />
       </div>

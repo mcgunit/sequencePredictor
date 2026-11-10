@@ -34,7 +34,7 @@ export default function BacktestStart({
   const [row, setRow] = useState(allRows[0] ?? '');
   const gamesOf = (r: string) => (fixedGame ? [fixedGame] : (table?.[r] ?? GAMES));
   const [game, setGame] = useState(fixedGame ?? gamesOf(allRows[0] ?? '')[0] ?? 'lotto');
-  const limitOf = (r: string): BacktestLimits => limits?.[r] ?? { daysDefault, daysMax, gpu: false };
+  const limitOf = (r: string): BacktestLimits => limits?.[r] ?? { daysDefault, daysMax, gpu: false, where: 'server' };
   const lim = limitOf(row);
   const [days, setDays] = useState(String(limitOf(allRows[0] ?? '').daysDefault));
   const [values, setValues] = useState<'served' | 'tuned'>('served');
@@ -60,10 +60,15 @@ export default function BacktestStart({
               'The deep-learning tuner’s own score: each draw is a retrain on the history before it (240 s of training, as the daily run), scored by how much better than the counts it predicts (0 = no better). The lockbox draws are left out of the score.',
               'It runs on the GPU worker, one at a time, beside the schedule: it does not wait for the scheduled jobs. A few minutes a draw (2 for the LSTM on lotto; the training stops at 240 s).',
             ]
-          : [
-              'The weekend tuner’s own score: each draw predicted from the history before it only. The lockbox draws are backtested but never scored or shown.',
-              'It waits behind every scheduled job and only starts when it can finish before the next scheduled run (crypto 00:05 UTC, lottery 06:00, stocks 18:05); boosting rows can take an hour or more.',
-            ]
+          : lim.where === 'cpu'
+            ? [
+                'The weekend tuner’s own score: each draw predicted from the history before it only. The lockbox draws are backtested but never scored or shown.',
+                'It runs on the DL360, one at a time, beside the schedule (12 hours at most). The DL360 is switched on if it is off (5 to 10 minutes) and switches itself off after its idle minutes. It is about half this server’s speed: boosting rows can take two hours or more.',
+              ]
+            : [
+                'The weekend tuner’s own score: each draw predicted from the history before it only. The lockbox draws are backtested but never scored or shown.',
+                'It waits behind every scheduled job and only starts when it can finish before the next scheduled run (crypto 00:05 UTC, lottery 06:00, stocks 18:05); boosting rows can take an hour or more.',
+              ]
       }
     >
       {!fixedGame || allRows.length > 1 ? (

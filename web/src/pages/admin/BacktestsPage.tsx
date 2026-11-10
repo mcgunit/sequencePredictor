@@ -70,6 +70,13 @@ export default function BacktestsPage() {
         {d.scheduler ? (d.scheduler.budget ? ` (one starting now may take up to ${minutes(d.scheduler.budget)})` : ' (too close to the next scheduled run now: a new one waits until after it)') : ''}.
         Start one from a model&apos;s card on <Link to="/admin/parameters">Parameters</Link> or with New backtest; it shows under Jobs &amp; services while it runs.
       </p>
+      {d.cpu.configured ? (
+        <p className="note">
+          With the DL360 set up ({d.cpu.host ?? 'set up'}{d.cpu.running ? ', one running' : ''}{d.cpu.queued ? `, ${d.cpu.queued} queued` : ''}), the statistical, market and boosting
+          rows run there instead of in the scheduler&apos;s queue: one at a time, beside the schedule, 12 hours at most. It is switched on when it is off (5 to 10
+          minutes) and switches itself off after its idle minutes; see <Link to="/admin/jobs#workers">Jobs &amp; services</Link>.
+        </p>
+      ) : null}
       <p className="note">
         The deep-learning rows run on the GPU worker instead
         {d.gpu.configured ? ` (${d.gpu.host ?? 'set up'}${d.gpu.running ? ', one running' : ''}${d.gpu.queued ? `, ${d.gpu.queued} queued` : ''})` : ' - none is set up on this server (config/workers.json), so they cannot start here'}: one at a
@@ -112,12 +119,13 @@ function StatusCell({ b }: { b: Backtest }) {
       <div className="progress">
         <progress max={p && p.total ? p.total : 1} value={p ? p.done : 0} aria-label={`${p ? p.done : 0} of ${p ? p.total : b.days} draws`} />
         <span className="sub">
-          {p ? `${p.done} of ${p.total} draws · ${minutes(p.seconds)}${p.eta !== null && p.done ? ` · about ${minutes(p.eta)} left` : ''}` : 'starting'}
+          {p ? `${p.done} of ${p.total} draws · ${minutes(p.seconds)}${p.eta !== null && p.done ? ` · about ${minutes(p.eta)} left` : ''}` : b.phase ?? 'starting'}
         </span>
       </div>
     );
   }
-  if (b.status === 'queued') return <span>queued{b.worker === 'gpu' ? ' for the GPU worker' : ''}{b.place ? `, number ${b.place}` : ''}</span>;
+  if (b.status === 'queued' && b.phase) return <span>{b.phase}</span>;
+  if (b.status === 'queued') return <span>queued{b.worker === 'gpu' ? ' for the GPU worker' : b.worker === 'cpu' ? ' for the DL360' : ''}{b.place ? `, number ${b.place}` : ''}</span>;
   return (
     <span>
       <Chip kind={b.status === 'done' ? 'flat' : b.status === 'failed' || b.status === 'ended' ? 'down' : 'dim'}>{b.status}</Chip>
@@ -168,7 +176,7 @@ function BacktestTable({ d, onOpen, onStop }: { d: BacktestList; onOpen: (id: st
                   {short(b.row)}
                 </button>
                 {b.values === 'tuned' ? <span className="sub">tuned values only</span> : b.manual.length ? <span className="sub">with {b.manual.length} manual</span> : null}
-                {b.worker === 'gpu' ? <span className="sub">GPU worker</span> : null}
+                {b.worker === 'gpu' ? <span className="sub">GPU worker</span> : b.worker === 'cpu' ? <span className="sub">DL360</span> : null}
               </td>
               <td data-l="Game">{b.game}</td>
               <td data-l="Draws" className="num">

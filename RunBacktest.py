@@ -272,6 +272,7 @@ def gate_of(tuned, row):
 
 
 def run(record, budget):
+    record.data.pop("phase", None)   # the worker's word while it was starting (worker/remote-backtest.sh)
     req = record.data
     game, row, days, values = req.get("game"), req.get("row"), int(req.get("days") or 0), req.get("values", "served")
     if not 1 <= days <= days_max(row):

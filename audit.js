@@ -38,6 +38,8 @@ const LABELS = {
   'params.released': 'released a manual parameter override',
   'backtest.started': 'started a backtest',
   'backtest.cancelled': 'cancelled or stopped a backtest',
+  'worker.on': 'switched the DL360 on',
+  'worker.off': 'switched the DL360 off',
 };
 
 function clientAddress(req) {

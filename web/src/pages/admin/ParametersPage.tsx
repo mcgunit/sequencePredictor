@@ -342,7 +342,9 @@ function ModelCard({ c, open, onToggle, onAct, onBacktest }: { c: ParamCard; ope
               <span className="mut">
                 {c.backtest.some((r) => c.backtestLimits[r]?.gpu)
                   ? 'with these values over the newest draws (the deep-learning gate’s own score: a retrain per draw, on the GPU worker)'
-                  : 'with these values over the newest draws (the gate’s own score; queued behind the scheduled jobs)'}
+                  : c.backtest.some((r) => c.backtestLimits[r]?.where === 'cpu')
+                    ? 'with these values over the newest draws (the gate’s own score; on the DL360, switched on if it is off)'
+                    : 'with these values over the newest draws (the gate’s own score; queued behind the scheduled jobs)'}
               </span>
             </p>
           ) : null}

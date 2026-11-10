@@ -1,0 +1,7 @@
+# The CPU worker's idle shutdown (worker/idle-shutdown.sh, installed as /usr/local/sbin/sp-worker-idle; docs/operations.md)
+[Unit]
+Description=sequencePredictor worker: switch off when idle after the worker switched this machine on
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sp-worker-idle

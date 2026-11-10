@@ -99,22 +99,25 @@ refused(bt.cancel(root, r3.id, 'carol', jobs), /cancelled, not queued/, 'cancel 
 ok(bt.cancel(root, 'nope', 'x', jobs).status === 404, 'cancel an unknown one: 404');
 
 // --- the deep-learning rows: the GPU worker's queue -----------------------------------------------------------------
-function gpuWorker() {
+function gpuWorker(host = '10.0.0.9', configured = true) {
   const w = { queued: [], current: null, stopped: [], cancelled: [], days: {} };
+  w.config = () => (configured ? { host: `root@${host}` } : null);
   w.queue = (id, by, days) => { w.queued.push(id); w.days[id] = days; return { ok: true, status: 200, message: `Backtest queued for the GPU worker (number ${w.queued.length})` }; };
-  w.backtestState = () => ({ current: w.current, queued: [...w.queued], configured: true, host: '10.0.0.9' });
+  w.backtestState = () => ({ current: w.current, queued: [...w.queued], configured, host });
   w.cancel = (id) => { w.queued = w.queued.filter((x) => x !== id); w.cancelled.push(id); return { ok: true, status: 200, message: 'Backtest removed from the queue' }; };
   w.stopRun = (runId) => { w.stopped.push(runId); return { ok: true, status: 200, message: 'stopping' }; };
   return w;
 }
 const gw = gpuWorker();
+const noCpu = gpuWorker('10.0.0.8', false);
+const W = { lane: (k) => (k === 'gpu' ? gw : noCpu) };
 const t9 = new Date('2026-11-10T09:00:00Z');
-const g1 = bt.start(root, { game: 'keno', row: 'GNN Model' }, 'dora', jobs, t9, gw);
+const g1 = bt.start(root, { game: 'keno', row: 'GNN Model' }, 'dora', jobs, t9, W);
 ok(g1.ok && gw.queued[0] === g1.id && gw.days[g1.id] === 3 && !jobs.queued.includes(g1.id) && /GPU worker/.test(g1.message), `a DL row goes to the GPU worker with 3 draws: ${g1.message}`);
 ok(bt.readRecord(root, g1.id).days === 3, 'its record: 3 draws');
-refused(bt.start(root, { game: 'keno', row: 'GNN Model', days: 31 }, 'dora', jobs, new Date('2026-11-10T09:00:01Z'), gw), /1 to 30/, 'a DL row: 30 draws at most');
-refused(bt.start(root, { game: 'crypto', row: 'LSTM Base Model' }, 'dora', jobs, new Date('2026-11-10T09:00:02Z'), gw), /lottery games/, 'a DL row on a market');
-const g2 = bt.start(root, { game: 'lotto', row: 'LSTM Base Model', days: 30, values: 'tuned' }, 'dora', jobs, new Date('2026-11-10T09:00:03Z'), gw);
+refused(bt.start(root, { game: 'keno', row: 'GNN Model', days: 31 }, 'dora', jobs, new Date('2026-11-10T09:00:01Z'), W), /1 to 30/, 'a DL row: 30 draws at most');
+refused(bt.start(root, { game: 'crypto', row: 'LSTM Base Model' }, 'dora', jobs, new Date('2026-11-10T09:00:02Z'), W), /lottery games/, 'a DL row on a market');
+const g2 = bt.start(root, { game: 'lotto', row: 'LSTM Base Model', days: 30, values: 'tuned' }, 'dora', jobs, new Date('2026-11-10T09:00:03Z'), W);
 ok(g2.ok && gw.days[g2.id] === 30, '30 draws allowed');
 list = bt.list(root, jobs.backtestState(), gw.backtestState());
 const lg1 = list.backtests.find((b) => b.id === g1.id);
@@ -124,11 +127,25 @@ ok(bt.list(root, jobs.backtestState(), null).backtests.find((b) => b.id === g1.i
 gw.current = { id: g1.id, runId: 'gpu-backtest-1' };
 gw.queued = gw.queued.filter((x) => x !== g1.id);
 ok(bt.list(root, jobs.backtestState(), gw.backtestState()).backtests.find((b) => b.id === g1.id).runId === 'gpu-backtest-1', 'the running GPU one carries its run id');
-r = bt.cancel(root, g1.id, 'erin', jobs, gw);
+r = bt.cancel(root, g1.id, 'erin', jobs, W);
 ok(r.ok && gw.stopped[0] === 'gpu-backtest-1' && jobs.stopped.length === 1, 'Stop goes to the GPU worker, not the scheduler');
-r = bt.cancel(root, g2.id, 'erin', jobs, gw);
+r = bt.cancel(root, g2.id, 'erin', jobs, W);
 ok(r.ok && gw.cancelled.includes(g2.id) && bt.readRecord(root, g2.id).status === 'cancelled', 'cancel a queued GPU one');
 ok(bt.cancel(root, g2.id, 'erin', jobs, null).status === 503 || !bt.cancel(root, g2.id, 'erin', jobs, null).ok, 'no GPU worker: cannot cancel there');
+
+// --- with a CPU worker (the DL360): the other rows go there, not to the scheduler -----------------------------------
+const cw = gpuWorker('10.0.0.8', true);
+const W2 = { lane: (k) => (k === 'gpu' ? gw : cw) };
+const before = jobs.queued.length;
+const c1 = bt.start(root, { game: 'lotto', row: 'Markov Model' }, 'finn', jobs, new Date('2026-11-10T10:00:00Z'), W2);
+ok(c1.ok && cw.queued[0] === c1.id && cw.days[c1.id] === 90 && jobs.queued.length === before && /GPU worker|queued/.test(c1.message), `a statistical row goes to the CPU worker with 90 draws: ${c1.message}`);
+ok(bt.readRecord(root, c1.id).worker === 'cpu', 'its record keeps its lane');
+list = bt.list(root, jobs.backtestState(), gw.backtestState(), cw.backtestState());
+ok(list.backtests.find((b) => b.id === c1.id).worker === 'cpu' && list.backtests.find((b) => b.id === c1.id).place === 1 && list.cpu.configured && list.cpu.queued === 1, 'listed in the CPU lane with its place');
+r = bt.cancel(root, c1.id, 'finn', jobs, W2);
+ok(r.ok && cw.cancelled.includes(c1.id), 'cancelled in the CPU lane');
+const s1 = bt.start(root, { game: 'lotto', row: 'Markov Model' }, 'finn', jobs, new Date('2026-11-10T10:00:01Z'), W);
+ok(s1.ok && jobs.queued.includes(s1.id) && bt.readRecord(root, s1.id).worker === 'server', 'no CPU worker: the scheduler, as before');
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log(`backtests.test.js: ${checks} checks passed${py ? '' : ' (python3 not available: the row table was not compared)'}`);

@@ -2661,14 +2661,16 @@ function normParameters(raw: unknown, game: string): ParametersView {
 // --- Admin › Backtests (GET /api/admin/backtests[/:id], backtests.js; RunBacktest.py writes progress and result) -------
 export type BacktestStatus = 'queued' | 'running' | 'done' | 'failed' | 'out of time' | 'stopped' | 'cancelled' | 'ended';
 export type BacktestDay = { date: string | null; hits: number | null; profit: number | null; excess: number | null; verdict: string | null };
-export type BacktestLimits = { daysDefault: number; daysMax: number; gpu: boolean };
+export type BacktestWhere = 'gpu' | 'cpu' | 'server';
+export type BacktestLimits = { daysDefault: number; daysMax: number; gpu: boolean; where: BacktestWhere };
+const whereOf = (v: unknown): BacktestWhere => (v === 'gpu' || v === 'cpu' ? v : 'server');
 function limitsOf(v: unknown): Record<string, BacktestLimits> {
   return Object.fromEntries(
-    Object.entries(o(v)).map(([k, x]) => [k, { daysDefault: num(o(x).daysDefault, 90), daysMax: num(o(x).daysMax, 1000), gpu: bool(o(x).gpu) }]),
+    Object.entries(o(v)).map(([k, x]) => [k, { daysDefault: num(o(x).daysDefault, 90), daysMax: num(o(x).daysMax, 1000), gpu: bool(o(x).gpu), where: whereOf(o(x).where) }]),
   );
 }
 export type Backtest = {
-  id: string; game: string; row: string; days: number; values: 'served' | 'tuned'; by: string; requestedAt: string | null; worker: 'gpu' | 'server';
+  id: string; game: string; row: string; days: number; values: 'served' | 'tuned'; by: string; requestedAt: string | null; worker: BacktestWhere; phase: string | null;
   status: BacktestStatus; place: number | null; runId: string | null; startedAt: string | null; finishedAt: string | null; seconds: number | null;
   error: string | null; progress: { done: number; total: number; seconds: number; eta: number | null } | null;
   manual: { key: string; value: ParamValue; tuned: ParamValue }[];
@@ -2682,6 +2684,7 @@ export type BacktestList = {
   backtests: Backtest[]; rows: Record<string, string[]>; limits: Record<string, BacktestLimits>; daysDefault: number; daysMax: number;
   scheduler: { budget: number; nextSlotSeconds: number; running: string | null; queued: number } | null;
   gpu: { configured: boolean; host: string | null; running: string | null; queued: number };
+  cpu: { configured: boolean; host: string | null; running: string | null; queued: number };
 };
 const BT_STATUS: BacktestStatus[] = ['queued', 'running', 'done', 'failed', 'out of time', 'stopped', 'cancelled', 'ended'];
 function normBacktest(v: unknown): Backtest {
@@ -2690,7 +2693,7 @@ function normBacktest(v: unknown): Backtest {
   const r = has(b.result) ? o(b.result) : null;
   const g = r && has(r.gate) ? o(r.gate) : null;
   return {
-    id: str(b.id), game: str(b.game), row: str(b.row), days: num(b.days, 0), values: b.values === 'tuned' ? 'tuned' : 'served', by: str(b.by), worker: b.worker === 'gpu' ? 'gpu' : 'server',
+    id: str(b.id), game: str(b.game), row: str(b.row), days: num(b.days, 0), values: b.values === 'tuned' ? 'tuned' : 'served', by: str(b.by), worker: whereOf(b.worker), phase: ostr(b.phase),
     requestedAt: ostr(b.requestedAt), status: BT_STATUS.includes(b.status as BacktestStatus) ? (b.status as BacktestStatus) : 'ended',
     place: opt(b.place), runId: ostr(b.runId), startedAt: ostr(b.startedAt), finishedAt: ostr(b.finishedAt), seconds: opt(b.seconds), error: ostr(b.error),
     progress: p ? { done: num(p.done, 0), total: num(p.total, 0), seconds: num(p.seconds, 0), eta: opt(p.eta) } : null,
@@ -2715,6 +2718,34 @@ export const getAdminBacktests = async (): Promise<BacktestList> => {
     daysDefault: num(r.daysDefault, 90), daysMax: num(r.daysMax, 1000),
     scheduler: s ? { budget: num(s.budget, 0), nextSlotSeconds: num(s.nextSlotSeconds, 0), running: ostr(s.running), queued: num(s.queued, 0) } : null,
     gpu: { configured: bool(o(r.gpu).configured), host: ostr(o(r.gpu).host), running: ostr(o(r.gpu).running), queued: num(o(r.gpu).queued, 0) },
+    cpu: { configured: bool(o(r.cpu).configured), host: ostr(o(r.cpu).host), running: ostr(o(r.cpu).running), queued: num(o(r.cpu).queued, 0) },
+  };
+};
+// --- the worker machines (GET /api/admin/workers, workers.js) -------------------------------------------------------
+export type WorkersView = {
+  gpu: { configured: boolean; host: string | null; running: string | null; queued: number };
+  cpu: {
+    configured: boolean; host: string | null; idleMinutes: number; power: 'on' | 'off' | 'unknown'; reachable: boolean | null; woken: boolean;
+    wokenAt: number | null; lastBusy: number | null; readAt: number | null; error: string | null; note: string | null;
+    switching: { action: 'on' | 'off'; by: string; at: number } | null; running: string | null; queued: number;
+  } | null;
+};
+export const getAdminWorkers = async (): Promise<WorkersView> => {
+  const r = o(await getJson<unknown>('/api/admin/workers'));
+  const g = o(r.gpu);
+  const c = has(r.cpu) ? o(r.cpu) : null;
+  const sw = c && has(c.switching) ? o(c.switching) : null;
+  return {
+    gpu: { configured: bool(g.configured), host: ostr(g.host), running: ostr(g.running), queued: num(g.queued, 0) },
+    cpu: c
+      ? {
+          configured: bool(c.configured), host: ostr(c.host), idleMinutes: num(c.idleMinutes, 10),
+          power: c.power === 'on' || c.power === 'off' ? c.power : 'unknown', reachable: typeof c.reachable === 'boolean' ? c.reachable : null,
+          woken: bool(c.woken), wokenAt: opt(c.wokenAt), lastBusy: opt(c.lastBusy), readAt: opt(c.readAt), error: ostr(c.error), note: ostr(c.note),
+          switching: sw ? { action: sw.action === 'off' ? 'off' : 'on', by: str(sw.by), at: num(sw.at, 0) } : null,
+          running: ostr(c.running), queued: num(c.queued, 0),
+        }
+      : null,
   };
 };
 export const getAdminBacktest = async (id: string): Promise<Backtest> => normBacktest(await getJson<unknown>(`/api/admin/backtests/${encodeURIComponent(id)}`));
