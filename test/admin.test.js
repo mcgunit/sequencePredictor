@@ -1122,8 +1122,12 @@ if (fs.existsSync(path.join(PROD, 'database', 'modelPerformance.json'))) {
     ok(r.statusCode === 200 && !/NaN|undefined/.test(text), `production ${url}: ${r.statusCode}`);
     // the plan's target is ~20 KB a page; the limit leaves room for the records to grow (more rows, more weeks)
     // so a normal week's growth does not fail the suite - a jump past it means raw records leaked into a response
-    ok(text.length < 40 * 1024, `production ${url}: ${text.length} bytes, under 40 KB`);
+    // a game's model list grew with research step 1 (the memorise and sampled rows, first in production 9 Nov 2026:
+    // keno's 32 rows became 80, 54 KB): those pages get 100 KB, the rest stay at 40 KB
+    const limit = /^\/api\/admin\/models\/[a-z]+(\?|$)/.test(url) ? 100 : 40;
+    ok(text.length < limit * 1024, `production ${url}: ${text.length} bytes, under ${limit} KB`);
   });
+  console.log(`admin.js on production: the largest model page ${sizes.filter(([u]) => /\/models\//.test(u)).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([u, n]) => `${u} ${n}`).join(', ')}`);
   const pc = request(prod, '/api/admin/controls', ADMIN).body;
   const games = pc.groups.flatMap((g) => g.games);
   const prodHeadline = games.filter((g) => g.q0.test && g.q0.inTile);

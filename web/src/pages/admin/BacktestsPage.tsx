@@ -17,12 +17,13 @@ import BacktestStart from './BacktestStart';
 // /admin/backtests (owner's roadmap step 4, 8 Nov 2026): the backtests administrators started - queued, running with
 // their progress, and finished with the weekend tuner's own score next to the gate's - read again every 5 s while
 // one is queued or running (30 s otherwise). A backtest opens its drawer (?bt=): every scored draw, the values it ran
-// with. Started here or from a model's card on Admin › Parameters; run by the scheduler (Jobs & services).
+// with. Started here or from a model's card on Admin › Parameters; run by the scheduler (Jobs & services), or for a
+// deep-learning row by the GPU worker (workers.js: its own queue, beside the schedule).
 const LIVE_MS = 5000;
 const IDLE_MS = 30000;
 
 const kindText = (kind: unknown) =>
-  kind === 'hits' ? 'hits bound' : kind === 'positional' ? 'slot-hit bound' : kind === 'log_score' ? 'log-score bound' : kind === 'capped_profit' ? 'capped profit/bet bound' : typeof kind === 'string' ? kind.replace(/_/g, ' ') : 'score';
+  kind === 'skill_vs_counts' ? 'skill over the counts' : kind === 'hits' ? 'hits bound' : kind === 'positional' ? 'slot-hit bound' : kind === 'log_score' ? 'log-score bound' : kind === 'capped_profit' ? 'capped profit/bet bound' : typeof kind === 'string' ? kind.replace(/_/g, ' ') : 'score';
 const minutes = (s: number | null) => (s === null ? DASH : s < 90 ? `${Math.round(s)} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
 
 export default function BacktestsPage() {
@@ -69,6 +70,11 @@ export default function BacktestsPage() {
         {d.scheduler ? (d.scheduler.budget ? ` (one starting now may take up to ${minutes(d.scheduler.budget)})` : ' (too close to the next scheduled run now: a new one waits until after it)') : ''}.
         Start one from a model&apos;s card on <Link to="/admin/parameters">Parameters</Link> or with New backtest; it shows under Jobs &amp; services while it runs.
       </p>
+      <p className="note">
+        The deep-learning rows run on the GPU worker instead
+        {d.gpu.configured ? ` (${d.gpu.host ?? 'set up'}${d.gpu.running ? ', one running' : ''}${d.gpu.queued ? `, ${d.gpu.queued} queued` : ''})` : ' - none is set up on this server (config/workers.json), so they cannot start here'}: one at a
+        time, beside the schedule, each draw a retrain with the daily run&apos;s 240 s of training.
+      </p>
       {d.backtests.length ? <BacktestTable d={d} onOpen={drawer.open} onStop={(b) => { sender.reset(); setStop(b); }} /> : <p className="note">No backtest yet.</p>}
       {drawer.value ? <BacktestDrawer key={drawer.value} id={drawer.value} onClose={drawer.close} /> : null}
       {starting ? (
@@ -77,6 +83,7 @@ export default function BacktestsPage() {
           table={d.rows}
           daysDefault={d.daysDefault}
           daysMax={d.daysMax}
+          limits={d.limits}
           onStarted={() => setStarting(false)}
           onCancel={() => setStarting(false)}
         />
@@ -110,7 +117,7 @@ function StatusCell({ b }: { b: Backtest }) {
       </div>
     );
   }
-  if (b.status === 'queued') return <span>queued{b.place ? `, number ${b.place}` : ''}</span>;
+  if (b.status === 'queued') return <span>queued{b.worker === 'gpu' ? ' for the GPU worker' : ''}{b.place ? `, number ${b.place}` : ''}</span>;
   return (
     <span>
       <Chip kind={b.status === 'done' ? 'flat' : b.status === 'failed' || b.status === 'ended' ? 'down' : 'dim'}>{b.status}</Chip>
@@ -161,6 +168,7 @@ function BacktestTable({ d, onOpen, onStop }: { d: BacktestList; onOpen: (id: st
                   {short(b.row)}
                 </button>
                 {b.values === 'tuned' ? <span className="sub">tuned values only</span> : b.manual.length ? <span className="sub">with {b.manual.length} manual</span> : null}
+                {b.worker === 'gpu' ? <span className="sub">GPU worker</span> : null}
               </td>
               <td data-l="Game">{b.game}</td>
               <td data-l="Draws" className="num">
@@ -220,7 +228,26 @@ function DrawerBody({ b }: { b: Backtest }) {
           {b.error ? <span className="mut"> · {b.error}</span> : null}
         </p>
       </Section>
-      {r ? (
+      {r && t.kind === 'skill_vs_counts' ? (
+        <Section title="Score">
+          <p className="line">
+            <b>{r.score === null ? 'no score' : fixed(r.score, 4)}</b> (the deep-learning tuner&apos;s score: minus the mean excess loss over the counts; 0 = as good as
+            serving the counts, above 0 = better)
+            {num('score_se') !== null ? ` · SE ${fixed(num('score_se'), 4)} over the draws (retrains on almost the same history: a floor, not a test)` : ''}
+            {` · learns on ${num('learns_days') ?? 0} of ${r.dayCount} draws`}
+            {num('hits') !== null && (num('hits_draws') ?? 0) > 0
+              ? ` · ${fixed(num('hits'), 0)} hits on ${num('hits_draws')} tickets (each retrain's ticket against the next draw; on the record, not in the score)`
+              : ''}
+          </p>
+          <p className="line mut">
+            {r.dayCount} draws scored{r.lockboxWithheld ? `; ${r.lockboxWithheld} lockbox draws retrained but not scored or shown` : ''}. Each retrain&apos;s own validation split
+            still contains the lockbox period, as in the tuner.{r.worker ? ` Ran on ${r.worker}.` : ''}
+            {r.gate && r.gate.incumbent !== null
+              ? ` The deep-learning gate (${stamp(r.gate.date)}, ${r.gate.windowDays ?? '?'} draws) scored the served values ${fixed(r.gate.incumbent, 4)}${r.gate.default !== null ? ` and the defaults ${fixed(r.gate.default, 4)}` : ''}${r.gate.windowDays === b.days ? '; same window size, so comparable (the window moves with each new draw)' : ': another window size, not comparable'}.`
+              : ''}
+          </p>
+        </Section>
+      ) : r ? (
         <Section title="Score">
           <p className="line">
             <b>{r.score === null ? 'no score' : fixed(r.score, 4)}</b> ({kindText(t.kind)}: the mean over the scored draws minus one standard error, as the gate
@@ -237,7 +264,29 @@ function DrawerBody({ b }: { b: Backtest }) {
           </p>
         </Section>
       ) : null}
-      {days.length ? (
+      {days.length && t.kind === 'skill_vs_counts' ? (
+        <Section title={`Per draw (${days.length})`}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Draw</th>
+                <th className="num">Excess loss over the counts</th>
+                <th>Learning check</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((x, i) => (
+                <tr key={`${x.date ?? ''}-${i}`}>
+                  <td>{x.date ?? DASH}</td>
+                  <td className="num">{x.excess === null ? DASH : fixed(x.excess, 4)}</td>
+                  <td className="mut">{x.verdict ?? DASH}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="line mut">Below 0 = better than the counts on that retrain&apos;s validation windows.</p>
+        </Section>
+      ) : days.length ? (
         <Section title={`Hits per draw (${days.length})`}>
           <svg viewBox={`0 0 ${Math.max(days.length * 6, 60)} 40`} width="100%" height="64" preserveAspectRatio="none" role="img" aria-label={`Hits per scored draw, at most ${max}`}>
             {days.map((x, i) => (

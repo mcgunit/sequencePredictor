@@ -6,6 +6,7 @@ const auth = require("./auth");
 const council = require("./council");
 const services = require("./services");
 const jobs = require("./jobs");
+const workers = require("./workers");   // the GPU worker's queue: deep-learning backtests on the 2080 Ti (10 Nov 2026)
 const switchover = require('./switchover');   // the switch to the app: the old pages' redirects, the last 404 and error answers (24 Oct 2026)
 const api = require('./api');   // the JSON API and the React app under /app (15 Oct 2026)
 const lottery = require('./lottery');   // the users' Lottery and Home JSON under /api/lottery, /api/home (23 Oct 2026)
@@ -59,7 +60,7 @@ lottery.install(app, { root: __dirname, databaseDir: dataPath, marketsDir: marke
 // JSON POST actions (form token from /api/me). It calls the rules of jobs.js,
 // services.js, auth.js and whatsnew.js. Installed before admin.js, whose
 // catch-all answers the rest of /api/admin with a 404.
-system.install(app, { root: __dirname, jobs, services });
+system.install(app, { root: __dirname, jobs, services, workers });
 // The admin section's JSON (/api/admin/*, administrator only): the game,
 // control and market records from the folders above; This week also asks
 // the schedule (its jobs, the lock, the queue), the Council API's supervisor
@@ -89,6 +90,7 @@ const server = app.listen(config.PORT, config.INTERFACE, () => {
   // it would have run so it can be watched for a weekend next to the still
   // existing crontab entries (see jobs.js and README roadmap item 8).
   jobs.start();
+  workers.start();
 });
 
 // Services are ordinary children, so they must go down with the server
@@ -99,6 +101,7 @@ const server = app.listen(config.PORT, config.INTERFACE, () => {
   // setsid --fork keeps running on purpose and is adopted again at the next
   // start - that is what makes a deploy safe during a 12-hour tuning run.
   jobs.stop();
+  workers.stop();   // the timer only: a running worker backtest is adopted at the next start, as a job
   services.stopAll();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 6000).unref();

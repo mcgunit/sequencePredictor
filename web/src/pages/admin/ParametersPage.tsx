@@ -210,6 +210,7 @@ export default function ParametersPage() {
           sender={sender}
           game={game}
           rows={backtest.backtest}
+          limits={backtest.backtestLimits}
           onStarted={() => {
             setBacktest(null);
             navigate('/admin/backtests');
@@ -338,10 +339,12 @@ function ModelCard({ c, open, onToggle, onAct, onBacktest }: { c: ParamCard; ope
               <button type="button" className="linkbtn" onClick={onBacktest}>
                 Backtest {c.backtest.length === 1 ? short(c.backtest[0]) : 'this model'}
               </button>{' '}
-              <span className="mut">with these values over the newest draws (the gate&apos;s own score; queued behind the scheduled jobs)</span>
+              <span className="mut">
+                {c.backtest.some((r) => c.backtestLimits[r]?.gpu)
+                  ? 'with these values over the newest draws (the deep-learning gate’s own score: a retrain per draw, on the GPU worker)'
+                  : 'with these values over the newest draws (the gate’s own score; queued behind the scheduled jobs)'}
+              </span>
             </p>
-          ) : c.deepLearning ? (
-            <p className="line mut">Backtests of the deep-learning rows come later (a training per draw: with the GPU worker).</p>
           ) : null}
           {c.switches.length ? (
             <p className="line">

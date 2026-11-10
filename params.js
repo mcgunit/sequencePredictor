@@ -357,6 +357,8 @@ function parametersView(game, params, stat = null, now = new Date(), manual = {}
       deepLearning: f.rows.some((r) => DL_ROWS.includes(r)),
       // the card's rows a backtest can be started for (backtests.js / RunBacktest.py)
       backtest: f.rows.filter((r) => require('./backtests').canBacktest(game, r)),
+      // their draw limits (the deep-learning rows: 3 by default, 30 at most, on the GPU worker)
+      backtestLimits: Object.fromEntries(f.rows.filter((r) => require('./backtests').canBacktest(game, r)).map((r) => [r, require('./backtests').limitsFor(r)])),
     };
   });
   const groups = GROUP_ORDER.map((label) => ({ label, cards: cards.filter((c) => c.group === label && (c.stored || c.gates.length || c.manual)) }))

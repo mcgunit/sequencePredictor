@@ -513,7 +513,7 @@ function install(app, options = {}) {
   app.post('/api/admin/people/delete', admin.guard, jsonBody, csrf, safe((req, res) => reply(res, auth.deleteUser(req, body(req).username))));
 
   // --- Backtests started from Admin › Parameters (backtests.js; the scheduler's backtest job runs RunBacktest.py) ---
-  backtests.install(app, { root: options.paramsRoot || dirs.root, jobs, guard: admin.guard, jsonBody, csrf, safe, json, reply, audit });
+  backtests.install(app, { root: options.paramsRoot || dirs.root, jobs, workers: options.workers || null, guard: admin.guard, jsonBody, csrf, safe, json, reply, audit });
 
   // --- Parameters: manual overrides (params.js; the predictor applies them, src/ParamOverrides.py) ---
   // set: { key, value, note }; release: { key }. Each one goes to the audit log with the game, the key and the value.

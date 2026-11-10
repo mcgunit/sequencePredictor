@@ -218,6 +218,17 @@ For having it with auto start at boot:
     pm2 startup
 ```
 
+## The GPU worker (`workers.js`, since 10 Nov 2026)
+
+The backtests of the deep-learning rows run on a second machine with an RTX 2080 Ti: an LXC container that is always on and shared with other services. The main server stays the only writer of `data/` and of `bestParams_*.json`; the worker only ever returns a backtest's record file.
+
+- **Settings:** `config/workers.json` (gitignored, so the address is never in the repository): `{"gpu": {"host": "root@<address>", "dir": "/opt/sequencePredictor-worker", "gpuMemoryMb": 6144}}`. `python` defaults to `<dir>/venv/bin/python`; `"enabled": false` switches it off. Without the file the deep-learning rows answer that no GPU worker is set up, and the Backtests page says so. The server reaches the worker over ssh with root's key (no password).
+- **The worker:** `<dir>/venv` holds the pipeline's Python packages (production's freeze; TensorFlow 2.16.2 with CUDA), `<dir>/app` the copy the runs use. Nothing else on the machine is touched.
+- **A run:** `worker/gpu-backtest.sh` copies the code (no `.git`, `config/`, `data/`, `web/`, `log/` or `test/`), `data/trainingData`, `config/paramOverrides.json` and the backtest's record to `<dir>/app`, runs `RunBacktest.py --id <id> --budget <s>` there over ssh, and copies the record back every 15 seconds (the page's progress) and at the end. `config/` otherwise never leaves the server: it holds the accounts and the session secret. TensorFlow gets one logical GPU of `gpuMemoryMb` (`SP_GPU_MEMORY_MB`, `HyperoptDeepLearning.cap_gpu_memory`), leaving the rest of the 11 GB card to the machine's other services.
+- **The queue:** its own, beside the scheduler's: a worker run takes no `process.lock` and does not use the production GPU, so it neither waits for the scheduled jobs nor has to end before the next one. One run at a time, first come first served; the budget is 15 minutes plus 15 minutes a draw. `config/scheduler.disabled` stops it too. State in `config/workers-state.json`, the log in `log/backtest-gpu.log`, the queue's lines in `log/scheduler.log` as `[gpu worker]`.
+- **Stop and restarts:** *Stop* sends SIGTERM to the script alone (not its process group, which would cut the ssh session first); the script signals the remote run, which stops its training child and writes *stopped*. A run survives a server restart (`setsid`) and is adopted at the next start, as the scheduler's jobs are; a run lost with the server shows as *ended*.
+- Tests: `node test/workers.test.js` (the queue, a real launch of a stand-in script, Stop, adoption); `node test/backtests.test.js` (the deep-learning rows go to the worker, 3 / 30 draws).
+
 ## Testing
 
 To test a model when modifying or tuning you can run the LSTM.py or GRU.py directly and check the __main__ section. Use the test folder for trainingData and models if you don't want to touch the actual data (highly recommended). 

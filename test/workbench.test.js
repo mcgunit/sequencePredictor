@@ -496,8 +496,9 @@ async function partFour() {
     ok(r.statusCode === 200 && !/NaN|undefined/.test(body), `production ${url}: ${r.statusCode} ${r.statusCode !== 200 ? body.slice(0, 200) : ''}`);
     // A draw page carries the coming draw's rows too: since the memorise and sampled rows (research workbench step 1,
     // first written by production on 9 Nov 2026) keno's coming draw has 80 rows instead of 32 - about 70 KB on the
-    // admin page. Every other page keeps the 60 KB budget.
-    const budget = /^\/api\/admin\/draw\//.test(url) ? 100 : 60;
+    // admin page, and a scored keno draw with 80 rows and their subset hits 112 KB (9 Nov 2026). Draw pages get
+    // 160 KB; every other page keeps the 60 KB budget.
+    const budget = /^\/api\/admin\/draw\//.test(url) ? 160 : 60;
     ok(body.length < budget * 1024, `production ${url}: ${body.length} bytes, under ${budget} KB`);
     return r.body;
   };

@@ -40,6 +40,27 @@ from src.TuningGate import challenge, make_defaults
 from src.TuningScore import attrs_for_trial
 from src import DeepLearningTuning as dlt
 
+
+
+def cap_gpu_memory():
+    """
+    The GPU worker's cap (10 Nov 2026): with SP_GPU_MEMORY_MB set (the worker sets it), TensorFlow gets one logical
+    GPU of that many MB, so the shared card keeps the rest for the other services on the machine. Runs at import, in
+    the parent and in every spawned training child, before TensorFlow touches the GPU. Unset: no change (production).
+    """
+    mb = os.environ.get("SP_GPU_MEMORY_MB")
+    if not mb:
+        return
+    import tensorflow as tf
+    try:
+        for gpu in tf.config.list_physical_devices("GPU"):
+            tf.config.set_logical_device_configuration(gpu, [tf.config.LogicalDeviceConfiguration(memory_limit=int(mb))])
+    except RuntimeError as e:   # the GPU was initialised already: the cap cannot be set any more
+        print(f"GPU memory cap of {mb} MB not set: {e}")
+
+
+cap_gpu_memory()
+
 tcn = TCNModel()
 lstm = LSTMModel()
 unifiedLstmTcn = UnifiedLstmTcnModel()
@@ -415,6 +436,50 @@ def suggest_autoencoder_params(trial, prefix):
         "labelSmoothing": trial.suggest_categorical(f"{prefix}_labelSmoothing", [0.0]),
         "yearsOfHistory": trial.suggest_categorical(f"{prefix}_yearsOfHistory", [10]),
     }
+
+
+def suggest_lstm_params(trial):
+    """The LSTM's search space. Unprefixed - matches Predictor.py's existing LSTM setter block, which reads these same
+    bare keys. Don't add a prefix here, it would break that."""
+    return {
+        "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [10]),
+        "epochs": trial.suggest_categorical("epochs", [1000]),
+        "batchSize": trial.suggest_categorical("batchSize", [4]),
+        "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1]),
+        "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1]),
+        "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128, 256]),
+        "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64, 128, 256]),
+        "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
+        "l2Regularization": trial.suggest_float("l2Regularization", 0.0001, 0.01, step=0.0001),
+        "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 100, step=10),
+        "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 10, 100, step=10),
+        "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
+        "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [False]),
+        "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
+        "optimizer_type": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
+        "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
+        "windowSize": trial.suggest_int("windowSize", 2, 20, step=2),
+        "useTopPrediction": trial.suggest_categorical("useTopPrediction", [False]),
+        "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
+    }
+
+
+def suggest_model_params(trial, model_type):
+    """
+    The settings one trial trains `model_type` with (moved out of the objective on 10 Nov 2026, so RunBacktest.py's
+    deep-learning backtests ask for exactly the tuner's settings, answered with the served values).
+    """
+    if model_type == "lstm_model":
+        return suggest_lstm_params(trial)
+    if model_type == "tcn_model":
+        return suggest_tcn_params(trial, MODEL_PARAM_PREFIX[model_type])
+    if model_type == "transformer_model":
+        return suggest_transformer_params(trial, MODEL_PARAM_PREFIX[model_type])
+    if model_type == "gnn_model":
+        return suggest_gnn_params(trial, MODEL_PARAM_PREFIX[model_type])
+    if model_type == "autoencoder_model":
+        return suggest_autoencoder_params(trial, MODEL_PARAM_PREFIX[model_type])
+    return suggest_fused_params(trial, MODEL_PARAM_PREFIX[model_type], include_gru=(model_type == "unified_lstm_gru_tcn_model"))
 
 
 def is_running():
@@ -1161,43 +1226,7 @@ if __name__ == "__main__":
                     totalProfit = 0
                     results = [] # Intermediate results
 
-                    if model_type == "lstm_model":
-                        # Unprefixed - matches Predictor.py's existing LSTM
-                        # setter block, which reads these same bare keys.
-                        # Don't add a prefix here, it would break that.
-                        modelParams = {
-                            "yearsOfHistory": trial.suggest_categorical("yearsOfHistory", [10]),
-                            "epochs": trial.suggest_categorical("epochs", [1000]),
-                            "batchSize": trial.suggest_categorical("batchSize", [4]),
-                            "num_lstm_layers": trial.suggest_categorical("num_lstm_layers", [1]),
-                            "num_bidirectional_layers": trial.suggest_categorical("num_bidirectional_layers", [1]),
-                            "lstm_units": trial.suggest_categorical("lstm_units", [16, 32, 64, 128, 256]),
-                            "bidirectional_lstm_units": trial.suggest_categorical("bidirectional_lstm_units", [16, 32, 64, 128, 256]),
-                            "dropout": trial.suggest_float("dropout", 0.1, 0.5, step=0.1),
-                            "l2Regularization": trial.suggest_float("l2Regularization", 0.0001, 0.01, step=0.0001),
-                            "earlyStopPatience": trial.suggest_int("earlyStopPatience", 10, 100, step=10),
-                            "reduceLearningRatePatience": trial.suggest_int("reduceLearningRatePatience", 10, 100, step=10),
-                            "reduceLearningRateFactor": trial.suggest_float("reduceLearningRateFactor", 0.1, 0.9, step=0.1),
-                            "useFinalLSTMLayer": trial.suggest_categorical("useFinalLSTMLayer", [False]),
-                            "outputActivation": trial.suggest_categorical("outputActivation", ["softmax"]),  # keep fixed unless needed
-                            "optimizer_type": trial.suggest_categorical("optimizer_type", ["adam", "rmsprop", "adagrad", "nadam"]), # "sgd", does not work with categorical crossentropy
-                            "learningRate": trial.suggest_float("learningRate", 0.00001, 0.001, step=0.00001),
-                            "windowSize": trial.suggest_int("windowSize", 2, 20, step=2),
-                            "useTopPrediction": trial.suggest_categorical("useTopPrediction", [False]),
-                            "labelSmoothing": trial.suggest_float("labelSmoothing", 0.01, 0.1, step=0.01)
-                        }
-                    elif model_type == "tcn_model":
-                        modelParams = suggest_tcn_params(trial, MODEL_PARAM_PREFIX[model_type])
-                    elif model_type == "transformer_model":
-                        modelParams = suggest_transformer_params(trial, MODEL_PARAM_PREFIX[model_type])
-                    elif model_type == "gnn_model":
-                        modelParams = suggest_gnn_params(trial, MODEL_PARAM_PREFIX[model_type])
-                    elif model_type == "autoencoder_model":
-                        modelParams = suggest_autoencoder_params(trial, MODEL_PARAM_PREFIX[model_type])
-                    else:
-                        modelParams = suggest_fused_params(
-                            trial, MODEL_PARAM_PREFIX[model_type],
-                            include_gru=(model_type == "unified_lstm_gru_tcn_model"))
+                    modelParams = suggest_model_params(trial, model_type)
 
                     # Optuna only logs when a trial FINISHES, and a healthy
                     # trial can be silent for minutes at a stretch (XLA
