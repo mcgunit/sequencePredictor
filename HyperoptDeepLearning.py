@@ -712,7 +712,7 @@ TRIAL_TIMEOUT_SECONDS = 7200
 PROGRESS_POLL_SECONDS = 15
 
 
-def runPredictInChild(trial, progressPath, *args, **kwargs):
+def runPredictInChild(trial, progressPath, *args, onDay=None, **kwargs):
     """
     Runs one trial's predict() (the daysToRebuild training loop) in a
     one-shot spawned child process, for the same two hard-learned reasons as
@@ -735,7 +735,9 @@ def runPredictInChild(trial, progressPath, *args, **kwargs):
     progress line per day, and the running score reported to Optuna, whose
     pruner may stop the trial - the child is then killed and the trial
     recorded as pruned. trial may be a FixedTrial (the gate's references:
-    never pruned) or None.
+    never pruned) or None. onDay(days done), when given, is called at the start
+    and after each finished day (the Hyperopts page's progress within a trial,
+    11 Nov 2026); it must not raise.
     """
     try:
         os.remove(progressPath)
@@ -751,6 +753,8 @@ def runPredictInChild(trial, progressPath, *args, **kwargs):
 
     reported = 0
     started = time.time()
+    if onDay:
+        onDay(0)
     try:
         future = executor.submit(predict, *args, progressPath=progressPath, **kwargs)
         while True:
@@ -773,6 +777,8 @@ def runPredictInChild(trial, progressPath, *args, **kwargs):
                         print(f"Pruned after day {reported + 1}: below the median of the earlier trials at this day")
                         raise optuna.TrialPruned()
                 reported += 1
+                if onDay:
+                    onDay(reported)
             if done:
                 # a trial that finished between two looks is scored in full, not pruned on its last day
                 return result
@@ -1232,6 +1238,22 @@ if __name__ == "__main__":
                 #command.run("wget -P {folder} https://prdlnboppreportsst.blob.core.windows.net/legal-reports/{file}".format(**kwargs_wget), verbose=False)
 
 
+                # The page's progress within a trial (11 Nov 2026): which trial or gate reference trains now, and how
+                # many of its days are done. Only with --result-file; a failed write never stops the study.
+                currentRun = {"role": "trial"}
+
+                def onDay(daysDone, trial):
+                    if not resultFile:
+                        return
+                    try:
+                        dlt.write_result(resultFile, studyKey, current={
+                            "role": currentRun["role"],
+                            "trial": trial.number if currentRun["role"] == "trial" else None,
+                            "day": daysDone, "days": daysToRebuild,
+                            "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+                    except Exception as e:
+                        print(f"{studyKey}: could not write the result file ({e})")
+
                 def objective(trial):
                     numOfRepeats = 1 # To average out the rusults before continueing to the next result
                     totalProfit = 0
@@ -1251,7 +1273,8 @@ if __name__ == "__main__":
                           f"progress prints every 50 epochs per rebuilt day")
 
                     for _ in range(numOfRepeats):
-                        result = runPredictInChild(trial, progressPath, f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count, trainSeconds=trainSeconds)
+                        result = runPredictInChild(trial, progressPath, f"{dataset_name}", model_type, dataPath, modelPath, file, skipLastColumns=skip_last_columns, years_back=modelParams["yearsOfHistory"], daysToRebuild=daysToRebuild, modelParams=modelParams, specialColumnCount=special_column_count, trainSeconds=trainSeconds,
+                                                   onDay=lambda n, trial=trial: onDay(n, trial))
                         if result is not None:
                             results.append(result)
 
@@ -1322,7 +1345,7 @@ if __name__ == "__main__":
                     study.optimize(objective, n_trials=remaining, catch=(Exception,),
                                    callbacks=[reportTrial] if resultFile else None)
                 if resultFile:
-                    dlt.write_result(resultFile, studyKey, status="gate" if gateEnabled else "writing")
+                    dlt.write_result(resultFile, studyKey, status="gate" if gateEnabled else "writing", current=None)
 
                 # Champion/challenger (src/TuningGate.py, 6 Nov 2026): this run's
                 # best completed trial is written only if it beats the served
@@ -1335,6 +1358,7 @@ if __name__ == "__main__":
 
                 def evaluateReference(params, role, objective=objective, studyKey=studyKey):
                     print(f"{studyKey}: scoring the {role} (a full trial, never pruned)")
+                    currentRun["role"] = role
                     reference = ReferenceTrial(dict(params))
                     try:
                         value = objective(reference)
@@ -1365,7 +1389,7 @@ if __name__ == "__main__":
                             challengerParams = dict(study.trials[outcome["trial"]].params)
                         except Exception:
                             challengerParams = None
-                    dlt.write_result(resultFile, studyKey, status="done", decision=outcome["decision"],
+                    dlt.write_result(resultFile, studyKey, status="done", current=None, decision=outcome["decision"],
                                      reason=outcome["reason"], params=outcome["params"], challengerParams=challengerParams,
                                      record=outcome["record"], summary=outcome["summary"],
                                      progress=dlt.trial_progress(study.get_trials(deepcopy=False), known),
@@ -1387,7 +1411,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
                 try:
-                    dlt.write_result(resultFile, dlt.study_name(dataset_name, model_type), status="failed", error=str(e)[:500])
+                    dlt.write_result(resultFile, dlt.study_name(dataset_name, model_type), status="failed", current=None, error=str(e)[:500])
                 except Exception:
                     pass
 

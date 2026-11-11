@@ -384,7 +384,8 @@ function install(app, { guard, jsonBody, csrf, safe, json, reply, audit }) {
   app.get('/api/admin/workers', guard, safe(async (req, res) => {
     const gpu = LANES.gpu.backtestState();
     json(res, {
-      gpu: { configured: gpu.configured, host: gpu.host, running: gpu.current ? gpu.current.id : null, queued: gpu.queued.length },
+      gpu: { configured: gpu.configured, host: gpu.host, running: gpu.current ? gpu.current.id : null,
+        runningType: gpu.current ? gpu.current.type || 'backtest' : null, queued: gpu.queued.length },
       cpu: await powerStatus(),
     });
   }));

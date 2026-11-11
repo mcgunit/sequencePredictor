@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { getAdminWorkers, type WorkersView } from '../../api';
 import { DASH, stamp, time } from '../../format';
 import { usePoll } from '../../hooks/usePoll';
@@ -28,7 +29,21 @@ export default function WorkersCard({ onAsk }: { onAsk: (a: Ask) => void }) {
                 <span className="ln">
                   <Chip kind="flat">set up</Chip> {d.gpu.host ?? DASH} · always on
                 </span>
-                <span className="sub">the deep-learning backtests{d.gpu.running ? ' · one running' : ''}{d.gpu.queued ? ` · ${d.gpu.queued} queued` : ''}</span>
+                <span className="sub">
+                  the deep-learning backtests and hyperopts, one at a time and beside the Running &amp; queue card (no process.lock here)
+                  {d.gpu.runningType === 'hyperopt' && d.gpu.running ? (
+                    <>
+                      {' · hyperopt '}
+                      <Link to={`/admin/hyperopts?ho=${encodeURIComponent(d.gpu.running)}`}>{d.gpu.running}</Link> running
+                    </>
+                  ) : d.gpu.running ? (
+                    <>
+                      {' · backtest '}
+                      <Link to={`/admin/backtests?bt=${encodeURIComponent(d.gpu.running)}`}>{d.gpu.running}</Link> running
+                    </>
+                  ) : null}
+                  {d.gpu.queued ? ` · ${d.gpu.queued} queued` : ''}
+                </span>
               </>
             ) : (
               <span className="mut">not set up (config/workers.json): the deep-learning rows cannot be backtested</span>

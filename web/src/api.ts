@@ -2733,7 +2733,7 @@ export const getAdminBacktests = async (): Promise<BacktestList> => {
 };
 // --- the worker machines (GET /api/admin/workers, workers.js) -------------------------------------------------------
 export type WorkersView = {
-  gpu: { configured: boolean; host: string | null; running: string | null; queued: number };
+  gpu: { configured: boolean; host: string | null; running: string | null; runningType: 'backtest' | 'hyperopt' | null; queued: number };
   cpu: {
     configured: boolean; host: string | null; idleMinutes: number; power: 'on' | 'off' | 'unknown'; reachable: boolean | null; woken: boolean;
     wokenAt: number | null; lastBusy: number | null; readAt: number | null; error: string | null; note: string | null;
@@ -2747,7 +2747,10 @@ export const getAdminWorkers = async (): Promise<WorkersView> => {
   const c = has(r.cpu) ? o(r.cpu) : null;
   const sw = c && has(c.switching) ? o(c.switching) : null;
   return {
-    gpu: { configured: bool(g.configured), host: ostr(g.host), running: ostr(g.running), queued: num(g.queued, 0) },
+    gpu: {
+      configured: bool(g.configured), host: ostr(g.host), running: ostr(g.running),
+      runningType: g.runningType === 'hyperopt' ? 'hyperopt' : g.running ? 'backtest' : null, queued: num(g.queued, 0),
+    },
     cpu: c
       ? {
           configured: bool(c.configured), host: ostr(c.host), idleMinutes: num(c.idleMinutes, 10),
@@ -2771,6 +2774,8 @@ export type HyperoptStudy = {
   progress: { done: number; states: Record<string, number>; best: { trial: number; score: number | null; params: Record<string, ParamValue> } | null } | null;
   decision: string | null; reason: string | null; params: Record<string, ParamValue> | null; challengerParams: Record<string, ParamValue> | null;
   record: Record<string, unknown> | null; summary: string | null; startedAt: string | null; finishedAt: string | null;
+  // what trains now (since 11 Nov 2026): a trial (its study-wide number) or one of the gate's references, and its draws done
+  current: { role: string; trial: number | null; day: number; days: number; at: string | null } | null;
 };
 export type Hyperopt = {
   id: string; game: string; model: string; row: string; trials: number; days: number; trainSeconds: number; pruneAfterDays: number; trialTimeout: number;
@@ -2813,6 +2818,9 @@ function normHyperopt(v: unknown): Hyperopt {
           decision: ostr(s.decision), reason: ostr(s.reason), params: has(s.params) ? (o(s.params) as Record<string, ParamValue>) : null,
           challengerParams: has(s.challengerParams) ? (o(s.challengerParams) as Record<string, ParamValue>) : null,
           record: has(s.record) ? o(s.record) : null, summary: ostr(s.summary), startedAt: ostr(s.startedAt), finishedAt: ostr(s.finishedAt),
+          current: has(s.current)
+            ? { role: str(o(s.current).role), trial: opt(o(s.current).trial), day: num(o(s.current).day, 0), days: num(o(s.current).days, 0), at: ostr(o(s.current).at) }
+            : null,
         }
       : null,
     apply: ap ? { gate: normApplySide(ap.gate), challenger: normApplySide(ap.challenger) } : null,

@@ -101,17 +101,33 @@ export default function HyperoptsPage() {
   );
 }
 
+// What trains now, from the tuner's result file (written at the start of each trial and after each draw)
+const ROLE: Record<string, string> = { incumbent: 'the served parameters', default: "Predictor.py's defaults" };
+function nowText(h: Hyperopt): string | null {
+  const c = h.study?.current ?? null;
+  if (!c) return null;
+  const draws = `${c.day} of ${c.days} draws`;
+  if (c.role === 'trial') return `trial ${Math.min((h.study?.progress?.done ?? 0) + 1, h.trials)} of ${h.trials}${c.trial !== null ? ` (study trial #${c.trial})` : ''} · ${draws}`;
+  return `the gate: scoring ${ROLE[c.role] ?? c.role} · ${draws}`;
+}
+
 function StatusCell({ h }: { h: Hyperopt }) {
   const p = h.study?.progress ?? null;
   if (h.status === 'running') {
+    const done = p ? p.done : 0;
+    const c = h.study?.current ?? null;
+    const gate = h.study?.status === 'gate' || (c !== null && c.role !== 'trial');
+    // trials: the finished ones plus the share of the running one's draws; the gate: its reference's draws
+    const frac = c && c.days ? Math.min(1, c.day / c.days) : 0;
+    const max = gate ? 1 : h.trials || 1;
+    const value = gate ? frac : Math.min(max, done + (c && c.role === 'trial' ? frac : 0));
+    const elapsed = h.startedAt ? ` · running ${hours((Date.now() - Date.parse(h.startedAt)) / 1000)}` : '';
     return (
       <div className="progress">
-        <progress max={h.trials || 1} value={p ? p.done : 0} aria-label={`${p ? p.done : 0} of ${h.trials} trials`} />
+        <progress max={max} value={value} aria-label={nowText(h) ?? `${done} of ${h.trials} trials`} />
         <span className="sub">
           {h.phase ??
-            (h.study?.status === 'gate'
-              ? `${p ? p.done : 0} of ${h.trials} trials · the gate is scoring the references`
-              : `${p ? p.done : 0} of ${h.trials} trials${h.startedAt ? ` · running ${hours((Date.now() - Date.parse(h.startedAt)) / 1000)}` : ''}`)}
+            (nowText(h) ? `${nowText(h)}${elapsed}` : gate ? `${done} of ${h.trials} trials · the gate is scoring the references` : `${done} of ${h.trials} trials${elapsed}`)}
         </span>
       </div>
     );
@@ -337,6 +353,12 @@ function DrawerBody({ h, onChanged }: { h: Hyperopt; onChanged: () => void }) {
             {s.progress.done} of {h.trials} trials done
             {Object.keys(states).length ? ` (${Object.entries(states).map(([k, x]) => `${x} ${k.toLowerCase()}`).join(', ')})` : ''}
             {s.progress.best ? ` · best so far trial ${s.progress.best.trial} at ${s.progress.best.score === null ? 'no score' : fixed(s.progress.best.score, 4)}` : ''}
+          </p>
+        ) : null}
+        {h.status === 'running' && nowText(h) ? (
+          <p className="line">
+            Now: {nowText(h)}
+            {s?.current?.at ? <span className="mut"> · updated {stamp(s.current.at)}</span> : null}
           </p>
         ) : null}
       </Section>
