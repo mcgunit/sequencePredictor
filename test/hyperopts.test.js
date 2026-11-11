@@ -143,6 +143,9 @@ writeServed(served0);
   fs.mkdirSync(path.join(root, 'log', 'hyperopts'), { recursive: true });
   fs.writeFileSync(path.join(root, 'log', 'hyperopts', `${r.id}.log`), 'start\n[#--] 1/3\r[##-] 2/3\r[###] 3/3\ndone\n');
   ok(hyperopts.logTail(root, r.id).text === 'start\n[###] 3/3\ndone\n', 'the log tail');
+  fs.writeFileSync(path.join(root, 'log', 'hyperopts', `${r.id}.log`),
+    'Epoch 1/9\n\r\x1b[1m  1/717\x1b[0m \x1b[37m━━\x1b[0m loss: 2.30\x08\x08\x08\r\x1b[1m717/717\x1b[0m \x1b[32m━━\x1b[0m loss: 2.29\x08\x08\nEpoch 2/9\n');
+  ok(hyperopts.logTail(root, r.id).text === 'Epoch 1/9\n717/717 ━━ loss: 2.29\nEpoch 2/9\n', 'Keras bars: no colour codes, no backspaces');
   ok(hyperopts.logTail(root, '../etc') === null, 'no path out of the folder');
 
   // --- the lane for real: a hyperopt entry launches remote-hyperopt.sh's stand-in with its budget and arguments ---

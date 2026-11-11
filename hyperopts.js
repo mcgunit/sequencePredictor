@@ -241,8 +241,9 @@ function logTail(root, id, bytes = 64 * 1024) {
     const n = Math.min(size, bytes);
     const buf = Buffer.alloc(n);
     fs.readSync(fd, buf, 0, n, size - n);
-    // progress bars rewrite one line with carriage returns: keep the last state of each line
-    const text = buf.toString('utf-8').split('\n').map((l) => l.split('\r').filter(Boolean).pop() || '').join('\n');
+    // progress bars rewrite one line with carriage returns (Keras also with backspaces and colour codes): drop the
+    // codes and the backspaces, keep the last state of each line
+    const text = buf.toString('utf-8').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\x08/g, '').split('\n').map((l) => l.split('\r').filter(Boolean).pop() || '').join('\n');
     return { size, text, truncated: size > n };
   } catch (e) { return { size: 0, text: '', truncated: false }; } finally { if (fd !== undefined) fs.closeSync(fd); }
 }
