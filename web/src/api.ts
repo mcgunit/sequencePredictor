@@ -2761,3 +2761,76 @@ export const getAdminWorkers = async (): Promise<WorkersView> => {
   };
 };
 export const getAdminBacktest = async (id: string): Promise<Backtest> => normBacktest(await getJson<unknown>(`/api/admin/backtests/${encodeURIComponent(id)}`));
+// --- Admin › Hyperopts (GET /api/admin/hyperopts[/:id[/log]], hyperopts.js; HyperoptDeepLearning.py --result-file) ---
+export type HyperoptStatus = 'queued' | 'running' | 'done' | 'failed' | 'out of time' | 'stopped' | 'lost' | 'cancelled' | 'ended';
+export type HyperoptField = { default: number; min: number; max: number; integer: boolean };
+export type HyperoptChange = { key: string; served: ParamValue; value: ParamValue };
+export type HyperoptApplySide = { changes: HyperoptChange[]; changedSince: string[] } | null;
+export type HyperoptStudy = {
+  status: string; wanted: number | null; days: number | null; error: string | null;
+  progress: { done: number; states: Record<string, number>; best: { trial: number; score: number | null; params: Record<string, ParamValue> } | null } | null;
+  decision: string | null; reason: string | null; params: Record<string, ParamValue> | null; challengerParams: Record<string, ParamValue> | null;
+  record: Record<string, unknown> | null; summary: string | null; startedAt: string | null; finishedAt: string | null;
+};
+export type Hyperopt = {
+  id: string; game: string; model: string; row: string; trials: number; days: number; trainSeconds: number; pruneAfterDays: number; trialTimeout: number;
+  gate: boolean; gateSeMargin: number; fresh: boolean; budget: number; by: string; requestedAt: string | null; startedAt: string | null; finishedAt: string | null;
+  status: HyperoptStatus; place: number | null; runId: string | null; phase: string | null; error: string | null;
+  applied: { by: string; at: string; what: 'gate' | 'challenger'; keys: number } | null;
+  study: HyperoptStudy | null;
+  apply: { gate: HyperoptApplySide; challenger: HyperoptApplySide } | null;
+};
+export type HyperoptList = {
+  hyperopts: Hyperopt[]; games: string[]; models: Record<string, string>; fields: Record<string, HyperoptField>; budgetMaxSeconds: number;
+  gpu: { configured: boolean; host: string | null; running: string | null; queued: number };
+};
+const HO_STATUS: HyperoptStatus[] = ['queued', 'running', 'done', 'failed', 'out of time', 'stopped', 'lost', 'cancelled', 'ended'];
+function normApplySide(v: unknown): HyperoptApplySide {
+  if (!has(v)) return null;
+  const s = o(v);
+  return { changes: arr(s.changes as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), served: o(x).served as ParamValue, value: o(x).value as ParamValue })), changedSince: strs(s.changedSince) };
+}
+function normHyperopt(v: unknown): Hyperopt {
+  const h = o(v);
+  const s = has(h.study) ? o(h.study) : null;
+  const p = s && has(s.progress) ? o(s.progress) : null;
+  const best = p && has(p.best) ? o(p.best) : null;
+  const a = has(h.applied) ? o(h.applied) : null;
+  const ap = has(h.apply) ? o(h.apply) : null;
+  return {
+    id: str(h.id), game: str(h.game), model: str(h.model), row: str(h.row), trials: num(h.trials, 0), days: num(h.days, 0), trainSeconds: num(h.trainSeconds, 0),
+    pruneAfterDays: num(h.pruneAfterDays, 0), trialTimeout: num(h.trialTimeout, 0), gate: h.gate !== false, gateSeMargin: num(h.gateSeMargin, 1), fresh: bool(h.fresh),
+    budget: num(h.budget, 0), by: str(h.by), requestedAt: ostr(h.requestedAt), startedAt: ostr(h.startedAt), finishedAt: ostr(h.finishedAt),
+    status: HO_STATUS.includes(h.status as HyperoptStatus) ? (h.status as HyperoptStatus) : 'ended', place: opt(h.place), runId: ostr(h.runId), phase: ostr(h.phase), error: ostr(h.error),
+    applied: a ? { by: str(a.by), at: str(a.at), what: a.what === 'challenger' ? 'challenger' : 'gate', keys: num(a.keys, 0) } : null,
+    study: s
+      ? {
+          status: str(s.status), wanted: opt(s.wanted), days: opt(s.days), error: ostr(s.error),
+          progress: p
+            ? { done: num(p.done, 0), states: Object.fromEntries(Object.entries(o(p.states)).map(([k, x]) => [k, num(x, 0)])),
+                best: best ? { trial: num(best.trial, 0), score: opt(best.score), params: o(best.params) as Record<string, ParamValue> } : null }
+            : null,
+          decision: ostr(s.decision), reason: ostr(s.reason), params: has(s.params) ? (o(s.params) as Record<string, ParamValue>) : null,
+          challengerParams: has(s.challengerParams) ? (o(s.challengerParams) as Record<string, ParamValue>) : null,
+          record: has(s.record) ? o(s.record) : null, summary: ostr(s.summary), startedAt: ostr(s.startedAt), finishedAt: ostr(s.finishedAt),
+        }
+      : null,
+    apply: ap ? { gate: normApplySide(ap.gate), challenger: normApplySide(ap.challenger) } : null,
+  };
+}
+export const getAdminHyperopts = async (): Promise<HyperoptList> => {
+  const r = o(await getJson<unknown>('/api/admin/hyperopts'));
+  const g = o(r.gpu);
+  return {
+    hyperopts: arr(r.hyperopts as unknown[]).filter(has).map(normHyperopt), games: strs(r.games),
+    models: Object.fromEntries(Object.entries(o(r.models)).map(([k, v]) => [k, str(v)])),
+    fields: Object.fromEntries(Object.entries(o(r.fields)).map(([k, v]) => [k, { default: num(o(v).default, 0), min: num(o(v).min, 0), max: num(o(v).max, 0), integer: o(v).integer !== false }])),
+    budgetMaxSeconds: num(r.budgetMaxSeconds, 14 * 24 * 3600),
+    gpu: { configured: bool(g.configured), host: ostr(g.host), running: ostr(g.running), queued: num(g.queued, 0) },
+  };
+};
+export const getAdminHyperopt = async (id: string): Promise<Hyperopt> => normHyperopt(await getJson<unknown>(`/api/admin/hyperopts/${encodeURIComponent(id)}`));
+export const getAdminHyperoptLog = async (id: string): Promise<{ size: number; text: string; truncated: boolean }> => {
+  const r = o(await getJson<unknown>(`/api/admin/hyperopts/${encodeURIComponent(id)}/log`));
+  return { size: num(r.size, 0), text: str(r.text), truncated: bool(r.truncated) };
+};

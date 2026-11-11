@@ -27,6 +27,7 @@ const RandomnessPage = lazy(() => import('./pages/admin/RandomnessPage'));
 const TuningPage = lazy(() => import('./pages/admin/TuningPage'));
 const ParametersPage = lazy(() => import('./pages/admin/ParametersPage'));
 const BacktestsPage = lazy(() => import('./pages/admin/BacktestsPage'));
+const HyperoptsPage = lazy(() => import('./pages/admin/HyperoptsPage'));
 const WeekPage = lazy(() => import('./pages/admin/WeekPage'));
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/admin/tuning" element={<AdminGuard><TuningPage /></AdminGuard>} />
           <Route path="/admin/parameters" element={<AdminGuard><ParametersPage /></AdminGuard>} />
           <Route path="/admin/backtests" element={<AdminGuard><BacktestsPage /></AdminGuard>} />
+          <Route path="/admin/hyperopts" element={<AdminGuard><HyperoptsPage /></AdminGuard>} />
           <Route path="/admin/controls" element={<AdminGuard><ControlsPage /></AdminGuard>} />
           <Route path="/admin/models" element={<AdminGuard><ModelsPage /></AdminGuard>} />
           <Route path="/admin/phase-shift" element={<AdminGuard><PhaseShiftPage /></AdminGuard>} />

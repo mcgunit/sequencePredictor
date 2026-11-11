@@ -34,6 +34,7 @@ const admin = require('./admin');
 const audit = require('./audit');
 const params = require('./params');
 const backtests = require('./backtests');
+const hyperopts = require('./hyperopts');
 const auth = require('./auth');
 const brussels = require('./brussels');
 const whatsnew = require('./whatsnew');
@@ -522,6 +523,7 @@ function install(app, options = {}) {
 
   // --- Backtests started from Admin › Parameters (backtests.js; the scheduler's backtest job runs RunBacktest.py) ---
   backtests.install(app, { root: options.paramsRoot || dirs.root, jobs, workers: options.workers || null, guard: admin.guard, jsonBody, csrf, safe, json, reply, audit });
+  hyperopts.install(app, { root: options.paramsRoot || dirs.root, workers: options.workers || null, guard: admin.guard, jsonBody, csrf, safe, json, reply, audit });
   // --- The worker machines' state and the DL360's power (workers.js) ---
   if (options.workers && typeof options.workers.install === 'function') options.workers.install(app, { guard: admin.guard, jsonBody, csrf, safe, json, reply, audit });
 

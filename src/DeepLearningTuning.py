@@ -232,6 +232,67 @@ def finish_run(folder, marker):
     save_run(folder, marker)
 
 
+# --- the result file (--result-file; a run started from the admin pages, 11 Nov 2026) ---
+# The owner's decision: a hyperopt started from the Hyperopts page runs on the GPU worker and writes nothing that is
+# served - its copy of bestParams_<game>.json is thrown away - and the page shows this file instead: per study the
+# trials done, the best of this run, and the gate's verdict with the parameters it would write (Apply on the page
+# writes them on the main server). Replaced atomically, so a copy taken mid-write is never half a file.
+
+def write_result(path, study_key, **fields):
+    """Merges `fields` into the study's entry of the result file (no file: nothing written)."""
+    if not path:
+        return None
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError):
+        data = {}
+    studies = data.setdefault("studies", {})
+    entry = studies.setdefault(study_key, {})
+    entry.update(_plain(fields))
+    data["updatedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    folder = os.path.dirname(path)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        json.dump(data, f, indent=1, allow_nan=False)
+    os.replace(path + ".tmp", path)
+    return data
+
+
+def _plain(v):
+    """Plain JSON values: numpy scalars as numbers, a non-finite float as None (the file stays strict JSON)."""
+    if isinstance(v, dict):
+        return {str(k): _plain(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_plain(x) for x in v]
+    if v is None or isinstance(v, (bool, str)):
+        return v
+    if isinstance(v, int):
+        return v
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    if hasattr(v, "dtype") and getattr(v.dtype, "kind", "") in "iu":
+        return int(v)
+    return f if math.isfinite(f) else None
+
+
+def trial_progress(trials, known):
+    """This run's trials of a study, for the result file: counts per state and the best finite score so far."""
+    mine = [t for t in trials if t.number not in known]
+    counts = {}
+    for t in mine:
+        counts[t.state.name] = counts.get(t.state.name, 0) + 1
+    scored = [t for t in mine if t.state.name == "COMPLETE" and isinstance(t.value, (int, float)) and math.isfinite(t.value)]
+    best = max(scored, key=lambda t: t.value) if scored else None
+    return {"states": counts, "done": counts.get("COMPLETE", 0) + counts.get("PRUNED", 0),
+            "best": None if best is None else {"trial": best.number, "score": float(best.value), "params": dict(best.params)}}
+
+
 def _self_check():
     import tempfile
     lstm = predictor_defaults(None, {"yearsOfHistory": 10})
@@ -313,6 +374,24 @@ def _self_check():
     out = gate(study_with(-2.30, 0.02), {"incumbent": -2.25, "default": -2.20})
     assert out["decision"] == "reverted" and out["params"]["gnn_gcnUnits"] == 32, out["reason"]  # Predictor's default
     assert out["params"]["gnn_yearsOfHistory"] == 10                                             # the shared value, not 20
+    # the result file: merged per study, strict JSON, numpy-free
+    with tempfile.TemporaryDirectory() as d:
+        rf = os.path.join(d, "sub", "result.json")
+        assert write_result(None, "x", a=1) is None
+        write_result(rf, "lotto-gnn_model-skill", status="running", trials={"wanted": 5})
+        write_result(rf, "lotto-gnn_model-skill", score=float("nan"), status="done")
+        with open(rf) as f:
+            got = json.load(f)["studies"]["lotto-gnn_model-skill"]
+        assert got == {"status": "done", "trials": {"wanted": 5}, "score": None}, got
+
+        class T:
+            def __init__(self, number, state, value, params):
+                self.number, self.value, self.params = number, value, params
+                self.state = type("S", (), {"name": state})()
+        prog = trial_progress([T(0, "COMPLETE", 9.0, {"a": 0}), T(1, "COMPLETE", -0.2, {"a": 1}), T(2, "PRUNED", None, {}),
+                               T(3, "COMPLETE", -0.1, {"a": 3}), T(4, "FAIL", None, {})], {0})
+        assert prog["done"] == 3 and prog["states"] == {"COMPLETE": 2, "PRUNED": 1, "FAIL": 1}, prog
+        assert prog["best"] == {"trial": 3, "score": -0.1, "params": {"a": 3}}, prog   # trial 0 is from before
     print("DeepLearningTuning self-check OK")
 
 

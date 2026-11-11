@@ -12,7 +12,7 @@ import optuna
 import numpy as np
 
 from art import text2art
-from datetime import datetime
+from datetime import datetime, timezone
 from multiprocessing import get_context
 from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
 
@@ -1058,6 +1058,12 @@ if __name__ == "__main__":
         '--gate-se-margin', type=float, default=dlt.GATE_SE_MARGIN,
         help='How many standard errors of its own score the challenger must win by (default %(default)s).')
     parser.add_argument(
+        '--result-file', type=str, default=None,
+        help='Also write each study\'s progress and the gate\'s verdict - with the parameters it would write and '
+             'this run\'s best trial - to this JSON file (src/DeepLearningTuning.write_result). The Hyperopts page '
+             'runs the tuner this way on the GPU worker with -s false: it shows the file and Apply writes on the '
+             'main server (11 Nov 2026).')
+    parser.add_argument(
         '--fresh', action='store_true',
         help='Start a new run even if an unfinished one with the same settings is on disk (default: resume it).')
     parser.add_argument(
@@ -1093,6 +1099,7 @@ if __name__ == "__main__":
     pruneAfterDays = max(0, int(args.prune_after_days))
     gateEnabled = bool(args.gate)
     gateSeMargin = float(args.gate_se_margin)
+    resultFile = args.result_file or None
 
     print("Push to git: ", pushToGit)
     print("Running ", n_trials, "trials")
@@ -1167,6 +1174,10 @@ if __name__ == "__main__":
                     print(f"{studyKey}: finished earlier in this run - skipped")
                     continue
                 progressPath = os.path.join(runFolder, f"progress-{studyKey}.json")
+                dlt.write_result(resultFile, studyKey, game=dataset_name, model=model_type,
+                                 row=MODEL_DISPLAY_NAMES[model_type], status="running", wanted=n_trials,
+                                 days=daysToRebuild, trainSeconds=trainSeconds or None, gate=gateEnabled,
+                                 startedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 modelPath = os.path.join(path, "data", "hyperOptCache", "models", model_type)
                 dataPath = os.path.join(path, "data", "trainingData", dataset_name)
                 file = f"{dataset_name}-gamedata-NL-{current_year}.csv"
@@ -1298,8 +1309,20 @@ if __name__ == "__main__":
                 # OOMing killed the entire study) is recorded as a FAILED
                 # trial and the study moves on to the next suggestion instead
                 # of aborting the whole game.
+                def reportTrial(study, trial, studyKey=studyKey, known=known):
+                    try:
+                        dlt.write_result(resultFile, studyKey, progress=dlt.trial_progress(
+                            study.get_trials(deepcopy=False), known))
+                    except Exception as e:  # the page's view only: never stops the study
+                        print(f"{studyKey}: could not write the result file ({e})")
+
+                if resultFile:
+                    reportTrial(study, None)
                 if remaining:
-                    study.optimize(objective, n_trials=remaining, catch=(Exception,))
+                    study.optimize(objective, n_trials=remaining, catch=(Exception,),
+                                   callbacks=[reportTrial] if resultFile else None)
+                if resultFile:
+                    dlt.write_result(resultFile, studyKey, status="gate" if gateEnabled else "writing")
 
                 # Champion/challenger (src/TuningGate.py, 6 Nov 2026): this run's
                 # best completed trial is written only if it beats the served
@@ -1335,6 +1358,18 @@ if __name__ == "__main__":
                 existingData.setdefault("tuningGate", {})[displayName] = outcome["record"]
                 if outcome["params"] is not None:
                     existingData.update(outcome["params"])
+                if resultFile:
+                    challengerParams = None
+                    if outcome.get("trial") is not None:
+                        try:
+                            challengerParams = dict(study.trials[outcome["trial"]].params)
+                        except Exception:
+                            challengerParams = None
+                    dlt.write_result(resultFile, studyKey, status="done", decision=outcome["decision"],
+                                     reason=outcome["reason"], params=outcome["params"], challengerParams=challengerParams,
+                                     record=outcome["record"], summary=outcome["summary"],
+                                     progress=dlt.trial_progress(study.get_trials(deepcopy=False), known),
+                                     finishedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
 
                 # B: written and committed now, not at the end of the run
                 with open(jsonBestParamsFilePath, "w+") as outfile:
@@ -1351,6 +1386,10 @@ if __name__ == "__main__":
 
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
+                try:
+                    dlt.write_result(resultFile, dlt.study_name(dataset_name, model_type), status="failed", error=str(e)[:500])
+                except Exception:
+                    pass
 
     try:
         for filename in os.listdir(os.getcwd()):

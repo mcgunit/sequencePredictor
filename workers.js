@@ -28,9 +28,9 @@ const config = require('./config');
 
 const ROOT = __dirname;
 // the folders, set once (test/workers.test.js points them at a temporary folder)
-let CONFIG_DIR, CONFIG_FILE, DISABLE_FILE, RUN_DIR, LOG_DIR, SCRIPT, POWER_SCRIPT;
+let CONFIG_DIR, CONFIG_FILE, DISABLE_FILE, RUN_DIR, LOG_DIR, SCRIPT, POWER_SCRIPT, HYPEROPT_SCRIPT;
 function useDirs(configDir = config.CONFIG_DIR, logDir = path.join(ROOT, 'log'), script = path.join(ROOT, 'worker', 'remote-backtest.sh'),
-  powerScript = path.join(ROOT, 'worker', 'power.sh')) {
+  powerScript = path.join(ROOT, 'worker', 'power.sh'), hyperoptScript = path.join(ROOT, 'worker', 'remote-hyperopt.sh')) {
   CONFIG_DIR = configDir;
   CONFIG_FILE = path.join(configDir, 'workers.json');
   DISABLE_FILE = path.join(configDir, 'scheduler.disabled');   // the scheduler's kill switch stops the workers too
@@ -38,6 +38,7 @@ function useDirs(configDir = config.CONFIG_DIR, logDir = path.join(ROOT, 'log'),
   LOG_DIR = logDir;
   SCRIPT = script;
   POWER_SCRIPT = powerScript;
+  HYPEROPT_SCRIPT = hyperoptScript;
   Object.values(LANES || {}).forEach((l) => { l.state = null; });
 }
 let LANES = null;
@@ -136,36 +137,41 @@ function makeLane(kind) {
     const s = ensure();
     fs.mkdirSync(LOG_DIR, { recursive: true });
     fs.mkdirSync(RUN_DIR, { recursive: true, mode: 0o700 });
-    const logFile = path.join(LOG_DIR, K.log);
+    // a hyperopt (hyperopts.js, since 11 Nov 2026) has its own log per run and its own script; a backtest the lane's
+    const hyper = entry.type === 'hyperopt';
+    const what = hyper ? 'hyperopt' : 'backtest';
+    const logFile = hyper ? path.join(LOG_DIR, 'hyperopts', `${entry.id}.log`) : path.join(LOG_DIR, K.log);
+    if (hyper) fs.mkdirSync(path.dirname(logFile), { recursive: true });
     try { if (fs.statSync(logFile).size > LOG_MAX_BYTES) fs.renameSync(logFile, `${logFile}.1`); } catch (e) { /* none yet */ }
-    const runId = `${kind}-backtest-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    const runId = `${kind}-${what}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     const pidFile = path.join(RUN_DIR, `${runId}.pid`);
     const exitFile = path.join(RUN_DIR, `${runId}.exit`);
-    const budget = K.budget(entry.days);
+    const budget = hyper ? entry.budget : K.budget(entry.days);
+    const extra = hyper ? (entry.args || []).map(shellQuote).join(' ') : '';
     // the wrapper publishes the script's PID (not its own: Stop signals the script alone, see worker/remote-backtest.sh)
     const script = [
       `cd ${shellQuote(ROOT)} || exit 97`,
-      `printf '=== ${kind} worker: backtest %s started %s UTC ===\n' ${shellQuote(entry.id)} "$(date -u '+%F %T')" >> ${shellQuote(logFile)}`,
-      `bash ${shellQuote(SCRIPT)} ${shellQuote(entry.id)} ${shellQuote(budget)} ${shellQuote(runId)} >> ${shellQuote(logFile)} 2>&1 &`,
+      `printf '=== ${kind} worker: ${what} %s started %s UTC ===\n' ${shellQuote(entry.id)} "$(date -u '+%F %T')" >> ${shellQuote(logFile)}`,
+      `bash ${shellQuote(hyper ? HYPEROPT_SCRIPT : SCRIPT)} ${shellQuote(entry.id)} ${shellQuote(budget)} ${shellQuote(runId)} ${extra} >> ${shellQuote(logFile)} 2>&1 &`,
       `echo $! > ${shellQuote(pidFile)}`,
       'wait $!',
       'status=$?',
-      `printf '=== ${kind} worker: backtest %s finished status=%s ===\n' ${shellQuote(entry.id)} "$status" >> ${shellQuote(logFile)}`,
+      `printf '=== ${kind} worker: ${what} %s finished status=%s ===\n' ${shellQuote(entry.id)} "$status" >> ${shellQuote(logFile)}`,
       `echo "$status" > ${shellQuote(exitFile)}`,
       `rm -f ${shellQuote(pidFile)}`,
     ].join('\n');
     try {
       const child = spawnFn('setsid', ['--fork', 'bash', '-c', script], { cwd: ROOT, env: scriptEnv(c), stdio: 'ignore', detached: true });
       if (child && child.unref) child.unref();
-      if (child && child.on) child.on('error', (e) => log(`could not launch the backtest ${entry.id}: ${e.message}`));
+      if (child && child.on) child.on('error', (e) => log(`could not launch the ${what} ${entry.id}: ${e.message}`));
     } catch (e) {
-      log(`could not launch the backtest ${entry.id}: ${e.message}`);
+      log(`could not launch the ${what} ${entry.id}: ${e.message}`);
       record({ id: entry.id, at: Date.now(), finishedAt: Date.now(), exit: null, note: `launch failed: ${e.message}` });
       return;
     }
-    s.current = { id: entry.id, runId, by: entry.by, days: entry.days, budget, host: c.host, startedAt: Date.now(), pid: null, pidFile, exitFile, logFile };
+    s.current = { id: entry.id, type: what, runId, by: entry.by, days: entry.days, budget, host: c.host, startedAt: Date.now(), pid: null, pidFile, exitFile, logFile };
     save();
-    log(`started the backtest ${entry.id} on the ${K.word} ${c.host} (budget ${Math.round(budget / 60)} min)`);
+    log(`started the ${what} ${entry.id} on the ${K.word} ${c.host} (budget ${Math.round(budget / 60)} min)`);
   };
 
   const finish = (exit, note, endedAt) => {
@@ -174,8 +180,8 @@ function makeLane(kind) {
     if (!run) return;
     const ended = endedAt || Date.now();
     s.current = null;
-    record({ id: run.id, runId: run.runId, host: run.host, at: run.startedAt, finishedAt: ended, seconds: Math.round((ended - run.startedAt) / 1000), exit, note: note || null });
-    log(`the backtest ${run.id} on the ${K.word} finished${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`);
+    record({ id: run.id, type: run.type || 'backtest', runId: run.runId, host: run.host, at: run.startedAt, finishedAt: ended, seconds: Math.round((ended - run.startedAt) / 1000), exit, note: note || null });
+    log(`the ${run.type || 'backtest'} ${run.id} on the ${K.word} finished${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`);
     [run.pidFile, run.exitFile].forEach((f) => { try { fs.unlinkSync(f); } catch (e) { /* gone */ } });
   };
 
@@ -212,40 +218,45 @@ function makeLane(kind) {
     lane.launch(entry, c, deps);
   };
 
+  // deps.hyperopt = {budget, args} queues a hyperopt (hyperopts.js) instead of a backtest: same queue, one at a time
   lane.queue = (id, by, days, deps = {}) => {
     const s = ensure();
+    const hyper = deps.hyperopt || null;
+    const Word = hyper ? 'Hyperopt' : 'Backtest';
     if (!(deps.config || lane.config)()) return { ok: false, status: 503, message: `no ${K.word} is set up (config/workers.json)` };
     if (fs.existsSync(DISABLE_FILE)) return { ok: false, status: 409, message: 'the schedule is disabled - remove config/scheduler.disabled first' };
-    if (s.queue.some((q) => q.id === id) || (s.current && s.current.id === id)) return { ok: false, status: 409, message: 'that backtest is already queued' };
-    s.queue.push({ id, by: String(by || 'admin').slice(0, 64), days, queuedAt: Date.now() });
+    if (s.queue.some((q) => q.id === id) || (s.current && s.current.id === id)) return { ok: false, status: 409, message: `that ${Word.toLowerCase()} is already queued` };
+    s.queue.push({ id, by: String(by || 'admin').slice(0, 64), days, queuedAt: Date.now(),
+      ...(hyper ? { type: 'hyperopt', budget: hyper.budget, args: hyper.args } : {}) });
     save();
-    log(`queued the backtest ${id} for the ${K.word} (started by hand (${by}))`);
+    log(`queued the ${Word.toLowerCase()} ${id} for the ${K.word} (started by hand (${by}))`);
     lane.startNext(deps);
     const started = Boolean(s.current && s.current.id === id);
     const place = s.queue.findIndex((q) => q.id === id) + 1;
     return { ok: true, status: 200, started, place,
-      message: started ? `Backtest started on the ${K.word}` : `Backtest queued for the ${K.word}${place ? ` (number ${place})` : ''}: it starts when the one before it ends` };
+      message: started ? `${Word} started on the ${K.word}` : `${Word} queued for the ${K.word}${place ? ` (number ${place})` : ''}: it starts when the one before it ends` };
   };
 
   lane.cancel = (id, by) => {
     const s = ensure();
     const before = s.queue.length;
     s.queue = s.queue.filter((q) => q.id !== id);
-    if (before === s.queue.length) return { ok: false, status: 409, message: 'that backtest is not in the queue' };
+    if (before === s.queue.length) return { ok: false, status: 409, message: 'that run is not in the queue' };
     save();
-    log(`the backtest ${id} removed from the ${K.word}'s queue by ${by}`);
-    return { ok: true, status: 200, message: 'Backtest removed from the queue' };
+    log(`${id} removed from the ${K.word}'s queue by ${by}`);
+    return { ok: true, status: 200, message: 'Removed from the queue' };
   };
 
   lane.stopRun = (runId, by, { kill = (pid, signal) => process.kill(pid, signal), isAlive = alive } = {}) => {
     const run = ensure().current;
-    if (!run || run.runId !== String(runId || '')) return { ok: false, status: 409, message: 'that backtest is no longer running' };
-    if (!run.pid) return { ok: false, status: 409, message: 'that backtest has not reported its PID yet' };
-    if (!isAlive(run.pid, run.runId)) return { ok: false, status: 409, message: 'that backtest is already gone - the page will catch up in a moment' };
+    const what = run && run.type === 'hyperopt' ? 'hyperopt' : 'backtest';
+    if (!run || run.runId !== String(runId || '')) return { ok: false, status: 409, message: 'that run is no longer running' };
+    if (!run.pid) return { ok: false, status: 409, message: `that ${what} has not reported its PID yet` };
+    if (!isAlive(run.pid, run.runId)) return { ok: false, status: 409, message: `that ${what} is already gone - the page will catch up in a moment` };
     try {
-      kill(run.pid, 'SIGTERM');   // the script alone: it stops the remote run itself (worker/remote-backtest.sh)
-      log(`the backtest ${run.id} stopped by ${by}`);
-      return { ok: true, status: 200, message: 'Backtest stopping' };
+      kill(run.pid, 'SIGTERM');   // the script alone: it stops the remote run itself (worker/remote-backtest.sh, remote-hyperopt.sh)
+      log(`the ${what} ${run.id} stopped by ${by}`);
+      return { ok: true, status: 200, message: `${what === 'hyperopt' ? 'Hyperopt' : 'Backtest'} stopping` };
     } catch (e) {
       return { ok: false, status: 500, message: `could not stop it: ${e.message}` };
     }
@@ -256,7 +267,7 @@ function makeLane(kind) {
     const s = ensure();
     const c = lane.config();
     return {
-      current: s.current ? { id: s.current.id, runId: s.current.runId } : null,
+      current: s.current ? { id: s.current.id, runId: s.current.runId, type: s.current.type || 'backtest' } : null,
       queued: s.queue.map((q) => q.id),
       configured: Boolean(c), host: c ? c.host.replace(/^.*@/, '') : null,
       disabled: fs.existsSync(DISABLE_FILE),
@@ -271,7 +282,7 @@ function makeLane(kind) {
     if (!run) return;
     let pid = run.pid;
     if (!pid) { try { pid = Number(String(fs.readFileSync(run.pidFile, 'utf-8')).trim()) || null; } catch (e) { /* none */ } run.pid = pid; }
-    if (alive(pid, run.runId)) { log(`adopted the backtest ${run.id} on the ${K.word} (pid ${pid}) - it survived the restart`); return; }
+    if (alive(pid, run.runId)) { log(`adopted the ${run.type || 'backtest'} ${run.id} on the ${K.word} (pid ${pid}) - it survived the restart`); return; }
     run.goneAt = null;   // poll reads an exit code written while the server was down; else it was lost with it
     lane.poll();
     if (s.current) finish(null, 'the server was restarted and the run was gone when it came back');
