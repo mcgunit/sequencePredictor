@@ -159,6 +159,23 @@ footer.disclaimer li + li { margin-top: 4px; }
 .tbl th .live { text-transform: none; letter-spacing: 0; }
 .live { font-size: var(--fs-xs); color: var(--muted); font-weight: 400; margin-left: 4px; white-space: nowrap; }
 .compact .tbl td { padding-top: 8px; padding-bottom: 8px; }
+/* Admin › Parameters (11 Nov 2026): setting | value | action, the same columns in every card; values start at the
+   column's left edge whatever their type; "?" opens the setting's help under its name */
+.ptbl { table-layout: fixed; }
+.ptbl col.pv { width: 34%; }
+.ptbl col.pa { width: 150px; }
+.ptbl td { vertical-align: top; }
+.ptbl td, .ptbl td .num { text-align: left; }
+.ptbl td .num { display: inline; }
+.ptbl td:first-child code { overflow-wrap: anywhere; }
+.ptbl td.pv { overflow-wrap: anywhere; }
+.ptbl td.pa { white-space: nowrap; }
+details.phelp { display: inline; margin-left: 6px; }
+details.phelp > summary { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--flat-bg); color: var(--accent); font-size: var(--fs-xs); font-weight: 600; cursor: pointer; list-style: none; vertical-align: 1px; }
+details.phelp > summary::-webkit-details-marker { display: none; }
+details.phelp[open] > summary { background: var(--accent); color: var(--act-fg); }
+details.phelp > .sub { max-width: 70ch; margin-top: 4px; }
+@media (max-width: 640px) { .ptbl col.pv { width: 40%; } .ptbl col.pa { width: 96px; } }
 
 /* "No position" rows in the open positions' footer */
 .none-row { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; color: var(--muted); font-size: var(--fs-sm); }

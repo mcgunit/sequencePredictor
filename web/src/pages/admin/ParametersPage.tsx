@@ -11,6 +11,7 @@ import {
   type ParametersView,
 } from '../../api';
 import { DASH, short, stamp } from '../../format';
+import { paramHelp } from './paramHelp';
 import { useLoad } from '../../hooks/useLoad';
 import { useSend } from '../../hooks/useSend';
 import { useSwitchParam } from '../../hooks/useUrlState';
@@ -169,6 +170,7 @@ export default function ParametersPage() {
           onCancel={() => setAsk(null)}
           lines={[
             `${game}${ask.t.rows.length ? ` · ${ask.t.rows.map(short).join(', ')}` : ''}`,
+            paramHelp(ask.t.key),
             `Tuned value: ${ask.t.tunedSet ? shownValue(ask.t.tuned) : 'not set (the code default)'}${ask.t.override ? ` · manual now: ${shownValue(ask.t.override.value)}` : ''}`,
             ask.mode === 'set'
               ? `It wins over the tuners from ${d.nextRun} until someone releases it.`
@@ -473,13 +475,20 @@ function ParamTable({
     retrains: l.retrains ?? (l.key === 'labelSmoothing' && retrains.length ? ['LSTM Smoothed Model'] : retrains),
   });
   const cell = (l: Line): ReactNode => <Shown value={l.value} unset={!!l.unset} override={l.override} />;
+  // Setting (with its "?" and the page's note under it), value, action. The value column has a fixed share so every
+  // card's table lines up, and numbers and words both start at its left edge (owner 11 Nov 2026: the numbers sat at
+  // the right of the column, under a mostly empty Note heading).
   return (
-    <table className="tbl">
+    <table className="tbl ptbl">
+      <colgroup>
+        <col />
+        <col className="pv" />
+        <col className="pa" />
+      </colgroup>
       <thead>
         <tr>
           <th>Setting</th>
           <th>Value</th>
-          <th>Note</th>
           <th aria-label="Action" />
         </tr>
       </thead>
@@ -488,14 +497,27 @@ function ParamTable({
           <tr key={l.key} className={l.read ? undefined : 'mut'}>
             <td>
               <code>{l.key}</code>
+              <ParamHelp k={l.key} />
+              {l.note ? <span className="sub">{l.note}</span> : null}
             </td>
-            <td>{cell(l)}</td>
-            <td className="mut">{l.note ?? ''}</td>
-            <td>{l.editable ? <Actions override={l.override} onSet={() => onAct('set', target(l))} onRelease={() => onAct('release', target(l))} /> : null}</td>
+            <td className="pv">{cell(l)}</td>
+            <td className="pa">{l.editable ? <Actions override={l.override} onSet={() => onAct('set', target(l))} onRelease={() => onAct('release', target(l))} /> : null}</td>
           </tr>
         ))}
       </tbody>
     </table>
+  );
+}
+
+// "?" behind a setting: what it does (paramHelp.ts), opened in place like the cards' "?" (a native details, no hover)
+function ParamHelp({ k }: { k: string }) {
+  const text = paramHelp(k);
+  if (!text) return null;
+  return (
+    <details className="phelp">
+      <summary aria-label={`What ${k} does`}>?</summary>
+      <span className="sub">{text}</span>
+    </details>
   );
 }
 
