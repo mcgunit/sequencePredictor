@@ -158,7 +158,9 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
     const job = byKey[h.key];
     const out = { id: runIdOf(h.key, h.at), key: h.key, name: h.name || (job ? job.name : h.key), kind: h.dry ? 'dry' : (h.blocked ? 'blocked' : 'run'),
       start: isoMs(h.at), end: isoMs(h.finishedAt), minutes: h.dry ? null : r1(num(h.seconds) === null ? null : h.seconds / 60),
-      result: resultOf(h), note: admin.noPaths(h.note || h.error || null), reason: h.reason || null, sha: h.sha || null };
+      result: resultOf(h), note: admin.noPaths(h.note || h.error || null), reason: h.reason || null, sha: h.sha || null,
+      // where it ran: 'cpu' for a Sunday control on the DL360 (jobs.js, since 11 Nov 2026), else this server
+      worker: h.worker || null };
     if (out.kind === 'run' && job) {
       const line = admin.runLine(h, job, slices[h.key], ran);
       out.usual = line.usual ? { median: r1(line.usual.median), min: r1(line.usual.min), max: r1(line.usual.max), n: line.usual.n } : null;
@@ -172,16 +174,23 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
   });
 
   const cur = s && s.current ? s.current : null;
-  let running = null;
-  if (cur) {
-    const minutes = (nowMs - cur.startedAt) / 60000;
-    const u = usual(cur.key, cur.startedAt);
-    running = { id: runIdOf(cur.key, cur.startedAt), runId: cur.runId, key: cur.key, name: cur.name, reason: cur.reason || null,
-      start: isoMs(cur.startedAt), minutes: r1(minutes), pid: cur.pid || null, sha: cur.sha || null,
+  const runningOf = (c) => {
+    const minutes = (nowMs - c.startedAt) / 60000;
+    const u = usual(c.key, c.startedAt);
+    return { id: runIdOf(c.key, c.startedAt), runId: c.runId, key: c.key, name: c.name, reason: c.reason || null,
+      start: isoMs(c.startedAt), minutes: r1(minutes), pid: c.pid || null, sha: c.sha || null,
       usual: u ? { median: r1(u.median), min: r1(u.min), max: r1(u.max), n: u.n, basis: u.basis } : null,
       vsMedian: u && u.median ? Math.round((minutes / u.median) * 100) / 100 : null, overUsual: u ? minutes > u.max : null,
-      log: list(cur.log).slice(-LIVE_LOG_LINES).map(cutLine) };
-  }
+      log: list(c.log).slice(-LIVE_LOG_LINES).map(cutLine) };
+  };
+  const running = cur ? runningOf(cur) : null;
+  const queueOf = (q) => ({ key: q.key, name: q.name || (byKey[q.key] || {}).name || q.key, reason: q.reason || null,
+    queuedAt: isoMs(q.queuedAt), waitedMinutes: num(q.queuedAt) === null ? null : r1((nowMs - q.queuedAt) / 60000), manual: Boolean(q.manual) });
+  // the Sunday controls on the DL360 (jobs.js, since 11 Nov 2026): their own run and queue beside this server's. Its
+  // usual times are those of every earlier run of the job, here and there (the DL360 is about half this server's speed).
+  const far = s && s.remote ? s.remote : null;
+  const remote = far ? { configured: Boolean(far.configured), host: far.host || null,
+    running: far.current ? runningOf(far.current) : null, queue: list(far.queue).map(queueOf) } : null;
   // script: a file name (jobs.js lockHolder falls back to the holder's last argument, which can be an absolute path)
   const lock = s ? (s.lock ? { held: true, pid: s.lock.pid, script: s.lock.script ? path.basename(String(s.lock.script)) : null, key: s.lock.key || null,
     ours: Boolean(cur && s.lock.key === cur.key) }
@@ -208,9 +217,8 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
   return {
     builtAt: isoMs(nowMs), tz: brussels.TZ,
     mode: s ? { mode: s.mode, reason: s.modeReason } : null,
-    lock, running,
-    queue: list(s && s.queue).map((q) => ({ key: q.key, name: q.name || (byKey[q.key] || {}).name || q.key, reason: q.reason || null,
-      queuedAt: isoMs(q.queuedAt), waitedMinutes: num(q.queuedAt) === null ? null : r1((nowMs - q.queuedAt) / 60000), manual: Boolean(q.manual) })),
+    lock, running, remote,
+    queue: list(s && s.queue).map(queueOf),
     jobs: list(s && s.jobs).map((j) => {
       const job = byKey[j.key] || {};
       const u = usual(j.key, nowMs);

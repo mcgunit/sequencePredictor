@@ -45,7 +45,7 @@ export default function WorkersCard({ onAsk }: { onAsk: (a: Ask) => void }) {
 function Dl360({ cpu, onAsk }: { cpu: NonNullable<WorkersView['cpu']>; onAsk: (a: Ask) => void }) {
   if (cpu.note) return <span className="mut">{cpu.host ?? DASH}: {cpu.note}</span>;
   const idleFor = minutesAgo(cpu.lastBusy);
-  const busy = Boolean(cpu.running || cpu.queued);
+  const busy = Boolean(cpu.running || cpu.queued || cpu.control);
   const on = cpu.power === 'on';
   const state = cpu.switching
     ? cpu.switching.action === 'on' ? `switching on (asked by ${cpu.switching.by} at ${time(cpu.switching.at)}; 5 to 10 minutes)` : `shutting down (asked by ${cpu.switching.by})`
@@ -63,6 +63,11 @@ function Dl360({ cpu, onAsk }: { cpu: NonNullable<WorkersView['cpu']>; onAsk: (a
             : 'switched on when a backtest needs it'}
         {cpu.running ? ' · a backtest is running' : ''}
         {cpu.queued ? ` · ${cpu.queued} queued` : ''}
+      </span>
+      <span className="sub">
+        the statistical, market and boosting backtests, and the Sunday controls
+        {cpu.control?.running ? ` · ${cpu.control.running} running (Running & queue)` : ''}
+        {cpu.control?.queued ? ` · ${cpu.control.queued} control${cpu.control.queued === 1 ? '' : 's'} waiting` : ''}
       </span>
       {cpu.error ? <span className="sub">last read failed: {cpu.error}</span> : null}
       <span className="sub">{cpu.readAt ? `read ${time(cpu.readAt)}` : 'not read yet'}</span>
@@ -105,7 +110,7 @@ function Dl360({ cpu, onAsk }: { cpu: NonNullable<WorkersView['cpu']>; onAsk: (a
           Shut down
         </button>
       </div>
-      {busy ? <span className="fnote">Shut down waits until no backtest runs or waits for it.</span> : null}
+      {busy ? <span className="fnote">Shut down waits until no backtest or control runs or waits for it.</span> : null}
     </>
   );
 }

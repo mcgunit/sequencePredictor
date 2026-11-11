@@ -275,7 +275,75 @@ function RunningCard({ d, onAsk, onOpenRun }: { d: JobsView; onAsk: (a: Ask) => 
       ) : (
         <p className="note">Nothing waits{r ? ` behind ${label}` : ''}.</p>
       )}
+      {d.remote ? <RemoteRuns d={d} onAsk={onAsk} onOpenRun={onOpenRun} /> : null}
     </Card>
+  );
+}
+
+// The Sunday controls on the DL360 (jobs.js, since 11 Nov 2026): their own run and queue, beside this server's.
+function RemoteRuns({ d, onAsk, onOpenRun }: { d: JobsView; onAsk: (a: Ask) => void; onOpenRun: (id: string) => void }) {
+  const far = d.remote;
+  if (!far) return null;
+  const r = far.running;
+  const label = r ? jobLabel(r.key, r.name) : '';
+  return (
+    <>
+      <h3 className="subh">On the DL360{far.host ? ` (${far.host})` : ''} · the Sunday controls</h3>
+      <p className="note">
+        {far.configured
+          ? 'The control experiments run there, one at a time and in their order, beside this queue: they take no process.lock here. When the DL360 does not come up, they run here instead.'
+          : 'The DL360 is no longer set up (config/workers.json): what waits for it runs here.'}
+      </p>
+      {r ? (
+        <div className="now">
+          <div className="now-h">
+            <button type="button" className="gbtn row" onClick={() => onOpenRun(r.id)} aria-haspopup="dialog">
+              {label}
+            </button>
+            <span className="mut">
+              since {stamp(r.start)}
+              {r.sha ? (
+                <>
+                  {' · at '}
+                  <code>{r.sha}</code>
+                </>
+              ) : null}
+            </span>
+            <button type="button" className="btn danger" disabled={r.pid === null} onClick={() => onAsk(stopAsk(r, d))}>
+              Stop
+            </button>
+          </div>
+          {r.reason ? <p className="note">{cap(r.reason)}.</p> : null}
+          <p className={r.overUsual ? 'line warn' : 'line'}>
+            <b>{durationText(r.minutes, r.usual)}</b> so far · {usualText(r.usual, r.minutes)} (the DL360 takes about twice as long as this server)
+          </p>
+          <h3 className="subh">Its log · the last {r.log.length} lines</h3>
+          <pre className="logtail">{r.log.length ? r.log.join('\n') : 'no output yet'}</pre>
+        </div>
+      ) : (
+        <p className="note">No control running there.</p>
+      )}
+      {far.queue.length ? (
+        <ul className="qlist">
+          {far.queue.map((q, i) => (
+            <li key={q.key}>
+              <span className="qn">{i + 1}</span>
+              <span className="qt">
+                <b>{jobLabel(q.key, q.name)}</b>
+                <small>
+                  queued {stamp(q.queuedAt)} · waiting {durationText(q.waitedMinutes)}
+                  {q.reason ? ` · ${q.reason}` : ''}
+                </small>
+              </span>
+              {q.manual ? <Chip kind="flat">by hand</Chip> : null}
+              <button type="button" className="btn" onClick={() => onAsk(cancelAsk(q, d))}>
+                Cancel
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
   );
 }
 
@@ -368,7 +436,7 @@ function ServiceCard({ sv, onAsk }: { sv: ServiceLine; onAsk: (a: Ask) => void }
 
 // --- the schedule ----------------------------------------------------------------------------------------------------
 function ScheduleCard({ d, onOpenJob, onOpenRun }: { d: JobsView; onOpenJob: (key: string) => void; onOpenRun: (id: string) => void }) {
-  const queued = new Set(d.queue.map((q) => q.key));
+  const queued = new Set([...d.queue, ...(d.remote?.queue ?? [])].map((q) => q.key));
   const groups = PLAN_GROUPS.map((g) => ({ ...g, jobs: d.jobs.filter((j) => (j.plan ?? null) === g.plan) })).filter((g) => g.jobs.length);
   const other = d.jobs.filter((j) => !PLAN_GROUPS.some((g) => g.plan === (j.plan ?? null)));
   if (other.length) groups.push({ plan: 'other', label: 'Other', name: 'other jobs', jobs: other });
@@ -412,7 +480,7 @@ function ScheduleCard({ d, onOpenJob, onOpenRun }: { d: JobsView; onOpenJob: (ke
 }
 
 function ScheduleRow({ j, d, queued, onOpenJob, onOpenRun }: { j: JobLine; d: JobsView; queued: boolean; onOpenJob: (key: string) => void; onOpenRun: (id: string) => void }) {
-  const running = d.running?.key === j.key;
+  const running = d.running?.key === j.key || d.remote?.running?.key === j.key;
   // the last run as the Runs card reads it: against the runs of this job before it
   const item = j.last ? d.runs.items.find((x) => x.id === j.last?.id) ?? null : null;
   const usual = item?.usual ?? j.usual;
@@ -546,6 +614,7 @@ function RunRow({ x, onOpen }: { x: RunItem; onOpen: (id: string) => void }) {
               <code>{x.sha}</code>
             </>
           ) : null}
+          {x.worker === 'cpu' ? ' · on the DL360' : ''}
         </small>
       </span>
       {x.kind === 'run' ? (

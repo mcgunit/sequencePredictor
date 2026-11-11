@@ -438,7 +438,7 @@ function alive(pid, runId) {
 function gitSha() {
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'],
-      { cwd: ROOT, encoding: 'utf-8', timeout: 5000 }).trim();
+      { cwd: ROOT, encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch (e) {
     return null;
   }
@@ -469,7 +469,9 @@ function rotate(file) {
 
 function rotateAll() {
   if (lockHolder()) return;
-  JOBS.forEach((job) => rotate(path.join(LOG_DIR, job.log)));
+  // never the log a control on the DL360 is writing into now
+  const busy = state && state.remote && state.remote.current ? state.remote.current.logFile : null;
+  JOBS.forEach((job) => { if (path.join(LOG_DIR, job.log) !== busy) rotate(path.join(LOG_DIR, job.log)); });
   rotate(SCHEDULER_LOG);
 }
 
@@ -512,7 +514,10 @@ function jobOfCmdline(cmdline) {
 // handled, what is queued, what is running, and the run history the Jobs
 // page shows. In config/ because it is gitignored - data/ is committed by
 // the pipeline itself.
-const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {} };
+// remote: the Sunday controls' own queue and run on the CPU worker (the DL360, since 11 Nov 2026; see "The Sunday
+// controls on the DL360" below).
+const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {},
+  remote: { current: null, queue: [] } };
 
 let state = null;
 let timer = null;
@@ -522,7 +527,11 @@ let waiting = null;           // {since, lastLogAt, reported} while the lock blo
 function loadState() {
   try {
     const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
-    return Object.assign({}, EMPTY, parsed && typeof parsed === 'object' ? parsed : {});
+    const out = Object.assign({}, EMPTY, parsed && typeof parsed === 'object' ? parsed : {});
+    // a scheduler.json from before 11 Nov 2026 has no remote part; never share EMPTY's object
+    const r = out.remote && typeof out.remote === 'object' ? out.remote : {};
+    out.remote = { current: r.current || null, queue: Array.isArray(r.queue) ? r.queue : [] };
+    return out;
   } catch (e) {
     if (e.code !== 'ENOENT') log(`scheduler.json unreadable (${e.message}) - starting from empty state`);
     return JSON.parse(JSON.stringify(EMPTY));
@@ -562,11 +571,19 @@ function record(entry) {
 // day's predictor behind it rather than pre-empting the tuner. A job key is
 // never queued twice - a second copy of today's predictor would compute the
 // same day again.
-function enqueue(key, reason, manual) {
+// opts.local: queue it on this server even when it is a control and the DL360 is set up (the fallback);
+// opts.occurrence: the plan occurrence that queued it (the controls on the DL360 share one copy of the data).
+function enqueue(key, reason, manual, opts = {}) {
   const job = jobByKey(key);
   if (!job) return false;
   if (state.current && state.current.key === key) return false;
   if (state.queue.some((q) => q.key === key)) return false;
+  if (remoteHas(key)) return false;
+  if (!opts.local && toWorker(key)) {
+    state.remote.queue.push({ key, reason, queuedAt: Date.now(), manual: Boolean(manual), occurrence: opts.occurrence || null });
+    log(`queued ${job.name} for the DL360 (${reason})`);
+    return true;
+  }
   // `manual` marks the one thing dry mode is still allowed to start: a job an
   // administrator asked for by hand. Without the mark, a queue written while
   // the schedule was on would drain the next time the process came up in dry
@@ -613,7 +630,7 @@ function enqueuePlan(plan, occurrenceId, reason, now = new Date()) {
              reason, dry: true, occurrence: occurrenceId });
     return;
   }
-  const queued = keys.filter((key) => enqueue(key, reason));
+  const queued = keys.filter((key) => enqueue(key, reason, false, { occurrence: occurrenceId }));
   if (queued.length !== keys.length) {
     // Said out loud rather than swallowed: an occurrence is marked handled
     // even when its job was already waiting, so the log has to show that
@@ -855,6 +872,184 @@ function pollCurrent() {
   }
 }
 
+// --- the Sunday controls on the DL360 ---------------------------------------------------------------------------------
+// The owner's decision of 11 Nov 2026: when config/workers.json has a cpu entry (workers.js), the control plan's jobs
+// run on the DL360 instead of in this queue - same trigger (Sunday's predictor finishing), same order, same records
+// and the same week's reading, but this server's queue no longer waits behind them (the monthly Q0 band held the
+// daily runs up to twelve hours). They have their own FIFO here (state.remote): one at a time, beside the scheduler's
+// own run, taking no process.lock on this server. worker/remote-control.sh switches the DL360 on through its iLO
+// when it does not answer, copies the code and the data a control reads to <dir>/controls (one copy per occurrence,
+// so the four controls of a Sunday read the same draws), runs the control there over ssh and copies its records back
+// into data/controls/ - this server stays the only writer of data/. When the DL360 does not come up (or cannot be
+// copied to), the wrapper ends with REMOTE_NOT_STARTED before anything ran there, and this control and the ones
+// behind it are queued here instead, as before 11 Nov 2026 (the owner's fallback): no week's reading is lost.
+const REMOTE_NOT_STARTED = 75;
+let workerConfig = () => { try { return require('./workers').configOf('cpu'); } catch (e) { return null; } };
+let workerEnv = (c) => require('./workers').scriptEnv(c);
+const REMOTE_SCRIPT = path.join(ROOT, 'worker', 'remote-control.sh');
+let remoteScript = REMOTE_SCRIPT;
+
+// A control goes to the DL360 when it is set up; anything else stays here.
+function toWorker(key) {
+  return CONTROL_KEYS.includes(key) && Boolean(workerConfig());
+}
+function remoteHas(key) {
+  const r = state.remote;
+  return Boolean((r.current && r.current.key === key) || r.queue.some((q) => q.key === key));
+}
+
+function launchRemote(entry, c) {
+  const job = jobByKey(entry.key);
+  const logFile = path.join(LOG_DIR, job.log);
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+  fs.mkdirSync(RUN_DIR, { recursive: true, mode: 0o700 });
+  rotate(logFile);
+  const runId = `${job.key}-dl360-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  const pidFile = path.join(RUN_DIR, `${runId}.pid`);
+  const exitFile = path.join(RUN_DIR, `${runId}.exit`);
+  const sha = gitSha();
+  // one copy of the data per plan occurrence; a run by hand gets its own
+  const snapshot = String(entry.occurrence || runId).replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 100);
+  // the same markers as launch(): admin.js slices the job's log by them; the PID file holds the wrapper's PID (Stop
+  // signals it alone - it stops the run on the DL360 and copies back what that wrote)
+  const script = [
+    `cd ${shellQuote(ROOT)} || exit 97`,
+    `printf '=== scheduler: %s started %s UTC ===\n' ${shellQuote(job.name)} "$(date -u '+%F %T')${sha ? ` ${sha}` : ''}" >> ${shellQuote(logFile)}`,
+    'started=$(date +%s)',
+    `bash ${shellQuote(remoteScript)} ${shellQuote(runId)} ${shellQuote(snapshot)} ${shellQuote(job.script)} ${job.args.map(shellQuote).join(' ')} >> ${shellQuote(logFile)} 2>&1 &`,
+    `echo $! > ${shellQuote(pidFile)}`,
+    'wait $!',
+    'status=$?',
+    `printf '=== scheduler: %s finished status=%s after %ss ===\n' ${shellQuote(job.name)} "$status" "$(( $(date +%s) - started ))" >> ${shellQuote(logFile)}`,
+    `echo "$status" > ${shellQuote(exitFile)}`,
+    `rm -f ${shellQuote(pidFile)}`,
+  ].join('\n');
+  try {
+    const starter = spawn('setsid', ['--fork', 'bash', '-c', script], { cwd: ROOT, env: { ...childEnv(), ...workerEnv(c) }, stdio: 'ignore', detached: true });
+    starter.unref();
+    starter.on('error', (error) => log(`could not launch ${job.name} for the DL360: ${error.message}`));
+  } catch (e) {
+    log(`could not launch ${job.name} for the DL360: ${e.message} - queued here instead`);
+    enqueue(entry.key, `${entry.reason}; here: the DL360 run could not be launched`, entry.manual, { local: true });
+    return;
+  }
+  state.remote.current = {
+    runId, key: job.key, name: job.name, reason: entry.reason, startedAt: Date.now(), pid: null, pidFile, exitFile, logFile,
+    sha, mode: mode(), host: c.host.replace(/^.*@/, ''), occurrence: entry.occurrence || null, manual: Boolean(entry.manual),
+  };
+  saveState();
+  log(`started ${job.name} on the DL360 ${c.host.replace(/^.*@/, '')}${sha ? ` at ${sha}` : ''} (${entry.reason})`);
+}
+
+function startNextRemote() {
+  const r = state.remote;
+  if (r.current) return;
+  const current = mode();
+  if (current === 'off' || !r.queue.length) return;
+  const kept = allowedQueue(r.queue, current);
+  if (kept.length !== r.queue.length) {
+    r.queue.filter((q) => !kept.includes(q)).forEach((q) => log(
+      `dropped ${jobByKey(q.key).name} from the DL360's queue: the schedule is ${current} and that entry was not started by hand`));
+    r.queue = kept;
+    saveState();
+  }
+  if (!r.queue.length) return;
+  const c = workerConfig();
+  if (!c) {
+    // the cpu entry was taken out of config/workers.json while controls waited for it: they run here
+    const moved = r.queue.splice(0);
+    saveState();
+    moved.forEach((q) => enqueue(q.key, `${q.reason}; here: the DL360 is no longer set up`, q.manual, { local: true }));
+    saveState();
+    return;
+  }
+  const entry = r.queue.shift();
+  saveState();
+  launchRemote(entry, c);
+}
+
+function finishRemote(exit, note, finishedAt) {
+  const r = state.remote;
+  const run = r.current;
+  if (!run) return;
+  const ended = finishedAt || Date.now();
+  const seconds = Math.round((ended - run.startedAt) / 1000);
+  const notStarted = exit === REMOTE_NOT_STARTED;
+  const text = notStarted ? 'did not start on the DL360 (it did not come up, or could not be copied to): run on this server instead' : note;
+  record({
+    at: run.startedAt, finishedAt: ended, key: run.key, name: run.name, reason: run.reason,
+    seconds, exit, sha: run.sha, pid: run.pid, note: text || null, worker: 'cpu', host: run.host,
+  });
+  log(`${run.name} on the DL360 finished after ${humanDuration(seconds)}${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`);
+  [run.pidFile, run.exitFile].forEach((file) => { try { fs.unlinkSync(file); } catch (e) { /* already gone */ } });
+  r.current = null;
+  saveState();
+  if (notStarted) {
+    // the owner's fallback: this control and every one waiting behind it run here, in their order
+    const moved = [run, ...r.queue.splice(0)];
+    saveState();
+    moved.forEach((q) => enqueue(q.key, `${q.reason}; here: the DL360 did not come up`, q.manual, { local: true }));
+    log(`the DL360 did not come up: ${moved.map((q) => jobByKey(q.key).name).join(', ')} queued on this server`);
+    saveState();
+    return;
+  }
+  // the reading, as for a run here: written when the plan's last job finishes, from the records copied back
+  scheduleReading(run);
+}
+
+function pollRemote() {
+  const run = state.remote.current;
+  if (!run) return;
+  let exit = null;
+  let endedAt = null;
+  try {
+    exit = exitCodeFrom(fs.readFileSync(run.exitFile, 'utf-8'));
+    if (exit !== null) endedAt = fs.statSync(run.exitFile).mtimeMs;
+  } catch (e) { /* still running, or died without writing */ }
+  if (exit !== null) return finishRemote(exit, null, endedAt);
+  if (!run.pid) {
+    try {
+      run.pid = Number(String(fs.readFileSync(run.pidFile, 'utf-8')).trim()) || null;
+      if (run.pid) saveState();
+    } catch (e) { /* not written yet */ }
+    if (!run.pid && Date.now() - run.startedAt > PID_WAIT_MS) return finishRemote(null, 'the job never reported a PID - launch failed');
+    return;
+  }
+  // the wrapper writes the exit code a moment after the script ends: a gone script gets a few seconds
+  if (alive(run.pid, run.runId)) { run.goneAt = null; return; }
+  if (!run.goneAt) { run.goneAt = Date.now(); return; }
+  if (Date.now() - run.goneAt >= REMOTE_GONE_GRACE_MS) finishRemote(null, 'the job disappeared without writing an exit code (killed?)');
+}
+const REMOTE_GONE_GRACE_MS = 5 * 1000;
+
+function adoptRemote() {
+  const run = state.remote.current;
+  if (!run) return;
+  if (!run.pid) {
+    try { run.pid = Number(String(fs.readFileSync(run.pidFile, 'utf-8')).trim()) || null; } catch (e) { /* none */ }
+  }
+  if (alive(run.pid, run.runId)) {
+    log(`adopted ${run.name} on the DL360 (pid ${run.pid}, started ${stamp(run.startedAt)}) - it survived the restart, as intended`);
+    saveState();
+    return;
+  }
+  run.goneAt = null;
+  pollRemote();
+  if (state.remote.current) finishRemote(null, 'the server was restarted and the job was gone when it came back');
+}
+
+// For status(): what runs and waits on the DL360 (the running one with its log's tail), or null.
+function remoteStatus() {
+  const r = state.remote;
+  const c = workerConfig();
+  if (!c && !r.current && !r.queue.length) return null;
+  return {
+    configured: Boolean(c), host: c ? c.host.replace(/^.*@/, '') : (r.current ? r.current.host : null),
+    current: r.current ? Object.assign({}, r.current, { log: tail(r.current.logFile, 20) }) : null,
+    queue: r.queue.map((q) => Object.assign({}, q, { name: jobByKey(q.key).name })),
+  };
+}
+
 // --- what is due ------------------------------------------------------------
 // Pure, so test/jobs.test.js can walk a week through it without touching the
 // filesystem: given the recorded occurrences and a moment in time, what
@@ -1044,6 +1239,7 @@ function pickNext(queue, budget) {
 function tick() {
   try {
     pollCurrent();
+    pollRemote();
 
     const now = new Date();
     if (mode() !== 'off') {
@@ -1060,6 +1256,7 @@ function tick() {
     lastLock = holder;
 
     startNext();
+    startNextRemote();
   } catch (e) {
     log(`tick failed: ${e.stack || e.message}`);
   }
@@ -1086,9 +1283,9 @@ function adoptOrClose() {
 function sweepRunFiles() {
   try {
     const cutoff = Date.now() - RUN_FILE_DAYS * 86400 * 1000;
-    const keep = state.current ? state.current.runId : null;
+    const keep = [state.current, state.remote && state.remote.current].filter(Boolean).map((r) => r.runId);
     fs.readdirSync(RUN_DIR).forEach((name) => {
-      if (keep && name.startsWith(keep)) return;      // the run we are about to adopt
+      if (keep.some((k) => name.startsWith(k))) return;      // a run we are about to adopt
       const file = path.join(RUN_DIR, name);
       try { if (fs.statSync(file).mtimeMs < cutoff) fs.unlinkSync(file); } catch (e) { /* gone */ }
     });
@@ -1102,6 +1299,7 @@ function start() {
     : current === 'dry' ? 'nothing will be started, only recorded' : 'disabled'}`);
   sweepRunFiles();
   adoptOrClose();
+  adoptRemote();
   if (!state.baselinedAt) baseline(new Date());
   baselinePlans(new Date());
   rotateAll();
@@ -1150,8 +1348,8 @@ function runRefusal(key, current = mode()) {
   if (!job) return { status: 400, message: 'unknown job' };
   if (job.manualOnly) return { status: 400, message: `${job.name}: start it from Admin › Parameters` };
   if (current === 'off') return { status: 409, message: 'the schedule is disabled - remove config/scheduler.disabled first' };
-  if ((state.current && state.current.key === key) || state.queue.some((q) => q.key === key)) {
-    return { status: 409, message: `${job.name}: already running or queued` };
+  if ((state.current && state.current.key === key) || state.queue.some((q) => q.key === key) || remoteHas(key)) {
+    return { status: 409, message: `${job.name}: already running or queued${remoteHas(key) ? ' on the DL360' : ''}` };
   }
   return null;
 }
@@ -1165,7 +1363,15 @@ function runNow(key, by) {
   const queued = enqueue(job.key, `started by hand (${by})`, true);
   saveState();
   startNext();
+  startNextRemote();
   if (!queued) return { ok: false, status: 409, message: `${job.name}: already running or queued` };
+  const remote = state.remote.current && state.remote.current.key === job.key ? 'current'
+    : state.remote.queue.some((q) => q.key === job.key) ? 'queued' : null;
+  if (remote) {
+    const at = state.remote.queue.findIndex((q) => q.key === job.key) + 1;
+    return { ok: true, status: 200, started: remote === 'current',
+      message: `${job.name}: ${remote === 'current' ? 'started on the DL360' : `queued for the DL360${at ? `, ${at === 1 ? 'first' : `number ${at}`} in its queue` : ''}`}` };
+  }
   const started = Boolean(state.current && state.current.key === job.key);
   const place = state.queue.findIndex((q) => q.key === job.key) + 1;
   return { ok: true, status: 200, message: `${job.name}: ${started ? 'started' : `queued${place ? `, ${place === 1 ? 'first' : `number ${place}`} in the queue` : ''}`}`, started };
@@ -1199,9 +1405,10 @@ function backtestState() {
 
 // Cancel: takes a job out of the queue; a running job is stopped, not cancelled.
 function cancelQueued(key, by) {
-  const before = state.queue.length;
+  const before = state.queue.length + state.remote.queue.length;
   state.queue = state.queue.filter((q) => q.key !== key);
-  if (before === state.queue.length) {
+  state.remote.queue = state.remote.queue.filter((q) => q.key !== key);
+  if (before === state.queue.length + state.remote.queue.length) {
     return jobByKey(key) ? { ok: false, status: 409, message: 'not in the queue' } : { ok: false, status: 400, message: 'unknown job' };
   }
   saveState();
@@ -1214,6 +1421,19 @@ function cancelQueued(key, by) {
 // so a page that is behind can never stop the next job. deps (for the test):
 // kill, isAlive.
 function stopRun(runId, by, { kill = (pid, signal) => process.kill(pid, signal), isAlive = alive } = {}) {
+  const far = state.remote.current;
+  if (far && far.runId === String(runId || '')) {
+    if (!far.pid) return { ok: false, status: 409, message: 'that job has not reported its PID yet' };
+    if (!isAlive(far.pid, far.runId)) return { ok: false, status: 409, message: 'that job is already gone - the page will catch up in a moment' };
+    try {
+      // the wrapper alone, not its group: it stops the run on the DL360 and copies back what it wrote (remote-control.sh)
+      kill(far.pid, 'SIGTERM');
+      log(`${far.name} on the DL360 (pid ${far.pid}) stopped by ${by}`);
+      return { ok: true, status: 200, message: `${far.name}: stopping on the DL360` };
+    } catch (e) {
+      return { ok: false, status: 500, message: `could not stop it: ${e.message}` };
+    }
+  }
   const run = state.current;
   if (!run || run.runId !== String(runId || '')) return { ok: false, status: 409, message: 'that job is no longer running' };
   if (!run.pid) return { ok: false, status: 409, message: 'that job has not reported its PID yet' };
@@ -1243,6 +1463,8 @@ function status({ full = false } = {}) {
       log: tail(state.current.logFile, 20),
     }) : null,
     queue: state.queue.map((q) => Object.assign({}, q, { name: jobByKey(q.key).name })),
+    // the Sunday controls on the DL360: null when it is not set up and nothing runs or waits there
+    remote: remoteStatus(),
     jobs: JOBS.map((job) => ({
       key: job.key, name: job.name, description: job.description,
       command: `python3 ${job.script}${job.args.length ? ` ${job.args.join(' ')}` : ''}`,
@@ -1272,8 +1494,15 @@ function tail(file, lines) {
   }
 }
 
+// What runs or waits on the DL360 for the schedule (workers.js: no switching it off by hand meanwhile), or null.
+function remoteBusy() {
+  if (!state || !state.remote) return null;
+  const r = state.remote;
+  return r.current || r.queue.length ? { running: r.current ? r.current.name : null, queued: r.queue.length } : null;
+}
+
 module.exports = {
-  start, stop, status, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun,
+  start, stop, status, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun, remoteBusy,
   // the backtests started from Admin › Parameters (backtests.js)
   queueBacktest, cancelBacktest, backtestState,
   // pipeline.js names the lock holder's step by it (the keno step runs the statistical tuner's script)
@@ -1287,5 +1516,8 @@ module.exports = {
     enqueue, startNext, tick, lockHolder, jobOfCmdline, maybeTriggerChain, state: () => state,
     chainTriggerAt, exitCodeFrom, allowedQueue, READING_JOB, readingSundayOf, writeWeekReading, scheduleReading,
     runsOnDay, planDayOf, planKeysOn, nextMonthlyDay, enqueuePlan, enqueueBacktest, backtestBudget, secondsToNextSlot, pickNext,
+    // the Sunday controls on the DL360
+    REMOTE_NOT_STARTED, toWorker, startNextRemote, pollRemote, finishRemote, adoptRemote, remoteStatus,
+    useWorker: (configFn, envFn, script) => { workerConfig = configFn; workerEnv = envFn || (() => ({})); remoteScript = script || REMOTE_SCRIPT; },
   },
 };

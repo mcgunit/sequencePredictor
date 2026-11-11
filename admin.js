@@ -1504,7 +1504,11 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
   const daily = list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
   const current = live.current !== undefined ? live.current : (sched && sched.current) || null;
   const queue = live.queue !== undefined ? live.queue : list(sched && sched.queue);
-  const currentRun = current && Number.isFinite(current.startedAt) ? { key: current.key, at: current.startedAt } : null;
+  const localRun = current && Number.isFinite(current.startedAt) ? { key: current.key, at: current.startedAt } : null;
+  // a Sunday control on the DL360 runs beside this server's job: it is the weekend's running one when this server's is not
+  const far = live.remoteCurrent && Number.isFinite(live.remoteCurrent.startedAt) ? { key: live.remoteCurrent.key, at: live.remoteCurrent.startedAt } : null;
+  const weekendish = (r) => r && byKey[r.key] && byKey[r.key].plan;
+  const currentRun = localRun && (weekendish(localRun) || !far) ? localRun : far || localRun;
   // the weekend: this Saturday's once anything of it has started, else the one before
   const weekendRuns = (sat) => history.filter((h) => inWeekend(h, byKey[h.key], sat)).sort((a, b) => a.at - b.at);
   let saturday = brussels.lastWeekday(nowMs, 6);
@@ -1699,6 +1703,8 @@ function install(app, options = {}) {
         const s = options.jobs.status();
         out.lock = s.lock || null;
         out.current = s.current ? { key: s.current.key, name: s.current.name, startedAt: s.current.startedAt } : null;
+        // a Sunday control running on the DL360 (jobs.js, since 11 Nov 2026), beside this server's job
+        out.remoteCurrent = s.remote && s.remote.current ? { key: s.remote.current.key, name: s.remote.current.name, startedAt: s.remote.current.startedAt } : null;
         out.queue = list(s.queue);
       } catch (e) { /* the schedule has not started yet: the scheduler file stands in */ }
     }

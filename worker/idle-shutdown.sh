@@ -3,7 +3,7 @@
 # (sp-worker-idle.timer). It only acts on a boot the worker marked (worker/power.sh wake: /run/sequencePredictor-worker/
 # woken - /run is emptied at every boot, so a start by hand is never switched off): it switches the machine off after
 # IDLE_MINUTES (10, /etc/default/sp-worker-idle) without
-#   - a backtest running (the worker's backtest.pid alive),
+#   - a backtest running (the worker's backtest.pid alive) or a Sunday control (controls/control.pid),
 #   - a council request (a "slot" line from a llama@ service in the journal), or
 #   - an active login (who -u: idle less than IDLE_MINUTES).
 set -u
@@ -15,6 +15,10 @@ MARK="${WORKER_MARK:-/run/sequencePredictor-worker}"   # WORKER_MARK and SP_IDLE
 now=$(date +%s)
 busy=""
 if [ -f "$APP/backtest.pid" ] && kill -0 "$(cat "$APP/backtest.pid" 2>/dev/null)" 2>/dev/null; then busy="a backtest is running"; fi
+# a Sunday control (worker/remote-control.sh: <dir>/controls/control.pid, since 11 Nov 2026)
+for pidfile in "$(dirname "$APP")"/controls/control.pid "$(dirname "$APP")"/*/controls/control.pid; do
+  [ -z "$busy" ] && [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && busy="a control is running"
+done
 if [ -z "$busy" ] && journalctl -u 'llama@*' --since "-${IDLE} min" -q --no-pager -o cat 2>/dev/null | grep -q ' slot '; then busy="the council answered a request"; fi
 if [ -z "$busy" ]; then
   # who -u: the 5th field is the idle time - "." (active this minute), "HH:MM", or "old" (a day)

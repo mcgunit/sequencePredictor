@@ -283,6 +283,10 @@ useDirs();
 const lane = (kind) => LANES[kind] || null;
 
 // --- the CPU worker's power (worker/power.sh) ------------------------------------------------------------------------
+// The Sunday controls the schedule runs on the DL360 (jobs.js remoteBusy, since 11 Nov 2026), or null.
+function controlsBusy(deps = {}) {
+  try { return (deps.controlsBusy || require('./jobs').remoteBusy)(); } catch (e) { return null; }
+}
 let power = { at: 0, value: null, error: null, pending: null };
 let powerAction = null;   // {action, by, at} while a switch-on waits for the machine
 function runPower(args, c, timeoutMs, { execFn = execFile } = {}) {
@@ -312,6 +316,7 @@ async function powerStatus(deps = {}) {
     wokenAt: v.wokenAt ? v.wokenAt * 1000 : null, lastBusy: v.lastBusy ? v.lastBusy * 1000 : null,
     readAt: power.at || null, error: power.error, switching: powerAction,
     running: cpu.current ? cpu.current.id : null, queued: cpu.queued.length,
+    control: controlsBusy(deps),
   };
 }
 
@@ -337,6 +342,8 @@ function powerOff(by, deps = {}) {
   if (!c || !c.iloEnv) return { ok: false, status: 503, message: 'no CPU worker with iLO settings is set up (config/workers.json)' };
   const s = LANES.cpu.backtestState();
   if (s.current || s.queued.length) return { ok: false, status: 409, message: 'a backtest is running or queued on the DL360 - stop or cancel it first' };
+  const ctl = controlsBusy(deps);
+  if (ctl) return { ok: false, status: 409, message: `${ctl.running ? `${ctl.running} is running` : 'a control is waiting'} on the DL360 - stop or cancel it first (Jobs & services)` };
   if (powerAction) return { ok: false, status: 409, message: 'it is being switched on - wait until it is up' };
   powerAction = { action: 'off', by, at: Date.now() };
   log(`the CPU worker switched off by ${by}`);
@@ -383,6 +390,6 @@ function install(app, { guard, jsonBody, csrf, safe, json, reply, audit }) {
 }
 
 module.exports = {
-  start, stop, lane, configOf, install, powerStatus, powerOn, powerOff, KINDS,
+  start, stop, lane, configOf, install, powerStatus, powerOn, powerOff, KINDS, scriptEnv,
   _internals: { useDirs, tick, lanes: () => LANES, resetPower: () => { power = { at: 0, value: null, error: null, pending: null }; powerAction = null; } },
 };

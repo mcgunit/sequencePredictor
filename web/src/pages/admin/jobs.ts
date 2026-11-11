@@ -180,11 +180,15 @@ export function runAsk(job: JobLine, d: JobsView): Ask {
 export function stopAsk(r: Running, d: JobsView): Ask {
   const label = jobLabel(r.key, r.name);
   const range = usualRange(r.usual, r.minutes);
+  const far = d.remote?.running?.runId === r.runId ? d.remote : null;
+  const queue = far ? far.queue : d.queue;
   const lines = [
     `It has run ${durationText(r.minutes, r.usual)}${range ? ` of its usual ${range}` : ''}, since ${stamp(r.start)}.`,
-    'Its whole process group gets SIGTERM. Nothing resumes it: what it has not finished waits for its next run.',
+    far
+      ? 'It is stopped on the DL360 and what it wrote so far is copied back. Nothing resumes it: what it has not finished waits for its next run.'
+      : 'Its whole process group gets SIGTERM. Nothing resumes it: what it has not finished waits for its next run.',
   ];
-  if (d.queue.length) lines.push(`Then the queue moves on: ${d.queue.map((q) => jobLabel(q.key, q.name)).join(', ')}.`);
+  if (queue.length) lines.push(`Then ${far ? "the DL360's" : 'the'} queue moves on: ${queue.map((q) => jobLabel(q.key, q.name)).join(', ')}.`);
   return { title: `Stop ${label}?`, lines, action: 'Stop it', danger: true, tz: true, url: ACTIONS.stop, body: { runId: r.runId } };
 }
 

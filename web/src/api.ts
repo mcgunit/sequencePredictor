@@ -2237,6 +2237,7 @@ export interface RunItem {
   warnings: { signatures: number; new: number } | null;
   sliceGone: boolean; // a run whose log slice has rotated away: its warnings cannot be read
   sha: string | null; // the commit it ran at (git short sha)
+  worker: string | null; // 'cpu': a Sunday control that ran on the DL360 (since 11 Nov 2026); null: this server
 }
 export interface Running {
   id: string; // its log id, for the run drawer
@@ -2287,6 +2288,8 @@ export interface JobsView {
   lock: { held: boolean; pid: number | null; script: string | null; key: string | null; ours: boolean } | null;
   running: Running | null;
   queue: QueueItem[];
+  // the Sunday controls on the DL360 (jobs.js, since 11 Nov 2026): their own run and queue; null when not set up
+  remote: { configured: boolean; host: string | null; running: Running | null; queue: QueueItem[] } | null;
   jobs: JobLine[];
   runs: { kept: number | null; shown: number; ran: number; items: RunItem[] };
   today: { day: string | null; key: string; run: RunShort | null; running: boolean } | null;
@@ -2412,7 +2415,21 @@ function normJobs(raw: unknown): JobsView {
   const r = o(raw);
   const m = o(r.mode);
   const lock = o(r.lock);
-  const cur = o(r.running);
+  const runningOf = (v: unknown): Running | null => {
+    if (!has(v)) return null;
+    const c = o(v);
+    return {
+      id: str(c.id), runId: str(c.runId), key: str(c.key), name: str(c.name, str(c.key)), reason: ostr(c.reason), start: ostr(c.start),
+      minutes: opt(c.minutes), pid: opt(c.pid), sha: ostr(c.sha), usual: usualOf(c.usual), vsMedian: opt(c.vsMedian),
+      overUsual: typeof c.overUsual === 'boolean' ? c.overUsual : null, log: strs(c.log),
+    };
+  };
+  const queueOf = (v: unknown): QueueItem[] =>
+    arr(v as unknown[]).filter(has).map((x) => {
+      const q = o(x);
+      return { key: str(q.key), name: str(q.name, str(q.key)), reason: ostr(q.reason), queuedAt: ostr(q.queuedAt), waitedMinutes: opt(q.waitedMinutes), manual: bool(q.manual) };
+    });
+  const far = o(r.remote);
   const runs = o(r.runs);
   const today = o(r.today);
   const fail = o(r.lastFailure);
@@ -2420,17 +2437,9 @@ function normJobs(raw: unknown): JobsView {
     builtAt: ostr(r.builtAt),
     mode: has(r.mode) ? { mode: MODES.includes(m.mode as ScheduleMode) ? (m.mode as ScheduleMode) : 'dry', reason: str(m.reason) } : null,
     lock: has(r.lock) ? { held: bool(lock.held), pid: opt(lock.pid), script: ostr(lock.script), key: ostr(lock.key), ours: bool(lock.ours) } : null,
-    running: has(r.running)
-      ? {
-          id: str(cur.id), runId: str(cur.runId), key: str(cur.key), name: str(cur.name, str(cur.key)), reason: ostr(cur.reason), start: ostr(cur.start),
-          minutes: opt(cur.minutes), pid: opt(cur.pid), sha: ostr(cur.sha), usual: usualOf(cur.usual), vsMedian: opt(cur.vsMedian),
-          overUsual: typeof cur.overUsual === 'boolean' ? cur.overUsual : null, log: strs(cur.log),
-        }
-      : null,
-    queue: arr(r.queue as unknown[]).filter(has).map((x) => {
-      const q = o(x);
-      return { key: str(q.key), name: str(q.name, str(q.key)), reason: ostr(q.reason), queuedAt: ostr(q.queuedAt), waitedMinutes: opt(q.waitedMinutes), manual: bool(q.manual) };
-    }),
+    running: runningOf(r.running),
+    queue: queueOf(r.queue),
+    remote: has(r.remote) ? { configured: bool(far.configured), host: ostr(far.host), running: runningOf(far.running), queue: queueOf(far.queue) } : null,
     jobs: arr(r.jobs as unknown[]).filter(has).map((x) => {
       const j = o(x);
       return {
@@ -2451,6 +2460,7 @@ function normJobs(raw: unknown): JobsView {
           warnings: has(h.warnings) ? { signatures: num(w.signatures, 0), new: num(w.new, 0) } : null,
           sliceGone: kind === 'run' && 'warnings' in h && h.warnings === null,
           sha: ostr(h.sha),
+          worker: ostr(h.worker),
         };
       }),
     },
@@ -2728,6 +2738,7 @@ export type WorkersView = {
     configured: boolean; host: string | null; idleMinutes: number; power: 'on' | 'off' | 'unknown'; reachable: boolean | null; woken: boolean;
     wokenAt: number | null; lastBusy: number | null; readAt: number | null; error: string | null; note: string | null;
     switching: { action: 'on' | 'off'; by: string; at: number } | null; running: string | null; queued: number;
+    control: { running: string | null; queued: number } | null; // the Sunday controls the schedule runs there (since 11 Nov 2026)
   } | null;
 };
 export const getAdminWorkers = async (): Promise<WorkersView> => {
@@ -2744,6 +2755,7 @@ export const getAdminWorkers = async (): Promise<WorkersView> => {
           woken: bool(c.woken), wokenAt: opt(c.wokenAt), lastBusy: opt(c.lastBusy), readAt: opt(c.readAt), error: ostr(c.error), note: ostr(c.note),
           switching: sw ? { action: sw.action === 'off' ? 'off' : 'on', by: str(sw.by), at: num(sw.at, 0) } : null,
           running: ostr(c.running), queued: num(c.queued, 0),
+          control: has(c.control) ? { running: ostr(o(c.control).running), queued: num(o(c.control).queued, 0) } : null,
         }
       : null,
   };

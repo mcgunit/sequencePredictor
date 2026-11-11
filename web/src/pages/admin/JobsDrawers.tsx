@@ -31,7 +31,7 @@ export function JobDrawer({
   const u = job.usual;
   const kept = d.runs.items.filter((x) => x.key === job.key).length;
   const after = afterText(job, d);
-  const running = d.running?.key === job.key;
+  const running = d.running?.key === job.key || d.remote?.running?.key === job.key;
   return (
     <Drawer title={label} sub={`${job.name} · Brussels time`} onClose={onClose}>
       <Section title="What it does">
@@ -103,7 +103,7 @@ const plain = (e: Error) => e.message.replace(/ \(GET [^)]*\)$/, '').replace(/\.
 
 export function RunLogDrawer({ id, d, onClose }: { id: string; d: JobsView; onClose: () => void }) {
   const item = d.runs.items.find((x) => x.id === id) ?? null;
-  const live = d.running?.id === id ? d.running : null;
+  const live = d.running?.id === id ? d.running : d.remote?.running?.id === id ? d.remote.running : null;
   // a dry entry (a plan's key) or a wait on the lock started nothing: there is no log slice to ask for
   const noLog = item !== null && item.kind !== 'run';
   // the running job's log grows: read it again with every refresh of the page
