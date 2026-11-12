@@ -19,7 +19,8 @@
 //   {"gpu": {"host": "root@<address>", "gpuMemoryMb": 6144},
 //    "cpu": {"host": "root@<address>", "iloEnv": "/root/.config/sequencePredictor/ilo.env", "idleMinutes": 10}}
 // "dir" (/opt/sequencePredictor-worker) and "python" (<dir>/venv/bin/python) are optional; "enabled": false switches
-// a lane off. Without a gpu entry the deep-learning rows cannot be backtested; without a cpu entry the other rows run
+// a lane off. "localDir" (cpu, /opt/sequencePredictor-worker-local) is where a hyperopt runs on this server when the
+// DL360 does not come up (the owner's fallback, 12 Nov 2026), with this server's python3, niced. Without a gpu entry the deep-learning rows cannot be backtested; without a cpu entry the other rows run
 // in the scheduler's queue on this server, as before.
 const fs = require('fs');
 const path = require('path');
@@ -49,6 +50,10 @@ const HISTORY_KEPT = 40;
 const LOG_MAX_BYTES = 10 * 1024 * 1024;
 const POWER_FRESH_MS = 30 * 1000;
 const DEFAULT_DIR = '/opt/sequencePredictor-worker';
+const DEFAULT_LOCAL_DIR = '/opt/sequencePredictor-worker-local';
+// worker/remote-hyperopt.sh's exit code when the DL360 did not come up (or could not be copied to) before the tuner
+// ran there: the hyperopt then runs on this server (the owner's fallback, 12 Nov 2026)
+const NOT_STARTED = 75;
 const safePath = (v) => typeof v === 'string' && /^\/[A-Za-z0-9_./-]{1,200}$/.test(v);
 
 const KINDS = {
@@ -68,6 +73,7 @@ const KINDS = {
     settings: (g) => ({
       iloEnv: safePath(g.iloEnv) ? g.iloEnv : null,
       idleMinutes: Number.isInteger(g.idleMinutes) && g.idleMinutes >= 5 && g.idleMinutes <= 240 ? g.idleMinutes : 10,
+      localDir: safePath(g.localDir) ? g.localDir : DEFAULT_LOCAL_DIR,
     }),
     remoteEnv: () => 'CUDA_VISIBLE_DEVICES=-1',
   },
@@ -81,6 +87,13 @@ function configOf(kind, file) {
   if (!g || !KINDS[kind] || g.enabled === false || typeof g.host !== 'string' || !/^[A-Za-z0-9_.@-]{1,120}$/.test(g.host)) return null;
   const dir = safePath(g.dir) ? g.dir : DEFAULT_DIR;
   return { kind, host: g.host, dir, python: safePath(g.python) ? g.python : `${dir}/venv/bin/python`, ...KINDS[kind].settings(g) };
+}
+
+// This server as the CPU lane's fallback for a hyperopt (WORKER_HOST=local in worker/remote-hyperopt.sh): its own
+// folder, this server's python3, no iLO. Also used when no cpu lane is set up at all.
+function localConfig(file) {
+  const c = configOf('cpu', file);
+  return { kind: 'cpu', host: 'local', dir: c ? c.localDir : DEFAULT_LOCAL_DIR, python: 'python3', iloEnv: null, idleMinutes: 10, local: true };
 }
 
 function log(text) {
@@ -101,7 +114,7 @@ const baseEnv = () => ({
 });
 const scriptEnv = (c) => ({
   ...baseEnv(), WORKER_HOST: c.host, WORKER_DIR: c.dir, WORKER_PYTHON: c.python, WORKER_REMOTE_ENV: KINDS[c.kind].remoteEnv(c),
-  ...(c.iloEnv ? { WORKER_ILO_ENV: c.iloEnv, WORKER_IDLE_MINUTES: String(c.idleMinutes) } : {}),
+  ...(c.iloEnv && !c.local ? { WORKER_ILO_ENV: c.iloEnv, WORKER_IDLE_MINUTES: String(c.idleMinutes) } : {}),
 });
 
 // --- one lane: its queue and its run ----------------------------------------------------------------------------------
@@ -169,9 +182,10 @@ function makeLane(kind) {
       record({ id: entry.id, at: Date.now(), finishedAt: Date.now(), exit: null, note: `launch failed: ${e.message}` });
       return;
     }
-    s.current = { id: entry.id, type: what, runId, by: entry.by, days: entry.days, budget, host: c.host, startedAt: Date.now(), pid: null, pidFile, exitFile, logFile };
+    s.current = { id: entry.id, type: what, runId, by: entry.by, days: entry.days, budget, host: c.host, startedAt: Date.now(), pid: null, pidFile, exitFile, logFile,
+      ...(hyper ? { args: entry.args, local: Boolean(c.local) } : {}) };
     save();
-    log(`started the ${what} ${entry.id} on the ${K.word} ${c.host} (budget ${Math.round(budget / 60)} min)`);
+    log(`started the ${what} ${entry.id} on ${c.local ? 'this server (the CPU lane\'s fallback)' : `the ${K.word} ${c.host}`} (budget ${Math.round(budget / 60)} min)`);
   };
 
   const finish = (exit, note, endedAt) => {
@@ -180,8 +194,12 @@ function makeLane(kind) {
     if (!run) return;
     const ended = endedAt || Date.now();
     s.current = null;
-    record({ id: run.id, type: run.type || 'backtest', runId: run.runId, host: run.host, at: run.startedAt, finishedAt: ended, seconds: Math.round((ended - run.startedAt) / 1000), exit, note: note || null });
-    log(`the ${run.type || 'backtest'} ${run.id} on the ${K.word} finished${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`);
+    // a hyperopt the DL360 never started (it did not come up): first in the queue again, to run on this server
+    const moved = kind === 'cpu' && run.type === 'hyperopt' && exit === NOT_STARTED && !run.local;
+    if (moved) s.queue.unshift({ id: run.id, by: run.by, days: run.days, queuedAt: Date.now(), type: 'hyperopt', budget: run.budget, args: run.args, local: true });
+    record({ id: run.id, type: run.type || 'backtest', runId: run.runId, host: run.host, at: run.startedAt, finishedAt: ended, seconds: Math.round((ended - run.startedAt) / 1000), exit,
+      note: moved ? 'the DL360 did not come up: moved to this server' : note || null });
+    log(`the ${run.type || 'backtest'} ${run.id} on ${run.local ? 'this server' : `the ${K.word}`} finished${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}${moved ? ' - the DL360 did not come up: it runs on this server next' : ''}`);
     [run.pidFile, run.exitFile].forEach((f) => { try { fs.unlinkSync(f); } catch (e) { /* gone */ } });
   };
 
@@ -211,23 +229,25 @@ function makeLane(kind) {
   lane.startNext = (deps = {}) => {
     const s = ensure();
     if (s.current || !s.queue.length || fs.existsSync(DISABLE_FILE)) return;
-    const c = (deps.config || lane.config)();
+    // a hyperopt marked local (the DL360 did not come up, or no cpu lane is set up) runs on this server
+    const c = s.queue[0].local ? (deps.localConfig || localConfig)() : (deps.config || lane.config)();
     if (!c) return;
     const entry = s.queue.shift();
     save();
     lane.launch(entry, c, deps);
   };
 
-  // deps.hyperopt = {budget, args} queues a hyperopt (hyperopts.js) instead of a backtest: same queue, one at a time
+  // deps.hyperopt = {budget, args, local} queues a hyperopt (hyperopts.js) instead of a backtest: same queue, one at a
+  // time; local (the cpu lane without a DL360 set up) runs it on this server
   lane.queue = (id, by, days, deps = {}) => {
     const s = ensure();
     const hyper = deps.hyperopt || null;
     const Word = hyper ? 'Hyperopt' : 'Backtest';
-    if (!(deps.config || lane.config)()) return { ok: false, status: 503, message: `no ${K.word} is set up (config/workers.json)` };
+    if (!(hyper && hyper.local) && !(deps.config || lane.config)()) return { ok: false, status: 503, message: `no ${K.word} is set up (config/workers.json)` };
     if (fs.existsSync(DISABLE_FILE)) return { ok: false, status: 409, message: 'the schedule is disabled - remove config/scheduler.disabled first' };
     if (s.queue.some((q) => q.id === id) || (s.current && s.current.id === id)) return { ok: false, status: 409, message: `that ${Word.toLowerCase()} is already queued` };
     s.queue.push({ id, by: String(by || 'admin').slice(0, 64), days, queuedAt: Date.now(),
-      ...(hyper ? { type: 'hyperopt', budget: hyper.budget, args: hyper.args } : {}) });
+      ...(hyper ? { type: 'hyperopt', budget: hyper.budget, args: hyper.args, ...(hyper.local ? { local: true } : {}) } : {}) });
     save();
     log(`queued the ${Word.toLowerCase()} ${id} for the ${K.word} (started by hand (${by}))`);
     lane.startNext(deps);
@@ -267,7 +287,7 @@ function makeLane(kind) {
     const s = ensure();
     const c = lane.config();
     return {
-      current: s.current ? { id: s.current.id, runId: s.current.runId, type: s.current.type || 'backtest' } : null,
+      current: s.current ? { id: s.current.id, runId: s.current.runId, type: s.current.type || 'backtest', ...(s.current.local ? { local: true } : {}) } : null,
       queued: s.queue.map((q) => q.id),
       configured: Boolean(c), host: c ? c.host.replace(/^.*@/, '') : null,
       disabled: fs.existsSync(DISABLE_FILE),
@@ -352,7 +372,7 @@ function powerOff(by, deps = {}) {
   const c = configOf('cpu');
   if (!c || !c.iloEnv) return { ok: false, status: 503, message: 'no CPU worker with iLO settings is set up (config/workers.json)' };
   const s = LANES.cpu.backtestState();
-  if (s.current || s.queued.length) return { ok: false, status: 409, message: 'a backtest is running or queued on the DL360 - stop or cancel it first' };
+  if ((s.current && !s.current.local) || s.queued.length) return { ok: false, status: 409, message: 'a backtest or hyperopt is running or queued on the DL360 - stop or cancel it first' };
   const ctl = controlsBusy(deps);
   if (ctl) return { ok: false, status: 409, message: `${ctl.running ? `${ctl.running} is running` : 'a control is waiting'} on the DL360 - stop or cancel it first (Jobs & services)` };
   if (powerAction) return { ok: false, status: 409, message: 'it is being switched on - wait until it is up' };
@@ -402,6 +422,6 @@ function install(app, { guard, jsonBody, csrf, safe, json, reply, audit }) {
 }
 
 module.exports = {
-  start, stop, lane, configOf, install, powerStatus, powerOn, powerOff, KINDS, scriptEnv,
+  start, stop, lane, configOf, localConfig, install, powerStatus, powerOn, powerOff, KINDS, scriptEnv, NOT_STARTED,
   _internals: { useDirs, tick, lanes: () => LANES, resetPower: () => { power = { at: 0, value: null, error: null, pending: null }; powerAction = null; } },
 };

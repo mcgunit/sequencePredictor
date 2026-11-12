@@ -52,6 +52,11 @@ import os
 import statistics
 from datetime import datetime, timezone
 
+try:
+    from src import TuningResult as _tr
+except ImportError:  # run as a script from src/
+    import TuningResult as _tr
+
 # Predictor.py's --dl-model-seconds default (DL_MODEL_SECONDS): the budget every DL training run gets in production
 TRAIN_SECONDS = 240
 # Prune after this many rebuilt days (the second day's report, step 1); the first PRUNE_STARTUP_TRIALS trials of a
@@ -116,7 +121,8 @@ def day_excess(check):
     return float(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
 
 
-def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tickets=None, tickets=None):
+def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tickets=None, tickets=None,
+              line=None):
     """
     The trial's score and its diagnostics (the gate's "tuning" record): minus the mean finite excess loss over the
     rebuilt days (None or non-finite for a day without a learning check); score_se the standard error of that over
@@ -126,7 +132,8 @@ def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tic
     Variety (owner, 11 Nov 2026: a usable parameter set must predict new sequences, not one ticket whatever the
     input): same_tickets is each day's learning-check sameTicket - the share of its validation windows that got the
     most common argmax ticket - and tickets each day's predicted ticket. variety() turns them into same_ticket_mean,
-    blind_days, input_blind (the gate's rule, TuningGate.challenge(variety=True)) and distinct_tickets.
+    blind_days, input_blind (the gate's rule, TuningGate.challenge(variety=True)) and distinct_tickets; `line` is the
+    owner's variety line (12 Nov 2026: a setting, --variety-line; INPUT_BLIND_SHARE without one).
     """
     finite = [-float(v) for v in excess_losses if isinstance(v, (int, float)) and math.isfinite(v)]
     losses = [float(v) for v in (val_losses or []) if isinstance(v, (int, float)) and math.isfinite(v)]
@@ -139,28 +146,31 @@ def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tic
         out.update(score=mean, excess_mean=-mean,
                    score_se=statistics.stdev(finite) / math.sqrt(len(finite)) if len(finite) > 1 else None)
     if same_tickets is not None or tickets is not None:
-        out.update(variety(same_tickets or [], tickets or []))
+        out.update(variety(same_tickets or [], tickets or [], line))
     return out
 
 
 # A day is input-blind when its learning check gave the same argmax ticket on this share of the validation windows
 # or more (src/LearningCheck.INPUT_BLIND_SHARE, repeated here so this module stays import-free); a candidate is
-# input-blind when at least half of its checked days are (owner, 11 Nov 2026: the 95% line).
+# input-blind when at least half of its checked days are (owner, 11 Nov 2026: the 95% line; 12 Nov 2026: the line is
+# the owner's setting - config/tuning.json for the weekly chain, the page's field for a run - and this the default).
 INPUT_BLIND_SHARE = 0.95
 
 
-def variety(same_tickets, tickets):
+def variety(same_tickets, tickets, line=None):
     """
     How much a candidate's output depends on its input, over the rebuilt days:
       same_ticket_mean  mean share of validation windows given the most common ticket (1.0: always the same ticket)
-      blind_days        days at INPUT_BLIND_SHARE or more, of variety_days days with a check
+      blind_days        days at the line (INPUT_BLIND_SHARE without one) or more, of variety_days days with a check
       input_blind       blind on at least half of the checked days (None: no day was checked)
       distinct_tickets  how many different tickets the rebuilt days predicted, of `tickets` predicted
     """
+    line = INPUT_BLIND_SHARE if line is None else float(line)
     shares = [float(v) for v in same_tickets if isinstance(v, (int, float)) and math.isfinite(v)]
-    blind = sum(1 for v in shares if v >= INPUT_BLIND_SHARE)
+    blind = sum(1 for v in shares if v >= line - 1e-12)
     shown = [json.dumps(t, sort_keys=True, default=str) for t in tickets if t not in (None, [], "")]
-    return {"same_ticket_mean": round(statistics.fmean(shares), 3) if shares else None,
+    return {"variety_measure": "windows", "variety_line": line,
+            "same_ticket_mean": round(statistics.fmean(shares), 3) if shares else None,
             "blind_days": blind, "variety_days": len(shares),
             "input_blind": (2 * blind >= len(shares)) if shares else None,
             "distinct_tickets": len(set(shown)), "tickets": len(shown)}
@@ -273,59 +283,10 @@ def finish_run(folder, marker):
 # trials done, the best of this run, and the gate's verdict with the parameters it would write (Apply on the page
 # writes them on the main server). Replaced atomically, so a copy taken mid-write is never half a file.
 
-def write_result(path, study_key, **fields):
-    """Merges `fields` into the study's entry of the result file (no file: nothing written)."""
-    if not path:
-        return None
-    try:
-        with open(path) as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            data = {}
-    except (OSError, ValueError):
-        data = {}
-    studies = data.setdefault("studies", {})
-    entry = studies.setdefault(study_key, {})
-    entry.update(_plain(fields))
-    data["updatedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    folder = os.path.dirname(path)
-    if folder:
-        os.makedirs(folder, exist_ok=True)
-    with open(path + ".tmp", "w") as f:
-        json.dump(data, f, indent=1, allow_nan=False)
-    os.replace(path + ".tmp", path)
-    return data
-
-
-def _plain(v):
-    """Plain JSON values: numpy scalars as numbers, a non-finite float as None (the file stays strict JSON)."""
-    if isinstance(v, dict):
-        return {str(k): _plain(x) for k, x in v.items()}
-    if isinstance(v, (list, tuple)):
-        return [_plain(x) for x in v]
-    if v is None or isinstance(v, (bool, str)):
-        return v
-    if isinstance(v, int):
-        return v
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return str(v)
-    if hasattr(v, "dtype") and getattr(v.dtype, "kind", "") in "iu":
-        return int(v)
-    return f if math.isfinite(f) else None
-
-
-def trial_progress(trials, known):
-    """This run's trials of a study, for the result file: counts per state and the best finite score so far."""
-    mine = [t for t in trials if t.number not in known]
-    counts = {}
-    for t in mine:
-        counts[t.state.name] = counts.get(t.state.name, 0) + 1
-    scored = [t for t in mine if t.state.name == "COMPLETE" and isinstance(t.value, (int, float)) and math.isfinite(t.value)]
-    best = max(scored, key=lambda t: t.value) if scored else None
-    return {"states": counts, "done": counts.get("COMPLETE", 0) + counts.get("PRUNED", 0),
-            "best": None if best is None else {"trial": best.number, "score": float(best.value), "params": dict(best.params)}}
+# The shared implementation (src/TuningResult.py, 12 Nov 2026: every tuner writes the same file for the page).
+write_result = _tr.write_result
+_plain = _tr.plain
+trial_progress = _tr.trial_progress
 
 
 def _self_check():
@@ -354,6 +315,8 @@ def _self_check():
     t0 = variety([0.97] * 3 + [0.33] * 7, [[1, 2, 3], [1, 2, 3], [4, 5, 6], None])
     assert t0["input_blind"] is False and t0["distinct_tickets"] == 2 and t0["tickets"] == 3
     assert variety([0.95, 0.5], [])["input_blind"] is True and variety([0.949, 0.5], [])["input_blind"] is False
+    assert variety([0.85, 0.85, 0.5], [], 0.8)["input_blind"] is True and variety([0.85, 0.5, 0.5], [], 0.8)["input_blind"] is False
+    assert variety([0.9], [], 0.8)["variety_line"] == 0.8 and variety([0.9], [])["variety_measure"] == "windows"
     assert variety([None, float("nan")], [])["input_blind"] is None and not is_input_blind({"input_blind": None})
     assert is_input_blind(d) and not is_input_blind(t0) and not is_input_blind(None)
     assert running_value([0.02, None, 0.04]) == -0.03 and running_value([]) == -1e9

@@ -2764,77 +2764,117 @@ export const getAdminWorkers = async (): Promise<WorkersView> => {
   };
 };
 export const getAdminBacktest = async (id: string): Promise<Backtest> => normBacktest(await getJson<unknown>(`/api/admin/backtests/${encodeURIComponent(id)}`));
-// --- Admin › Hyperopts (GET /api/admin/hyperopts[/:id[/log]], hyperopts.js; HyperoptDeepLearning.py --result-file) ---
+// --- Admin › Hyperopts (GET /api/admin/hyperopts[/:id[/log]], hyperopts.js; every Hyperopt*.py --result-file) ---
+// Since 12 Nov 2026 all six tuners: deep learning on the GPU worker, the other five on the DL360 (or this server).
 export type HyperoptStatus = 'queued' | 'running' | 'done' | 'failed' | 'out of time' | 'stopped' | 'lost' | 'cancelled' | 'ended';
 export type HyperoptField = { default: number; min: number; max: number; integer: boolean };
-export type HyperoptChange = { key: string; served: ParamValue; value: ParamValue };
-export type HyperoptApplySide = { changes: HyperoptChange[]; changedSince: string[] } | null;
+export type HyperoptChange = { key: string; served: ParamValue; value: ParamValue; removed: boolean };
+export type HyperoptApplySide = { changes: HyperoptChange[]; changedSince: string[]; rows: string[] } | null;
+export type HyperoptApplied = { by: string; at: string; what: 'gate' | 'challenger'; keys: number };
 export type HyperoptStudy = {
-  status: string; wanted: number | null; days: number | null; error: string | null;
+  key: string; row: string | null; status: string; wanted: number | null; days: number | null; error: string | null; varietyLine: number | null;
   progress: { done: number; states: Record<string, number>; best: { trial: number; score: number | null; params: Record<string, ParamValue> } | null } | null;
   decision: string | null; reason: string | null; params: Record<string, ParamValue> | null; challengerParams: Record<string, ParamValue> | null;
-  record: Record<string, unknown> | null; summary: string | null; startedAt: string | null; finishedAt: string | null;
-  // what trains now (since 11 Nov 2026): a trial (its study-wide number) or one of the gate's references, and its draws done
-  current: { role: string; trial: number | null; day: number; days: number; at: string | null } | null;
+  record: Record<string, unknown> | null; rows: Record<string, Record<string, unknown>> | null; summary: string | null; startedAt: string | null; finishedAt: string | null;
+  // what is scored now (since 11 Nov 2026): a trial (its study-wide number) or one of the gate's references, and its draws done (null: per trial only)
+  current: { role: string; trial: number | null; day: number | null; days: number | null; at: string | null } | null;
 };
 export type Hyperopt = {
-  id: string; game: string; model: string; row: string; trials: number; days: number; trainSeconds: number; pruneAfterDays: number; trialTimeout: number;
-  gate: boolean; gateSeMargin: number; fresh: boolean; budget: number; by: string; requestedAt: string | null; startedAt: string | null; finishedAt: string | null;
+  id: string; tuner: string; tunerLabel: string; worker: 'gpu' | 'cpu'; where: string | null;
+  game: string; model: string; row: string; trials: number; days: number; trainSeconds: number; pruneAfterDays: number; trialTimeout: number;
+  gate: boolean; gateSeMargin: number; fresh: boolean; varietyLine: number | null; budget: number; by: string; requestedAt: string | null; startedAt: string | null; finishedAt: string | null;
   status: HyperoptStatus; place: number | null; runId: string | null; phase: string | null; error: string | null;
-  applied: { by: string; at: string; what: 'gate' | 'challenger'; keys: number } | null;
+  applied: HyperoptApplied | null;
+  appliedStudies: Record<string, HyperoptApplied>;
+  // the table's line (the running study, else the first) and every study of the run
   study: HyperoptStudy | null;
-  apply: { gate: HyperoptApplySide; challenger: HyperoptApplySide } | null;
+  studies: HyperoptStudy[];
+  apply: Record<string, { gate: HyperoptApplySide; challenger: HyperoptApplySide }>;
 };
+export type HyperoptTuner = {
+  label: string; script: string; lane: 'gpu' | 'cpu'; rowWord: string; rows: Record<string, string>; games: string[]; rowGames: Record<string, string[]>;
+  fields: Record<string, HyperoptField>; references: number; fixedBudget: number | null;
+};
+export type HyperoptLane = { configured: boolean; host: string | null; running: string | null; local: boolean; queued: number };
 export type HyperoptList = {
   hyperopts: Hyperopt[]; games: string[]; models: Record<string, string>; fields: Record<string, HyperoptField>; budgetMaxSeconds: number;
-  gpu: { configured: boolean; host: string | null; running: string | null; queued: number };
+  tuners: Record<string, HyperoptTuner>;
+  variety: HyperoptField & { varietyLine: number };
+  gpu: HyperoptLane; cpu: HyperoptLane;
 };
 const HO_STATUS: HyperoptStatus[] = ['queued', 'running', 'done', 'failed', 'out of time', 'stopped', 'lost', 'cancelled', 'ended'];
 function normApplySide(v: unknown): HyperoptApplySide {
   if (!has(v)) return null;
   const s = o(v);
-  return { changes: arr(s.changes as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), served: o(x).served as ParamValue, value: o(x).value as ParamValue })), changedSince: strs(s.changedSince) };
+  return {
+    changes: arr(s.changes as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), served: o(x).served as ParamValue, value: o(x).value as ParamValue, removed: bool(o(x).removed) })),
+    changedSince: strs(s.changedSince), rows: strs(s.rows),
+  };
+}
+function normApplied(v: unknown): HyperoptApplied | null {
+  if (!has(v)) return null;
+  const a = o(v);
+  return { by: str(a.by), at: str(a.at), what: a.what === 'challenger' ? 'challenger' : 'gate', keys: num(a.keys, 0) };
+}
+function normStudy(v: unknown, key = ''): HyperoptStudy {
+  const s = o(v);
+  const p = has(s.progress) ? o(s.progress) : null;
+  const best = p && has(p.best) ? o(p.best) : null;
+  const c = has(s.current) ? o(s.current) : null;
+  return {
+    key: str(s.key) || key, row: ostr(s.row), status: str(s.status), wanted: opt(s.wanted), days: opt(s.days), error: ostr(s.error), varietyLine: opt(s.varietyLine),
+    progress: p
+      ? { done: num(p.done, 0), states: Object.fromEntries(Object.entries(o(p.states)).map(([k, x]) => [k, num(x, 0)])),
+          best: best ? { trial: num(best.trial, 0), score: opt(best.score), params: o(best.params) as Record<string, ParamValue> } : null }
+      : null,
+    decision: ostr(s.decision), reason: ostr(s.reason), params: has(s.params) ? (o(s.params) as Record<string, ParamValue>) : null,
+    challengerParams: has(s.challengerParams) ? (o(s.challengerParams) as Record<string, ParamValue>) : null,
+    record: has(s.record) ? o(s.record) : null,
+    rows: has(s.rows) ? (Object.fromEntries(Object.entries(o(s.rows)).filter(([, x]) => has(x)).map(([k, x]) => [k, o(x)])) as Record<string, Record<string, unknown>>) : null,
+    summary: ostr(s.summary), startedAt: ostr(s.startedAt), finishedAt: ostr(s.finishedAt),
+    current: c ? { role: str(c.role), trial: opt(c.trial), day: opt(c.day), days: opt(c.days), at: ostr(c.at) } : null,
+  };
 }
 function normHyperopt(v: unknown): Hyperopt {
   const h = o(v);
-  const s = has(h.study) ? o(h.study) : null;
-  const p = s && has(s.progress) ? o(s.progress) : null;
-  const best = p && has(p.best) ? o(p.best) : null;
-  const a = has(h.applied) ? o(h.applied) : null;
-  const ap = has(h.apply) ? o(h.apply) : null;
+  const ap = has(h.apply) ? o(h.apply) : {};
   return {
-    id: str(h.id), game: str(h.game), model: str(h.model), row: str(h.row), trials: num(h.trials, 0), days: num(h.days, 0), trainSeconds: num(h.trainSeconds, 0),
+    id: str(h.id), tuner: str(h.tuner) || 'deeplearning', tunerLabel: str(h.tunerLabel) || 'Deep learning', worker: h.worker === 'cpu' ? 'cpu' : 'gpu', where: ostr(h.where),
+    game: str(h.game), model: str(h.model), row: str(h.row), trials: num(h.trials, 0), days: num(h.days, 0), trainSeconds: num(h.trainSeconds, 0),
     pruneAfterDays: num(h.pruneAfterDays, 0), trialTimeout: num(h.trialTimeout, 0), gate: h.gate !== false, gateSeMargin: num(h.gateSeMargin, 1), fresh: bool(h.fresh),
+    varietyLine: opt(h.varietyLine),
     budget: num(h.budget, 0), by: str(h.by), requestedAt: ostr(h.requestedAt), startedAt: ostr(h.startedAt), finishedAt: ostr(h.finishedAt),
     status: HO_STATUS.includes(h.status as HyperoptStatus) ? (h.status as HyperoptStatus) : 'ended', place: opt(h.place), runId: ostr(h.runId), phase: ostr(h.phase), error: ostr(h.error),
-    applied: a ? { by: str(a.by), at: str(a.at), what: a.what === 'challenger' ? 'challenger' : 'gate', keys: num(a.keys, 0) } : null,
-    study: s
-      ? {
-          status: str(s.status), wanted: opt(s.wanted), days: opt(s.days), error: ostr(s.error),
-          progress: p
-            ? { done: num(p.done, 0), states: Object.fromEntries(Object.entries(o(p.states)).map(([k, x]) => [k, num(x, 0)])),
-                best: best ? { trial: num(best.trial, 0), score: opt(best.score), params: o(best.params) as Record<string, ParamValue> } : null }
-            : null,
-          decision: ostr(s.decision), reason: ostr(s.reason), params: has(s.params) ? (o(s.params) as Record<string, ParamValue>) : null,
-          challengerParams: has(s.challengerParams) ? (o(s.challengerParams) as Record<string, ParamValue>) : null,
-          record: has(s.record) ? o(s.record) : null, summary: ostr(s.summary), startedAt: ostr(s.startedAt), finishedAt: ostr(s.finishedAt),
-          current: has(s.current)
-            ? { role: str(o(s.current).role), trial: opt(o(s.current).trial), day: num(o(s.current).day, 0), days: num(o(s.current).days, 0), at: ostr(o(s.current).at) }
-            : null,
-        }
-      : null,
-    apply: ap ? { gate: normApplySide(ap.gate), challenger: normApplySide(ap.challenger) } : null,
+    applied: normApplied(h.applied),
+    appliedStudies: Object.fromEntries(Object.entries(o(h.appliedStudies)).map(([k, x]) => [k, normApplied(x)]).filter(([, x]) => x)) as Record<string, HyperoptApplied>,
+    study: has(h.study) ? normStudy(h.study) : null,
+    studies: arr(h.studies as unknown[]).filter(has).map((x) => normStudy(x)),
+    apply: Object.fromEntries(Object.entries(ap).filter(([, x]) => has(x)).map(([k, x]) => [k, { gate: normApplySide(o(x).gate), challenger: normApplySide(o(x).challenger) }])),
   };
 }
+const normField = (v: unknown): HyperoptField => ({ default: num(o(v).default, 0), min: num(o(v).min, 0), max: num(o(v).max, 0), integer: o(v).integer !== false });
+const normFields = (v: unknown) => Object.fromEntries(Object.entries(o(v)).map(([k, x]) => [k, normField(x)]));
+const normLane = (v: unknown): HyperoptLane => {
+  const g = o(v);
+  return { configured: bool(g.configured), host: ostr(g.host), running: ostr(g.running), local: bool(g.local), queued: num(g.queued, 0) };
+};
+const strMap = (v: unknown) => Object.fromEntries(Object.entries(o(v)).map(([k, x]) => [k, str(x)]));
 export const getAdminHyperopts = async (): Promise<HyperoptList> => {
   const r = o(await getJson<unknown>('/api/admin/hyperopts'));
-  const g = o(r.gpu);
+  const vr = o(r.variety);
   return {
     hyperopts: arr(r.hyperopts as unknown[]).filter(has).map(normHyperopt), games: strs(r.games),
-    models: Object.fromEntries(Object.entries(o(r.models)).map(([k, v]) => [k, str(v)])),
-    fields: Object.fromEntries(Object.entries(o(r.fields)).map(([k, v]) => [k, { default: num(o(v).default, 0), min: num(o(v).min, 0), max: num(o(v).max, 0), integer: o(v).integer !== false }])),
+    models: strMap(r.models), fields: normFields(r.fields),
     budgetMaxSeconds: num(r.budgetMaxSeconds, 14 * 24 * 3600),
-    gpu: { configured: bool(g.configured), host: ostr(g.host), running: ostr(g.running), queued: num(g.queued, 0) },
+    tuners: Object.fromEntries(Object.entries(o(r.tuners)).map(([k, x]) => {
+      const t = o(x);
+      return [k, {
+        label: str(t.label), script: str(t.script), lane: t.lane === 'cpu' ? 'cpu' : 'gpu', rowWord: str(t.rowWord), rows: strMap(t.rows), games: strs(t.games),
+        rowGames: Object.fromEntries(Object.entries(o(t.rowGames)).map(([rk, g]) => [rk, strs(g)])), fields: normFields(t.fields), references: num(t.references, 0), fixedBudget: opt(t.fixedBudget),
+      } as HyperoptTuner];
+    })),
+    variety: { ...normField(vr), integer: false, varietyLine: num(vr.varietyLine, 95) },
+    gpu: normLane(r.gpu), cpu: normLane(r.cpu),
   };
 };
 export const getAdminHyperopt = async (id: string): Promise<Hyperopt> => normHyperopt(await getJson<unknown>(`/api/admin/hyperopts/${encodeURIComponent(id)}`));

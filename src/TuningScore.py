@@ -70,6 +70,11 @@ import math
 import numpy as np
 
 try:
+    from src.TuningResult import variety_of_tickets
+except ImportError:  # run from src/
+    from TuningResult import variety_of_tickets
+
+try:
     from src.Metrics import Metrics
 except ImportError:  # imported from inside src/, the Backtester's sys.path style
     from Metrics import Metrics
@@ -323,7 +328,8 @@ def score_bets_by_day(bets_by_day, hits_by_day=None, payout=True, positional=Fal
 
 
 def score_rows(rows, model_name, payout=False, positional=False, game=None,
-               penalty=CONFIDENCE_PENALTY, cap=LUCKY_STRIKE_CAP, proper=False, floor=LOG_SCORE_FLOOR):
+               penalty=CONFIDENCE_PENALTY, cap=LUCKY_STRIKE_CAP, proper=False, floor=LOG_SCORE_FLOOR,
+               variety_line=None):
     """
     Score one model over the Backtester's per-day rows - Backtester.backtest()'s
     return value, or the rows finished so far when a trial is being considered
@@ -348,13 +354,21 @@ def score_rows(rows, model_name, payout=False, positional=False, game=None,
       hits_mean, hits_bound
       lucky_strikes        bets at or above the cap
       log_score_mean, log_score_bound, uniform_log_score   (proper rows only)
+      variety_measure, variety_line, same_ticket_mean, distinct_tickets, tickets, input_blind
+                           with `variety_line` (the owner's line, 12 Nov 2026; src/TuningResult.variety_of_tickets):
+                           the share of the scored days that got this model's most common ticket
+                           ("<model>_prediction"), which TuningGate.challenge(variety=True) reads. None (the
+                           market rows, whose calls may well repeat) leaves them out.
     """
     bets_by_day = []
+    tickets = []
     hits_by_day = []
     logs_by_day = []
     bins = 0
     by_slot = positional and counts_slots_itself(game)
     for row in rows or []:
+        if variety_line is not None:
+            tickets.append(row.get(f"{model_name}_prediction"))
         profits = bet_profits(row, model_name)
         if profits:
             bets_by_day.append(profits)
@@ -368,8 +382,11 @@ def score_rows(rows, model_name, payout=False, positional=False, game=None,
             if value is not None:
                 logs_by_day.append(value)
                 bins = max(bins, k or 0)
-    return score_bets_by_day(bets_by_day, hits_by_day, payout=payout, positional=positional,
-                             penalty=penalty, cap=cap, logs_by_day=logs_by_day, proper=proper, bins=bins or None)
+    out = score_bets_by_day(bets_by_day, hits_by_day, payout=payout, positional=positional,
+                            penalty=penalty, cap=cap, logs_by_day=logs_by_day, proper=proper, bins=bins or None)
+    if variety_line is not None:
+        out.update(variety_of_tickets(tickets, variety_line))
+    return out
 
 
 def json_safe(value):

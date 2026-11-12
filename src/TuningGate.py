@@ -222,7 +222,7 @@ def _scored(result):
 
 def challenge(study, known_numbers, objective, served, defaults, timeout_seconds, label,
               margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0, tuner=None,
-              lockbox_withheld=None, revert_margin=None, variety=False):
+              lockbox_withheld=None, revert_margin=None, variety=False, variety_rule=None):
     """
     Runs the gate for one strategy after its study was optimised.
 
@@ -278,7 +278,13 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      be neither written nor served back, and it blocks nothing: the challenger is this run's best
                      trial that is not blind (none: kept), a blind default is never reverted to and a blind
                      incumbent or default does not count as a reference the challenger must beat. Recorded as the
-                     record's "variety" (the rule, the blind trials, the blind references).
+                     record's "variety" (the rule, the blind trials, the blind references). Every tuner sets it
+                     since 12 Nov 2026 (owner: the same gate everywhere, the weekly chain included); the other rows'
+                     measure is the share of the scored backtest draws that got the same ticket (src/TuningResult
+                     .variety_of_tickets), against the owner's line. A tuning record without "input_blind" (a market
+                     row, RL stakes) is never blind, so the rule changes nothing there.
+      variety_rule   the rule's text for the record (src/TuningResult.variety_rule: the line and the measure);
+                     VARIETY_RULE without one
 
     Returns a dict: decision ("replaced" | "reverted" | "kept"), replace and
     reverted (bools), reason, params (the dict to write - the challenger's
@@ -313,7 +319,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     blind_trials = []
     if variety:
         blind_trials = [t.number for t in trials if _blind(t.user_attrs.get("tuning"))]
-        record["variety"] = {"rule": VARIETY_RULE, "blind_trials": blind_trials}
+        record["variety"] = {"rule": variety_rule or VARIETY_RULE, "blind_trials": blind_trials}
         if trials and len(blind_trials) == len(trials):
             reason = (f"every trial this run is input-blind ({', '.join(str(n) for n in blind_trials)}): "
                       f"nothing usable to write")

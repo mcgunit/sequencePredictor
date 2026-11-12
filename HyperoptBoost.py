@@ -1,4 +1,4 @@
-import os, argparse, json, sys, math
+import os, argparse, json, sys, math, copy
 # Pin the BLAS/OpenMP thread pools before numpy (via optuna) is imported: every
 # Backtester worker otherwise inherits a 16-thread OpenBLAS pool whose
 # spin-waiting was measured at ~10 cores of pure overhead per single-threaded
@@ -23,7 +23,8 @@ from src.LightGBM import LightGBMPredictor, LightGBMMultiLabelPredictor
 from src.CatBoost import CatBoostPredictor, CatBoostMultiLabelPredictor
 from src.BoostingBase import apply_boosting_params, BOOSTING_PARAM_SUFFIXES
 from src.TuningScore import score_rows, attrs_for_trial, describe
-from src.TuningGate import challenge, make_defaults, prune_keno_flags
+from src.TuningGate import challenge, make_defaults, prune_keno_flags, evaluate_reference
+import src.TuningResult as tres
 from src.Lockbox import (load_or_warn as load_lockbox, split_rows as lockbox_split, window_counts as lockbox_window,
                          describe as describe_lockbox, describe_withheld as describe_lockbox_withheld)
 from src.Command import Command
@@ -159,6 +160,90 @@ def served_keno_subsets(model_name):
 # draws of euromillions, lotto and eurodreams were lockbox draws, 12 of vikinglotto's).
 LOCKBOX = None
 
+# The Hyperopts page (owner, 12 Nov 2026; HyperoptDeepLearning.py is the reference, src/TuningResult.py the shared
+# helpers) - the same wiring as HyperoptStatistics.py. With --result-file a run also writes each study's state there:
+# running / gate / done / failed, the trials done, what is being scored right now (a trial or a gate reference, and
+# its day) and the gate's verdict with what it writes and what "Apply this run's best" would write. Without it (the
+# weekly chain) nothing of this is written. Module globals like LOCKBOX: the trial processes and the gate's reference
+# children inherit what the parent set before the fork. Parallel trials (parallel_trials_for) each write their own
+# "current" under TuningResult's lock - the field shows whichever trial wrote last, at most every
+# CURRENT_EVERY_SECONDS per trial process.
+RESULT_FILE = None
+RESULT_KEY = None
+CURRENT_ROLE = "trial"      # "trial", or "incumbent"/"default" while the gate re-scores a reference
+CURRENT_TRIAL = None        # the trial number being scored (set by trial_objective in the trial's own process)
+CURRENT_EVERY_SECONDS = 5.0
+_last_current_write = [0.0]
+# The variety rule (owner, 11-12 Nov 2026): a candidate that gives the same ticket on VARIETY_LINE or more of its scored
+# backtest draws is input-blind - neither written nor served back, and it blocks nothing (TuningGate.challenge
+# variety=True). Every game of this tuner is a lottery game. Set in __main__ from --variety-line or
+# config/tuning.json; RunBacktest.py, which imports this module, scores with the default line.
+VARIETY_LINE = tres.DEFAULT_VARIETY_LINE
+
+
+def variety_applies(dataset_name):
+    """The lottery games only - as HyperoptStatistics.variety_applies (a market game's bins may well repeat)."""
+    return not helpers.is_market_game(dataset_name)
+
+
+def describe_variety(tuning):
+    """The log line's variety note: only an input-blind candidate is called out (12 Nov 2026)."""
+    if not (isinstance(tuning, dict) and tuning.get("input_blind") is True):
+        return ""
+    share = tuning.get("same_ticket_mean")
+    share_text = f"{share * 100:.0f}%" if isinstance(share, (int, float)) else "?"
+    return f" | INPUT-BLIND: the same ticket on {share_text} of {tuning.get('tickets')} draws"
+
+
+def report_current(day, days):
+    """The result file's "current" (role, trial, day): throttled per process, the window's last day always written."""
+    if not RESULT_FILE or not RESULT_KEY:
+        return
+    now = time.time()
+    if (days is None or day < days) and now - _last_current_write[0] < CURRENT_EVERY_SECONDS:
+        return
+    _last_current_write[0] = now
+    tres.safe_write_result(RESULT_FILE, RESULT_KEY, current=tres.current(CURRENT_ROLE, day, days, trial=CURRENT_TRIAL))
+
+
+def trial_objective(objective):
+    """The study's objective, recording which trial is scored (for "current") in the process that scores it."""
+    def run(trial):
+        global CURRENT_TRIAL
+        CURRENT_TRIAL = getattr(trial, "number", None)
+        return objective(trial)
+    return run
+
+
+def gate_evaluate(objective, timeout_seconds, label, days):
+    """TuningGate's default reference scoring, with the role set in the parent before the fork (see report_current)."""
+    def evaluate(params, role):
+        global CURRENT_ROLE
+        CURRENT_ROLE = role
+        _last_current_write[0] = 0.0
+        report_current(0, days)
+        try:
+            return evaluate_reference(objective, params, timeout_seconds, f"{label} {role}")
+        finally:
+            CURRENT_ROLE = "trial"
+    return evaluate
+
+
+def study_progress(study_name, storage_url, known_trials):
+    """The result file's "progress" for one study: this run's trials (TuningResult.trial_progress)."""
+    study = open_study(study_name, storage_url, quiet=True)
+    return tres.trial_progress(study.get_trials(deepcopy=False), known_trials)
+
+
+def trial_params(study, number):
+    """A trial's parameters by its number (None: not found)."""
+    if number is None:
+        return None
+    for t in study.get_trials(deepcopy=False):
+        if t.number == number:
+            return dict(t.params)
+    return None
+
 
 def withhold_lockbox(results, dates):
     """The Backtester rows outside LOCKBOX (all of them without one); `dates` are the loader's, row "index" order."""
@@ -226,10 +311,12 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     # no lockbox in the window the step is the day count, as before).
     positional = helpers.is_positional_game(dataset_name)
     progress_callback = None
+    window = total_rows - start_index
     if trial is not None:
         reported = [0]
 
         def progress_callback(iteration, rows):
+            report_current(iteration, window)   # the Hyperopts page's "current" (no-op without --result-file)
             scored = withhold_lockbox(rows, getattr(loader, "dates", []))
             if len(scored) <= reported[0]:
                 return
@@ -238,6 +325,10 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
             trial.report(partial["score"], step=len(scored))
             if trial.should_prune():
                 raise optuna.TrialPruned()
+    elif RESULT_FILE:
+        # no pruning (--prune-percentile 0): the page's "current" only - without --result-file no callback, as before
+        def progress_callback(iteration, rows):
+            report_current(iteration, window)
 
     results = backtester.backtest(
         max_seconds=max_seconds,
@@ -260,8 +351,11 @@ def run_backtest(model_name, model, dataset_name, dataPath, game_cfg, subsets, d
     results = withhold_lockbox(results, getattr(loader, "dates", []))
     summary = backtester.summarize(results)
     model_summary = dict(summary.get("models", {}).get(model_name, {}))
+    # the variety rule's fields (12 Nov 2026) on the same scored days: one ticket per draw, "<model>_prediction". The
+    # pruner's partial scores above go without them - they only rank a trial against its peers at a checkpoint.
     model_summary["tuning"] = score_rows(results, model_name, payout=has_payout, positional=positional,
-                                         game=dataset_name)
+                                         game=dataset_name,
+                                         variety_line=VARIETY_LINE if variety_applies(dataset_name) else None)
     return model_summary
 
 
@@ -535,7 +629,7 @@ def make_boosting_objective(model_class, prefix, backtest_name):
         # so a look at the study shows what a value was made of.
         tuning = summary.get("tuning") if summary else None
         trial.set_user_attr("tuning", attrs_for_trial(tuning))
-        print(f"Trial {trial.number}: {describe(tuning)}")
+        print(f"Trial {trial.number}: {describe(tuning)}{describe_variety(tuning)}")
         return score_from_summary(summary)
 
     objective.prefix = prefix  # optimize_study sizes the parallelism per library
@@ -750,9 +844,137 @@ def _self_check():
         for key, value in saved.items():
             module[key] = value
         optuna.logging.set_verbosity(verbosity)
+    _self_check_page()
     print("HyperoptBoost self-check OK: the pruner stops the bottom quartile (75 keeps the top 75%; 25 kept only the top "
           "quarter) at half and three quarters of the scored days, on the value there, against this run's trials only; the lockbox days are backtested but never scored - not by a trial, not by the pruner's steps, not "
-          "by a gate reference")
+          "by a gate reference; a candidate stuck on one ticket is flagged input-blind and the gate passes it over; the "
+          "result file goes running -> progress per trial -> current (trial, then the gate's references) -> done with "
+          "the decision's writes and challengerParams (with the row's use flag), or failed")
+
+
+def _self_check_page():
+    """
+    The Hyperopts page's wiring (12 Nov 2026) on a stub Backtester and DataLoader, a throwaway sqlite study and a temp
+    result file - the sequence __main__ runs per strategy, without its argparse entry point: the variety rule (a stuck
+    candidate is input_blind and passed over by the gate), progress after every trial, "current" from the trial
+    processes (through the pruner's callback and without pruning) and from the gate's reference children, the done
+    entry with writes_between and challengerParams, and nothing at all without a result file.
+    """
+    import tempfile
+    import warnings
+
+    stuck = [False]
+
+    class StubLoader:
+        def setDataPath(self, path): pass
+        def setGameRange(self, low, high): pass
+        def setDrawSize(self, size): pass
+        def load_numbers(self, **kwargs):
+            self.dates = []
+            return [[1, 2, 3, 4, 5]] * 40, None, None
+
+    class StubBacktester:
+        def __init__(self, loader):
+            self.loader = loader
+        def add_model(self, name, model):
+            self.name = name
+        def backtest(self, start_index=0, end_index=None, progress_callback=None, **kwargs):
+            self.loader.load_numbers()
+            rows = []
+            for i in range(start_index, end_index):
+                rows.append({"index": i, "actual": [1, 2, 3, 4, 5], f"{self.name}_hits": 1 + i % 2,
+                             f"{self.name}_prediction": [1, 2, 3, 4, 5] if stuck[0] else [i % 40 + 1, 46, 47, 48, 49]})
+                if progress_callback is not None:
+                    progress_callback(len(rows), rows)
+            return rows
+        def summarize(self, results):
+            return {"models": {self.name: {"days": len(results)}}}
+
+    module = globals()
+    keys = ("Backtester", "DataLoader", "LOCKBOX", "RESULT_FILE", "RESULT_KEY", "CURRENT_ROLE", "CURRENT_TRIAL",
+            "VARIETY_LINE")
+    saved = {key: module[key] for key in keys}
+    module["Backtester"], module["DataLoader"], module["LOCKBOX"] = StubBacktester, StubLoader, None
+    module["VARIETY_LINE"] = 0.95
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    cfg = GAME_CONFIG["euromillions"]
+    use_key = STRATEGIES["XGBoost"]["use_key"]
+    try:
+        def objective(trial):
+            knob = trial.suggest_float("xgBoostLearningRate", 0.01, 1.0)
+            stuck[0] = knob > 0.9
+            summary = run_backtest("xgboost", None, "euromillions", "/nonexistent", cfg, [], 30, None, trial=trial)
+            trial.set_user_attr("tuning", attrs_for_trial(summary["tuning"]))
+            return score_from_summary(summary)
+
+        with tempfile.TemporaryDirectory() as scratch:
+            assert report_current(1, 30) is None and not os.listdir(scratch), "no result file: nothing written"
+            result = os.path.join(scratch, "run.json")
+            storage = f"sqlite:///{os.path.join(scratch, 'db.sqlite3')}"
+            name = "euromillions_XGBoost"
+            module["RESULT_FILE"], module["RESULT_KEY"] = result, name
+            module["CURRENT_ROLE"], module["CURRENT_TRIAL"] = "trial", None
+            served = {"xgBoostLearningRate": 0.5, use_key: False}
+            before = copy.deepcopy(served)
+            tres.write_result(result, name, tuner="boost", game="euromillions", row="XGBoost Model", status="running",
+                              wanted=2, days=30, gate=True, varietyLine=0.95, startedAt=tres.now_iso())
+            study = open_study(name, storage, quiet=True)
+            known = {t.number for t in study.get_trials(deepcopy=False)}
+            study.enqueue_trial({"xgBoostLearningRate": 0.95})   # stuck: input-blind
+            study.enqueue_trial({"xgBoostLearningRate": 0.2})
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                optimize_study(name, storage, trial_objective(objective), 2, parallel=1, ramp_seconds=0,
+                               on_trial_done=lambda: tres.write_result(
+                                   result, name, progress=study_progress(name, storage, known)))
+            entry = json.load(open(result))["studies"][name]
+            assert entry["progress"]["done"] == 2 and entry["progress"]["states"] == {"COMPLETE": 2}, entry["progress"]
+            assert entry["current"]["role"] == "trial" and entry["current"]["trial"] == 1 \
+                and entry["current"]["day"] == entry["current"]["days"] == 30, entry["current"]
+            study = open_study(name, storage, quiet=True)
+            assert study.trials[0].user_attrs["tuning"]["input_blind"] is True
+            assert study.trials[1].user_attrs["tuning"]["input_blind"] is False
+
+            tres.write_result(result, name, status="gate", current=None)
+            seen = []
+            evaluate = gate_evaluate(objective, 60, name, 30)
+
+            def watched(params, role):
+                out = evaluate(params, role)
+                seen.append(json.load(open(result))["studies"][name]["current"]["role"])
+                return out
+
+            outcome = challenge(study, known, objective, served, make_defaults({"xgBoostLearningRate": 0.3}, served),
+                                60, name, variety=True, variety_rule=tres.variety_rule(0.95, "draws"), evaluate=watched)
+            assert seen == ["incumbent", "default"] and module["CURRENT_ROLE"] == "trial", seen
+            assert outcome["record"]["variety"]["blind_trials"] == [0] and outcome["trial"] == 1, outcome["record"]
+            served.setdefault("tuningGate", {})["XGBoost Model"] = outcome["record"]
+            if outcome["params"] is not None:
+                served.update(outcome["params"])
+            served[use_key] = True
+            writes = tres.writes_between(before, served, rows=["XGBoost Model"])
+            assert writes["params"].get(use_key) is True and "XGBoost Model" in writes["rows"], writes
+            challenger = None
+            if outcome["decision"] != "replaced":
+                challenger = {**trial_params(study, outcome["trial"]), use_key: True}
+                assert challenger == {"xgBoostLearningRate": 0.2, use_key: True}, challenger
+            tres.write_result(result, name, status="done", current=None, decision=outcome["decision"],
+                              reason=outcome["reason"], record=outcome["record"], challengerParams=challenger,
+                              finishedAt=tres.now_iso(), **writes)
+            entry = json.load(open(result))["studies"][name]
+            assert entry["status"] == "done" and entry["current"] is None and entry["rows"]["XGBoost Model"]["variety"]
+
+            # without pruning (--prune-percentile 0: no trial handed down) "current" still comes from the backtest
+            module["CURRENT_ROLE"], module["CURRENT_TRIAL"] = "trial", 7
+            run_backtest("xgboost", None, "euromillions", "/nonexistent", cfg, [], 30, None, trial=None)
+            current = json.load(open(result))["studies"][name]["current"]
+            assert current["trial"] == 7 and current["day"] == 30, current
+    finally:
+        for key, value in saved.items():
+            module[key] = value
+        stuck[0] = False
+        optuna.logging.set_verbosity(verbosity)
 
 
 if __name__ == "__main__":
@@ -860,6 +1082,21 @@ if __name__ == "__main__":
             default=",".join(GAME_CONFIG.keys()),
             help='Comma-separated list of games, e.g. "keno,pick3,jokerplus"'
         )
+        # The Hyperopts page (owner, 12 Nov 2026). -s is --strategies here, so the save flag is --save only.
+        parser.add_argument(
+            '--save', type=helpers.str2bool, default=True,
+            help='Commit and push bestParams at the end (helpers.git_push). The Hyperopts page runs this tuner with '
+                 '--save false --result-file ... on a worker copy and writes on the main server only on Apply.')
+        parser.add_argument(
+            '--result-file', type=str, default=None,
+            help='Also write each study\'s progress, what is being scored now and the gate\'s verdict - with what it '
+                 'writes and what "Apply this run\'s best" would write - to this JSON file (src/TuningResult.py). '
+                 'Without it nothing of this is written (the weekly chain).')
+        parser.add_argument(
+            '--variety-line', type=float, default=None,
+            help='The variety rule\'s line (owner, 12 Nov 2026): a candidate giving the same ticket on this share of '
+                 'its scored backtest draws or more is input-blind - neither written nor served back. 0.5-1.0 (or '
+                 '50-100); default the owner\'s setting in config/tuning.json, else %g.' % tres.DEFAULT_VARIETY_LINE)
 
         args = parser.parse_args()
 
@@ -888,6 +1125,14 @@ if __name__ == "__main__":
         except (AttributeError, ValueError):
             pass
         years_back = None  # None = all available data
+        pushToGit = bool(args.save)
+        RESULT_FILE = args.result_file or None
+        VARIETY_LINE = (tres.clamp_line(args.variety_line) if args.variety_line is not None
+                        else tres.load_variety_line(os.getcwd()))
+        print(f"Variety line: {tres.line_text(VARIETY_LINE)} of the scored backtest draws (input-blind at or above it)")
+        print("Push to git: ", pushToGit)
+        if RESULT_FILE:
+            print(f"Result file: {RESULT_FILE}")
 
         strategies = [s.strip() for s in args.strategies.split(',') if s.strip()]
         print("Selected strategies:", strategies)
@@ -978,79 +1223,150 @@ if __name__ == "__main__":
                         continue
 
                     studyName = f"{dataset_name}_{strategy_name}"
-                    parallel = parallel_trials_for(strategy["objective"].prefix, daysToRebuild)
-                    study = open_study(studyName, optunaDatabase, parallel=parallel)
-                    fail_stale_running_trials(study)
-                    # Trials that exist before this run - the gate compares
-                    # only what this run adds (TuningGate.run_trials), and so
-                    # does the pruner (CheckpointPruner's first_trial).
-                    known_trials = {t.number for t in study.get_trials(deepcopy=False)}
-                    first_trial = max(known_trials) + 1 if known_trials else 0
-                    pruner_factory = lambda days=pruneDays, first=first_trial: boost_pruner(days, first)
-
-                    objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
-                                       game_cfg=game_cfg: strategy["objective"](
-                        trial, dataset_name, dataPath, game_cfg, daysToRebuild, years_back)
-                    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel,
-                                   pruner_factory=pruner_factory,
-                                   expected_trial_gb=0.3 + 0.5 * plan_workers(daysToRebuild)[2],
-                                   memory_reserve_gb=MEMORY_RESERVE_GB)
-
-                    # Fresh handle: the trials were written by the trial processes.
-                    study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory(), quiet=True)
-
-                    # Run-level setting, not a tuned param: recorded even when
-                    # the study below yields nothing, so a non-default
-                    # --catboost-border-count is never silently dropped.
-                    if strategy_name.startswith("CatBoost"):
-                        catPrefix = "catBoostMl" if "MultiLabel" in strategy_name else "catBoost"
-                        existingData[f"{catPrefix}BorderCount"] = CATBOOST_BORDER_COUNT
-
-                    # With per-trial budgets a study can end with every trial
-                    # pruned - study.best_params would then raise and abort
-                    # the remaining strategies of this game. Keep whatever was
-                    # tuned before and move on.
-                    if not has_completed_trials(study):
-                        print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
-                        existingData.get("modelScores", {}).pop(STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name), None)
-                        continue
-
-                    # Champion/challenger (src/TuningGate.py): this run's best
-                    # trial is written only if it beats the served parameters
-                    # and the untuned defaults, re-scored on this run's window.
-                    # Never study.best_params: the study's all-time best is the
-                    # trial that caught the biggest payout (keno LightGBM's 5.0
-                    # of 10 Sept 2026 was one 6/6 on an otherwise losing window,
-                    # and it stayed served because no later window came close).
                     display_name = STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name)
-                    prefix = strategy["objective"].prefix
-                    code_defaults = {f"{prefix}{suffix}": default for suffix, _, default in BOOSTING_PARAM_SUFFIXES}
-                    outcome = challenge(
-                        study, known_trials, objective, existingData, make_defaults(code_defaults, existingData),
-                        timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
-                        margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild,
-                        se_margin=GATE_SE_MARGIN, lockbox_withheld=lockboxWithheld)
-                    print(outcome["summary"])
-                    existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
-                    if outcome["params"] is not None:
-                        existingData.update(outcome["params"])
-                    if outcome["served_score"] is not None:
-                        profits[strategy_name] = outcome["served_score"]
-                    else:
-                        # Kept without a score on this run's objective. An entry
-                        # left from the raw-profit era (pick3 up to 41.6/bet) would
-                        # be min-max scaled against bounds of about -1..+0.2 and
-                        # take the whole [1, 2] vote-weight range for itself
-                        # (Helpers._build_model_weight_lookup): neutral 1.0
-                        # instead, until this row is re-scored.
-                        existingData.get("modelScores", {}).pop(display_name, None)
+                    # the Hyperopts page's result file (12 Nov 2026): this study's entry, and bestParams as it was
+                    # before the study - what its decision changed is written as the difference (writes_between)
+                    RESULT_KEY = studyName
+                    CURRENT_ROLE, CURRENT_TRIAL = "trial", None
+                    paramsBefore = copy.deepcopy(existingData) if RESULT_FILE else None
+                    varietyRows = variety_applies(dataset_name)
+                    tres.safe_write_result(RESULT_FILE, studyName, tuner="boost", game=dataset_name, row=display_name,
+                                           strategy=strategy_name, status="running", wanted=n_trials, days=daysToRebuild,
+                                           gate=GATE_ENABLED, varietyLine=VARIETY_LINE if varietyRows else None,
+                                           current=None, error=None, startedAt=tres.now_iso())
+                    try:
+                        parallel = parallel_trials_for(strategy["objective"].prefix, daysToRebuild)
+                        study = open_study(studyName, optunaDatabase, parallel=parallel)
+                        fail_stale_running_trials(study)
+                        # Trials that exist before this run - the gate compares
+                        # only what this run adds (TuningGate.run_trials), and so
+                        # does the pruner (CheckpointPruner's first_trial).
+                        known_trials = {t.number for t in study.get_trials(deepcopy=False)}
+                        first_trial = max(known_trials) + 1 if known_trials else 0
+                        pruner_factory = lambda days=pruneDays, first=first_trial: boost_pruner(days, first)
 
-                    # Predictor.py gates this model on its use_key; hyperopt
-                    # never disables a model (the same policy the statistical
-                    # hyperopt follows) - every method keeps producing its own
-                    # tracked row so real-life results stay comparable.
-                    if strategy["use_key"]:
-                        existingData[strategy["use_key"]] = True
+                        objective = lambda trial, strategy=strategy, dataset_name=dataset_name, dataPath=dataPath, \
+                                           game_cfg=game_cfg: strategy["objective"](
+                            trial, dataset_name, dataPath, game_cfg, daysToRebuild, years_back)
+
+                        # the page's progress after every finished trial (HyperoptRunner's on_trial_done, coordinator)
+                        def reportTrials(studyName=studyName, known_trials=known_trials):
+                            tres.safe_write_result(RESULT_FILE, studyName,
+                                                   progress=study_progress(studyName, optunaDatabase, known_trials))
+
+                        if RESULT_FILE:
+                            reportTrials()
+                        optimize_study(studyName, optunaDatabase,
+                                       trial_objective(objective) if RESULT_FILE else objective, n_trials,
+                                       parallel=parallel,
+                                       pruner_factory=pruner_factory,
+                                       expected_trial_gb=0.3 + 0.5 * plan_workers(daysToRebuild)[2],
+                                       memory_reserve_gb=MEMORY_RESERVE_GB,
+                                       on_trial_done=reportTrials if RESULT_FILE else None)
+
+                        # Fresh handle: the trials were written by the trial processes.
+                        study = open_study(studyName, optunaDatabase, parallel=parallel, pruner=pruner_factory(), quiet=True)
+
+                        # Run-level setting, not a tuned param: recorded even when
+                        # the study below yields nothing, so a non-default
+                        # --catboost-border-count is never silently dropped.
+                        if strategy_name.startswith("CatBoost"):
+                            catPrefix = "catBoostMl" if "MultiLabel" in strategy_name else "catBoost"
+                            existingData[f"{catPrefix}BorderCount"] = CATBOOST_BORDER_COUNT
+
+                        # With per-trial budgets a study can end with every trial
+                        # pruned - study.best_params would then raise and abort
+                        # the remaining strategies of this game. Keep whatever was
+                        # tuned before and move on.
+                        if not has_completed_trials(study):
+                            print(f"No completed trials for {strategy_name} (all pruned/failed) - keeping existing params")
+                            existingData.get("modelScores", {}).pop(STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name), None)
+                            if RESULT_FILE:
+                                writes = tres.writes_between(paramsBefore, existingData, rows=[display_name])
+                                tres.safe_write_result(
+                                    RESULT_FILE, studyName, status="done", current=None, decision="kept",
+                                    reason="no completed trial this run (all pruned or failed) - parameters kept",
+                                    summary=f"  {studyName}: no completed trials - parameters kept",
+                                    record=None, challengerParams=None,
+                                    progress=tres.trial_progress(study.get_trials(deepcopy=False), known_trials),
+                                    finishedAt=tres.now_iso(), **writes)
+                            continue
+
+                        # Champion/challenger (src/TuningGate.py): this run's best
+                        # trial is written only if it beats the served parameters
+                        # and the untuned defaults, re-scored on this run's window.
+                        # Never study.best_params: the study's all-time best is the
+                        # trial that caught the biggest payout (keno LightGBM's 5.0
+                        # of 10 Sept 2026 was one 6/6 on an otherwise losing window,
+                        # and it stayed served because no later window came close).
+                        prefix = strategy["objective"].prefix
+                        code_defaults = {f"{prefix}{suffix}": default for suffix, _, default in BOOSTING_PARAM_SUFFIXES}
+                        # The variety rule (owner, 11-12 Nov 2026), the weekly chain included: an input-blind trial
+                        # or reference (the same ticket on VARIETY_LINE of the scored draws or more, run_backtest's
+                        # tuning record) is neither written nor served back and blocks nothing.
+                        tres.safe_write_result(RESULT_FILE, studyName, status="gate" if GATE_ENABLED else "writing",
+                                               current=None)
+                        outcome = challenge(
+                            study, known_trials, objective, existingData, make_defaults(code_defaults, existingData),
+                            timeout_seconds=TRIAL_TIMEOUT_SECONDS + 120, label=studyName,
+                            margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=daysToRebuild,
+                            se_margin=GATE_SE_MARGIN, lockbox_withheld=lockboxWithheld,
+                            evaluate=gate_evaluate(objective, TRIAL_TIMEOUT_SECONDS + 120, studyName, daysToRebuild)
+                            if RESULT_FILE else None,
+                            variety=varietyRows,
+                            variety_rule=tres.variety_rule(VARIETY_LINE, "draws") if varietyRows else None)
+                        print(outcome["summary"])
+                        existingData.setdefault("tuningGate", {})[display_name] = outcome["record"]
+                        if outcome["params"] is not None:
+                            existingData.update(outcome["params"])
+                        if outcome["served_score"] is not None:
+                            profits[strategy_name] = outcome["served_score"]
+                        else:
+                            # Kept without a score on this run's objective. An entry
+                            # left from the raw-profit era (pick3 up to 41.6/bet) would
+                            # be min-max scaled against bounds of about -1..+0.2 and
+                            # take the whole [1, 2] vote-weight range for itself
+                            # (Helpers._build_model_weight_lookup): neutral 1.0
+                            # instead, until this row is re-scored.
+                            existingData.get("modelScores", {}).pop(display_name, None)
+
+                        # Predictor.py gates this model on its use_key; hyperopt
+                        # never disables a model (the same policy the statistical
+                        # hyperopt follows) - every method keeps producing its own
+                        # tracked row so real-life results stay comparable.
+                        if strategy["use_key"]:
+                            existingData[strategy["use_key"]] = True
+
+                        if RESULT_FILE:
+                            # What this study's decision writes (12 Nov 2026): bestParams after it against the copy
+                            # taken before the study; the vote weight lands in modelScores after the game's last
+                            # strategy (below), so it is added here as it will be written.
+                            after = copy.deepcopy(existingData)
+                            if strategy_name in profits and strategy_name in STRATEGY_DISPLAY_NAMES:
+                                after.setdefault("modelScores", {})[display_name] = profits[strategy_name]
+                            writes = tres.writes_between(paramsBefore, after, rows=[display_name])
+                            # "Apply this run's best": the challenger trial's parameters plus what this tuner writes
+                            # with them (the row's use flag, CatBoost's border count) - none when the gate already
+                            # wrote it or no trial that is not input-blind was scored
+                            challengerParams = None
+                            if outcome.get("trial") is not None and outcome["decision"] != "replaced":
+                                challengerParams = trial_params(study, outcome["trial"])
+                                if challengerParams is not None:
+                                    if strategy["use_key"]:
+                                        challengerParams[strategy["use_key"]] = True
+                                    if strategy_name.startswith("CatBoost"):
+                                        challengerParams[f"{catPrefix}BorderCount"] = CATBOOST_BORDER_COUNT
+                            tres.safe_write_result(
+                                RESULT_FILE, studyName, status="done", current=None, decision=outcome["decision"],
+                                reason=outcome["reason"], summary=outcome["summary"], record=outcome["record"],
+                                challengerParams=challengerParams,
+                                progress=tres.trial_progress(study.get_trials(deepcopy=False), known_trials),
+                                finishedAt=tres.now_iso(), **writes)
+                    except Exception as e:
+                        # the page's view of a study that broke; the game's own handler below still decides (as before)
+                        tres.safe_write_result(RESULT_FILE, studyName, status="failed", current=None, error=str(e)[:500],
+                                               finishedAt=tres.now_iso())
+                        raise
 
                 # The score is only used to weight this model's vote in
                 # Helpers.count_number_frequencies_from_new_prediction's
@@ -1084,9 +1400,10 @@ if __name__ == "__main__":
         except Exception as e:
             print("Failed to cleanup folder")
 
-        try:
-            helpers.git_push(commit_message="Saving latest boosting hyperopt")
-        except Exception as e:
-            print("Failed to push latest predictions:", e)
+        if pushToGit:
+            try:
+                helpers.git_push(commit_message="Saving latest boosting hyperopt")
+            except Exception as e:
+                print("Failed to push latest predictions:", e)
     finally:
         remove_lock()

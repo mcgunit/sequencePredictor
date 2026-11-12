@@ -38,6 +38,7 @@ from src.DataFetcher import DataFetcher
 from src.HyperoptRunner import fail_stale_running_trials
 from src.TuningGate import challenge, make_defaults
 from src.TuningScore import attrs_for_trial
+from src import TuningResult as tres
 from src import DeepLearningTuning as dlt
 
 
@@ -1079,6 +1080,11 @@ if __name__ == "__main__":
              'runs the tuner this way on the GPU worker with -s false: it shows the file and Apply writes on the '
              'main server (11 Nov 2026).')
     parser.add_argument(
+        '--variety-line', type=float, default=None,
+        help='The variety rule\'s line (owner, 12 Nov 2026): a candidate giving the same ticket on this share of its '
+             'validation windows or more, on at least half of its draws, is input-blind - neither written nor served '
+             'back. 0.5-1.0 (or 50-100); default the owner\'s setting in config/tuning.json, else %g.' % dlt.INPUT_BLIND_SHARE)
+    parser.add_argument(
         '--fresh', action='store_true',
         help='Start a new run even if an unfinished one with the same settings is on disk (default: resume it).')
     parser.add_argument(
@@ -1115,6 +1121,9 @@ if __name__ == "__main__":
     gateEnabled = bool(args.gate)
     gateSeMargin = float(args.gate_se_margin)
     resultFile = args.result_file or None
+    varietyLine = (tres.clamp_line(args.variety_line) if args.variety_line is not None
+                   else tres.load_variety_line(path))
+    print(f"Variety line: {tres.line_text(varietyLine)} of the validation windows (input-blind at or above it on half the draws)")
 
     print("Push to git: ", pushToGit)
     print("Running ", n_trials, "trials")
@@ -1192,6 +1201,7 @@ if __name__ == "__main__":
                 dlt.write_result(resultFile, studyKey, game=dataset_name, model=model_type,
                                  row=MODEL_DISPLAY_NAMES[model_type], status="running", wanted=n_trials,
                                  days=daysToRebuild, trainSeconds=trainSeconds or None, gate=gateEnabled,
+                                 tuner="deeplearning", varietyLine=varietyLine,
                                  startedAt=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 modelPath = os.path.join(path, "data", "hyperOptCache", "models", model_type)
                 dataPath = os.path.join(path, "data", "trainingData", dataset_name)
@@ -1303,7 +1313,8 @@ if __name__ == "__main__":
                     # 0.05 a hit was ~100 standard errors of the old score (the 6 Nov lotto run).
                     profit, _, dayExcess, dayLosses, verdicts, dayVariety = results[0]
                     tuning = dlt.day_score(dayExcess, hits=profit, val_losses=dayLosses, verdicts=verdicts,
-                                           same_tickets=dayVariety["sameTickets"], tickets=dayVariety["tickets"])
+                                           same_tickets=dayVariety["sameTickets"], tickets=dayVariety["tickets"],
+                                           line=varietyLine)
                     trial.set_user_attr("tuning", attrs_for_trial(tuning))
                     return tuning["score"]
 
@@ -1385,7 +1396,8 @@ if __name__ == "__main__":
                     make_defaults(dlt.predictor_defaults(MODEL_PARAM_PREFIX.get(model_type), existingData), existingData),
                     timeout_seconds=TRIAL_TIMEOUT_SECONDS, label=studyKey, enabled=gateEnabled,
                     window_days=daysToRebuild, evaluate=evaluateReference, se_margin=gateSeMargin,
-                    revert_margin=dlt.GATE_REVERT_MARGIN, variety=True)
+                    revert_margin=dlt.GATE_REVERT_MARGIN, variety=True,
+                    variety_rule=tres.variety_rule(varietyLine, "windows"))
                 print(outcome["summary"])
                 outcome["record"]["lockbox"] = dlt.LOCKBOX_NOTE
                 outcome["record"]["train_seconds"] = trainSeconds or None

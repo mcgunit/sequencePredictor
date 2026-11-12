@@ -31,6 +31,21 @@ writeServed(served0);
   ok(/STUDY_SUFFIX = "skill"/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'DeepLearningTuning.py'), 'utf-8'))
     && hyperopts.studyKey('lotto', 'gnn_model') === 'lotto-gnn_model-skill', 'the study key is the tuner\'s');
 
+  // --- the other tuners' rows are theirs (STRATEGY_DISPLAY_NAMES), and remote-hyperopt.sh runs every script ---
+  const pyMap = (file, name) => {
+    const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf-8');
+    const at = src.indexOf(`${name} = {`);
+    const blk = src.slice(at, src.indexOf('}', at));
+    return Object.fromEntries([...blk.matchAll(/"(\w+)": "([^"]+)"/g)].map((m) => [m[1], m[2]]));
+  };
+  const stat = pyMap('HyperoptStatistics.py', 'STRATEGY_DISPLAY_NAMES');
+  ok(Object.entries(stat).every(([k, name]) => hyperopts.TUNERS.statistics.rows[k] === name) && Object.keys(stat).length === 8, `statistics rows match: ${JSON.stringify(stat)}`);
+  const mm = fs.readFileSync(path.join(__dirname, '..', 'src', 'MarketModels.py'), 'utf-8');
+  ok(mm.includes(`GARCH_NAME = "${hyperopts.TUNERS.statistics.rows.Garch}"`) && mm.includes(`HMM_NAME = "${hyperopts.TUNERS.statistics.rows.RegimeHmm}"`), 'the market rows\' names');
+  ok(JSON.stringify(pyMap('HyperoptBoost.py', 'STRATEGY_DISPLAY_NAMES')) === JSON.stringify(hyperopts.TUNERS.boost.rows), 'boosting rows match');
+  const rh = fs.readFileSync(path.join(__dirname, '..', 'worker', 'remote-hyperopt.sh'), 'utf-8');
+  ok(Object.values(hyperopts.TUNERS).every((t) => rh.includes(t.script) && fs.existsSync(path.join(__dirname, '..', t.script))), 'every tuner script exists and remote-hyperopt.sh accepts it');
+
   // --- the form ---
   const p = hyperopts.parse({ game: 'lotto', model: 'gnn_model' });
   ok(p.ok && p.params.trials === 15 && p.params.days === 3 && p.params.trainSeconds === 240 && p.params.pruneAfterDays === 2
@@ -44,7 +59,7 @@ writeServed(served0);
   const q = hyperopts.parse({ game: 'pick3', model: 'transformer_model', trials: '4', days: '5', pruneAfterDays: 0, gate: false, fresh: true, gateSeMargin: '0.5' });
   ok(q.ok && q.params.trials === 4 && q.params.gate === false && q.params.fresh === true && q.params.gateSeMargin === 0.5, 'strings from the form are read');
   ok(JSON.stringify(hyperopts.argsOf(q.params)) === JSON.stringify(['-g', 'pick3', '-m', 'transformer_model', '-t', '4', '-d', '5', '--train-seconds', '240',
-    '--prune-after-days', '0', '--trial-timeout', '7200', '--gate', 'false', '--gate-se-margin', '0.5', '--fresh']), `the tuner's arguments: ${hyperopts.argsOf(q.params).join(' ')}`);
+    '--prune-after-days', '0', '--trial-timeout', '7200', '--gate', 'false', '--gate-se-margin', '0.5', '--variety-line', '0.95', '--fresh']), `the tuner's arguments: ${hyperopts.argsOf(q.params).join(' ')}`);
   ok(hyperopts.argsOf(q.params).every((a) => /^[A-Za-z0-9,._-]+$/.test(a)), 'every argument passes remote-hyperopt.sh\'s check');
   ok(hyperopts.budgetOf(p.params) === 17 * 7200 + 3600, 'the budget: every trial and both references at the trial timeout, plus an hour');
   ok(hyperopts.budgetOf({ ...p.params, trials: 100, trialTimeout: 21600 }) === 14 * 24 * 3600, 'at most two weeks');
@@ -83,7 +98,7 @@ writeServed(served0);
   const study = { game: 'lotto', model: 'gnn_model', status: 'running', wanted: 5, progress: { done: 2, states: { COMPLETE: 2 }, best: { trial: 7, score: 0.01, params: { gnn_gcnUnits: 64 } } } };
   fs.writeFileSync(resultFile, JSON.stringify({ studies: { 'lotto-gnn_model-skill': study } }));
   v = hyperopts.viewOf(root, hyperopts.readRecord(root, r.id), state, { full: true });
-  ok(v.study.progress.done === 2 && v.apply === null, 'the progress shows; nothing to apply while it runs');
+  ok(v.study.progress.done === 2 && Object.keys(v.apply).length === 0, 'the progress shows; nothing to apply while it runs');
   ok(hyperopts.apply(root, r.id, {}, 'tester', t0, { lockHolder: () => null }).status === 409, 'apply refused before the study is done');
 
   // the gate kept what is served: nothing to write unless this run's best is applied against it
@@ -94,7 +109,8 @@ writeServed(served0);
   const recRunning = hyperopts.readRecord(root, r.id);
   fs.writeFileSync(path.join(root, 'config', 'hyperopts', `${r.id}.json`), JSON.stringify({ ...recRunning, status: 'done' }));
   v = hyperopts.viewOf(root, hyperopts.readRecord(root, r.id), state, { full: true });
-  ok(v.status === 'done' && v.apply.gate === null && v.apply.challenger.changes.length === 2 && v.apply.challenger.changedSince.length === 0, `the view: no gate write, the best trial would change two values: ${JSON.stringify(v.apply)}`);
+  const va = v.apply['lotto-gnn_model-skill'];
+  ok(v.status === 'done' && va.gate === null && va.challenger.changes.length === 2 && va.challenger.changedSince.length === 0, `the view: no gate write, the best trial would change two values: ${JSON.stringify(v.apply)}`);
   ok(!('summary' in hyperopts.list(root, state).hyperopts[0].study), 'the list leaves the long parts out');
   let a = hyperopts.apply(root, r.id, { what: 'gate' }, 'tester', t0, { lockHolder: () => null });
   ok(!a.ok && /kept/.test(a.message), `the gate's "kept" has nothing to write: ${a.message}`);
@@ -112,14 +128,14 @@ writeServed(served0);
     && after.tuningGate['GNN Model'].applied.hyperopt === r.id && after.tuningGate['GNN Model'].applied.changedSince[0] === 'gnn_dropout', 'the gate record says it was applied by hand, against the gate');
   ok(hyperopts.readRecord(root, r.id).applied.by === 'tester', 'the hyperopt record says so');
   ok(hyperopts.apply(root, r.id, { what: 'challenger' }, 'tester', t0, { lockHolder: () => null }).status === 409, 'applied once only');
-  ok(hyperopts.viewOf(root, hyperopts.readRecord(root, r.id), state, { full: true }).apply === null, 'and nothing more to apply');
+  ok(Object.keys(hyperopts.viewOf(root, hyperopts.readRecord(root, r.id), state, { full: true }).apply).length === 0, 'and nothing more to apply');
 
   // a gate that replaced: its parameters are applied as the tuner would have written them
   writeServed(served0);
   const r2 = hyperopts.start(root, { game: 'lotto', model: 'gnn_model' }, 'tester', W, new Date('2026-11-11T12:00:01Z'));
   fs.writeFileSync(path.join(root, 'config', 'hyperopts', `${r2.id}.result.json`), JSON.stringify({ studies: { 'lotto-gnn_model-skill': {
     status: 'done', decision: 'replaced', reason: 'beats both', params: { gnn_gcnUnits: 96 }, challengerParams: { gnn_gcnUnits: 96 }, record: { decision: 'replaced', reason: 'beats both' } } } }));
-  ok(hyperopts.viewOf(root, hyperopts.readRecord(root, r2.id), state, { full: true }).apply.challenger === null, 'replaced: one choice only');
+  ok(hyperopts.viewOf(root, hyperopts.readRecord(root, r2.id), state, { full: true }).apply['lotto-gnn_model-skill'].challenger === null, 'replaced: one choice only');
   ok(hyperopts.apply(root, r2.id, { what: 'challenger' }, 'tester', t0, { lockHolder: () => null }).status === 409, 'and not as "against the gate"');
   a = hyperopts.apply(root, r2.id, { what: 'gate' }, 'tester', t0, { lockHolder: () => null });
   ok(a.ok && readServed().gnn_gcnUnits === 96 && readServed().tuningGate['GNN Model'].decision === 'replaced' && readServed().tuningGate['GNN Model'].reason === 'beats both', 'the gate\'s result is written with its own record');
@@ -131,6 +147,90 @@ writeServed(served0);
   ok(/^Hyperopt stopping: its finished trials stay/.test(hyperopts.cancel(root, r2.id, 'tester', W).message), 'the running one is stopped through the lane');
   state.current = null;
   ok(hyperopts.cancel(root, 'nope', 'tester', W).status === 404, 'unknown id');
+
+  // --- the other five tuners (owner, 12 Nov 2026): the CPU lane, the DL360's fallback, the variety line ---
+  ok(hyperopts.settings(root).varietyLine === 95, 'no setting: the 95% line');
+  ok(!hyperopts.saveSettings(root, { varietyLine: 40 }, 'tester').ok && !hyperopts.saveSettings(root, { varietyLine: 'x' }, 'tester').ok, 'a line under 50% or not a number: refused');
+  ok(hyperopts.saveSettings(root, { varietyLine: 80 }, 'tester').ok && hyperopts.settings(root).varietyLine === 80
+    && JSON.parse(fs.readFileSync(path.join(root, 'config', 'tuning.json'), 'utf-8')).varietyLine === 0.8, 'the setting is stored as a share for the tuners (config/tuning.json)');
+  const sp = hyperopts.parse({ tuner: 'statistics', game: 'lotto', model: 'Markov' }, root);
+  ok(sp.ok && sp.params.trials === 15 && sp.params.days === 90 && sp.params.trialTimeout === 1200 && sp.params.varietyLine === 80 && !('trainSeconds' in sp.params),
+    `the statistical tuner's defaults, the line from the setting: ${JSON.stringify(sp)}`);
+  ok(JSON.stringify(hyperopts.argsOf(sp.params)) === JSON.stringify(['-g', 'lotto', '-s', 'Markov', '-t', '15', '-d', '90', '--trial-timeout', '1200', '--gate-se-margin', '1', '--variety-line', '0.8']),
+    `its arguments: ${hyperopts.argsOf(sp.params).join(' ')}`);
+  ok(hyperopts.argsOf({ ...sp.params, gate: false }).includes('--no-gate'), 'gate off: --no-gate');
+  ok(!hyperopts.parse({ tuner: 'statistics', game: 'pick3', model: 'PoissonMarkov' }).ok, 'a strategy that does not apply to a positional game: refused');
+  ok(!hyperopts.parse({ tuner: 'statistics', game: 'lotto', model: 'Garch' }).ok && hyperopts.parse({ tuner: 'statistics', game: 'crypto', model: 'Garch' }).ok, 'GARCH on the markets only');
+  ok(!hyperopts.parse({ tuner: 'boost', game: 'lotto', model: 'Markov' }).ok, 'a statistical row is not a boosting one');
+  ok(!hyperopts.parse({ tuner: 'nope', game: 'lotto' }).ok, 'an unknown tuner: refused');
+  ok(!hyperopts.parse({ tuner: 'quantum', game: 'lotto', varietyLine: 101 }).ok, 'a line over 100%: refused');
+  const qp = hyperopts.parse({ tuner: 'quantum', game: 'lotto' });
+  ok(qp.ok && qp.params.model === '' && qp.params.days === 300 && qp.params.gateSeMargin === 2.5, 'quantum: every row of the game, its own defaults');
+  ok(hyperopts.argsOf(qp.params).every((x) => /^[A-Za-z0-9,._-]+$/.test(x)) && hyperopts.argsOf(sp.params).every((x) => /^[A-Za-z0-9,._-]+$/.test(x)), 'every argument passes remote-hyperopt.sh\'s check');
+  ok(hyperopts.budgetOf(sp.params) === 17 * 1200 + 3600 + 1800, 'a CPU budget: the trials and references at their limit, an hour, half an hour to switch the DL360 on');
+
+  let cpuCfg = { host: 'root@dl360.test' };
+  const cpuQueued = [];
+  const cpuState = { current: null, queued: [], configured: true, host: 'dl360.test' };
+  const cpuLane = {
+    config: () => cpuCfg,
+    queue: (id, by, days, deps) => { cpuQueued.push({ id, deps }); cpuState.queued.push(id); return { ok: true, status: 200, message: 'Hyperopt queued for the CPU worker' }; },
+    cancel: (id) => { cpuState.queued = cpuState.queued.filter((x) => x !== id); return { ok: true, status: 200, message: 'Removed' }; },
+    stopRun: () => ({ ok: true, status: 200, message: 'stopping' }),
+    backtestState: () => cpuState,
+  };
+  const W2 = { lane: (k) => (k === 'gpu' ? lane : k === 'cpu' ? cpuLane : null) };
+  writeServed({ ...served0, markovAlpha: 1, modelScores: { 'Markov Model': 0.5, 'XGBoost Model': 0.7 } });
+  const s1 = hyperopts.start(root, { tuner: 'statistics', game: 'lotto', model: 'Markov', trials: 3 }, 'tester', W2, new Date('2026-11-12T10:00:00Z'));
+  ok(s1.ok && s1.id === 'lotto-statistics-markov-20261112100000' && cpuQueued[0].deps.hyperopt.args[0] === 'HyperoptStatistics.py' && !cpuQueued[0].deps.hyperopt.local,
+    `queued on the CPU lane with the tuner's script first: ${JSON.stringify(cpuQueued[0])}`);
+  const srec = hyperopts.readRecord(root, s1.id);
+  ok(srec.tuner === 'statistics' && srec.row === 'Markov Model' && srec.worker === 'cpu', 'the record names the tuner, the row and the lane');
+  cpuCfg = null;
+  const s2 = hyperopts.start(root, { tuner: 'ensemble', game: 'keno' }, 'tester', W2, new Date('2026-11-12T10:00:01Z'));
+  ok(s2.ok && cpuQueued[1].deps.hyperopt.local === true && /on this server/.test(s2.message), `no DL360 set up: it runs on this server: ${s2.message}`);
+  cpuCfg = { host: 'root@dl360.test' };
+  let lst = hyperopts.list(root, { gpu: state, cpu: cpuState });
+  ok(lst.tuners.statistics.rows.Markov === 'Markov Model' && lst.variety.varietyLine === 80 && lst.cpu.configured && lst.hyperopts.find((h) => h.id === s1.id).place === 1,
+    'the list: the tuners, the line, the CPU lane, the place in its queue');
+  cpuState.current = { id: s1.id, runId: 'cpu-hyperopt-1', type: 'hyperopt', local: true };
+  cpuState.queued = cpuState.queued.filter((x) => x !== s1.id);
+  lst = hyperopts.list(root, { gpu: state, cpu: cpuState });
+  ok(lst.hyperopts.find((h) => h.id === s1.id).status === 'running' && lst.hyperopts.find((h) => h.id === s1.id).where === 'this server', 'running on this server (the fallback): the view says where');
+  ok(/stopping/.test(hyperopts.cancel(root, s1.id, 'tester', W2).message), 'stopped through the CPU lane');
+  cpuState.current = null;
+
+  // a finished statistical study: the gate replaced; Apply writes its params, the derived keys, the vote weight and the record
+  fs.writeFileSync(path.join(root, 'config', 'hyperopts', `${s1.id}.result.json`), JSON.stringify({ studies: { lotto_Markov: {
+    tuner: 'statistics', game: 'lotto', row: 'Markov Model', status: 'done', decision: 'replaced', reason: 'beats both by 1 SE',
+    params: { markovAlpha: 3, markovSortedPrediction: true }, remove: ['gnn_dropout'], modelScores: { 'Markov Model': 0.9 },
+    rows: { 'Markov Model': { decision: 'replaced', reason: 'beats both by 1 SE', variety: { rule: 'x', blind_trials: [2] } } },
+    challengerParams: null, progress: { done: 3, states: { COMPLETE: 3 }, best: null } } } }));
+  v = hyperopts.viewOf(root, hyperopts.readRecord(root, s1.id), cpuState, { full: true });
+  const sa = v.apply.lotto_Markov;
+  ok(v.studies.length === 1 && sa.gate.changes.length === 4 && sa.gate.changes.some((c) => c.key === 'gnn_dropout' && c.removed) && sa.gate.changes.some((c) => c.key === 'modelScores.Markov Model' && c.value === 0.9)
+    && sa.challenger === null, `the view: values, a removed key, the vote weight: ${JSON.stringify(sa)}`);
+  a = hyperopts.apply(root, s1.id, { what: 'gate', study: 'lotto_Markov' }, 'tester', t0, { lockHolder: () => null });
+  const sv = readServed();
+  ok(a.ok && sv.markovAlpha === 3 && sv.markovSortedPrediction === true && !('gnn_dropout' in sv) && sv.modelScores['Markov Model'] === 0.9 && sv.modelScores['XGBoost Model'] === 0.7
+    && sv.tuningGate['Markov Model'].decision === 'replaced' && sv.tuningGate['Markov Model'].applied.hyperopt === s1.id && sv.tuningGate['Markov Model'].reason === 'beats both by 1 SE',
+    `applied: only this row's values, weight and record change: ${a.message}`);
+  ok(hyperopts.apply(root, s1.id, { what: 'gate', study: 'lotto_Markov' }, 'tester', t0, { lockHolder: () => null }).status === 409, 'applied once');
+
+  // a quantum run: several studies, each applied on its own
+  const s3 = hyperopts.start(root, { tuner: 'quantum', game: 'lotto' }, 'tester', W2, new Date('2026-11-12T10:00:02Z'));
+  fs.writeFileSync(path.join(root, 'config', 'hyperopts', `${s3.id}.result.json`), JSON.stringify({ studies: {
+    lotto_quantum_kernel: { status: 'done', row: 'QuantumMetaLearner Model', decision: 'kept', reason: 'inside 2.5 SE', params: {}, rows: { 'QuantumMetaLearner Model': { decision: 'kept' } } },
+    lotto_quantum_vqc: { status: 'done', row: 'QuantumVQC Model', decision: 'replaced', reason: 'beats both', params: { quantumVqcLayers: 3 }, rows: { 'QuantumVQC Model': { decision: 'replaced' } } },
+    lotto_classical_svm: { status: 'running', row: 'ClassicalSVM Model', progress: { done: 1 } } } }));
+  v = hyperopts.viewOf(root, hyperopts.readRecord(root, s3.id), cpuState, { full: true });
+  ok(v.studies.length === 3 && v.study.key === 'lotto_classical_svm' && v.apply.lotto_quantum_kernel.gate === null && v.apply.lotto_quantum_vqc.gate.changes[0].key === 'quantumVqcLayers' && !v.apply.lotto_classical_svm,
+    'three studies: the running one on the table line, the kept one has nothing to write, the replaced one its value');
+  ok(!hyperopts.apply(root, s3.id, { what: 'gate', study: 'lotto_quantum_kernel' }, 'tester', t0, { lockHolder: () => null }).ok, 'kept: nothing to write');
+  a = hyperopts.apply(root, s3.id, { what: 'gate', study: 'lotto_quantum_vqc' }, 'tester', t0, { lockHolder: () => null });
+  ok(a.ok && readServed().quantumVqcLayers === 3 && readServed().tuningGate['QuantumVQC Model'].decision === 'replaced', `one study applied: ${a.message}`);
+  v = hyperopts.viewOf(root, hyperopts.readRecord(root, s3.id), cpuState, { full: true });
+  ok(!v.apply.lotto_quantum_vqc && v.appliedStudies.lotto_quantum_vqc.by === 'tester' && 'lotto_quantum_kernel' in v.apply, 'that study is marked applied, the others stay open');
 
   // the lock check, for real: this process holds it
   fs.writeFileSync(path.join(root, 'process.lock'), String(process.pid));
@@ -170,6 +270,19 @@ writeServed(served0);
   const hlog = fs.readFileSync(path.join(logDir, 'hyperopts', 'lotto-gnn-model-1.log'), 'utf-8');
   ok(/=== gpu worker: hyperopt lotto-gnn-model-1 started/.test(hlog) && /tuner output/.test(hlog) && /finished status=0/.test(hlog), 'its own log, with markers');
   ok(!fs.existsSync(path.join(logDir, 'backtest-gpu.log')), 'the backtests\' log is left alone');
+
+  // --- the CPU lane: the DL360 does not come up (75) - the hyperopt runs again, on this server ---
+  fs.writeFileSync(path.join(cfgDir, 'workers.json'), JSON.stringify({ gpu: { host: 'root@gpu.test' }, cpu: { host: 'root@dl360.test', localDir: '/opt/test-local' } }));
+  fs.writeFileSync(fakeHo, `#!/usr/bin/env bash\necho "hyperopt $WORKER_HOST $WORKER_DIR $WORKER_PYTHON \${WORKER_ILO_ENV:-noilo} $*" >> ${tmp}/calls-cpu\nsleep 0.2\n[ "$WORKER_HOST" = local ] && exit 0\nexit 75\n`);
+  const C = workers.lane('cpu');
+  const cres = C.queue('lotto-statistics-markov-1', 'tester', 90, { hyperopt: { budget: 999, args: ['HyperoptStatistics.py', '-g', 'lotto', '-s', 'Markov'] } });
+  ok(cres.ok && C.backtestState().current.type === 'hyperopt' && !C.backtestState().current.local, `started on the DL360 first: ${cres.message}`);
+  const cend = Date.now() + 15000;
+  while (Date.now() < cend && (C.backtestState().current || C.backtestState().queued.length)) { C.poll(); C.startNext(); await sleep(100); }
+  const ccalls = fs.readFileSync(path.join(tmp, 'calls-cpu'), 'utf-8').trim().split('\n');
+  ok(ccalls.length === 2 && /^hyperopt root@dl360\.test \/opt\/sequencePredictor-worker \S+ noilo lotto-statistics-markov-1 999 cpu-hyperopt-\S+ HyperoptStatistics\.py -g lotto -s Markov$/.test(ccalls[0])
+    && /^hyperopt local \/opt\/test-local python3 noilo lotto-statistics-markov-1 999 cpu-hyperopt-\S+ HyperoptStatistics\.py -g lotto -s Markov$/.test(ccalls[1]), `the DL360 first, then this server in its own folder: ${ccalls.join(' | ')}`);
+  ok(C.state.history[1].exit === 75 && /moved to this server/.test(C.state.history[1].note) && C.state.history[0].exit === 0, 'the history says it moved, and that the second run ended well');
 
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log(`hyperopts.test.js: ${checks} checks passed`);

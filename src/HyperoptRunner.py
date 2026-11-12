@@ -378,7 +378,7 @@ def _trial_process(study_name, storage_url, objective, parallel, pruner_factory)
 
 def optimize_study(study_name, storage_url, objective, n_trials, parallel=1, pruner_factory=None,
                    expected_trial_gb=0.5, memory_reserve_gb=2.0, memory_hard_floor_gb=1.0,
-                   ramp_seconds=3, trial_timeout_seconds=None):
+                   ramp_seconds=3, trial_timeout_seconds=None, on_trial_done=None):
     """
     Runs n_trials evaluated trials of one study, up to `parallel` at a time,
     each in its own forked process.
@@ -399,6 +399,12 @@ def optimize_study(study_name, storage_url, objective, n_trials, parallel=1, pru
     - A trial process that dies (exception, OOM kill) leaves its trial
       RUNNING; it is marked failed here, and three failures in a row give up
       on this study instead of the whole run.
+    - on_trial_done (optional, 12 Nov 2026 - the Hyperopts page's progress):
+      a callable without arguments, called in the coordinator after one or
+      more trial processes ended (finished, skipped, failed, timed out or
+      stopped under memory pressure) and their trials were recorded. What it
+      raises is printed and ignored: it is a view, never part of the work.
+      None (the default) changes nothing.
     """
     footprint_seen = float(expected_trial_gb)
     print(f"{study_name}: {n_trials} trials, up to {parallel} at a time, "
@@ -437,13 +443,23 @@ def optimize_study(study_name, storage_url, objective, n_trials, parallel=1, pru
         running.pop(pid)[0].join()
         mark_trial_of(pid, state, note, **attrs)
 
+    def trial_done():
+        if on_trial_done is None:
+            return
+        try:
+            on_trial_done()
+        except Exception as e:  # noqa: BLE001 - the caller's view only
+            print(f"{study_name}: on_trial_done failed ({e})")
+
     try:
         while True:
+            ended = False
             for pid, (proc, _) in list(running.items()):
                 if proc.is_alive():
                     continue
                 proc.join()
                 del running[pid]
+                ended = True
                 if proc.exitcode == EXIT_TRIAL_SKIPPED:
                     continue
                 evaluated += 1
@@ -456,6 +472,8 @@ def optimize_study(study_name, storage_url, objective, n_trials, parallel=1, pru
                 if failures_in_a_row >= 3:
                     print(f"{study_name}: three trial processes failed in a row - giving up on this study")
                     aborted = True
+            if ended:
+                trial_done()
 
             want_more = not aborted and evaluated + len(running) < n_trials and attempts < max_attempts
             if not want_more and not running:
@@ -483,12 +501,14 @@ def optimize_study(study_name, storage_url, objective, n_trials, parallel=1, pru
                             stop_trial(pid, optuna.trial.TrialState.PRUNED,
                                        f"pruned - exceeded the {trial_timeout_seconds:.0f}s trial budget",
                                        timeout=True, seconds=round(now - launched_at, 1))
+                            trial_done()
 
                 if len(running) > 1 and available_memory_gb() < memory_hard_floor_gb:
                     youngest = max(running, key=lambda p: running[p][1])
                     print(f"{study_name}: {available_memory_gb():.1f} GB available - stopping the youngest "
                           f"concurrent trial (process {youngest}) before the OOM killer does")
                     stop_trial(youngest, optuna.trial.TrialState.PRUNED, "pruned - stopped under memory pressure")
+                    trial_done()
             time.sleep(2)
     except BaseException:
         # Ctrl+C or a crash of the coordinator: never leave trial processes

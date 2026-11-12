@@ -1062,3 +1062,7 @@ nav.side .foot.theme .seg button { padding: 3px 9px; font-size: var(--fs-xs); }
 .ord-b.warn { color: var(--warn); }
 .plines .ord-h { font-size: var(--fs-xs, 12px); text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
 .ord-exit .chip { margin-right: 2px; }
+
+/* Hyperopts page: the variety line's field and its Save button on one line (12 Nov 2026) */
+.vline { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.vline .field { margin: 0; max-width: 160px; }

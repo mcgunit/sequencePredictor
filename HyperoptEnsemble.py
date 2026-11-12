@@ -1,4 +1,4 @@
-import os, argparse, json, sys, time, re
+import os, argparse, json, sys, time, re, copy
 # Pin the BLAS pools before numpy is imported - the vote is a handful of small
 # array ops per day; a 16-thread OpenBLAS pool would only add spin-wait
 # overhead (measured on the other tuners, see HyperoptBoost.py).
@@ -12,7 +12,8 @@ from datetime import datetime
 
 from src.Helpers import Helpers
 from src.HyperoptRunner import open_study, fail_stale_running_trials, install_sigterm_handler
-from src.TuningGate import challenge, make_defaults
+from src.TuningGate import challenge, make_defaults, evaluate_reference
+from src import TuningResult as tres
 from src.Lockbox import (load_or_warn as load_lockbox, split_by_date as lockbox_split_days, describe as describe_lockbox,
                          describe_withheld as describe_lockbox_withheld)
 from src.RowVariants import is_variant
@@ -130,6 +131,23 @@ GATE_SE_MARGIN = 1.0
 # that IS the plain vote and does not clear the served selection by the margin now serves it back.
 GATE_REVERT_MARGIN = 0.0
 GATE_TIMEOUT_SECONDS = 300    # one subset scores in milliseconds; the reference evaluations run in a forked child
+
+# The variety rule (owner, 12 Nov 2026: the same gate everywhere, the weekly chain included). The vote of a combination
+# gives one ticket per scored day - its main ticket (a lottery game; keno's 20-number vote, from which the playable
+# sub-selections are sliced) or the per-slot vote's ticket (pick3, Joker+) - so the draws measure applies: a
+# combination whose vote gave the same ticket on VARIETY_LINE or more of its scored days is input-blind
+# (src/TuningResult.variety_of_tickets), neither written nor served back, and it blocks nothing
+# (TuningGate.challenge(variety=True)). A vote of rows that each repeat their own ticket is stuck the same way, which
+# is the point: the vote cannot see the draws its members do not. Not on the market games (crypto, shares and their
+# week games): their "ticket" is a bin per instrument, a position that may rightly stay the same through a trend, not
+# a lottery ticket - their records carry no input_blind and the rule changes nothing there. main() sets the line
+# (--variety-line, else config/tuning.json, else 0.95); tune_game(variety_line=None) leaves the rule off (the older
+# self-checks, whose hand-made rows repeat one ticket on purpose).
+VARIETY_LINE = tres.DEFAULT_VARIETY_LINE
+# The Hyperopts page's result file (--result-file, 12 Nov 2026; src/TuningResult): None = nothing written. "current"
+# is written per evaluated combination at most every RESULT_THROTTLE_SECONDS (an evaluation takes milliseconds, so it
+# carries the evaluation count, not a draw), and per gate reference ("incumbent" / "default").
+RESULT_THROTTLE_SECONDS = 5.0
 
 
 def is_running():
@@ -347,7 +365,7 @@ def score_day(predictions, realResult, dataset_name, mainCount):
 
 def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scores, specialColumnCount,
                     fallbackMainCount, kenoSubsetSizes, subsetMode, subsetTemperature,
-                    confidencePenalty=DEFAULT_CONFIDENCE_PENALTY):
+                    confidencePenalty=DEFAULT_CONFIDENCE_PENALTY, variety_line=None):
     """
     Scores one subset: the selected rows are voted exactly as Predictor.py
     will serve them (Helpers.build_vote_ensemble_predictions) on every
@@ -362,6 +380,10 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     members (or voters: XGBoost and LightGBM alone on a market), a weighted
     vote one member outweighs, or members that coexist on less than
     MIN_TRIAL_COVERAGE of the window (and at least MIN_EVALUATION_DAYS).
+
+    With `variety_line` (12 Nov 2026) the result also carries the draws variety fields of the vote's tickets on the
+    scored days (src/TuningResult.variety_of_tickets: same_ticket_mean, input_blind, ...) - the main ticket, or the
+    per-slot vote's ticket on a positional game. tune_game passes it for the lottery games only.
     """
     if len(members) < 2 or voter_count(members, dataset_name) < 2:
         return None  # a one-row "ensemble" is just that row - and on a market XGBoost + LightGBM are one (25 Oct 2026)
@@ -381,7 +403,7 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
     memberSet = set(members)
     positional = helpers.is_positional_game(dataset_name)
 
-    daily, slotAccuracy = [], []
+    daily, slotAccuracy, tickets = [], [], []
     for _, rows, realResult in evaluation_days:
         memberRows = [row for row in rows
                       if row.get("name") in memberSet and row.get("predictions") and row["predictions"][0]]
@@ -409,8 +431,14 @@ def evaluate_subset(members, weighted, dataset_name, evaluation_days, model_scor
         dayScore, dayBets = score_day(predictions, realResult, dataset_name, mainCount)
         if dayBets > 0:
             daily.append(dayScore / dayBets)
+            if variety_line is not None:
+                # the scored days only - the ones the value is the mean of
+                tickets.append([int(n) for n in predictions[0]])
 
-    return bound_of(daily, slotAccuracy, len(evaluation_days), confidencePenalty)
+    result = bound_of(daily, slotAccuracy, len(evaluation_days), confidencePenalty)
+    if result is not None and variety_line is not None:
+        result["variety"] = tres.variety_of_tickets(tickets, variety_line)
+    return result
 
 
 def bound_of(daily, slotAccuracy, windowDays, confidencePenalty=DEFAULT_CONFIDENCE_PENALTY):
@@ -492,7 +520,9 @@ def search_subsets(candidates, evaluate, max_evaluations):
     until no neighbour improves or the budget is spent. Every combination is
     evaluated at most once (memoized), so the returned ranking has no
     duplicates. Returns (ranking best-first as [(value, members, weighted,
-    mean, days, se)], evaluated combinations, infeasible combinations, how).
+    mean, days, se, variety)], evaluated combinations, infeasible
+    combinations, how) - variety the draws variety fields of the vote's
+    tickets, None without the variety rule (evaluate_subset, 12 Nov 2026).
     """
     k = len(candidates)
     cache = {}
@@ -550,7 +580,8 @@ def search_subsets(candidates, evaluate, max_evaluations):
                 current, mask, weighted = bestMove
 
     ranking = sorted(
-        ((result["value"], [name for name, on in zip(candidates, mask) if on], weighted, result["mean"], result["days"], result.get("se"))
+        ((result["value"], [name for name, on in zip(candidates, mask) if on], weighted, result["mean"], result["days"], result.get("se"),
+          result.get("variety"))
          for (mask, weighted), result in cache.items() if result),
         key=lambda item: (item[0], -len(item[1])), reverse=True)
     infeasible = sum(1 for result in cache.values() if result is None)
@@ -568,21 +599,27 @@ def record_results(study, candidates, ranking, limit, runTag):
                      for name in candidates}
     distributions["subsetEnsembleWeighted"] = optuna.distributions.CategoricalDistribution([True, False])
     recorded = 0
-    for value, members, weighted, mean, days, se in ranking[:limit]:
+    for value, members, weighted, mean, days, se, variety in ranking[:limit]:
         params = {include_param(name): (name in members) for name in candidates}
         params["subsetEnsembleWeighted"] = bool(weighted)
         study.add_trial(optuna.trial.create_trial(
             params=params, distributions=distributions, value=float(value),
             user_attrs={"members": list(members), "mean": float(mean), "scored_days": int(days), "run": runTag,
-                        "tuning": subset_tuning(value, mean, days, se)}))
+                        "tuning": subset_tuning(value, mean, days, se, variety)}))
         recorded += 1
     return recorded
 
 
-def subset_tuning(value, mean, days, se):
-    """The gate's diagnostics for a scored combination (TuningGate.challenge reads a trial's "tuning" attr)."""
-    return {"score": float(value), "kind": "subset_bound", "days": int(days), "mean": float(mean),
-            "score_se": (float(se) if se is not None else None)}
+def subset_tuning(value, mean, days, se, variety=None):
+    """
+    The gate's diagnostics for a scored combination (TuningGate.challenge reads a trial's "tuning" attr), with the
+    draws variety fields (input_blind, same_ticket_mean, ...) when the variety rule scored them (12 Nov 2026).
+    """
+    out = {"score": float(value), "kind": "subset_bound", "days": int(days), "mean": float(mean),
+           "score_se": (float(se) if se is not None else None)}
+    if variety:
+        out.update(variety)
+    return out
 
 
 def reference_flags(existingData, candidates):
@@ -632,7 +669,8 @@ def gate_objective(trial, candidates, evaluate):
     result = evaluate(members, weighted)
     if not result:
         return float("-inf")
-    trial.set_user_attr("tuning", subset_tuning(result["value"], result["mean"], result["days"], result.get("se")))
+    trial.set_user_attr("tuning", subset_tuning(result["value"], result["mean"], result["days"], result.get("se"),
+                                                result.get("variety")))
     return float(result["value"])
 
 
@@ -657,8 +695,34 @@ def vote_shape(members, weighted, voteScores, dataset_name):
             "weightedEqualsFlat": bool(weighted and weighted_is_flat(members, voteScores, dataset_name))}
 
 
+def study_name(dataset_name):
+    """The game's Optuna study, which is also its key in the result file."""
+    return f"{dataset_name}-subset_ensemble"
+
+
 def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty, optunaDatabase, runTag,
-              lockbox=None):
+              lockbox=None, variety_line=None, result_file=None):
+    """
+    _tune_game, with the result file's "failed" when it raises (12 Nov 2026). variety_line: the variety rule's line
+    (None: off - main() always passes one); result_file: the Hyperopts page's JSON file (None: nothing written).
+    """
+    try:
+        return _tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty,
+                          optunaDatabase, runTag, lockbox=lockbox, variety_line=variety_line, result_file=result_file)
+    except Exception as e:
+        tres.safe_write_result(result_file, study_name(dataset_name), status="failed", current=None, error=str(e)[:500])
+        raise
+
+
+def _skipped(result_file, dataset_name, reason):
+    """A game this run cannot tune (too few days, no candidates, switched off): the result file says why."""
+    print(f"Skipping {dataset_name}: {reason}")
+    tres.safe_write_result(result_file, study_name(dataset_name), status="skipped", current=None, decision=None,
+                           reason=reason, finishedAt=tres.now_iso())
+
+
+def _tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty, optunaDatabase,
+               runTag, lockbox=None, variety_line=None, result_file=None):
     """
     One game: the candidate rows, the search, this run's ranking into the
     study, the gate, the write. Extracted from __main__ on 15 Oct 2026 so a
@@ -672,9 +736,21 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
     lengthened to make up for them (until 26 Oct 2026 this tuner had no
     lockbox code at all: 25-26 of the ~100 days of euromillions, lotto and
     eurodreams were lockbox draws, 12 of vikinglotto's 48).
+
+    The result file (12 Nov 2026): "running" at the start (wanted = the evaluation budget, then the number this game's
+    search will really evaluate), "current" per evaluated combination (throttled, no draw: one takes milliseconds) and
+    per gate reference, "progress" during the search (its own counts) and, once the ranking is recorded, the study's
+    trial_progress, "gate", then "done" with the decision and what it wrote; "skipped" with the reason for a game this
+    run cannot tune.
     """
     print(f"\n{dataset_name.capitalize()}")
     historyDir = os.path.join(path, "data", "database", dataset_name)
+    studyName = study_name(dataset_name)
+    # variety: lottery games only (VARIETY_LINE's comment - a market's bins may rightly repeat)
+    varietyLine = None if helpers.is_market_game(dataset_name) else variety_line
+    tres.safe_write_result(result_file, studyName, tuner="ensemble", game=dataset_name, row=ROW_NAME, status="running",
+                           wanted=int(maxEvaluations), days=int(evaluationDayCount), gate=bool(GATE_ENABLED),
+                           varietyLine=varietyLine, startedAt=tres.now_iso(), current=None)
 
     evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
     windowDays = len(evaluation_days)
@@ -682,9 +758,10 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
     if lockbox:
         print(describe_lockbox_withheld(dataset_name, lockbox, len(lockedDays), len(evaluation_days)))
     if len(evaluation_days) < MIN_EVALUATION_DAYS:
-        print(f"Skipping {dataset_name}: only {len(evaluation_days)} day JSONs with both "
-              f"a currentPrediction and a realResult{' outside the lockbox' if lockedDays else ''} "
-              f"(need at least {MIN_EVALUATION_DAYS})")
+        _skipped(result_file, dataset_name,
+                 f"only {len(evaluation_days)} day JSONs with both "
+                 f"a currentPrediction and a realResult{' outside the lockbox' if lockedDays else ''} "
+                 f"(need at least {MIN_EVALUATION_DAYS})")
         return
     print(f"Evaluating on {len(evaluation_days)} days "
           f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})")
@@ -694,13 +771,13 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
         print(f"Not candidates (history but absent from {RECENT_DAYS - RECENT_MIN_DAYS + 1}+ of the "
               f"last {RECENT_DAYS} days - no longer emitted?): {', '.join(stale)}")
     if len(candidates) < 2:
-        print(f"Skipping {dataset_name}: only {len(candidates)} candidate row(s) present on "
-              f"at least {MIN_ROW_COVERAGE:.0%} of those days")
+        _skipped(result_file, dataset_name, f"only {len(candidates)} candidate row(s) present on "
+                                             f"at least {MIN_ROW_COVERAGE:.0%} of those days")
         return
     print(f"Candidate rows ({len(candidates)}): {', '.join(candidates)}")
     paramNames = [include_param(name) for name in candidates]
     if len(set(paramNames)) != len(paramNames):
-        print(f"Skipping {dataset_name}: two candidate rows map to the same parameter name")
+        _skipped(result_file, dataset_name, "two candidate rows map to the same parameter name")
         return
 
     jsonBestParamsFilePath = os.path.join(path, f"bestParams_{dataset_name}.json")
@@ -708,16 +785,18 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
     if os.path.exists(jsonBestParamsFilePath):
         with open(jsonBestParamsFilePath, "r") as infile:
             existingData = json.load(infile)
+    # what the decision changes, for the result file (TuningResult.writes_between)
+    servedBefore = copy.deepcopy(existingData)
 
     if helpers.is_jokerplus(dataset_name) and not existingData.get(JOKERPLUS_ENSEMBLE_FLAG, False):
-        print(f"Skipping {dataset_name}: the vote rows are switched off for Joker+ "
-              f"(set \"{JOKERPLUS_ENSEMBLE_FLAG}\": true in bestParams_{dataset_name}.json to tune and serve them)")
+        _skipped(result_file, dataset_name, f"the vote rows are switched off for Joker+ "
+                 f"(set \"{JOKERPLUS_ENSEMBLE_FLAG}\": true in bestParams_{dataset_name}.json to tune and serve them)")
         return
 
     kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
     if "keno" in dataset_name and not kenoSubsetSizes:
-        print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
-              f"bestParams_{dataset_name}.json, nothing to score profit on")
+        _skipped(result_file, dataset_name, f"no use_5..use_10 subset sizes enabled in "
+                                             f"bestParams_{dataset_name}.json, nothing to score profit on")
         return
 
     specialColumnCount = next(
@@ -747,21 +826,47 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
                       subsetMode=subsetMode, subsetTemperature=subsetTemperature: \
         evaluate_subset(members, weighted, dataset_name, evaluation_days, voteScores,
                         specialColumnCount, fallbackMainCount, kenoSubsetSizes, subsetMode,
-                        subsetTemperature, confidencePenalty)
+                        subsetTemperature, confidencePenalty, variety_line=varietyLine)
+
+    planned = min(2 ** len(candidates) * 2, int(maxEvaluations))
+    search_evaluate = evaluate
+    if result_file:
+        tres.safe_write_result(result_file, studyName, wanted=planned)
+        # the search's own progress (the study gets its trials only when the ranking is recorded below): every
+        # evaluated combination counts, a feasible one as COMPLETE, an infeasible one (too few members, days or
+        # voters) as INFEASIBLE; best = the highest value so far and its members
+        searchState = {"n": 0, "feasible": 0, "best": None, "written": 0.0}
+
+        def search_evaluate(members, weighted):
+            result = evaluate(members, weighted)
+            searchState["n"] += 1
+            if result:
+                searchState["feasible"] += 1
+                if searchState["best"] is None or result["value"] > searchState["best"]["score"]:
+                    searchState["best"] = {"trial": None, "score": float(result["value"]),
+                                           "params": {"members": list(members), "weighted": bool(weighted)}}
+            now = time.time()
+            if now - searchState["written"] >= RESULT_THROTTLE_SECONDS or searchState["n"] >= planned:
+                searchState["written"] = now
+                n, ok = searchState["n"], searchState["feasible"]
+                tres.safe_write_result(
+                    result_file, studyName,
+                    current=tres.current("trial", None, None, trial=None, evaluated=n, of=planned),
+                    progress={"states": {"COMPLETE": ok, "INFEASIBLE": n - ok}, "done": n, "best": searchState["best"]})
+            return result
 
     searchStart = time.time()
-    ranking, evaluated, infeasible, how = search_subsets(candidates, evaluate, maxEvaluations)
+    ranking, evaluated, infeasible, how = search_subsets(candidates, search_evaluate, maxEvaluations)
     print(f"{how}: {evaluated} combinations evaluated ({infeasible} infeasible) "
           f"in {time.time() - searchStart:.1f}s")
     if not ranking:
-        print(f"No feasible subset for {dataset_name} (members never coexist on "
-              f"{MIN_TRIAL_COVERAGE:.0%} of the window) - keeping existing params")
+        _skipped(result_file, dataset_name, f"no feasible subset (members never coexist on "
+                                             f"{MIN_TRIAL_COVERAGE:.0%} of the window) - keeping existing params")
         return
 
     # The study is the record of this run's ranking (best first,
     # no duplicates); older runs' trials stay as history and
     # RUNNING leftovers of a killed run are marked failed.
-    studyName = f"{dataset_name}-subset_ensemble"
     study = open_study(studyName, optunaDatabase, quiet=True)
     fail_stale_running_trials(study)
     known_trials = {t.number for t in study.get_trials(deepcopy=False)}   # before this run's ranking is added
@@ -769,8 +874,14 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
     recorded = record_results(study, candidates, ranking, recordLimit, runTag)
     print(f"Recorded the best {recorded} combinations into study {studyName} "
           f"in {time.time() - recordStart:.1f}s")
+    tres.safe_write_result(result_file, studyName,
+                           progress=tres.trial_progress(study.get_trials(deepcopy=False), known_trials))
+    if varietyLine is not None:
+        blind = sum(1 for item in ranking if (item[6] or {}).get("input_blind") is True)
+        print(f"  variety: {blind} of {len(ranking)} feasible combinations give the same ticket on "
+              f"{tres.line_text(varietyLine)} or more of their scored days (input-blind)")
 
-    value, members, weighted, mean, days, _se = ranking[0]
+    value, members, weighted, mean, days, _se, _variety = ranking[0]
     baseline = next((item for item in ranking if len(item[1]) == len(candidates) and item[2]), None)
     metric = "profit per bet" if dataset_name in PAYOUT_GAMES else ("fixed-rule units per day" if helpers.is_market_game(dataset_name) else "avg main hits")
     if helpers.is_positional_game(dataset_name):
@@ -799,10 +910,20 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
         print(f"  {studyName}: {note}")
     study = open_study(studyName, optunaDatabase, quiet=True)
     objective = lambda trial, candidates=candidates, evaluate=evaluate: gate_objective(trial, candidates, evaluate)
+    gateEvaluate = None
+    if result_file:
+        tres.safe_write_result(result_file, studyName, status="gate", current=None)
+
+        def gateEvaluate(params, role):
+            # the gate's own default (TuningGate.evaluate_reference in a forked child), with the reference named first
+            tres.safe_write_result(result_file, studyName, current=tres.current(role, None, None))
+            return evaluate_reference(objective, params, GATE_TIMEOUT_SECONDS, f"{studyName} {role}")
     outcome = challenge(study, known_trials, objective, served, make_defaults(defaults, existingData),
                         timeout_seconds=GATE_TIMEOUT_SECONDS, label=studyName, margin=GATE_MARGIN,
                         enabled=GATE_ENABLED, window_days=windowDays, se_margin=GATE_SE_MARGIN,
-                        lockbox_withheld=len(lockedDays), revert_margin=GATE_REVERT_MARGIN)
+                        lockbox_withheld=len(lockedDays), revert_margin=GATE_REVERT_MARGIN, evaluate=gateEvaluate,
+                        variety=varietyLine is not None,
+                        variety_rule=tres.variety_rule(varietyLine, "draws") if varietyLine is not None else None)
     print(outcome["summary"])
     record = outcome["record"]
     record["candidates"] = list(candidates)
@@ -810,32 +931,38 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
         record["incumbent_note"] = note
     existingData.setdefault("tuningGate", {})[ROW_NAME] = record
 
-    if outcome["params"] is not None:
-        members, weighted = members_of(outcome["params"], candidates)
+    def selection_keys(params, decision):
+        """The keys a selection is written as (the gate's params, or the challenger's for the result file)."""
+        members, weighted = members_of(params, candidates)
         chosen = next((item for item in ranking if set(item[1]) == set(members) and item[2] == weighted), None)
         if chosen is None:   # the plain vote was not among the evaluated combinations (a local search can miss it)
             result = evaluate(members, weighted) or {"value": float("nan"), "mean": float("nan"), "days": 0}
-            chosen = (result["value"], members, weighted, result["mean"], result["days"], result.get("se"))
-        value, _members, _weighted, mean, days, _se = chosen
+            chosen = (result["value"], members, weighted, result["mean"], result["days"], result.get("se"), None)
+        value, _members, _weighted, mean, days = chosen[:5]
         # Only the derived selection is written - never the row's own
         # score into modelScores (it would feed back into its own
         # weights), and not the include flags.
-        existingData["subsetEnsembleModels"] = list(members)
-        existingData["subsetEnsembleWeighted"] = bool(weighted)
-        existingData["subsetEnsembleObjective"] = round(float(value), 4)
-        existingData["subsetEnsembleMean"] = round(float(mean), 4)
-        existingData["subsetEnsembleTunedOn"] = {
-            "days": int(days),
-            "from": evaluation_days[0][0].strftime("%Y-%m-%d"),
-            "to": evaluation_days[-1][0].strftime("%Y-%m-%d"),
-            # the window's lockbox draws, not scored (from..to are the first and last scored day)
-            "lockboxDaysWithheld": len(lockedDays),
-            "candidates": len(candidates),
-            "evaluated": int(evaluated),
-            "search": how,
-            "confidencePenalty": confidencePenalty,
-            "decision": outcome["decision"],
+        return {
+            "subsetEnsembleModels": list(members),
+            "subsetEnsembleWeighted": bool(weighted),
+            "subsetEnsembleObjective": round(float(value), 4),
+            "subsetEnsembleMean": round(float(mean), 4),
+            "subsetEnsembleTunedOn": {
+                "days": int(days),
+                "from": evaluation_days[0][0].strftime("%Y-%m-%d"),
+                "to": evaluation_days[-1][0].strftime("%Y-%m-%d"),
+                # the window's lockbox draws, not scored (from..to are the first and last scored day)
+                "lockboxDaysWithheld": len(lockedDays),
+                "candidates": len(candidates),
+                "evaluated": int(evaluated),
+                "search": how,
+                "confidencePenalty": confidencePenalty,
+                "decision": decision,
+            },
         }
+
+    if outcome["params"] is not None:
+        existingData.update(selection_keys(outcome["params"], outcome["decision"]))
 
     if kenoSubsetSizes:
         # Served = gated on keno (26 Oct 2026): written whatever the gate decided, like a market's vote weights - it
@@ -864,6 +991,23 @@ def tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimi
 
     with open(jsonBestParamsFilePath, "w+") as outfile:
         json.dump(existingData, outfile, indent=4)
+
+    if result_file:
+        # "Apply this run's best" (12 Nov 2026): the challenger's selection keys - the market weights and keno's
+        # slicing are written whatever the decision, so they are in "params" already. None when the gate wrote the
+        # challenger itself, or no trial that is not input-blind was scored.
+        challengerParams = None
+        if outcome.get("trial") is not None and outcome["decision"] != "replaced":
+            try:
+                challengerParams = selection_keys(study.trials[outcome["trial"]].params, "applied by hand")
+            except Exception as e:  # the page's view only
+                print(f"  {studyName}: could not build the challenger's parameters ({e})")
+        writes = tres.writes_between(servedBefore, existingData, rows=[ROW_NAME])
+        tres.safe_write_result(result_file, studyName, status="done", current=None, decision=outcome["decision"],
+                               reason=outcome["reason"], summary=outcome["summary"], record=record,
+                               challengerParams=challengerParams,
+                               progress=tres.trial_progress(study.get_trials(deepcopy=False), known_trials),
+                               finishedAt=tres.now_iso(), **writes)
 
 
 def _self_check():
@@ -975,10 +1119,123 @@ def _self_check():
     assert vote_shape(["XGBoost Model", "LightGBM Model"], True, {}, "crypto")["weightedEqualsFlat"] is True
     _self_check_lockbox()
     _self_check_keno_slicing()
+    _self_check_variety_and_result()
     print("HyperoptEnsemble self-check OK: the gate's references, objective and decisions on hand-made data; a dominated "
           "weighted pair is infeasible; market ties go to the middle; weighted = flat is recorded; on a market XGBoost "
           "and LightGBM are one voter and the weights are the members' own scores; the lockbox draws leave the window "
-          "before anything is chosen; keno is served with the slicing it was gated with")
+          "before anything is chosen; keno is served with the slicing it was gated with; a stuck vote is input-blind "
+          "and never written; the result file goes running -> done with what the decision wrote")
+
+
+def _self_check_variety_and_result():
+    """
+    The variety rule and the result file (12 Nov 2026), on hand-made data and scratch roots:
+    - evaluate_subset: a vote of rows that repeat one ticket every day is input-blind, a vote that follows changing
+      rows is not, and a market vote carries no variety fields (tune_game passes no line there);
+    - the gate: the run's best combination is input-blind, the next best is not - the challenger is the next best;
+    - tune_game with a result file on a lotto root whose rows change their tickets daily: running -> done, the rows,
+      record and what the decision wrote (writes_between); on a root whose rows never change: every combination is
+      blind, the decision is "kept" and no selection is written.
+    """
+    import tempfile
+    stuck = [(datetime(2026, 9, 1 + i), [{"name": "A Model", "predictions": [[1, 2, 3, 4, 5, 6]]},
+                                         {"name": "B Model", "predictions": [[1, 2, 3, 4, 5, 7]]},
+                                         {"name": "C Model", "predictions": [[1, 2, 3, 4, 8, 9]]}],
+              [1, 2, 3, 10, 11, 12, 40]) for i in range(12)]
+    rng = np.random.RandomState(3)
+    ticket = lambda: sorted(int(n) for n in rng.choice(np.arange(1, 46), 6, replace=False))
+    moving = [(day, [{"name": n, "predictions": [ticket()]} for n in ("A Model", "B Model", "C Model")], drawn)
+              for day, _, drawn in stuck]
+    score = lambda days, line, game="lotto": evaluate_subset(["A Model", "B Model", "C Model"], False, game, days, {}, 1, 6,
+                                                               [], "softmax", 0.5, variety_line=line)
+    blind, seeing = score(stuck, 0.95), score(moving, 0.95)
+    assert blind["variety"]["input_blind"] is True and blind["variety"]["same_ticket_mean"] == 1.0, blind
+    assert seeing["variety"]["input_blind"] is False, seeing
+    assert "variety" not in score(stuck, None), "no line, no variety fields"
+    tuning = subset_tuning(blind["value"], blind["mean"], blind["days"], blind["se"], blind["variety"])
+    assert tuning["input_blind"] is True and tuning["variety_line"] == 0.95 and tuning["kind"] == "subset_bound"
+
+    # the gate: trial 2 (0.5) is blind, trial 1 (0.3) is not -> 1 is the challenger and replaces the nothing served
+    candidates = ["A Model", "B Model", "C Model"]
+    served, defaults, _ = reference_flags({}, candidates)
+    best = {**{include_param(n): True for n in candidates}, "subsetEnsembleWeighted": False}
+    pair = {**best, include_param("C Model"): False}
+
+    class FakeTrial:
+        def __init__(self, number, value, params, blind):
+            self.number, self.value, self.params = number, value, params
+            self.user_attrs = {"tuning": {**subset_tuning(value, value, 20, 0.01), "input_blind": blind}}
+            self.state = optuna.trial.TrialState.COMPLETE
+
+    class FakeStudy:
+        def __init__(self, trials):
+            self._trials, self.best_value = trials, max(t.value for t in trials)
+
+        def get_trials(self, deepcopy=False):
+            return self._trials
+    study = FakeStudy([FakeTrial(0, 0.0, served, False), FakeTrial(1, 0.3, pair, False), FakeTrial(2, 0.5, best, True)])
+    outcome = challenge(study, {0}, None, served, make_defaults(defaults, {}), timeout_seconds=60, label="self-check",
+                        margin=0.0, enabled=True, window_days=20, se_margin=0.0, revert_margin=0.0,
+                        evaluate=lambda params, role: (float("-inf") if role == "incumbent" else 0.1, None),
+                        variety=True, variety_rule=tres.variety_rule(0.95, "draws"))
+    assert outcome["decision"] == "replaced" and outcome["trial"] == 1 and outcome["record"]["variety"]["blind_trials"] == [2], outcome["reason"]
+
+    def scratch(root, rows_of_day):
+        historyDir = os.path.join(root, "data", "database", "lotto")
+        os.makedirs(historyDir)
+        for day in range(1, 31):
+            with open(os.path.join(historyDir, f"2026-1-{day}.json"), "w") as handle:
+                json.dump({"currentPrediction": rows_of_day(day), "realResult": ticket() + [40]}, handle)
+
+    import contextlib
+    import io
+    saved = GATE_SE_MARGIN
+    module = globals()
+    try:
+        module["GATE_SE_MARGIN"] = 0.0   # hand-made days: a margin in standard errors is not what is checked here
+        for kind in ("moving", "stuck"):
+            with tempfile.TemporaryDirectory() as root:
+                if kind == "moving":
+                    scratch(root, lambda day: [{"name": n, "predictions": [ticket()]} for n in ("A Model", "B Model", "C Model")])
+                else:
+                    scratch(root, lambda day: [{"name": "A Model", "predictions": [[1, 2, 3, 4, 5, 6]]},
+                                               {"name": "B Model", "predictions": [[1, 2, 3, 4, 5, 7]]},
+                                               {"name": "C Model", "predictions": [[1, 2, 3, 4, 8, 9]]}])
+                resultPath = os.path.join(root, "results", "run.json")
+                with contextlib.redirect_stdout(io.StringIO()):
+                    tune_game("lotto", root, 0, DEFAULT_MAX_EVALUATIONS, 8, DEFAULT_CONFIDENCE_PENALTY,
+                              f"sqlite:///{os.path.join(root, 'db.sqlite3')}", "self-check", variety_line=0.95,
+                              result_file=resultPath)
+                with open(resultPath) as handle:
+                    entry = json.load(handle)["studies"][study_name("lotto")]
+                with open(os.path.join(root, "bestParams_lotto.json")) as handle:
+                    written = json.load(handle)
+                assert entry["tuner"] == "ensemble" and entry["row"] == ROW_NAME and entry["status"] == "done", entry
+                assert entry["wanted"] == 16 and entry["varietyLine"] == 0.95 and entry["current"] is None, entry
+                assert entry["record"] == written["tuningGate"][ROW_NAME] and ROW_NAME in entry["rows"], entry
+                assert entry["progress"]["done"] >= 1 and entry["finishedAt"], entry["progress"]
+                if kind == "moving":
+                    assert entry["record"]["variety"]["blind_trials"] == [], entry["record"]["variety"]
+                    if entry["decision"] in ("replaced", "reverted"):
+                        assert entry["params"]["subsetEnsembleModels"] == written["subsetEnsembleModels"], entry["params"]
+                    if entry["decision"] != "replaced" and entry["challengerParams"] is not None:
+                        assert entry["challengerParams"]["subsetEnsembleTunedOn"]["decision"] == "applied by hand"
+                else:
+                    assert entry["decision"] == "kept" and "input-blind" in entry["reason"], entry["reason"]
+                    assert "subsetEnsembleModels" not in written and "subsetEnsembleModels" not in entry["params"], entry["params"]
+                    assert entry["challengerParams"] is None
+        # a game it cannot tune: "skipped" with the reason
+        with tempfile.TemporaryDirectory() as root:
+            resultPath = os.path.join(root, "run.json")
+            with contextlib.redirect_stdout(io.StringIO()):
+                tune_game("lotto", root, 0, DEFAULT_MAX_EVALUATIONS, 8, DEFAULT_CONFIDENCE_PENALTY,
+                          f"sqlite:///{os.path.join(root, 'db.sqlite3')}", "self-check", variety_line=0.95,
+                          result_file=resultPath)
+            with open(resultPath) as handle:
+                entry = json.load(handle)["studies"][study_name("lotto")]
+            assert entry["status"] == "skipped" and "day JSONs" in entry["reason"], entry
+    finally:
+        module["GATE_SE_MARGIN"] = saved
 
 
 def _self_check_lockbox():
@@ -1151,6 +1408,15 @@ if __name__ == "__main__":
                  'evaluated combinations.')
         parser.add_argument('--no-gate', action='store_true', help="Write this run's best combination without the comparison")
         parser.add_argument(
+            '--result-file', type=str, default=None,
+            help="Also write each game's progress and the gate's verdict - with what it would write - to this JSON file "
+                 "(src/TuningResult). The Hyperopts page runs the tuner this way with -s false (12 Nov 2026).")
+        parser.add_argument(
+            '--variety-line', type=float, default=None,
+            help="The variety rule's line (owner, 12 Nov 2026): a combination whose vote gives the same ticket on this "
+                 "share of its scored days or more is input-blind - neither written nor served back (lottery games "
+                 "only). 0.5-1.0 (or 50-100); default the owner's setting in config/tuning.json, else 0.95.")
+        parser.add_argument(
             '-g', '--games',
             type=str,
             default=",".join(GAMES),
@@ -1170,6 +1436,11 @@ if __name__ == "__main__":
         GATE_MARGIN = float(args.gate_margin)
         GATE_SE_MARGIN = float(args.gate_se_margin)
         GATE_REVERT_MARGIN = float(args.gate_revert_margin)
+        resultFile = args.result_file or None
+        VARIETY_LINE = (tres.clamp_line(args.variety_line) if args.variety_line is not None
+                        else tres.load_variety_line(os.getcwd()))
+        print(f"Variety line: {tres.line_text(VARIETY_LINE)} of the scored days on one ticket = input-blind "
+              f"(lottery games)")
 
         print("Push to git: ", pushToGit)
         print("Evaluation budget per game: ", maxEvaluations)
@@ -1195,7 +1466,7 @@ if __name__ == "__main__":
                 continue
             try:
                 tune_game(dataset_name, path, evaluationDayCount, maxEvaluations, recordLimit, confidencePenalty,
-                          optunaDatabase, runTag, lockbox=lockbox)
+                          optunaDatabase, runTag, lockbox=lockbox, variety_line=VARIETY_LINE, result_file=resultFile)
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
 

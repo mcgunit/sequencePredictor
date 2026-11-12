@@ -1,4 +1,4 @@
-import os, argparse, json, math, sys, time, shutil
+import os, argparse, json, math, sys, time, shutil, copy, inspect
 # Pin the BLAS pools before numpy is imported: the REINFORCE updates are small
 # matrix ops, and with trials running in parallel (HyperoptRunner) every
 # process would otherwise spin up a 16-thread OpenBLAS pool and thrash the box.
@@ -14,7 +14,8 @@ from src.RLTicketModel import RLTicketModel
 from src.RLPositionModel import RLPositionModel, ROW_NAME as POSITION_ROW
 from src.MarketSettle import cash_pnl, leg_rate
 from src.TuningScore import score_bets_by_day, attrs_for_trial, describe
-from src.TuningGate import challenge, make_defaults
+from src.TuningGate import challenge, make_defaults, evaluate_reference
+from src import TuningResult as tres
 from src.Lockbox import (load_or_warn as load_lockbox, covers as lockbox_covers, split_by_date as lockbox_split_days,
                          describe as describe_lockbox, describe_withheld as describe_lockbox_withheld)
 from src.Helpers import Helpers
@@ -106,6 +107,28 @@ SIT_OUT_SE_MARGIN = 1.0
 # lockbox draws is allowed - the daily predictor does it), but they are never scored - not in a trial, not in the
 # gate's re-scores of the served and the default knobs, not in the plain rule the position studies are read against.
 # The window is not lengthened to make up for them.
+
+# The variety rule (owner, 12 Nov 2026: the same gate everywhere, the weekly chain included).
+# - The ticket studies: the RL Ticket Model ASSEMBLES a lottery ticket per day (src/RLTicketModel: the policy picks
+#   the numbers from the day's rows - its row's predictions[0], keno's playable subsets sliced after it), so the
+#   draws measure applies like on every other row that predicts a ticket: a parameter set whose policy gave the same
+#   main ticket on VARIETY_LINE or more of the scored walk-forward days is input-blind (src/TuningResult.
+#   variety_of_tickets), neither written nor served back, and it blocks nothing (TuningGate.challenge(variety=True)).
+#   A policy that settled on one ticket whatever the day's rows is exactly that. TICKET_VARIETY switches it off in one
+#   place should the owner decide the RL ticket is not a "ticket" in the rule's sense.
+# - The position studies (crypto, shares and their week games): the RL Position Model's output is a size per
+#   instrument - how much to put on the vote's call - not a ticket; a sizing that stays the same is a policy, not a
+#   stuck prediction. No variety fields there, so the rule changes nothing.
+# main() sets the line (--variety-line, else config/tuning.json, else 0.95); tune_ticket(variety_line=None) leaves
+# the rule off.
+TICKET_VARIETY = True
+VARIETY_LINE = tres.DEFAULT_VARIETY_LINE
+# The Hyperopts page's result file (--result-file, 12 Nov 2026): "current" per walk-forward day of a trial or a gate
+# reference (a day retrains the policy for up to rlTicketMaxTrainSeconds / rlPositionMaxTrainSeconds), at most every
+# RESULT_THROTTLE_SECONDS per process plus the last day. CURRENT_ROLE is set in the parent before the gate forks a
+# reference (the child inherits it); trials run as "trial".
+CURRENT_ROLE = "trial"
+RESULT_THROTTLE_SECONDS = 5.0
 
 
 def is_running():
@@ -310,7 +333,7 @@ def plain_rule_score(dataset_name, evaluation_days, returns, modelScores, lockbo
 
 
 def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, dataPath, policyDir,
-                          modelScores, maxTrainSeconds, returns, lockbox=None):
+                          modelScores, maxTrainSeconds, returns, lockbox=None, result_file=None, study_key=None):
     """
     The position model's walk-forward (README item 4, M4): for each evaluation
     day D the policy is retrained with cutoffDate=D on the market's day JSONs
@@ -324,7 +347,11 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
     not the objective: rlPositionRiskAversion is a knob here, the money is
     what is scored. A lockbox day is walked through (the policy trains and
     warm-starts on it) but not paid or scored (26 Oct 2026).
+
+    result_file / study_key (12 Nov 2026): "current" per walked day (day_reporter). No variety fields: a size per
+    instrument is not a ticket (TICKET_VARIETY's comment).
     """
+    report = day_reporter(result_file, study_key, trial, len(evaluation_days))
     policyDir = os.path.join(policyDir, f"trial_{os.getpid()}")
     clear_folder(policyDir)
     model = RLPositionModel()
@@ -339,12 +366,14 @@ def objective_rl_position(trial, dataset_name, evaluation_days, historyDir, data
     model.setSeed(42)
     bets_by_day = []
     sizes_taken = []
-    for fileDate, rows, _ in evaluation_days:
+    for dayNumber, (fileDate, rows, _) in enumerate(evaluation_days, 1):
         ret = returns.get(fileDate.strftime("%Y-%m-%d"))
         if ret is None:
+            report(dayNumber)
             continue
         row = model.run(dataset_name, rows, historyDir, dataPath,
                         {"cutoffDate": fileDate, "modelScores": modelScores, "returns": returns})
+        report(dayNumber)
         if not row or not row.get("positions") or lockbox_covers(lockbox, fileDate):
             continue
         bets_by_day.append(position_bets(row["positions"], ret, dataset_name))
@@ -380,6 +409,85 @@ def scored_days(dataset_name, evaluation_days, lockbox):
 
 def _number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def day_reporter(result_file, study_key, trial, days):
+    """
+    A walk-forward's "current" writer for the result file (12 Nov 2026): call it with the 1-based day done; it writes
+    CURRENT_ROLE (a trial, or the gate reference the parent named before the fork) at most every
+    RESULT_THROTTLE_SECONDS, and the last day. No result file: a no-op.
+    """
+    if not result_file:
+        return lambda day: None
+    last = [0.0]
+
+    def report(day):
+        now = time.time()
+        if now - last[0] >= RESULT_THROTTLE_SECONDS or day >= days:
+            last[0] = now
+            tres.safe_write_result(result_file, study_key,
+                                   current=tres.current(CURRENT_ROLE, day, days, trial=trial.number))
+    return report
+
+
+def run_study(studyName, optunaDatabase, objective, n_trials, parallel, known_trials, result_file):
+    """
+    optimize_study with the result file's per-trial progress (12 Nov 2026), through HyperoptRunner's on_trial_done
+    when this checkout's runner offers it; without a result file exactly the call it replaces.
+    """
+    global CURRENT_ROLE
+    CURRENT_ROLE = "trial"
+    kwargs = {}
+    if result_file:
+        def report_progress():
+            study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
+            tres.safe_write_result(result_file, studyName, progress=tres.trial_progress(
+                study.get_trials(deepcopy=False), known_trials))
+        report_progress()
+        if "on_trial_done" in inspect.signature(optimize_study).parameters:
+            kwargs["on_trial_done"] = report_progress
+    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3, **kwargs)
+
+
+def gate_evaluate(objective, timeout_seconds, studyName, result_file):
+    """
+    The gate's reference scoring for the result file (None without one: TuningGate's own default): TuningGate.
+    evaluate_reference in a forked child, with CURRENT_ROLE set to the reference first so the child reports it.
+    """
+    if not result_file:
+        return None
+    tres.safe_write_result(result_file, studyName, status="gate", current=None)
+
+    def evaluate(params, role):
+        global CURRENT_ROLE
+        CURRENT_ROLE = role
+        try:
+            return evaluate_reference(objective, params, timeout_seconds, f"{studyName} {role}")
+        finally:
+            CURRENT_ROLE = "trial"
+    return evaluate
+
+
+def write_done(result_file, studyName, study, known_trials, outcome, before, after, row, challengerParams):
+    """The result file's "done" entry: the decision and what it wrote (TuningResult.writes_between)."""
+    if not result_file:
+        return
+    tres.safe_write_result(result_file, studyName, status="done", current=None, decision=outcome["decision"],
+                           reason=outcome["reason"], summary=outcome["summary"], record=outcome["record"],
+                           challengerParams=challengerParams,
+                           progress=tres.trial_progress(study.get_trials(deepcopy=False), known_trials),
+                           finishedAt=tres.now_iso(), **tres.writes_between(before, after, rows=[row]))
+
+
+def challenger_params(study, outcome):
+    """The challenger trial's parameters (the suggest names are the bestParams keys); None when the gate wrote it or
+    no trial that is not input-blind was scored."""
+    if outcome.get("trial") is None or outcome["decision"] == "replaced":
+        return None
+    try:
+        return dict(study.trials[outcome["trial"]].params)
+    except Exception:
+        return None
 
 
 def position_sit_out(served_score, served_tuning, enabled=True, previous=False, margin=0.0, se_margin=SIT_OUT_SE_MARGIN):
@@ -425,8 +533,42 @@ def position_sit_out(served_score, served_tuning, enabled=True, previous=False, 
                   f"of its own: {lead}{sizes} - the row sits out"), floor
 
 
-def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase, lockbox=None):
-    """One market game's position study, gated, written to bestParams_<market>.json."""
+def position_study_name(dataset_name):
+    return f"{dataset_name}-rl_position"
+
+
+def ticket_study_name(dataset_name):
+    return f"{dataset_name}-{TICKET_STUDY_SUFFIX}"
+
+
+def _skipped(result_file, studyName, dataset_name, reason):
+    """A game this run cannot tune: the log line, and the result file says why (12 Nov 2026)."""
+    print(f"Skipping {dataset_name}: {reason}")
+    tres.safe_write_result(result_file, studyName, status="skipped", current=None, decision=None, reason=reason,
+                           finishedAt=tres.now_iso())
+
+
+def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase, lockbox=None,
+                  result_file=None):
+    """
+    One market game's position study, gated, written to bestParams_<market>.json. result_file (12 Nov 2026): the
+    Hyperopts page's JSON file - running, per-trial progress, "current" per walked day, gate, done (or skipped /
+    failed); None writes nothing.
+    """
+    studyName = position_study_name(dataset_name)
+    tres.safe_write_result(result_file, studyName, tuner="rlticket", game=dataset_name, row=POSITION_ROW,
+                           status="running", wanted=int(n_trials), days=int(evaluationDayCount), gate=bool(GATE_ENABLED),
+                           varietyLine=None, startedAt=tres.now_iso(), current=None)
+    try:
+        _tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase, lockbox,
+                       result_file, studyName)
+    except Exception as e:
+        tres.safe_write_result(result_file, studyName, status="failed", current=None, error=str(e)[:500])
+        raise
+
+
+def _tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase, lockbox,
+                   result_file, studyName):
     historyDir = os.path.join(path, "data", "database", dataset_name)
     dataPath = os.path.join(path, "data", "trainingData", dataset_name)
     returns = RLPositionModel()._loadReturns(dataPath)
@@ -434,8 +576,9 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
                        if e[0].strftime("%Y-%m-%d") in returns]
     withheld, scored = scored_days(dataset_name, evaluation_days, lockbox)
     if scored < MIN_EVALUATION_DAYS:
-        print(f"Skipping {dataset_name}: only {scored} day JSONs with rows, a result and a return"
-              f"{' outside the lockbox' if withheld else ''} (need at least {MIN_EVALUATION_DAYS})")
+        _skipped(result_file, studyName, dataset_name,
+                 f"only {scored} day JSONs with rows, a result and a return"
+                 f"{' outside the lockbox' if withheld else ''} (need at least {MIN_EVALUATION_DAYS})")
         return
     print(f"Evaluating the position model on {len(evaluation_days)} days "
           f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})"
@@ -445,25 +588,29 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
     if os.path.exists(jsonBestParamsFilePath):
         with open(jsonBestParamsFilePath, "r") as infile:
             existingData = json.load(infile)
+    servedBefore = copy.deepcopy(existingData)   # what the decision changes, for the result file
     modelScores = existingData.get("modelScores")
     maxTrainSeconds = existingData.get("rlPositionMaxTrainSeconds", 60)
     plain = plain_rule_score(dataset_name, evaluation_days, returns, modelScores, lockbox)
     print(f"  plain rule (size 1 where the vote is up): {describe(plain)}")
     shutil.rmtree(policyDir, ignore_errors=True)
-    studyName = f"{dataset_name}-rl_position"
     study = open_study(studyName, optunaDatabase, parallel=parallel)
     fail_stale_running_trials(study)
     known_trials = {t.number for t in study.get_trials(deepcopy=False)}
     objective = lambda trial: objective_rl_position(trial, dataset_name, evaluation_days, historyDir, dataPath,
-                                                    policyDir, modelScores, maxTrainSeconds, returns, lockbox)
+                                                    policyDir, modelScores, maxTrainSeconds, returns, lockbox,
+                                                    result_file=result_file, study_key=studyName)
     studyStart = time.time()
-    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
+    run_study(studyName, optunaDatabase, objective, n_trials, parallel, known_trials, result_file)
     print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
     study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
+    timeout = len(evaluation_days) * (maxTrainSeconds + 5) + 120
+    # no variety rule here: a sizing is not a ticket (TICKET_VARIETY's comment)
     outcome = challenge(study, known_trials, objective, existingData, make_defaults(RL_POSITION_DEFAULTS, existingData),
-                        timeout_seconds=len(evaluation_days) * (maxTrainSeconds + 5) + 120, label=studyName,
+                        timeout_seconds=timeout, label=studyName,
                         margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days),
-                        lockbox_withheld=withheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN)
+                        lockbox_withheld=withheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN,
+                        evaluate=gate_evaluate(objective, timeout, studyName, result_file))
     print(outcome["summary"])
     record = outcome["record"]
     record["plain_rule"] = attrs_for_trial(plain)
@@ -494,17 +641,48 @@ def tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, p
         json.dump(existingData, outfile, indent=4)
     shutil.rmtree(policyDir, ignore_errors=True)
 
+    if result_file:
+        # "Apply this run's best": the challenger's knobs, and the sit-out its own score and spread would set
+        # (position_sit_out on the challenger's side, as if the gate had served it)
+        challengerParams = challenger_params(study, outcome)
+        if challengerParams is not None:
+            challengerParams["rlPositionSitOut"] = bool(position_sit_out(
+                outcome.get("challenger"), record.get("challenger_tuning"), enabled=GATE_ENABLED,
+                previous=servedBefore.get("rlPositionSitOut", False), margin=GATE_MARGIN)[0])
+        write_done(result_file, studyName, study, known_trials, outcome, servedBefore, existingData, POSITION_ROW,
+                   challengerParams)
+
 
 def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
-                lockbox=None):
-    """One lottery game's RL ticket study, gated, written to bestParams_<game>.json (a function since 13 Oct 2026)."""
+                lockbox=None, variety_line=None, result_file=None):
+    """
+    One lottery game's RL ticket study, gated, written to bestParams_<game>.json (a function since 13 Oct 2026).
+    variety_line (12 Nov 2026): the variety rule's line (None: off; main() passes one while TICKET_VARIETY);
+    result_file: the Hyperopts page's JSON file - running, per-trial progress, "current" per walked day, gate, done
+    (or skipped / failed); None writes nothing.
+    """
+    studyName = ticket_study_name(dataset_name)
+    tres.safe_write_result(result_file, studyName, tuner="rlticket", game=dataset_name, row=TICKET_ROW,
+                           status="running", wanted=int(n_trials), days=int(evaluationDayCount), gate=bool(GATE_ENABLED),
+                           varietyLine=variety_line, startedAt=tres.now_iso(), current=None)
+    try:
+        _tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
+                     lockbox, variety_line, result_file, studyName)
+    except Exception as e:
+        tres.safe_write_result(result_file, studyName, status="failed", current=None, error=str(e)[:500])
+        raise
+
+
+def _tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
+                 lockbox, variety_line, result_file, studyName):
     historyDir = os.path.join(path, "data", "database", dataset_name)
 
     evaluation_days = load_evaluation_days(historyDir, evaluationDayCount)
     withheld, scored = scored_days(dataset_name, evaluation_days, lockbox)
     if scored < MIN_EVALUATION_DAYS:
-        print(f"Skipping {dataset_name}: only {scored} day JSONs with both a currentPrediction and a realResult"
-              f"{' outside the lockbox' if withheld else ''} (need at least {MIN_EVALUATION_DAYS})")
+        _skipped(result_file, studyName, dataset_name,
+                 f"only {scored} day JSONs with both a currentPrediction and a realResult"
+                 f"{' outside the lockbox' if withheld else ''} (need at least {MIN_EVALUATION_DAYS})")
         return
     print(f"Evaluating on {len(evaluation_days)} days "
           f"({evaluation_days[0][0].date()} .. {evaluation_days[-1][0].date()})"
@@ -515,14 +693,15 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
     if os.path.exists(jsonBestParamsFilePath):
         with open(jsonBestParamsFilePath, "r") as infile:
             existingData = json.load(infile)
+    servedBefore = copy.deepcopy(existingData)   # what the decision changes, for the result file
 
     kenoSubsetSizes = get_keno_subset_sizes(dataset_name, existingData)
     if "keno" in dataset_name and not kenoSubsetSizes:
         # Without playable subset sizes every Keno day scores a
         # constant 0 (the 20-number main ticket has no payout), so
         # the study would just pick noise.
-        print(f"Skipping {dataset_name}: no use_5..use_10 subset sizes enabled in "
-              f"bestParams_{dataset_name}.json, nothing to score profit on")
+        _skipped(result_file, studyName, dataset_name, f"no use_5..use_10 subset sizes enabled in "
+                                                       f"bestParams_{dataset_name}.json, nothing to score profit on")
         return
 
     # Same numberRange derivation as addRLTicketPrediction:
@@ -541,7 +720,6 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
     # Scratch policy dirs of trials a killed run left behind.
     shutil.rmtree(policyDir, ignore_errors=True)
 
-    studyName = f"{dataset_name}-{TICKET_STUDY_SUFFIX}"
     study = open_study(studyName, optunaDatabase, parallel=parallel)
     fail_stale_running_trials(study)
     known_trials = {t.number for t in study.get_trials(deepcopy=False)}
@@ -550,15 +728,20 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
                        historyDir=historyDir, numberRange=numberRange, kenoSubsetSizes=kenoSubsetSizes, \
                        maxTrainSeconds=maxTrainSeconds: objective_rl_ticket(
         trial, dataset_name, game_cfg, evaluation_days, historyDir,
-        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds, lockbox)
+        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds, lockbox,
+        variety_line=variety_line, result_file=result_file, study_key=studyName)
 
     studyStart = time.time()
-    optimize_study(studyName, optunaDatabase, objective, n_trials, parallel=parallel, expected_trial_gb=0.3)
+    run_study(studyName, optunaDatabase, objective, n_trials, parallel, known_trials, result_file)
     print(f"Study {studyName} finished in {time.time() - studyStart:.1f}s")
 
     study = open_study(studyName, optunaDatabase, parallel=parallel, quiet=True)
     if not has_completed_trials(study):
         print(f"No completed trials for {studyName} (all pruned/failed) - keeping existing params")
+        tres.safe_write_result(result_file, studyName, status="skipped", current=None, decision=None,
+                               reason="no completed trials (all pruned/failed) - keeping existing params",
+                               progress=tres.trial_progress(study.get_trials(deepcopy=False), known_trials),
+                               finishedAt=tres.now_iso())
         return
 
     # The champion/challenger gate (src/TuningGate.py, since 13 Oct 2026 for the ticket studies too):
@@ -567,11 +750,16 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
     # (GATE_SE_MARGIN, 27 Oct 2026); the untuned ones are served back when they score above the served
     # ones and the challenger did not clear them (GATE_REVERT_MARGIN). Until 13 Oct the study's all-time
     # best was written, ungated.
+    # The variety rule (12 Nov 2026, TICKET_VARIETY) when a line is given.
+    timeout = len(evaluation_days) * (maxTrainSeconds + 5) + 120
     outcome = challenge(study, known_trials, objective, existingData,
                         make_defaults(RL_TICKET_DEFAULTS, existingData),
-                        timeout_seconds=len(evaluation_days) * (maxTrainSeconds + 5) + 120, label=studyName,
+                        timeout_seconds=timeout, label=studyName,
                         margin=GATE_MARGIN, enabled=GATE_ENABLED, window_days=len(evaluation_days),
-                        lockbox_withheld=withheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN)
+                        lockbox_withheld=withheld, se_margin=GATE_SE_MARGIN, revert_margin=GATE_REVERT_MARGIN,
+                        evaluate=gate_evaluate(objective, timeout, studyName, result_file),
+                        variety=variety_line is not None,
+                        variety_rule=tres.variety_rule(variety_line, "draws") if variety_line is not None else None)
     print(outcome["summary"])
     existingData.setdefault("tuningGate", {})[TICKET_ROW] = outcome["record"]
     if outcome["params"] is not None:
@@ -584,10 +772,13 @@ def tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_t
     # included) - the next tool in runHyperopt.sh shares the
     # hyperOptCache tree.
     shutil.rmtree(policyDir, ignore_errors=True)
+    write_done(result_file, studyName, study, known_trials, outcome, servedBefore, existingData, TICKET_ROW,
+               challenger_params(study, outcome))
 
 
 def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyDir,
-                        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds, lockbox=None):
+                        policyDir, numberRange, kenoSubsetSizes, maxTrainSeconds, lockbox=None,
+                        variety_line=None, result_file=None, study_key=None):
     """
     Honest walk-forward over the pipeline's own day JSONs: for each evaluation
     day D the model is trained with cutoffDate=D (so it only ever sees days
@@ -597,6 +788,10 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     the plain mean per day before, which one straight or keno tier decided).
     A lockbox day is walked through - the policy trains and warm-starts on
     it - but its ticket is not scored (26 Oct 2026).
+
+    variety_line (12 Nov 2026): the record also carries the draws variety fields of the row's main ticket on the
+    scored days (TICKET_VARIETY's comment; pick3's in slot order, the others' as a set); result_file / study_key:
+    "current" per walked day (day_reporter).
     """
     is_pick3 = "pick3" in dataset_name
     is_keno = "keno" in dataset_name
@@ -628,8 +823,9 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
     # tuners).
     rlTicket.setSeed(42)
 
-    bets_by_day, hits_by_day = [], []
-    for fileDate, rows, realResult in evaluation_days:
+    report = day_reporter(result_file, study_key, trial, len(evaluation_days))
+    bets_by_day, hits_by_day, tickets = [], [], []
+    for dayNumber, (fileDate, rows, realResult) in enumerate(evaluation_days, 1):
         drawSize = derive_draw_size(rows, game_cfg["special_column_count"], game_cfg["draw_size"])
         gameConfig = {
             "numberRange": numberRange,
@@ -648,19 +844,29 @@ def objective_rl_ticket(trial, dataset_name, game_cfg, evaluation_days, historyD
         # purpose, since that is exactly production's online behavior: each
         # day retrains on top of yesterday's theta.
         rlRow = rlTicket.run(dataset_name, rows, historyDir, gameConfig)
+        report(dayNumber)
         if lockbox_covers(lockbox, fileDate):
             continue
         bets, hits = rl_row_material(rlRow, realResult, drawSize, is_pick3, is_keno)
         bets_by_day.append(bets)
         if hits is not None:
             hits_by_day.append(hits)
+        if variety_line is not None and not (is_keno and not bets):
+            # the scored days' tickets (a keno day without a playable subset places no bet and is no scored day);
+            # an empty row is a day without a ticket
+            mainTicket = ((rlRow or {}).get("predictions") or [None])[0]
+            tickets.append(None if not mainTicket else
+                           ([int(n) for n in mainTicket] if is_pick3 else sorted(int(n) for n in mainTicket)))
 
     shutil.rmtree(policyDir, ignore_errors=True)
     # the tuners' common objective: the lower confidence bound over the days of the capped profit per bet (keno,
     # above a fair ticket of each size), of the slot hits with the capped profit as a tie-breaker (pick3), or of
     # the hits (the other games) - one lucky payout counts as one good bet, not as the study's best trial
     tuning = score_bets_by_day(bets_by_day, hits_by_day, payout=is_keno, positional=is_pick3)
-    trial.set_user_attr("tuning", attrs_for_trial(tuning))
+    attrs = attrs_for_trial(tuning)
+    if variety_line is not None:
+        attrs = {**(attrs or {}), **tres.variety_of_tickets(tickets, variety_line)}
+    trial.set_user_attr("tuning", attrs)
     print(f"Trial {trial.number}: {describe(tuning)}")
     return tuning["score"]
 
@@ -726,10 +932,138 @@ def _self_check():
         module["RLTicketModel"], module["RLPositionModel"] = saved
         optuna.logging.set_verbosity(verbosity)
     _self_check_gate()
+    _self_check_variety_and_result()
     print("HyperoptRLTicket self-check OK: the lockbox days are walked through (the policy trains on them) but never "
           "scored - not by a ticket trial, not by the position studies' plain rule; the gates take one standard error "
           "and revert without a margin; the position row sits out unless its sizing's mean is over two standard errors "
-          "above 0 - every market of 24 Oct")
+          "above 0 - every market of 24 Oct; a policy stuck on one ticket is input-blind and never written, a sizing "
+          "carries no variety fields; the result file goes running -> done with what the decision wrote")
+
+
+def _self_check_variety_and_result():
+    """
+    The variety rule and the result file (12 Nov 2026), with stub RL models on scratch roots (two trials, one at a
+    time, in a scratch Optuna database):
+    - objective_rl_ticket: a policy that plays the same ticket every day is input-blind, one that plays the day's
+      stored row is not, and without a line there are no variety fields;
+    - tune_ticket with a result file: running -> done with the record, the rows and what the decision wrote; the stuck
+      policy's run is "kept" with nothing written; too few days is "skipped";
+    - tune_position with a result file: done, the record carries no input_blind, challengerParams (when offered)
+      carries the sit-out its own score would set.
+    """
+    import contextlib
+    import io
+    import tempfile
+    import warnings
+    import numpy as np
+
+    rng = np.random.RandomState(11)
+    ticket = lambda: sorted(int(n) for n in rng.choice(np.arange(1, 46), 6, replace=False))
+    days = [(datetime(2026, 2, d), [{"name": "Markov Model", "predictions": [ticket()]}], ticket() + [40]) for d in range(1, 13)]
+
+    class StubTicket:
+        """Plays the day's stored ticket, or (stuck) the same ticket every day."""
+        stuck = False
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None    # the setters
+
+        def run(self, dataset_name, rows, historyDir, gameConfig):
+            return {"predictions": [[1, 2, 3, 4, 5, 6] if StubTicket.stuck else rows[0]["predictions"][0]]}
+
+    class StubPosition:
+        """Sizes 0.5 on every instrument; the vote's ticket is the stored row's."""
+        k = 10
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
+
+        def _loadReturns(self, dataPath):
+            return {when.strftime("%Y-%m-%d"): [float(r) for r in rng.normal(0, 0.02, 2)] for when, _, _ in market}
+
+        def _voteTicket(self, rows, slots, modelScores, game):
+            return rows[0]["predictions"][0]
+
+        def run(self, dataset_name, rows, historyDir, dataPath, config):
+            return {"positions": [0.5, 0.5]}
+
+    market = [(datetime(2026, 2, d), [{"name": "Markov Model", "predictions": [[int(rng.randint(10)), int(rng.randint(10))]]}],
+               [1, 2]) for d in range(1, 13)]
+
+    def write_days(root, game, entries):
+        historyDir = os.path.join(root, "data", "database", game)
+        os.makedirs(historyDir)
+        for when, rows, real in entries:
+            with open(os.path.join(historyDir, f"{when.year}-{when.month}-{when.day}.json"), "w") as handle:
+                json.dump({"currentPrediction": rows, "realResult": real}, handle)
+
+    module = globals()
+    saved = module["RLTicketModel"], module["RLPositionModel"], module["GATE_SE_MARGIN"]
+    module["RLTicketModel"], module["RLPositionModel"] = StubTicket, StubPosition
+    verbosity = optuna.logging.get_verbosity()
+    optuna.logging.set_verbosity(optuna.logging.ERROR)
+    try:
+        with tempfile.TemporaryDirectory() as policyDir, warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            for stuck in (True, False):
+                StubTicket.stuck = stuck
+                trial = optuna.trial.FixedTrial(dict(RL_TICKET_DEFAULTS))
+                with contextlib.redirect_stdout(io.StringIO()):
+                    objective_rl_ticket(trial, "lotto", GAME_CONFIG["lotto"], days, policyDir, policyDir, (1, 45), [], 60,
+                                        variety_line=0.95)
+                tuning = trial.user_attrs["tuning"]
+                assert tuning["input_blind"] is stuck and tuning["tickets"] == 12 and tuning["kind"] == "hits", tuning
+            trial = optuna.trial.FixedTrial(dict(RL_TICKET_DEFAULTS))
+            with contextlib.redirect_stdout(io.StringIO()):
+                objective_rl_ticket(trial, "lotto", GAME_CONFIG["lotto"], days, policyDir, policyDir, (1, 45), [], 60)
+            assert "input_blind" not in trial.user_attrs["tuning"], "no line, no variety fields"
+
+        module["GATE_SE_MARGIN"] = 0.0   # stub scores: the margin in standard errors is not what is checked here
+        for kind in ("stuck", "seeing", "short"):
+            StubTicket.stuck = kind == "stuck"
+            with tempfile.TemporaryDirectory() as root, warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                write_days(root, "lotto", days if kind != "short" else days[:5])
+                resultPath = os.path.join(root, "results", "run.json")
+                with contextlib.redirect_stdout(io.StringIO()):
+                    tune_ticket("lotto", GAME_CONFIG["lotto"], root, os.path.join(root, "policy"), 40, 2, 1,
+                                f"sqlite:///{os.path.join(root, 'db.sqlite3')}", variety_line=0.95, result_file=resultPath)
+                with open(resultPath) as handle:
+                    entry = json.load(handle)["studies"][ticket_study_name("lotto")]
+                assert entry["tuner"] == "rlticket" and entry["row"] == TICKET_ROW and entry["varietyLine"] == 0.95, entry
+                if kind == "short":
+                    assert entry["status"] == "skipped" and "day JSONs" in entry["reason"], entry
+                    continue
+                with open(os.path.join(root, "bestParams_lotto.json")) as handle:
+                    written = json.load(handle)
+                assert entry["status"] == "done" and entry["current"] is None and entry["wanted"] == 2, entry
+                assert entry["record"] == written["tuningGate"][TICKET_ROW] and TICKET_ROW in entry["rows"], entry
+                assert entry["progress"]["done"] == 2 and entry["finishedAt"], entry["progress"]
+                if kind == "stuck":
+                    assert entry["decision"] == "kept" and "input-blind" in entry["reason"], entry["reason"]
+                    assert entry["params"] == {} and entry["challengerParams"] is None, entry
+                else:
+                    assert entry["record"]["variety"]["blind_trials"] == [], entry["record"]["variety"]
+                    if entry["decision"] != "replaced":
+                        assert set(entry["challengerParams"]) == set(RL_TICKET_DEFAULTS), entry["challengerParams"]
+
+        with tempfile.TemporaryDirectory() as root, warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            write_days(root, "crypto", market)
+            resultPath = os.path.join(root, "run.json")
+            with contextlib.redirect_stdout(io.StringIO()):
+                tune_position("crypto", root, os.path.join(root, "policy"), 40, 2, 1,
+                              f"sqlite:///{os.path.join(root, 'db.sqlite3')}", result_file=resultPath)
+            with open(resultPath) as handle:
+                entry = json.load(handle)["studies"][position_study_name("crypto")]
+            assert entry["status"] == "done" and entry["row"] == POSITION_ROW and entry["varietyLine"] is None, entry
+            assert "variety" not in entry["record"] and "input_blind" not in (entry["record"].get("challenger_tuning") or {}), entry["record"]
+            assert "rlPositionSitOut" in entry["params"], entry["params"]
+            if entry["challengerParams"] is not None:
+                assert set(entry["challengerParams"]) == set(RL_POSITION_DEFAULTS) | {"rlPositionSitOut"}, entry["challengerParams"]
+    finally:
+        module["RLTicketModel"], module["RLPositionModel"], module["GATE_SE_MARGIN"] = saved
+        optuna.logging.set_verbosity(verbosity)
 
 
 def _self_check_gate():
@@ -853,13 +1187,28 @@ if __name__ == "__main__":
             help='How much the untuned knobs must score above the served ones to be served back when the challenger '
                  'is not written. 0 (default) = any amount: the untuned knobs are not picked from trials.')
         parser.add_argument('--no-gate', action='store_true', help="Write each study's best trial of this run without the comparison")
+        parser.add_argument(
+            '--result-file', type=str, default=None,
+            help="Also write each study's progress and the gate's verdict - with what it would write - to this JSON "
+                 "file (src/TuningResult). The Hyperopts page runs the tuner this way with -s false (12 Nov 2026).")
+        parser.add_argument(
+            '--variety-line', type=float, default=None,
+            help="The variety rule's line (owner, 12 Nov 2026), for the ticket studies: knobs whose policy gives the "
+                 "same ticket on this share of the scored days or more are input-blind - neither written nor served "
+                 "back (not the position studies: a size is not a ticket). 0.5-1.0 (or 50-100); default the owner's "
+                 "setting in config/tuning.json, else 0.95.")
         args = parser.parse_args()
         GATE_ENABLED = not args.no_gate
         GATE_MARGIN = float(args.gate_margin)
         GATE_SE_MARGIN = float(args.gate_se_margin)
         GATE_REVERT_MARGIN = float(args.gate_revert_margin)
+        resultFile = args.result_file or None
+        VARIETY_LINE = (tres.clamp_line(args.variety_line) if args.variety_line is not None
+                        else tres.load_variety_line(os.getcwd()))
 
         print_intro()
+        print(f"Variety line: {tres.line_text(VARIETY_LINE)} of the scored days on one ticket = input-blind "
+              f"(ticket studies{'' if TICKET_VARIETY else ' - switched off: TICKET_VARIETY'})")
 
         evaluationDayCount = int(args.days)
         n_trials = int(args.trials)
@@ -895,10 +1244,11 @@ if __name__ == "__main__":
                 print(f"\n{dataset_name.capitalize()}")
                 if game_cfg.get("position"):
                     tune_position(dataset_name, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
-                                  lockbox=lockbox)
+                                  lockbox=lockbox, result_file=resultFile)
                     continue
                 tune_ticket(dataset_name, game_cfg, path, policyDir, evaluationDayCount, n_trials, parallel, optunaDatabase,
-                            lockbox=lockbox)
+                            lockbox=lockbox, variety_line=VARIETY_LINE if TICKET_VARIETY else None,
+                            result_file=resultFile)
 
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")

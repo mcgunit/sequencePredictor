@@ -104,14 +104,14 @@ const LIVE = [
   'GET /council/api/endpoints', 'GET /council/api/job/:id', 'GET /council/api/sessions', 'GET /council/api/sessions/:id', 'GET /council/api/status',
   'GET /login', 'GET /logout',
   'POST /api/account/password', 'POST /api/admin/jobs/cancel', 'POST /api/admin/jobs/run', 'POST /api/admin/jobs/stop',
-  'POST /api/admin/people/add', 'POST /api/admin/people/delete', 'POST /api/admin/parameters/:game/override', 'POST /api/admin/parameters/:game/release', 'POST /api/admin/backtests/start', 'POST /api/admin/backtests/:id/cancel', 'GET /api/admin/backtests', 'GET /api/admin/backtests/:id', 'GET /api/admin/hyperopts', 'GET /api/admin/hyperopts/:id', 'GET /api/admin/hyperopts/:id/log', 'POST /api/admin/hyperopts/start', 'POST /api/admin/hyperopts/:id/cancel', 'POST /api/admin/hyperopts/:id/apply', 'GET /api/admin/workers', 'POST /api/admin/workers/cpu/on', 'POST /api/admin/workers/cpu/off', 'POST /api/admin/people/password', 'POST /api/admin/services/:name/:action',
+  'POST /api/admin/people/add', 'POST /api/admin/people/delete', 'POST /api/admin/parameters/:game/override', 'POST /api/admin/parameters/:game/release', 'POST /api/admin/backtests/start', 'POST /api/admin/backtests/:id/cancel', 'GET /api/admin/backtests', 'GET /api/admin/backtests/:id', 'GET /api/admin/hyperopts', 'POST /api/admin/hyperopts/settings', 'GET /api/admin/hyperopts/:id', 'GET /api/admin/hyperopts/:id/log', 'POST /api/admin/hyperopts/start', 'POST /api/admin/hyperopts/:id/cancel', 'POST /api/admin/hyperopts/:id/apply', 'GET /api/admin/workers', 'POST /api/admin/workers/cpu/on', 'POST /api/admin/workers/cpu/off', 'POST /api/admin/people/password', 'POST /api/admin/services/:name/:action',
   'POST /api/whats-new/replay', 'POST /api/whats-new/seen',
   'POST /council/api/ask', 'POST /council/api/sessions/:id/delete', 'POST /login', 'POST /logout',
   'USE (middleware)', 'USE /api/admin', 'USE /api/home', 'USE /api/lottery', 'USE /app',
 ].sort();
 const lines = regs.flatMap((r) => (r.paths ? r.paths.map((p) => `${r.method.toUpperCase()} ${p}`) : ['USE (middleware)']));
 const found = [...new Set(lines)].sort();
-ok(LIVE.length === 73, `the live list has 73 entries (${LIVE.length})`);
+ok(LIVE.length === 74, `the live list has 74 entries (${LIVE.length})`);
 ok(JSON.stringify(found) === JSON.stringify(LIVE),
   `exactly the live routes: missing ${JSON.stringify(LIVE.filter((l) => !found.includes(l)))}, extra ${JSON.stringify(found.filter((l) => !LIVE.includes(l)))}`);
 
