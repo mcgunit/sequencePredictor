@@ -139,6 +139,16 @@ def _finite(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+# The variety rule (challenge(variety=True), owner 11 Nov 2026), as the record states it
+VARIETY_RULE = ("a candidate that gives the same ticket on 95% or more of its validation windows on at least half "
+                "of its days (input-blind) is neither written nor served back, and blocks nothing")
+
+
+def _blind(tuning):
+    """A candidate's tuning record says input_blind (src/DeepLearningTuning.variety); unknown counts as not blind."""
+    return bool(isinstance(tuning, dict) and tuning.get("input_blind") is True)
+
+
 def decide(challenger, incumbent, default=None, margin=0.0):
     """
     (replace, reason). A reference given as None could not be scored and
@@ -212,7 +222,7 @@ def _scored(result):
 
 def challenge(study, known_numbers, objective, served, defaults, timeout_seconds, label,
               margin=0.0, enabled=True, window_days=None, evaluate=None, se_margin=0.0, tuner=None,
-              lockbox_withheld=None, revert_margin=None):
+              lockbox_withheld=None, revert_margin=None, variety=False):
     """
     Runs the gate for one strategy after its study was optimised.
 
@@ -262,6 +272,13 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      tuner passes its score table's count instead (taken out
                      before its holdout was cut) and marks the record
                      lockbox_withheld_from "table" (26 Oct 2026).
+      variety        the deep-learning tuner sets True (owner, 11 Nov 2026: a usable parameter set predicts new
+                     sequences): a candidate whose "tuning" says input_blind (src/DeepLearningTuning.variety - the
+                     same argmax ticket on 95% or more of the validation windows on at least half of its days) can
+                     be neither written nor served back, and it blocks nothing: the challenger is this run's best
+                     trial that is not blind (none: kept), a blind default is never reverted to and a blind
+                     incumbent or default does not count as a reference the challenger must beat. Recorded as the
+                     record's "variety" (the rule, the blind trials, the blind references).
 
     Returns a dict: decision ("replaced" | "reverted" | "kept"), replace and
     reverted (bools), reason, params (the dict to write - the challenger's
@@ -293,19 +310,38 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
         record["study_best"] = None
 
     trials = run_trials(study, known_numbers)
+    blind_trials = []
+    if variety:
+        blind_trials = [t.number for t in trials if _blind(t.user_attrs.get("tuning"))]
+        record["variety"] = {"rule": VARIETY_RULE, "blind_trials": blind_trials}
+        if trials and len(blind_trials) == len(trials):
+            reason = (f"every trial this run is input-blind ({', '.join(str(n) for n in blind_trials)}): "
+                      f"nothing usable to write")
+            record.update({"decision": "kept", "reason": reason, "trial": None,
+                           "challenger": None, "incumbent": None, "default": None,
+                           "challenger_tuning": None, "incumbent_tuning": None, "default_tuning": None})
+            return {"replace": False, "reverted": False, "decision": "kept", "reason": reason, "params": None,
+                    "challenger": None, "incumbent": None, "default": None, "served_score": None,
+                    "served_tuning": None, "trial": None, "record": record,
+                    "summary": f"  {label}: {reason} - parameters kept"}
+        trials = [t for t in trials if t.number not in blind_trials]
     if not trials:
         record.update({"decision": "kept", "reason": "no finitely scored trial this run", "trial": None,
                        "challenger": None, "incumbent": None, "default": None,
                        "challenger_tuning": None, "incumbent_tuning": None, "default_tuning": None})
-        return {"replace": False, "reason": record["reason"], "params": None, "challenger": None,
-                "incumbent": None, "default": None, "served_score": None, "served_tuning": None, "trial": None,
-                "record": record, "summary": f"  {label}: no finitely scored trial this run - parameters kept"}
+        return {"replace": False, "reverted": False, "decision": "kept", "reason": record["reason"], "params": None,
+                "challenger": None, "incumbent": None, "default": None, "served_score": None, "served_tuning": None,
+                "trial": None, "record": record,
+                "summary": f"  {label}: no finitely scored trial this run - parameters kept"}
 
     best = max(trials, key=lambda t: t.value)
+    notes = []
+    if blind_trials:
+        notes.append(f"input-blind trial{'s' if len(blind_trials) > 1 else ''} "
+                     f"{', '.join(str(n) for n in blind_trials)} not considered")
     challenger = float(best.value)
     param_names = list(best.params)
     tuning = best.user_attrs.get("tuning")
-    notes = []
     # the margin in the challenger's own standard errors, when asked for and known
     score_se = (tuning or {}).get("score_se")
     has_se = _finite(score_se) and score_se > 0
@@ -321,6 +357,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     record["revert_margin"] = json_safe(float(rm))
 
     incumbent_tuning = default_tuning = None
+    incumbent_blind = default_blind = False
     default_params = None
     if not enabled:
         incumbent = default = None
@@ -350,7 +387,21 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
             default, default_tuning = incumbent, incumbent_tuning
         else:
             default, default_tuning = _scored(evaluate(default_params, "default"))
-        replace, reason = decide(challenger, incumbent, default, margin)
+        # variety: a blind reference blocks nothing (and a blind default is never served back, below)
+        incumbent_blind = bool(variety and _blind(incumbent_tuning))
+        default_blind = bool(variety and _blind(default_tuning))
+        if variety:
+            record["variety"]["blind_references"] = [n for n, b in (("incumbent", incumbent_blind),
+                                                                    ("default", default_blind)) if b]
+        for name, score, b in (("incumbent", incumbent, incumbent_blind), ("default", default, default_blind)):
+            if b:
+                notes.append(f"{name} {_fmt(score)} is input-blind: it does not count"
+                             + (" and is not served back" if name == "default" else ""))
+        replace, reason = decide(challenger, None if incumbent_blind else incumbent,
+                                 None if default_blind else default, margin)
+        if replace and (incumbent_blind or default_blind) and not (
+                (incumbent is not None and not incumbent_blind) or (default is not None and not default_blind)):
+            reason = f"challenger {_fmt(challenger)} written - every reference it was scored against is input-blind"
         if no_se:
             # the references are still scored above: the record shows them, and the kept incumbent's score is
             # what modelScores carries
@@ -384,8 +435,10 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     # of two fixed references, so it is judged on them alone (owner, 30 Oct 2026; 27-30 Oct no_se reverted nothing).
     revert = False
     if not replace and enabled and default_params is not None and is_tuned(param_names, served) and _finite(default) \
+            and not default_blind \
             and (no_se or not challenger > default + margin) \
-            and (incumbent is None or default > incumbent + rm or (not no_se and challenger > incumbent + margin)):
+            and (incumbent is None or incumbent_blind or default > incumbent + rm
+                 or (not no_se and challenger > incumbent + margin)):
         revert = True
         by = f" by {margin:g}" if margin else ""
         if no_se:
@@ -398,6 +451,8 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
             versus = f"is not beaten by challenger {_fmt(challenger)}{by}"
         if incumbent is None:
             versus_incumbent = " (incumbent unscored)"
+        elif incumbent_blind:
+            versus_incumbent = f" and the incumbent {_fmt(incumbent)} is input-blind"
         elif default > incumbent + rm and revert_margin is not None and not rm:
             versus_incumbent = f" and scores above incumbent {_fmt(incumbent)} (no margin: the default is not picked from trials)"
         elif default > incumbent + rm:
@@ -490,6 +545,47 @@ if __name__ == "__main__":
                 return scores.get(role), diagnostics.get(role)
             return scores.get(role)
         return evaluate
+
+    # V. the variety rule (owner, 11 Nov 2026) on the 11 Nov pick3 LSTM run: default +0.0015 input-blind, challenger
+    #    trial 3 +0.0014 (not blind), incumbent +0.0003 (not blind). Without the rule the blind default is served back;
+    #    with it the default counts for nothing, and the challenger is judged against the incumbent alone.
+    seeing = {"score": 0.0014, "kind": "skill_vs_counts", "days": 10, "score_se": 0.00003, "input_blind": False}
+    blind = dict(seeing, input_blind=True)
+    vt = [FakeTrial(2, 0.0010, new[0].params, attrs={"tuning": dict(seeing, score=0.0010)}),
+          FakeTrial(3, 0.0014, new[1].params, attrs={"tuning": seeing}),
+          FakeTrial(5, 0.0020, {"xEstimators": 7, "xDepth": 7, "m_use_5": True, "m_use_6": True}, attrs={"tuning": dict(blind, score=0.0020)})]
+    vs = FakeStudy(old + vt)
+    vdiag = {"incumbent": dict(seeing, score=0.0003), "default": dict(blind, score=0.0015)}
+    vscores = {"incumbent": 0.0003, "default": 0.0015}
+    out = challenge(vs, known, None, served, make_defaults(table, served), 10, "t", evaluate=scorer(vscores, vdiag),
+                    se_margin=1.0, revert_margin=0.0)
+    check(out["decision"] == "replaced" and out["trial"] == 5, f"no variety: the blind trial 5 wins: {out['reason']}")
+    out = challenge(vs, known, None, served, make_defaults(table, served), 10, "t", evaluate=scorer(vscores, vdiag),
+                    se_margin=1.0, revert_margin=0.0, variety=True)
+    check(out["decision"] == "replaced" and out["trial"] == 3 and out["params"] == new[1].params
+          and out["record"]["variety"]["blind_trials"] == [5] and out["record"]["variety"]["blind_references"] == ["default"]
+          and "input-blind" in out["reason"], f"variety: trial 3 replaces, the blind default blocks nothing: {out['reason']}")
+    # a challenger inside the margin against a seeing incumbent: kept, and the blind default is still not served back
+    out = challenge(vs, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": 0.00139, "default": 0.0015}, vdiag), se_margin=1.0, revert_margin=0.0, variety=True)
+    check(out["decision"] == "kept" and out["params"] is None, f"variety: blind default never reverted: {out['reason']}")
+    # a blind incumbent and a seeing default the challenger does not beat: the default is served back
+    out = challenge(vs, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": 0.0016, "default": 0.0014}, {"incumbent": dict(blind, score=0.0016), "default": dict(seeing, score=0.0014)}),
+                    se_margin=1.0, revert_margin=0.0, variety=True)
+    check(out["decision"] == "reverted" and "input-blind" in out["reason"], f"variety: blind incumbent gives way to the default: {out['reason']}")
+    # every reference blind: the challenger is written
+    out = challenge(vs, known, None, served, make_defaults(table, served), 10, "t",
+                    evaluate=scorer({"incumbent": 0.0016, "default": 0.0017}, {"incumbent": dict(blind, score=0.0016), "default": dict(blind, score=0.0017)}),
+                    se_margin=1.0, revert_margin=0.0, variety=True)
+    check(out["decision"] == "replaced" and out["trial"] == 3 and "every reference" in out["reason"], f"variety: all references blind: {out['reason']}")
+    # every trial blind: kept, nothing scored
+    allblind = FakeStudy(old + [FakeTrial(5, 0.002, vt[2].params, attrs={"tuning": blind})])
+    n_calls = len(calls)
+    out = challenge(allblind, known, None, served, make_defaults(table, served), 10, "t", evaluate=scorer(vscores, vdiag),
+                    se_margin=1.0, revert_margin=0.0, variety=True)
+    check(out["decision"] == "kept" and out["params"] is None and out["trial"] is None and len(calls) == n_calls
+          and "every trial" in out["reason"], f"variety: all trials blind -> kept: {out['reason']}")
 
     # 0. the margin in standard errors: trial 3 (-0.4) carries score_se 0.05 - against an incumbent at -0.43 it
     #    wins by 0.03 < 1 x 0.05 and is kept; at -0.5 it wins by 0.10 and replaces; se_margin 0 leaves it to `margin`

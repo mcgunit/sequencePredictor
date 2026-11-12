@@ -392,7 +392,7 @@ def run_deep_learning(record, budget, game, row, days, values):
     watcher.join()
     if result is None:
         raise RuntimeError("no draw could be rebuilt (no history in data/trainingData, or the newest draw had a prediction already)")
-    hits, _, day_excess, day_losses, verdicts = result
+    hits, _, day_excess, day_losses, verdicts, day_variety = result
     # the lockbox draws: retrained (the tuner does not withhold them) but left out of the score and the day lines
     lockbox = load_or_warn(root)
     if len(dates) != len(day_excess):
@@ -400,14 +400,16 @@ def run_deep_learning(record, budget, game, row, days, values):
     keep = [i for i, d in enumerate(dates) if not covers(lockbox, d)]
     withheld = len(day_excess) - len(keep)
     tuning = dlt.day_score([day_excess[i] for i in keep], hits=None if withheld else hits,
-                           val_losses=[day_losses[i] for i in keep], verdicts=[verdicts[i] for i in keep])
+                           val_losses=[day_losses[i] for i in keep], verdicts=[verdicts[i] for i in keep],
+                           same_tickets=[day_variety["sameTickets"][i] for i in keep],
+                           tickets=[day_variety["tickets"][i] for i in keep])
     # the tuner's hits (Helpers.calculate_profit): each retrain's ticket against the next rebuilt draw, so N draws
     # check N - 1 tickets (none for one draw)
     tuning["hits_draws"] = 0 if withheld else max(0, len(day_excess) - 1)
     tuning["lockbox"] = dlt.LOCKBOX_NOTE
     tuning["train_seconds"] = dlt.TRAIN_SECONDS
     lines = [{"date": str(dates[i])[:10] if dates[i] is not None else None, "hits": None,
-              "excess": day_excess[i], "verdict": verdicts[i]} for i in keep]
+              "excess": day_excess[i], "verdict": verdicts[i], "sameTicket": day_variety["sameTickets"][i]} for i in keep]
     score = tuning.get("score")
     finite = isinstance(score, (int, float)) and math.isfinite(score)
     record.update(

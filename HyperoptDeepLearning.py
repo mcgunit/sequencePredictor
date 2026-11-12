@@ -860,9 +860,10 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
         @param progressPath: where each rebuilt day's excess loss over the counts is written as it is trained, for
             the parent's progress lines and pruning (src/DeepLearningTuning.py C, D)
 
-        Returns (profit, avg_val_loss, dayExcess, dayLosses, verdicts), one entry per rebuilt day in the lists:
-        the learning check's excessLoss (None without one), the val_loss (None for a non-finite one) and the
-        learning check's verdict (None without one).
+        Returns (profit, avg_val_loss, dayExcess, dayLosses, verdicts, dayVariety), one entry per rebuilt day in the
+        lists: the learning check's excessLoss (None without one), the val_loss (None for a non-finite one) and the
+        learning check's verdict (None without one); dayVariety {"sameTickets": the check's sameTicket per day,
+        "tickets": each day's newPrediction} (11 Nov 2026: the gate's variety rule, src/DeepLearningTuning.variety).
     """
 
     modelToUse = MODEL_REGISTRY[model_type]["instance"]
@@ -932,13 +933,21 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             dayLosses = []
             dayExcess = []
             verdicts = []
+            sameTickets = []
+            tickets = []
             for args in argsList:
-                _, val_loss, check = process_single_history_entry(args)
+                dayFile, val_loss, check = process_single_history_entry(args)
                 if np.isfinite(val_loss):
                     val_losses.append(val_loss)
                 dayLosses.append(float(val_loss) if np.isfinite(val_loss) else None)
                 dayExcess.append(dlt.day_excess(check))
                 verdicts.append(check.get("verdict") if isinstance(check, dict) else None)
+                sameTickets.append(check.get("sameTicket") if isinstance(check, dict) else None)
+                try:
+                    with open(dayFile) as dayHandle:
+                        tickets.append(json.load(dayHandle).get("newPrediction"))
+                except Exception:   # the variety record only: a day file that cannot be read counts as no ticket
+                    tickets.append(None)
                 dlt.write_progress(progressPath, dayExcess)
 
             print("Finished rebuild of history entries.")
@@ -958,7 +967,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
             # objective() for how the two are combined.
             avg_val_loss = sum(val_losses) / len(val_losses) if val_losses else float("inf")
 
-            return profit, avg_val_loss, dayExcess, dayLosses, verdicts
+            return profit, avg_val_loss, dayExcess, dayLosses, verdicts, {"sameTickets": sameTickets, "tickets": tickets}
         else:
             print("Prediction already made")
     else:
@@ -1292,8 +1301,9 @@ if __name__ == "__main__":
                     # on either, so the tuned smoothing/L2 can no longer move the yardstick. 0 = as good as
                     # serving the counts. The hits (calculate_profit over the days) are on the record only:
                     # 0.05 a hit was ~100 standard errors of the old score (the 6 Nov lotto run).
-                    profit, _, dayExcess, dayLosses, verdicts = results[0]
-                    tuning = dlt.day_score(dayExcess, hits=profit, val_losses=dayLosses, verdicts=verdicts)
+                    profit, _, dayExcess, dayLosses, verdicts, dayVariety = results[0]
+                    tuning = dlt.day_score(dayExcess, hits=profit, val_losses=dayLosses, verdicts=verdicts,
+                                           same_tickets=dayVariety["sameTickets"], tickets=dayVariety["tickets"])
                     trial.set_user_attr("tuning", attrs_for_trial(tuning))
                     return tuning["score"]
 
@@ -1375,7 +1385,7 @@ if __name__ == "__main__":
                     make_defaults(dlt.predictor_defaults(MODEL_PARAM_PREFIX.get(model_type), existingData), existingData),
                     timeout_seconds=TRIAL_TIMEOUT_SECONDS, label=studyKey, enabled=gateEnabled,
                     window_days=daysToRebuild, evaluate=evaluateReference, se_margin=gateSeMargin,
-                    revert_margin=dlt.GATE_REVERT_MARGIN)
+                    revert_margin=dlt.GATE_REVERT_MARGIN, variety=True)
                 print(outcome["summary"])
                 outcome["record"]["lockbox"] = dlt.LOCKBOX_NOTE
                 outcome["record"]["train_seconds"] = trainSeconds or None

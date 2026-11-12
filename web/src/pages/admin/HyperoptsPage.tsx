@@ -375,6 +375,7 @@ function DrawerBody({ h, onChanged }: { h: Hyperopt; onChanged: () => void }) {
               above 0 = better). The standard error is over retrains on almost the same history: a floor, not a test. The validation split contains the lockbox period.
             </p>
           ) : null}
+          {r ? <Variety r={r} /> : null}
         </Section>
       ) : null}
       {h.applied ? (
@@ -387,6 +388,39 @@ function DrawerBody({ h, onChanged }: { h: Hyperopt; onChanged: () => void }) {
         <ApplySection h={h} onChanged={onChanged} />
       ) : null}
       <LogSection id={h.id} live={h.status === 'running'} />
+    </>
+  );
+}
+
+// Variety (owner, 11 Nov 2026): how often each candidate gave the same ticket across its validation windows. A
+// candidate at 95% or more on at least half of its draws is input-blind: the gate neither writes it nor serves it back.
+// Records from before the rule have no such numbers and show nothing.
+type Side = { same_ticket_mean?: unknown; blind_days?: unknown; variety_days?: unknown; input_blind?: unknown; distinct_tickets?: unknown; tickets?: unknown };
+function Variety({ r }: { r: Record<string, unknown> }) {
+  const sides: [string, Side | null][] = [
+    ['Best trial of this run', (r.challenger_tuning as Side) ?? null],
+    ['Served values', (r.incumbent_tuning as Side) ?? null],
+    ['Untuned defaults', (r.default_tuning as Side) ?? null],
+  ];
+  const shown = sides.filter(([, s]) => s && typeof s.same_ticket_mean === 'number');
+  const v = r.variety as { blind_trials?: number[] } | undefined;
+  if (!shown.length && !v) return null;
+  const num = (x: unknown) => (typeof x === 'number' ? x : null);
+  return (
+    <>
+      {shown.map(([label, s]) => (
+        <p className="line" key={label}>
+          {label}: the same ticket on {Math.round((num(s!.same_ticket_mean) ?? 0) * 100)}% of its validation windows on average, input-blind on {num(s!.blind_days) ?? 0} of{' '}
+          {num(s!.variety_days) ?? 0} draws{num(s!.tickets) ? ` · ${num(s!.distinct_tickets)} different tickets over ${num(s!.tickets)} draws` : ''}
+          {s!.input_blind === true ? <Chip kind="down">input-blind</Chip> : null}
+        </p>
+      ))}
+      {v ? (
+        <p className="line mut">
+          Variety rule: a candidate that gives the same ticket on 95% or more of its validation windows on at least half of its draws is neither written nor served back, and blocks
+          nothing.{v.blind_trials && v.blind_trials.length ? ` Left out as input-blind: trial${v.blind_trials.length > 1 ? 's' : ''} ${v.blind_trials.join(', ')}.` : ''}
+        </p>
+      ) : null}
     </>
   );
 }

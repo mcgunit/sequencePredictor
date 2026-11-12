@@ -116,12 +116,17 @@ def day_excess(check):
     return float(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
 
 
-def day_score(excess_losses, hits=None, val_losses=None, verdicts=None):
+def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tickets=None, tickets=None):
     """
     The trial's score and its diagnostics (the gate's "tuning" record): minus the mean finite excess loss over the
     rebuilt days (None or non-finite for a day without a learning check); score_se the standard error of that over
     the days (None with fewer than two). No finite day: score -inf, which the gate never writes. hits (the profit
     calculate_profit gives over the days), the days' val_loss and the learning-check verdicts are on the record only.
+
+    Variety (owner, 11 Nov 2026: a usable parameter set must predict new sequences, not one ticket whatever the
+    input): same_tickets is each day's learning-check sameTicket - the share of its validation windows that got the
+    most common argmax ticket - and tickets each day's predicted ticket. variety() turns them into same_ticket_mean,
+    blind_days, input_blind (the gate's rule, TuningGate.challenge(variety=True)) and distinct_tickets.
     """
     finite = [-float(v) for v in excess_losses if isinstance(v, (int, float)) and math.isfinite(v)]
     losses = [float(v) for v in (val_losses or []) if isinstance(v, (int, float)) and math.isfinite(v)]
@@ -133,7 +138,37 @@ def day_score(excess_losses, hits=None, val_losses=None, verdicts=None):
         mean = statistics.fmean(finite)
         out.update(score=mean, excess_mean=-mean,
                    score_se=statistics.stdev(finite) / math.sqrt(len(finite)) if len(finite) > 1 else None)
+    if same_tickets is not None or tickets is not None:
+        out.update(variety(same_tickets or [], tickets or []))
     return out
+
+
+# A day is input-blind when its learning check gave the same argmax ticket on this share of the validation windows
+# or more (src/LearningCheck.INPUT_BLIND_SHARE, repeated here so this module stays import-free); a candidate is
+# input-blind when at least half of its checked days are (owner, 11 Nov 2026: the 95% line).
+INPUT_BLIND_SHARE = 0.95
+
+
+def variety(same_tickets, tickets):
+    """
+    How much a candidate's output depends on its input, over the rebuilt days:
+      same_ticket_mean  mean share of validation windows given the most common ticket (1.0: always the same ticket)
+      blind_days        days at INPUT_BLIND_SHARE or more, of variety_days days with a check
+      input_blind       blind on at least half of the checked days (None: no day was checked)
+      distinct_tickets  how many different tickets the rebuilt days predicted, of `tickets` predicted
+    """
+    shares = [float(v) for v in same_tickets if isinstance(v, (int, float)) and math.isfinite(v)]
+    blind = sum(1 for v in shares if v >= INPUT_BLIND_SHARE)
+    shown = [json.dumps(t, sort_keys=True, default=str) for t in tickets if t not in (None, [], "")]
+    return {"same_ticket_mean": round(statistics.fmean(shares), 3) if shares else None,
+            "blind_days": blind, "variety_days": len(shares),
+            "input_blind": (2 * blind >= len(shares)) if shares else None,
+            "distinct_tickets": len(set(shown)), "tickets": len(shown)}
+
+
+def is_input_blind(tuning):
+    """The gate's test (TuningGate.challenge(variety=True)): True only when the record says so."""
+    return bool(isinstance(tuning, dict) and tuning.get("input_blind") is True)
 
 
 def running_value(excess_losses):
@@ -310,6 +345,17 @@ def _self_check():
     # the hits never move the score
     assert day_score([0.02, -0.01], hits=100)["score"] == day_score([0.02, -0.01], hits=0)["score"]
     assert day_score([0.01])["score_se"] is None and day_score([None])["score"] == float("-inf")
+    # variety (11 Nov 2026): the 11 Nov pick3 LSTM defaults (blind on 9 of 10 days) and its trial 1 (8 of 10) are
+    # input-blind, trial 0 (3 of 10) is not; the record keys only appear when the variety is given
+    assert "input_blind" not in day_score([0.01])
+    d = day_score([0.0] * 10, same_tickets=[0.86] + [1.0] * 9, tickets=[[8, 0, 4]] * 10)
+    assert d["input_blind"] is True and d["blind_days"] == 9 and d["distinct_tickets"] == 1 and d["tickets"] == 10
+    assert variety([0.98] * 8 + [0.21] * 2, [])["input_blind"] is True
+    t0 = variety([0.97] * 3 + [0.33] * 7, [[1, 2, 3], [1, 2, 3], [4, 5, 6], None])
+    assert t0["input_blind"] is False and t0["distinct_tickets"] == 2 and t0["tickets"] == 3
+    assert variety([0.95, 0.5], [])["input_blind"] is True and variety([0.949, 0.5], [])["input_blind"] is False
+    assert variety([None, float("nan")], [])["input_blind"] is None and not is_input_blind({"input_blind": None})
+    assert is_input_blind(d) and not is_input_blind(t0) and not is_input_blind(None)
     assert running_value([0.02, None, 0.04]) == -0.03 and running_value([]) == -1e9
     assert day_excess({"excessLoss": -0.004}) == -0.004 and day_excess(None) is None
     assert day_excess({"excessLoss": float("nan")}) is None and day_excess({}) is None
