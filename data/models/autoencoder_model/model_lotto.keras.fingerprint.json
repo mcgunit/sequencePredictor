@@ -3,9 +3,9 @@
   "digitsPerDraw": 6,
   "specialColumnCount": 0,
   "specialNumClasses": 0,
-  "latent_dim": 8,
-  "encoder_units": 128,
-  "num_encoder_layers": 2,
-  "window_size": 14,
+  "latent_dim": 4,
+  "encoder_units": 64,
+  "num_encoder_layers": 1,
+  "window_size": 18,
   "weightsVersion": 2
 }
