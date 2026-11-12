@@ -3,10 +3,10 @@
   "digitsPerDraw": 6,
   "specialColumnCount": 0,
   "specialNumClasses": 0,
-  "gcn_units": 16,
-  "num_gcn_layers": 3,
+  "gcn_units": 32,
+  "num_gcn_layers": 1,
   "embedding_dim": 32,
-  "window_size": 18,
+  "window_size": 14,
   "node_feature_count": 4,
   "weightsVersion": 2
 }
