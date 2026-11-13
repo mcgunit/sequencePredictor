@@ -566,12 +566,13 @@ function GateLine({ h, r }: { h: Hyperopt; r: Record<string, unknown> }) {
 }
 
 // Variety (owner, 11-12 Nov 2026): how often each candidate gave the same ticket. Deep learning: across a draw's
-// validation windows (input-blind at the line or more on at least half of its draws); the other tuners: across the
+// validation windows (input-blind at the line or more on at least half of its draws) and, since 13 Nov 2026, across
+// its backtested draws as well (input-blind at the line or more, the other tuners' measure); the other tuners: across the
 // scored backtest draws (input-blind at the line or more). The line is the owner's setting (the run's own value is in
 // the record). An input-blind candidate is neither written nor served back. Records from before the rule show nothing.
 type Side = {
   same_ticket_mean?: unknown; blind_days?: unknown; variety_days?: unknown; input_blind?: unknown; distinct_tickets?: unknown; tickets?: unknown;
-  variety_measure?: unknown; variety_line?: unknown;
+  variety_measure?: unknown; variety_line?: unknown; draws_same_ticket?: unknown; blind_by?: unknown;
 };
 const pct = (x: number) => `${Number((x * 100).toFixed(1))}%`;
 function Variety({ r }: { r: Record<string, unknown> }) {
@@ -596,9 +597,14 @@ function Variety({ r }: { r: Record<string, unknown> }) {
             <>
               {label}: the same ticket on {pct(num(s!.same_ticket_mean) ?? 0)} of its validation windows on average, input-blind on {num(s!.blind_days) ?? 0} of{' '}
               {num(s!.variety_days) ?? 0} draws{num(s!.tickets) ? ` · ${num(s!.distinct_tickets)} different tickets over ${num(s!.tickets)} draws` : ''}
+              {num(s!.draws_same_ticket) !== null ? ` · the same ticket on ${pct(num(s!.draws_same_ticket)!)} of its draws` : ''}
             </>
           )}
-          {s!.input_blind === true ? <Chip kind="down">input-blind</Chip> : null}
+          {s!.input_blind === true ? (
+            <Chip kind="down">
+              {Array.isArray(s!.blind_by) && s!.blind_by.length === 1 ? `input-blind (${s!.blind_by[0] === 'draws' ? 'across draws' : 'within draws'})` : 'input-blind'}
+            </Chip>
+          ) : null}
         </p>
       ))}
       {v ? (

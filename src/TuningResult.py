@@ -88,7 +88,7 @@ def variety_rule(line, measure="draws"):
     """The rule as the gate's record states it."""
     if measure == "windows":
         what = (f"gives the same ticket on {line_text(line)} or more of its validation windows on at least half of "
-                f"its draws (input-blind)")
+                f"its draws, or on {line_text(line)} or more of its backtested draws (input-blind)")
     else:
         what = f"gives the same ticket on {line_text(line)} or more of its scored backtest draws (input-blind)"
     return f"a candidate that {what} is neither written nor served back, and blocks nothing"

@@ -47,6 +47,7 @@ validation split is the last 20% of each retrain's history (10 years), which con
 """
 
 import json
+from collections import Counter
 import math
 import os
 import statistics
@@ -169,10 +170,20 @@ def variety(same_tickets, tickets, line=None):
     shares = [float(v) for v in same_tickets if isinstance(v, (int, float)) and math.isfinite(v)]
     blind = sum(1 for v in shares if v >= line - 1e-12)
     shown = [json.dumps(t, sort_keys=True, default=str) for t in tickets if t not in (None, [], "")]
+    windows_blind = (2 * blind >= len(shares)) if shares else None
+    # the draws check (owner, 13 Nov 2026): the 13 Nov pick3 LSTM run's winner gave the same ticket on 94% of its
+    # windows on every draw - just under the line, so it passed - and the same ticket on all 10 draws. A candidate is
+    # also input-blind when it gives the same ticket on the line's share of its rebuilt draws or more (the other
+    # tuners' measure, src/TuningResult.variety_of_tickets; two draws at least, else nothing to judge).
+    draws_same = (Counter(shown).most_common(1)[0][1] / len(shown)) if shown else None
+    draws_blind = bool(draws_same >= line - 1e-12) if len(shown) >= 2 else None
+    known = [b for b in (windows_blind, draws_blind) if b is not None]
     return {"variety_measure": "windows", "variety_line": line,
             "same_ticket_mean": round(statistics.fmean(shares), 3) if shares else None,
             "blind_days": blind, "variety_days": len(shares),
-            "input_blind": (2 * blind >= len(shares)) if shares else None,
+            "draws_same_ticket": round(draws_same, 3) if draws_same is not None else None,
+            "blind_by": [m for m, b in (("windows", windows_blind), ("draws", draws_blind)) if b],
+            "input_blind": any(known) if known else None,
             "distinct_tickets": len(set(shown)), "tickets": len(shown)}
 
 
@@ -318,6 +329,17 @@ def _self_check():
     assert variety([0.85, 0.85, 0.5], [], 0.8)["input_blind"] is True and variety([0.85, 0.5, 0.5], [], 0.8)["input_blind"] is False
     assert variety([0.9], [], 0.8)["variety_line"] == 0.8 and variety([0.9], [])["variety_measure"] == "windows"
     assert variety([None, float("nan")], [])["input_blind"] is None and not is_input_blind({"input_blind": None})
+    # the draws check (13 Nov 2026): the 13 Nov pick3 LSTM winner - 94% of its windows on every draw (windows: not
+    # blind) and one ticket on all 10 draws (draws: blind); its incumbent (3 tickets over 10 draws) is not blind
+    w13 = variety([0.941] * 10, [[7, 4, 1]] * 10)
+    assert w13["input_blind"] is True and w13["blind_by"] == ["draws"] and w13["draws_same_ticket"] == 1.0
+    i13 = variety([0.36] * 10, [[1, 2, 3]] * 5 + [[4, 5, 6]] * 3 + [[7, 8, 9]] * 2)
+    assert i13["input_blind"] is False and i13["blind_by"] == [] and i13["draws_same_ticket"] == 0.5
+    assert variety([0.5] * 20, [[1]] * 19 + [[2]])["input_blind"] is True        # 95% of 20 draws: at the line
+    assert variety([0.5] * 20, [[1]] * 18 + [[2]] * 2)["input_blind"] is False   # 90%
+    assert variety([0.5], [[1]])["input_blind"] is False                          # one draw: nothing to judge
+    assert variety([], [[1], [1]])["input_blind"] is True and variety([], [])["input_blind"] is None
+    assert variety([0.98] * 4, [[1], [2], [3], [4]])["blind_by"] == ["windows"]
     assert is_input_blind(d) and not is_input_blind(t0) and not is_input_blind(None)
     assert running_value([0.02, None, 0.04]) == -0.03 and running_value([]) == -1e9
     assert day_excess({"excessLoss": -0.004}) == -0.004 and day_excess(None) is None

@@ -141,7 +141,8 @@ def _finite(value):
 
 # The variety rule (challenge(variety=True), owner 11 Nov 2026), as the record states it
 VARIETY_RULE = ("a candidate that gives the same ticket on 95% or more of its validation windows on at least half "
-                "of its days (input-blind) is neither written nor served back, and blocks nothing")
+                "of its days, or on 95% or more of its backtested draws (input-blind), is neither written nor served "
+                "back, and blocks nothing")
 
 
 def _blind(tuning):
@@ -274,7 +275,8 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      lockbox_withheld_from "table" (26 Oct 2026).
       variety        the deep-learning tuner sets True (owner, 11 Nov 2026: a usable parameter set predicts new
                      sequences): a candidate whose "tuning" says input_blind (src/DeepLearningTuning.variety - the
-                     same argmax ticket on 95% or more of the validation windows on at least half of its days) can
+                     same argmax ticket on 95% or more of the validation windows on at least half of its days, or,
+                     since 13 Nov 2026, the same ticket on 95% or more of its backtested days) can
                      be neither written nor served back, and it blocks nothing: the challenger is this run's best
                      trial that is not blind (none: kept), a blind default is never reverted to and a blind
                      incumbent or default does not count as a reference the challenger must beat. Recorded as the
