@@ -11658,5 +11658,115 @@
     "type": "PARAMUTUEL"
    }
   ]
+ },
+ "2026-11-13": {
+  "price": 2.5,
+  "jackpot": 17000000.0,
+  "tiers": [
+   {
+    "name": "5+2",
+    "mains": 5,
+    "special": 2,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "5+1",
+    "mains": 5,
+    "special": 1,
+    "amount": 175411.7,
+    "winners": 0,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "5+0",
+    "mains": 5,
+    "special": 0,
+    "amount": 20498.3,
+    "winners": 0,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4+2",
+    "mains": 4,
+    "special": 2,
+    "amount": 1702.5,
+    "winners": 1,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4+1",
+    "mains": 4,
+    "special": 1,
+    "amount": 131.5,
+    "winners": 82,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3+2",
+    "mains": 3,
+    "special": 2,
+    "amount": 78.7,
+    "winners": 112,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4+0",
+    "mains": 4,
+    "special": 0,
+    "amount": 41.3,
+    "winners": 151,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2+2",
+    "mains": 2,
+    "special": 2,
+    "amount": 18.4,
+    "winners": 1864,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3+1",
+    "mains": 3,
+    "special": 1,
+    "amount": 13.6,
+    "winners": 2572,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3+0",
+    "mains": 3,
+    "special": 0,
+    "amount": 10.1,
+    "winners": 6347,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "1+2",
+    "mains": 1,
+    "special": 2,
+    "amount": 8.5,
+    "winners": 10007,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2+1",
+    "mains": 2,
+    "special": 1,
+    "amount": 6.5,
+    "winners": 39220,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2+0",
+    "mains": 2,
+    "special": 0,
+    "amount": 4.3,
+    "winners": 92972,
+    "type": "PARAMUTUEL"
+   }
+  ]
  }
 }
