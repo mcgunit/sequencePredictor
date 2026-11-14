@@ -214,26 +214,23 @@
     "rlTicketTrainDays": 120,
     "subsetEnsembleModels": [
         "HybridStatisticalModel",
-        "LSTM Base Model",
         "LaplaceMonteCarlo Model",
         "MarkovBayesian Model",
-        "MarkovBayesianEnhanched Model",
-        "PoissonMarkov Model",
-        "PoissonMonteCarlo Model"
+        "PoissonMarkov Model"
     ],
-    "subsetEnsembleWeighted": true,
-    "subsetEnsembleObjective": 1.0211,
-    "subsetEnsembleMean": 1.1212,
+    "subsetEnsembleWeighted": false,
+    "subsetEnsembleObjective": 1.0792,
+    "subsetEnsembleMean": 1.1646,
     "subsetEnsembleTunedOn": {
-        "days": 66,
+        "days": 79,
         "from": "2025-11-13",
-        "to": "2026-10-29",
+        "to": "2026-11-12",
         "lockboxDaysWithheld": 26,
         "candidates": 7,
         "evaluated": 256,
         "search": "exhaustive",
         "confidencePenalty": 1.0,
-        "decision": "reverted"
+        "decision": "replaced"
     },
     "tuningGate": {
         "Markov Model": {
@@ -1437,42 +1434,65 @@
             }
         },
         "SubsetEnsemble Model": {
-            "date": "2026-11-07T23:22:28+00:00",
+            "date": "2026-11-14T23:21:10+00:00",
             "tuner": "HyperoptEnsemble",
-            "window_days": 103,
+            "window_days": 105,
             "margin_se": 1.0,
             "lockbox_days_withheld": 26,
             "study_best": 1.0982505062805845,
-            "margin": 0.0861718559931355,
+            "variety": {
+                "rule": "a candidate that gives the same ticket on 95% or more of its scored backtest draws (input-blind) is neither written nor served back, and blocks nothing",
+                "blind_trials": [],
+                "blind_references": []
+            },
+            "margin": 0.08532424694535413,
             "revert_margin": 0.0,
-            "decision": "kept",
+            "decision": "replaced",
             "run_trials": 220,
-            "study_trials": 2182,
-            "reason": "challenger +1.0956 does not beat incumbent +1.0504 or default +1.0504 by 0.0861719 (margin 1 x the challenger's standard error 0.0862)",
-            "trial": 1962,
-            "challenger": 1.0956463258250464,
-            "incumbent": 1.0504419832779706,
-            "default": 1.0504419832779706,
+            "study_trials": 2402,
+            "reason": "challenger +1.0792 beats incumbent +0.9753 and default +0.9753 (margin 1 x the challenger's standard error 0.0853)",
+            "trial": 2182,
+            "challenger": 1.0792327150799623,
+            "incumbent": 0.9752889460610419,
+            "default": 0.9752889460610419,
             "challenger_tuning": {
-                "score": 1.0956463258250464,
+                "score": 1.0792327150799623,
                 "kind": "subset_bound",
-                "days": 77,
-                "mean": 1.1818181818181819,
-                "score_se": 0.0861718559931355
+                "days": 79,
+                "mean": 1.1645569620253164,
+                "score_se": 0.08532424694535413,
+                "variety_measure": "draws",
+                "variety_line": 0.95,
+                "same_ticket_mean": 0.013,
+                "distinct_tickets": 79,
+                "tickets": 79,
+                "input_blind": false
             },
             "incumbent_tuning": {
-                "score": 1.0504419832779706,
+                "score": 0.9752889460610419,
                 "kind": "subset_bound",
-                "days": 68,
-                "mean": 1.1470588235294117,
-                "score_se": 0.09661684025144111
+                "days": 70,
+                "mean": 1.0714285714285714,
+                "score_se": 0.09613962536752955,
+                "variety_measure": "draws",
+                "variety_line": 0.95,
+                "same_ticket_mean": 0.014,
+                "distinct_tickets": 70,
+                "tickets": 70,
+                "input_blind": false
             },
             "default_tuning": {
-                "score": 1.0504419832779706,
+                "score": 0.9752889460610419,
                 "kind": "subset_bound",
-                "days": 68,
-                "mean": 1.1470588235294117,
-                "score_se": 0.09661684025144111
+                "days": 70,
+                "mean": 1.0714285714285714,
+                "score_se": 0.09613962536752955,
+                "variety_measure": "draws",
+                "variety_line": 0.95,
+                "same_ticket_mean": 0.014,
+                "distinct_tickets": 70,
+                "tickets": 70,
+                "input_blind": false
             },
             "candidates": [
                 "HybridStatisticalModel",
@@ -1485,12 +1505,9 @@
             ],
             "effectiveMembers": [
                 "HybridStatisticalModel",
-                "LSTM Base Model",
                 "LaplaceMonteCarlo Model",
                 "MarkovBayesian Model",
-                "MarkovBayesianEnhanched Model",
-                "PoissonMarkov Model",
-                "PoissonMonteCarlo Model"
+                "PoissonMarkov Model"
             ],
             "weightedEqualsFlat": false
         },
