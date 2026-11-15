@@ -8266,5 +8266,83 @@
     "type": "FIXED"
    }
   ]
+ },
+ "2026-11-14": {
+  "price": 1.5,
+  "jackpot": 2000000.0,
+  "tiers": [
+   {
+    "name": "6",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5+1",
+    "mains": 5,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "5",
+    "mains": 5,
+    "special": 0,
+    "amount": 1155.4,
+    "winners": 109,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4+1",
+    "mains": 4,
+    "special": 1,
+    "amount": 351.3,
+    "winners": 180,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4",
+    "mains": 4,
+    "special": 0,
+    "amount": 26.3,
+    "winners": 4425,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3+1",
+    "mains": 3,
+    "special": 1,
+    "amount": 14.3,
+    "winners": 5069,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3",
+    "mains": 3,
+    "special": 0,
+    "amount": 7.5,
+    "winners": 72721,
+    "type": "FIXED"
+   },
+   {
+    "name": "2+1",
+    "mains": 2,
+    "special": 1,
+    "amount": 4.5,
+    "winners": 48457,
+    "type": "FIXED"
+   },
+   {
+    "name": "1+1",
+    "mains": 1,
+    "special": 1,
+    "amount": 1.5,
+    "winners": 173692,
+    "type": "FIXED"
+   }
+  ]
  }
 }
