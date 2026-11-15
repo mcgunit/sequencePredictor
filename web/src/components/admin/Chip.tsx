@@ -12,7 +12,7 @@ export default function Chip({ kind = 'flat', children }: { kind?: ChipKind; chi
 }
 
 // "manual": a row that ran (or runs, on the Models page) on a setting an administrator set by hand on Admin ›
-// Parameters instead of the tuned value; the settings on hover. Admin pages only (owner, 8 Nov 2026).
+// Parameters instead of the tuned value; the settings on hover. Admin pages only (8 Nov 2026).
 export function ManualChip({ keys, now = false }: { keys: string[] | null; now?: boolean }) {
   if (!keys || !keys.length) return null;
   return (

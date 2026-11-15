@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The CPU worker's power (the HP DL360, owner, 8-10 Nov 2026; docs/operations.md, The workers). The machine is power
+# The CPU worker's power (the HP DL360, 8-10 Nov 2026; docs/operations.md, The workers). The machine is power
 # hungry and off unless there is work: this switches it on through its iLO (IPMI), waits for it, and marks the boot as
 # the worker's, so the machine switches itself off again after its idle time (worker/idle-shutdown.sh on the worker).
 #

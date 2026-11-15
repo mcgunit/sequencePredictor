@@ -711,7 +711,7 @@ def process_single_history_entry(args):
 TRIAL_TIMEOUT_SECONDS = 7200
 # How often the parent looks for a finished day while the child trains
 PROGRESS_POLL_SECONDS = 15
-# The run's aim and loss tolerance (src/DeepLearningTuning.AIMS; owner, 14 Nov 2026), set by main() from --aim and
+# The run's aim and loss tolerance (src/DeepLearningTuning.AIMS; 14 Nov 2026), set by main() from --aim and
 # --loss-tolerance: the parent's running score - what the pruner sees - follows them. "skill" here, so a backtest
 # (RunBacktest.py, which runs its draws through runPredictInChild) prints the excess loss as before.
 SCORE_AIM = "skill"
@@ -1088,12 +1088,12 @@ if __name__ == "__main__":
              'main server (11 Nov 2026).')
     parser.add_argument(
         '--variety-line', type=float, default=None,
-        help='The variety rule\'s line (owner, 12 Nov 2026): a candidate giving the same ticket on this share of its '
+        help='The variety rule\'s line (12 Nov 2026): a candidate giving the same ticket on this share of its '
              'validation windows or more, on at least half of its draws, is input-blind - neither written nor served '
-             'back. 0.5-1.0 (or 50-100); default the owner\'s setting in config/tuning.json, else %g.' % dlt.INPUT_BLIND_SHARE)
+             'back. 0.5-1.0 (or 50-100); default the setting in config/tuning.json, else %g.' % dlt.INPUT_BLIND_SHARE)
     parser.add_argument(
         '--aim', type=str, default=dlt.AIM, choices=sorted(dlt.AIMS),
-        help='What a trial is scored on (owner, 14 Nov 2026). variety: how much the tickets follow the input - 1 '
+        help='What a trial is scored on (14 Nov 2026). variety: how much the tickets follow the input - 1 '
              'minus the share of a draw\'s validation windows on the most common ticket - among candidates within '
              '--loss-tolerance of the counts\' loss (every tolerance\'s worth above it costs one full point). '
              'skill: minus the excess loss over the counts (the score until then). Each aim has its own Optuna '

@@ -1,5 +1,5 @@
 """
-The variant rows of a model (owner, 8 Nov 2026): next to each model's own row ("settle": the ticket of its highest
+The variant rows of a model (8 Nov 2026): next to each model's own row ("settle": the ticket of its highest
 scores, what every row has always served) two tracked rows for the admin pages -
 
   <row> · Sampled    the ticket DRAWN from the row's own scores instead of their top: each number's chance is its
@@ -20,7 +20,7 @@ Temperature T (per model and game: bestParams "sampleTemperatures": {"<row name>
 The draw is seeded with game, draw date and row name (seed_for): a saved ticket is reproducible, and a rebuilt day
 draws the same ticket again. The ticket is stored most-probable-first (the number games' rule, 2 Nov 2026).
 
-Kept out of the ensembles, the meta-learner features and the best-combination search (owner, 8 Nov 2026): a
+Kept out of the ensembles, the meta-learner features and the best-combination search (8 Nov 2026): a
 sampled row has its parent's scores, so as an input it adds nothing but noise; memorise rows are admitted later
 only through the gate (with versus without them).
 

@@ -10,7 +10,7 @@ import { gameTitle } from '../components/draws/text';
 import { TicketNums, lotteryHref, nextText } from '../components/lottery/bits';
 import RunBanner from '../components/RunBanner';
 
-// / : the three sections (the owner's rule of 1 Oct: Lottery games, Crypto, Stocks), each with its headline and a link,
+// / : the three sections (the rule of 1 Oct: Lottery games, Crypto, Stocks), each with its headline and a link,
 // and the Council below. One answer (/api/home, about 6 KB): the Lottery's figures are the Lottery page's, the markets'
 // are /crypto's and /shares' own (api.js marketView), so the pages cannot disagree. Every figure says whose it is and
 // over which days. While a pipeline job runs, a line says so and the page is read again every minute until it ends.
@@ -92,7 +92,7 @@ function LotterySection({ games }: { games: HomeGame[] }) {
   );
 }
 
-// One game: its name, the next draw and today's five tickets, each with its model's name (owner 2 Nov 2026: the users'
+// One game: its name, the next draw and today's five tickets, each with its model's name (2 Nov 2026: the users'
 // Home carries little text), and beside them the game's summary
 function GameLine({ g }: { g: HomeGame }) {
   const title = gameTitle(g.game);

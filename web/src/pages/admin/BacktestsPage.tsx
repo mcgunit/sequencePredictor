@@ -14,7 +14,7 @@ import Toast from '../../components/admin/Toast';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 import BacktestStart from './BacktestStart';
 
-// /admin/backtests (owner's roadmap step 4, 8 Nov 2026): the backtests administrators started - queued, running with
+// /admin/backtests (roadmap step 4, 8 Nov 2026): the backtests administrators started - queued, running with
 // their progress, and finished with the weekend tuner's own score next to the gate's - read again every 5 s while
 // one is queued or running (30 s otherwise). A backtest opens its drawer (?bt=): every scored draw, the values it ran
 // with. Started here or from a model's card on Admin › Parameters; run by the scheduler (Jobs & services), or for a

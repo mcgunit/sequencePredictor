@@ -106,7 +106,7 @@ function GameCard({ g, w }: { g: OrdersGame; w: Workbench }) {
               <th className="num hide-sm">{week ? "Week's end" : 'Next card'}</th>
               <th className="num hide-sm">Early</th>
               <th className="num">{cur}</th>
-              <th className="num" title="the literal end the owner first named: 00:00 UTC, the bin's own horizon - no roll; Admin only">
+              <th className="num" title="the literal end first named: 00:00 UTC, the bin's own horizon - no roll; Admin only">
                 00:00 UTC end
               </th>
               {week ? <th className="num">Late {cur}</th> : null}

@@ -460,7 +460,7 @@ laterFreeze.games.crypto.since.date = '2026-11-02';
 ok(admin.modelsGame(laterFreeze, 'crypto').rows.every((r) => r.live === undefined), 'a later freeze without live_draws: no live split rather than a wrong one');
 
 // a lottery row's live record (src/Liveness.py, 27 Oct 2026): live_draws (live as stored + recovered), live.recovered,
-// and - when the report ranks on it (rankedOn 'live', the owner's decision 1) - the live value as the ranking value
+// and - when the report ranks on it (rankedOn 'live', decision 1) - the live value as the ranking value
 // with every stored draw's beside it, the 10-draw guard on live draws. A report without it shows no split.
 const lotLive = {
   generatedAt: '2026-10-27T09:00:00', games: { vikinglotto: {

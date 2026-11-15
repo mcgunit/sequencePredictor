@@ -1,4 +1,4 @@
-> Working checklist for the switch to the new app (batch 4, 22 Oct 2026). Built routes: /app/admin/games, /app/admin/games/:game, /app/admin/games/:game/:date (API /api/admin/history/:game, /api/admin/draw/:game/:date) and /app/admin/markets/:market (API /api/admin/market/:market/workbench); the route names proposed below (/admin/draws) were renamed while building. The final parity sign-off happens before the switch (batch 6). Section D (24 Oct 2026, batch 6) covers the rest of the old pages and holds the owner's sign-off list. This file is now a record: the old pages and their code were removed in cleanup batch 6b (26 Oct 2026), and every old address redirects to its app page (switchover.js).
+> Working checklist for the switch to the new app (batch 4, 22 Oct 2026). Built routes: /app/admin/games, /app/admin/games/:game, /app/admin/games/:game/:date (API /api/admin/history/:game, /api/admin/draw/:game/:date) and /app/admin/markets/:market (API /api/admin/market/:market/workbench); the route names proposed below (/admin/draws) were renamed while building. The final parity sign-off happens before the switch (batch 6). Section D (24 Oct 2026, batch 6) covers the rest of the old pages and holds the sign-off list. This file is now a record: the old pages and their code were removed in cleanup batch 6b (26 Oct 2026), and every old address redirects to its app page (switchover.js).
 
 # Workbench parity: old pages to the new app (batch 4)
 
@@ -41,7 +41,7 @@ A new sidebar group, **Admin › Workbench**:
 
 The scope switch reuses `components/admin/ScopeSwitch.tsx`.
 
-## Point-in-time ranking (owner rule: no hindsight)
+## Point-in-time ranking (rule: no hindsight)
 
 **Source.** Production's git history of `data/database/modelPerformance.json`. There are 59 versions. The first was committed on 25 Aug 2026 at 05:21 (`generatedAt` 24 Aug 22:13). After that there is usually one version per daily run (`Helpers.git_push`, "saving last predictions"), with these exceptions:
 - No versions on 30–31 Aug, 1 Sep, 6 Sep or 9 Sep.
@@ -114,7 +114,7 @@ Every other draw comes before 25 Aug, or is back-built or back-filled. Five keno
 | B6e | euromillions, eurodreams, vikinglotto: specials lit only in their own group; mains-only rows without special cells (EM since 4 Sep) | BUILD | Headers Star 1-2 / Dream / Viking (old: "Num 6, Num 7") | yes |
 | B6f | Market games: hit = right bin in the right slot, instrument headers | BUILD | Same table as C14 (Day by day) for the newest 30 days: returns, arrows, exact, direction, P&L; older days: bins and hits only | – |
 | B7 | Multi-pick legend behind ? (chance of 6/7/8/9 numbers, grids, prices, link to History) | BUILD draw › MultiPickLegend, **once** | The second copy under the next-draw table is an exact duplicate: DROP | yes (no admin link) |
-| B8 | `chart-analysis`: every row's vote per number, drawn mains green | BUILD draw › VotesChart (ECharts, tokens, to scale) | Positional games (jokerplus, pick3, markets) pool positions, so a bar lights for a value drawn in another slot. Draw them per position (owner, Q3), every slot chart on one scale (top = the rows shown). Keno counts the rows' 20-number ranking lines, said so in its help. Missing `currentNumberFrequency` (35 old vikinglotto files): use the previous file's `numberFrequency`, which is identical everywhere else | over the top 5's rows, or not shown (Q2) |
+| B8 | `chart-analysis`: every row's vote per number, drawn mains green | BUILD draw › VotesChart (ECharts, tokens, to scale) | Positional games (jokerplus, pick3, markets) pool positions, so a bar lights for a value drawn in another slot. Draw them per position (Q3), every slot chart on one scale (top = the rows shown). Keno counts the rows' 20-number ranking lines, said so in its help. Missing `currentNumberFrequency` (35 old vikinglotto files): use the previous file's `numberFrequency`, which is identical everywhere else | over the top 5's rows, or not shown (Q2) |
 | B9 | **Next Draw Prediction** card: "for the draw of <date>" + table | BUILD draw › Next draw, **newest day only** | Today's ranking (the coming draw). The admin sees all, with the switch | the coming draw: today's top 5 |
 | B10 | `chart-detail` (next-draw vote) | BUILD, newest day only | | Q2 |
 | B11 | B9 and B10 on **every past day** | DROP: an exact duplicate | The table equals the next file's Analysis rows in all 1,269 consecutive pairs (11 games), and the vote matches in 1,234 (the other 35 have no Analysis chart: see B8). Replace with "scored in the draw of <next date>" → link | – |
@@ -139,14 +139,14 @@ Every other draw comes before 25 Aug, or is back-built or back-filled. Five keno
 | C13 | Background › **Accuracy per day** chart (mean exact rate, best model that day, chance; 0–1) | BUILD Workbench › Accuracy per day (ECharts) | |
 | C14 | Background › **Day by day** (newest 30 days): returns and bins per instrument, best, mean exact, game-view link; opens to every model's bins with ▲ / ▼ / ×size, exact, direction, P&L | BUILD Workbench › Day by day. The open day uses the B6f table | |
 | C15 | Background › **The guard on the week positions**: totals over live weeks (guard, plain week, buying everything); table (week, row, positions, guard, plain, buying everything, note: what the user pages counted, booked after the fact) | PART: APP (the guard in Open positions, guard weeks counted from 26 Oct). BUILD Workbench › The guard | /app's guard note points the reader to "the Admin market page" for the earlier weeks: this section is that page. The live totals sum the unrounded weeks and round once, as the old page and C3/C6 |
-| C16 | Background › **Rows under a proper score**: headline vs GARCH, GARCH vs uniform, table (log-score ± se, vs GARCH, vs uniform, exact, adjacent, direction, trades, P&L), failed rows, generated | ADM Controls › Market rows (drawer and overview) | Missing: failed-row names and reasons (only a count is sent today): BUILD into the drawer. Trades and P&L (price units) were left out on purpose: owner, Q4 |
+| C16 | Background › **Rows under a proper score**: headline vs GARCH, GARCH vs uniform, table (log-score ± se, vs GARCH, vs uniform, exact, adjacent, direction, trades, P&L), failed rows, generated | ADM Controls › Market rows (drawer and overview) | Missing: failed-row names and reasons (only a count is sent today): BUILD into the drawer. Trades and P&L (price units) were left out on purpose: Q4 |
 | C17 | Background › **Regime reading**: row, after, regimes, features, template T#, label + volatility rank, probability, expected next-day return per instrument | PART: ADM Controls › Regimes (label, p, volatility rank, regimes, readings kept). BUILD Workbench › Regimes: features, template, expected return | |
 | C18 | Background card meta (list of sections) | DROP: navigation | |
 | C19 | Footer: record generated (Belgian time), newest game day, link to the game view | BUILD Workbench › head stamp | Link to Draws |
 
 ## What the users' Lottery (next batch) needs from this batch
 
-> **Built in batch 5 (23 Oct 2026).** API: `lottery.js` (`/api/lottery`, `/api/lottery/:game`, `/api/lottery/:game/:date`, `/api/home`), with the owner's answers to Q1 and Q2 below: the users' history starts at each game's first saved ranking (the earlier draws left out, one line says how many), and the vote is drawn over the five rows sent. App: `/` (Home), `/lottery`, `/lottery/:game`, `/lottery/:game/:date` (`components/draws/*` in `mode="user"`, no switch, no rank numbers, no stored vote) and `/council`. The sidebar's Lottery and Council are app routes now (no ↗). The old `/lottery`, `/database` and `/council` server pages stayed until the switch (batch 6: since then every old address redirects to its app page, see section D); the lottery folders of `/database` are the administrator's in the meantime (they send a past draw's every row and its file's vote): a user is redirected to the same list, game or draw under `/app/lottery`. The markets' game views stay as they are.
+> **Built in batch 5 (23 Oct 2026).** API: `lottery.js` (`/api/lottery`, `/api/lottery/:game`, `/api/lottery/:game/:date`, `/api/home`), with the answers to Q1 and Q2 below: the users' history starts at each game's first saved ranking (the earlier draws left out, one line says how many), and the vote is drawn over the five rows sent. App: `/` (Home), `/lottery`, `/lottery/:game`, `/lottery/:game/:date` (`components/draws/*` in `mode="user"`, no switch, no rank numbers, no stored vote) and `/council`. The sidebar's Lottery and Council are app routes now (no ↗). The old `/lottery`, `/database` and `/council` server pages stayed until the switch (batch 6: since then every old address redirects to its app page, see section D); the lottery folders of `/database` are the administrator's in the meantime (they send a past draw's every row and its file's vote): a user is redirected to the same list, game or draw under `/app/lottery`. The markets' game views stay as they are.
 
 1. **The `rankingHistory` API**, per game and draw: `{version generatedAt, metric, minDraws, top5 present in the table}` or `{none: 'before 25 Aug 2026' | 'game not ranked yet' | 'back-filled'}`. The user API calls it server side.
 2. **`draws.js` scoring** with a scope: figures (A3–A6, B6) over the rows in scope only, with the count of rows on the same line. In user mode the server cuts the rows; hidden rows are never sent.
@@ -160,13 +160,13 @@ Every other draw comes before 25 Aug, or is back-built or back-filled. Five keno
    - ScopeLine: "the 5 models with the best record by <metric> as ranked on <date>"
 4. **Wording**: the "how hits are counted" lines (B4) and the empty states (B12, no ranking recorded) in the user's terms.
 
-## Open questions for the owner
+## Open questions
 
 1. **Before 25 Aug 2026 no ranking was recorded.** That covers 82 of 99 lotto draws. Users' history there: every row with the line "no ranking recorded before 25 Aug 2026", or start the users' history at 25 Aug?
 2. **Vote charts (B8, B10) in user mode:** recompute over the top 5's rows, or leave them out (the old user page leaves them out)?
 3. **Positional games (jokerplus, pick3, markets):** draw the vote per position or slot, instead of the pooled chart that lights values drawn in another slot?
 4. **Market rows' Trades and P&L columns** (price units, the Sunday backtest): drop them for good, or add them to Controls › Market rows?
-5. **pick3 Hits column:** replace membership hits with positional hits plus the bet types won (B6d)? **Decided (owner, 24 Oct 2026): yes** - users see digits in place and the bet types won; the membership count stays on the administrator's view only.
+5. **pick3 Hits column:** replace membership hits with positional hits plus the bet types won (B6d)? **Decided (24 Oct 2026): yes** - users see digits in place and the bet types won; the membership count stays on the administrator's view only.
 
 ## D. The rest of the old pages (batch 6, 24 Oct 2026)
 
@@ -191,9 +191,9 @@ An adversarial reader then tried to refute each reported gap. Result: 42 gaps re
 - **System pages**: each run's commit; the Council API's command and directory; the users' pages named correctly on People; the activity log's reach and address source; the schedule's off switch (`config/scheduler.disabled`).
 - **Phone check** (360 / 390 / 430 px): the model column stays in place in the ticket tables; long tile labels wrap; a wrapped meta line never starts with a dot.
 
-**Decided with the owner (24 Oct 2026)**
+**Decided (24 Oct 2026)**
 - Q5 above (pick3 Hits): users see digits in place; the old membership count is shown to the administrator only.
-- The introduction (`announcements.js` TOUR) rewritten for the app, and the switch announcement (`2026-10-24-new-interface`, major, every reader), both proofread by the owner.
+- The introduction (`announcements.js` TOUR) rewritten for the app, and the switch announcement (`2026-10-24-new-interface`, major, every reader), both proofread.
 
 **Deferred** (not needed for the switch)
 - Several models drawn at once on an instrument chart, the old "Price bars" view and its "Reset zoom" button. The slider zooms; zooming by mouse wheel or pinch inside the plot was left out on purpose, so a phone scrolls the page.
@@ -201,7 +201,7 @@ An adversarial reader then tried to refute each reported gap. Result: 42 gaps re
 - The Council's administrator-only mode (`COUNCIL_ACCESS=admin`): not set on production, so the app does not reflect it yet.
 - The models drawer's Since column shows a dash when no date is declared (the overview says "not declared").
 
-**Sign-off before the switch** (the owner)
+**Sign-off before the switch**
 - [ ] As a user: Home, Lottery (a game, its history, a draw), Crypto, Shares, Council, account, What's new; on a phone too.
 - [ ] As the administrator: This week, Controls, Models (all six pages), Jobs & services, People.
 - [ ] A few old bookmarks open their app page, for each role.

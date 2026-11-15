@@ -114,7 +114,7 @@ DL_MODEL_SECONDS = 240
 DL_TIMEOUT_SECONDS = 0
 DL_PER_MODEL_OVERHEAD_SECONDS = 60
 DL_CHILD_STARTUP_SECONDS = 120
-# The memorise rows' training budget (owner, 8 Nov 2026): a fresh shallow network fitted to the training draws for
+# The memorise rows' training budget (8 Nov 2026): a fresh shallow network fitted to the training draws for
 # this long, after every settle row has finished (src/RowVariants.py)
 DL_MEMORISE_SECONDS = 120
 
@@ -152,7 +152,7 @@ def applyMultiPick(name, row, scores):
     scores; a row without one (HybridStatisticalModel) keeps its ticket as
     it is and gets no extras. Returns whether extras were added.
 
-    The other number games (src/MultiPick.PROBABILITY_ORDER, owner 2 Nov
+    The other number games (src/MultiPick.PROBABILITY_ORDER, 2 Nov
     2026): every ticket of the row - keno's subsets too - gets its mains in
     the same score order, highest first, the specials where they were; no
     extras. The numbers played do not change, only their order.
@@ -180,7 +180,7 @@ def holdVariantRows(rows):
     """
     Takes the variant rows (memorise rows: made by the DL child, statisticalMethod and boostingMethod alongside the
     settle rows) out of the day's rows, in place, and returns them: the vote chart, the vote rows, SubsetEnsemble
-    and the RL ticket read the rows next, and the variants enter none of them (owner, 8 Nov 2026). The caller puts
+    and the RL ticket read the rows next, and the variants enter none of them (8 Nov 2026). The caller puts
     them back after the RL ticket, before addSampledRows.
     """
     held = [row for row in rows if isinstance(row, dict) and rowVariants.is_variant(row.get("name"))]
@@ -190,7 +190,7 @@ def holdVariantRows(rows):
 
 def addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object):
     """
-    The "<row> · Sampled" rows of a number game's day (src/RowVariants.py, owner 8 Nov 2026): each row that has
+    The "<row> · Sampled" rows of a number game's day (src/RowVariants.py, 8 Nov 2026): each row that has
     scores gets a twin whose ticket is drawn from them with its tuned temperature instead of taking their top.
     Called after the last consumer of the day's rows (the vote rows, SubsetEnsemble, the RL ticket), so the
     variants never vote or feed them, and before the day file is written; it also removes the stashed scores.
@@ -446,7 +446,7 @@ def process_single_history_entry_first_step(args):
 # The two LSTM rows (src/LSTM.py): one network, the same unprefixed tuned keys
 # (HyperoptDeepLearning.py's lstm_model study), two losses. LSTM Base Model
 # trains on plain cross-entropy, as it has since 49bcb2f5 (3 Feb 2026); the
-# LSTM Smoothed Model (owner, 25 Oct 2026: one row with label smoothing, one
+# LSTM Smoothed Model (25 Oct 2026: one row with label smoothing, one
 # without) puts the tuned labelSmoothing into its loss. Each row has its own
 # use<Prefix> switch (default on), weights folder and fingerprint, warm-start
 # guard and learning check, and is tracked on its own. Cost: the twin is a
@@ -519,7 +519,7 @@ def configureLstmModel(model, name, displayName, labelSmoothed, bestParams_json_
     model.setTrainSeconds(trainSeconds)
 
 
-# The deep-learning rows that get a memorise variant (owner, 8 Nov 2026; src/RowVariants.py): (instance whose class is
+# The deep-learning rows that get a memorise variant (8 Nov 2026; src/RowVariants.py): (instance whose class is
 # built fresh, LSTM_ROWS-style or UNIFIED_DL_MODELS-style, prefix or use key, display name, model folder, defaults).
 # LSTM Smoothed Model has none: memorising drops the label smoothing that is the only difference between the two
 # LSTM rows, so its memorise row would be LSTM Base Model's.
@@ -962,7 +962,7 @@ def process_single_history_entry_second_step(args):
 
 def readServedParams(path, name, verbose=False):
     """
-    bestParams_<game>.json with the manual overrides of Admin > Parameters in place (src/ParamOverrides.py, owner
+    bestParams_<game>.json with the manual overrides of Admin > Parameters in place (src/ParamOverrides.py,
     8 Nov 2026: an override wins over the tuners until someone releases it). {} when the game has no file; raises
     when the file cannot be parsed, like the json.load it replaces. verbose prints one line per override (the run's
     first read only, not every rebuilt day's).
@@ -1755,7 +1755,7 @@ def lightDlModelsEnabled(bestParams_json_object):
 
 def rowYearsOfHistory(bestParams_json_object, prefix, years_back):
     """
-    The years of draws one deep-learning row trains on (owner, 8 Nov 2026: every model its own parameters). The two
+    The years of draws one deep-learning row trains on (8 Nov 2026: every model its own parameters). The two
     LSTM rows (prefix None) read the bare yearsOfHistory, which the caller passes as years_back; every other row reads
     its own "<prefix>_yearsOfHistory", which HyperoptDeepLearning.py tunes and writes per study, and falls back to the
     bare key when the file has none. Until 8 Nov 2026 every row read the bare key and the prefixed ones were stored
@@ -1934,7 +1934,7 @@ def marketRowsFor(name, dataPath, path, bestParams_json_object):
     return _marketRowCache["rows"]
 
 
-# The statistical memorise rows (owner, 8 Nov 2026; src/RowVariants.py): the row's own configured model on the last
+# The statistical memorise rows (8 Nov 2026; src/RowVariants.py): the row's own configured model on the last
 # MEMORISE_WINDOW_DRAWS draws only, with nothing that pulls it back to the long-run counts - alpha 1 (the transitions
 # alone, no blend with the frequencies), every transition kept (min occurrences 1), no smoothing. It chases the
 # latest draws, the statistical counterpart of a network fitting its training draws.
@@ -2847,7 +2847,7 @@ BOOSTING_MODELS = [
 ]
 
 
-# The boosting memorise rows (owner, 8 Nov 2026; src/RowVariants.py): the row's tuned parameters with deep,
+# The boosting memorise rows (8 Nov 2026; src/RowVariants.py): the row's tuned parameters with deep,
 # unregularised trees - no minimum child weight, no L2, every row and column, a high learning rate and many
 # rounds - so the ensemble fits its training draws instead of stopping at the counts. CatBoost's are off by
 # default (bestParams "memoriseCatBoost"): depth is its real cost knob (a keno multi-label fit at the tuned depth

@@ -74,7 +74,7 @@ function RankingSection({ d, scope, setScope, busy }: { d: ModelsGameView; scope
           </>
         )}
         {live
-          ? ` Ranked on the live record since 27 Oct 2026 (the owner's decision): a ticket rewritten after the draw is scored as it stood at the close; every stored ${perUnit(d.unit)}'s value stands under the live one (ranked from ${count(d.allMinDraws, d.unit)} there). The users' Top 5 follows this order.`
+          ? ` Ranked on the live record since 27 Oct 2026 (the decision): a ticket rewritten after the draw is scored as it stood at the close; every stored ${perUnit(d.unit)}'s value stands under the live one (ranked from ${count(d.allMinDraws, d.unit)} there). The users' Top 5 follows this order.`
           : ''}
       </p>
       {d.liveness ? <LivenessLine l={d.liveness} unit={d.unit} /> : null}

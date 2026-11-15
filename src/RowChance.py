@@ -56,7 +56,7 @@ flag may take) and per followed row {since (F), flagDraws, flagP, flagMean, flag
 or the verdict), verdictAt (the date of the draw the verdict was taken on), decidedOn (the report's date that took it),
 p, mean, null (the verdict's figures)}. First write wins: the first run with no entry for a game replays its Sundays
 ONCE (every row ever flagged on a Sunday on or after the since.json freeze declared then - the first replay applies the
-freeze as the reset rule would have, owner 30 Oct 2026, so no flag from before it is kept - an entry the replay of
+freeze as the reset rule would have, 30 Oct 2026, so no flag from before it is kept - an entry the replay of
 28 Oct kept under the freeze without it (no testFrom) is reset once by the next run; daily runs end with the
 replay's flags and verdicts, decidedOn apart, as long as every draw dated before a Sunday is in by that Sunday's run:
 27 Oct 2026 review, on production's record); every later run tests only the Sundays after checkedThrough, for the rows not followed yet, and
@@ -86,7 +86,7 @@ from datetime import date, datetime, timedelta
 import numpy as np
 
 ALPHA = 0.05            # the per-row screen, Holm's level and the flag
-VERDICT_ALPHA = 0.01    # the fresh verdict (owner's decision, 26 Oct 2026)
+VERDICT_ALPHA = 0.01    # the fresh verdict (decided 26 Oct 2026)
 PERMUTATIONS = 20000
 BLOCK = 7               # market shuffles stay within this many consecutive live days (weeks for the week games)
 MAX_VERDICT = 52        # the longest verdict: EuroMillions' 92-draw flag would otherwise take until Sep 2027
@@ -389,7 +389,7 @@ def game_chance(game, days, models, min_draws, today, stored=None, freeze=None, 
     newest = sunday_on_or_before(today)
     reset = None
     if persist:
-        # a later freeze - or an entry kept under the freeze by the first replay of 28 Oct 2026, before the owner's
+        # a later freeze - or an entry kept under the freeze by the first replay of 28 Oct 2026, before the
         # decision of 30 Oct that the replay applies it (no testFrom yet): reset once, as the reset rule would have
         legacy = bool(stored and freeze and not entry.get("testFrom"))
         if stored and freeze and (legacy or entry.get("freeze") is None or freeze > entry["freeze"]):
@@ -399,7 +399,7 @@ def game_chance(game, days, models, min_draws, today, stored=None, freeze=None, 
             entry["rows"] = {n: e for n, e in entry["rows"].items() if e.get("since") and e["since"] >= freeze}
             entry["testFrom"] = reset.isoformat()
         if not stored and freeze:
-            # the first replay keeps the freeze as the reset rule would have (owner, 30 Oct 2026): no row is flagged on a
+            # the first replay keeps the freeze as the reset rule would have (30 Oct 2026): no row is flagged on a
             # Sunday before it, so a design the freeze set aside decides no permanent verdict
             entry["testFrom"] = sunday_on_or_after(freeze).isoformat()
         if freeze and (entry.get("freeze") is None or freeze > entry["freeze"]):

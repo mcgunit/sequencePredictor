@@ -1,5 +1,5 @@
 'use strict';
-// Admin › Parameters (owner's roadmap step 2, 8 Nov 2026): every setting in a game's bestParams_<game>.json, one card
+// Admin › Parameters (roadmap step 2, 8 Nov 2026): every setting in a game's bestParams_<game>.json, one card
 // per model, the settings several models read in a card of their own. Read-only: the manual overrides (step 3) come
 // later and will write next to this, never into the tuners' file.
 //
@@ -156,7 +156,7 @@ function variantsOf(f, game, params) {
   return { sampled, sampledWhy: sampledGame ? null : (isMarket(game) ? 'no variant rows on the market games' : 'no sampled rows on a positional game (digits in drawn order)'), memorise };
 }
 
-// --- manual overrides (owner's roadmap step 3, 8 Nov 2026) ---------------------------------------------------------
+// --- manual overrides (roadmap step 3, 8 Nov 2026) ---------------------------------------------------------
 // config/paramOverrides.json, read by the predictor (src/ParamOverrides.py) and written here only:
 //   {"version": 1, "games": {"<game>": {"overrides": {"<key>": {value, rows, tuned, by, at, note}}, "fresh": {"<row>": at}}}}
 // An override wins over bestParams_<game>.json until it is released; the tuners keep writing their file underneath.

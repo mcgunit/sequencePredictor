@@ -1,5 +1,5 @@
 'use strict';
-// The Sunday controls on the DL360 (jobs.js, the owner's decision of 11 Nov 2026): a control goes to the DL360's own
+// The Sunday controls on the DL360 (jobs.js, the decision of 11 Nov 2026): a control goes to the DL360's own
 // queue when config/workers.json has a cpu entry, runs there beside this server's queue, is recorded in the
 // scheduler's history with worker 'cpu', and - when the DL360 does not come up (exit 75) - runs here instead, with the
 // controls behind it, in their order. On a copy of jobs.js in a temp dir, the schedule dry (only runs started by hand

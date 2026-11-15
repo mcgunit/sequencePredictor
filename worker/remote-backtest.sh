@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One backtest on a worker machine (owner, 10 Nov 2026; docs/operations.md, The workers): the GPU worker (the 2080
+# One backtest on a worker machine (10 Nov 2026; docs/operations.md, The workers): the GPU worker (the 2080
 # Ti LXC) or the CPU worker (the DL360). workers.js runs this in its own process group with the worker's settings in
 # the environment (config/workers.json):
 #   WORKER_HOST        ssh target, e.g. root@<address>     WORKER_DIR     the worker's folder (holds venv/ and app/)

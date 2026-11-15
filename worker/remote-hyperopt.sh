@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One hyperopt started from the Hyperopts page, on a worker (docs/operations.md, The workers): the deep-learning tuner
-# on the GPU worker (the 2080 Ti LXC; owner, 11 Nov 2026), the other five tuners on the CPU worker (the DL360; owner,
+# on the GPU worker (the 2080 Ti LXC; 11 Nov 2026), the other five tuners on the CPU worker (the DL360;
 # 12 Nov 2026) - or, when the DL360 does not come up, on this server in a folder of its own (WORKER_HOST=local, the
-# owner's fallback). workers.js runs this in its own process group with the worker's settings in the environment, as
+# fallback). workers.js runs this in its own process group with the worker's settings in the environment, as
 # it runs remote-backtest.sh:
 #   WORKER_HOST  ssh target, or "local"    WORKER_DIR  the worker's folder (venv/, app/ for the backtests, hyperopt/ for these)
 #   WORKER_PYTHON  the worker's python    WORKER_REMOTE_ENV  NAME=value pairs for the run (the GPU and its memory cap)
@@ -22,7 +22,7 @@
 #    --save false (no commit, no push) and --result-file, under `timeout <budget>`;
 # 3. copies its result file back to config/hyperopts/<id>.result.json and its output into the run's log every 15 s,
 #    and marks the record (config/hyperopts/<id>.json) done, failed, out of time or stopped at the end.
-# Record only (owner): the worker's copy of bestParams_<game>.json is thrown away - the next copy replaces it - and
+# Record only: the worker's copy of bestParams_<game>.json is thrown away - the next copy replaces it - and
 # nothing that is served changes until Apply on the Hyperopts page. The main server stays the only writer of data/.
 # On SIGTERM (Stop on the page, to this script alone) it stops the tuner there (it kills its children and keeps
 # its finished trials), copies the result back and ends with 130.

@@ -1,4 +1,4 @@
-// rankhistory.js - the History ranking as it stood at any moment (22 Oct 2026, admin batch 4; the owner's rule: no
+// rankhistory.js - the History ranking as it stood at any moment (22 Oct 2026, admin batch 4; the rule: no
 // hindsight). The admin's All / Top switch on a past draw shows the five rows ranked first BEFORE that draw, never
 // today's five; the users' Lottery (the next batch) counts its history over the same five.
 //

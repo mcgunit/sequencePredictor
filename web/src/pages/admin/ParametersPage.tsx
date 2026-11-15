@@ -23,7 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import BacktestStart from './BacktestStart';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 
-// /admin/parameters (owner's roadmap steps 2 and 3, 8 Nov 2026): every setting in one game's bestParams_<game>.json,
+// /admin/parameters (roadmap steps 2 and 3, 8 Nov 2026): every setting in one game's bestParams_<game>.json,
 // one folding card per model (?game=), the settings several models read in a card of their own - and the manual
 // overrides: an administrator sets a value, it wins over the tuners until someone releases it (config/
 // paramOverrides.json, never the tuners' file). A key the file does not have is "not set": the model runs on its code
@@ -476,7 +476,7 @@ function ParamTable({
   });
   const cell = (l: Line): ReactNode => <Shown value={l.value} unset={!!l.unset} override={l.override} />;
   // Setting (with its "?" and the page's note under it), value, action. The value column has a fixed share so every
-  // card's table lines up, and numbers and words both start at its left edge (owner 11 Nov 2026: the numbers sat at
+  // card's table lines up, and numbers and words both start at its left edge (11 Nov 2026: the numbers sat at
   // the right of the column, under a mostly empty Note heading).
   return (
     <table className="tbl ptbl">

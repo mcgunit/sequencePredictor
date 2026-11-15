@@ -91,7 +91,7 @@ GATE_SE_MARGIN = 1.0
 # nothing in expectation, so part of these reverts will be noise and that is harmless. Replayed: 5 ticket reverts on
 # 17 Oct (incumbents the ungated studies had written, which the defaults beat), 2 on 24 Oct.
 GATE_REVERT_MARGIN = 0.0
-# The position row's sit-out floor (position_sit_out, 27 Oct 2026, approved by the owner): the served sizing is
+# The position row's sit-out floor (position_sit_out, approved 27 Oct 2026): the served sizing is
 # served only when its score - already the lower bound, mean minus one SE - is above SIT_OUT_SE_MARGIN of its own
 # standard errors, i.e. its mean money per position is more than two standard errors above the 0 of never betting.
 # Until then any bound above 0 served: on 24 Oct crypto served a sizing at +0.0084 with an SE of 0.0128 (mean size
@@ -108,14 +108,14 @@ SIT_OUT_SE_MARGIN = 1.0
 # gate's re-scores of the served and the default knobs, not in the plain rule the position studies are read against.
 # The window is not lengthened to make up for them.
 
-# The variety rule (owner, 12 Nov 2026: the same gate everywhere, the weekly chain included).
+# The variety rule (12 Nov 2026: the same gate everywhere, the weekly chain included).
 # - The ticket studies: the RL Ticket Model ASSEMBLES a lottery ticket per day (src/RLTicketModel: the policy picks
 #   the numbers from the day's rows - its row's predictions[0], keno's playable subsets sliced after it), so the
 #   draws measure applies like on every other row that predicts a ticket: a parameter set whose policy gave the same
 #   main ticket on VARIETY_LINE or more of the scored walk-forward days is input-blind (src/TuningResult.
 #   variety_of_tickets), neither written nor served back, and it blocks nothing (TuningGate.challenge(variety=True)).
 #   A policy that settled on one ticket whatever the day's rows is exactly that. TICKET_VARIETY switches it off in one
-#   place should the owner decide the RL ticket is not a "ticket" in the rule's sense.
+#   place should the RL ticket be judged not a "ticket" in the rule's sense.
 # - The position studies (crypto, shares and their week games): the RL Position Model's output is a size per
 #   instrument - how much to put on the vote's call - not a ticket; a sizing that stays the same is a policy, not a
 #   stuck prediction. No variety fields there, so the rule changes nothing.
@@ -1193,9 +1193,9 @@ if __name__ == "__main__":
                  "file (src/TuningResult). The Hyperopts page runs the tuner this way with -s false (12 Nov 2026).")
         parser.add_argument(
             '--variety-line', type=float, default=None,
-            help="The variety rule's line (owner, 12 Nov 2026), for the ticket studies: knobs whose policy gives the "
+            help="The variety rule's line (12 Nov 2026), for the ticket studies: knobs whose policy gives the "
                  "same ticket on this share of the scored days or more are input-blind - neither written nor served "
-                 "back (not the position studies: a size is not a ticket). 0.5-1.0 (or 50-100); default the owner's "
+                 "back (not the position studies: a size is not a ticket). 0.5-1.0 (or 50-100); default the "
                  "setting in config/tuning.json, else 0.95.")
         args = parser.parse_args()
         GATE_ENABLED = not args.no_gate

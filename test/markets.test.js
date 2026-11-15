@@ -291,7 +291,7 @@ ok(markets.weekEnd('crypto', '2026-10-04') === '2026-10-11' && markets.weekEnd('
 
 // the order book (src/MarketOrders.py, 30 Oct 2026): read tolerantly, a malformed order or point dropped, never thrown
 {
-  ok(markets.ORDERS_SHOWN_FROM === '2026-11-02' && markets.ORDER_VARIANT_PRIMARY === 'edge', 'the order card is on the user page from Mon 2 Nov 2026 (owner, 31 Oct 2026); the primary is edge');
+  ok(markets.ORDERS_SHOWN_FROM === '2026-11-02' && markets.ORDER_VARIANT_PRIMARY === 'edge', 'the order card is on the user page from Mon 2 Nov 2026 (31 Oct 2026); the primary is edge');
   ok([null, undefined, [], 'x', 3].every((x) => markets.describeOrders(x) === null), 'no order block, no order book');
   const empty = markets.describeOrders({});
   ok(empty && empty.game === 'day' && empty.primary === 'edge' && Object.keys(empty.books).length === 0 && empty.now === null && empty.late === null

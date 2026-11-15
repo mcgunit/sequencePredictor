@@ -1,5 +1,5 @@
 'use strict';
-// The deep-learning hyperopts started from the admin pages (hyperopts.js, owner 11 Nov 2026): the form's checks, the
+// The deep-learning hyperopts started from the admin pages (hyperopts.js, 11 Nov 2026): the form's checks, the
 // tuner's arguments, queueing on the GPU worker's lane, the record with the tuner's result file, Apply (the gate's
 // parameters, this run's best against the gate, the changed-since warning, the process.lock refusal), and a real launch
 // of the lane through setsid with a stand-in for worker/remote-hyperopt.sh (no ssh, no worker) - in a temporary folder.
@@ -61,7 +61,7 @@ writeServed(served0);
   ok(JSON.stringify(hyperopts.argsOf(q.params)) === JSON.stringify(['-g', 'pick3', '-m', 'transformer_model', '-t', '4', '-d', '5', '--train-seconds', '240',
     '--prune-after-days', '0', '--trial-timeout', '7200', '--gate', 'false', '--gate-se-margin', '0.5', '--variety-line', '0.95', '--aim', 'variety', '--loss-tolerance', '0.025', '--fresh']), `the tuner's arguments: ${hyperopts.argsOf(q.params).join(' ')}`);
   ok(hyperopts.argsOf(q.params).every((a) => /^[A-Za-z0-9,._-]+$/.test(a)), 'every argument passes remote-hyperopt.sh\'s check');
-  // the aim (owner, 14 Nov 2026): variety by default with its tolerance, each aim its own study; a record without one is skill
+  // the aim (14 Nov 2026): variety by default with its tolerance, each aim its own study; a record without one is skill
   ok(p.params.aim === 'variety' && p.params.lossTolerance === 0.025 && /AIM = "variety"/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'DeepLearningTuning.py'), 'utf-8'))
     && /LOSS_TOLERANCE = 0\.025\b/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'DeepLearningTuning.py'), 'utf-8')), 'the default aim and tolerance are the tuner\'s');
   const sk = hyperopts.parse({ game: 'pick3', model: 'lstm_model', aim: 'skill', lossTolerance: 0.5 });
@@ -159,7 +159,7 @@ writeServed(served0);
   state.current = null;
   ok(hyperopts.cancel(root, 'nope', 'tester', W).status === 404, 'unknown id');
 
-  // delete (owner, 14 Nov 2026): refused while queued or running; the record, result, served snapshot and log go, bestParams stays
+  // delete (14 Nov 2026): refused while queued or running; the record, result, served snapshot and log go, bestParams stays
   const r4 = hyperopts.start(root, { game: 'pick3', model: 'lstm_model' }, 'tester', W, new Date('2026-11-11T12:00:03Z'));
   ok(r4.ok && hyperopts.readRecord(root, r4.id).aim === 'variety' && hyperopts.readRecord(root, r4.id).lossTolerance === 0.025 && /aim variety/.test(r4.message), `a run records its aim: ${r4.message}`);
   let d = hyperopts.remove(root, r4.id, 'tester', W);
@@ -183,7 +183,7 @@ writeServed(served0);
   ok(hyperopts.remove(root, r2.id, 'tester', W).status === 404 && hyperopts.remove(root, '../../bestParams_lotto', 'tester', W).status === 404, 'unknown id, or a path: 404');
   ok(hyperopts.remove(root, r3.id, 'tester', null).ok, 'a cancelled one goes without a lane');
 
-  // --- the other five tuners (owner, 12 Nov 2026): the CPU lane, the DL360's fallback, the variety line ---
+  // --- the other five tuners (12 Nov 2026): the CPU lane, the DL360's fallback, the variety line ---
   ok(hyperopts.settings(root).varietyLine === 95, 'no setting: the 95% line');
   ok(!hyperopts.saveSettings(root, { varietyLine: 40 }, 'tester').ok && !hyperopts.saveSettings(root, { varietyLine: 'x' }, 'tester').ok, 'a line under 50% or not a number: refused');
   ok(hyperopts.saveSettings(root, { varietyLine: 80 }, 'tester').ok && hyperopts.settings(root).varietyLine === 80

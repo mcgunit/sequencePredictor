@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 The one-time trim of the lotto tickets of 8 Nov 2025 - 13 May 2026 to the 6
-numbers a Lotto grid plays - owner decision of 3 Nov 2026. Until 13 May 2026
+numbers a Lotto grid plays - decision of 3 Nov 2026. Until 13 May 2026
 the statistical rows stored 7 values: the 7th was a guess at the bonus ball
 (one Markov row even guessed 46 in a 1-45 game), which a played grid has no
 slot for. Those rows lose their 7th value; the 6-number rows since and the

@@ -95,7 +95,7 @@ def is_week_game(market):
 # cap on CoinGecko on 2026-09-30 that are not stablecoins (Tether at #3 and
 # USDC at #6 are pegged to the quote currency and have no return to predict),
 # quoted in USDT on Binance - BTC and ETH since 2017, BNB 2017, XRP 2018, SOL
-# since 2020-08-11, which bounds the joint history. Shares (owner, 31 Oct
+# since 2020-08-11, which bounds the joint history. Shares (31 Oct
 # 2026 - the four Nasdaq names of the kickoff were removed with their record):
 # five of the most traded shares of Euronext Amsterdam and Brussels, in EUR,
 # for Belgian users, with Yahoo history since 2016; ASML left out for now
@@ -454,8 +454,8 @@ INTRADAY_SECONDS = {"1m": 60, "1h": 3600}
 # 12 Oct); the 1m windows are fetched per card publication (MarketOrders.minute_windows)
 INTRADAY_SINCE = "2026-10-12"
 # what an export-time update reaches back for when nothing is stored yet: a few days, so the first production run
-# after the deploy does not quietly backfill weeks - the one-time backfill is MarketOrders --backfill, with the
-# owner's go (design section 10)
+# after the deploy does not quietly backfill weeks - the one-time backfill is MarketOrders --backfill, on an
+# explicit go-ahead (design section 10)
 INTRADAY_LOOKBACK = timedelta(days=3)
 
 

@@ -355,7 +355,7 @@ def score_rows(rows, model_name, payout=False, positional=False, game=None,
       lucky_strikes        bets at or above the cap
       log_score_mean, log_score_bound, uniform_log_score   (proper rows only)
       variety_measure, variety_line, same_ticket_mean, distinct_tickets, tickets, input_blind
-                           with `variety_line` (the owner's line, 12 Nov 2026; src/TuningResult.variety_of_tickets):
+                           with `variety_line` (the variety line, 12 Nov 2026; src/TuningResult.variety_of_tickets):
                            the share of the scored days that got this model's most common ticket
                            ("<model>_prediction"), which TuningGate.challenge(variety=True) reads. None (the
                            market rows, whose calls may well repeat) leaves them out.

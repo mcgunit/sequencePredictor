@@ -1,6 +1,6 @@
 'use strict';
 // The users' Lottery and Home (lottery.js) and the Council's per-reader routes (council.js), batch 5 (23 Oct 2026). The
-// owner's rules: a user gets the top five rows of each game's History ranking - for the coming draw today's five, for a
+// rules: a user gets the top five rows of each game's History ranking - for the coming draw today's five, for a
 // past draw the five ranked first BEFORE it (rankhistory.js), never today's five applied to a past draw -, the draws
 // before the game's first saved ranking are left out, every figure is over those five only, and no other row is ever
 // sent. Here, on a temp git repository whose ranking changed: the point-in-time five where today's differ and give
@@ -380,7 +380,7 @@ async function partOne() {
   ok(after.running === null && withoutBuiltAt({ ...after, running: undefined }) === withoutBuiltAt({ ...overview, running: undefined }),
     'the lock gone: running is null again, and the rest of the answer is what it was');
 
-  // --- the sales close (the owner's decisions 2 and 3, 27 Oct 2026) ---------------------------------------------------
+  // --- the sales close (decisions 2 and 3, 27 Oct 2026) ---------------------------------------------------
   // data/database/lotteryLiveness.json as src/Liveness.py writes it: keno 7 Oct back-built (every row first saved after
   // the close); lotto 7 Oct G's ticket rewritten after the draw (G is one of that draw's five), lotto 10 Oct Z's row
   // added after the close (Z is in nobody's five); the keno coming tickets made after the coming draw's close

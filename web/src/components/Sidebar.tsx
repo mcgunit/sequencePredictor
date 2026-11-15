@@ -53,7 +53,7 @@ const ADMIN_GROUPS: Group[] = [
       { label: 'Phase-shift', to: '/admin/phase-shift' },
       { label: 'Randomness watch', to: '/admin/randomness' },
       { label: 'Games in detail', to: '/admin/games', prefix: true },
-      // the market workbench, one item per market (owner 31 Oct 2026: the one line with two small links was unclear)
+      // the market workbench, one item per market (31 Oct 2026: the one line with two small links was unclear)
       { label: 'Crypto workbench', to: '/admin/markets/crypto' },
       { label: 'Stocks workbench', to: '/admin/markets/shares' },
     ],

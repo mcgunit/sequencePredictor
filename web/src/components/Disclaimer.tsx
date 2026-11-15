@@ -1,4 +1,4 @@
-// The README's disclaimer at the foot of every page, sticky so it is always in view (5 Nov 2026, owner): one compact
+// The README's disclaimer at the foot of every page, sticky so it is always in view (5 Nov 2026): one compact
 // line, the full text folded behind "Read more" (every collapsible starts folded). Keep it in step with the README's.
 export default function Disclaimer() {
   return (

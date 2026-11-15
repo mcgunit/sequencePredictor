@@ -1,4 +1,4 @@
-// admin.js - the JSON behind the admin section of the React app (21 Oct 2026: the owner's decision to replace the
+// admin.js - the JSON behind the admin section of the React app (21 Oct 2026: the decision to replace the
 // old pages with the app; the users get a slim Lottery / Crypto / Stocks / Council, the administrator everything).
 // Read-only routes under /api/admin, all behind the session (auth.middleware answers a signed-out request with a
 // JSON 401 first) and behind the admin guard below (a signed-in user who is not the administrator gets a JSON 403):
@@ -17,7 +17,7 @@
 //                                         the Workbench (workbench.js, batch 4): every past draw, one draw, the market
 //                                         workbench; Top there is the five ranked first before each draw (rankhistory.js)
 //
-// Week over week (21 Oct 2026, the owner's decision): data/readings/<sunday>.json, one summary of the four Sunday
+// Week over week (21 Oct 2026, the decision): data/readings/<sunday>.json, one summary of the four Sunday
 // controls per weekend (weekReading below; readings.js writes it after the Sunday plan, tracked in git). A control's
 // cell carries its own Sunday, the number of weeks in a row it has read the same, and - only when last week read
 // differently - what it read then: the page colours a change, never a state that holds every week.
@@ -242,7 +242,7 @@ function recoveredOf(info) {
   ((info && info.models) || []).forEach((m) => { if (m && m.live && typeof m.live === 'object' && num(m.live.recovered) !== null) byName[m.name] = num(m.live.recovered); });
   return (name) => byName[name];
 }
-// What a game's ranking reads (the owner's decision 1, 27 Oct 2026): a lottery game whose report ranks on the live
+// What a game's ranking reads (decision 1, 27 Oct 2026): a lottery game whose report ranks on the live
 // record (rankedOn 'live': only the tickets saved before each draw's sales close count, Helpers.py) is read on each
 // row's live block - its value, figures and the 10-draw guard on live draws - with the all-draws value beside it;
 // every other game on every stored draw. A game whose liveness could not be judged is never ranked on it.
@@ -637,7 +637,7 @@ function sinceBestOf(report, info) {
 // A game's Q0 row tests for the Models page (27 Oct 2026, replacing the band, which greyed a row "within" it): the
 // game's summary (or why there is none) and each row's line - its mean, live draws and null with its p and corrected
 // p, and a followed row's fresh record. Nothing is greyed: greying every row that does not hold would grey nearly every
-// row every week (the owner's decision); the payout games' tests are on hits, information only (inTile false).
+// row every week (the decision); the payout games' tests are on hits, information only (inTile false).
 function chanceForModels(game, info) {
   const chance = controls.describeChance(info);
   const line = q0Lines(game, info, chance);
@@ -648,8 +648,8 @@ function chanceForModels(game, info) {
 // is the "no better than the frequencies" label - its validation loss did not get below the training-split
 // frequencies' loss by more than any output that ignores its input gets on those windows. Passed with its losses,
 // the input-blind fact and the date of the day file that carries it (the newest draw its data runs to; the run came
-// after it), so the page can say why; a label only, nothing here ranks, hides or reweights on it (the owner's
-// decision, 25 Oct 2026).
+// after it), so the page can say why; a label only, nothing here ranks, hides or reweights on it (decided
+// 25 Oct 2026).
 function learningOf(m) {
   const c = m && m.learning_check;
   if (!c || typeof c !== 'object' || (c.verdict !== 'learns' && c.verdict !== 'counts-only')) return null;
@@ -769,7 +769,7 @@ function comboBrief(info) {
   return brief;
 }
 // input (one game's control records) is read by nothing since 27 Oct 2026, as in modelsSummary
-// The rows that run on a manual setting now (config/paramOverrides.json, params.js; owner 8 Nov 2026): {row: [keys]}.
+// The rows that run on a manual setting now (config/paramOverrides.json, params.js; 8 Nov 2026): {row: [keys]}.
 // A variant row ("<row> · Sampled") runs on its parent's settings, so it is looked up by the parent's name.
 function manualRowsOf(root, game) {
   const out = {};

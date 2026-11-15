@@ -108,7 +108,7 @@ const PLANS = {
   },
 };
 
-// The games of the three daily runs (Predictor.py -g), the owner's schedule of 8 Nov 2026: crypto right after its UTC
+// The games of the three daily runs (Predictor.py -g), the schedule of 8 Nov 2026: crypto right after its UTC
 // day closes, the lottery games in the early morning (06:00 Brussels since 9 Nov 2026: at 00:30 UTC the Nationale
 // Loterij API answered every game with an empty reply), the shares in the evening once Euronext's day is complete.
 const CRYPTO_GAMES = 'crypto,cryptoweek';
@@ -149,7 +149,7 @@ const JOBS = [
     catchUpHours: 20,
   },
   {
-    // The owner's decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
+    // The decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
     // open-to-close book is one nobody could have followed. Euronext's day is complete after 18:00 Brussels
     // (src/MarketData.py EURONEXT_READY), so the run is at 18:05 (18:30 until 8 Nov 2026) and the card is up the
     // evening before.
@@ -225,7 +225,7 @@ const JOBS = [
     description: 'Scores every tracked row on fair synthetic and shuffled histories, three of each (five for the market games, a fresh block of seeds every run): '
                + 'what the best of the rows scores on nothing, the null band (NullControls.py, hours: a full backtest per history, which is '
                + 'why the controls have their own Sunday plan). Context only since 27 Oct 2026, in the Controls drawer: Q0 is the daily '
-               + "report's row test, and nothing is greyed or counted on the band. Monthly since 1 Nov 2026 (the owner's decision of 30 Oct 2026): "
+               + "report's row test, and nothing is greyed or counted on the band. Monthly since 1 Nov 2026 (the decision of 30 Oct 2026): "
                + 'on the first Sunday of the month only, as the first job of that Sunday\'s controls - the three weekly controls follow it that day; '
                + 'on the other Sundays the band of the last first Sunday stays on the page, with its date.',
     script: 'NullControls.py', args: ['-g', 'lotto,euromillions,eurodreams,vikinglotto,keno,pick3,jokerplus,crypto,shares,cryptoweek,sharesweek', '-m', 'both', '-n', '3', '--market-repetitions', '5', '--seed', 'weekly', '-d', '120'],
@@ -270,7 +270,7 @@ const JOBS = [
     script: 'MarketRows.py', args: ['-g', 'crypto,shares,cryptoweek,sharesweek', '-d', '250'], log: 'marketRows.log', plan: CONTROLS_PLAN,
   },
   {
-    // The owner's roadmap step 4 (8 Nov 2026): a backtest of one model on one game, started by an administrator from
+    // The roadmap step 4 (8 Nov 2026): a backtest of one model on one game, started by an administrator from
     // Admin › Parameters (backtests.js). Never scheduled and never "Run now": each queue entry carries its own id
     // (RunBacktest.py --id), several can wait, and the scheduled jobs always go first (startNext). A backtest only
     // starts when it has at least BACKTEST_MIN_SECONDS before the next scheduled run, and gets --budget to end
@@ -566,8 +566,8 @@ function record(entry) {
 }
 
 // --- the queue --------------------------------------------------------------
-// FIFO and single-worker, which is what makes the decisions taken with the
-// owner true: a Saturday chain that overruns into Sunday 09:00 queues that
+// FIFO and single-worker, which is what makes the scheduling decisions
+// hold: a Saturday chain that overruns into Sunday 09:00 queues that
 // day's predictor behind it rather than pre-empting the tuner. A job key is
 // never queued twice - a second copy of today's predictor would compute the
 // same day again.
@@ -747,7 +747,7 @@ function finish(exit, note, finishedAt) {
 // failed control leaves last week's record in place, and the reading names
 // every part that is not from this week - the four controls are summarised
 // into data/readings/<sunday>.json (readings.js), the admin pages' week-over-
-// week history (21 Oct 2026, the owner's decision). It runs after the run is
+// week history (21 Oct 2026, the decision). It runs after the run is
 // recorded, on a later turn of the event loop, inside its own try: a reading
 // that cannot be built or written is logged and changes nothing else - not
 // this run's record, not the schedule, not the next job, which has already
@@ -873,7 +873,7 @@ function pollCurrent() {
 }
 
 // --- the Sunday controls on the DL360 ---------------------------------------------------------------------------------
-// The owner's decision of 11 Nov 2026: when config/workers.json has a cpu entry (workers.js), the control plan's jobs
+// The decision of 11 Nov 2026: when config/workers.json has a cpu entry (workers.js), the control plan's jobs
 // run on the DL360 instead of in this queue - same trigger (Sunday's predictor finishing), same order, same records
 // and the same week's reading, but this server's queue no longer waits behind them (the monthly Q0 band held the
 // daily runs up to twelve hours). They have their own FIFO here (state.remote): one at a time, beside the scheduler's
@@ -882,7 +882,7 @@ function pollCurrent() {
 // so the four controls of a Sunday read the same draws), runs the control there over ssh and copies its records back
 // into data/controls/ - this server stays the only writer of data/. When the DL360 does not come up (or cannot be
 // copied to), the wrapper ends with REMOTE_NOT_STARTED before anything ran there, and this control and the ones
-// behind it are queued here instead, as before 11 Nov 2026 (the owner's fallback): no week's reading is lost.
+// behind it are queued here instead, as before 11 Nov 2026 (the fallback): no week's reading is lost.
 const REMOTE_NOT_STARTED = 75;
 let workerConfig = () => { try { return require('./workers').configOf('cpu'); } catch (e) { return null; } };
 let workerEnv = (c) => require('./workers').scriptEnv(c);
@@ -985,7 +985,7 @@ function finishRemote(exit, note, finishedAt) {
   r.current = null;
   saveState();
   if (notStarted) {
-    // the owner's fallback: this control and every one waiting behind it run here, in their order
+    // the fallback: this control and every one waiting behind it run here, in their order
     const moved = [run, ...r.queue.splice(0)];
     saveState();
     moved.forEach((q) => enqueue(q.key, `${q.reason}; here: the DL360 did not come up`, q.manual, { local: true }));

@@ -1,7 +1,7 @@
 """
 Lotto multi-pick (system play) - the 7th, 8th and 9th numbers.
 
-The owner's proposal (3 Oct 2026): keep predicting six numbers, but give
+The proposal (3 Oct 2026): keep predicting six numbers, but give
 every row three more - the model's next most probable numbers - so a
 reader can play a system of 7, 8 or 9 numbers (Belgian Lotto: 7 numbers =
 7 grids = 10.50 EUR, 8 = 28 grids = 42 EUR, 9 = 84 grids = 126 EUR, at
@@ -42,7 +42,7 @@ MULTI_PICK = {
 }
 
 
-# The number games whose tickets keep the row's own probability order, highest first (owner 2 Nov 2026, after lotto's of
+# The number games whose tickets keep the row's own probability order, highest first (2 Nov 2026, after lotto's of
 # 3 Oct: the order says which number the model rates highest, and whether the lower-rated places hit as often is a
 # fairness test): game -> how many leading numbers of a ticket are its mains, the rest (stars, the dream number, the
 # viking, lotto's bonus) left where they are; None orders the whole ticket (keno's tickets and subsets). Only lotto adds

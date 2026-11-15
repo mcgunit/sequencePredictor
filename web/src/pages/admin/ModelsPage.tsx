@@ -55,7 +55,7 @@ function BestCard({ d, onOpen }: { d: ModelsView; onOpen: (g: string) => void })
       help={
         <>
           Best row: the first row of the game&apos;s History ranking, with its record: the live draws apart from the back-built or late ones. The lottery games
-          rank on the live record since 27 Oct 2026 (the owner&apos;s decision): only the tickets saved before each draw&apos;s sales close count, a ticket
+          rank on the live record since 27 Oct 2026 (the decision): only the tickets saved before each draw&apos;s sales close count, a ticket
           rewritten after the draw as it stood at the close (&ldquo;as saved before the close&rdquo;), with every stored draw&apos;s value under the live one;
           the market games rank on every scored draw. Lotto, EuroMillions, EuroDreams, Vikinglotto and the market games rank on average hits; jokerplus, pick3 and keno on a capped
           profit bound, the mean minus 1 SE per bet: keno&apos;s bound is measured against a fair ticket of its size (0 is a fair ticket, not money won), so the raw

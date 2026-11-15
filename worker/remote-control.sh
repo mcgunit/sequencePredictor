@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One Sunday control on the CPU worker (the HP DL360; the owner's decision of 11 Nov 2026, docs/operations.md, The
+# One Sunday control on the CPU worker (the HP DL360; the decision of 11 Nov 2026, docs/operations.md, The
 # workers). jobs.js runs this with the worker's settings in the environment (config/workers.json, as workers.js gives
 # them to remote-backtest.sh):
 #   WORKER_HOST  ssh target    WORKER_DIR  the worker's folder (venv/, app/ for the backtests, controls/ for these)

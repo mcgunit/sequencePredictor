@@ -1,5 +1,5 @@
 'use strict';
-// The worker machines (owner, 8-10 Nov 2026; docs/operations.md, The workers). This server stays the only writer of
+// The worker machines (8-10 Nov 2026; docs/operations.md, The workers). This server stays the only writer of
 // data/: for each backtest it runs worker/remote-backtest.sh, which copies the code and the training data to the
 // worker, runs RunBacktest.py there over ssh and copies the backtest's record back (progress every 15 s, then the
 // result). Two lanes, each its own queue beside the scheduler's (jobs.js): a worker run takes no process.lock and
@@ -20,7 +20,7 @@
 //    "cpu": {"host": "root@<address>", "iloEnv": "/root/.config/sequencePredictor/ilo.env", "idleMinutes": 10}}
 // "dir" (/opt/sequencePredictor-worker) and "python" (<dir>/venv/bin/python) are optional; "enabled": false switches
 // a lane off. "localDir" (cpu, /opt/sequencePredictor-worker-local) is where a hyperopt runs on this server when the
-// DL360 does not come up (the owner's fallback, 12 Nov 2026), with this server's python3, niced. Without a gpu entry the deep-learning rows cannot be backtested; without a cpu entry the other rows run
+// DL360 does not come up (the fallback, 12 Nov 2026), with this server's python3, niced. Without a gpu entry the deep-learning rows cannot be backtested; without a cpu entry the other rows run
 // in the scheduler's queue on this server, as before.
 const fs = require('fs');
 const path = require('path');
@@ -52,7 +52,7 @@ const POWER_FRESH_MS = 30 * 1000;
 const DEFAULT_DIR = '/opt/sequencePredictor-worker';
 const DEFAULT_LOCAL_DIR = '/opt/sequencePredictor-worker-local';
 // worker/remote-hyperopt.sh's exit code when the DL360 did not come up (or could not be copied to) before the tuner
-// ran there: the hyperopt then runs on this server (the owner's fallback, 12 Nov 2026)
+// ran there: the hyperopt then runs on this server (the fallback, 12 Nov 2026)
 const NOT_STARTED = 75;
 const safePath = (v) => typeof v === 'string' && /^\/[A-Za-z0-9_./-]{1,200}$/.test(v);
 

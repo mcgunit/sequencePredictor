@@ -163,7 +163,7 @@ ok(gv.status.weeklyTotal === -3.5 && gv.status.week.guarded === true && gv.close
    && gv.closed.find((q) => q.game === 'week' && q.symbol === 'ETH').exit === 'week end · bought Mon 5 Oct',
    `the weekly record is the guarded book's, each position dated its week's close with the days it was held: ${JSON.stringify(gv.closed.filter((q) => q.game === 'week'))}`);
 const gDaily = Object.fromEntries(gv.daily.map((d) => [d.date, d]));
-// the page counts what it said (owner, 20 Oct 2026): before GUARD_SHOWN_FROM (26 Oct) the plain week, the guard as information
+// the page counts what it said (20 Oct 2026): before GUARD_SHOWN_FROM (26 Oct) the plain week, the guard as information
 const pv = api.marketView('crypto', record, guardedWeek, now);
 const ethPlain = pv.open.find((q) => q.game === 'week' && q.symbol === 'ETH');
 ok(pv.week.guarded === false && ethPlain.status === 'held' && ethPlain.sellText === 'Mon 19 Oct 02:00' && ethPlain.guard.booked === false
@@ -353,7 +353,7 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
   const ethFlat = { status: 'no order', call: 'down', bin: 3, limit: null, entry_price: null, limit_pct: null, reason: 'call down' };
   const withDay = (symbols, extra) => ({ ...record, trading: { ...record.trading, orders: dayBook(symbols, extra) } });
   const dayRec = withDay({ BTC: btcBuy, ETH: ethFlat });
-  // the default ORDERS_SHOWN_FROM (Mon 2 Nov 2026, owner 31 Oct): before a card of that day is on the page, the user page
+  // the default ORDERS_SHOWN_FROM (Mon 2 Nov 2026, 31 Oct): before a card of that day is on the page, the user page
   // does not change at all - here on 15 Oct, and below with the clock on 1 Nov and on 2 Nov before the run
   ok(JSON.stringify(api.marketView('crypto', dayRec, weekRecord, now)) === JSON.stringify(api.marketView('crypto', record, weekRecord, now)),
      'before ORDERS_SHOWN_FROM the order book changes nothing on the user page');
@@ -371,7 +371,7 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
     ok(!bad.length, `${label}: no user-facing string carries a bare book status: ${JSON.stringify(bad)}`);
     vw.open.filter((q) => q.order && q.status !== 'no order').forEach((q) => ok(q.order.branches.length >= 1 && q.order.branches.every((b) => /^If you /.test(b.who)),
       `${label} ${q.symbol}: every branch is labelled by the reader's situation: ${JSON.stringify(q.order.branches)}`));
-    // the compact cells (owner 31 Oct): Buy is an instruction chip, Sell either a chip or an order line, and a Hold or Sell
+    // the compact cells (31 Oct): Buy is an instruction chip, Sell either a chip or an order line, and a Hold or Sell
     // line says whose it is ("if you ..." / "bought earlier? ...") - a bare "Held" or "Out" never reaches the table
     vw.open.filter((q) => q.order).forEach((q) => {
       const c = q.order.cells;
@@ -497,7 +497,7 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
   staleRec.trading.orders.now.interval = '2026-10-14';
   ok(!api.marketView('crypto', staleRec, weekRecord, now, O).open.find((q) => q.game === 'day').order, 'an order state for another day is not shown as today\'s card');
   // before ordersFrom (no card of that day on the page yet): the old page exactly - the old card, the record wholly old,
-  // no labelled lines (owner, 31 Oct 2026: the switch changes nothing until its day's card is out)
+  // no labelled lines (31 Oct 2026: the switch changes nothing until its day's card is out)
   const early = api.marketView('crypto', dayRec, weekRecord, now, { ordersFrom: '2026-10-20' });
   ok(!early.open.find((q) => q.game === 'day').order && early.closed.every((q) => q.rule !== 'orders') && early.orders === null
      && JSON.stringify(early) === JSON.stringify(api.marketView('crypto', record, weekRecord, now, { ordersFrom: '2026-10-20' })),

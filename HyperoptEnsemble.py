@@ -132,7 +132,7 @@ GATE_SE_MARGIN = 1.0
 GATE_REVERT_MARGIN = 0.0
 GATE_TIMEOUT_SECONDS = 300    # one subset scores in milliseconds; the reference evaluations run in a forked child
 
-# The variety rule (owner, 12 Nov 2026: the same gate everywhere, the weekly chain included). The vote of a combination
+# The variety rule (12 Nov 2026: the same gate everywhere, the weekly chain included). The vote of a combination
 # gives one ticket per scored day - its main ticket (a lottery game; keno's 20-number vote, from which the playable
 # sub-selections are sliced) or the per-slot vote's ticket (pick3, Joker+) - so the draws measure applies: a
 # combination whose vote gave the same ticket on VARIETY_LINE or more of its scored days is input-blind
@@ -471,7 +471,7 @@ def member_scores(candidates, dataset_name, evaluation_days, confidencePenalty=D
     value (too few scored days) are left out and weigh 1.0, like an unscored
     row.
 
-    The market games weigh their SubsetEnsemble Model by these (owner, 25 Oct
+    The market games weigh their SubsetEnsemble Model by these (25 Oct
     2026): there modelScores hold only the four statistical rows, so every
     other member weighed 1.0 and "weighted" was nearly the flat vote. Scored
     on the window the subsets are selected on, the weights are in-sample on
@@ -1413,9 +1413,9 @@ if __name__ == "__main__":
                  "(src/TuningResult). The Hyperopts page runs the tuner this way with -s false (12 Nov 2026).")
         parser.add_argument(
             '--variety-line', type=float, default=None,
-            help="The variety rule's line (owner, 12 Nov 2026): a combination whose vote gives the same ticket on this "
+            help="The variety rule's line (12 Nov 2026): a combination whose vote gives the same ticket on this "
                  "share of its scored days or more is input-blind - neither written nor served back (lottery games "
-                 "only). 0.5-1.0 (or 50-100); default the owner's setting in config/tuning.json, else 0.95.")
+                 "only). 0.5-1.0 (or 50-100); default the setting in config/tuning.json, else 0.95.")
         parser.add_argument(
             '-g', '--games',
             type=str,

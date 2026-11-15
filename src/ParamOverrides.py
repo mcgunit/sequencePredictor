@@ -1,5 +1,5 @@
 """
-Manual parameter overrides (owner's roadmap step 3, 8 Nov 2026): an administrator sets a value for one model's
+Manual parameter overrides (roadmap step 3, 8 Nov 2026): an administrator sets a value for one model's
 setting on Admin > Parameters, and it wins over the tuners' bestParams_<game>.json until someone releases it.
 
 The overrides live in their own file, config/paramOverrides.json (gitignored, written only by the server, params.js),
@@ -17,8 +17,8 @@ request to train from new weights once (set by the server when one of the row's 
 the predictor honours it on the row's next training and records it in data/models/fresh-<game>.json, so it is done
 once, not every day.
 
-Where it applies: Predictor.py's daily predictions (the served configuration) and TrainMetaLearner.py (owner,
-8 Nov 2026: the meta-learners are trained on the rows the daily run serves). The weekend tuners score their own file
+Where it applies: Predictor.py's daily predictions (the served configuration) and TrainMetaLearner.py
+(8 Nov 2026: the meta-learners are trained on the rows the daily run serves). The weekend tuners score their own file
 and the controls read it too - an override is a researcher's experiment on the served rows, not a new tuned value.
 
     python3 -m src.ParamOverrides     (self-check)

@@ -13,11 +13,11 @@ import Drawer, { Section } from '../../components/admin/Drawer';
 import Toast from '../../components/admin/Toast';
 import { Failed, Loading, PageHead } from '../../components/admin/States';
 
-// /admin/hyperopts (owner, 11-12 Nov 2026): the hyperopts administrators started - one tuner on one game (hyperopts.js,
+// /admin/hyperopts (11-12 Nov 2026): the hyperopts administrators started - one tuner on one game (hyperopts.js,
 // worker/remote-hyperopt.sh): deep learning on the GPU worker, the other five tuners on the DL360 (or this server when
 // it does not come up), each in its worker's backtest queue, one at a time, beside the schedule. Record only: a run
 // writes nothing that is served. Its drawer (?ho=) shows each study's gate verdict and the values it would write; Apply
-// writes them into bestParams_<game>.json on this server. The variety line card sets the owner's line.
+// writes them into bestParams_<game>.json on this server. The variety line card sets the line.
 const LIVE_MS = 10000;
 const IDLE_MS = 30000;
 
@@ -125,7 +125,7 @@ export default function HyperoptsPage() {
 const rowText = (h: Hyperopt) => (h.tuner === 'deeplearning' ? short(h.row) : `${h.tunerLabel}${h.model ? `: ${short(h.row)}` : ''}`);
 const workerText = (h: Hyperopt) => h.where ?? (h.worker === 'cpu' ? 'the DL360' : 'the GPU worker');
 
-// The variety line (owner, 12 Nov 2026): the setting the weekly tuning uses, and what a new hyperopt starts with
+// The variety line (12 Nov 2026): the setting the weekly tuning uses, and what a new hyperopt starts with
 function VarietySetting({ d, onChanged }: { d: HyperoptList; onChanged: () => void }) {
   const sender = useSend(onChanged);
   const [v, setV] = useState(String(d.variety.varietyLine));
@@ -629,10 +629,10 @@ function GateLine({ h, r }: { h: Hyperopt; r: Record<string, unknown> }) {
   );
 }
 
-// Variety (owner, 11-12 Nov 2026): how often each candidate gave the same ticket. Deep learning: across a draw's
+// Variety (11-12 Nov 2026): how often each candidate gave the same ticket. Deep learning: across a draw's
 // validation windows (input-blind at the line or more on at least half of its draws) and, since 13 Nov 2026, across
 // its backtested draws as well (input-blind at the line or more, the other tuners' measure); the other tuners: across the
-// scored backtest draws (input-blind at the line or more). The line is the owner's setting (the run's own value is in
+// scored backtest draws (input-blind at the line or more). The line is a setting (the run's own value is in
 // the record). An input-blind candidate is neither written nor served back. Records from before the rule show nothing.
 type Side = {
   same_ticket_mean?: unknown; blind_days?: unknown; variety_days?: unknown; input_blind?: unknown; distinct_tickets?: unknown; tickets?: unknown;

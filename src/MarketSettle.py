@@ -56,17 +56,17 @@ except ImportError:  # imported from within src/
                             predicted_price, price_interval, representative_return)
 
 FEE = 0.001            # 0.1% per position taken - a taker fee on a large exchange; shares are cheaper, this is the conservative one
-# Paper trading in money (2 Oct 2026, the owner's ask: "for each prediction 1 is
+# Paper trading in money (2 Oct 2026, the request: "for each prediction 1 is
 # bought and the next day sold"): a fixed stake per position in the quote
 # currency, bought at the previous game day's close when a model's bin says up
 # (the upper half), sold at the day's close, a fee on each leg; flat otherwise.
 # A fixed stake rather than one coin or one share, because one BTC and one XRP
 # are not comparable positions. Holding across days and shorts are the later
-# extensions the owner named; this is the first, simplest rule.
+# extensions named then; this is the first, simplest rule.
 STAKE = 100.0          # per position, in USDT: crypto's stake (stake_for: the shares' since 31 Oct 2026 is SHARES_STAKE)
 MIN_RANK_DAYS = 10     # a model with fewer settled days ranks after the others (the page's "best" and the drawn models follow this order)
 FEE_PER_LEG = 0.001    # 0.1% on the buy and 0.1% on the sell (crypto; the shares pay Bolero's costs - Costs)
-# The shares as a Belgian private investor would trade them (the owner's decision of 31 Oct 2026, when the five
+# The shares as a Belgian private investor would trade them (the decision of 31 Oct 2026, when the five
 # shares moved to Euronext): 1,000 EUR a position in WHOLE shares - the number of shares the stake buys at the entry
 # price, rounded down, so a little of the stake stays unspent - at Bolero's costs on every buy and every sell: the
 # broker's fee by order value (BOLERO_TIERS: 2.50 EUR up to 250, 5.00 up to 1,000, 7.50 up to 2,500, then 15.00 per
@@ -1034,7 +1034,7 @@ GUARD_FORWARD_FROM = "2026-10-19"
 def guard_trades(days, verdict):
     """
     The guarded week's positions for one instrument, from its daily calls
-    (owner, 16-17 Oct 2026). `days` are the week's game days in order,
+    (16-17 Oct 2026). `days` are the week's game days in order,
     `verdict(day)` True (up), False (flat or down) or None (no daily call).
     Out at the start; on a day whose call is True the position is bought at
     the day's entry (or kept); on a day whose call is False a held position

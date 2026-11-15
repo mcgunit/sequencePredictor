@@ -1,9 +1,9 @@
 """
-The run machinery of HyperoptDeepLearning.py that needs no TensorFlow (owner, 6 Nov 2026).
+The run machinery of HyperoptDeepLearning.py that needs no TensorFlow (6 Nov 2026).
 
 The deep-learning tuner is run by hand and takes days: on production's last study (Joker+ LSTM, 17 Sep 2026) a
 trial took 41 minutes - eight trainings of up to 1,000 epochs, one per rebuilt draw - and the default run is
-7 games x 7 model types x 15 trials. What this module adds, on the owner's go-ahead for A-E and the gate:
+7 games x 7 model types x 15 trials. What this module adds, on the go-ahead for A-E and the gate:
 
   A  resume       a run keeps a marker (data/hyperOptCache/deeplearning-run.json) with its settings, per study the
                   trials that existed when the run first opened it, and the studies it finished. The same command
@@ -25,7 +25,7 @@ by GATE_SE_MARGIN standard errors of its own score; the defaults are served back
 incumbent. The defaults are what Predictor.py trains when a key is missing (PREDICTOR_DEFAULTS below, kept in step
 with Predictor.runUnifiedDeepLearningModels and LSTMModel's constructor).
 
-What the score is, and what it is not (7 Nov 2026, the owner's go-ahead after the first production run): minus the
+What the score is, and what it is not (7 Nov 2026, the go-ahead after the first production run): minus the
 mean over the rebuilt days of the row's excess loss - its plain cross-entropy on its validation windows minus that
 of the training frequencies, no label smoothing and no L2 on either (src/LearningCheck.py, excessLoss). 0 = as good
 as serving the counts, above 0 = better. Until then it was minus the mean val_loss plus 0.05 x the hits (capped):
@@ -71,7 +71,7 @@ DAYS = 3
 SCORE_KIND = "skill_vs_counts"
 # the studies of this score (old trials scored minus val_loss + hits; their scale must not feed the sampler/pruner)
 STUDY_SUFFIX = "skill"
-# The aim of a run (owner, 14 Nov 2026: "the variety target in the score" - the pick3 UnifiedLstmGruTcn row, 47
+# The aim of a run (14 Nov 2026: "the variety target in the score" - the pick3 UnifiedLstmGruTcn row, 47
 # different tickets over 61 draws at about +0.02 nats over the counts, is how the other rows should predict, and the
 # skill score pulls every row towards the flat counts and one ticket instead):
 #   variety  how much the tickets follow the input - 1 minus the share of a draw's validation windows that got the
@@ -82,7 +82,7 @@ STUDY_SUFFIX = "skill"
 VARIETY_KIND = "variety_within_tolerance"
 AIMS = {"variety": VARIETY_KIND, "skill": SCORE_KIND}
 AIM = "variety"
-# nats of mean excess validation loss over the counts a candidate may carry for free (the owner's example carries
+# nats of mean excess validation loss over the counts a candidate may carry for free (the example carries
 # about 0.020); --loss-tolerance, the page's field
 LOSS_TOLERANCE = 0.025
 LOSS_TOLERANCE_RANGE = (0.001, 1.0)
@@ -174,13 +174,13 @@ def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tic
     the days (None with fewer than two). No finite day: score -inf, which the gate never writes. hits (the profit
     calculate_profit gives over the days), the days' val_loss and the learning-check verdicts are on the record only.
 
-    Variety (owner, 11 Nov 2026: a usable parameter set must predict new sequences, not one ticket whatever the
+    Variety (11 Nov 2026: a usable parameter set must predict new sequences, not one ticket whatever the
     input): same_tickets is each day's learning-check sameTicket - the share of its validation windows that got the
     most common argmax ticket - and tickets each day's predicted ticket. variety() turns them into same_ticket_mean,
     blind_days, input_blind (the gate's rule, TuningGate.challenge(variety=True)) and distinct_tickets; `line` is the
-    owner's variety line (12 Nov 2026: a setting, --variety-line; INPUT_BLIND_SHARE without one).
+    variety line (12 Nov 2026: a setting, --variety-line; INPUT_BLIND_SHARE without one).
 
-    aim "variety" (owner, 14 Nov 2026; day_value): the score is the mean over the days with both an excess loss and a
+    aim "variety" (14 Nov 2026; day_value): the score is the mean over the days with both an excess loss and a
     sameTicket of the day's variety minus its loss penalty, score_se its standard error over those days; the record
     adds variety_mean, loss_penalty_mean, loss_tolerance and within_tolerance (the mean excess loss is at or under the
     tolerance). excess_mean stays the plain mean excess loss; the input-blind rule is unchanged.
@@ -228,8 +228,8 @@ def _variety_score(excess_losses, hits, val_losses, verdicts, same_tickets, tick
 
 # A day is input-blind when its learning check gave the same argmax ticket on this share of the validation windows
 # or more (src/LearningCheck.INPUT_BLIND_SHARE, repeated here so this module stays import-free); a candidate is
-# input-blind when at least half of its checked days are (owner, 11 Nov 2026: the 95% line; 12 Nov 2026: the line is
-# the owner's setting - config/tuning.json for the weekly chain, the page's field for a run - and this the default).
+# input-blind when at least half of its checked days are (11 Nov 2026: the 95% line; 12 Nov 2026: the line is
+# the setting - config/tuning.json for the weekly chain, the page's field for a run - and this the default).
 INPUT_BLIND_SHARE = 0.95
 
 
@@ -246,7 +246,7 @@ def variety(same_tickets, tickets, line=None):
     blind = sum(1 for v in shares if v >= line - 1e-12)
     shown = [json.dumps(t, sort_keys=True, default=str) for t in tickets if t not in (None, [], "")]
     windows_blind = (2 * blind >= len(shares)) if shares else None
-    # the draws check (owner, 13 Nov 2026): the 13 Nov pick3 LSTM run's winner gave the same ticket on 94% of its
+    # the draws check (13 Nov 2026): the 13 Nov pick3 LSTM run's winner gave the same ticket on 94% of its
     # windows on every draw - just under the line, so it passed - and the same ticket on all 10 draws. A candidate is
     # also input-blind when it gives the same ticket on the line's share of its rebuilt draws or more (the other
     # tuners' measure, src/TuningResult.variety_of_tickets; two draws at least, else nothing to judge).
@@ -390,7 +390,7 @@ def finish_run(folder, marker):
 
 
 # --- the result file (--result-file; a run started from the admin pages, 11 Nov 2026) ---
-# The owner's decision: a hyperopt started from the Hyperopts page runs on the GPU worker and writes nothing that is
+# The decision: a hyperopt started from the Hyperopts page runs on the GPU worker and writes nothing that is
 # served - its copy of bestParams_<game>.json is thrown away - and the page shows this file instead: per study the
 # trials done, the best of this run, and the gate's verdict with the parameters it would write (Apply on the page
 # writes them on the main server). Replaced atomically, so a copy taken mid-write is never half a file.
@@ -446,7 +446,7 @@ def _self_check():
     assert day_excess({"excessLoss": -0.004}) == -0.004 and day_excess(None) is None
     assert day_excess({"excessLoss": float("nan")}) is None and day_excess({}) is None
     assert study_name("lotto", "gnn_model") == "lotto-gnn_model-skill"
-    # the variety aim (14 Nov 2026). The owner's example - pick3 UnifiedLstmGruTcn, the same ticket on 12% of its
+    # the variety aim (14 Nov 2026). The example - pick3 UnifiedLstmGruTcn, the same ticket on 12% of its
     # windows at +0.02 nats - scores its variety in full (inside the 0.025 tolerance); the 604 rows (one ticket, as
     # good as the counts) score about nothing; a candidate at twice the tolerance has lost the whole range
     assert study_name("lotto", "gnn_model", "variety") == "lotto-gnn_model-variety" and AIMS[AIM] == VARIETY_KIND

@@ -58,7 +58,7 @@ Council (and in its foot their account, What's new and Sign out); the administra
 a status dot: red when a run failed or an output is missing, amber for a new warning signature) and the Controls,
 Models and System groups. Server pages are plain anchors, marked ↗ while the app has no page of its own for them.
 
-The users' pages follow the owner's rules of 21-23 Oct 2026: a user sees the top 5 rows of each game's History ranking
+The users' pages follow the rules of 21-23 Oct 2026: a user sees the top 5 rows of each game's History ranking
 (the coming draw: today's five; a past draw: the five ranked before it), never a row outside them - the server does
 not send one - and every figure is over those five; Home, the Lottery and the Council say whose number each figure is
 and over which window.

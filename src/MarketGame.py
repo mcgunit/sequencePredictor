@@ -22,8 +22,8 @@ history) crypto's outer bins hold 4-5% of the days and shares' 12-15%.
 The chance levels (MarketSettle.chance_levels, 1 in 10 for the exact bin)
 are the design target and approximately true: 1 in 10 is exact for a call
 made at random, while a call that keeps naming a bin its stretch over-fills
-beats it without any skill. The expanding window stays (the owner's
-decision of 25 Oct 2026); only this description changed.
+beats it without any skill. The expanding window stays (decided
+25 Oct 2026); only this description changed.
 
 The game history is written where every lottery game keeps its history,
 data/trainingData/<market>/<market>-gamedata-NL-<year>.csv, in the same

@@ -215,7 +215,7 @@ GATE_REVERT_MARGIN = 0.0
 # warned, and 22 of lotto's 90 tuning draws were lockbox draws).
 LOCKBOX = None
 
-# The Hyperopts page (owner, 12 Nov 2026; HyperoptDeepLearning.py is the reference, src/TuningResult.py the shared
+# The Hyperopts page (12 Nov 2026; HyperoptDeepLearning.py is the reference, src/TuningResult.py the shared
 # helpers). With --result-file a run also writes each study's state there - running / gate / done / failed, the
 # trials done, what is being scored right now (a trial or a gate reference, and its day), and the gate's verdict
 # with what it writes and what "Apply this run's best" would write. Without it (the weekly chain) nothing of this is
@@ -227,7 +227,7 @@ CURRENT_ROLE = "trial"      # "trial", or "incumbent"/"default" while the gate r
 CURRENT_TRIAL = None        # the trial number being scored (set by trial_objective in the trial's own process)
 CURRENT_EVERY_SECONDS = 5.0  # at most one "current" write per process this often (plus the window's last day)
 _last_current_write = [0.0]
-# The variety rule (owner, 11-12 Nov 2026): a candidate that gives the same ticket on VARIETY_LINE or more of its scored
+# The variety rule (11-12 Nov 2026): a candidate that gives the same ticket on VARIETY_LINE or more of its scored
 # backtest draws is input-blind - neither written nor served back, and it blocks nothing (TuningGate.challenge
 # variety=True). Set in __main__ from --variety-line or config/tuning.json; TuningControls.py and RunBacktest.py,
 # which import this module, score with the default line (their records carry the fields, their decisions ignore them).
@@ -484,7 +484,7 @@ def objective_markov(trial, dataset_name, dataPath, game_cfg, days_to_rebuild, y
 
 # MarkovMonteCarlo's chain: the (low, high) the study searches for its order and
 # for the count under which a transition is pruned. The week games search a
-# narrower box (25 Oct 2026, the owner's item 6). Markov._normalize_table drops
+# narrower box (25 Oct 2026, item 6). Markov._normalize_table drops
 # every transition whose recency-weighted count is under markovMcMinOccurences,
 # and a column whose current context has none left falls back to its plain
 # frequencies - the chain then plays no part. The week games are short: 223
@@ -712,7 +712,7 @@ _KENO_SUBSET_TUNING_CACHE = {}
 
 # The meta rows whose Keno sub-selection mode/temperature the subset tuning searches, with their artifact
 # (data/models/keno/) and the bestParams keys Predictor.runMetaLearnerVariant reads for them. The quantum
-# rows and the classical control joined on 15 Oct 2026 (the owner's item 3): until then they played the
+# rows and the classical control joined on 15 Oct 2026 (item 3): until then they played the
 # untuned softmax / 0.5 defaults while the classical meta rows were tuned.
 KENO_SUBSET_META_ROWS = {
     "meta": ("meta_learner.joblib", "metaLearnerSubsetMode", "metaLearnerSubsetTemperature"),
@@ -1511,7 +1511,7 @@ if __name__ == "__main__":
             default=",".join(GAME_CONFIG.keys()),
             help='Comma-separated list of games, e.g. "keno,pick3,jokerplus"'
         )
-        # The Hyperopts page (owner, 12 Nov 2026). -s is --strategies here, so the save flag is --save only.
+        # The Hyperopts page (12 Nov 2026). -s is --strategies here, so the save flag is --save only.
         parser.add_argument(
             '--save', type=helpers.str2bool, default=True,
             help='Commit and push bestParams at the end (helpers.git_push). The Hyperopts page runs this tuner with '
@@ -1523,9 +1523,9 @@ if __name__ == "__main__":
                  'Without it nothing of this is written (the weekly chain).')
         parser.add_argument(
             '--variety-line', type=float, default=None,
-            help='The variety rule\'s line (owner, 12 Nov 2026): a candidate giving the same ticket on this share of '
+            help='The variety rule\'s line (12 Nov 2026): a candidate giving the same ticket on this share of '
                  'its scored backtest draws or more is input-blind - neither written nor served back (lottery games '
-                 'only). 0.5-1.0 (or 50-100); default the owner\'s setting in config/tuning.json, else %g.'
+                 'only). 0.5-1.0 (or 50-100); default the setting in config/tuning.json, else %g.'
                  % tres.DEFAULT_VARIETY_LINE)
 
         args = parser.parse_args()
@@ -1732,7 +1732,7 @@ if __name__ == "__main__":
                         # trial that caught the biggest payout (pick3 Markov's 21
                         # per bet and PoissonMonteCarlo's 42 are one and two
                         # straights in a 31-day window, nothing else).
-                        # The variety rule (owner, 11-12 Nov 2026), the weekly chain included: an input-blind trial
+                        # The variety rule (11-12 Nov 2026), the weekly chain included: an input-blind trial
                         # or reference (the same ticket on VARIETY_LINE of the scored draws or more, run_backtest's
                         # tuning record) is neither written nor served back and blocks nothing. The lottery rows only
                         # (variety_applies): the market games' rows carry no variety fields, so it would change nothing

@@ -68,13 +68,13 @@ function denied(req) {
 }
 
 // Who sits on the council and how to reach them (GET /council/api/endpoints: the members, their labs and
-// temperatures, the head, the preset, each endpoint's reachability) is the administrator's (owner, 23 Oct 2026).
+// temperatures, the head, the preset, each endpoint's reachability) is the administrator's (23 Oct 2026).
 // Open access (no login configured) is the administrator, as everywhere else.
 function isAdmin(req) {
   return Boolean(req.user && (req.user.open === true || req.user.role === 'admin'));
 }
 
-// What a user is sent of a run (owner, 23 Oct 2026: the members' and endpoints' details are the administrator's).
+// What a user is sent of a run (23 Oct 2026: the members' and endpoints' details are the administrator's).
 // api.py's job and the turn filed from it carry both - a lab on every member and on the head, and a failed run's
 // "EndpointsUnavailable: <member>: http://<host>:<port> unreachable: ..." (its preflight, when the model boxes are
 // off) - so a user's copy is cleaned here, on the server, not only on the page. The administrator gets them whole.

@@ -9,10 +9,10 @@ Belgians won it - back to at least 2015 (checked 3 Nov 2026). This module
 keeps those tables, one file per game next to its draws
 (data/trainingData/<game>/<game>-prizes.json, {date: entry}), and scores a
 ticket against the table of its own draw, so the performance report can
-rank these games on profit too (owner, 3 Nov 2026; average hits stays the
+rank these games on profit too (3 Nov 2026; average hits stays the
 fallback wherever a draw has no table).
 
-The rules a ticket is scored by (owner's decisions, 3 Nov 2026):
+The rules a ticket is scored by (decided 3 Nov 2026):
 
   one grid, the row's own ticket   Lotto: the six numbers (the 7th-9th of
       the multi-pick stay a hit-rate study), EuroMillions five numbers and
@@ -27,7 +27,7 @@ The rules a ticket is scored by (owner's decisions, 3 Nov 2026):
   the raffles (Lucky Lotto, My Bonus) are drawn on a code, not on the
       numbers: not scored.
 
-Vikinglotto joined on 5 Nov 2026 (owner confirmed its tiers): 'k' is k
+Vikinglotto joined on 5 Nov 2026 (its tiers confirmed): 'k' is k
 numbers without the viking number, 'k+Fav' k numbers with it, '6/' all six
 whatever the viking number (the jackpot); one number already pays 2.00 EUR,
 the price back. The winner counts fit those odds (checked 4 Nov 2026).

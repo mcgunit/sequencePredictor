@@ -1,14 +1,14 @@
 'use strict';
-// Backtests started from the admin pages (owner's roadmap step 4, 8 Nov 2026): one model on one game, walked forward
+// Backtests started from the admin pages (roadmap step 4, 8 Nov 2026): one model on one game, walked forward
 // over the newest draws with the weekend tuner's own score (RunBacktest.py), run by the scheduler as its "backtest"
 // job (jobs.js: behind every scheduled job, and only when it can end before the next scheduled run).
 //
 // One record per backtest in config/backtests/<id>.json (gitignored; data/ is committed by the pipeline): the server
 // writes the request (status "queued"), RunBacktest.py rewrites it with its progress and its result. Admins start
-// them freely (owner: researchers are admins).
+// them freely (researchers are admins).
 //
 // The deep-learning rows (GPU_ROWS, since 10 Nov 2026) run on the GPU worker instead (workers.js: its own queue, no
-// process.lock, not tied to the schedule), 3 draws by default and 30 at most (owner): each draw is a retrain. With a
+// process.lock, not tied to the schedule), 3 draws by default and 30 at most: each draw is a retrain. With a
 // CPU worker set up (the DL360, since 10 Nov 2026) the other rows run there, in its own queue; without one, in the
 // scheduler's queue as before. A record keeps the lane it was queued in ("worker": gpu, cpu or server).
 const fs = require('fs');
@@ -164,7 +164,7 @@ function cancel(root, id, user, jobs, workers = null) {
   return r.ok ? r : { ok: true, status: 200, message: 'Backtest cancelled' };
 }
 
-// Delete (owner, 14 Nov 2026): the backtest's record. Refused while it is queued or running (stop or cancel it first).
+// Delete (14 Nov 2026): the backtest's record. Refused while it is queued or running (stop or cancel it first).
 // The lane's log keeps its lines; nothing that is served is touched (a backtest writes none of it).
 function remove(root, id, user, jobs, workers = null) {
   const rec = readRecord(root, id);

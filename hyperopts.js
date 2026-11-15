@@ -1,13 +1,13 @@
 'use strict';
-// Hyperopts started from the admin pages (owner, 11 Nov 2026; docs/operations.md, The workers). One tuner on one game
+// Hyperopts started from the admin pages (11 Nov 2026; docs/operations.md, The workers). One tuner on one game
 // (and, where the tuner has several rows, one row), run on a worker beside the schedule (no process.lock here):
 //   deep learning  HyperoptDeepLearning.py, one model, on the GPU worker (workers.js gpu lane, the deep-learning
 //                  backtests' queue) - since 11 Nov 2026
-//   statistics, boosting, ensemble, quantum, RL  the other five tuners (owner, 12 Nov 2026), on the CPU worker (the
+//   statistics, boosting, ensemble, quantum, RL  the other five tuners (12 Nov 2026), on the CPU worker (the
 //                  DL360, workers.js cpu lane, the statistical and boosting backtests' queue) - or on this server in a
-//                  folder of its own when the DL360 does not come up (the owner's fallback; worker/remote-hyperopt.sh)
+//                  folder of its own when the DL360 does not come up (the fallback; worker/remote-hyperopt.sh)
 //
-// Record only (the owner's decision): the run writes nothing that is served. The worker's copy of
+// Record only (the decision): the run writes nothing that is served. The worker's copy of
 // bestParams_<game>.json is thrown away; the tuner's --result-file (src/TuningResult.py) comes back as
 // config/hyperopts/<id>.result.json (per study: trials done, what is scored now, this run's best, the gate's verdict and
 // what it would write), and the page shows it. Apply writes that - the gate's, or this run's best trial against the
@@ -16,7 +16,7 @@
 // the predictor may be writing the same file), and warns when a value it would replace was changed since the run
 // started (the served file is snapshotted then).
 //
-// The variety line (owner, 12 Nov 2026): a setting - config/tuning.json {"varietyLine"} is what the weekly chain uses
+// The variety line (12 Nov 2026): a setting - config/tuning.json {"varietyLine"} is what the weekly chain uses
 // (src/TuningResult.load_variety_line), and every run from this page passes its own (--variety-line, the form's field,
 // the setting by default).
 //
@@ -61,7 +61,7 @@ const FIELDS = {
   trialTimeout: { default: 7200, min: 600, max: 6 * 3600, integer: true },
   gateSeMargin: { default: 1, min: 0, max: 5, integer: false },
 };
-// The deep-learning tuner's aim (owner, 14 Nov 2026; src/DeepLearningTuning.AIMS): variety - how much the tickets
+// The deep-learning tuner's aim (14 Nov 2026; src/DeepLearningTuning.AIMS): variety - how much the tickets
 // follow the input, within a tolerance of the counts' loss (nats of mean excess validation loss) - or skill, the score
 // until then (minus the excess loss). Each aim has its own Optuna studies. A record from before has no aim: skill.
 const AIMS = { variety: 'Variety: tickets that follow the input, within the loss tolerance', skill: 'Skill: the lowest loss against the counts' };
@@ -169,7 +169,7 @@ function writeJson(file, value) {
 }
 const readRecord = (root, id) => (ID.test(String(id || '')) ? readJson(fileOf(root, id)) : null);
 
-// The owner's variety line (config/tuning.json), as a percentage: VARIETY.default without one
+// The variety line (config/tuning.json), as a percentage: VARIETY.default without one
 function settings(root) {
   const v = Number((readJson(path.join(root, SETTINGS_FILE)) || {}).varietyLine);
   const pctv = Number.isFinite(v) ? (v > 1 ? v : v * 100) : VARIETY.default;
@@ -347,7 +347,7 @@ function start(root, body, user, workers, now = new Date()) {
   const p = parsed.params;
   const t = TUNERS[p.tuner];
   const lane = workers && typeof workers.lane === 'function' ? workers.lane(t.lane) : null;
-  // the CPU tuners run on this server when no DL360 is set up (the owner's fallback); the GPU one needs its worker
+  // the CPU tuners run on this server when no DL360 is set up (the fallback); the GPU one needs its worker
   const local = t.lane === 'cpu' && !(lane && lane.config());
   if (!lane || (!local && !lane.config())) return { ok: false, status: 503, message: 'no GPU worker is set up (config/workers.json): the deep-learning hyperopts run there' };
   const slug = `${p.game}-${p.tuner === 'deeplearning' ? p.model : `${p.tuner}${p.model ? `-${p.model}` : ''}`}`.replace(/_/g, '-').toLowerCase();
@@ -385,7 +385,7 @@ function cancel(root, id, user, workers) {
   return r.ok ? { ...r, message: 'Hyperopt cancelled' } : { ok: true, status: 200, message: 'Hyperopt cancelled' };
 }
 
-// Delete (owner, 14 Nov 2026): the run's record, its result, the served snapshot and its log. Refused while the run is
+// Delete (14 Nov 2026): the run's record, its result, the served snapshot and its log. Refused while the run is
 // queued or running (stop or cancel it first). What stays: the trials in the Optuna study on the worker (the next run of
 // the same row still learns from them) and whatever was applied (bestParams_<game>.json is not touched).
 function remove(root, id, user, workers) {

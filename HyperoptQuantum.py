@@ -224,7 +224,7 @@ GATE_MARGIN = 0.0
 # revert here would compare two single fits, a coin flip on the seed.
 GATE_SE_MARGIN = 2.5
 
-# The variety rule (owner, 12 Nov 2026: the same gate everywhere, the weekly chain included). A trial's holdout
+# The variety rule (12 Nov 2026: the same gate everywhere, the weekly chain included). A trial's holdout
 # prediction IS a ticket per holdout day - the top draw_size numbers of the day's ranking (the ticket Predictor plays
 # from a meta-learner, sorted: a set of numbers) on the per-number games, the argmax ticket (in slot order) on Pick3
 # and Joker+ - so the draws measure applies: a parameter set whose classifier gave the same ticket on VARIETY_LINE or
@@ -979,9 +979,9 @@ if __name__ == "__main__":
                  "file (src/TuningResult). The Hyperopts page runs the tuner this way with -s false (12 Nov 2026).")
         parser.add_argument(
             '--variety-line', type=float, default=None,
-            help="The variety rule's line (owner, 12 Nov 2026): a parameter set whose classifier gives the same ticket "
+            help="The variety rule's line (12 Nov 2026): a parameter set whose classifier gives the same ticket "
                  "on this share of the holdout days or more is input-blind - neither written nor served back (lottery "
-                 "games only). 0.5-1.0 (or 50-100); default the owner's setting in config/tuning.json, else 0.95.")
+                 "games only). 0.5-1.0 (or 50-100); default the setting in config/tuning.json, else 0.95.")
         parser.add_argument(
             '-g', '--games',
             type=str,

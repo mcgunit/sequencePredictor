@@ -15,7 +15,7 @@ import { LotteryFailed, UserGamePicker, drawHref, fromTo, lotteryHref, userText 
 // BEFORE each draw - the newest ranking saved before 15:00 Brussels time that day, or before its sales close when that
 // is earlier (13:00 on Sundays for Keno, Pick3 and Joker+) - never today's five; the draws before the first saved
 // ranking are left out, and one line says how many. A draw whose five's tickets were made after its sales close is
-// shown greyed and left out of the totals (27 Oct 2026, the owner's decision).
+// shown greyed and left out of the totals (27 Oct 2026, the decision).
 const MONTH = /^\d{4}-\d{2}$/;
 
 export default function LotteryGamePage() {

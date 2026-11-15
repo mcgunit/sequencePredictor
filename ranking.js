@@ -1,4 +1,4 @@
-// ranking.js - which model rows a reader sees, and in which order (3 Oct 2026, the owner's decision; 21 Oct 2026:
+// ranking.js - which model rows a reader sees, and in which order (3 Oct 2026, the decision; 21 Oct 2026:
 // a user sees the top five rows only, the administrator every row with an All / Top switch).
 //
 // One ranking for every page that says "the top models": the History ranking in

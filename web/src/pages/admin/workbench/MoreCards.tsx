@@ -86,7 +86,7 @@ export function GuardCard({ w }: { w: Workbench }) {
     <Card
       id="guard"
       title="The guard on the week positions"
-      help={`The owner's rule: ${g.rule}.`}
+      help={`The rule: ${g.rule}.`}
       meta={[`runs forward from ${day(g.forwardFrom)}`, `the user pages count it from the week of ${day(g.shownFrom)}`]}
       flush
     >

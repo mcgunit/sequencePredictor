@@ -1,4 +1,4 @@
-// readings.js - the week's reading (21 Oct 2026, the owner's decision): data/readings/<sunday>.json, one summary per
+// readings.js - the week's reading (21 Oct 2026, the decision): data/readings/<sunday>.json, one summary per
 // weekend of the four Sunday controls for every game - Q0's row tests as the report on disk ran them (27 Oct 2026: under
 // 5% against what chance puts there, holds, the rows followed and confirmed on new draws; the band as context), Q2's real,
 // shuffled and threshold AUC with its seeds and test windows; each feature-control variant's verdict, noise ratio
@@ -8,7 +8,7 @@
 // above") instead of a memory note.
 //
 // jobs.js writes it when the Sunday plan's last job (marketRows) finishes, whatever its exit code - every week: the Q0
-// band (nullControls) is monthly since 1 Nov 2026 (the owner's decision of 30 Oct 2026), the first job of the first
+// band (nullControls) is monthly since 1 Nov 2026 (the decision of 30 Oct 2026), the first job of the first
 // Sunday of the month, so on the other Sundays the reading carries the latest band as context with its own time (and
 // names it in notThisWeek, as any record from another week). The CLI rebuilds
 // a week or backfills one from a copy of that week's records:

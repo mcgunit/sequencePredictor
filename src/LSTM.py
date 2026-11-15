@@ -78,8 +78,8 @@ class LSTMModel:
         self.labelSmoothing = 0.1
         # Whether the loss applies labelSmoothing (25 Oct 2026). Off for the
         # LSTM Base Model: commit 49bcb2f5 (3 Feb 2026) dropped it from the
-        # loss, so that row trains on plain cross-entropy and the owner keeps
-        # it that way. On for its twin, the LSTM Smoothed Model (Predictor.py
+        # loss, so that row trains on plain cross-entropy and it stays
+        # that way (decided 25 Oct 2026). On for its twin, the LSTM Smoothed Model (Predictor.py
         # LSTM_ROWS): the same network and tuned keys with labelSmoothing in
         # the loss, so the two rows show what smoothing does to one model.
         self.applyLabelSmoothing = False

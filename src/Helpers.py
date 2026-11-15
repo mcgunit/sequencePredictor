@@ -163,7 +163,7 @@ def variants_last(ranked):
     """
     A ranking with the variant rows after every other row, each order kept, and those rows marked "variant": they
     are scored and shown to the admins, but never the best model, the users' top five, a member of the per-row
-    chance test's family or of the combination search (owner, 8 Nov 2026: they join only through the gate).
+    chance test's family or of the combination search (8 Nov 2026: they join only through the gate).
     """
     variants = [m for m in ranked if _variant_row(m.get("name"))]
     for m in variants:
@@ -1206,7 +1206,7 @@ class Helpers():
                 if judged["unscheduled"]:
                     print(f"liveness {game}: {len(judged['unscheduled'])} draw(s) on a weekday src/drawClose.json does not "
                           f"list ({', '.join(judged['unscheduled'][-3:])}): the earliest close was used - check the schedule")
-                # Owner's decision 1 (27 Oct 2026): rank on the live record - never on an unchecked one, which would
+                # Decision 1 (27 Oct 2026): rank on the live record - never on an unchecked one, which would
                 # freeze a one-day git failure into the users' point-in-time ranking
                 if rankOnLive and liveBlock and judged["checked"] != "unchecked":
                     liveOrder = lambda m: (m["live"].get(metric) if m["live"].get(metric) is not None else float("-inf"))

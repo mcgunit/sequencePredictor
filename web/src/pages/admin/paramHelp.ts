@@ -1,4 +1,4 @@
-// What each tuned setting does, for the "?" on Admin › Parameters (owner 11 Nov 2026). Written from the code that reads
+// What each tuned setting does, for the "?" on Admin › Parameters (11 Nov 2026). Written from the code that reads
 // each key (Predictor.py, src/*.py, the tuners' search spaces) on 11 Nov 2026; ranges are the tuners' search spaces.
 // A key is looked up exactly first, then by the longest suffix it ends with (the deep-learning suffixes keep their
 // underscore, so they never match the bare LSTM keys or quantumVqc_*). A key neither knows has no "?".

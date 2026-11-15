@@ -2,7 +2,7 @@
 """
 The one-time switch of the shares games from the four Nasdaq names of the
 kickoff (NVDA, AAPL, MSFT, ASML in USD) to the five Euronext shares (Shell,
-ING, AB InBev, KBC, UCB in EUR) - owner decision of 31 Oct 2026: the old
+ING, AB InBev, KBC, UCB in EUR) - decision of 31 Oct 2026: the old
 record is removed, not archived, after a backup.
 
     python3 SwitchSharesEuronext.py                               # dry run: what would go, nothing touched

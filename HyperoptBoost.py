@@ -160,7 +160,7 @@ def served_keno_subsets(model_name):
 # draws of euromillions, lotto and eurodreams were lockbox draws, 12 of vikinglotto's).
 LOCKBOX = None
 
-# The Hyperopts page (owner, 12 Nov 2026; HyperoptDeepLearning.py is the reference, src/TuningResult.py the shared
+# The Hyperopts page (12 Nov 2026; HyperoptDeepLearning.py is the reference, src/TuningResult.py the shared
 # helpers) - the same wiring as HyperoptStatistics.py. With --result-file a run also writes each study's state there:
 # running / gate / done / failed, the trials done, what is being scored right now (a trial or a gate reference, and
 # its day) and the gate's verdict with what it writes and what "Apply this run's best" would write. Without it (the
@@ -174,7 +174,7 @@ CURRENT_ROLE = "trial"      # "trial", or "incumbent"/"default" while the gate r
 CURRENT_TRIAL = None        # the trial number being scored (set by trial_objective in the trial's own process)
 CURRENT_EVERY_SECONDS = 5.0
 _last_current_write = [0.0]
-# The variety rule (owner, 11-12 Nov 2026): a candidate that gives the same ticket on VARIETY_LINE or more of its scored
+# The variety rule (11-12 Nov 2026): a candidate that gives the same ticket on VARIETY_LINE or more of its scored
 # backtest draws is input-blind - neither written nor served back, and it blocks nothing (TuningGate.challenge
 # variety=True). Every game of this tuner is a lottery game. Set in __main__ from --variety-line or
 # config/tuning.json; RunBacktest.py, which imports this module, scores with the default line.
@@ -1082,7 +1082,7 @@ if __name__ == "__main__":
             default=",".join(GAME_CONFIG.keys()),
             help='Comma-separated list of games, e.g. "keno,pick3,jokerplus"'
         )
-        # The Hyperopts page (owner, 12 Nov 2026). -s is --strategies here, so the save flag is --save only.
+        # The Hyperopts page (12 Nov 2026). -s is --strategies here, so the save flag is --save only.
         parser.add_argument(
             '--save', type=helpers.str2bool, default=True,
             help='Commit and push bestParams at the end (helpers.git_push). The Hyperopts page runs this tuner with '
@@ -1094,9 +1094,9 @@ if __name__ == "__main__":
                  'Without it nothing of this is written (the weekly chain).')
         parser.add_argument(
             '--variety-line', type=float, default=None,
-            help='The variety rule\'s line (owner, 12 Nov 2026): a candidate giving the same ticket on this share of '
+            help='The variety rule\'s line (12 Nov 2026): a candidate giving the same ticket on this share of '
                  'its scored backtest draws or more is input-blind - neither written nor served back. 0.5-1.0 (or '
-                 '50-100); default the owner\'s setting in config/tuning.json, else %g.' % tres.DEFAULT_VARIETY_LINE)
+                 '50-100); default the setting in config/tuning.json, else %g.' % tres.DEFAULT_VARIETY_LINE)
 
         args = parser.parse_args()
 
@@ -1301,7 +1301,7 @@ if __name__ == "__main__":
                         # and it stayed served because no later window came close).
                         prefix = strategy["objective"].prefix
                         code_defaults = {f"{prefix}{suffix}": default for suffix, _, default in BOOSTING_PARAM_SUFFIXES}
-                        # The variety rule (owner, 11-12 Nov 2026), the weekly chain included: an input-blind trial
+                        # The variety rule (11-12 Nov 2026), the weekly chain included: an input-blind trial
                         # or reference (the same ticket on VARIETY_LINE of the scored draws or more, run_backtest's
                         # tuning record) is neither written nor served back and blocks nothing.
                         tres.safe_write_result(RESULT_FILE, studyName, status="gate" if GATE_ENABLED else "writing",

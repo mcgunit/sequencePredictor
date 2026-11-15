@@ -50,7 +50,7 @@ ok(byKey.nullControls.name === 'Monthly controls: null histories (Q0 band, conte
   && /first Sunday of the month/.test(byKey.nullControls.description) && /1 Nov 2026/.test(byKey.nullControls.description),
   'the null-histories job is named for what it writes since 27 Oct 2026 (the Q0 band, context - Q0 itself is the daily report\'s row test) and says it is monthly since 1 Nov 2026');
 ok(byKey.nullControls.monthly && byKey.nullControls.monthly.since === '2026-11-01' && jobs.JOBS.filter((j) => j.monthly).map((j) => j.key).join() === 'nullControls',
-  'only the null band is monthly, from 1 Nov 2026 (the owner\'s decision of 30 Oct 2026)');
+  'only the null band is monthly, from 1 Nov 2026 (the decision of 30 Oct 2026)');
 ok(jobs.JOBS.every((j) => !j.plan || PLANS[j.plan]), 'every planned job belongs to a known plan');
 ok(CHAIN_KEYS.indexOf('hyperoptQuantum') < CHAIN_KEYS.indexOf('trainMetaLearner'),
   'the quantum tuner must run before the retrain - that is why the retrain is weekly at all');
@@ -251,7 +251,7 @@ ok(allowedQueue(mixed, 'dry').length === 1 && allowedQueue(mixed, 'dry')[0].manu
   'dry mode keeps only what an administrator started by hand');
 ok(allowedQueue(mixed, 'dry') !== mixed && allowedQueue(mixed, 'on') !== mixed, 'the queue is never aliased back');
 
-// --- the monthly null band (30 Oct 2026, the owner's decision) ------------
+// --- the monthly null band (30 Oct 2026, the decision) ------------
 // The Q0 band runs only on the first Sunday of the month (day 1 to 7) from 1 Nov 2026 on; the other three controls
 // every Sunday. The occurrence's Sunday decides, also for a catch-up on Monday or Tuesday.
 {

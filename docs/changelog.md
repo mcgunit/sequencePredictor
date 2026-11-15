@@ -16,6 +16,14 @@ Built: every page rewritten against the code; the "Out of date" lists that close
 
 Built: the wiki, Admin > Wiki, for administrators only: `docs.js` serves `README.md` and `docs/*.md`, the app renders them with its own markdown reader (`web/src/wiki/markdown.ts`), and `test/docs.test.js` checks that every page is present, that every link leads somewhere and that no page names a person.
 
+### Code comments name no person
+
+*Page: documentation*
+
+Decided: the rule of the documentation holds for the code too: comments, help texts and page texts state a decision and its date, not who took it.
+
+Built: the personal attributions in the comments of 78 files reworded; the word stays where it is technical (the process that holds `process.lock`, the reader a Council session belongs to). No behaviour changed.
+
 ### Deleting hyperopt and backtest runs
 
 *Page: [operations](operations.md)*

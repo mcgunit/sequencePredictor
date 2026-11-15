@@ -602,7 +602,7 @@ def train_meta_learner(dataset_name, game_cfg, path, days_back, lockbox_report=F
     if os.path.exists(bestParamsPath):
         with open(bestParamsPath, "r") as infile:
             bestParams = json.load(infile)
-    # The served settings, as Predictor.py serves them (owner, 8 Nov 2026): the manual overrides of Admin >
+    # The served settings, as Predictor.py serves them (8 Nov 2026): the manual overrides of Admin >
     # Parameters on top of the tuned file, so the meta-learners are trained on the base rows the daily run uses. A
     # manual value of a base row changes base_param_subset, so the cached score table is recollected, not reused.
     bestParams, manualApplied = paramOverrides.apply_for_game(path, dataset_name, bestParams)

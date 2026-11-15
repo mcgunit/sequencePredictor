@@ -94380,7 +94380,7 @@
      "pre-registered: a right call fills"
     ]
    ],
-   "review": "one review, at 60 live day orders or 31 Jan 2027, whichever is later: switch only if another variant beats the primary in a paired per-order comparison with the lower bound of the mean difference above 0, and with the owner's decision",
+   "review": "one review, at 60 live day orders or 31 Jan 2027, whichever is later: switch only if another variant beats the primary in a paired per-order comparison with the lower bound of the mean difference above 0, and only on an explicit decision",
    "books": {
     "edge": {
      "orders": [

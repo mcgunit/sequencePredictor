@@ -241,7 +241,7 @@ function describeTrading(t) {
 }
 
 // The first week the user pages (api.js) count the guarded week book: the first full week the page showed the guard
-// (owner, 20 Oct 2026: count "what the page said"); before it they count the plain week book.
+// (20 Oct 2026: count "what the page said"); before it they count the plain week book.
 const GUARD_SHOWN_FROM = '2026-10-26';
 // MarketSettle.GUARD_FORWARD_FROM: the first week the guard ran forward; for a record exported before it carried forward_from
 const GUARD_FORWARD_FROM = '2026-10-19';
@@ -260,7 +260,7 @@ function describeGuarded(g) {
 // The first day (a day card's UTC day; a week by its first day, the Monday) the user pages show the ORDER BOOK's card
 // and count its record (src/MarketOrders.py, design orderbook-DESIGN-30oct.md section 10); days and weeks before it keep
 // the old record (as GUARD_SHOWN_FROM splits the week record). null: a shadow on the Admin market page only.
-// Switched by the owner's decision of 31 Oct 2026 to Mon 2 Nov 2026 - the first full week after the deploy, when the
+// Switched by the decision of 31 Oct 2026 to Mon 2 Nov 2026 - the first full week after the deploy, when the
 // publication times are recorded instead of estimated - with no shadow period, because the pages had no users yet.
 // Until a card for that day (or the week starting that day) is on the page, the user page stays exactly as before
 // (api.marketView gates on the card's day, not on the clock).

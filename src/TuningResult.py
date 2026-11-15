@@ -1,5 +1,5 @@
 """
-What every Hyperopt*.py tuner shares for the Hyperopts page and the variety rule (owner, 11-12 Nov 2026).
+What every Hyperopt*.py tuner shares for the Hyperopts page and the variety rule (11-12 Nov 2026).
 
 The result file (--result-file). A run started from the Hyperopts page writes nothing that is served: it runs on a
 worker copy with -s false, and the page shows this JSON file instead - per study its status, the trials done, what is
@@ -19,8 +19,8 @@ boosting tuner's parallel trials) never lose each other's fields and a copy take
                               }},
      "updatedAt": ...}
 
-The variety rule. A usable parameter set predicts new sequences, recurring numbers allowed (owner, 11 Nov 2026). The
-owner sets the line (12 Nov 2026): config/tuning.json {"varietyLine": 0.95} for the weekly chain, and a page run's own
+The variety rule. A usable parameter set predicts new sequences, recurring numbers allowed (11 Nov 2026). The
+line is a setting (12 Nov 2026): config/tuning.json {"varietyLine": 0.95} for the weekly chain, and a page run's own
 value (--variety-line). Two measures:
   windows  the deep-learning rows: the share of a day's validation windows given the most common ticket
            (src/LearningCheck sameTicket); input-blind when at or over the line on at least half of the days
@@ -71,7 +71,7 @@ def clamp_line(value, fallback=DEFAULT_VARIETY_LINE):
 
 
 def load_variety_line(root="."):
-    """The owner's line for the weekly chain (config/tuning.json "varietyLine"), DEFAULT_VARIETY_LINE without one."""
+    """The variety line for the weekly chain (config/tuning.json "varietyLine"), DEFAULT_VARIETY_LINE without one."""
     try:
         with open(os.path.join(root, SETTINGS_FILE)) as f:
             data = json.load(f)

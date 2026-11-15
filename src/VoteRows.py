@@ -24,7 +24,7 @@ in practice only a two-member weighted subset can collapse - on the market
 games also a trio holding XGBoost and LightGBM, which vote with half their
 weight each there (below).
 
-Two market rules live here too (owner, 25 Oct 2026), so every place that
+Two market rules live here too (25 Oct 2026), so every place that
 votes or scores a market vote applies them alike: XGBoost and LightGBM count
 as one voter (MARKET_SHARED_VOTE_ROWS, positional_vote), and the
 SubsetEnsemble Model weighs its members by HyperoptEnsemble's own per-row
@@ -50,7 +50,7 @@ helpers = Helpers()
 POSITIONAL_VOTE_DEFAULT_ROWS = frozenset({"Markov Model", "MarkovMonteCarlo Model", "PoissonMonteCarlo Model",
                                           "LaplaceMonteCarlo Model", "XGBoost Model", "LightGBM Model", "CatBoost Model"})
 
-# Rows that are one voter on the market games (owner, 25 Oct 2026): where two
+# Rows that are one voter on the market games (25 Oct 2026): where two
 # or more of a group vote together, each votes with 1/n of its weight, so the
 # group weighs as one row. XGBoost and LightGBM run untuned on identical
 # defaults there (HyperoptBoost.GAME_CONFIG covers the lotteries only; the
@@ -64,7 +64,7 @@ POSITIONAL_VOTE_DEFAULT_ROWS = frozenset({"Markov Model", "MarkovMonteCarlo Mode
 MARKET_SHARED_VOTE_ROWS = (("XGBoost Model", "LightGBM Model"),)
 
 # bestParams key of the SubsetEnsemble Model's own vote scores on the market
-# games (owner, 25 Oct 2026), written by HyperoptEnsemble.py: each candidate
+# games (25 Oct 2026), written by HyperoptEnsemble.py: each candidate
 # row's own ticket scored by the tuner's objective over its evaluation window,
 # mapped to [1, 2] like modelScores. On the markets modelScores hold only the
 # four statistical rows - every other member weighed 1.0 and "weighted" was

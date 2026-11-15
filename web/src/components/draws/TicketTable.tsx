@@ -5,7 +5,7 @@ import { Legend, Scroll } from '../admin/Card';
 import Chip, { ManualChip } from '../admin/Chip';
 import { specialsLabel, type Mode } from './text';
 
-// Every row's tickets in the old History table's grid (owner, 24 Oct 2026: "the table with the hits like it was"):
+// Every row's tickets in the old History table's grid (24 Oct 2026: "the table with the hits like it was"):
 // one column per number - Num 1..n, then the special columns, Joker+'s Sign, a market's instruments -, lotto's
 // 7th-9th multi-pick numbers in their shaded columns, and a cell coloured the way the game scores it (draws.js
 // marks): green a hit, amber the lotto bonus and Joker+'s sign, blue Joker+'s trailing run, pale green a market's

@@ -1,4 +1,4 @@
-// system.js - the JSON behind the app's System pages (21 Oct 2026: the owner's decision to replace the old
+// system.js - the JSON behind the app's System pages (21 Oct 2026: the decision to replace the old
 // server-rendered pages with the React app under /app; admin plan 3.4 and 3.6). Jobs & services and People are for
 // the administrator; Account and What's new for every signed-in reader.
 //

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A backtest of one model on one game, started from Admin > Parameters (owner's roadmap step 4, 8 Nov 2026).
+A backtest of one model on one game, started from Admin > Parameters (roadmap step 4, 8 Nov 2026).
 
 The server (backtests.js) writes the request to config/backtests/<id>.json and queues the scheduler's "backtest" job
 (jobs.js), which runs this script with --id and a --budget that ends it well before the next scheduled run. The
@@ -22,7 +22,7 @@ The deep-learning rows (GPU_ROWS) are the deep-learning tuner's own evaluation (
 backtested draw is a retrain on the history before it, with production's 240 s training budget, and the score is the
 tuner's - minus the mean excess loss over the counts (src/DeepLearningTuning.day_score; 0 = as good as serving the
 counts). They run on the GPU worker (workers.js copies this checkout there, runs this script and copies the record
-back), 3 draws by default (the deep-learning gate's window) and 30 at most (owner, 10 Nov 2026). The lockbox draws
+back), 3 draws by default (the deep-learning gate's window) and 30 at most (10 Nov 2026). The lockbox draws
 are left out of the score and the day lines; each retrain's own validation split still contains the lockbox period,
 as in the tuner (LOCKBOX_NOTE), and the result says so.
 

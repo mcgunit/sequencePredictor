@@ -194,7 +194,7 @@ def _median_ticket(probabilities):
     """
     Per instrument the bin that holds the predictive median: the first bin
     whose cumulative probability reaches one half. The Regime HMM rows'
-    ticket since 25 Oct 2026 (the owner's item 2); GARCH keeps _ticket. The
+    ticket since 25 Oct 2026 (item 2); GARCH keeps _ticket. The
     bins are quantiles of fat-tailed returns - narrow in the middle, wide
     outside - so a forecast near zero mean puts its most mass in a bin away
     from the middle (mostly 1 or 8, 0-2 or 7-9 as its spread varies), and
@@ -453,7 +453,7 @@ def _log_gaussian(X, mean, cov):
 
 
 # A Dirichlet prior of one pseudo-transition per cell of the transition matrix
-# (30 Oct 2026, owner's decision on the 26 Oct reading): EM's maximum
+# (30 Oct 2026, decided on the 26 Oct reading): EM's maximum
 # likelihood keeps a transition it never saw at exactly 0, so K=4-5 fits on
 # the ~100 rows of a week game ended with absorbing regimes - a regime the
 # chain can enter but never leave, the root of the 0/0 the log-space passes

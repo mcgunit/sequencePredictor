@@ -4,7 +4,7 @@
   "builtAt": "2026-10-21T18:56:47Z",
   "by": "cli",
   "controls": "/root/controls",
-  "note": "backfilled on 21 Oct 2026 from /root/controls, the owner's copy of the 18 Oct records; the Q0 rows above are read against the ranking of Sunday's predictor run (commit 9e070619, generated 18 Oct 08:47 UTC)",
+  "note": "backfilled on 21 Oct 2026 from /root/controls, a copy of the 18 Oct records; the Q0 rows above are read against the ranking of Sunday's predictor run (commit 9e070619, generated 18 Oct 08:47 UTC)",
   "rankingAt": "2026-10-18T08:47:31Z",
   "from": "2026-10-18T08:48:16Z",
   "to": "2026-10-18T22:45:39Z",

@@ -98,7 +98,7 @@ ok(r.ok && jobs.cancelled.includes(r3.id) && bt.readRecord(root, r3.id).status =
 refused(bt.cancel(root, r3.id, 'carol', jobs), /cancelled, not queued/, 'cancel twice');
 ok(bt.cancel(root, 'nope', 'x', jobs).status === 404, 'cancel an unknown one: 404');
 
-// --- delete (owner, 14 Nov 2026): refused while queued or running, else the record goes --------------------------------
+// --- delete (14 Nov 2026): refused while queued or running, else the record goes --------------------------------
 const r4 = bt.start(root, { game: 'eurodreams', row: 'LaplaceMonteCarlo Model', days: 10 }, 'c', jobs, new Date('2026-11-08T22:00:05Z'));
 refused(bt.remove(root, r4.id, 'carol', jobs), /queued: cancel it first/, 'delete a queued one');
 jobs.queued = jobs.queued.filter((x) => x !== r4.id);

@@ -1,4 +1,4 @@
-// workbench.js - the admin section's Workbench (22 Oct 2026, admin batch 4: the owner's decision of 21 Oct to replace
+// workbench.js - the admin section's Workbench (22 Oct 2026, admin batch 4: the decision of 21 Oct to replace
 // the old pages with the app, everything detailed in the admin section). Read-only JSON under /api/admin, behind
 // admin.js's guard - admin.install mounts these routes before its catch-all 404:
 //
@@ -14,7 +14,7 @@
 //   GET /api/admin/market/:market/workbench/instrument/:symbol one instrument's price chart: closes, moves, every
 //                                                              model's bins and the next calls
 //
-// The owner's rule, no hindsight: Top on a past draw is the five rows ranked first BEFORE that draw (rankhistory.js,
+// The rule, no hindsight: Top on a past draw is the five rows ranked first BEFORE that draw (rankhistory.js,
 // production's git history of the History ranking), never today's five; a draw before the first saved ranking (25 Aug
 // 2026) says so and has no Top rows. The coming draw's Top is today's five (ranking.js usersTop: the five /lottery
 // shows a user). Every figure is over the rows the scope keeps and says how many (draws.js builds them with a `keep`
@@ -183,7 +183,7 @@ function liveMarksOf(marks, rows, keep) {
   marks.forEach((m, i) => { if (m && keep && keep(nameOf(rows[i]))) out[m.status] = (out[m.status] || 0) + 1; });
   return Object.keys(out).length ? out : null;
 }
-// The users' rule (the owner's decision, 27 Oct 2026): a draw any of whose shown rows' tickets were not out before the
+// The users' rule (the decision, 27 Oct 2026): a draw any of whose shown rows' tickets were not out before the
 // sales close - back-built or late, or rewritten after the draw - is shown greyed and left out of the totals. (The
 // admin's live record scores a rewritten ticket as it stood at the close; the users' totals leave such a draw out.)
 const AFTER_CLOSE = ['late', 'recovered'];

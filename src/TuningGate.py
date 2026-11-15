@@ -139,7 +139,7 @@ def _finite(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-# The variety rule (challenge(variety=True), owner 11 Nov 2026), as the record states it
+# The variety rule (challenge(variety=True), 11 Nov 2026), as the record states it
 VARIETY_RULE = ("a candidate that gives the same ticket on 95% or more of its validation windows on at least half "
                 "of its days, or on 95% or more of its backtested draws (input-blind), is neither written nor served "
                 "back, and blocks nothing")
@@ -273,7 +273,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      tuner passes its score table's count instead (taken out
                      before its holdout was cut) and marks the record
                      lockbox_withheld_from "table" (26 Oct 2026).
-      variety        the deep-learning tuner sets True (owner, 11 Nov 2026: a usable parameter set predicts new
+      variety        the deep-learning tuner sets True (11 Nov 2026: a usable parameter set predicts new
                      sequences): a candidate whose "tuning" says input_blind (src/DeepLearningTuning.variety - the
                      same argmax ticket on 95% or more of the validation windows on at least half of its days, or,
                      since 13 Nov 2026, the same ticket on 95% or more of its backtested days) can
@@ -281,9 +281,9 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
                      trial that is not blind (none: kept), a blind default is never reverted to and a blind
                      incumbent or default does not count as a reference the challenger must beat. Recorded as the
                      record's "variety" (the rule, the blind trials, the blind references). Every tuner sets it
-                     since 12 Nov 2026 (owner: the same gate everywhere, the weekly chain included); the other rows'
+                     since 12 Nov 2026 (the same gate everywhere, the weekly chain included); the other rows'
                      measure is the share of the scored backtest draws that got the same ticket (src/TuningResult
-                     .variety_of_tickets), against the owner's line. A tuning record without "input_blind" (a market
+                     .variety_of_tickets), against the variety line. A tuning record without "input_blind" (a market
                      row, RL stakes) is never blind, so the rule changes nothing there.
       variety_rule   the rule's text for the record (src/TuningResult.variety_rule: the line and the measure);
                      VARIETY_RULE without one
@@ -440,7 +440,7 @@ def challenge(study, known_numbers, objective, served, defaults, timeout_seconds
     # back as before - it is not a selected trial; the other clauses keep the challenger's margin. A default that
     # only ties the incumbent never reverts it. A challenger without a standard error under se_margin is never
     # written (no_se: fail closed), but the revert does not need it: the default against the incumbent is a comparison
-    # of two fixed references, so it is judged on them alone (owner, 30 Oct 2026; 27-30 Oct no_se reverted nothing).
+    # of two fixed references, so it is judged on them alone (30 Oct 2026; 27-30 Oct no_se reverted nothing).
     revert = False
     if not replace and enabled and default_params is not None and is_tuned(param_names, served) and _finite(default) \
             and not default_blind \
@@ -554,7 +554,7 @@ if __name__ == "__main__":
             return scores.get(role)
         return evaluate
 
-    # V. the variety rule (owner, 11 Nov 2026) on the 11 Nov pick3 LSTM run: default +0.0015 input-blind, challenger
+    # V. the variety rule (11 Nov 2026) on the 11 Nov pick3 LSTM run: default +0.0015 input-blind, challenger
     #    trial 3 +0.0014 (not blind), incumbent +0.0003 (not blind). Without the rule the blind default is served back;
     #    with it the default counts for nothing, and the challenger is judged against the incumbent alone.
     seeing = {"score": 0.0014, "kind": "skill_vs_counts", "days": 10, "score_se": 0.00003, "input_blind": False}

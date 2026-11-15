@@ -1,7 +1,7 @@
 """
-The crypto ORDER BOOK (30 Oct 2026, the owner's ask: "the user instructions
+The crypto ORDER BOOK (30 Oct 2026, the request: "the user instructions
 must match a paper book exactly"; design orderbook-DESIGN-30oct.md, decisions
-D1-D7 confirmed by the owner on 30 Oct 2026). It books what the crypto day
+D1-D7 confirmed on 30 Oct 2026). It books what the crypto day
 and week cards tell a reader to do: buy at market when the card appears, put
 a sell limit at X, sell at market at a deadline or on the week's daily-call
 exit. The existing books (daily, hold, open, followed, guarded) are not
@@ -30,7 +30,7 @@ The rules (exact; the constants below are stated on the Admin card):
             minute BEFORE the exit's minute: a fill and a card in the same
             minute - the card wins (the reader cannot know the limit filled).
   exit      the first of: the fill; a card-time exit (week: the day card
-            that turns the coin flat or down - D2, kept by the owner); the
+            that turns the coin flat or down - D2, kept); the
             deadline = the publication of the next card of the same game
             (D1), or DEADLINE_FALLBACK_HOURS after the interval's close
             (12:00 UTC the day after) if no card appeared by then; card-time
@@ -54,7 +54,7 @@ The rules (exact; the constants below are stated on the Admin card):
             least LATE_MIN_LEFT away - each showing one cohort position (the
             same X, early exit and deadline). Never part of "Following this
             card so far".
-  newcomer  (day only, a separate ledger; owner, 31 Oct 2026) on every card
+  newcomer  (day only, a separate ledger; 31 Oct 2026) on every card
             that ROLLS a held position the reader who did not buy on the
             earlier card is told to buy now: each roll card books a newcomer
             entry at that card's publication P, the same new limit X, the
@@ -71,7 +71,7 @@ The rules (exact; the constants below are stated on the Admin card):
   benchmark every active coin bought at every card's publication without a
             limit and sold at the same deadline: the market under the same
             timing.
-  reference the literal end the owner first named (00:00 UTC, the bin's own
+  reference the literal end first named (00:00 UTC, the bin's own
             horizon - 01:00 or 02:00 Brussels, which no reader executes): the
             same orders with the deadline at the interval's close and no
             roll, for Admin only.
@@ -185,7 +185,7 @@ ORDER_VARIANT_TEXT = {
 # three on 16 orders; the principle, not that table, chose it). A switch is appended here with its date and reason.
 ORDER_VARIANT_LOG = [("2026-10-30", "edge", "pre-registered: a right call fills")]
 REVIEW_RULE = ("one review, at 60 live day orders or 31 Jan 2027, whichever is later: switch only if another variant beats "
-               "the primary in a paired per-order comparison with the lower bound of the mean difference above 0, and with the owner's decision")
+               "the primary in a paired per-order comparison with the lower bound of the mean difference above 0, and only on an explicit decision")
 
 ORDER_RULE_DAY = ("buy at market when the day card appears, a sell limit at X (the predicted bin's lower edge from the previous close), "
                   "sold at the limit or at market when the next day card appears (12:00 UTC the next day at the latest); the same coin "
@@ -649,8 +649,8 @@ def day_orders(cards, day_followed, tapes, variant, end="card", roll=True, marke
     D5 roll; end "close": the literal 00:00 UTC end, no roll (the reference
     ledger). Returns the orders, oldest first by first day.
 
-    `newcomers` (a list, end "card" with the roll on; 31 Oct 2026, the owner's
-    decision): on every card that ROLLS a held position the reader who did
+    `newcomers` (a list, end "card" with the roll on; decided
+    31 Oct 2026): on every card that ROLLS a held position the reader who did
     not buy on the earlier card is told to buy now - each such showing is
     booked into this list as a NEWCOMER entry (kind "newcomer"): bought at
     that card's publication, the same new limit X, the same deadline rule
@@ -1620,7 +1620,7 @@ def main(argv=None):
     parser.add_argument("--no-fetch", action="store_true", help="no network: book from what is stored")
     parser.add_argument("--export", action="store_true", help="also write <root>/data/markets/crypto.json and cryptoweek.json (MarketSettle.export_page_json)")
     parser.add_argument("--allow-checkout", action="store_true",
-                        help="allow a --root or --db inside a git checkout (the production backfill, with the owner's go); refused otherwise")
+                        help="allow a --root or --db inside a git checkout (the production backfill, on an explicit go-ahead); refused otherwise")
     parser.add_argument("--lag", type=float, default=PUBLISH_LAG_FALLBACK.total_seconds() / 60, help="publication lag in minutes for estimated cards (default 15)")
     args = parser.parse_args(argv)
     if not args.backfill:

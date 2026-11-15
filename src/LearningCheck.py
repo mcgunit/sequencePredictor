@@ -58,8 +58,8 @@ On those small splits the bar is conservative: a row with a weak real signal
 can still read 'counts-only' there, which is the side this label should err
 on.
 
-It is a label: nothing is dropped, hidden or reweighted on it (owner's
-decision, 25 Oct 2026). Predictor.py stores it on the row as learningCheck,
+It is a label: nothing is dropped, hidden or reweighted on it (decided
+25 Oct 2026). Predictor.py stores it on the row as learningCheck,
 and Helpers.generate_model_performance_report carries each row's newest one
 into modelPerformance.json for the admin pages.
 
@@ -73,7 +73,7 @@ import numpy as np
 # saw costs the baseline what it would cost the row's own loss.
 EPS = 1e-7
 # share of the validation windows on one argmax ticket from which a row
-# counts as ignoring its input (owner's "~95%", 25 Oct 2026)
+# counts as ignoring its input ("~95%", 25 Oct 2026)
 INPUT_BLIND_SHARE = 0.95
 
 

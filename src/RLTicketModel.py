@@ -22,7 +22,7 @@ helpers = Helpers()
 def voted_specials(rows, mainCount, specialCount):
     """
     The special column(s) of the RL Ticket row: the values the other rows of
-    the day put there most often (owner decision of 3 Nov 2026). The policy
+    the day put there most often (decision of 3 Nov 2026). The policy
     builds the main numbers only, and until then the row was stored without
     them - EuroMillions without its two stars, EuroDreams without the dream
     number, Vikinglotto without the viking: a ticket nobody can play, scored

@@ -303,7 +303,7 @@ function ticketStake(prediction, realResult, game) {
 // --- PRIZE TABLES (src/PrizeTables.py, docs/scoring.md) ---
 // The pari-mutuel games scored in euro since 3 Nov 2026 (Vikinglotto since 5 Nov) by each draw's own prize table, which the pipeline keeps in
 // data/trainingData/<game>/<game>-prizes.json ({ISO date: {price, jackpot, tiers: [{name, mains, special, amount}]}}).
-// Their pages keep the hits as the figure and add the profit next to it (4 Nov 2026, owner): one grid of the row's own
+// Their pages keep the hits as the figure and add the profit next to it (4 Nov 2026): one grid of the row's own
 // ticket at the draw's base price, the tier its hits reach, as Helpers' report counts it. A draw without a table, or a
 // ticket that is not a full grid (an RL Ticket row stored before 3 Nov 2026 without its stars, dream or viking), has no
 // profit: null, never 0.
@@ -681,7 +681,7 @@ function historyMonths(game, entries) {
 
 // The vote under a table: how many of the kept rows' first tickets carry each value. A positional game (pick3,
 // Joker+, the markets) per slot, with the value drawn in that slot - the old pooled chart lit a bar for a digit drawn
-// in another slot (owner's question 3) -, every other game per number with the drawn mains. stored: the day file's
+// in another slot (question 3) -, every other game per number with the drawn mains. stored: the day file's
 // own vote of every row (Helpers.count_number_frequencies_from_new_prediction: weighted by the rows' scores, mains
 // only), sent only when every row is kept; from: 'file', or 'previous file' when the file has none (35 old
 // vikinglotto files; the previous file's numberFrequency is the same vote).

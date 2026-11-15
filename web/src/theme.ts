@@ -1,4 +1,4 @@
-// The reader's colour scheme (owner, 24 Oct 2026): auto - the system's -, light or dark, kept in this browser
+// The reader's colour scheme (24 Oct 2026): auto - the system's -, light or dark, kept in this browser
 // (localStorage) and applied as data-theme on <html>, which styles.css's tokens already follow. index.html applies a
 // stored choice before the first paint; a change here fires 'themechange' so the charts redraw in the new colours.
 export type ThemeChoice = 'auto' | 'light' | 'dark';

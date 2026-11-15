@@ -28,7 +28,7 @@ const { MARKETS, WEEK_GAMES, loadMarket, describeMarket, nextGameDay, closeMomen
 const BRUSSELS = 'Europe/Brussels';
 const DAY_MS = 86400000;
 // markets.GUARD_SHOWN_FROM: the first week the user pages count the guard (MarketSettle.guarded_week), the first full
-// week the page showed it (owner, 20 Oct 2026: count "what the page said"). Weeks closing before it count the plain
+// week the page showed it (20 Oct 2026: count "what the page said"). Weeks closing before it count the plain
 // week book - held to the week's end - which is what the page told followers then; the guard's own book for those
 // weeks is on the Admin market page only (the weeks before MarketSettle.GUARD_FORWARD_FROM, 19 Oct, booked after the
 // fact). The week of 19 Oct shows the guard as information.
@@ -294,12 +294,12 @@ const SKIP_TEXT = {
   'no target': () => 'No order: the call is the open-ended lowest bin, which has no lower edge to place a limit at.',
   "published after the interval's end": () => 'No order: the card appeared after its day had ended.',
 };
-// the same reasons in a table cell's few words (the order rows' compact cells, owner 31 Oct 2026)
+// the same reasons in a table cell's few words (the order rows' compact cells, 31 Oct 2026)
 const SKIP_SHORT = { 'target below fees': 'gain too small for the fees', 'already reached': 'limit already reached', 'too close to the limit': 'too close to the limit',
   'no target': 'no limit for this call', "published after the interval's end": 'the card came too late', 'daily call not up': "Monday's call not up",
   'price within 1 % of the limit': 'too close to the limit', 'less than 24 h left': 'under 24 h left' };
 const skipShort = (reason) => SKIP_SHORT[reason] || reason || 'no order';
-// An order row's two cells, each from the reader's side (owner, 31 Oct 2026: the table stays compact, every cell an
+// An order row's two cells, each from the reader's side (31 Oct 2026: the table stays compact, every cell an
 // instruction): Buy = what to do if you do not have the coin, Sell = what to do if you do. The long branches stay as
 // the cells' title.
 const buyCell = (chip, sub, extra = {}) => ({ chip, tone: chip === 'Buy now' || chip === 'Still good to enter' ? 'act' : 'flat', sub, ...extra });
@@ -390,11 +390,11 @@ function newcomerRecordOf(o, keep, unit) {
   return r;
 }
 
-// The day card's order rows from MarketOrders.orders_now. Every line is written from the READER's side (owner, 31 Oct
+// The day card's order rows from MarketOrders.orders_now. Every line is written from the READER's side (31 Oct
 // 2026): never the book's state as a bare status ("held", "hold (rolled)" read as "you hold it"), but one branch per
 // reader situation, each labelled "If you bought ..." / "If you did not buy ...", and a branch invites only what a
 // ledger books. A roll (D5) continues yesterday's position; the reader who did not buy yesterday is told to buy now -
-// the NEWCOMER entry, booked in its own ledger (MarketOrders newcomer_entry, owner 31 Oct 2026), never in "following
+// the NEWCOMER entry, booked in its own ledger (MarketOrders newcomer_entry, 31 Oct 2026), never in "following
 // this card so far" - or, when that entry is not placed, why, in the reader's words. A call that is not up is a chip,
 // as before. `status` stays the book's code (the client maps it to a chip; order.chip is the reader's words).
 const branch = (who, text, extra = {}) => ({ who, text, ...extra });
@@ -438,7 +438,7 @@ function dayOrderRows(o, view, now, unit) {
     };
     const since = s.heldSince ? dayText(s.heldSince) : 'yesterday';
     // who holds the coin into this card: the main position bought on `since`'s card, and newcomer entries of later
-    // roll cards. "yesterday" when the position was bought on the card just before this one (the owner's words)
+    // roll cards. "yesterday" when the position was bought on the card just before this one
     const yesterday = Boolean(s.heldSince && s.heldSince === prevDayOf(n.interval));
     const held = s.newcomersHeld || [];
     const heldWho = yesterday
@@ -697,7 +697,7 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
   const nextDay = nextGameDay(market, view.madeOn);
   // the order book (crypto): the day and week records' trading.orders, counted from ordersFrom on - once a card of
   // ordersFrom or later is on the page (the day card for that day, or the week card whose week starts on it). Before
-  // that the user page is exactly the old one (owner, 31 Oct 2026: the switch to 2 Nov changes nothing until then); the
+  // that the user page is exactly the old one (31 Oct 2026: the switch to 2 Nov changes nothing until then); the
   // gate is the card's day, not the clock, so a late run on the switch day keeps the old page until its card is out.
   const weekStart = w && w.madeOn ? nextGameDay(market, w.madeOn) : null;
   const ordersOn = Boolean(ordersFrom && ((nextDay && nextDay >= ordersFrom) || (weekStart && weekStart >= ordersFrom)));
@@ -953,7 +953,7 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
   const strip = (rows) => rows.map(({ raw, ...q }) => q);
   const won = allPositions.filter((q) => q.raw > 0).length;
   // a day counts towards won/lost only when something was bought: a day whose calls were all down or flat
-  // took no position and is neither (owner, 17 Oct 2026)
+  // took no position and is neither (17 Oct 2026)
   const played = days.filter((p) => p.positions > 0);
   const best = played.reduce((m, p) => (m === null || p.pnl > m.pnl ? p : m), null);
   const worst = played.reduce((m, p) => (m === null || p.pnl < m.pnl ? p : m), null);

@@ -17,7 +17,7 @@
 // /api/lottery and /api/home also carry `running`: the pipeline job that holds process.lock, in the old banner's words,
 // and since when ({what, since}, pipeline.js), or null - the pages say so on one line and read again until it clears.
 //
-// The owner's rules (21-23 Oct 2026). A user sees the top five rows of each game's History ranking and nothing else:
+// The rules (21-23 Oct 2026). A user sees the top five rows of each game's History ranking and nothing else:
 // for the coming draw today's five (ranking.js usersTop, the five /lottery showed), for a past draw the five ranked
 // first before it (rankhistory.js topAt, the 15:00 Brussels cut-off, or the draw's sales close when earlier: 13:00 on
 // Sundays for Keno, Pick3 and Joker+) - never today's five applied to a past draw. A
@@ -28,7 +28,7 @@
 // again from the ranking, and a row outside them is a 500, never a leak). Controls and model internals stay in the
 // admin section.
 //
-// Sales close (the owner's decisions 2 and 3, 27 Oct 2026; src/drawClose.json, data/database/lotteryLiveness.json):
+// Sales close (decisions 2 and 3, 27 Oct 2026; src/drawClose.json, data/database/lotteryLiveness.json):
 // a draw any of whose five rows' tickets were made after its sales closed (back-built or late, or rewritten after the
 // draw) is shown greyed - "Tickets for this draw were made after its sales closed - shown, not counted in the totals." -
 // and left out of every total (17 draws on 27 Oct: keno 7, pick3 7, Joker+ 3, 30 Aug - 10 Sep 2026); the admin's live
@@ -214,7 +214,7 @@ function drawOf(dirs, game, date, hist, report, now = new Date()) {
   const { file, liveness, ...out } = view;
   if (out.prev && !start.counts(out.prev)) out.prev = null;
   // a user gets the draw's verdict, not the admin's per-row markers
-  // (nor the admin's "manual" label: the parameters and their overrides are admin only, owner 8 Nov 2026)
+  // (nor the admin's "manual" label: the parameters and their overrides are admin only, 8 Nov 2026)
   return { ...out, rows: out.rows.map(({ liveMark, manual, ...r }) => r), ...(out.coming ? { coming: { ...out.coming, rows: out.coming.rows.map(({ manual, ...r }) => r) } } : {}),
     scope: plainScope(out.scope), ...afterCloseOut(liveness) };
 }
@@ -318,7 +318,7 @@ function cardOf(dirs, game, hist, report, now) {
   } else {
     last.leftOut = start ? `no ranking of ${game} had been saved before ${cutoffTextAt(game, view.date)} that day (${savedText(start)})` : 'no ranking of this game has been saved yet';
   }
-  // the coming draw's sales close (src/drawClose.json, the owner's decision 3): time, and whether its tickets were made
+  // the coming draw's sales close (src/drawClose.json, decision 3): time, and whether its tickets were made
   // at or after it - then they are for reading, not for playing
   const close = c.close || null;
   return {
@@ -344,7 +344,7 @@ function overviewOf(dirs, hist, report, now = new Date()) {
 
 // --- GET /api/home ---------------------------------------------------------------------------------------------------
 // Lottery: per game the next draw and today's five in rank order, each with its first played ticket only (Home shows one
-// line of numbers per row, no words - owner 2 Nov 2026), and the last draw's figures over the five ranked before it. Crypto and Shares: api.js marketView's headline - following the plan (the
+// line of numbers per row, no words - 2 Nov 2026), and the last draw's figures over the five ranked before it. Crypto and Shares: api.js marketView's headline - following the plan (the
 // day and week positions together, live days only) against buying everything over the same days, its window (since,
 // through, days) - and today's positions: to buy (now or at the open) and held.
 function marketHeadline(dirs, market, now) {
@@ -360,7 +360,7 @@ function marketHeadline(dirs, market, now) {
     today: { date: v.day ? v.day.date : null, state: v.day ? v.day.stateText : null, toBuy: s.openToBuy, held: s.openHeld },
   };
 }
-// Home's summary of a game (owner 2 Nov 2026): the best row by raw total profit on its live tickets (saved before each
+// Home's summary of a game (2 Nov 2026): the best row by raw total profit on its live tickets (saved before each
 // draw's sales close) - for the jackpot games, which have no money record (their prizes depend on the pool), by
 // average hits on the same tickets - among the rows with at least the ranking's minimum of live draws; and the best
 // combination exactly as the admin's Best combination per game card has it (every established row, every scored draw;

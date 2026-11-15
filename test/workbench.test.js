@@ -675,7 +675,7 @@ async function throughExpress() {
   const ord = workbench.ordersOf('crypto', view, at);
   const d = ord.day;
   ok(ord.shownFrom === '2026-11-02' && d.shownFrom === '2026-11-02' && ord.primary === 'edge' && d && ord.week === null && workbench.ordersOf('shares', view, at) === null,
-     'the order book is crypto only; the user pages show it from Mon 2 Nov 2026 (owner, 31 Oct)');
+     'the order book is crypto only; the user pages show it from Mon 2 Nov 2026 (31 Oct)');
   ok(d.newcomerRule === 'a newcomer entry on a roll card' && d.variants[0].newcomer.orders === 2 && d.variants[0].newcomer.open === 1 && d.variants[0].newcomer.total === 0.53
      && d.variants[1].newcomer.orders === 0 && d.variants[0].late === null,
      `the newcomer ledger per variant next to the main and reference ledgers: ${JSON.stringify(d.variants.map((v) => v.newcomer))}`);
