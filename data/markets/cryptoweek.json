@@ -1,6 +1,6 @@
 {
  "market": "cryptoweek",
- "generated_at": "2026-11-14T00:19:00+00:00",
+ "generated_at": "2026-11-15T06:25:48+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -17,13 +17,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 68314.0,
-   "last_date": "2026-11-13",
+   "last_close": 64150.0,
+   "last_date": "2026-11-14",
    "closes": [
-    [
-     "2025-11-14",
-     94594.0
-    ],
     [
      "2025-11-15",
      95596.24
@@ -1479,10 +1475,13 @@
     [
      "2026-11-13",
      68314.0
+    ],
+    [
+     "2026-11-14",
+     64150.0
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.090964,
@@ -2366,10 +2365,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     -0.10524619,
     null,
@@ -2733,11 +2732,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -3097,6 +3096,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -3224,7 +3224,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -3464,6 +3463,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -3591,7 +3591,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -3831,6 +3830,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -3958,7 +3958,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -4198,6 +4197,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -4325,7 +4325,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -4565,6 +4564,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -4692,7 +4692,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -4932,6 +4931,7 @@
      null,
      null,
      7,
+     null,
      null,
      null,
      null,
@@ -5059,7 +5059,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -5299,6 +5298,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -5426,7 +5426,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -5666,6 +5665,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -5793,7 +5793,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -6033,6 +6032,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -6160,7 +6160,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -6400,6 +6399,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -6527,7 +6527,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -6767,6 +6766,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -6894,7 +6894,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7134,6 +7133,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -7261,7 +7261,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7501,6 +7500,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -7628,7 +7628,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -7868,6 +7867,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -7995,7 +7995,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -8239,10 +8238,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -8606,10 +8605,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -8969,6 +8968,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -9306,7 +9306,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -9336,6 +9335,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -9673,7 +9673,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -9703,6 +9702,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -10040,7 +10040,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -10070,6 +10069,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -10407,7 +10407,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -10437,6 +10436,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -10781,7 +10781,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -10804,6 +10803,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -10811,7 +10811,6 @@
      null
     ],
     "TimesFM Model": [
-     null,
      null,
      null,
      null,
@@ -11175,6 +11174,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "MetaLearner Model": [
@@ -11515,7 +11515,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -11538,6 +11537,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -11545,7 +11545,6 @@
      null
     ],
     "MetaLearnerV2 Model": [
-     null,
      null,
      null,
      null,
@@ -11909,10 +11908,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -12276,10 +12275,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -12643,10 +12642,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -13010,6 +13009,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "SubsetEnsemble Model": [
@@ -13350,7 +13350,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -13373,6 +13372,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -13731,7 +13731,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -13740,6 +13739,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -13755,13 +13755,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 1929.88,
-   "last_date": "2026-11-13",
+   "last_close": 1769.2,
+   "last_date": "2026-11-14",
    "closes": [
-    [
-     "2025-11-14",
-     3112.4
-    ],
     [
      "2025-11-15",
      3167.88
@@ -15217,10 +15213,13 @@
     [
      "2026-11-13",
      1929.88
+    ],
+    [
+     "2026-11-14",
+     1769.2
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.111048,
@@ -16104,10 +16103,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     -0.14644721,
     null,
@@ -16471,11 +16470,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -16835,6 +16834,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -16962,7 +16962,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -17202,6 +17201,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -17329,7 +17329,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -17569,6 +17568,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -17696,7 +17696,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -17936,6 +17935,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -18063,7 +18063,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -18303,6 +18302,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -18430,7 +18430,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -18670,6 +18669,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -18797,7 +18797,6 @@
      null,
      null,
      null,
-     null,
      9,
      null,
      null,
@@ -19037,6 +19036,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -19164,7 +19164,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -19404,6 +19403,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -19531,7 +19531,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -19771,6 +19770,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -19898,7 +19898,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -20138,6 +20137,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -20265,7 +20265,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -20505,6 +20504,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -20632,7 +20632,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -20872,6 +20871,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -20879,7 +20879,6 @@
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -21243,10 +21242,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -21610,6 +21609,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
@@ -21733,7 +21733,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -21973,6 +21972,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -22100,7 +22100,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -22340,6 +22339,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -22467,7 +22467,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -22707,6 +22706,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -23044,7 +23044,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -23074,6 +23073,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -23411,7 +23411,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -23441,6 +23440,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -23778,7 +23778,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -23808,6 +23807,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -24145,7 +24145,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -24175,6 +24174,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -24519,7 +24519,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -24542,6 +24541,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -24886,7 +24886,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -24909,6 +24908,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -25253,7 +25253,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -25276,6 +25275,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -25283,7 +25283,6 @@
      null
     ],
     "MetaLearnerV2 Model": [
-     null,
      null,
      null,
      null,
@@ -25647,10 +25646,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -26014,6 +26013,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumVQC Model": [
@@ -26354,7 +26354,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -26377,6 +26376,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -26384,7 +26384,6 @@
      null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -26748,10 +26747,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "SubsetEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -27111,6 +27110,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -27469,7 +27469,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -27478,6 +27477,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -27493,13 +27493,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 630.31,
-   "last_date": "2026-11-13",
+   "last_close": 581.9,
+   "last_date": "2026-11-14",
    "closes": [
-    [
-     "2025-11-14",
-     915.25
-    ],
     [
      "2025-11-15",
      932.28
@@ -28955,10 +28951,13 @@
     [
      "2026-11-13",
      630.31
+    ],
+    [
+     "2026-11-14",
+     581.9
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.091483,
@@ -29842,10 +29841,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     -0.07290078,
     null,
@@ -30209,11 +30208,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -30573,6 +30572,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -30700,7 +30700,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -30940,6 +30939,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -31067,7 +31067,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -31307,6 +31306,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null,
@@ -31434,7 +31434,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -31674,6 +31673,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -31801,7 +31801,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -32041,6 +32040,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -32168,7 +32168,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -32408,6 +32407,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -32535,7 +32535,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -32775,6 +32774,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -32902,7 +32902,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -33142,6 +33141,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -33269,7 +33269,6 @@
      null,
      null,
      null,
-     null,
      1,
      null,
      null,
@@ -33509,6 +33508,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -33636,7 +33636,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -33876,6 +33875,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -34003,7 +34003,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -34243,6 +34242,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -34370,7 +34370,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -34610,6 +34609,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -34737,7 +34737,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -34977,6 +34976,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -35104,7 +35104,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -35344,6 +35343,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -35471,7 +35471,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -35715,10 +35714,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -36082,10 +36081,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -36445,6 +36444,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -36782,7 +36782,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -36812,6 +36811,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -37149,7 +37149,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -37179,6 +37178,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -37516,7 +37516,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -37550,10 +37549,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
-     null,
      null,
      null,
      null,
@@ -37913,6 +37912,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -38257,7 +38257,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -38280,6 +38279,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -38624,7 +38624,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -38651,10 +38650,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "MetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -39018,10 +39017,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "MetaLearnerV2 Model": [
-     null,
      null,
      null,
      null,
@@ -39385,10 +39384,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -39752,10 +39751,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -40119,10 +40118,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -40486,10 +40485,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "SubsetEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -40849,6 +40848,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -41207,7 +41207,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -41216,6 +41215,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -41231,13 +41231,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 1.011,
-   "last_date": "2026-11-13",
+   "last_close": 0.9144,
+   "last_date": "2026-11-14",
    "closes": [
-    [
-     "2025-11-14",
-     2.2443
-    ],
     [
      "2025-11-15",
      2.2372
@@ -42693,10 +42689,13 @@
     [
      "2026-11-13",
      1.011
+    ],
+    [
+     "2026-11-14",
+     0.9144
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.125039,
@@ -43580,10 +43579,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     -0.06607804,
     null,
@@ -43947,11 +43946,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -44311,6 +44310,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -44438,7 +44438,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -44678,6 +44677,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -44805,7 +44805,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -45045,6 +45044,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -45172,7 +45172,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -45412,6 +45411,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -45539,7 +45539,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -45779,6 +45778,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -45906,7 +45906,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -46146,6 +46145,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -46273,7 +46273,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -46513,6 +46512,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -46640,7 +46640,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -46880,6 +46879,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -47007,7 +47007,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -47247,6 +47246,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -47374,7 +47374,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -47614,6 +47613,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -47741,7 +47741,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -47981,6 +47980,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -48108,7 +48108,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -48348,6 +48347,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -48355,7 +48355,6 @@
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -48719,10 +48718,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -49086,10 +49085,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -49453,10 +49452,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -49820,10 +49819,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "RL Position Model": [
-     null,
      null,
      null,
      null,
@@ -50183,6 +50182,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -50520,7 +50520,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -50550,6 +50549,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -50887,7 +50887,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -50917,6 +50916,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -51254,7 +51254,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -51284,6 +51283,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -51621,7 +51621,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -51651,6 +51650,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -51995,7 +51995,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -52022,10 +52021,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "TimesFM Model": [
-     null,
      null,
      null,
      null,
@@ -52389,10 +52388,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "MetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -52756,10 +52755,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "MetaLearnerV2 Model": [
-     null,
      null,
      null,
      null,
@@ -53123,10 +53122,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -53490,10 +53489,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -53857,6 +53856,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "ClassicalSVM Model": [
@@ -54197,7 +54197,6 @@
      null,
      null,
      null,
-     null,
      2,
      null,
      null,
@@ -54220,6 +54219,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -54227,7 +54227,6 @@
      null
     ],
     "SubsetEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -54587,6 +54586,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -54945,7 +54945,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -54954,6 +54953,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -54969,13 +54969,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 78.19,
-   "last_date": "2026-11-13",
+   "last_close": 70.28,
+   "last_date": "2026-11-14",
    "closes": [
-    [
-     "2025-11-14",
-     138.92
-    ],
     [
      "2025-11-15",
      139.61
@@ -56431,10 +56427,13 @@
     [
      "2026-11-13",
      78.19
+    ],
+    [
+     "2026-11-14",
+     70.28
     ]
    ],
    "edges": [
-    null,
     null,
     [
      -0.161003,
@@ -57318,10 +57317,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     -0.18187189,
     null,
@@ -57685,6 +57684,7 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
@@ -57809,7 +57809,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -58049,6 +58048,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -58176,7 +58176,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -58416,6 +58415,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -58543,7 +58543,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -58783,6 +58782,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -58910,7 +58910,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -59150,6 +59149,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -59277,7 +59277,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -59517,6 +59516,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -59644,7 +59644,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -59884,6 +59883,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -60011,7 +60011,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -60251,6 +60250,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -60378,7 +60378,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -60618,6 +60617,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -60745,7 +60745,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -60985,6 +60984,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -61112,7 +61112,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -61352,6 +61351,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -61479,7 +61479,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -61719,6 +61718,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -61846,7 +61846,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -62086,6 +62085,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -62213,7 +62213,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -62453,6 +62452,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -62580,7 +62580,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -62824,10 +62823,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -63191,10 +63190,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -63558,6 +63557,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "RL Position Model": [
@@ -63681,7 +63681,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -63921,6 +63920,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -64258,7 +64258,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -64288,6 +64287,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -64625,7 +64625,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -64655,6 +64654,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -64662,7 +64662,6 @@
      null
     ],
     "UnifiedLstmTcn Model": [
-     null,
      null,
      null,
      null,
@@ -65026,10 +65025,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "UnifiedLstmGruTcn Model": [
-     null,
      null,
      null,
      null,
@@ -65389,6 +65388,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -65733,7 +65733,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -65756,6 +65755,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -66100,7 +66100,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -66123,6 +66122,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -66467,7 +66467,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -66490,6 +66489,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -66834,7 +66834,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -66861,10 +66860,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumMetaLearner Model": [
-     null,
      null,
      null,
      null,
@@ -67228,10 +67227,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "QuantumVQC Model": [
-     null,
      null,
      null,
      null,
@@ -67595,10 +67594,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "ClassicalSVM Model": [
-     null,
      null,
      null,
      null,
@@ -67962,6 +67961,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "SubsetEnsemble Model": [
@@ -68302,7 +68302,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -68325,6 +68324,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -68683,7 +68683,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -68692,6 +68691,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -94301,17 +94301,18 @@
    "live_weeks": 2,
    "live_positions": 2,
    "now": {
-    "running_day": "2026-11-14",
+    "running_day": "2026-11-15",
     "first_day": "2026-11-09",
-    "last_day": false,
+    "last_day": true,
     "week_model": "PoissonMonteCarlo Model",
-    "day_model": "Transformer Model",
+    "day_model": "Chronos Model",
     "settled_days": [
      "2026-11-09",
      "2026-11-10",
      "2026-11-11",
      "2026-11-12",
-     "2026-11-13"
+     "2026-11-13",
+     "2026-11-14"
     ],
     "symbols": {
      "BTC": {
@@ -94341,7 +94342,7 @@
       "entry": null,
       "scale": 1.0,
       "entry_price": null,
-      "call": "down",
+      "call": "flat",
       "sold_on": null,
       "realized": null,
       "trades": []
@@ -94352,7 +94353,7 @@
   "orders": {
    "market": "cryptoweek",
    "game": "week",
-   "generated_at": "2026-11-14T00:18:59+00:00",
+   "generated_at": "2026-11-15T06:25:48+00:00",
    "since": "2026-10-13",
    "rule": "buy at market when the week card appears if the week call is up and Monday's daily call is up, a sell limit at X (the bin's lower edge from Sunday's close), sold at the limit, at market when a daily card turns the coin flat or down (cancel the limit first), or at market when next Monday's week card appears (12:00 UTC Monday at the latest); one round trip per coin per week, no buy-back",
    "constants": {
@@ -98058,33 +98059,33 @@
    "coverage": {
     "BTC": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-13T23:00:00+00:00",
-     "1h_bars": 737,
-     "1m_bars": 5376
+     "1h_last": "2026-11-15T05:00:00+00:00",
+     "1h_bars": 767,
+     "1m_bars": 5563
     },
     "ETH": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-13T23:00:00+00:00",
-     "1h_bars": 737,
-     "1m_bars": 5376
+     "1h_last": "2026-11-15T05:00:00+00:00",
+     "1h_bars": 767,
+     "1m_bars": 5563
     },
     "BNB": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-13T23:00:00+00:00",
-     "1h_bars": 737,
-     "1m_bars": 5376
+     "1h_last": "2026-11-15T05:00:00+00:00",
+     "1h_bars": 767,
+     "1m_bars": 5563
     },
     "XRP": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-13T23:00:00+00:00",
-     "1h_bars": 737,
-     "1m_bars": 5376
+     "1h_last": "2026-11-15T05:00:00+00:00",
+     "1h_bars": 767,
+     "1m_bars": 5563
     },
     "SOL": {
      "1h_first": "2026-10-14T07:00:00+00:00",
-     "1h_last": "2026-11-13T23:00:00+00:00",
-     "1h_bars": 737,
-     "1m_bars": 5376
+     "1h_last": "2026-11-15T05:00:00+00:00",
+     "1h_bars": 767,
+     "1m_bars": 5563
     }
    },
    "now": {
@@ -98097,8 +98098,8 @@
     "variant": "edge",
     "deadline_fallback": "2026-11-16T12:00:00+00:00",
     "deadline_text": "Mon 16 Nov 13:00",
-    "running_day": "2026-11-14",
-    "day_model": "Transformer Model",
+    "running_day": "2026-11-15",
+    "day_model": "Chronos Model",
     "symbols": {
      "BTC": {
       "status": "not bought",
@@ -98615,7 +98616,7 @@
       "rolls": 0
      },
      "refused": {
-      "daily call not up": 66,
+      "daily call not up": 68,
       "price within 1 % of the limit": 2,
       "less than 24 h left": 1
      }
@@ -99086,7 +99087,7 @@
       "rolls": 0
      },
      "refused": {
-      "daily call not up": 66,
+      "daily call not up": 68,
       "price within 1 % of the limit": 1,
       "less than 24 h left": 1
      }
@@ -99557,7 +99558,7 @@
       "rolls": 0
      },
      "refused": {
-      "daily call not up": 66,
+      "daily call not up": 68,
       "price within 1 % of the limit": 1,
       "less than 24 h left": 1
      }
@@ -99845,7 +99846,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-13"
+    "traded_since": "2026-11-14"
    },
    "ETH": {
     "last_close": 2127.46,
@@ -100122,7 +100123,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-13"
+    "traded_since": "2026-11-14"
    },
    "BNB": {
     "last_close": 685.21,
@@ -100399,7 +100400,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-13"
+    "traded_since": "2026-11-14"
    },
    "XRP": {
     "last_close": 1.1132,
@@ -100676,7 +100677,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-13"
+    "traded_since": "2026-11-14"
    },
    "SOL": {
     "last_close": 86.54,
@@ -100953,7 +100954,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-13"
+    "traded_since": "2026-11-14"
    }
   }
  },

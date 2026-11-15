@@ -3,7 +3,7 @@
   "rule": "per row on its live draws: lottery against the exact fair-draw null (hypergeometric, pick3 distinct digits, Joker+ runs), markets against its own tickets shuffled within blocks of 7 live days or weeks (20000 permutations); Holm at 0.05 over the rows with at least minDrawsForRanking live draws; followed from the first Sunday its record read p < 0.05, judged once on as many new live draws as flagged it (at most 52): confirmed at p < 0.01",
   "games": {
     "crypto": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -12,13 +12,13 @@
       }
     },
     "cryptoweek": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "eurodreams": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -27,7 +27,7 @@
       }
     },
     "euromillions": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -35,7 +35,7 @@
       }
     },
     "jokerplus": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -43,7 +43,7 @@
       }
     },
     "keno": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -52,11 +52,12 @@
         "MarkovBayesian Model": {"decidedOn": null, "flagDraws": 215, "flagMean": 5.9721, "flagNull": 5.7143, "flagP": 0.01486, "mean": null, "null": null, "p": null, "since": "2026-09-27", "state": "running", "verdictAt": null, "verdictLength": 52},
         "QuantumMetaLearner Model": {"decidedOn": null, "flagDraws": 48, "flagMean": 6.1458, "flagNull": 5.7143, "flagP": 0.04531, "mean": null, "null": null, "p": null, "since": "2026-10-25", "state": "running", "verdictAt": null, "verdictLength": 48},
         "TCN Base Model": {"decidedOn": null, "flagDraws": 46, "flagMean": 6.1957, "flagNull": 5.7143, "flagP": 0.03219, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 46},
-        "Transformer Model": {"decidedOn": null, "flagDraws": 55, "flagMean": 6.2364, "flagNull": 5.7143, "flagP": 0.01378, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 52}
+        "Transformer Model": {"decidedOn": null, "flagDraws": 55, "flagMean": 6.2364, "flagNull": 5.7143, "flagP": 0.01378, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 52},
+        "UnifiedLstmGruTcn Model": {"decidedOn": null, "flagDraws": 61, "flagMean": 6.0492, "flagNull": 5.6581, "flagP": 0.04094, "mean": null, "null": null, "p": null, "since": "2026-11-15", "state": "running", "verdictAt": null, "verdictLength": 52}
       }
     },
     "lotto": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -67,7 +68,7 @@
       }
     },
     "pick3": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -77,19 +78,19 @@
       }
     },
     "shares": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "sharesweek": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "vikinglotto": {
-      "checkedThrough": "2026-11-08",
+      "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
