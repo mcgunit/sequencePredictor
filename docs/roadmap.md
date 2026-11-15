@@ -6,8 +6,8 @@ This page lists what is open or partly open in the project: for each item, what 
 
 | Area | Open items |
 |---|---|
-| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); the LLM predictor row |
-| Markets | item 4: Bolero tiers, the month card, the crypto follower's book, the order-book review, sentiment feeds, the first shares tuning reading |
+| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); the Council rows (item 12) |
+| Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
 | Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings |
 | Platform | item 8: a mail on failure, a predictor job per game; item 9: day files to SQLite; cleanup |
@@ -45,11 +45,22 @@ This page lists what is open or partly open in the project: for each item, what 
 - Phase 2, the soft vote: blend each model's normalised `score_positions()` distribution into the slot vote with a tuned mixing weight. It first needs a `positionScores` sidecar in the day file, because the history rebuild's second step runs in a separate process and only sees the day file. No such sidecar is written.
 - Leaving the ensemble row out of the RL Ticket row's Pick3 vote features, so an aggregate is not counted next to its own members. Deferred: the RL row treats Pick3 like every other game.
 
-### The LLM predictor row
+### 12. Council rows: tickets from the LLMs
 
 **Built.** The Council (`/app/council`, `src/llmCouncil/`): local LLMs answer questions, one model combining the others' answers. See [operations](operations.md).
 
-**Remains.** A tracked row whose ticket comes from the Council's models, given the recent draws and the other rows' votes, and scored like every other row. Not built.
+**Remains.** Tracked rows whose ticket comes from the Council, scored like every other row. Two kinds, each as one row per Council member and one row for the Council's combined answer, so the ranking shows whether combining helps:
+
+- **From the rows' record.** The LLM reads a summary of what the other rows predicted on recent draws and what was drawn, and gives a ticket for the coming draw. It is a meta-learner done by an LLM: its comparison is the weighted ensemble and the RL ticket row. The risk to read for is that it follows whichever row did well lately.
+- **From the draws alone.** The LLM reads only past draws and gives a ticket. On draws that test fair this is expected to behave as a biased random generator; it serves as a control, and its favourite numbers show as repetition.
+
+What the build has to settle:
+
+- **A job of its own, after the predictor.** A slow or failed LLM never holds up the predictor; the row is absent that day, as a foundation row is. The Council runs on the CPU worker, so the job wakes it.
+- **Forward only.** The rows are built for the live day and never inside a history rebuild (one LLM call per row, game and day); they are scored from their first day.
+- **A valid ticket or none.** An answer that is not a ticket of the game (range, count, distinct numbers) is asked again a fixed number of times and then dropped. The prompt, the model, the temperature and the seed are recorded with the row.
+- **What fits the context.** The whole history of every row does not fit a local model: the first kind reads a summary (recent draws, each row's ticket and result).
+- **Which games.** The lottery games first; the market games after the first readings.
 
 ## Markets
 
@@ -61,10 +72,24 @@ This page lists what is open or partly open in the project: for each item, what 
 
 - **First shares tuning reading.** Read the first weekend tuning of the five Euronext shares: which rows the gates replaced, and whether the tuned rows differ from their defaults.
 - **Bolero costs above 1,000 EUR a trade.** `BOLERO_TIERS` in `src/MarketSettle.py` holds tiers up to 2,500 EUR and a rate per started 10,000 EUR above that, but the tiers above 1,000 EUR are not checked against Bolero's tariff sheet. They only matter for a sale after a large rise.
-- **A month card.** A month-long hold for the shares, next to the day and week games. Not built.
-- **The crypto follower's book.** A paper book that buys when the day's ticket is up and sells at 00:00 UTC. Not built.
 - **Order-book review.** One review of the crypto order-book variant after 60 live day orders or on 31 Jan 2027, whichever is later (`REVIEW_RULE` in `src/MarketOrders.py`).
 - **Sentiment feeds.** Sentiment signals (CryptoPanic, LunarCrush, QuantMuse) as meta-learner features, not as predictors. Not built.
+
+### 11. Instructions from a paper trader, not from fixed intervals
+
+**Built.** Day and week games per instrument, each with a plan card whose instructions end at the game's close: buy at the open of the interval, sell at its end ([markets](markets.md)).
+
+**Decided (15 November 2026).** Tying the holding period to the prediction interval was the wrong choice. The models keep predicting a day, a week and a month ahead; the instructions come from a paper trader that holds a position for as long as its rules say, and the card translates that trader's state and results into the same plain wording as today ("if you have it", "if you do not have it").
+
+**Remains.** All of it:
+
+- **The month game.** A month-ahead prediction per instrument, for crypto and for shares, beside the day and week games and scored like them. It is a prediction, not a holding period, and it is one of the inputs of the instructions.
+- **The paper trader.** One per instrument, in or out of a position. It enters and leaves on rules that read the day, week and month predictions together (a signal that persists, a signal that turns, a stop, a longest holding time), not at an interval's close. Costs as in the paper books today.
+- **Shares: long term, long only.** No shorts (the costs), and never a buy and a sale of the same position on one day. The month prediction weighs most, and later the sentiment feeds (item 4).
+- **Crypto: both directions.** Shorts are allowed, and in an extreme case a buy and a sale on the same day.
+- **The card.** The instruction follows from the trader's state: hold or sell for a reader who has the position, buy or wait for one who has not. Beside it the trader's own result since its first day, with two comparisons: holding the instrument throughout, and entries at random with the same time in the market. Without those a good result cannot be told from a rising market or from holding less.
+- **The day and week cards.** The day, week and month games stay as scored predictions and become inputs only: the reader gets one card per instrument, the trader's, and no instruction that ends at a day's or a week's close.
+- **The crypto follower's book** (a book that buys on an up ticket and sells at 00:00 UTC, once listed under item 4) is not built: this item replaces it.
 
 ## Users' side
 

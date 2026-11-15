@@ -32,6 +32,14 @@ Found: the first Sunday feature control on the DL360 ended after 18 seconds with
 
 Built: the foundation libraries and the Chronos weights installed on the DL360 (the same forecast as the main server to 1e-6); the feature control rerun there the same day on the Sunday's own snapshot, and the reading rebuilt. `IrrelevantFeatureControl.py` ends with status 1 when it wrote no game's record.
 
+### Market instructions leave the fixed intervals; Council rows planned
+
+*Page: roadmap*
+
+Decided: the buy, hold and sell instructions for crypto and shares are no longer to be tied to a day or week interval. A paper trader per instrument holds for as long as its rules say, reading the day, week and month predictions together; a month game is added as a prediction beside day and week, for both markets, and the three games become inputs only: the reader gets the trader's card and no day or week card. Shares are long term and long only, without a buy and a sale on one day; crypto may go short and may, in an extreme case, buy and sell on one day. This is roadmap item 11; the crypto follower's book is dropped in its favour.
+
+Decided: tracked rows from the Council, per member and for the combined answer, in two kinds: from the other rows' record, and from the draws alone, on the lottery games first. This is roadmap item 12 (before: the LLM predictor row).
+
 ### The Sunday controls stay on the DL360
 
 *Page: operations*

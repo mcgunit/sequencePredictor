@@ -66,13 +66,12 @@ The open work, in short. Each item is described in [docs/roadmap.md](docs/roadma
 - [ ] Tuners and meta-learners on profit for those four games (they tune on hits).
 - [ ] Lotto multi-pick: read the 7th-9th numbers against chance once enough draws are scored, then the euro value of a 7- to 9-number system play from the prize tables.
 - [ ] Vote per position for the positional games, phase 2.
-- [ ] The LLM predictor row (above).
+- [ ] Council rows: tickets from the Council's LLMs, per member and combined, from the other rows' record and from the draws alone (the LLM predictor above).
 
 **Markets**
 - [ ] Shares: read the first weekend tunings on the five Euronext shares.
 - [ ] Bolero costs above 1,000 EUR a trade: check the upper tiers of the cost model against the tariff sheet.
-- [ ] A month card: a month-long hold for the shares.
-- [ ] The crypto follower's book: a paper book that buys when the day's ticket is up and sells at 00:00 UTC.
+- [ ] Instructions from a paper trader instead of fixed intervals, with a month prediction beside day and week: shares long term and long only, crypto in both directions.
 - [ ] Review the crypto order-book variant.
 - [ ] Sentiment feeds (above).
 
