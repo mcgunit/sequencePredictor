@@ -164,6 +164,22 @@ function cancel(root, id, user, jobs, workers = null) {
   return r.ok ? r : { ok: true, status: 200, message: 'Backtest cancelled' };
 }
 
+// Delete (owner, 14 Nov 2026): the backtest's record. Refused while it is queued or running (stop or cancel it first).
+// The lane's log keeps its lines; nothing that is served is touched (a backtest writes none of it).
+function remove(root, id, user, jobs, workers = null) {
+  const rec = readRecord(root, id);
+  if (!rec) return { ok: false, status: 404, message: 'no such backtest' };
+  const where = laneOf(rec);
+  const lane = where === 'server' ? jobs : workers && typeof workers.lane === 'function' ? workers.lane(where) : null;
+  const js = lane && typeof lane.backtestState === 'function' ? lane.backtestState() : null;
+  if (js && ((js.current && js.current.id === rec.id) || js.queued.includes(rec.id))) {
+    return { ok: false, status: 409, message: `that backtest is ${js.current && js.current.id === rec.id ? 'running: stop' : 'queued: cancel'} it first` };
+  }
+  if (!js && (rec.status === 'queued' || rec.status === 'running')) return { ok: false, status: 409, message: `that backtest is ${rec.status}: stop or cancel it first` };
+  try { fs.unlinkSync(fileOf(root, rec.id)); } catch (e) { return { ok: false, status: 500, message: `could not delete the record (${e.code || e.message})` }; }
+  return { ok: true, status: 200, message: 'Backtest deleted', detail: `${rec.id} ${rec.game} ${rec.row} ${rec.status}` };
+}
+
 // The routes (administrator only; system.js passes its guard, form token, JSON body and audit log).
 function install(app, { root, jobs, workers = null, guard, jsonBody, csrf, safe, json, reply, audit }) {
   const state = () => (jobs && typeof jobs.backtestState === 'function' ? jobs.backtestState() : null);
@@ -185,6 +201,11 @@ function install(app, { root, jobs, workers = null, guard, jsonBody, csrf, safe,
     if (r.ok) audit.record('backtest.cancelled', req, req.user.name, String(req.params.id));
     return reply(res, r);
   }));
+  app.post('/api/admin/backtests/:id/delete', guard, jsonBody, csrf, safe((req, res) => {
+    const r = remove(root, String(req.params.id || ''), req.user.name, jobs && typeof jobs.backtestState === 'function' ? jobs : null, workers);
+    if (r.ok) audit.record('backtest.deleted', req, req.user.name, r.detail);
+    return reply(res, r);
+  }));
 }
 
-module.exports = { DIR, ROWS, GPU_ROWS, LIMITS, DAYS_DEFAULT, DAYS_MAX, GPU_DAYS_DEFAULT, GPU_DAYS_MAX, canBacktest, onGpu, limitsFor, readRecord, writeRecord, list, start, cancel, viewOf, install };
+module.exports = { DIR, ROWS, GPU_ROWS, LIMITS, DAYS_DEFAULT, DAYS_MAX, GPU_DAYS_DEFAULT, GPU_DAYS_MAX, canBacktest, onGpu, limitsFor, readRecord, writeRecord, list, start, cancel, remove, viewOf, install };

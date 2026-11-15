@@ -61,6 +61,13 @@ const FIELDS = {
   trialTimeout: { default: 7200, min: 600, max: 6 * 3600, integer: true },
   gateSeMargin: { default: 1, min: 0, max: 5, integer: false },
 };
+// The deep-learning tuner's aim (owner, 14 Nov 2026; src/DeepLearningTuning.AIMS): variety - how much the tickets
+// follow the input, within a tolerance of the counts' loss (nats of mean excess validation loss) - or skill, the score
+// until then (minus the excess loss). Each aim has its own Optuna studies. A record from before has no aim: skill.
+const AIMS = { variety: 'Variety: tickets that follow the input, within the loss tolerance', skill: 'Skill: the lowest loss against the counts' };
+const AIM_DEFAULT = 'variety';
+const TOLERANCE = { default: 0.025, min: 0.001, max: 1, integer: false };
+const aimOf = (p) => (p && p.tuner && p.tuner !== 'deeplearning' ? null : p && p.aim === 'variety' ? 'variety' : 'skill');
 const num = (v) => String(v);
 const gateArgs = (p) => (p.gate ? ['--gate-se-margin', num(p.gateSeMargin)] : ['--no-gate']);
 const varietyArg = (p) => ['--variety-line', num(Math.round(p.varietyLine * 10) / 1000)];
@@ -74,8 +81,9 @@ const TUNERS = {
     fields: FIELDS, references: 2,
     args: (p) => ['-g', p.game, '-m', p.model, '-t', num(p.trials), '-d', num(p.days), '--train-seconds', num(p.trainSeconds),
       '--prune-after-days', num(p.pruneAfterDays), '--trial-timeout', num(p.trialTimeout), '--gate', p.gate ? 'true' : 'false',
-      '--gate-se-margin', num(p.gateSeMargin), ...varietyArg(p), ...(p.fresh ? ['--fresh'] : [])],
-    studyKeys: (p) => [`${p.game}-${p.model}-skill`],   // src/DeepLearningTuning.study_name
+      '--gate-se-margin', num(p.gateSeMargin), ...varietyArg(p),
+      '--aim', aimOf(p), ...(aimOf(p) === 'variety' ? ['--loss-tolerance', num(p.lossTolerance ?? TOLERANCE.default)] : []), ...(p.fresh ? ['--fresh'] : [])],
+    studyKeys: (p) => [studyKey(p.game, p.model, aimOf(p))],
   },
   statistics: {
     label: 'Statistics', script: 'HyperoptStatistics.py', lane: 'cpu', rowWord: 'Strategy',
@@ -148,7 +156,9 @@ const STATUSES = ['queued', 'running', 'done', 'failed', 'out of time', 'stopped
 
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const fileOf = (root, id, kind = '') => path.join(root, DIR, `${id}${kind ? `.${kind}` : ''}.json`);
-const studyKey = (game, model) => `${game}-${model}-skill`;   // src/DeepLearningTuning.study_name
+function studyKey(game, model, aim = 'skill') {   // src/DeepLearningTuning.study_name
+  return `${game}-${model}-${aim === 'variety' ? 'variety' : 'skill'}`;
+}
 function readJson(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (e) { return null; }
 }
@@ -284,6 +294,7 @@ function list(root, laneStates) {
       rowGames: t.rowGames, fields: { ...t.fields, ...(k === 'deeplearning' ? {} : {}) }, references: t.references, fixedBudget: t.budget ? t.budget({}) : null,
     }])),
     variety: { ...VARIETY, ...settings(root) },
+    aims: AIMS, aimDefault: AIM_DEFAULT, lossTolerance: TOLERANCE,
     gpu: lanes.gpu, cpu: lanes.cpu,
   };
 }
@@ -316,7 +327,17 @@ function parse(body, root = null) {
   if (!Number.isFinite(vl) || vl < VARIETY.min || vl > VARIETY.max) return { ok: false, status: 400, message: `the variety line is a percentage from ${VARIETY.min} to ${VARIETY.max}` };
   p.varietyLine = Math.round(vl * 10) / 10;
   p.gate = b.gate === undefined ? true : b.gate === true || b.gate === 'true';
-  if (tuner === 'deeplearning') p.fresh = b.fresh === true || b.fresh === 'true';
+  if (tuner === 'deeplearning') {
+    p.fresh = b.fresh === true || b.fresh === 'true';
+    p.aim = b.aim === undefined || b.aim === null || b.aim === '' ? AIM_DEFAULT : String(b.aim);
+    if (!(p.aim in AIMS)) return { ok: false, status: 400, message: 'the aim is variety or skill' };
+    if (p.aim === 'variety') {
+      const traw = b.lossTolerance;
+      const tol = traw === undefined || traw === null || traw === '' ? TOLERANCE.default : Number(traw);
+      if (!Number.isFinite(tol) || tol < TOLERANCE.min || tol > TOLERANCE.max) return { ok: false, status: 400, message: `the loss tolerance is a number from ${TOLERANCE.min} to ${TOLERANCE.max} (nats over the counts)` };
+      p.lossTolerance = Math.round(tol * 10000) / 10000;
+    }
+  }
   return { ok: true, params: p };
 }
 
@@ -343,8 +364,8 @@ function start(root, body, user, workers, now = new Date()) {
   }
   const what = p.tuner === 'deeplearning' ? MODELS[p.model].replace(/ Model$/, '') : `${t.label}${p.model ? ` (${t.rows[p.model]})` : ''}`;
   return { ok: true, status: 200, id,
-    message: `${what} on ${p.game}, ${p.trials} trials of ${p.days} draws${p.fresh ? ', fresh' : ''}${local ? ' (on this server: no DL360 is set up)' : ''}: ${queued.message}`,
-    detail: `${p.tuner} ${p.game} ${p.model || 'all'} t${p.trials} d${p.days}${p.trainSeconds ? ` s${p.trainSeconds}` : ''} gate ${p.gate ? p.gateSeMargin : 'off'} variety ${p.varietyLine}%${p.fresh ? ' fresh' : ''}` };
+    message: `${what} on ${p.game}, ${p.trials} trials of ${p.days} draws${p.aim ? `, aim ${p.aim}` : ''}${p.fresh ? ', fresh' : ''}${local ? ' (on this server: no DL360 is set up)' : ''}: ${queued.message}`,
+    detail: `${p.tuner} ${p.game} ${p.model || 'all'} t${p.trials} d${p.days}${p.trainSeconds ? ` s${p.trainSeconds}` : ''} gate ${p.gate ? p.gateSeMargin : 'off'} variety ${p.varietyLine}%${p.aim ? ` aim ${p.aim}${p.aim === 'variety' ? ` tol ${p.lossTolerance}` : ''}` : ''}${p.fresh ? ' fresh' : ''}` };
 }
 
 function cancel(root, id, user, workers) {
@@ -362,6 +383,31 @@ function cancel(root, id, user, workers) {
   const r = lane.cancel(id, user);
   writeJson(fileOf(root, id), { ...rec, status: 'cancelled', finishedAt: new Date().toISOString(), error: `cancelled by ${String(user || 'admin').slice(0, 64)}` });
   return r.ok ? { ...r, message: 'Hyperopt cancelled' } : { ok: true, status: 200, message: 'Hyperopt cancelled' };
+}
+
+// Delete (owner, 14 Nov 2026): the run's record, its result, the served snapshot and its log. Refused while the run is
+// queued or running (stop or cancel it first). What stays: the trials in the Optuna study on the worker (the next run of
+// the same row still learns from them) and whatever was applied (bestParams_<game>.json is not touched).
+function remove(root, id, user, workers) {
+  const rec = readRecord(root, id);
+  if (!rec) return { ok: false, status: 404, message: 'no such hyperopt' };
+  const kind = tunerOf(rec).lane;
+  const lane = workers && typeof workers.lane === 'function' ? workers.lane(kind) : null;
+  const ws = lane ? lane.backtestState() : null;
+  if (ws && ((ws.current && ws.current.id === rec.id) || ws.queued.includes(rec.id))) {
+    return { ok: false, status: 409, message: `that hyperopt is ${ws.current && ws.current.id === rec.id ? 'running: stop' : 'queued: cancel'} it first` };
+  }
+  // without the lane's word (no worker module here) a record that says queued or running is left alone
+  if (!ws && (rec.status === 'queued' || rec.status === 'running')) return { ok: false, status: 409, message: `that hyperopt is ${rec.status}: stop or cancel it first` };
+  let names = [];
+  try { names = fs.readdirSync(path.join(root, DIR)).filter((n) => n.startsWith(`${rec.id}.`)); } catch (e) { /* no folder */ }
+  const files = [...names.map((n) => path.join(root, DIR, n)), path.join(root, LOG_DIR, `${rec.id}.log`)];
+  let gone = 0;
+  files.forEach((f) => { try { fs.unlinkSync(f); gone += 1; } catch (e) { /* not there */ } });
+  const applied = rec.applied || (rec.appliedStudies && Object.keys(rec.appliedStudies).length);
+  return { ok: true, status: 200,
+    message: `Hyperopt deleted (${gone} files)${applied ? ' - what was applied from it stays in bestParams' : ''}. Its trials stay in the study on the worker.`,
+    detail: `${rec.id} ${rec.tuner || 'deeplearning'} ${rec.game} ${rec.model || 'all'} ${rec.status}${applied ? ' applied' : ''}` };
 }
 
 // a job holds process.lock (a live PID in it): a tuner or the predictor may be writing bestParams_<game>.json
@@ -477,6 +523,11 @@ function install(app, { root, workers = null, guard, jsonBody, csrf, safe, json,
     if (r.ok) audit.record('hyperopt.cancelled', req, req.user.name, String(req.params.id));
     reply(res, r);
   }));
+  app.post('/api/admin/hyperopts/:id/delete', guard, jsonBody, csrf, safe((req, res) => {
+    const r = remove(root, String(req.params.id || ''), req.user.name, workers);
+    if (r.ok) audit.record('hyperopt.deleted', req, req.user.name, r.detail);
+    reply(res, r);
+  }));
   app.post('/api/admin/hyperopts/:id/apply', guard, jsonBody, csrf, safe((req, res) => {
     const r = apply(root, String(req.params.id || ''), req.body, req.user.name);
     if (r.ok) audit.record('hyperopt.applied', req, req.user.name, r.detail);
@@ -484,4 +535,4 @@ function install(app, { root, workers = null, guard, jsonBody, csrf, safe, json,
   }));
 }
 
-module.exports = { DIR, GAMES, MARKETS, MODELS, FIELDS, TUNERS, VARIETY, STATUSES, budgetOf, argsOf, parse, studyKey, studiesOf, readRecord, list, viewOf, start, cancel, apply, settings, saveSettings, logTail, lockHolder, install };
+module.exports = { DIR, GAMES, MARKETS, MODELS, FIELDS, TUNERS, VARIETY, STATUSES, AIMS, TOLERANCE, budgetOf, argsOf, parse, studyKey, studiesOf, readRecord, list, viewOf, start, cancel, remove, apply, settings, saveSettings, logTail, lockHolder, install };

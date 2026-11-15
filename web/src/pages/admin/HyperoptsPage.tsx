@@ -33,6 +33,7 @@ export default function HyperoptsPage() {
   const sender = useSend(poll.refresh);
   const [starting, setStarting] = useState<Partial<Hyperopt> | null>(null);
   const [stop, setStop] = useState<Hyperopt | null>(null);
+  const [del, setDel] = useState<Hyperopt | null>(null);
 
   useEffect(() => {
     document.title = 'Hyperopts · Predictor';
@@ -78,12 +79,28 @@ export default function HyperoptsPage() {
       </p>
       <VarietySetting d={d} onChanged={() => void poll.refresh()} />
       {d.hyperopts.length ? (
-        <HyperoptTable d={d} onOpen={drawer.open} onStop={(h) => { sender.reset(); setStop(h); }} onAgain={(h) => { sender.reset(); setStarting(h); }} />
+        <HyperoptTable d={d} onOpen={drawer.open} onStop={(h) => { sender.reset(); setStop(h); }} onAgain={(h) => { sender.reset(); setStarting(h); }} onDelete={(h) => { sender.reset(); setDel(h); }} />
       ) : (
         <p className="note">No hyperopt yet.</p>
       )}
       {drawer.value ? <HyperoptDrawer key={drawer.value} id={drawer.value} onClose={drawer.close} onChanged={() => void poll.refresh()} /> : null}
       {starting ? <HyperoptStart d={d} from={starting} sender={sender} onDone={() => setStarting(null)} /> : null}
+      {del ? (
+        <Confirm
+          title={`Delete the hyperopt of ${rowText(del)} on ${del.game}`}
+          action="Delete"
+          danger
+          busy={sender.busy}
+          error={sender.error}
+          onConfirm={() => void sender.send(`/api/admin/hyperopts/${encodeURIComponent(del.id)}/delete`).then((done) => { if (done) setDel(null); })}
+          onCancel={() => setDel(null)}
+          lines={[
+            `The run of ${stamp(del.requestedAt)} (${settingsText(del)}) leaves this list: its record, result and log are deleted. This cannot be undone.`,
+            'Its trials stay in the study on the worker: the next run of this row still learns from them.',
+            ...(del.applied || Object.keys(del.appliedStudies).length ? ['Values were applied from this run: they stay in bestParams and keep being served; only the record of where they came from goes.'] : []),
+          ]}
+        />
+      ) : null}
       {stop ? (
         <Confirm
           title={stop.status === 'running' ? `Stop the hyperopt of ${rowText(stop)} on ${stop.game}` : `Cancel the hyperopt of ${rowText(stop)} on ${stop.game}`}
@@ -223,6 +240,7 @@ function ResultCell({ h }: { h: Hyperopt }) {
   return best ? <span>best so far {best.score === null ? 'no score' : fixed(best.score, 4)} <span className="sub">trial {best.trial}</span></span> : <span className="mut">no scored trial yet</span>;
 }
 
+const aimText = (h: Hyperopt) => (h.aim === 'variety' ? `aim variety${h.lossTolerance !== null ? ` (tolerance ${h.lossTolerance})` : ''}` : h.aim === 'skill' ? 'aim skill' : '');
 const settingsText = (h: Hyperopt) =>
   h.tuner === 'deeplearning'
     ? `${h.trials} trials × ${h.days} draws · ${h.trainSeconds} s`
@@ -230,7 +248,9 @@ const settingsText = (h: Hyperopt) =>
       ? `${h.trials} combinations · ${h.days} draws`
       : `${h.trials} trials × ${h.days} draws`;
 
-function HyperoptTable({ d, onOpen, onStop, onAgain }: { d: HyperoptList; onOpen: (id: string) => void; onStop: (h: Hyperopt) => void; onAgain: (h: Hyperopt) => void }) {
+function HyperoptTable({ d, onOpen, onStop, onAgain, onDelete }: {
+  d: HyperoptList; onOpen: (id: string) => void; onStop: (h: Hyperopt) => void; onAgain: (h: Hyperopt) => void; onDelete: (h: Hyperopt) => void;
+}) {
   return (
     <Card title="Hyperopts" meta={[`${d.hyperopts.length} kept`, 'newest first']} flush>
       <table className="tbl stk">
@@ -260,6 +280,7 @@ function HyperoptTable({ d, onOpen, onStop, onAgain }: { d: HyperoptList; onOpen
                 <span className="sub">
                   gate {h.gate ? `${h.gateSeMargin} SE` : 'off'}
                   {h.varietyLine !== null ? ` · variety ${h.varietyLine}%` : ''}
+                  {h.aim ? ` · ${aimText(h)}` : ''}
                   {h.fresh ? ' · fresh' : ''}
                 </span>
               </td>
@@ -278,9 +299,14 @@ function HyperoptTable({ d, onOpen, onStop, onAgain }: { d: HyperoptList; onOpen
                     {h.status === 'running' ? 'Stop' : 'Cancel'}
                   </button>
                 ) : (
-                  <button type="button" className="linkbtn" onClick={() => onAgain(h)} disabled={h.worker === 'gpu' && !d.gpu.configured}>
-                    Run again
-                  </button>
+                  <>
+                    <button type="button" className="linkbtn" onClick={() => onAgain(h)} disabled={h.worker === 'gpu' && !d.gpu.configured}>
+                      Run again
+                    </button>{' '}
+                    <button type="button" className="linkbtn" onClick={() => onDelete(h)}>
+                      Delete
+                    </button>
+                  </>
                 )}
               </td>
             </tr>
@@ -293,15 +319,20 @@ function HyperoptTable({ d, onOpen, onStop, onAgain }: { d: HyperoptList; onOpen
 
 // What each tuner's run does, for the form
 const ABOUT: Record<string, string> = {
-  deeplearning: 'HyperoptDeepLearning.py on the GPU worker: each trial retrains the model on the newest draws with its suggested values and scores how much better than the counts it predicts (0 = no better).',
+  deeplearning: 'HyperoptDeepLearning.py on the GPU worker: each trial retrains the model on the newest draws with its suggested values.',
   statistics: 'HyperoptStatistics.py on the DL360: each trial backtests the strategy over the last draws with its suggested values and scores a cautious lower bound of its hits or capped profit.',
   boost: 'HyperoptBoost.py on the DL360: each trial backtests the boosting model walk-forward over the last draws (refitting every few draws) and scores a cautious lower bound of its hits or capped profit. Slow trials are pruned.',
   ensemble: 'HyperoptEnsemble.py on the DL360: searches which rows SubsetEnsemble Model votes over, scored on the stored predictions of the last draws. Minutes, not hours.',
   quantum: 'HyperoptQuantum.py on the DL360: backtests the base models once (cached between runs), then tunes the meta-learner rows (quantum kernel, quantum VQC, classical SVM) on a holdout of those draws.',
   rlticket: 'HyperoptRLTicket.py on the DL360: tunes the RL Ticket row on a lottery game, or RL Position on a market, walking the last draws of the stored predictions. RL Position sizes positions: the variety rule does not apply to it.',
 };
+// what a deep-learning trial is scored on, per aim
+const AIM_ABOUT: Record<string, string> = {
+  variety: 'Aim variety: a trial scores the share of its validation windows where the ticket differs from its most common one (how much it follows the input), as long as its loss stays within the tolerance of the counts; each tolerance’s worth of loss above it costs a full point. It rewards varied tickets, not hits.',
+  skill: 'Aim skill: a trial scores how much lower than the counts its validation loss is (0 = no better). This pulls a row toward the counts, so toward one fixed ticket.',
+};
 const HELP: Record<string, string> = {
-  trials: 'Trials in this run. The study on the worker keeps every earlier trial, which guides the sampler.',
+  trials: 'Trials in this run. They are added to the study of this row on the worker: every earlier trial stays there and guides the sampler. A rerun never starts an empty study.',
   days: 'Draws per trial.',
   trainSeconds: 'Training budget of each retrain, in seconds. 240 is what the daily run gives each model.',
   pruneAfterDays: 'Stop a trial whose score after this many draws is below the median of the earlier trials (the first 3 never are). 0 = no pruning.',
@@ -328,6 +359,10 @@ function HyperoptStart({ d, from, sender, onDone }: { d: HyperoptList; from: Par
   const [variety, setVariety] = useState(String(from.varietyLine ?? d.variety.varietyLine));
   const [gate, setGate] = useState(from.gate ?? true);
   const [fresh, setFresh] = useState(false);
+  const [aim, setAim] = useState<string>(from.id ? from.aim ?? 'skill' : d.aimDefault);
+  const [tolerance, setTolerance] = useState(String(from.lossTolerance ?? d.lossTolerance.default));
+  const tn = Number(tolerance);
+  const isVariety = tuner === 'deeplearning' && aim === 'variety';
   const pickTuner = (tk: string) => {
     setTuner(tk);
     setV(initFor(tk, {}));
@@ -353,13 +388,14 @@ function HyperoptStart({ d, from, sender, onDone }: { d: HyperoptList; from: Par
       .find(Boolean) ??
     (tuner === 'deeplearning' && Number(v.pruneAfterDays) > Number(v.days) ? 'Prune after: at most the draws per trial (0 = no pruning)' : null) ??
     (variety === '' || !Number.isFinite(vn) || vn < d.variety.min || vn > d.variety.max ? `Variety line: a percentage from ${d.variety.min} to ${d.variety.max}` : null) ??
+    (isVariety && (tolerance === '' || !Number.isFinite(tn) || tn < d.lossTolerance.min || tn > d.lossTolerance.max) ? `Loss tolerance: a number from ${d.lossTolerance.min} to ${d.lossTolerance.max}` : null) ??
     (!t ? 'Pick a tuner' : t.lane === 'gpu' && !d.gpu.configured ? 'No GPU worker is set up: the deep-learning tuner runs there' : !rowsFor(tuner, game).includes(model) ? `Pick a ${t.rowWord.toLowerCase()}` : null);
   const wake = t && t.lane === 'cpu' ? 1800 : 0;
   const budget = !t ? 0 : t.fixedBudget !== null ? Math.min(d.budgetMaxSeconds, t.fixedBudget + wake)
     : Math.min(d.budgetMaxSeconds, (Number(v.trials) + (gate ? t.references : 0)) * Number(v.trialTimeout) + 3600 + wake);
   const start = async () => {
     if (bad) return;
-    const body: Record<string, unknown> = { tuner, model, game, gate, varietyLine: vn, ...(tuner === 'deeplearning' ? { fresh } : {}) };
+    const body: Record<string, unknown> = { tuner, model, game, gate, varietyLine: vn, ...(tuner === 'deeplearning' ? { fresh, aim, ...(isVariety ? { lossTolerance: tn } : {}) } : {}) };
     Object.entries(v).forEach(([k, s]) => { body[k] = Number(s); });
     const done = await sender.send<{ ok: true; message: string; id?: string }>('/api/admin/hyperopts/start', body);
     if (done) onDone();
@@ -382,7 +418,7 @@ function HyperoptStart({ d, from, sender, onDone }: { d: HyperoptList; from: Par
       onConfirm={() => void start()}
       onCancel={onDone}
       lines={[
-        `${ABOUT[tuner] ?? ''} Nothing is served until you apply the result.`,
+        `${ABOUT[tuner] ?? ''}${tuner === 'deeplearning' ? ` ${AIM_ABOUT[aim] ?? ''}` : ''} Nothing is served until you apply the result.`,
         `At most ${hours(budget)}${t && t.fixedBudget === null ? ` (every trial at its time limit${gate && t.references ? ', plus the gate’s reference runs' : ''}${wake ? ', plus half an hour to switch the DL360 on' : ''})` : ''}. The ${t && t.lane === 'cpu' ? 'statistical and boosting' : 'deep-learning'} backtests wait behind it.`,
       ]}
     >
@@ -442,12 +478,37 @@ function HyperoptStart({ d, from, sender, onDone }: { d: HyperoptList; from: Par
       ) : null}
       {tuner === 'deeplearning' ? (
         <label className="field">
+          <span>Aim</span>
+          <select value={aim} onChange={(e) => setAim(e.target.value)}>
+            {Object.entries(d.aims).map(([k, text]) => (
+              <option key={k} value={k}>
+                {text}
+              </option>
+            ))}
+          </select>
+          <small>Each aim has its own study on the worker: the first variety run of a row starts without earlier trials.</small>
+        </label>
+      ) : null}
+      {isVariety ? (
+        <label className="field">
+          <span>Loss tolerance</span>
+          <input value={tolerance} onChange={(e) => setTolerance(e.target.value)} inputMode="decimal" autoComplete="off" />
+          <small>
+            How much worse than the counts the validation loss may be, in nats, before it costs score. {d.lossTolerance.default} fits pick3 (its UnifiedLstmGruTcn row sits near 0.02); a game with more numbers may need another value.
+          </small>
+        </label>
+      ) : null}
+      {tuner === 'deeplearning' ? (
+        <label className="field">
           <span>Resume</span>
           <select value={fresh ? 'fresh' : 'resume'} onChange={(e) => setFresh(e.target.value === 'fresh')}>
             <option value="resume">Resume: an unfinished run with these settings on the GPU worker carries on</option>
-            <option value="fresh">Fresh: start a new run even if one with these settings is unfinished</option>
+            <option value="fresh">Fresh: count this run’s trials from zero even if one with these settings is unfinished</option>
           </select>
-          <small>Only the latest run can be resumed: a hyperopt with other settings starts a new one.</small>
+          <small>
+            This is about the run’s trial count only. Either way the trials go to the same study, which keeps every earlier trial of this row and aim. Only the latest run can be
+            resumed: a hyperopt with other settings starts a new run.
+          </small>
         </label>
       ) : null}
     </Confirm>
@@ -470,6 +531,8 @@ function HyperoptDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
 }
 
 // the score's words per tuner, for the gate's line
+const VARIETY_SCORE_TEXT =
+  'the share of validation windows with another ticket than the most common one, minus one point for each tolerance’s worth of excess loss above the tolerance; 1 = a different ticket every window within the tolerance, about 0 = one fixed ticket. The standard error is over retrains on almost the same history: a floor, not a test. The validation split contains the lockbox period.';
 const SCORE_TEXT: Record<string, string> = {
   deeplearning: 'minus the mean excess loss over the counts; 0 = as good as the counts, above 0 = better. The standard error is over retrains on almost the same history: a floor, not a test. The validation split contains the lockbox period.',
   statistics: 'a cautious lower bound of hits, capped profit per bet or (markets) log-score over the scored draws, lockbox draws left out.',
@@ -495,6 +558,7 @@ function DrawerBody({ h, onChanged }: { h: Hyperopt; onChanged: () => void }) {
           {h.tuner === 'deeplearning' ? `, pruning ${h.pruneAfterDays ? `after ${h.pruneAfterDays} draws` : 'off'}` : ''}
           {h.trialTimeout ? `, ${Math.round(h.trialTimeout / 60)} min a trial at most` : ''}, gate {h.gate ? `on (${h.gateSeMargin} SE)` : 'off'}
           {h.varietyLine !== null ? `, variety line ${h.varietyLine}%` : ''}
+          {h.aim ? `, ${aimText(h)}` : ''}
           {h.fresh ? ', fresh' : ''} · budget {hours(h.budget)}
         </p>
         {h.status === 'running' && nowText(h) ? (
@@ -560,7 +624,7 @@ function GateLine({ h, r }: { h: Hyperopt; r: Record<string, unknown> }) {
   return (
     <p className="line mut">
       Best trial of this run {n('challenger') === null ? DASH : fixed(n('challenger'), 4)} · served values {n('incumbent') === null ? 'not scored' : fixed(n('incumbent'), 4)} · untuned
-      defaults {n('default') === null ? 'not scored' : fixed(n('default'), 4)}, on the same {n('window_days') ?? h.days} draws: {SCORE_TEXT[h.tuner] ?? ''}
+      defaults {n('default') === null ? 'not scored' : fixed(n('default'), 4)}, on the same {n('window_days') ?? h.days} draws: {h.aim === 'variety' ? VARIETY_SCORE_TEXT : SCORE_TEXT[h.tuner] ?? ''}
     </p>
   );
 }
@@ -573,6 +637,7 @@ function GateLine({ h, r }: { h: Hyperopt; r: Record<string, unknown> }) {
 type Side = {
   same_ticket_mean?: unknown; blind_days?: unknown; variety_days?: unknown; input_blind?: unknown; distinct_tickets?: unknown; tickets?: unknown;
   variety_measure?: unknown; variety_line?: unknown; draws_same_ticket?: unknown; blind_by?: unknown;
+  kind?: unknown; excess_mean?: unknown; loss_tolerance?: unknown; within_tolerance?: unknown;
 };
 const pct = (x: number) => `${Number((x * 100).toFixed(1))}%`;
 function Variety({ r }: { r: Record<string, unknown> }) {
@@ -598,6 +663,9 @@ function Variety({ r }: { r: Record<string, unknown> }) {
               {label}: the same ticket on {pct(num(s!.same_ticket_mean) ?? 0)} of its validation windows on average, input-blind on {num(s!.blind_days) ?? 0} of{' '}
               {num(s!.variety_days) ?? 0} draws{num(s!.tickets) ? ` · ${num(s!.distinct_tickets)} different tickets over ${num(s!.tickets)} draws` : ''}
               {num(s!.draws_same_ticket) !== null ? ` · the same ticket on ${pct(num(s!.draws_same_ticket)!)} of its draws` : ''}
+              {s!.kind === 'variety_within_tolerance' && num(s!.excess_mean) !== null
+                ? ` · loss ${num(s!.excess_mean)! >= 0 ? '+' : ''}${num(s!.excess_mean)!.toFixed(4)} against the counts (tolerance ${num(s!.loss_tolerance) ?? DASH}${s!.within_tolerance === false ? ', over it' : ''})`
+                : ''}
             </>
           )}
           {s!.input_blind === true ? (

@@ -59,8 +59,19 @@ writeServed(served0);
   const q = hyperopts.parse({ game: 'pick3', model: 'transformer_model', trials: '4', days: '5', pruneAfterDays: 0, gate: false, fresh: true, gateSeMargin: '0.5' });
   ok(q.ok && q.params.trials === 4 && q.params.gate === false && q.params.fresh === true && q.params.gateSeMargin === 0.5, 'strings from the form are read');
   ok(JSON.stringify(hyperopts.argsOf(q.params)) === JSON.stringify(['-g', 'pick3', '-m', 'transformer_model', '-t', '4', '-d', '5', '--train-seconds', '240',
-    '--prune-after-days', '0', '--trial-timeout', '7200', '--gate', 'false', '--gate-se-margin', '0.5', '--variety-line', '0.95', '--fresh']), `the tuner's arguments: ${hyperopts.argsOf(q.params).join(' ')}`);
+    '--prune-after-days', '0', '--trial-timeout', '7200', '--gate', 'false', '--gate-se-margin', '0.5', '--variety-line', '0.95', '--aim', 'variety', '--loss-tolerance', '0.025', '--fresh']), `the tuner's arguments: ${hyperopts.argsOf(q.params).join(' ')}`);
   ok(hyperopts.argsOf(q.params).every((a) => /^[A-Za-z0-9,._-]+$/.test(a)), 'every argument passes remote-hyperopt.sh\'s check');
+  // the aim (owner, 14 Nov 2026): variety by default with its tolerance, each aim its own study; a record without one is skill
+  ok(p.params.aim === 'variety' && p.params.lossTolerance === 0.025 && /AIM = "variety"/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'DeepLearningTuning.py'), 'utf-8'))
+    && /LOSS_TOLERANCE = 0\.025\b/.test(fs.readFileSync(path.join(__dirname, '..', 'src', 'DeepLearningTuning.py'), 'utf-8')), 'the default aim and tolerance are the tuner\'s');
+  const sk = hyperopts.parse({ game: 'pick3', model: 'lstm_model', aim: 'skill', lossTolerance: 0.5 });
+  ok(sk.ok && sk.params.aim === 'skill' && sk.params.lossTolerance === undefined && hyperopts.argsOf(sk.params).join(' ').includes('--aim skill') && !hyperopts.argsOf(sk.params).includes('--loss-tolerance'), 'skill: no tolerance');
+  ok(hyperopts.parse({ game: 'pick3', model: 'lstm_model', lossTolerance: '0.04' }).params.lossTolerance === 0.04, 'the tolerance from the form');
+  ok(!hyperopts.parse({ game: 'pick3', model: 'lstm_model', aim: 'hits' }).ok && !hyperopts.parse({ game: 'pick3', model: 'lstm_model', lossTolerance: 0 }).ok
+    && !hyperopts.parse({ game: 'pick3', model: 'lstm_model', lossTolerance: 'x' }).ok && !hyperopts.parse({ game: 'pick3', model: 'lstm_model', lossTolerance: 2 }).ok, 'another aim or a tolerance out of range: refused');
+  ok(hyperopts.studyKey('pick3', 'lstm_model', 'variety') === 'pick3-lstm_model-variety' && hyperopts.TUNERS.deeplearning.studyKeys(p.params)[0] === 'lotto-gnn_model-variety'
+    && hyperopts.TUNERS.deeplearning.studyKeys({ game: 'lotto', model: 'gnn_model' })[0] === 'lotto-gnn_model-skill', 'each aim its own study; a record from before the aim is skill');
+  ok(hyperopts.parse({ tuner: 'statistics', game: 'lotto', model: 'Markov' }).params.aim === undefined, 'the other tuners have no aim');
   ok(hyperopts.budgetOf(p.params) === 17 * 7200 + 3600, 'the budget: every trial and both references at the trial timeout, plus an hour');
   ok(hyperopts.budgetOf({ ...p.params, trials: 100, trialTimeout: 21600 }) === 14 * 24 * 3600, 'at most two weeks');
 
@@ -77,7 +88,7 @@ writeServed(served0);
   };
   const W = { lane: (k) => (k === 'gpu' ? lane : null) };
   const t0 = new Date('2026-11-11T12:00:00Z');
-  const r = hyperopts.start(root, { game: 'lotto', model: 'gnn_model', trials: 5 }, 'tester', W, t0);
+  const r = hyperopts.start(root, { game: 'lotto', model: 'gnn_model', trials: 5, aim: 'skill' }, 'tester', W, t0);
   ok(r.ok && r.id === 'lotto-gnn-model-20261111120000', `started: ${JSON.stringify(r)}`);
   ok(queued.length === 1 && queued[0].deps.hyperopt.budget === 7 * 7200 + 3600 && queued[0].deps.hyperopt.args.includes('gnn_model'), 'queued on the GPU lane as a hyperopt with its budget and arguments');
   const rec = hyperopts.readRecord(root, r.id);
@@ -132,7 +143,7 @@ writeServed(served0);
 
   // a gate that replaced: its parameters are applied as the tuner would have written them
   writeServed(served0);
-  const r2 = hyperopts.start(root, { game: 'lotto', model: 'gnn_model' }, 'tester', W, new Date('2026-11-11T12:00:01Z'));
+  const r2 = hyperopts.start(root, { game: 'lotto', model: 'gnn_model', aim: 'skill' }, 'tester', W, new Date('2026-11-11T12:00:01Z'));
   fs.writeFileSync(path.join(root, 'config', 'hyperopts', `${r2.id}.result.json`), JSON.stringify({ studies: { 'lotto-gnn_model-skill': {
     status: 'done', decision: 'replaced', reason: 'beats both', params: { gnn_gcnUnits: 96 }, challengerParams: { gnn_gcnUnits: 96 }, record: { decision: 'replaced', reason: 'beats both' } } } }));
   ok(hyperopts.viewOf(root, hyperopts.readRecord(root, r2.id), state, { full: true }).apply['lotto-gnn_model-skill'].challenger === null, 'replaced: one choice only');
@@ -147,6 +158,30 @@ writeServed(served0);
   ok(/^Hyperopt stopping: its finished trials stay/.test(hyperopts.cancel(root, r2.id, 'tester', W).message), 'the running one is stopped through the lane');
   state.current = null;
   ok(hyperopts.cancel(root, 'nope', 'tester', W).status === 404, 'unknown id');
+
+  // delete (owner, 14 Nov 2026): refused while queued or running; the record, result, served snapshot and log go, bestParams stays
+  const r4 = hyperopts.start(root, { game: 'pick3', model: 'lstm_model' }, 'tester', W, new Date('2026-11-11T12:00:03Z'));
+  ok(r4.ok && hyperopts.readRecord(root, r4.id).aim === 'variety' && hyperopts.readRecord(root, r4.id).lossTolerance === 0.025 && /aim variety/.test(r4.message), `a run records its aim: ${r4.message}`);
+  let d = hyperopts.remove(root, r4.id, 'tester', W);
+  ok(d.status === 409 && /queued: cancel it first/.test(d.message) && hyperopts.readRecord(root, r4.id), 'a queued one is not deleted');
+  state.current = { id: r4.id, runId: 'gpu-hyperopt-z', type: 'hyperopt' };
+  state.queued = [];
+  d = hyperopts.remove(root, r4.id, 'tester', W);
+  ok(d.status === 409 && /running: stop it first/.test(d.message), 'a running one is not deleted');
+  state.current = null;
+  fs.mkdirSync(path.join(root, 'log', 'hyperopts'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'log', 'hyperopts', `${r2.id}.log`), 'x\n');
+  fs.writeFileSync(path.join(root, 'config', 'hyperopts', `${r2.id}.result.json.worker`), '{}');
+  const other = fs.readdirSync(path.join(root, 'config', 'hyperopts')).filter((n) => !n.startsWith(`${r2.id}.`)).sort().join(',');
+  const servedBefore = JSON.stringify(readServed());
+  d = hyperopts.remove(root, r2.id, 'tester', W);
+  ok(d.ok && /stays in bestParams/.test(d.message) && /applied/.test(d.detail) && !hyperopts.readRecord(root, r2.id)
+    && !fs.readdirSync(path.join(root, 'config', 'hyperopts')).some((n) => n.startsWith(`${r2.id}.`)) && !fs.existsSync(path.join(root, 'log', 'hyperopts', `${r2.id}.log`)),
+    `an applied run is deleted with its files: ${d.message}`);
+  ok(fs.readdirSync(path.join(root, 'config', 'hyperopts')).filter((n) => !n.startsWith(`${r2.id}.`)).sort().join(',') === other && JSON.stringify(readServed()) === servedBefore
+    && !hyperopts.list(root, state).hyperopts.some((h) => h.id === r2.id), 'the other runs and the served values are untouched');
+  ok(hyperopts.remove(root, r2.id, 'tester', W).status === 404 && hyperopts.remove(root, '../../bestParams_lotto', 'tester', W).status === 404, 'unknown id, or a path: 404');
+  ok(hyperopts.remove(root, r3.id, 'tester', null).ok, 'a cancelled one goes without a lane');
 
   // --- the other five tuners (owner, 12 Nov 2026): the CPU lane, the DL360's fallback, the variety line ---
   ok(hyperopts.settings(root).varietyLine === 95, 'no setting: the 95% line');

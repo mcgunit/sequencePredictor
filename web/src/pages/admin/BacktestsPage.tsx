@@ -23,7 +23,7 @@ const LIVE_MS = 5000;
 const IDLE_MS = 30000;
 
 const kindText = (kind: unknown) =>
-  kind === 'skill_vs_counts' ? 'skill over the counts' : kind === 'hits' ? 'hits bound' : kind === 'positional' ? 'slot-hit bound' : kind === 'log_score' ? 'log-score bound' : kind === 'capped_profit' ? 'capped profit/bet bound' : typeof kind === 'string' ? kind.replace(/_/g, ' ') : 'score';
+  kind === 'skill_vs_counts' ? 'skill over the counts' : kind === 'variety_within_tolerance' ? 'variety within the loss tolerance' : kind === 'hits' ? 'hits bound' : kind === 'positional' ? 'slot-hit bound' : kind === 'log_score' ? 'log-score bound' : kind === 'capped_profit' ? 'capped profit/bet bound' : typeof kind === 'string' ? kind.replace(/_/g, ' ') : 'score';
 const minutes = (s: number | null) => (s === null ? DASH : s < 90 ? `${Math.round(s)} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
 
 export default function BacktestsPage() {
@@ -33,6 +33,7 @@ export default function BacktestsPage() {
   const sender = useSend(poll.refresh);
   const [starting, setStarting] = useState(false);
   const [stop, setStop] = useState<Backtest | null>(null);
+  const [del, setDel] = useState<Backtest | null>(null);
 
   useEffect(() => {
     document.title = 'Backtests · Predictor';
@@ -82,7 +83,7 @@ export default function BacktestsPage() {
         {d.gpu.configured ? ` (${d.gpu.host ?? 'set up'}${d.gpu.running ? ', one running' : ''}${d.gpu.queued ? `, ${d.gpu.queued} queued` : ''})` : ' - none is set up on this server (config/workers.json), so they cannot start here'}: one at a
         time, beside the schedule, each draw a retrain with the daily run&apos;s 240 s of training.
       </p>
-      {d.backtests.length ? <BacktestTable d={d} onOpen={drawer.open} onStop={(b) => { sender.reset(); setStop(b); }} /> : <p className="note">No backtest yet.</p>}
+      {d.backtests.length ? <BacktestTable d={d} onOpen={drawer.open} onStop={(b) => { sender.reset(); setStop(b); }} onDelete={(b) => { sender.reset(); setDel(b); }} /> : <p className="note">No backtest yet.</p>}
       {drawer.value ? <BacktestDrawer key={drawer.value} id={drawer.value} onClose={drawer.close} /> : null}
       {starting ? (
         <BacktestStart
@@ -105,6 +106,18 @@ export default function BacktestsPage() {
           onConfirm={() => void sender.send(`/api/admin/backtests/${encodeURIComponent(stop.id)}/cancel`).then((done) => { if (done) setStop(null); })}
           onCancel={() => setStop(null)}
           lines={[stop.status === 'running' ? 'The days done so far are lost: a stopped backtest keeps no score.' : 'It is taken out of the queue.']}
+        />
+      ) : null}
+      {del ? (
+        <Confirm
+          title={`Delete the backtest of ${short(del.row)} on ${del.game}`}
+          action="Delete"
+          danger
+          busy={sender.busy}
+          error={sender.error}
+          onConfirm={() => void sender.send(`/api/admin/backtests/${encodeURIComponent(del.id)}/delete`).then((done) => { if (done) setDel(null); })}
+          onCancel={() => setDel(null)}
+          lines={['Its record and result leave this list. This cannot be undone. Nothing that is served changes: a backtest writes none of it.']}
         />
       ) : null}
       <Toast toast={sender.toast} onClose={sender.dismiss} />
@@ -153,7 +166,7 @@ function ResultCell({ b }: { b: Backtest }) {
   );
 }
 
-function BacktestTable({ d, onOpen, onStop }: { d: BacktestList; onOpen: (id: string) => void; onStop: (b: Backtest) => void }) {
+function BacktestTable({ d, onOpen, onStop, onDelete }: { d: BacktestList; onOpen: (id: string) => void; onStop: (b: Backtest) => void; onDelete: (b: Backtest) => void }) {
   return (
     <Card title="Backtests" meta={[`${d.backtests.length} kept`, 'newest first']} flush>
       <table className="tbl stk">
@@ -196,7 +209,11 @@ function BacktestTable({ d, onOpen, onStop }: { d: BacktestList; onOpen: (id: st
                   <button type="button" className="linkbtn" onClick={() => onStop(b)}>
                     {b.status === 'running' ? 'Stop' : 'Cancel'}
                   </button>
-                ) : null}
+                ) : (
+                  <button type="button" className="linkbtn" onClick={() => onDelete(b)}>
+                    Delete
+                  </button>
+                )}
               </td>
             </tr>
           ))}

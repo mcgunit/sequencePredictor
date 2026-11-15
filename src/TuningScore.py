@@ -414,7 +414,8 @@ def describe(tuning):
     kind = {"capped_profit": "capped profit/bet bound", "positional": "slot-hit bound",
             "hits": "hits bound", "log_score": "log-score bound",
             "val_loss": "minus validation loss",
-            "skill_vs_counts": "skill over the counts-only baseline"}.get(tuning.get("kind"), str(tuning.get("kind")))
+            "skill_vs_counts": "skill over the counts-only baseline",
+            "variety_within_tolerance": "variety within the loss tolerance"}.get(tuning.get("kind"), str(tuning.get("kind")))
     if _number(tuning.get("fair_capped_per_bet")):
         kind = f"{kind} above a fair ticket ({tuning['fair_capped_per_bet']:+.2f}/bet)"
     parts = [f"{text} ({kind}, {tuning.get('days', 0)} days)"]
@@ -428,7 +429,19 @@ def describe(tuning):
         parts.append(f"raw {raw_text}/bet over {tuning['bets']} bets, {tuning.get('lucky_strikes', 0)} lucky strike(s)")
     if _number(tuning.get("hits_mean")):
         parts.append(f"hits {tuning['hits_mean']:.2f}/day")
-    if _number(tuning.get("excess_mean")):
+    if tuning.get("kind") == "variety_within_tolerance":
+        # the deep-learning tuner's variety aim (src/DeepLearningTuning.day_score, 14 Nov 2026)
+        se = tuning.get("score_se")
+        hits = tuning.get("hits")
+        variety = tuning.get("variety_mean")
+        excess = tuning.get("excess_mean")
+        parts.append((f"another ticket than the most common one on {variety:.1%} of the validation windows" if _number(variety) else "variety n/a")
+                     + (f" (score +/- {se:.3f})" if _number(se) else "")
+                     + (f", excess loss {excess:+.4f} nats over the counts" if _number(excess) else "")
+                     + (f" (tolerance {tuning['loss_tolerance']:g}" + (", over it" if tuning.get("within_tolerance") is False else "") + ")"
+                        if _number(tuning.get("loss_tolerance")) else "")
+                     + (f", {hits:g} hits (record only)" if _number(hits) else ""))
+    elif _number(tuning.get("excess_mean")):
         # the deep-learning tuner since 7 Nov 2026 (src/DeepLearningTuning.day_score): the hits are not in the score
         se = tuning.get("score_se")
         hits = tuning.get("hits")

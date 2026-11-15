@@ -98,6 +98,18 @@ ok(r.ok && jobs.cancelled.includes(r3.id) && bt.readRecord(root, r3.id).status =
 refused(bt.cancel(root, r3.id, 'carol', jobs), /cancelled, not queued/, 'cancel twice');
 ok(bt.cancel(root, 'nope', 'x', jobs).status === 404, 'cancel an unknown one: 404');
 
+// --- delete (owner, 14 Nov 2026): refused while queued or running, else the record goes --------------------------------
+const r4 = bt.start(root, { game: 'eurodreams', row: 'LaplaceMonteCarlo Model', days: 10 }, 'c', jobs, new Date('2026-11-08T22:00:05Z'));
+refused(bt.remove(root, r4.id, 'carol', jobs), /queued: cancel it first/, 'delete a queued one');
+jobs.queued = jobs.queued.filter((x) => x !== r4.id);
+jobs.current = { id: r4.id, runId: 'backtest-del' };
+refused(bt.remove(root, r4.id, 'carol', jobs), /running: stop it first/, 'delete the running one');
+jobs.current = null;
+r = bt.remove(root, r3.id, 'carol', jobs);
+ok(r.ok && !bt.readRecord(root, r3.id) && bt.readRecord(root, r4.id) && !bt.list(root, jobs.backtestState()).backtests.some((b) => b.id === r3.id), 'a cancelled one is deleted, the others stay');
+ok(bt.remove(root, r3.id, 'carol', jobs).status === 404 && bt.remove(root, '../users', 'carol', jobs).status === 404, 'delete an unknown one, or a path: 404');
+ok(bt.remove(root, r4.id, 'carol', jobs).ok, 'ended without the scheduler knowing it: deleted');
+
 // --- the deep-learning rows: the GPU worker's queue -----------------------------------------------------------------
 function gpuWorker(host = '10.0.0.9', configured = true) {
   const w = { queued: [], current: null, stopped: [], cancelled: [], days: {} };

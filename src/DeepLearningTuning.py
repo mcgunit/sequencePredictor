@@ -71,6 +71,21 @@ DAYS = 3
 SCORE_KIND = "skill_vs_counts"
 # the studies of this score (old trials scored minus val_loss + hits; their scale must not feed the sampler/pruner)
 STUDY_SUFFIX = "skill"
+# The aim of a run (owner, 14 Nov 2026: "the variety target in the score" - the pick3 UnifiedLstmGruTcn row, 47
+# different tickets over 61 draws at about +0.02 nats over the counts, is how the other rows should predict, and the
+# skill score pulls every row towards the flat counts and one ticket instead):
+#   variety  how much the tickets follow the input - 1 minus the share of a draw's validation windows that got the
+#            most common ticket - among candidates that stay within a tolerance of the counts' loss: every
+#            tolerance's worth of excess loss above the tolerance costs one full point (the whole variety range)
+#   skill    minus the excess loss over the counts (7 Nov 2026), as before
+# Each aim has its own studies (study_name): their values are on different scales.
+VARIETY_KIND = "variety_within_tolerance"
+AIMS = {"variety": VARIETY_KIND, "skill": SCORE_KIND}
+AIM = "variety"
+# nats of mean excess validation loss over the counts a candidate may carry for free (the owner's example carries
+# about 0.020); --loss-tolerance, the page's field
+LOSS_TOLERANCE = 0.025
+LOSS_TOLERANCE_RANGE = (0.001, 1.0)
 RUN_FILE = "deeplearning-run.json"
 LOCKBOX_NOTE = ("not withheld: the score is the validation loss on the last 20% of each retrain's history, "
                 "which contains the lockbox period")
@@ -111,8 +126,37 @@ def predictor_defaults(prefix, served):
     return out
 
 
-def study_name(game, model_type):
-    return f"{game}-{model_type}-{STUDY_SUFFIX}"
+def study_name(game, model_type, aim="skill"):
+    return f"{game}-{model_type}-{'variety' if aim == 'variety' else STUDY_SUFFIX}"
+
+
+def clamp_tolerance(value):
+    """The loss tolerance within its range; LOSS_TOLERANCE for None or anything that is not a number."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return LOSS_TOLERANCE
+    if not math.isfinite(value):
+        return LOSS_TOLERANCE
+    return min(LOSS_TOLERANCE_RANGE[1], max(LOSS_TOLERANCE_RANGE[0], value))
+
+
+def _finite(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def day_value(excess, same_ticket, aim="skill", tolerance=None):
+    """
+    One rebuilt day's score, None when the day cannot be scored. skill: minus the excess loss. variety: the share of
+    the day's validation windows NOT on the most common ticket, minus (excess - tolerance) / tolerance when the
+    excess loss is above the tolerance - so a candidate at twice the tolerance has lost the whole variety range.
+    """
+    if aim != "variety":
+        return -float(excess) if _finite(excess) else None
+    if not (_finite(excess) and _finite(same_ticket)):
+        return None
+    tolerance = clamp_tolerance(tolerance)
+    return (1.0 - float(same_ticket)) - max(0.0, float(excess) - tolerance) / tolerance
 
 
 def day_excess(check):
@@ -123,7 +167,7 @@ def day_excess(check):
 
 
 def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tickets=None, tickets=None,
-              line=None):
+              line=None, aim="skill", tolerance=None):
     """
     The trial's score and its diagnostics (the gate's "tuning" record): minus the mean finite excess loss over the
     rebuilt days (None or non-finite for a day without a learning check); score_se the standard error of that over
@@ -135,7 +179,14 @@ def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tic
     most common argmax ticket - and tickets each day's predicted ticket. variety() turns them into same_ticket_mean,
     blind_days, input_blind (the gate's rule, TuningGate.challenge(variety=True)) and distinct_tickets; `line` is the
     owner's variety line (12 Nov 2026: a setting, --variety-line; INPUT_BLIND_SHARE without one).
+
+    aim "variety" (owner, 14 Nov 2026; day_value): the score is the mean over the days with both an excess loss and a
+    sameTicket of the day's variety minus its loss penalty, score_se its standard error over those days; the record
+    adds variety_mean, loss_penalty_mean, loss_tolerance and within_tolerance (the mean excess loss is at or under the
+    tolerance). excess_mean stays the plain mean excess loss; the input-blind rule is unchanged.
     """
+    if aim == "variety":
+        return _variety_score(excess_losses, hits, val_losses, verdicts, same_tickets, tickets, line, tolerance)
     finite = [-float(v) for v in excess_losses if isinstance(v, (int, float)) and math.isfinite(v)]
     losses = [float(v) for v in (val_losses or []) if isinstance(v, (int, float)) and math.isfinite(v)]
     out = {"kind": SCORE_KIND, "score": float("-inf"), "score_se": None, "days": len(finite), "excess_mean": None,
@@ -148,6 +199,30 @@ def day_score(excess_losses, hits=None, val_losses=None, verdicts=None, same_tic
                    score_se=statistics.stdev(finite) / math.sqrt(len(finite)) if len(finite) > 1 else None)
     if same_tickets is not None or tickets is not None:
         out.update(variety(same_tickets or [], tickets or [], line))
+    return out
+
+
+def _variety_score(excess_losses, hits, val_losses, verdicts, same_tickets, tickets, line, tolerance):
+    tolerance = clamp_tolerance(tolerance)
+    same = list(same_tickets or [])
+    pairs = [(float(e), float(same[i])) for i, e in enumerate(excess_losses)
+             if i < len(same) and _finite(e) and _finite(same[i])]
+    excess = [float(v) for v in excess_losses if _finite(v)]
+    losses = [float(v) for v in (val_losses or []) if _finite(v)]
+    values = [day_value(e, s, "variety", tolerance) for e, s in pairs]
+    out = {"kind": VARIETY_KIND, "score": float("-inf"), "score_se": None, "days": len(values),
+           "excess_mean": statistics.fmean(excess) if excess else None,
+           "hits": None if hits is None else float(hits),
+           "val_loss_mean": statistics.fmean(losses) if losses else None,
+           "learns_days": sum(1 for v in (verdicts or []) if v == "learns"),
+           "loss_tolerance": tolerance, "variety_mean": None, "loss_penalty_mean": None, "within_tolerance": None}
+    if values:
+        out.update(score=statistics.fmean(values),
+                   score_se=statistics.stdev(values) / math.sqrt(len(values)) if len(values) > 1 else None,
+                   variety_mean=statistics.fmean(1.0 - s for _, s in pairs),
+                   loss_penalty_mean=statistics.fmean(max(0.0, e - tolerance) / tolerance for e, _ in pairs),
+                   within_tolerance=bool(statistics.fmean(e for e, _ in pairs) <= tolerance + 1e-12))
+    out.update(variety(same, tickets or [], line))
     return out
 
 
@@ -192,19 +267,42 @@ def is_input_blind(tuning):
     return bool(isinstance(tuning, dict) and tuning.get("input_blind") is True)
 
 
-def running_value(excess_losses):
-    """What the parent reports to Optuna after a day: minus the mean finite excess so far (-1e9 when none is)."""
-    finite = [float(v) for v in excess_losses if isinstance(v, (int, float)) and math.isfinite(v)]
-    return -statistics.fmean(finite) if finite else -1e9
+def progress_day(entry):
+    """(excess loss, sameTicket) of one progress entry: a number (excess only, the form until 14 Nov 2026) or a pair."""
+    if isinstance(entry, (list, tuple)):
+        excess = entry[0] if len(entry) > 0 else None
+        same = entry[1] if len(entry) > 1 else None
+    else:
+        excess, same = entry, None
+    return (float(excess) if _finite(excess) else None, float(same) if _finite(same) else None)
 
 
-def write_progress(path, val_losses):
-    """The child's per-day values (excess losses), replaced atomically so the parent never reads half a file."""
+def running_value(entries, aim="skill", tolerance=None):
+    """
+    What the parent reports to Optuna after a day: the mean of the days' scores so far (day_value: minus the excess
+    loss, or for the variety aim the variety minus the loss penalty); -1e9 when no day can be scored. `entries` are
+    the progress file's: excess losses, or (excess loss, sameTicket) pairs.
+    """
+    values = [day_value(e, s, aim, tolerance) for e, s in (progress_day(v) for v in entries)]
+    values = [v for v in values if v is not None]
+    return statistics.fmean(values) if values else -1e9
+
+
+def write_progress(path, val_losses, same_tickets=None):
+    """
+    The child's per-day values, replaced atomically so the parent never reads half a file: the excess losses, or -
+    with same_tickets, the learning check's sameTicket per day - [excess, sameTicket] pairs (the variety aim's
+    running score needs both).
+    """
     if not path:
         return
     tmp = path + ".tmp"
+    clean = [v if _finite(v) else None for v in val_losses]
+    if same_tickets is not None:
+        same = list(same_tickets)
+        clean = [[v, same[i] if i < len(same) and _finite(same[i]) else None] for i, v in enumerate(clean)]
     with open(tmp, "w") as f:
-        json.dump([v if isinstance(v, (int, float)) and math.isfinite(v) else None for v in val_losses], f)
+        json.dump(clean, f)
     os.replace(tmp, path)
 
 
@@ -220,10 +318,13 @@ def read_progress(path):
 
 # --- A: the run marker ---
 
-def run_settings(games, models, trials, days, train_seconds, gate):
+def run_settings(games, models, trials, days, train_seconds, gate, aim="skill", tolerance=None):
     """What makes two runs the same run: a resume only continues a run with these settings."""
-    return {"games": list(games), "models": list(models), "trials": int(trials), "days": int(days),
-            "trainSeconds": int(train_seconds or 0), "gate": bool(gate), "score": SCORE_KIND}
+    out = {"games": list(games), "models": list(models), "trials": int(trials), "days": int(days),
+           "trainSeconds": int(train_seconds or 0), "gate": bool(gate), "score": AIMS.get(aim, SCORE_KIND)}
+    if aim == "variety":
+        out["lossTolerance"] = clamp_tolerance(tolerance)
+    return out
 
 
 def open_run(folder, settings, fresh=False, log=print, now=None):
@@ -345,15 +446,43 @@ def _self_check():
     assert day_excess({"excessLoss": -0.004}) == -0.004 and day_excess(None) is None
     assert day_excess({"excessLoss": float("nan")}) is None and day_excess({}) is None
     assert study_name("lotto", "gnn_model") == "lotto-gnn_model-skill"
+    # the variety aim (14 Nov 2026). The owner's example - pick3 UnifiedLstmGruTcn, the same ticket on 12% of its
+    # windows at +0.02 nats - scores its variety in full (inside the 0.025 tolerance); the 604 rows (one ticket, as
+    # good as the counts) score about nothing; a candidate at twice the tolerance has lost the whole range
+    assert study_name("lotto", "gnn_model", "variety") == "lotto-gnn_model-variety" and AIMS[AIM] == VARIETY_KIND
+    example = day_score([0.0195, 0.0201], same_tickets=[0.12, 0.12], tickets=[[1, 2, 3], [4, 5, 6]], aim="variety")
+    assert example["kind"] == VARIETY_KIND and abs(example["score"] - 0.88) < 1e-12 and example["within_tolerance"] is True
+    assert example["loss_tolerance"] == LOSS_TOLERANCE and example["loss_penalty_mean"] == 0.0 and example["days"] == 2
+    assert abs(example["excess_mean"] - 0.0198) < 1e-12 and abs(example["variety_mean"] - 0.88) < 1e-12
+    flat = day_score([0.0, 0.0003], same_tickets=[1.0, 0.94], tickets=[[6, 0, 4]] * 2, aim="variety")
+    assert abs(flat["score"] - 0.03) < 1e-12 and flat["input_blind"] is True and flat["score"] < example["score"]
+    wild = day_score([0.05, 0.05], same_tickets=[0.1, 0.1], aim="variety")
+    assert abs(wild["score"] - (0.9 - 1.0)) < 1e-12 and wild["within_tolerance"] is False and wild["score"] < flat["score"]
+    assert abs(day_score([0.05], same_tickets=[0.1], aim="variety", tolerance=0.05)["score"] - 0.9) < 1e-12
+    # a day without both values is not scored; none at all: -inf, which the gate never writes
+    part = day_score([0.01, None, 0.01], same_tickets=[0.5, 0.5, None], aim="variety")
+    assert part["days"] == 1 and part["score"] == 0.5 and part["score_se"] is None
+    assert day_score([0.01], same_tickets=[None], aim="variety")["score"] == float("-inf")
+    assert day_score([0.01], aim="variety")["score"] == float("-inf")
+    assert day_value(0.02, 0.3) == -0.02 and day_value(None, 0.3) is None and day_value(0.02, None, "variety") is None
+    assert abs(day_value(0.0375, 0.3, "variety") - 0.2) < 1e-12
+    assert clamp_tolerance(None) == LOSS_TOLERANCE and clamp_tolerance(0) == 0.001 and clamp_tolerance(5) == 1.0
+    assert abs(running_value([[0.01, 0.2], [None, 0.5], [0.05, 0.4]], "variety") - (0.8 + 0.6 - 1.0) / 2) < 1e-12
+    assert running_value([[0.02, 0.9], 0.04]) == -0.03 and running_value([0.02, 0.04], "variety") == -1e9
+    assert progress_day([0.1, 0.2]) == (0.1, 0.2) and progress_day(0.1) == (0.1, None) and progress_day(None) == (None, None)
 
     folder = tempfile.mkdtemp()
     progress = os.path.join(folder, "p.json")
     assert read_progress(progress) == []
     write_progress(progress, [2.5, float("inf")])
     assert read_progress(progress) == [2.5, None]
+    write_progress(progress, [0.01, float("inf"), 0.02], [0.4, 0.5])
+    assert read_progress(progress) == [[0.01, 0.4], [None, 0.5], [0.02, None]]
 
     settings = run_settings(["lotto"], ["gnn_model", "transformer_model"], 15, DAYS, 240, True)
-    assert settings["score"] == SCORE_KIND
+    assert settings["score"] == SCORE_KIND and "lossTolerance" not in settings
+    aimed = run_settings(["lotto"], ["gnn_model"], 15, DAYS, 240, True, "variety", 0.03)
+    assert aimed["score"] == VARIETY_KIND and aimed["lossTolerance"] == 0.03
     quiet = lambda message: None
     marker, resumed = open_run(folder, settings, log=quiet)
     assert not resumed and marker["done"] == []

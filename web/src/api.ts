@@ -2782,7 +2782,10 @@ export type HyperoptStudy = {
 export type Hyperopt = {
   id: string; tuner: string; tunerLabel: string; worker: 'gpu' | 'cpu'; where: string | null;
   game: string; model: string; row: string; trials: number; days: number; trainSeconds: number; pruneAfterDays: number; trialTimeout: number;
-  gate: boolean; gateSeMargin: number; fresh: boolean; varietyLine: number | null; budget: number; by: string; requestedAt: string | null; startedAt: string | null; finishedAt: string | null;
+  gate: boolean; gateSeMargin: number; fresh: boolean; varietyLine: number | null;
+  // the deep-learning tuner's aim (null for the other tuners; a record from before 14 Nov 2026 is skill) and, for variety, its loss tolerance
+  aim: 'variety' | 'skill' | null; lossTolerance: number | null;
+  budget: number; by: string; requestedAt: string | null; startedAt: string | null; finishedAt: string | null;
   status: HyperoptStatus; place: number | null; runId: string | null; phase: string | null; error: string | null;
   applied: HyperoptApplied | null;
   appliedStudies: Record<string, HyperoptApplied>;
@@ -2800,6 +2803,7 @@ export type HyperoptList = {
   hyperopts: Hyperopt[]; games: string[]; models: Record<string, string>; fields: Record<string, HyperoptField>; budgetMaxSeconds: number;
   tuners: Record<string, HyperoptTuner>;
   variety: HyperoptField & { varietyLine: number };
+  aims: Record<string, string>; aimDefault: 'variety' | 'skill'; lossTolerance: HyperoptField;
   gpu: HyperoptLane; cpu: HyperoptLane;
 };
 const HO_STATUS: HyperoptStatus[] = ['queued', 'running', 'done', 'failed', 'out of time', 'stopped', 'lost', 'cancelled', 'ended'];
@@ -2843,6 +2847,7 @@ function normHyperopt(v: unknown): Hyperopt {
     game: str(h.game), model: str(h.model), row: str(h.row), trials: num(h.trials, 0), days: num(h.days, 0), trainSeconds: num(h.trainSeconds, 0),
     pruneAfterDays: num(h.pruneAfterDays, 0), trialTimeout: num(h.trialTimeout, 0), gate: h.gate !== false, gateSeMargin: num(h.gateSeMargin, 1), fresh: bool(h.fresh),
     varietyLine: opt(h.varietyLine),
+    aim: (str(h.tuner) || 'deeplearning') !== 'deeplearning' ? null : h.aim === 'variety' ? 'variety' : 'skill', lossTolerance: h.aim === 'variety' ? opt(h.lossTolerance) : null,
     budget: num(h.budget, 0), by: str(h.by), requestedAt: ostr(h.requestedAt), startedAt: ostr(h.startedAt), finishedAt: ostr(h.finishedAt),
     status: HO_STATUS.includes(h.status as HyperoptStatus) ? (h.status as HyperoptStatus) : 'ended', place: opt(h.place), runId: ostr(h.runId), phase: ostr(h.phase), error: ostr(h.error),
     applied: normApplied(h.applied),
@@ -2874,6 +2879,8 @@ export const getAdminHyperopts = async (): Promise<HyperoptList> => {
       } as HyperoptTuner];
     })),
     variety: { ...normField(vr), integer: false, varietyLine: num(vr.varietyLine, 95) },
+    aims: strMap(r.aims), aimDefault: r.aimDefault === 'skill' ? 'skill' : 'variety',
+    lossTolerance: has(r.lossTolerance) ? { ...normField(r.lossTolerance), integer: false } : { default: 0.025, min: 0.001, max: 1, integer: false },
     gpu: normLane(r.gpu), cpu: normLane(r.cpu),
   };
 };

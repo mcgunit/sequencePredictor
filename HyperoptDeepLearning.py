@@ -711,6 +711,11 @@ def process_single_history_entry(args):
 TRIAL_TIMEOUT_SECONDS = 7200
 # How often the parent looks for a finished day while the child trains
 PROGRESS_POLL_SECONDS = 15
+# The run's aim and loss tolerance (src/DeepLearningTuning.AIMS; owner, 14 Nov 2026), set by main() from --aim and
+# --loss-tolerance: the parent's running score - what the pruner sees - follows them. "skill" here, so a backtest
+# (RunBacktest.py, which runs its draws through runPredictInChild) prints the excess loss as before.
+SCORE_AIM = "skill"
+LOSS_TOLERANCE = dlt.LOSS_TOLERANCE
 
 
 def runPredictInChild(trial, progressPath, *args, onDay=None, **kwargs):
@@ -766,10 +771,12 @@ def runPredictInChild(trial, progressPath, *args, onDay=None, **kwargs):
                 pass
             losses = dlt.read_progress(progressPath)
             while reported < len(losses):
-                value = dlt.running_value(losses[:reported + 1])
-                loss = losses[reported]
+                value = dlt.running_value(losses[:reported + 1], SCORE_AIM, LOSS_TOLERANCE)
+                loss, same = dlt.progress_day(losses[reported])
                 print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] day {reported + 1}/{kwargs.get('daysToRebuild')}: "
-                      f"excess loss over the counts {'n/a' if loss is None else f'{loss:+.4f}'}, running score {value:+.4f} "
+                      + (f"the same ticket on {'n/a' if same is None else f'{same:.1%}'} of the validation windows, "
+                         if SCORE_AIM == "variety" else "")
+                      + f"excess loss over the counts {'n/a' if loss is None else f'{loss:+.4f}'}, running score {value:+.4f} "
                       f"({(time.time() - started) / 60:.1f} min)")
                 if trial is not None:
                     trial.report(value, reported)
@@ -949,7 +956,7 @@ def predict(name, model_type ,dataPath, modelPath, file, skipLastColumns=0, maxR
                         tickets.append(json.load(dayHandle).get("newPrediction"))
                 except Exception:   # the variety record only: a day file that cannot be read counts as no ticket
                     tickets.append(None)
-                dlt.write_progress(progressPath, dayExcess)
+                dlt.write_progress(progressPath, dayExcess, sameTickets)
 
             print("Finished rebuild of history entries.")
 
@@ -1085,6 +1092,17 @@ if __name__ == "__main__":
              'validation windows or more, on at least half of its draws, is input-blind - neither written nor served '
              'back. 0.5-1.0 (or 50-100); default the owner\'s setting in config/tuning.json, else %g.' % dlt.INPUT_BLIND_SHARE)
     parser.add_argument(
+        '--aim', type=str, default=dlt.AIM, choices=sorted(dlt.AIMS),
+        help='What a trial is scored on (owner, 14 Nov 2026). variety: how much the tickets follow the input - 1 '
+             'minus the share of a draw\'s validation windows on the most common ticket - among candidates within '
+             '--loss-tolerance of the counts\' loss (every tolerance\'s worth above it costs one full point). '
+             'skill: minus the excess loss over the counts (the score until then). Each aim has its own Optuna '
+             'studies. Default %(default)s.')
+    parser.add_argument(
+        '--loss-tolerance', type=float, default=dlt.LOSS_TOLERANCE,
+        help='The variety aim\'s tolerance: nats of mean excess validation loss over the counts a candidate may '
+             'carry for free (%g-%g, default %%(default)s).' % dlt.LOSS_TOLERANCE_RANGE)
+    parser.add_argument(
         '--fresh', action='store_true',
         help='Start a new run even if an unfinished one with the same settings is on disk (default: resume it).')
     parser.add_argument(
@@ -1124,6 +1142,11 @@ if __name__ == "__main__":
     varietyLine = (tres.clamp_line(args.variety_line) if args.variety_line is not None
                    else tres.load_variety_line(path))
     print(f"Variety line: {tres.line_text(varietyLine)} of the validation windows (input-blind at or above it on half the draws)")
+    SCORE_AIM = args.aim
+    LOSS_TOLERANCE = dlt.clamp_tolerance(args.loss_tolerance)
+    scoreAim, lossTolerance = SCORE_AIM, LOSS_TOLERANCE
+    print("Aim: " + (f"variety - how much the tickets follow the input, within {lossTolerance:g} nats of the counts' loss"
+                     if scoreAim == "variety" else "skill - minus the excess loss over the counts"))
 
     print("Push to git: ", pushToGit)
     print("Running ", n_trials, "trials")
@@ -1182,8 +1205,8 @@ if __name__ == "__main__":
     runFolder = os.path.join(path, "data", "hyperOptCache")
     runMarker, resumed = dlt.open_run(runFolder, dlt.run_settings(
         games, dl_model_types, n_trials, daysToRebuild,
-        trainSeconds, gateEnabled), fresh=args.fresh)
-    studyKeys = [dlt.study_name(d[0], d[1]) for d in datasets if d[0] in games]
+        trainSeconds, gateEnabled, scoreAim, lossTolerance), fresh=args.fresh)
+    studyKeys = [dlt.study_name(d[0], d[1], scoreAim) for d in datasets if d[0] in games]
     signal.signal(signal.SIGINT, onInterrupt)
     signal.signal(signal.SIGTERM, onInterrupt)
 
@@ -1193,7 +1216,7 @@ if __name__ == "__main__":
                 print(f"\n{dataset_name.capitalize()}")
                 # the score's own studies (src/DeepLearningTuning.STUDY_SUFFIX, 7 Nov 2026): the old ones hold
                 # minus-val_loss values, whose scale would mislead the sampler and the pruner's median
-                studyKey = dlt.study_name(dataset_name, model_type)
+                studyKey = dlt.study_name(dataset_name, model_type, scoreAim)
                 if studyKey in runMarker["done"]:
                     print(f"{studyKey}: finished earlier in this run - skipped")
                     continue
@@ -1314,7 +1337,7 @@ if __name__ == "__main__":
                     profit, _, dayExcess, dayLosses, verdicts, dayVariety = results[0]
                     tuning = dlt.day_score(dayExcess, hits=profit, val_losses=dayLosses, verdicts=verdicts,
                                            same_tickets=dayVariety["sameTickets"], tickets=dayVariety["tickets"],
-                                           line=varietyLine)
+                                           line=varietyLine, aim=scoreAim, tolerance=lossTolerance)
                     trial.set_user_attr("tuning", attrs_for_trial(tuning))
                     return tuning["score"]
 
@@ -1401,6 +1424,8 @@ if __name__ == "__main__":
                 print(outcome["summary"])
                 outcome["record"]["lockbox"] = dlt.LOCKBOX_NOTE
                 outcome["record"]["train_seconds"] = trainSeconds or None
+                outcome["record"]["aim"] = scoreAim
+                outcome["record"]["loss_tolerance"] = lossTolerance if scoreAim == "variety" else None
                 existingData.setdefault("tuningGate", {})[displayName] = outcome["record"]
                 if outcome["params"] is not None:
                     existingData.update(outcome["params"])
@@ -1433,7 +1458,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Failed to Hyperopt {dataset_name.capitalize()}: {e}")
                 try:
-                    dlt.write_result(resultFile, dlt.study_name(dataset_name, model_type), status="failed", current=None, error=str(e)[:500])
+                    dlt.write_result(resultFile, dlt.study_name(dataset_name, model_type, scoreAim), status="failed", current=None, error=str(e)[:500])
                 except Exception:
                     pass
 
