@@ -2889,3 +2889,20 @@ export const getAdminHyperoptLog = async (id: string): Promise<{ size: number; t
   const r = o(await getJson<unknown>(`/api/admin/hyperopts/${encodeURIComponent(id)}/log`));
   return { size: num(r.size, 0), text: str(r.text), truncated: bool(r.truncated) };
 };
+
+// --- Admin › Wiki (GET /api/admin/docs[/:page], docs.js): README.md and docs/*.md as markdown text ---
+export type WikiEntry = { id: string; title: string; file: string; bytes: number; updatedAt: string | null };
+export type WikiList = { name: string; pages: WikiEntry[] };
+export type WikiDoc = { id: string; title: string; file: string; updatedAt: string | null; text: string };
+export const getAdminWiki = async (): Promise<WikiList> => {
+  const r = o(await getJson<unknown>('/api/admin/docs'));
+  return {
+    name: str(r.name, 'Wiki'),
+    pages: arr(r.pages as unknown[]).map(o).filter((p) => typeof p.id === 'string' && p.id !== '')
+      .map((p) => ({ id: str(p.id), title: str(p.title, str(p.id)), file: str(p.file), bytes: num(p.bytes, 0), updatedAt: typeof p.updatedAt === 'string' ? p.updatedAt : null })),
+  };
+};
+export const getAdminWikiPage = async (id: string): Promise<WikiDoc> => {
+  const r = o(await getJson<unknown>(`/api/admin/docs/${encodeURIComponent(id)}`));
+  return { id: str(r.id, id), title: str(r.title, id), file: str(r.file), updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : null, text: str(r.text) };
+};

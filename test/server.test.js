@@ -97,7 +97,7 @@ const LIVE = [
   'GET /api/account', 'GET /api/admin/controls', 'GET /api/admin/controls/:game', 'GET /api/admin/draw/:game/:date', 'GET /api/admin/history/:game',
   'GET /api/admin/jobs', 'GET /api/admin/jobs/run/:id/log', 'GET /api/admin/market/:market/workbench',
   'GET /api/admin/market/:market/workbench/books/:rule', 'GET /api/admin/market/:market/workbench/orders/:game', 'GET /api/admin/market/:market/workbench/instrument/:symbol',
-  'GET /api/admin/models', 'GET /api/admin/models/:game', 'GET /api/admin/people', 'GET /api/admin/phase-shift', 'GET /api/admin/phase-shift/:game',
+  'GET /api/admin/docs', 'GET /api/admin/docs/:page', 'GET /api/admin/models', 'GET /api/admin/models/:game', 'GET /api/admin/people', 'GET /api/admin/phase-shift', 'GET /api/admin/phase-shift/:game',
   'GET /api/admin/randomness', 'GET /api/admin/randomness/:game', 'GET /api/admin/tuning', 'GET /api/admin/tuning/:game', 'GET /api/admin/parameters/:game', 'GET /api/admin/week',
   'GET /api/home', 'GET /api/lottery', 'GET /api/lottery/:game', 'GET /api/lottery/:game/:date', 'GET /api/markets/:market', 'GET /api/me',
   'GET /api/quotes/:market', 'GET /api/whats-new', 'GET /app', 'GET /app/*',
@@ -111,7 +111,7 @@ const LIVE = [
 ].sort();
 const lines = regs.flatMap((r) => (r.paths ? r.paths.map((p) => `${r.method.toUpperCase()} ${p}`) : ['USE (middleware)']));
 const found = [...new Set(lines)].sort();
-ok(LIVE.length === 76, `the live list has 76 entries (${LIVE.length})`);
+ok(LIVE.length === 78, `the live list has 78 entries (${LIVE.length})`);
 ok(JSON.stringify(found) === JSON.stringify(LIVE),
   `exactly the live routes: missing ${JSON.stringify(LIVE.filter((l) => !found.includes(l)))}, extra ${JSON.stringify(found.filter((l) => !LIVE.includes(l)))}`);
 

@@ -1,129 +1,499 @@
 # Models: how the predictions are made
 
-> Moved out of the README on 5 Nov 2026, word for word; see "Out of date" at the end of this page for what the 5 Nov check found.
+This page describes every prediction row `Predictor.py` writes: the statistical models, the deep-learning and gradient-boosting rows, the foundation models, the rows that combine other rows (vote rows, meta-learner rows, reinforcement-learning rows), the variant rows, and how a day of predictions is built, time-boxed and rebuilt after a gap. How rows are scored and ranked is on [scoring](scoring.md), how their parameters are tuned on [tuning](tuning.md), the market games on [markets](markets.md), and how runs are started and scheduled on [operations](operations.md).
 
 ## The main idea
 
-This project compares several probabilistic/statistical models, plus deep and boosting (LSTM/TCN) and gradient boosting (XGBoost), for lottery-style number prediction across multiple games (Euromillions, Lotto, EuroDreams, Keno, Pick3, VikingLotto, Joker+).
+The project compares many independent prediction methods on lottery-style draws and on market games built in the same shape.
 
-The research goal is **not** to predict jackpots (a 6-out-of-6 is not the target). It is to test whether any of the games can be made **profitable for the players** over time - and if a model ever shows a reproducible edge, to understand *why* the process is predictable so countermeasures can be designed. Profit per bet against the real payout tables is therefore the primary research metric where one exists (Keno, Pick3); hit averages are diagnostics.
+- Lottery games: `euromillions`, `lotto`, `eurodreams`, `jokerplus`, `keno`, `pick3`, `vikinglotto`.
+- Market games: `crypto`, `shares`, `cryptoweek`, `sharesweek` (see [markets](markets.md)).
+
+The research goal is **not** to predict jackpots. It is to test whether any game can be made profitable for the players over time and, if a model ever shows a reproducible edge, to understand why the process is predictable so countermeasures can be designed. Profit against the real payout or prize tables is the primary metric where one exists; hit averages are diagnostics (see [scoring](scoring.md)). Nothing on this page is a recommendation to play or to trade.
+
+Every enabled method runs every time and stores its raw output as its own row in the day file (`data/database/<game>/<Y-M-D>.json`), so each method builds its own tracked history. Parameters and on/off flags are read from `bestParams_<game>.json`; a tuner changes a model's parameters, it does not switch models off.
+
+### Two kinds of game
+
+- **Set games** (lotto, euromillions, eurodreams, vikinglotto, keno): a draw is a set of distinct numbers, stored sorted.
+- **Positional games** (`Helpers.POSITIONAL_GAMES`: pick3, jokerplus, crypto, shares and their week games): a draw is an ordered sequence. Tickets keep drawn order and may repeat a value (`[4,4,7]` is a real pick3 outcome).
+
+Special columns are modelled apart from the main numbers through `Helpers.run_model_with_special_column` (`SPECIAL_COLUMN_COUNTS`): two stars for euromillions, one dream number for eurodreams, one viking number for vikinglotto, the sign for jokerplus. Lotto's bonus number is dropped before modelling.
+
+On the five games in `MultiPick.PROBABILITY_ORDER` (vikinglotto, euromillions, eurodreams, keno, lotto) tickets are stored most-probable-first; see [scoring](scoring.md).
+
+## Row overview
+
+| Family | Rows |
+|---|---|
+| Statistical | `Markov Model`, `MarkovMonteCarlo Model`, `MarkovBayesian Model`, `MarkovBayesianEnhanched Model`, `PoissonMonteCarlo Model`, `PoissonMarkov Model`, `LaplaceMonteCarlo Model`, `HybridStatisticalModel` |
+| Deep learning, heavy | `LSTM Base Model`, `LSTM Smoothed Model`, `TCN Base Model`, `UnifiedLstmTcn Model`, `UnifiedLstmGruTcn Model` |
+| Deep learning, light | `Transformer Model`, `GNN Model`, `Autoencoder Model` |
+| Gradient boosting | `XGBoost Model`, `XGBoostMultiLabel Model`, `LightGBM Model`, `LightGBMMultiLabel Model`, `CatBoost Model`, `CatBoostMultiLabel Model` |
+| Foundation | `Chronos Model`, `TimesFM Model`, and their yardstick `OrderStatistics Baseline` |
+| Market rows | `GARCH Model`, `Regime HMM Model`, `Regime HMM ZeroMean Model`, `Regime HMM Single Model` (see [markets](markets.md)) |
+| Meta-learner | `MetaLearner Model`, `MetaLearnerV2 Model`, `QuantumMetaLearner Model`, `QuantumVQC Model`, `ClassicalSVM Model` |
+| Vote | `WeightedEnsemble Model`, `SubsetEnsemble Model` |
+| Reinforcement learning | `RL Ticket Model` (lottery), `RL Position Model` (markets) |
+| Variants | `<row> · Memorise`, `<row> · Sampled` |
 
 ## Statistical models (`src/`)
 
-Each model generates predictions based on a different statistical interpretation of historical draw data:
+Each model reads the historical draws under a different statistical interpretation.
 
-- **Markov** builds a (configurable order) transition chain over historical draws, with recency weighting, pair-decay, smoothing, and softmax-based subset selection.
-- **MarkovMonteCarlo** wraps a `Markov` instance and repeatedly samples/votes over many simulated tickets (instead of a single deterministic sample) to pick the numbers that win the most votes.
-- **MarkovBayesian** / **MarkovBayesianEnhanced** apply Bayesian smoothing (alpha, softmax temperature, min-occurrence thresholds) on top of the Markov transition counts.
-- **PoissonMonteCarlo** estimates which numbers repeatedly occur under historical position-based count rates, sampled via Monte Carlo simulation.
-- **PoissonMarkov** blends Poisson and Markov probabilities using a tunable weight.
-- **LaplaceMonteCarlo** estimates which values repeatedly appear when each sorted position is modeled by its historical center and spread.
-- **HybridStatisticalModel** combines several of the above signals (softmax temperature, alpha, min occurrences, simulation count) into one blended model.
+- **Markov** builds a transition chain of configurable order over the draws, with recency weighting, pair decay and smoothing. `markovTransitionMode` selects the chain: `column` (default; the same position from one draw to the next) or `within` (number to next number inside the sorted draw, set games only). The fallback number range is derived from the data the model is built on.
+- **MarkovMonteCarlo** wraps a `Markov` instance and votes over many simulated tickets. On positional games its ticket is the per-slot mode of the simulated tickets, in drawn order.
+- **MarkovBayesian** / **MarkovBayesianEnhanced** apply Bayesian smoothing (alpha, softmax temperature, minimum-occurrence threshold) on top of the Markov transition counts.
+- **PoissonMonteCarlo** estimates which numbers recur under historical position-based count rates, sampled by Monte Carlo simulation.
+- **PoissonMarkov** blends Poisson and Markov probabilities with a tunable weight.
+- **LaplaceMonteCarlo** models each position by its historical centre and spread and samples from it.
+- **HybridStatisticalModel** votes across Markov, MarkovBayesian, PoissonMonteCarlo, LaplaceMonteCarlo and PoissonMarkov: a frequency vote on set games, a per-position vote when the game is unsorted.
 
-Every model above (except `HybridStatisticalModel`) — and, since the alignment described below, `XGBoost` too — also exposes `score_numbers()`, returning a `{number: score}` dict instead of a collapsed ticket — reused by `MetaLearner Model` (below) and by `Backtester.collect_scores` to build its training data.
+All models share one interface (`setDataPath`, `run(...)`), so `Predictor.py` and the Backtester drive them interchangeably.
 
-Every model shares the same interface (`setDataPath`, `run(...)`/`run_model_with_special_column`) so the Backtester and Predictor can drive them interchangeably. Euromillions' star numbers, EuroDreams' dream number, and VikingLotto's super viking number are modeled independently from the main numbers (see `Helpers.run_model_with_special_column`); Pick3 is positional, so predictions are kept in drawn order instead of sorted.
+- `score_numbers()` returns a `{number: score}` dict instead of a ticket. Every statistical model except `HybridStatisticalModel` has it, and so do the boosting rows, the foundation models and the baseline. The meta-learner rows and `Backtester.collect_scores` use it.
+- `score_positions()` returns one score dict per slot. Markov, MarkovMonteCarlo, PoissonMonteCarlo, LaplaceMonteCarlo, the per-position boosting rows, the foundation models and the baseline have it; the positional meta-learner uses it.
+
+### Flags
+
+| Flag | Default when the key is absent |
+|---|---|
+| `useMarkov` | off |
+| `useMarkovMonteCarlo` | off |
+| `useMarkovBayesian` | on |
+| `usevMarkovBayesianEnhanced` | on (the key is spelled this way) |
+| `usePoissonMonteCarlo` | off |
+| `usePoissonMarkov` | on |
+| `useLaplaceMonteCarlo` | off |
+| `useHybridStatisticalModel` | on |
+
+On positional games MarkovBayesian, MarkovBayesianEnhanced, PoissonMarkov and HybridStatisticalModel are skipped (they have no per-position model), and `useMarkov`, `useMarkovMonteCarlo`, `usePoissonMonteCarlo` and `useLaplaceMonteCarlo` are on when their key is absent.
 
 ## Deep learning & boosting
 
-Both `LSTM.py` and `TCN.py` frame prediction the same way: a sliding window of `windowSize` past draws (each draw's numbers embedded/encoded) feeds the network, whose output is one independent softmax per digit/number slot (`Reshape((digitsPerDraw, num_classes))` + softmax on the last axis) — effectively "which number is most likely at this position," not a joint draw-level distribution.
+All deep-learning rows frame the prediction the same way: a sliding window of `windowSize` past draws feeds the network, and the output is one independent softmax per slot (`Dense` then `Reshape((slots, classes))` then softmax on the last axis). That is "which value is most likely at this position", not a joint distribution over the draw. Special columns get their own output head with their own class range.
 
-- **LSTM** (`src/LSTM.py`) — `Embedding` → single `Bidirectional(LSTM)` layer → `Dropout` → `Dense` → reshaped per-position softmax. Trains with Adam, categorical cross-entropy, `EarlyStopping`/`ReduceLROnPlateau`/`ModelCheckpoint`, and custom `digit_accuracy`/`any_digit_hit`/`full_draw_accuracy` metrics. This is the model type every game in `Predictor.py`/`HyperoptDeepLearning.py` currently uses. Two rough edges worth knowing about: a `SelfAttentionBlock` class is defined but never actually used in `create_model`, and the `num_lstm_layers`/`num_bidirectional_layers` setters have no effect on the built architecture (always one layer) despite being exposed as tunable — dead configuration surface from an earlier iteration. Two tracked rows run on it (`Predictor.py` `LSTM_ROWS`): `LSTM Base Model` trains on plain categorical cross-entropy - label smoothing left its loss on 3 Feb 2026 (commit 49bcb2f5), so the tuned `labelSmoothing` is stored but not applied - and since 25 Oct 2026 `LSTM Smoothed Model` trains the same network on the same tuned keys with `labelSmoothing` in the loss of both heads (`useLstmSmoothed`, its own weights and fingerprint in `data/models/lstm_smoothed_model`), so the pair shows what smoothing does to one model; it costs a second LSTM training per game and day (about 150 s on average). Until the tuner changes, the `lstm_model` study samples `labelSmoothing` but scores LSTM Base's unsmoothed loss, so the stored value (0.02-0.10 across the lottery games) is whatever the best trial happened to draw; the market games have no tuned LSTM keys and use the model default 0.1.
-- **TCN** (`src/TCN.py`, via the `keras-tcn` package) — stacked dilated-convolution `TCN` layers → **two actually-wired `SelfAttentionBlock`s** (custom `MultiHeadAttention` + FFN + LayerNorm, hand-rolled rather than a library dependency) → `GlobalAveragePooling1D` → dense softmax. More complete than `LSTM.py` today: it also blends its raw prediction with a live Markov chain over the same history (`lstmMarkovAlpha`-equivalent), and adds a `TopKCategoricalAccuracy(k=3)` metric. It's fully wired (same `run()` interface, same setters) but **not currently exercised** — every dataset in `HyperoptDeepLearning.py`'s sweep is hardcoded to `"lstm_model"`, so TCN's architecture is live code that never actually gets tuned or run in practice.
-- **`UnifiedLstmTcn` / `UnifiedLstmGruTCT`** (`src/UnifiedLstmTcn.py`, `src/UnifiedLstmGruTcn.py`) — real architectural fusion, replacing the old `src/Unified.py` prototype (which trained LSTM/GRU/TCN separately and only averaged their output probabilities afterward — an ensemble, not a fusion, and never wired into anything). Both share one `Embedding` step (keeping `window_size` as the time dimension, unlike `LSTM.py`'s flattening, so branches stay shape-compatible), then run a `Bidirectional(LSTM)` branch and a stacked-`TCN` branch (plus a third `GRU` branch for the 3-branch variant) **concatenated together** before the shared attention/pooling/output head — the branches' learned representations mix before the network makes its prediction, not after. Live in `Predictor.py` as two additional rows (`UnifiedLstmTcn Model`, `UnifiedLstmGruTcn Model`) alongside `LSTM Base Model`, tuned by their own `HyperoptDeepLearning.py` studies (see `MODEL_REGISTRY`/`suggest_fused_params`, with `unifiedLstmTcn_*`/`unifiedLstmGruTcn_*`-prefixed `bestParams_<game>.json` keys so they don't clobber `LSTM Base Model`'s own tuned values). No Markov blending in either (unlike `TCN.py`) — out of scope for now.
+Common behaviour of every deep-learning row:
 
-Three further lightweight DL rows — `Transformer Model`, `GNN Model` and `Autoencoder Model` — share this exact `run()` interface and per-position softmax head but are documented under **Advanced Architectural & Security Research** below, since they exist as research probes (long-range attention, co-occurrence structure, anomaly detection) rather than as variations of the LSTM/TCN family. Unlike the models above they are *not* gated behind `--ai`.
+- Training uses `EarlyStopping(restore_best_weights=True)`, `ReduceLROnPlateau`, `ModelCheckpoint`, `TerminateOnNaN` and a wall-clock budget (see *The daily deep-learning time budget*).
+- Weights are saved with a fingerprint of the architecture-shaping parameters (`<model>.weights.h5` and `<model>.fingerprint.json`). The next run loads them only when the fingerprint matches, so a tuned change of units, layers or window trains fresh instead of loading stale weights.
+- A row's history depth is `<prefix>_yearsOfHistory`, falling back to the bare `yearsOfHistory` (default 20); the LSTM rows use the bare key.
+- On keno every row plays the subset sizes `getKenoSubsetSizes` returns: the sizes whose `use_5` .. `use_10` flag is true in `bestParams_keno.json`.
+
+### LSTM (`src/LSTM.py`)
+
+`Reshape` (the window flattened to one symbol sequence) → `Embedding` → one `Bidirectional(LSTM)` layer → `Dropout` → `Dense` → per-position softmax heads. Metrics: accuracy, `digit_accuracy`, `any_digit_hit`.
+
+- The network always has one recurrent layer: the `num_lstm_layers` / `num_bidirectional_layers` setters do not change the built architecture, and the `SelfAttentionBlock` class in the file is not used by `create_model`.
+- Two rows run on it (`Predictor.py` `LSTM_ROWS`):
+
+| Row | Flag | Loss | Weights |
+|---|---|---|---|
+| `LSTM Base Model` | `useLstm` | plain categorical cross-entropy; the tuned `labelSmoothing` is stored but not applied | `data/models/lstm_model` |
+| `LSTM Smoothed Model` | `useLstmSmoothed` | the same network on the same tuned keys, with `labelSmoothing` in the loss of both heads | `data/models/lstm_smoothed_model` |
+
+- The LSTM keys in `bestParams_<game>.json` are unprefixed: `batchSize`, `epochs`, `num_lstm_layers`, `lstm_units`, `num_bidirectional_layers`, `bidirectional_lstm_units`, `optimizer_type`, `learningRate`, `dropout`, `l2Regularization`, `useFinalLSTMLayer`, `earlyStopPatience`, `reduceLearningRatePatience`, `reduceLearningRateFactor`, `windowSize`, `labelSmoothing`.
+- A missing key falls back to `LSTMModel`'s own default and the run logs how many keys are untuned.
+- The day file's `newPredictionRaw` and `labels` are those of `LSTM Base Model`.
+
+### TCN (`src/TCN.py`)
+
+Stacked dilated-convolution `TCN` layers (the `keras-tcn` package) → two `SelfAttentionBlock`s (`MultiHeadAttention` + feed-forward + `LayerNorm`) → `GlobalAveragePooling1D` → per-position softmax heads. Loss: categorical cross-entropy with label smoothing. Metrics: accuracy, top-3 accuracy, `digit_accuracy`, `any_digit_hit`, `full_draw_accuracy`. Row `TCN Base Model`, keys `tcn_*`.
+
+### UnifiedLstmTcn / UnifiedLstmGruTcn (`src/UnifiedLstmTcn.py`, `src/UnifiedLstmGruTcn.py`)
+
+Architectural fusion rather than an ensemble. One `Embedding` step keeps the window as the time dimension, then a `Bidirectional(LSTM)` branch and a stacked `TCN` branch (plus a `GRU` branch in the three-branch model) are **concatenated** before the shared attention, pooling and output head, so the branches' representations mix before the prediction is made. Rows `UnifiedLstmTcn Model` and `UnifiedLstmGruTcn Model`, keys `unifiedLstmTcn_*` and `unifiedLstmGruTcn_*`. Loss and metrics as the TCN.
+
+### Light rows
+
+`Transformer Model`, `GNN Model` and `Autoencoder Model` share the same `run()` interface and per-position softmax head. They are research probes (long-range attention, co-occurrence structure, anomaly detection) and run without `--ai`. They are described under *Advanced Architectural & Security Research*.
+
+### Parameters of the prefixed rows
+
+`Predictor.py` `UNIFIED_DL_MODELS` lists the six prefixed rows; `configureUnifiedModel` reads `<prefix>_<key>` with these defaults:
+
+| Key | Default | Key | Default |
+|---|---|---|---|
+| `batchSize` | 16 | `epochs` | 1000 |
+| `lstmUnits` | 64 | `gruUnits` | 64 |
+| `tcnUnits` | 64 | `numTcnLayers` | 2 |
+| `dModel` | 64 | `numLayers` | 2 |
+| `ffnFactor` | 4 | `numHeads` | 4 |
+| `keyDim` | 32 | `gcnUnits` | 32 |
+| `numGcnLayers` | 2 | `embeddingDim` | 16 |
+| `decay` | 0.999 | `latentDim` | 16 |
+| `encoderUnits` | 64 | `numEncoderLayers` | 2 |
+| `dropout` | 0.3 | `l2Regularization` | 0.0005 |
+| `learningRate` | 0.001 | `labelSmoothing` | 0.05 |
+| `earlyStopPatience` | 20 | `reduceLearningRatePatience` | 5 |
+| `reduceLearningRateFactor` | 0.5 | `windowSize` | 20 |
+
+Row-specific defaults: the Transformer's `windowSize` is 30; the Autoencoder's `labelSmoothing` is 0.0 and its `dropout` 0.2.
+
+| Row | Prefix | Flag | Needs `--ai` | Weights folder |
+|---|---|---|---|---|
+| `TCN Base Model` | `tcn` | `useTcn` | yes | `data/models/tcn_model` |
+| `UnifiedLstmTcn Model` | `unifiedLstmTcn` | `useUnifiedLstmTcn` | yes | `data/models/unified_lstm_tcn_model` |
+| `UnifiedLstmGruTcn Model` | `unifiedLstmGruTcn` | `useUnifiedLstmGruTcn` | yes | `data/models/unified_lstm_gru_tcn_model` |
+| `Transformer Model` | `transformer` | `useTransformer` | no | `data/models/transformer_model` |
+| `GNN Model` | `gnn` | `useGnn` | no | `data/models/gnn_model` |
+| `Autoencoder Model` | `autoencoder` | `useAutoencoder` | no | `data/models/autoencoder_model` |
+
+All `use…` flags of the deep-learning rows default to on. The seven network types are tuned by `HyperoptDeepLearning.py`, which dispatches through `MODEL_REGISTRY` (`lstm_model`, `tcn_model`, `unified_lstm_tcn_model`, `unified_lstm_gru_tcn_model`, `transformer_model`, `gnn_model`, `autoencoder_model`); see [tuning](tuning.md).
+
+### Warm-start guard
+
+Each row trains on from its loaded weights. `Helpers.fit_with_warm_start_guard`, which every deep-learning row class trains through, scores the loaded weights on the validation split before `fit` and puts them back when no epoch's `val_loss` beats that score, so a daily run cannot drift away from the held-out draws.
+
+- Both numbers include the L2 term, so they compare.
+- A run that ends on NaN gets the loaded weights back; a freshly initialised model is not guarded.
+- One log line per row says which way it went: `Warm-start guard (<row> <game>): ...`.
+- `last_val_loss`, which the tuner reads, is the `val_loss` of the weights actually served.
+- The fingerprint carries `weightsVersion` (`Helpers.WEIGHTS_VERSION`, 2). Weights saved under another version train fresh once.
+
+### NaN containment
+
+- Training stops at the first NaN batch (`TerminateOnNaN`).
+- If an earlier epoch was healthy, its best-`val_loss` checkpoint is restored; a NaN epoch never ranks as best.
+- If the very first batch is NaN the model raises and that day's row is skipped, so a ticket from NaN weights is never recorded or voted on. Corrupted weights are never saved.
+
+### Learning check (`src/LearningCheck.py`)
+
+Each deep-learning row carries a label that says whether it does better than counting. It is a label only: nothing ranks, filters, hides or reweights on it.
+
+After training, the row is read on its validation windows:
+
+- `valLoss`: its cross-entropy without the L2 term.
+- `baselineLoss`: the cross-entropy of the training split's per-position class frequencies, smoothed the way the row's own loss smooths.
+- `margin`: how far below the baseline the validation windows' own frequencies get, the lowest loss any input-blind output can reach there.
+- `verdict`: `learns` when `valLoss < baselineLoss - margin`, otherwise `counts-only` (a row worse than the frequencies included).
+- `sameTicket` / `inputBlind`: the share of validation windows that give the most common argmax ticket; `inputBlind` is true at 95% or more.
+
+The check is stored on the row as `learningCheck` and carried into `modelPerformance.json` as `learning_check`, dated by the day file it was checked on. Past days cannot be labelled, because the day files do not keep the probabilities.
 
 ## Gradient boosting (`src/BoostingBase.py`)
 
-Three libraries × two formulations, **six independently tracked rows**, all sharing one implementation in `src/BoostingBase.py` so a difference between rows is attributable to the library or the formulation and not to incidental plumbing. Each subclass supplies only `_make_classifier()`; the window features, label encoding, ticket construction, subset generation, fit cache and persistence are common code.
+Three libraries in two formulations give six independently tracked rows. All share one implementation in `src/BoostingBase.py`, so a difference between rows is attributable to the library or the formulation. Each backend supplies only its classifier; window features, label encoding, ticket construction, subset generation, fit cache and persistence are common code.
 
-| Row | Library | Formulation |
-|---|---|---|
-| `XGBoost Model` | XGBoost | per-position multiclass |
-| `XGBoostMultiLabel Model` | XGBoost | multi-label |
-| `LightGBM Model` | LightGBM | per-position multiclass |
-| `LightGBMMultiLabel Model` | LightGBM | multi-label |
-| `CatBoost Model` | Catboost | per-position multiclass |
-| `CatBoostMultiLabel Model` | CatBoost | multi-label |
+| Row | Library | Formulation | Key prefix | Flag |
+|---|---|---|---|---|
+| `XGBoost Model` | XGBoost | per-position multiclass | `xgBoost` | `useBoost` |
+| `XGBoostMultiLabel Model` | XGBoost | multi-label | `xgBoostMl` | `useXgBoostMultiLabel` |
+| `LightGBM Model` | LightGBM | per-position multiclass | `lightGbm` | `useLightGbm` |
+| `LightGBMMultiLabel Model` | LightGBM | multi-label | `lightGbmMl` | `useLightGbmMultiLabel` |
+| `CatBoost Model` | CatBoost | per-position multiclass | `catBoost` | `useCatBoost` |
+| `CatBoostMultiLabel Model` | CatBoost | multi-label | `catBoostMl` | `useCatBoostMultiLabel` |
 
-**The two formulations** are the substantive comparison:
+All six flags default to on. `-b false` on the command line disables boosting for a run. Each row trains on one thread and keeps its models in `data/models/<prefix in lower case>_<game>_models`.
 
-- **Per-position multiclass** (`PerPositionBoostingPredictor`) — one classifier per draw slot, over a flattened window of the `<prefix>PreviousDraws` preceding draws as raw values. This is the original formulation. It genuinely fits Pick3, where slot identity is real and digits repeat; for a non-positional game it imposes slot structure the game doesn't have, which is why it needs collision-refilling to produce a full ticket at all (several positions frequently pick the same number).
-- **Multi-label** (`MultiLabelBoostingPredictor`) — one binary "is this number in the next draw" classifier per number in the range, over a **multi-hot** encoding of the window. Raw sorted values encode "the 3rd smallest number was 17", which is order-statistic structure; multi-hot encodes "17 was drawn 2 draws ago", which is what a membership question actually needs. It matches the structure of a non-positional game directly, its `score_numbers()` is a calibrated `P(drawn)` rather than an average over positional softmaxes, and it is far cheaper — Keno goes from 20 multiclass fits over 80 classes to 80 plain binary fits. **Skipped for Pick3**, where set membership can represent neither digit order nor repeated digits (the same reason `WeightedEnsemble`/`MetaLearner` are skipped there).
+### The two formulations
 
-Per-library notes, since a shared search space only means something if each library interprets it comparably: LightGBM grows leaf-wise, so `num_leaves` is capped at `2**max_depth` (left at the default 31, a tuned depth of 2 would silently do nothing) and `subsample_freq=1` is set (`subsample` is otherwise ignored outright); CatBoost's symmetric trees make depth much more expensive, its `min_child_weight` maps to `min_data_in_leaf`, and `subsample` requires switching off the default Bayesian bootstrap.
+- **Per-position multiclass** (`PerPositionBoostingPredictor`): one classifier per draw slot, over a flattened window of the `<prefix>PreviousDraws` preceding draws as raw values. It fits positional games, where slot identity is real and values repeat. On a set game it imposes slot structure the game does not have, so several positions can pick the same number and the ticket is refilled to full size.
+- **Multi-label** (`MultiLabelBoostingPredictor`): one binary "is this number in the next draw" classifier per number in the range, over a multi-hot encoding of the window. It matches a set game directly, its `score_numbers()` is a `P(drawn)` per number, and it is cheaper (keno: 80 binary fits instead of 20 multiclass fits over 80 classes). It is **skipped on positional games**, where set membership can represent neither order nor repeated values.
 
-Each row keeps its own `bestParams_<game>.json` key prefix (`xgBoost`, `xgBoostMl`, `lightGbm`, `lightGbmMl`, `catBoost`, `catBoostMl`) and `use<X>` flag, so the six never clobber each each other's tuned values. `XGBoost Model` deliberately keeps the pre-existing `xgBoost` prefix and `useBoost` flag so its tracked history stays continuous. `BOOSTING_PARAM_REFIXES` / `apply_boosting_params` in `BoostingBase` are shared by `Predictor.py` (reading tuned values) and `HyperoptBoost.py` (writing them), so the two cannot drift on a key name.
+### Parameters
 
-`Predictor.py` and `HyperoptDeepLearning.py` both used to select the active model via `modelToUse = tcn if "lstm_model" not in model_type else lstm`, then called a hardcoded, LSTM-only setter block on whatever got selected — `TCNModel` has none of those setters, so this would have crashed immediately had `model_type` ever been anything but `"lstm_model"` (it never was, until now). `HyperoptDeepLearning.py` now dispatches through `MODEL_REGISTRY`, mapping each `model_type` to its own instance and its won `configure(model, modelParams)` function, so adding the two fused models didn't require perpetuating that landmine. `tcn_model` itself is still not exercised by either script's dataset sweep — a separate, pre-existing gap, not addressed here.
+`BOOSTING_PARAM_SUFFIXES` and `apply_boosting_params` in `BoostingBase` are shared by `Predictor.py` (reading tuned values) and `HyperoptBoost.py` (writing them), so the two cannot drift on a key name. A key is `<prefix><Suffix>`:
 
-For reference, [sminerport/SequencePredictionANN](https://github.com/smanimport/SequencePredictionANN) — suggested as a comparison point — uses a much simpler single-hidden-layer sigmoid feedforward network trained with MSE, no recurrence/convolution/attention at all. It's a smaller step *below* what `LSTM.py`/`TCN.py` already do here, not an upgrade; its own README lists LSTM/GRU as a suggested future improvement. Not something to port in, but a useful baseline data point.
+| Suffix | Default | Suffix | Default |
+|---|---|---|---|
+| `Estimators` | 200 | `LearningRate` | 0.1 |
+| `Maxdepth` | 3 | `PreviousDraws` | 11 |
+| `TopK` | 16 | `ForceNested` | true |
+| `Subsample` | 1.0 | `ColsampleByTree` | 1.0 |
+| `MinChildWeight` | 1.0 | `RegLambda` | 1.0 |
+| `SubsetMode` | `softmax` | `SubsetTemperature` | 0.5 |
+
+One further suffix applies to CatBoost only: `BorderCount` (the number of split candidates per feature, default 254).
+
+### Per-library notes
+
+- LightGBM grows leaf-wise, so `num_leaves` is capped at `2**max_depth` and `subsample_freq=1` is set (without it `subsample` is ignored).
+- CatBoost's symmetric trees make depth more expensive; its `min_child_weight` maps to `min_data_in_leaf`, and `subsample` switches the bootstrap to Bernoulli.
+
+## Foundation models (`src/FoundationModel.py`)
+
+Two pretrained time-series models are asked, zero-shot and without fine-tuning, for the next value of every drawn position.
+
+| Row | Class | Checkpoint | Flag (default) |
+|---|---|---|---|
+| `Chronos Model` | `src/ChronosModel.py` | `amazon/chronos-2` | `useChronos` (on) |
+| `TimesFM Model` | `src/TimesFmModel.py` | `google/timesfm-3.0-pytorch` | `useTimesFm` (on) |
+| `OrderStatistics Baseline` | `Baselines.ColumnFrequencyBaseline` | none | `useOrderStatisticsBaseline` (on) |
+
+### How a forecast is made
+
+- Every drawn position is one univariate series (position 1 of lotto over time, position 2, ...). The model returns a quantile curve for the next value; `src/foundation/quantile_labels.py` turns it into a probability per label of the game.
+- The curve is anchored at the bounds of the game's own support (first label − 0.5, last label + 0.5) before interpolating, so tail mass is spread over the stretch it occupies and not folded onto the first and last label.
+- `foundationContext` (default 512) is the number of past draws either model is shown.
+- Both are thin subclasses of `FoundationModel`, which owns the worker, the cache and the ticket construction. They expose `run()`, `score_positions()` and `score_numbers()` like any other model, including the main/special split.
+- Positional games: the most likely value per slot, in drawn order, duplicates allowed.
+- Set games: one distinct number per position, each slot's best value that is not used yet and lies above the previous pick.
+- Exact ties within a slot go to the value closest to the slot's own mean, then the lower value.
+
+### Where the model runs
+
+The foundation libraries need a newer numpy than the pipeline's TensorFlow, so they live in their own directory and never in the pipeline's interpreter.
+
+- Library directory: `/root/.foundation-libs`, or the path in the `FOUNDATION_LIBS` environment variable.
+- A small worker process (`src/foundation/chronos_forecast.py`, `src/foundation/timesfm_forecast.py`) puts that directory on its path and exchanges JSON lines over stdin/stdout.
+- The worker stays warm for the life of the model object. It is launched with `PR_SET_PDEATHSIG` and closed at interpreter exit, so no worker outlives its parent.
+- The first call waits up to 300 s (it may download the weights); a later request up to 120 s.
+- Missing libraries, a worker crash or a timeout produce no ticket and one log line; the row is absent that day and nothing else is affected. `close()` re-arms the model, so a transient failure on one game does not drop the row for the next.
+- `Predictor.py` closes the worker after each game's row.
+
+Install, once per machine:
+
+```
+python3 -m pip install --target /root/.foundation-libs --index-url https://download.pytorch.org/whl/cpu torch
+python3 -m pip install --target /root/.foundation-libs chronos-forecasting
+python3 -m pip install --target /root/.foundation-libs --no-deps timesfm==3.0.2
+```
+
+The second command pulls the CUDA build's dependencies although torch is the CPU wheel; `rm -rf /root/.foundation-libs/nvidia /root/.foundation-libs/triton` reclaims that space without affecting forecasting.
+
+### Live day only
+
+The two foundation rows are built for the live day only (`skipRows == 0`), never inside a history rebuild: the rebuild runs its statistical step in a pool of spawned processes and a worker in each would multiply the memory use. A rebuilt day therefore has no `Chronos Model` or `TimesFM Model` row. The baseline row is built on rebuilt days too.
+
+### The baseline
+
+On a sorted set game the per-position series are order statistics: position 1 is the minimum of the draw, so its distribution is predictable without the draw being predictable. `OrderStatistics Baseline` is therefore the row both foundation models have to beat.
+
+- Set games: the historical mode of each position.
+- Positional games: each column's own mode with repeats kept in their slots, ties to the lowest value (`Baselines.positional_column_frequency_ticket`).
+
+### As a meta-learner feature
+
+- `ModelFactory.BASE_MODEL_NAMES` includes `Chronos Model` and `TimesFM Model`. The Chronos column is on by default (`useChronosFeature`), the TimesFM column off (`useTimesFmFeature`); either exists only when the libraries are installed.
+- The Backtester forks its worker pool, and a forked child must neither use the parent's worker nor start its own. `ModelFactory.prepare_foundation_scores` forecasts every day a backtest will ask for up front in the parent, closes the worker and switches the model to cache-only; a day nobody precomputed returns no signal.
+- A foundation model is recognised by its `IS_FOUNDATION_MODEL` attribute, and `_start_worker` refuses when the model is used in a process other than the one that built it.
+- `foundationContext` is part of the score-table cache fingerprint.
+- Self-check: `python3 src/FoundationModel.py <game>` precomputes, forks children and asserts they served from the cache and started no worker.
 
 ## How predictions are combined
 
-`Predictor.py` runs every method that is enabled in `bestParams_<game>.json` — statistical, deep learning, and boosting alike (in practice, hyperopt tunes each model's parameters individually but does not disable any of them — all enabled models run every time) — and stores each one's raw output as its own row, so each method's real-life performance can be highly tracked independently over time and a history builds up per method. That's the point of the whole setup: `Markov Model`, `MarkovMonteCarlo Model`, `MarkovBayesian Model`, `MarkovBayesianEnhanched Model`, `PoissonMonteCarlo Model`, `PoissonMarkov Model`, `LaplaceMonteCarlo Model`, `HybridStatisticalModel`, `LSTM Base Model`, `LSTM Smoothed Model`, `TCN Base Model`, `UnifiedLstmTcn Model`, `UnifiedLstmGruTcn Model`, and the six boosting rows (`XGBoost`/`LightGBM`/`CatBoost` × per-position/multi-label) each get their own tracked prediction row.
+After the individual rows, several rows are built from other rows. They are additive: none of them changes the rows it reads.
 
-All of them now also agree on **which Keno subset sizes to play**: every model asks `getKenoSubsetSizes` for the hyperopt-tuned `use_5`..`use_10` flags. The DL rows previously hardcoded `range(5, 11)`, so they placed a bet at all six sizes while every statistical model played only the tuned ones (currently just `use_10`) — making those rows' tracked results non-comparable with the rest. `HyperoptDeepLearning.py` reads the same tuned choice via `tuned_keno_subset_sizes`, falling back to all six only when a game has no tuned flags at all, so its profit signal never silently becomes zero. Three further rows come from the foundation-model track (roadmap item 5): **`Chronos Model`** and **`TimesFM Model`**, two pretrained time-series models from different labs asked zero-shot for each drawn position's next value, and **`OrderStatistics Baseline`**, the historical mode of each position - the yardstick both of them have to beat, since a sorted game's position 1 is its minimum and therefore predictable in distribution without the draw being predictable at all.
+### Order of a day
 
-Four additional, purely additive rows are then appended alongside them:
+1. The deep-learning child process (light rows, the two LSTM rows, the heavy rows, the deep-learning memorise rows).
+2. The statistical step: statistical models and their memorise rows, the foundation rows, the baseline, the market rows, the meta-learner rows.
+3. The boosting rows, each followed by its memorise row.
+4. The variant rows are taken aside (`holdVariantRows`).
+5. `numberFrequency`, then `WeightedEnsemble Model`, `SubsetEnsemble Model`, and `RL Ticket Model` (or `RL Position Model`).
+6. The variant rows are put back and the sampled rows are added.
+7. Rows that ran on a manual override are labelled, and the day file is written with a `madeAt` UTC stamp.
 
-- **`WeightedEnsemble Model`** (Phase 0) — `Helpers.count_number_frequencies_from_new_prediction` counts every number suggested by any model/subset, weighted by that model's own Hyperopt/Backtester score (`bestParams_<game>.json["modelScores"]`, min-max scaled to a `[1, 2]` range so a poorly-scoring model is outweighted, never zeroed out; unscored models default to a neutral weight of 1). `addWeightedEnsemblePrediction` (`Predictor.py`) then turns that weighted vote into an actual ticket. For games with special columns (Euromillions star numbers, EuroDreams dream number, VikingLotto super viking), the main numbers and special column(s) are voted on and picked **separately** via `Helpers.count_number_frequencies_by_position`, then concatenated — the same positional split every individual model already keeps via `...` (see `Helpers.run_model_with_special_column`) — so the special slot(s) can't get crowded out by more numerous main-range numbers. For Keno, it also generates the same `use_5`..`use_10` sub-selections every individual model produces (see the shared subset generator below). The same weighted frequency is also stored as the day's `numberFrequency`, which the administrator's draw view charts as the vote over every row (`workbench.js`), and for the positional games (pick3, Joker+) the row is a **vote per slot** instead (roadmap item 7, `Helpers.build_positional_vote_predictions`): each of the rows that own a model (`POSITIONAL_VOTE_DEFAULT_ROWS`, in `src/VoteRows.py` since 25 Oct 2026 so the `RL Position Model` and its tuner read the same set - the statistical pick3 models and the per-position boosting rows; the meta rows are aggregates of these and the DL research rows emit identical tickets, so an all-rows vote would double-count) votes for the digit it put in each slot, weighted like the pooled vote; the slot's digit is the argmax, ties go to the lowest digit (on the market games, since 25 Oct 2026, to the bin nearest the middle - below), duplicates across slots are kept and so is drawn order - a set-style top-3 would sort the digits and could never express the repeated digit that 28% of pick3 draws contain. The row carries `positionConfidence` (winning vote share per slot) and the day JSON a `positionFrequency` (one digit histogram per slot); the pooled `numberFrequency` and its counters are untouched, Keno's subset machinery depends on them. Joker+ gets the row only with `"useJokerplusEnsemble": true` in its bestParams (see the Joker+ section). The market games get the same per-slot vote over bins, with two rules of their own since 25 Oct 2026, applied wherever a market vote is taken or scored (`VoteRows.positional_vote`: this row, `SubsetEnsemble Model`, the `RL Position Model` and `HyperoptEnsemble.py`). A tied slot goes to the tied bin nearest the middle of the bins, then the lower one: the lowest bin is the most bearish call, so lowest-first leaned every tie towards "no long", a direction no voter gave (the lotteries keep the lowest digit). And `XGBoost Model` and `LightGBM Model` count as one voter, half their weight each when both vote (`MARKET_SHARED_VOTE_ROWS`, the owner's decision): on the markets both run untuned on identical defaults - one depth-3 learner fitted twice on the same features - and agreed on 67-77% of slots, so every market vote counted one call twice; the lotteries tune each library on its own and keep two voters. Replayed read-only on the last 30 production day files, the one-voter rule changed the market ticket on 8-14 days per market, the tie-break on 2-8.
-- **`SubsetEnsemble Model`** (roadmap item 2) - the same vote as `WeightedEnsemble Model`, restricted to a *searched subset* of rows. `HyperoptEnsemble.py` selects which rows take part (one include flag per candidate row as Optuna parameters, plus a weighted-versus-flat vote choice) and writes the selection to `bestParams_<game>.json` (`subsetEnsembleModels`, `subsetEnsembleWeighted`); `addSubsetEnsemblePrediction` serves it with the shared recipe in `Helpers.build_vote_ensemble_predictions` (which `WeightedEnsemble Model` now uses too), so the served ticket is exactly what the tuner scored. Not served until a selection exists, and skipped on a day one of the selected rows did not run - a vote among the remaining rows would be a different ensemble under this row's name. Its own result is never written into `modelScores`, so it cannot feed back into its members' weights. For pick3 the same per-slot vote is taken over the tuned subset (any row the tuner selected - meta and DL rows included when they win, unlike the untuned row's fixed set); Joker+ only behind `useJokerplusEnsemble`. Since 25 Oct 2026 a weighted selection is not served on a day one member outweighs the others together (`VoteRows.effective_members`: its weight strictly above the sum of theirs): it then wins every slot they disagree on, so the vote is that member's ticket under this row's name - pick3's LaplaceMonteCarlo + Markov pair served Markov's ticket on 35 of 35 days, eurodreams' LSTM Base + LaplaceMonteCarlo pair Laplace's. The day logs the skip like a missing member, the tuner scores such a selection as nothing (*Hyperopt & backtesting*), and under that day's weights those two rows pause until the next Saturday tuning replaces their selections. Exact equality is not a copy (the tie-break still decides) and a flat vote cannot collapse. Keno is exempt: its 20-number ticket would be the dominant member's, but the 5-10 number selections that are played are drawn from the vote's own scores, where the numbers the other members agree on rank first. On the market games the vote is weighted by the tuner's own per-row scores once written (`subsetEnsembleWeights`; `modelScores` until then), and a selection of only XGBoost and LightGBM is one voter there and skipped the same way.
-- **`MetaLearner Model`** (Phase 1) — a real stacking meta-learner: instead of a hand-weighted vote, a small `LogisticRegression` (see `TrainMetaLearner.py` below) is trained to predict `P(number is drawn)` from each base model's own per-number score (`score_numbers()`, on `Markov`, `MarkovMonteCarlo`, `MarkovBayesian`, `MarkovBayesianEnhanced`, `PoissonMonteCarlo`, `PoissonMarkov`, `LaplaceMonteCarlo` and `XGBoost` — `HybridStatisticalModel` is deliberately excluded since it's itself a vote-based ensemble of several of these, which would be circular). `Predictor.py` loads `data/models/<game>/meta_learner.joblib` if present, re-scores each base model, and ranks numbers by the trained model's predicted probability. For games with special columns, a **second, separately-trained model** (also in that same artifact) ranks the special column(s) independently — mirroring `WeightedEnsemble Model`'s split, and fixing an earlier bug where the meta-learner's `collect_scores` data accidentally only ever saw the special column, never the main numbers. Also generates Keno subsets the same way `WeightedEnsemble Model` does. If the artifact doesn't exist yet (no `TrainMetaLearner.py` run for that game), this row is skipped gracefully — no crash, no effect on anything else. Also skipped for Pick3.
-- **`MetaLearnerV2 Model`** — "lens diversity" (see the old Ideas entry this replaced): a second, independently-trained model class per game, `GradientBoostingClassifier` (`data/models/<game>/meta_learner_v2.joblib`) instead of `MetaLearner Model`'s `LogisticRegression`. Added as its own tracked row rather than replacing `MetaLearner Model` — a tree-based model can pick up nonlinear interactions between base models' scores a linear one can't, and since its errors won't necessarily correlate with the logistic regression's, real-life tracking can show which (if either) is actually worth keeping. Reuses the exact same base-model scores `MetaLearner Model` computes (`Predictor.py` caches them by feature-name set so they's not scored twice), and follows the same main/special-column split and Keno-subset generation.
+### WeightedEnsemble Model
 
-## Variant rows: settle, memorise, sampled (since 8 Nov 2026)
+A weighted vote over the day's rows.
 
-The 8 Nov 2026 check of the stored history found the models serving almost the same ticket day after day (the deep-learning rows repeat 70-95% of their numbers since Feb/Aug 2026), while the early shallow networks varied - and that hits per ticket were at chance either way. On the owner's decision every model is now tracked in up to three forms (`src/RowVariants.py`):
+- **Weights**: each row's score in `bestParams_<game>.json["modelScores"]`, min-max scaled to `[1, 2]`, so a poorly scoring row is outweighed and never zeroed. A row without a score gets weight 1.
+- **Set games**: `Helpers.count_number_frequencies_from_new_prediction` counts every number suggested by any row or subset, weighted; `addWeightedEnsemblePrediction` turns the vote into a ticket. Main numbers and special columns are voted on separately and concatenated, so a special slot cannot be crowded out by the main range.
+- **Keno**: the row also produces the `use_5` .. `use_10` sub-selections, drawn from the vote's scores (`weightedEnsembleSubsetMode`, default `softmax`; `weightedEnsembleSubsetTemperature`, default 0.5).
+- The weighted frequency is stored as the day's `numberFrequency`.
 
-- **settle** - the row as it was (its own name): the ticket of its highest scores. A model with nothing to learn settles on the counts and repeats.
-- **`<row> · Memorise`** - the model made to chase the noise. Deep learning: a fresh shallow network (one layer, 64 units; LSTM: one LSTM and one bidirectional layer) with no dropout, L2 or label smoothing, new weights every day in its own `data/models/<folder>_memorise`, trained without early stopping or the learning-rate schedule until `DL_MEMORISE_SECONDS` (120 s) run out, after every settle row (a deadline kill costs a memorise row first; the child's automatic deadline includes them). LSTM Smoothed has none (it differs from LSTM Base only by the smoothing memorise drops). Statistical (Markov, MarkovMonteCarlo, MarkovBayesian(Enhanched), PoissonMonteCarlo, PoissonMarkov, LaplaceMonteCarlo): the same model on the last `memoriseWindowDraws` draws (30) only (`Helpers.recent_window`), alpha 1, every transition kept, no smoothing. Boosting: deep unregularised trees (depth 8, 300 rounds, learning rate 0.3, no minimum child weight or L2); CatBoost's are off unless `memoriseCatBoost` is true (depth is its cost). `useMemoriseRows` false switches them off for a game.
-- **`<row> · Sampled`** - the ticket drawn from the row's own scores instead of their top, with a per-row temperature (`sampleTemperatures`, default 1; 0 = the settle ticket, high = uniform), seeded by game, draw date and row so a saved ticket is reproducible; the scores it was drawn from are stored on it. Number games only for now.
+On **positional games** the row is a vote per slot (`Helpers.build_positional_vote_predictions`, `VoteRows.positional_vote`):
 
-Not on the market games. The variants are admin rows: ranked after every other row and marked `variant` in `modelPerformance.json`, never the best model or in the users' top five, and kept out of the vote chart, the vote rows, SubsetEnsemble and its tuner, the RL ticket (today and its training history), the per-row chance test's family and the combination search (`Predictor.holdVariantRows` takes them aside while those read the day). They join any of these only through a gated decision (with versus without them), later.
+- The voters are the rows that own a per-position model, `POSITIONAL_VOTE_DEFAULT_ROWS` in `src/VoteRows.py`: `Markov Model`, `MarkovMonteCarlo Model`, `PoissonMonteCarlo Model`, `LaplaceMonteCarlo Model`, `XGBoost Model`, `LightGBM Model`, `CatBoost Model`. Aggregate rows and the deep-learning rows do not vote, so no signal is counted twice.
+- Each voter votes for the value it put in each slot, weighted as above. The slot's value is the argmax; duplicates across slots and drawn order are kept.
+- Ties on a lottery game go to the lowest digit.
+- The row carries `positionConfidence` (the winning vote share per slot) and the day file a `positionFrequency` (one histogram per slot).
+- Joker+ gets the vote rows only with `"useJokerplusEnsemble": true` in its parameters (see [scoring](scoring.md)).
+
+The **market games** use the same per-slot vote over bins, with two rules of their own wherever a market vote is taken or scored:
+
+- A tied slot goes to the tied bin nearest the middle of the bins, then the lower one, so a tie does not lean towards the most bearish call.
+- `XGBoost Model` and `LightGBM Model` count as one voter, half the weight each when both vote (`MARKET_SHARED_VOTE_ROWS`).
+
+Self-check: `python3 -m src.VoteRows`.
+
+### SubsetEnsemble Model
+
+The same vote, restricted to a searched subset of rows. `HyperoptEnsemble.py` selects the rows (see [tuning](tuning.md)) and writes `subsetEnsembleModels` and `subsetEnsembleWeighted` (default true) to `bestParams_<game>.json`; `addSubsetEnsemblePrediction` serves it through the same recipe (`Helpers.build_vote_ensemble_predictions`), so the served ticket is what the tuner scored.
+
+- Not served until a selection of at least two rows exists.
+- Skipped on a day one of the selected rows did not run: a vote among the rest would be a different ensemble under this row's name.
+- A weighted selection is skipped on a day one member outweighs the others together (`VoteRows.effective_members`: its weight strictly above the sum of theirs), because the vote would then be that member's ticket. Exact equality is not a copy, and a flat vote cannot collapse. Keno is exempt: the sub-selections that are played are drawn from the vote's own scores.
+- On positional games the per-slot vote runs over the selected rows, whichever rows the tuner selected.
+- On the market games the vote is weighted by `subsetEnsembleWeights` once the tuner has written them (`modelScores` until then), and a selection of only XGBoost and LightGBM is one voter and skipped.
+- Keno sub-selections use `subsetEnsembleSubsetMode` / `subsetEnsembleSubsetTemperature`, falling back to the weighted-ensemble keys.
+
+### Meta-learner rows
+
+A stacking meta-learner predicts `P(number is drawn)` from each base model's own per-number score instead of a hand-weighted vote. Training is described on [tuning](tuning.md); the quantum rows on [research](research.md). `Predictor.py` serves a row when its artifact exists under `data/models/<game>/`, and skips the row otherwise.
+
+| Row | Artifact |
+|---|---|
+| `MetaLearner Model` | `meta_learner.joblib` |
+| `MetaLearnerV2 Model` | `meta_learner_v2.joblib` |
+| `QuantumMetaLearner Model` | `quantum_meta_learner.joblib` |
+| `QuantumVQC Model` | `quantum_vqc_meta_learner.joblib` |
+| `ClassicalSVM Model` | `classical_svm_meta_learner.joblib` |
+
+- **Base models** (`ModelFactory.BASE_MODEL_NAMES`): Markov, MarkovMonteCarlo, MarkovBayesian, MarkovBayesianEnhanced, PoissonMonteCarlo, PoissonMarkov, LaplaceMonteCarlo, XGBoost, Chronos, TimesFM (opt-in) and, on the market games, the four market rows. `HybridStatisticalModel` is excluded because it is itself a vote over several of these. On positional games MarkovBayesian, MarkovBayesianEnhanced and PoissonMarkov are left out as well.
+- **Features** come from the artifact's own `feature_names`, so an artifact never asks for a column it was not trained with. A feature with no model instance is served as 0.0.
+- Base-model scores are computed once per distinct feature set and shared by the rows that use it.
+- **Set games**: the top numbers by predicted probability. A second, separately trained model in the same artifact ranks the special column(s).
+- **Keno**: sub-selections from the predicted scores, with `<row>SubsetMode` / `<row>SubsetTemperature` keys (`metaLearner…`, `metaLearnerV2…`, `quantumMetaLearner…`, `quantumVqc…`, `classicalSvm…`; defaults `softmax` and 0.5).
+- **Positional games**: a positional artifact holds one model per slot and serves the per-slot argmax in drawn order, ties to the lowest value, duplicates kept; on Joker+ the sign comes from the artifact's special model. A non-positional artifact on a positional game is refused and the row skipped.
+
+### Manual overrides
+
+`Predictor.py` reads its parameters through `readServedParams`, which applies the manual overrides of `src/ParamOverrides.py` on top of `bestParams_<game>.json` and logs each one. A row that ran on an overridden key is marked `"manual": [keys]` in the day file. The Parameters page that sets overrides is on [tuning](tuning.md).
+
+## Variant rows: settle, memorise, sampled
+
+Every model is tracked in up to three forms (`src/RowVariants.py`). The name separator is ` · `.
+
+- **settle**: the row under its own name, the ticket of its highest scores.
+- **`<row> · Memorise`**: the model made to fit the recent draws as closely as it can.
+- **`<row> · Sampled`**: a ticket drawn from the row's own scores instead of their top.
+
+Variant rows carry `variant` and `parent` fields. A variant never gets a sampled twin.
+
+### Memorise rows
+
+`useMemoriseRows` (default true) switches them off for a game. They are never built on the market games.
+
+- **Deep learning**: `LSTM Base Model` and the six prefixed rows (not `LSTM Smoothed Model`). A fresh shallow network (64 units, one layer; the LSTM with one LSTM and one bidirectional layer) with no dropout, L2 or label smoothing, new weights every day in `data/models/<folder>_memorise`, trained without early stopping or the learning-rate schedule until `DL_MEMORISE_SECONDS` (120 s) run out. They train after every settle row, so a deadline kill costs a memorise row first.
+- **Statistical**: Markov, MarkovMonteCarlo, MarkovBayesian, MarkovBayesianEnhanced, PoissonMonteCarlo, PoissonMarkov and LaplaceMonteCarlo, when the settle row exists. The same model on the last `memoriseWindowDraws` draws only (default 30, `Helpers.recent_window`), alpha 1, minimum occurrences 1, no smoothing.
+- **Boosting**: a fresh model with deep unregularised trees (depth 8, 300 rounds, learning rate 0.3, no minimum child weight, no L2, no subsampling); nothing is saved. CatBoost's memorise rows are built only with `memoriseCatBoost` true (default false).
+
+### Sampled rows
+
+Built on the five probability-order games only (vikinglotto, euromillions, eurodreams, keno, lotto), for every row that stored scores; a row without scores, such as `HybridStatisticalModel`, gets none.
+
+- The scores are shifted to be non-negative and a ticket is drawn without replacement with `p_i ∝ s_i^(1/T)`.
+- `T` is the row's temperature in `sampleTemperatures` (a map of row name to temperature), default 1. `T` at or below 0.01 gives the settle ticket; a high `T` approaches uniform.
+- The draw is seeded by game, draw date and row name, so a saved ticket is reproducible.
+- Keno sub-selections are the first numbers of the sampled ticket; lotto's extra numbers are drawn from the remaining numbers.
+- The row stores `sampleTemperature` and the `scores` it was drawn from.
+
+Self-check: `python3 -m src.RowVariants`.
+
+### Where variants do not count
+
+`Predictor.holdVariantRows` takes the variant rows aside while the vote chart (`numberFrequency`), the vote rows, `SubsetEnsemble Model` and the RL row read the day; the RL row's training history skips them too. In `modelPerformance.json` they are ranked after every other row and marked `variant`, and they stay out of the per-row chance test's family and the combination search (see [scoring](scoring.md)).
 
 ## History rebuild & model-weight reuse (operational behavior)
 
-Two behaviors worth knowing when running `Predictor.py` by hand:
+### Command-line flags of `Predictor.py`
 
-- **Gap recovery is automatic and non-destructive.** When database files are highly fragmented or missing, `Predictor.py` anchors on the *newest* existing prediction json (scanning the game's actual draw dates, so twice-a-week games are handled correctly) and builds every missing draw after it — however large the outage gap — plus any interior holes within the last `-d/--days` draws (e.g. corrupted files you deleted). Existing files are never overwritten by this path; `update_matching_numbers` re-links the prediction-vs-result chain across old and new files afterwards.
-- **`-r/--rebuild_history` force-regenerates (overwrites) the last `-d` draws**, existing files included — use it after history corruption. This flag previously existed but did nothing.
-- **Deep learning is opt-in per run, time-boxed and crash-isolated.** `Predictor.py -a true` enables the heavy DL models (default off; `runPredictor.sh` passes it from the first cron run after this change is deployed - production must pull the new script); `-b false` disables boosting. Every model's training run has a wall-clock budget (`--dl-model-seconds`, default 240 s; `src/TimeBudget.py`): at the budget the run stops the way an early stop does - Keras still runs the epoch's validation, `EarlyStopping(restore_best_weights=True)` puts the best epoch's weights back, `ModelCheckpoint` has saved the best epoch - so the model still predicts and only training quality degrades, never the row. The check runs after every batch, so a model can overrun its budget by one batch; the first batch of a freshly compiled graph is the expensive one (up to 50 s on the TCN in testing). The whole per-day DL child additionally has a hard deadline (`--dl-timeout`, default auto = enabled models x (per-model budget + 60 s for each model's data load, graph compilation, prediction and save, which run outside the training budget) + 120 s child start-up: 42 min for eight models at the default, 37 min for seven until the `LSTM Smoothed Model` row of 25 Oct 2026; `--dl-model-seconds 0` disables the automatic deadline too): the cheap research rows run first, then the LSTM, then TCN/unified, the child checkpoints its rows after every model (a marker ties the checkpoint to its game and day, so a leftover from a crashed run is never served), and at the deadline it is killed and the rows it had finished are kept (`Recovered N deep learning row(s)` in the log). This is what let the heavy rows back into the daily cron: in August their unbounded training blocked the prediction flow for hours, so they were switched off and had no tracked history for a month. Runtime consequence at the defaults: up to ~42 min of DL per game-day, so up to ~4.9 h on a day every lottery game has a draw (typically 3-5 games do, 2-3.5 h), multiplied by the days rebuilt after a gap - which is why `runHyperopt.sh` now waits for the predictor's lock instead of skipping the week (see *Hyperopt & backtesting*). Each model's total time for the day is logged (`LSTM Base Model: 187s` - load, training, prediction and save together), which is the number to tune the budget on. All DL training runs in a one-shot spawned child process per day: the container's 16GB memory cgroup OOM-killed the Predictor twice (2026-08-20 at 16.7GB RSS,  2026-08-22 at 10.3GB — a single long-lived process accumulating TF/Keras allocations across ~24 model trainings, killed with no trace since SIGKILL allows none). In a child, an OOM surfaces as a caught `BrokenProcessPool`: that day loses only its DL rows (the half-built file is auto-repaired next run), everything else still runs — and the per-day process recycling releases the memory that caused the kills in the first place.
-- **NaN training runs are contained.** Exploding gradients on some hyperparameter combos (most often Keno's 20×80 output space) can drive the loss to `nan`. Training now stops at the first NaN batch (`TerminateOnNaN`) instead of burning the whole early-stop patience on dead epochs; if any earlier epoch was healthy, its best-`val_loss` checkpoint is restored (NaN epochs never rank as "best", so the checkpoint is always clean); if the very first batch was already NaN, the model raises and that day's row is skipped — a prediction from NaN weights is `argmax` over garbage, and recording it would pollute the tracked history and the `WeightedEnsemble` vote. Corrupted weights were already never persisted.
-- **A warm start keeps the loaded weights unless training beats them (25 Oct 2026).** Each DL row loads its saved weights when the fingerprint matches and trains on from them. Until 25 Oct 2026 whatever that training ended on was saved and served, even when no epoch beat the weights it started from, so the rows that memorise (pick3 `UnifiedLstmGruTcn` and `LSTM Base`, the market Transformer and Autoencoder) drifted further from the held-out draws every day. `Helpers.fit_with_warm_start_guard`, which all seven DL row classes train through, scores the loaded weights on the validation split before `fit` and puts them back when no epoch's val_loss beats that score (both include the L2 term; a run that ends on NaN gets them back too; a freshly initialised model is not guarded), with one `Warm-start guard (<row> <game>)` line in the log either way; `last_val_loss`, which `HyperoptDeepLearning.py` reads, is now the val_loss of the weights actually served. The guard alone would have frozen weights that had drifted for two months (pick3 UnifiedLstmGruTcn at val_loss 3.52), so the fingerprints also carry `weightsVersion` 2 (`Helpers.WEIGHTS_VERSION`): every DL row of every game, the tuner's cache included, trains fresh once on its first run after the change (`... predate weights version 2 ... training fresh once` in the log), most of them to the training budget that day, and the DL tickets will probably change with it.
-- **Each DL row carries a learning check - a label, nothing more (25 Oct 2026, `src/LearningCheck.py`).** On a draw with nothing to learn the network that minimises cross-entropy ignores its input and serves the training split's most common value per position (pick3's 604/504 from four rows, sharesweek GNN's 9909 every week), and a row that memorises does worse than those frequencies on held-out draws; on the pages both look like a model at work. After training each row is read on its validation windows: `valLoss` (its cross-entropy without the L2 term) against `baselineLoss` (the training split's per-position class frequencies, smoothed the way the row's own loss smooths). The verdict is `learns` only when `valLoss` is below `baselineLoss` minus `margin` - how far below the baseline the validation windows' own frequencies get, the lowest loss any input-blind output can reach there, since drifting frequencies let even such an output beat the baseline (0.004 nats for pick3, 0.11-0.16 for lotto, euromillions, cryptoweek and sharesweek, where the bar errs strict) - and `counts-only` otherwise, a row worse than the frequencies included; `inputBlind` marks a row whose validation windows give the same ticket 95% of the time or more. The check is stored on the row (`learningCheck`), carried into `modelPerformance.json` (`learning_check`, dated by the day file of the data it was checked on) and shown only on the admin Models pages, as a "no better than the frequencies" tag on `counts-only` rows. By the owner's decision nothing ranks, filters, hides or reweights on it, and the users' pages do not show it. Past days cannot be labelled (the day files do not keep the probabilities), and a row appears with its label only once it has a scored draw; on that day's data every DL row was expected to read `counts-only`.
+| Flag | Default | Meaning |
+|---|---|---|
+| `-g/--games` | all eleven games | comma-separated games to run |
+| `-d/--days` | 31 | how many recent draws the gap check and a rebuild cover |
+| `-r/--rebuild_history` | false | overwrite the last `-d` draws |
+| `-a/--ai` | false | run the heavy deep-learning rows |
+| `-b/--boost` | true | run the boosting rows |
+| `--dl-model-seconds` | 240 | training budget per deep-learning model; 0 = no budget |
+| `--dl-timeout` | 0 | hard deadline of the deep-learning child in seconds; 0 = automatic |
+| `-s/--save` | true | push the results to git |
 
-## Pick3 ticket validity of the base models
+How runs are started and scheduled, and the process lock, are on [operations](operations.md).
 
-Pick3 rows must be **drawn-order tickets with duplicates allowed** (`[4,4,7]` is a real outcome). Two dormant defects in that area were fixed in September 2026: `MarkovMonteCarlo Model`'s pick3 ticket used to be the *sorted set of its top-voted unique digits* (never a repeated digit, order meaningless - so every straight/pair payout it was tracked on was scored against a scrambled ticket); it is now the per-slot mode of its simulated tickets in drawn order, the same tallies its `score_positions()` feeds the positional meta-learner, so its tracked pick3 history before that date is not comparable with what follows. And `Markov` now derives its fallback number range from the data it is built on (pick3 0-9, lotto 1-45, a special-only pass its special range) - nothing ever called `setGameRange`, so an unseen-context fallback used the 1-80 default for every game and could emit an impossible digit.
+### Gap recovery
 
+Gap recovery is automatic and does not overwrite complete files.
 
-## Advanced Architectural & Security Research (implemented)
+- The run anchors on the newest complete day file (complete = it has `labels`) and builds every draw after it, however large the gap. It scans the game's actual draw dates, so games with a few draws a week are handled.
+- It also fills holes within the last `-d` draws. A half-built file counts as a hole and is repaired.
+- A game without any day file gets the last `-d` draws; a new market game gets deep-learning rows on its newest day only.
+- `update_matching_numbers` re-links the prediction-versus-result chain across old and new files afterwards.
+- `-r/--rebuild_history` regenerates and overwrites the last `-d` draws, existing files included.
 
-All four research directions below are implemented and run as their own tracked prediction rows / monitoring layers in the daily `Predictor.py` pipeline. Each row is scored, ranked, lag-analyzed and peak-tracked exactly like every other model.
+A rebuild runs in two steps: the statistical step for all days in a pool of up to eight spawned processes, then deep learning, boosting and the combining rows day by day in one process. Rows that learn from stored days (the RL rows) only read days strictly before the day being rebuilt.
 
-**Structural & Graph-based Analysis — `GNN Model` (`src/GNN.py`):**
-Numbers are nodes in a co-occurrence graph built from the training history with exponential recency weighting (`gnn_decay`); stacked graph-convolution layers (hand-rolled GCN in Keras, no extra dependencies) learn per-number "community" embeddings, and a window-conditioned readout turns them into the standard per-position softmax prediction. Detects clusters of numbers drawn together more often than chance would allow, beyond simple pairwise decay. Tuned via `gnn_*` keys in `bestParams_<game>.json`.
+### The daily deep-learning time budget
 
-**Long-Range Temporal Context — `Transformer Model` (`src/TransformerModel.py`):**
-Sinusoidal positional encoding + pre-LN self-attention encoder blocks over a longer window (default 30 draws vs. TCN's 20). Unlike the LSTM/TCN recency bias, attention can weight any historical draw in the window regardless of distance. Same per-position softmax head, NaN/checkpoint discipline and fingerprinted weight caching as the other DL models. Tuned via `transformer_*` keys.
+Deep learning is opt-in per run, time-boxed and crash-isolated.
 
-**Strategic Optimization (Agentic Prediction) — `RL Ticket Model` (`src/RLTicketModel.py`):**
-Does not predict numbers - it learns ticket CONSTRUCTION. A pure-numpy REINFORCE policy (no TF, ~1-2s per game, wall-clock capped) trains on the stored day JSONs: features per number come from that day's other model rows (vote share, mean in-ticket rank) plus draw statistics, and the reward is the *real payout* (`Helpers.pick3_ticket_profit` / `keno_ticket_profit`) where a payout table exists, main-ticket hit count elsewhere. It runs in the second step after the `WeightedEnsemble Model` row so the full vote is part of its features, warm-starts from `data/models/rl_model/<game>_policy.json`, and during history rebuilds only trains on days strictly before the day being rebuilt (no look-ahead). The policy builds the main numbers only (specials/bonus have their own ranges and payout logic); since 3 Nov 2026 (the owner's decision) the row's special column - EuroMillions' two stars, EuroDreams' dream number, Vikinglotto's viking - is the value(s) the day's other rows put there most often (`RLTicketModel.voted_specials`, ties to the smaller value), so its ticket is a grid that can be played. Until then the row was stored mains-only in those three games (every RL ticket since late August 2026): those old tickets cannot be completed after the fact, so they count on hits only - no profit on the prize tables (`PrizeTables.ticket_profit` scores no bet on a ticket without its full special column). Keys: `rlTicketLearningRate`, `rlTicketEpochs`, `rlTicketSamplesPerDay`, `rlTicketTrainDays`, `rlTicketMaxTrainSeconds`; disable with `"useRlTicket": false`.
+- `-a true` enables the heavy rows (the two LSTM rows, TCN and the two unified rows). The three light rows and their memorise rows run without it.
+- **Per-model budget** (`--dl-model-seconds`, `src/TimeBudget.py`): at the budget, training stops the way an early stop does. Keras still runs the epoch's validation, `EarlyStopping` puts the best epoch's weights back and `ModelCheckpoint` has saved the best epoch, so the model still predicts; only training quality degrades. The check runs after every batch, so a model can overrun by one batch, and the first batch of a freshly compiled graph is the expensive one.
+- **One child process per day**: all deep-learning training of a day runs in a one-shot spawned child. Its memory is released when it exits, and a crash of the child (an out-of-memory kill, for instance) costs that day only the deep-learning rows it had not finished.
+- **Order in the child**: light rows, then the two LSTM rows, then TCN and the unified rows, then the memorise rows.
+- **Checkpoints**: the child writes its finished rows after every model to `data/hyperOptCache/dl_partial_<game>_<pid>_<ns>.json`. A marker ties the file to its game and day, so a leftover from a crashed run is never served; stale files are removed at the start.
+- **Hard deadline** (`--dl-timeout`): at the deadline the child is killed and the rows it had finished are kept (`Recovered N deep learning row(s)` in the log).
 
-**Security & Randomness Detection (The Adversarial Layer):**
-- **Unsupervised Anomaly Detection — `Autoencoder Model` (`src/AutoencoderAnomaly.py`):** a narrow-bottleneck conditional autoencoder that doubles as a tracked prediction row and as the integrity monitor. After each training run it computes the reconstruction NLL of every recent REAL draw plus a rolling z-score; a strongly negative z (the real draw suddenly became easy to reconstruct - a "predictability spike") is the alert condition. Stored per day as `anomalyWatch` in the day JSON, summarized per game in `modelPerformance.json`, and on the *Randomness watch* page it is the autoencoder tripwire (up below z = -3). Its label smoothing deliberately defaults to 0 so the NLL stays an honest likelihood. Tuned via `autoencoder_*` keys.
-- **Entropy & Divergence Analysis (`Helpers.generate_model_performance_report`):** per game, over the last 60 scored draws (Pick3 per digit position, averaged): KL(recent ‖ full history) for drift, KL(recent ‖ uniform) and normalized entropy for distance from a fair draw, a checkpoint trend series, and per model KL(predicted numbers ‖ real numbers) to expose models whose output distribution has departed from the actual process. Shown on the administrator's *Randomness watch* page (`/app/admin/randomness`) with a loose normal/watch tripwire. Entropy near 1 and KL near 0 mean the process looks fair and stationary; sustained movement is a signal for investigation, **not** proof of manipulation (rule changes, data artifacts and small windows all move these numbers).
+The automatic deadline is
 
-**Enabling/disabling the research rows:** the heavy legacy DL models (LSTM/TCN/Unified*) stay behind the `--ai` flag - off from mid-August 2026 because their unbounded training blocked the prediction flow, on again in the daily cron from the first run after the time-boxed training change is deployed, since every training run is then capped (`--dl-model-seconds`, see *History rebuild & model-weight reuse*). The three lightweight DL research rows (Transformer/GNN/Autoencoder) run **regardless of `--ai`**, inside the same one-shot spawned child process, and can be turned off individually with `"useTransformer": false`, `"useGnn": false`, `"useAutoencoder": false` in `bestParams_<game>.json` (same style as the statistical `useMarkov` toggles; `useLstm`/`useLstmSmoothed`/`useTcn`/`useUnifiedLstmTcn`/`useUnifiedLstmGruTcn` exist too for when `--ai` is on). At two smoke-test epochs on CPU the three new rows together cost less than a single `UnifiedLstmGruTcn` training. All four research models are hyperopt-tunable: Transformer/GNN/Autoencoder via `HyperoptDeepLearning.py` (see the hyperopt section), the RL row via `HyperoptRLTicket.py` (in the weekly `runHyperopt.sh`). Until a game's tuning has run, they use the defaults listed in `runUnifiedDeepLearningModels`; the `LSTM Base Model` likewise falls back to `LSTMModel`'s own defaults for any tuning key a game's `bestParams_<game>.json` lacks (jokerplus has never been DL-tuned - the first `--ai` run on 2026-09-17 lost its whole DL step to a `KeyError` on `batchSize` before this fallback existed) and logs which keys are untuned.
+```
+settle models x (--dl-model-seconds + 60) + memorise models x (120 + 60) + 120
+```
 
-## Out of date (check of 5 Nov 2026)
+The 60 s per model cover data load, graph compilation, prediction and save, which run outside the training budget; the last 120 s are the child's start-up. At the defaults a lottery game with `-a true` has eight settle and seven memorise models: 8 x 300 + 7 x 180 + 120 = 3780 s (63 minutes). `--dl-model-seconds 0` disables the automatic deadline as well.
 
-The text above was moved as it stood. Comparing it with the code on 5 Nov 2026 found these points no longer true; they are listed rather than rewritten so nothing changes meaning unseen:
+Each model's total time for the day is logged (`LSTM Base Model: 187s`: load, training, prediction and save together); that is the number to tune the budget on.
 
-- *The main idea* names only the lottery games: the markets are missing (crypto, shares - five Euronext shares since 2 Nov 2026 - and their week games), and money is not only Keno/Pick3: Joker+ has a payout table and Lotto, EuroMillions and EuroDreams are scored on each draw's prize table since 3 Nov 2026 (`src/PrizeTables.py`).
-- *Deep learning*: TCN and the two Unified models are live rows (`TCN Base Model`, `UnifiedLstmTcn Model`, `UnifiedLstmGruTcn Model`); the sentences that say TCN is not exercised or every game is hard-coded to `lstm_model` are outdated. Still true: `SelfAttentionBlock` is unused and `num_lstm_layers` has no effect.
-- *Gradient boosting*: `BOOSTING_PARAM_REFIXES` is `BOOSTING_PARAM_SUFFIXES` (`src/BoostingBase.py`); six boosting rows exist, all with `score_numbers`.
-- *How predictions are combined*: the row list is incomplete - see the model list in the README; keno serves all six ticket sizes (`use_5` to `use_10`) since 8 Oct 2026, not `use_10` alone; the meta-learner's base models also include Chronos (TimesFM opt-in) and, on the markets, the four market rows. The MetaLearner sentence restored from git on 5 Nov ('Also skipped for Pick3') dates from August 2026 and was not re-checked.
-- *History rebuild*: `runPredictor.sh` and cron no longer start the runs - the scheduler inside the server does (`jobs.js`, see docs/operations.md).
+## Advanced Architectural & Security Research
+
+These rows run in the daily pipeline as tracked prediction rows or monitoring layers, and are scored and ranked like every other row.
+
+### Structural & graph-based analysis: `GNN Model` (`src/GNN.py`)
+
+Numbers are nodes in a co-occurrence graph built from the training history with exponential recency weighting (`gnn_decay`). Stacked graph-convolution layers (a GCN written in Keras, no extra dependency) learn per-number embeddings, and a window-conditioned readout turns them into the per-position softmax prediction. Keys `gnn_*`.
+
+### Long-range temporal context: `Transformer Model` (`src/TransformerModel.py`)
+
+Sinusoidal positional encoding and pre-LN self-attention encoder blocks over a longer window (default 30 draws). Attention can weight any draw in the window regardless of distance. Same output head, NaN and checkpoint handling and fingerprinted weights as the other deep-learning rows. Keys `transformer_*`.
+
+### Ticket construction: `RL Ticket Model` (`src/RLTicketModel.py`)
+
+The row does not predict numbers; it learns how to assemble a ticket from the day's other rows.
+
+- **Policy**: a linear score per candidate number, tickets sampled without replacement (Plackett-Luce), trained with REINFORCE and a mean-reward baseline in pure numpy. Pick3 gets one softmax per position, so digits may repeat.
+- **Features** per number: `voteShare` and `meanRank` over the day's other rows, `drawFrequency`, `drawsSinceSeen`, and a bias; z-scored within the day.
+- **Reward**: the real payout on pick3 and keno (`Helpers.pick3_ticket_profit`, `keno_ticket_profit`), the main-ticket hit count elsewhere.
+- **Training data**: the stored day files (`currentPrediction` rows and the real draw). During a rebuild only days strictly before the rebuilt day are used.
+- It runs after the vote rows, warm-starts from the policy in `data/models/rl_model`, and its training is wall-clock capped.
+- The policy builds the main numbers only. The special column(s) are the values the day's other rows put there most often (`RLTicketModel.voted_specials`, one vote per row, ties to the smaller value). A ticket without its full special column is scored on hits only (see [scoring](scoring.md)).
+- Not built for Joker+. On the market games `RL Position Model` takes its place.
+
+| Key | Default |
+|---|---|
+| `useRlTicket` | true |
+| `rlTicketLearningRate` | 0.05 |
+| `rlTicketEpochs` | 30 |
+| `rlTicketSamplesPerDay` | 32 |
+| `rlTicketTrainDays` | 120 |
+| `rlTicketMaxTrainSeconds` | 60 |
+
+The keys are tuned by `HyperoptRLTicket.py`; see [tuning](tuning.md).
+
+### Position sizing: `RL Position Model` (`src/RLPositionModel.py`)
+
+The market games' RL row learns how much to put on a call, not which bin to call.
+
+- Its ticket is the `WeightedEnsemble Model`'s ticket (the same voters and vote rules). Its own contribution is `positions`: a size per instrument, from 0 (sit out) through 1 (the paper stake) up to 2.
+- **Features**, in bin space: `upShare`, `consensus`, `garch`, `regime`, `vote`, `yesterday`, `recentAbs`, bias.
+- **Policy**: a linear softmax over the sizes, trained with REINFORCE on the stored day files. The reward is a concave utility of the paper money, `money − riskAversion × money²`, so an intermediate size can be the right answer for an uncertain call.
+- Without a trainable history and without a stored policy it falls back to size 1 where the vote is up and 0 where it is not.
+- Weights in `data/models/rl_position`. Self-check: `python3 -m src.RLPositionModel`.
+
+| Key | Default |
+|---|---|
+| `useRlPosition` | true |
+| `rlPositionLearningRate` | 0.05 |
+| `rlPositionEpochs` | 30 |
+| `rlPositionSamplesPerDay` | 16 |
+| `rlPositionTrainDays` | 120 |
+| `rlPositionRiskAversion` | 0.1 |
+| `rlPositionMaxTrainSeconds` | 60 |
+| `rlPositionSitOut` | false (true serves the row at size 0) |
+
+How positions are settled and booked is on [markets](markets.md).
+
+### Anomaly detection: `Autoencoder Model` (`src/AutoencoderAnomaly.py`)
+
+A narrow-bottleneck conditional autoencoder that is both a tracked prediction row and an integrity monitor.
+
+- After each training run it computes the reconstruction negative log-likelihood of every recent real draw and a rolling z-score.
+- A strongly negative z means the real draw became easy to reconstruct (a predictability spike). That is the alert condition: the lowest z of the last 30 draws below −3.
+- The day file stores it as `anomalyWatch`: `model`, `latest_z`, `min_z_recent`, `alert` and the last 120 `scores`.
+- Its label smoothing defaults to 0, so the likelihood is not biased. Keys `autoencoder_*`.
+
+### Entropy & divergence analysis
+
+`Helpers.generate_model_performance_report` computes, per game over the last 60 scored draws: KL(recent ‖ full history) for drift, KL(recent ‖ uniform) and normalised entropy for the distance from a fair draw, and per model the KL between predicted and real numbers. Entropy near 1 and KL near 0 mean the process looks fair and stationary. Sustained movement is a signal for investigation, **not** proof of manipulation: rule changes, data artefacts and small windows all move these numbers. How the figures are shown and read is on [research](research.md).

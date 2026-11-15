@@ -63,6 +63,7 @@ const ADMIN_GROUPS: Group[] = [
     items: [
       { label: 'Jobs & services', to: '/admin/jobs' },
       { label: 'People', to: '/admin/people' },
+      { label: 'Wiki', to: '/admin/wiki', prefix: true },
       { label: "What's new", to: '/whats-new', news: true },
     ],
   },
@@ -84,6 +85,7 @@ const HERE: [string, string][] = [
   ['/admin/randomness', 'Randomness'],
   ['/admin/jobs', 'Jobs & services'],
   ['/admin/people', 'People'],
+  ['/admin/wiki', 'Wiki'],
   ['/admin/games', 'Games in detail'],
   ['/admin/markets/crypto', 'Crypto workbench'],
   ['/admin/markets/shares', 'Stocks workbench'],
