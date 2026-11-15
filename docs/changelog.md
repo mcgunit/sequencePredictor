@@ -24,6 +24,22 @@ Decided: the rule of the documentation holds for the code too: comments, help te
 
 Built: the personal attributions in the comments of 78 files reworded; the word stays where it is technical (the process that holds `process.lock`, the reader a Council session belongs to). No behaviour changed.
 
+### Feature control on the DL360 computed nothing
+
+*Page: operations*
+
+Found: the first Sunday feature control on the DL360 ended after 18 seconds with status 0 and no record. The DL360 had no foundation libraries, so it expected a set of models without `Chronos Model` and refused all eleven cached meta-learner tables. The week's reading carried the feature control of 8 November.
+
+Built: the foundation libraries and the Chronos weights installed on the DL360 (the same forecast as the main server to 1e-6); the feature control rerun there the same day on the Sunday's own snapshot, and the reading rebuilt. `IrrelevantFeatureControl.py` ends with status 1 when it wrote no game's record.
+
+### The Sunday controls stay on the DL360
+
+*Page: operations*
+
+Found: the controls run 2.5 to 4 times slower on the DL360 than on the main server (15 November: randomness discrimination 4.3 h, feature control 2.2 h, market rows 29 min). Measured with one benchmark on both machines and the same numpy: the DL360's Xeon E5645 has no AVX, so dense linear algebra is about 9 times slower there, and code that uses no vector instructions is about 2 times slower because of the older cores. The frequency governor is already `performance`.
+
+Decided: the controls stay on the DL360. A control that runs long or goes wrong there never holds up the predictor on the main server; the longer run time is accepted.
+
 ### Deleting hyperopt and backtest runs
 
 *Page: [operations](operations.md)*

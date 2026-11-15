@@ -271,15 +271,22 @@ def main():
         if lockbox:
             print(f"Under the {describe_lockbox(lockbox)}: its days are withheld from every table")
         seed = control_seed(args.seed)      # once per run: a run past midnight keeps one week's seeds for every game
+        written = 0
         for game in games:
             try:
-                run_game(game, GAME_CONFIG[game], path, args.days, args.repeats, args.noise_columns, seed,
-                         variant_keys, args.tolerate_rows, args.max_rows, lockbox=lockbox)
+                record = run_game(game, GAME_CONFIG[game], path, args.days, args.repeats, args.noise_columns, seed,
+                                  variant_keys, args.tolerate_rows, args.max_rows, lockbox=lockbox)
+                written += 1 if record else 0
             except Exception as e:
                 print(f"{game}: control failed - {e}")
     finally:
         remove_lock()
     print(f"\nDone in {time.time() - started:.0f}s")
+    # A run that wrote no game's record is a failed run, not a quiet one (15 Nov 2026: on the CPU worker every table
+    # was refused - the worker had no Chronos, so it expected another set of models - and the job ended with status 0).
+    if games and not written:
+        print(f"NOTHING WRITTEN: none of the {len(games)} game(s) had a usable table - see the lines above")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

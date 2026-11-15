@@ -480,6 +480,8 @@ Without a `gpu` entry the deep-learning rows cannot be backtested. Without a `cp
 
 On each worker, `<dir>/venv` holds the pipeline's Python packages (without TensorFlow on the CPU worker), `<dir>/app` the copy the backtests use, `<dir>/hyperopt` the copy and the Optuna studies of the hyperopts, and `<dir>/controls` the copy of the controls.
 
+The CPU worker also needs the foundation libraries in `/root/.foundation-libs` and the Chronos weights ([models](models.md), *Foundation models*: the same install commands, run with the worker's Python). Which models a cached meta-learner table is expected to hold depends on whether those libraries are installed, so a worker without them refuses every table the main server cached.
+
 ### A backtest on a worker
 
 `worker/remote-backtest.sh`:
@@ -533,6 +535,8 @@ With a `cpu` entry in `config/workers.json`, the control plan's four jobs run on
 3. once per plan occurrence `data/trainingData`, `data/hyperOptCache` and `config/paramOverrides.json`, so the controls of one Sunday read the same draws even when they run into Monday; `data/controls` every time;
 4. the control runs there detached from the ssh session (a network interruption does not end it), 48 hours at most; its output is copied into the job's log every 15 seconds;
 5. at the end the records it writes are copied back into `data/controls/`: the band's `results/` and game folders, `discrimination/`, `features/`, `markets/`.
+
+A feature control that wrote no game's record ends with status 1 and the line `NOTHING WRITTEN`: a run in which every cached table was refused is a failed run on the Jobs page, not a short successful one.
 
 **Fallback.** Anything failing before the control started there (the machine does not come up, cannot be copied to) ends with 75. That control and every one waiting behind it are then queued on this server, in their order, and the scheduler's history keeps the attempt with the reason. A control waiting for the DL360 when its entry is taken out of `config/workers.json` runs here too.
 
