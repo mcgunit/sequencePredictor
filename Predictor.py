@@ -42,7 +42,7 @@ from src.BoostingBase import apply_boosting_params
 from src.Since import load as load_since
 from src.Command import Command
 from src.Helpers import Helpers
-from src.DataFetcher import DataFetcher, no_data_status
+from src.DataFetcher import DataFetcher, no_data_status, run_status
 from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
@@ -3122,6 +3122,8 @@ if __name__ == "__main__":
 
         # the lottery games whose draws were asked for, and those whose fetch failed (see the run's status at the end)
         fetchAsked, fetchFailed = [], []
+        # the games whose prediction raised: the run goes on with the others and ends with a failing status
+        crashedGames = []
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
             try:
                 if dataset_name in games:
@@ -3203,6 +3205,7 @@ if __name__ == "__main__":
 
             except Exception as e:
                 print(f"Failed to predict {dataset_name.capitalize()}: {e}")
+                crashedGames.append(dataset_name)
 
         
         print("Finished with predictions")
@@ -3211,10 +3214,13 @@ if __name__ == "__main__":
         # the run still finishes what follows (the report, the push, the lock) and then ends with NO_DATA_EXIT, which
         # the scheduler answers by starting it again an hour later (jobs.js). With at least one game answered the
         # status stays 0: the failed games are a draw behind and catch up on the next run.
-        exitStatus = no_data_status(fetchAsked, fetchFailed)
+        # A game whose prediction raised fails the run too (16 Nov 2026): status 1, after the report and the push.
+        exitStatus = run_status(no_data_status(fetchAsked, fetchFailed), crashedGames)
         if fetchFailed:
             print(f"DATA FETCH: failed for {len(fetchFailed)} of {len(fetchAsked)} game(s) ({', '.join(fetchFailed)})"
-                  + (f" - NO DATA for this run: it ends with status {exitStatus}" if exitStatus else ""))
+                  + (f" - NO DATA for this run: it ends with status {exitStatus}" if exitStatus == no_data_status(fetchAsked, fetchFailed) and exitStatus else ""))
+        if crashedGames:
+            print(f"GAME FAILED: the prediction raised for {', '.join(crashedGames)} - the run ends with status {exitStatus}")
 
         # Per-game/per-model performance summary over all scored history -
         # rendered by the web UI's History page (see server.js /database) and

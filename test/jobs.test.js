@@ -24,11 +24,21 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 15, 'fifteen jobs: the night crypto and lottery runs, the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
-ok(byKey.predictor.script === 'Predictor.py' && byKey.predictor.args.join(' ') === '-a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto',
-  'the lottery job is Predictor.py -a true as runPredictor.sh had it, for the seven lottery games (8 Nov 2026)');
-ok(byKey.predictor.daily.hour === 6 && byKey.predictor.daily.minute === 0 && !byKey.predictor.daily.utc,
-  'the lottery predictor runs at 06:00 Brussels (since 9 Nov 2026; 00:30 UTC on the night before, 09:00 until 8 Nov)');
+ok(jobs.JOBS.length === 21, 'twenty-one jobs: the night crypto run, a morning run per lottery game (seven), the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
+// A job per lottery game (16 Nov 2026): one game's failure, or its hanging, cannot cost the other six their run.
+const LOTTERY_JOBS = jobs.JOBS.filter((j) => j.group === jobs.LOTTERY);
+const LOTTERY_KEYS = LOTTERY_JOBS.map((j) => j.key);
+ok(LOTTERY_KEYS.join() === 'euromillionsPredictor,lottoPredictor,eurodreamsPredictor,jokerplusPredictor,kenoPredictor,pick3Predictor,vikinglottoPredictor'
+  && !byKey.predictor, 'seven lottery jobs, one per game, in the order the one run made them; the one job for all seven is gone');
+ok(LOTTERY_JOBS.every((j) => j.script === 'Predictor.py' && j.args.join(' ') === `-a true -g ${j.game}` && j.key === `${j.game}Predictor` && j.log === `${j.key}.log`),
+  'each is Predictor.py -a true as runPredictor.sh has it, for its one game, with its own log');
+ok(LOTTERY_JOBS.every((j) => j.daily.hour === 6 && j.daily.minute === 0 && !j.daily.utc && !j.daily.weekdays),
+  'the lottery games run from 06:00 Brussels, every day (since 9 Nov 2026; 00:30 UTC on the night before, 09:00 until 8 Nov)');
+ok(LOTTERY_JOBS.every((j) => j.stopWhenSlow === true && j.noData && j.noData.exit === 74) && jobs.JOBS.filter((j) => j.stopWhenSlow).length === 7
+  && jobs.JOBS.filter((j) => j.group).length === 7,
+  'each retries a run without data and is stopped when it hangs; no other job is in a group or is stopped by the schedule');
+ok(jobs._internals.isLottery('kenoPredictor') && jobs._internals.isLottery('predictor') && !jobs._internals.isLottery('cryptoPredictor') && !jobs._internals.isLottery('nope'),
+  'a lottery run is one of the seven, or a run of the one job from before the split');
 ok(byKey.cryptoPredictor.script === 'Predictor.py' && byKey.cryptoPredictor.args.join(' ') === '-a true -g crypto,cryptoweek'
   && byKey.cryptoPredictor.daily.hour === 0 && byKey.cryptoPredictor.daily.minute === 5 && byKey.cryptoPredictor.daily.utc === true && !byKey.cryptoPredictor.daily.weekdays,
   'crypto runs every day at 00:05 UTC, five minutes after its day closes, ahead of the lottery run');
@@ -39,8 +49,8 @@ ok(byKey.sharesPredictor.script === 'Predictor.py' && byKey.sharesPredictor.args
   // every game Predictor.py knows runs in exactly one of the two daily runs
   const source = fs.readFileSync(path.join(__dirname, '..', 'Predictor.py'), 'utf-8');
   const all = /default="([a-z0-9,]+)"/.exec(source.slice(source.indexOf("'--games'")))[1].split(',').sort();
-  const ran = [byKey.cryptoPredictor, byKey.predictor, byKey.sharesPredictor].flatMap((j) => j.args[j.args.indexOf('-g') + 1].split(',')).sort();
-  ok(ran.join() === all.join(), 'the three daily runs together cover every game, each once');
+  const ran = [byKey.cryptoPredictor, ...LOTTERY_JOBS, byKey.sharesPredictor].flatMap((j) => j.args[j.args.indexOf('-g') + 1].split(',')).sort();
+  ok(ran.join() === all.join(), 'the daily runs together cover every game, each once');
 }
 ok(CHAIN_KEYS.join(',') === 'hyperoptStatistics,hyperoptBoost,hyperoptRLTicket,hyperoptEnsemble,hyperoptQuantum,trainMetaLearner,kenoSubsetTuning',
   'the weekly chain keeps the order runHyperopt.sh documented');
@@ -85,7 +95,7 @@ ok(byKey.featureControl.args.includes('-r') && byKey.featureControl.args.include
 const shell = (name) => fs.readFileSync(path.join(__dirname, '..', name), 'utf-8');
 const runHyperopt = shell('runHyperopt.sh');
 ok(shell('runPredictor.sh').includes('python3 Predictor.py -a true'),
-  'runPredictor.sh still runs what the predictor job runs');
+  'runPredictor.sh still runs what the predictor jobs run (by hand: every game in one run)');
 const lineOf = (job) => `python3 ${[job.script, ...job.args].join(' ')} >> /root/sequencePredictor/log/${job.log} 2>&1`;
 const orderInShell = CHAIN_KEYS.map((key) => runHyperopt.indexOf(lineOf(byKey[key])));
 ok(orderInShell.every((i) => i > 0), 'every chain job appears in runHyperopt.sh with its arguments and its log');
@@ -102,8 +112,8 @@ jobs.JOBS.forEach((job) => {
   ok(typeof job.description === 'string' && job.description.length > 20, `${job.key}: says what it does on the Jobs page`);
 });
 ok(new Set(jobs.JOBS.map((j) => j.log)).size === jobs.JOBS.length, 'every job writes to its own log');
-ok(jobs.JOBS.filter((j) => j.daily).map((j) => j.key).join() === 'cryptoPredictor,predictor,sharesPredictor',
-  'only the three predictor runs are on a clock, crypto first (a catch-up queues it ahead of the lottery run; admin.js and system.js pick "the predictor" by its key)');
+ok(jobs.JOBS.filter((j) => j.daily).map((j) => j.key).join() === ['cryptoPredictor', ...LOTTERY_KEYS, 'sharesPredictor'].join(),
+  'only the predictor runs are on a clock, crypto first (a catch-up queues it ahead of the lottery games; admin.js and system.js pick the lottery games by their group)');
 
 // Who holds process.lock, from its command line: the step whose script and arguments it carries, so the keno step
 // is not read as the statistical job (system.js would call the schedule's own run a stranger's lock)
@@ -115,11 +125,16 @@ ok(jobs.JOBS.filter((j) => j.daily).map((j) => j.key).join() === 'cryptoPredicto
   ok(keyOf('python3 HyperoptStatistics.py') === 'hyperoptStatistics', 'the statistical job is still the statistical job');
   ok(keyOf('/usr/bin/python3 /root/sequencePredictor/HyperoptStatistics.py -g lotto') === 'hyperoptStatistics',
     'a hand run with its own arguments is the job that runs the script without any');
-  ok(keyOf('python3 Predictor.py -a true') === 'predictor' && keyOf('python3 Predictor.py') === 'predictor', 'the predictor, with or without its arguments');
+  ok(keyOf('python3 Predictor.py -a true') === 'euromillionsPredictor' && keyOf('python3 Predictor.py') === 'euromillionsPredictor'
+    && jobs._internals.isLottery(keyOf('python3 Predictor.py -a true')),
+    'a hand run of every game (runPredictor.sh) is read as a lottery run: its finishing can start the weekly plans');
+  ok(keyOf('python3 Predictor.py -a true -g keno') === 'kenoPredictor' && keyOf('python3 Predictor.py -a true -g lotto') === 'lottoPredictor'
+    && keyOf('/usr/bin/python3 /root/sequencePredictor/Predictor.py -a true -g pick3 ') === 'pick3Predictor',
+    'the lock of a game\'s run names that game');
   ok(keyOf('python3 Predictor.py -a true -g shares,sharesweek') === 'sharesPredictor'
     && keyOf('python3 Predictor.py -a true -g crypto,cryptoweek') === 'cryptoPredictor'
-    && keyOf('python3 Predictor.py -a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto') === 'predictor',
-    'the locks of the crypto and stocks runs name those runs, so neither starts the weekly plans');
+    && keyOf('python3 Predictor.py -a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto') === 'euromillionsPredictor',
+    'the locks of the crypto and stocks runs name those runs, so neither starts the weekly plans; the one run of seven games from before the split is a lottery run, not EuroMillions\' own (its arguments go on after the game)');
   ok(keyOf('python3 HyperoptDeepLearning.py') === null, 'a script no job runs is no job');
 }
 
@@ -148,23 +163,23 @@ ok(dueAt({}, at('2026-09-28T08:00:00')).map((d) => d.plan).filter((k) => PLANS[k
 
 // --- the morning lottery predictor (06:00 Brussels since 9 Nov 2026) -----------
 // at() is local (Brussels) time; the slot is local too, so it is 06:00 in summer and winter alike
-ok(plans({}, at('2026-11-11T06:00:00')).includes('predictor'), 'due at its slot: 06:00 Brussels');
-ok(reasonFor({}, at('2026-11-11T06:00:00'), 'predictor') === 'schedule 06:00', 'on time, so not reported as a catch-up');
-ok(!plans({}, at('2026-11-11T05:59:00')).includes('predictor'), 'nothing is due before the slot');
-ok(plans({}, at('2026-07-15T06:00:00')).includes('predictor') && !plans({}, at('2026-07-15T05:59:00')).includes('predictor'),
+ok(plans({}, at('2026-11-11T06:00:00')).includes('kenoPredictor'), 'due at its slot: 06:00 Brussels');
+ok(reasonFor({}, at('2026-11-11T06:00:00'), 'kenoPredictor') === 'schedule 06:00', 'on time, so not reported as a catch-up');
+ok(!plans({}, at('2026-11-11T05:59:00')).includes('kenoPredictor'), 'nothing is due before the slot');
+ok(plans({}, at('2026-07-15T06:00:00')).includes('kenoPredictor') && !plans({}, at('2026-07-15T05:59:00')).includes('kenoPredictor'),
   'in summer the same 06:00 Brussels');
-ok(reasonFor({}, at('2026-11-11T09:30:00'), 'predictor').startsWith('catch-up'), 'three and a half hours late is a catch-up');
-ok(!plans({ 'predictor@2026-11-11': { at: 'x' } }, at('2026-11-11T09:30:00')).includes('predictor'),
+ok(reasonFor({}, at('2026-11-11T09:30:00'), 'kenoPredictor').startsWith('catch-up'), 'three and a half hours late is a catch-up');
+ok(!plans({ 'kenoPredictor@2026-11-11': { at: 'x' } }, at('2026-11-11T09:30:00')).includes('kenoPredictor'),
   'an occurrence that has been handled is never started twice');
-ok(dueAt({}, at('2026-11-11T20:00:00')).find((d) => d.plan === 'predictor').occurrence === 'predictor@2026-11-11',
+ok(dueAt({}, at('2026-11-11T20:00:00')).find((d) => d.plan === 'kenoPredictor').occurrence === 'kenoPredictor@2026-11-11',
   'a run missed in the morning is caught up the same evening, as that day\'s occurrence');
-ok(dueAt({}, at('2026-11-12T01:30:00')).find((d) => d.plan === 'predictor').occurrence === 'predictor@2026-11-11'
-  && !plans({}, at('2026-11-12T02:30:00')).includes('predictor'),
+ok(dueAt({}, at('2026-11-12T01:30:00')).find((d) => d.plan === 'kenoPredictor').occurrence === 'kenoPredictor@2026-11-11'
+  && !plans({}, at('2026-11-12T02:30:00')).includes('kenoPredictor'),
   'past the 20 h window (02:00 the next night) it is dropped: that morning\'s run supersedes it');
-ok(nextDaily(at('2026-10-24T07:00:00'), byKey.predictor.daily).getTime() === at('2026-10-25T06:00:00').getTime()
-  && nextDaily(at('2026-10-25T12:00:00'), byKey.predictor.daily).getTime() === at('2026-10-26T06:00:00').getTime(),
+ok(nextDaily(at('2026-10-24T07:00:00'), byKey.kenoPredictor.daily).getTime() === at('2026-10-25T06:00:00').getTime()
+  && nextDaily(at('2026-10-25T12:00:00'), byKey.kenoPredictor.daily).getTime() === at('2026-10-26T06:00:00').getTime(),
   'across the end of summer time (25 Oct 2026) the slot stays 06:00 Brussels');
-ok(jobs._internals.nextDueText(byKey.predictor, at('2026-11-11T12:00:00')).endsWith('(daily 06:00)'), 'and the Jobs page says when it runs');
+ok(jobs._internals.nextDueText(byKey.kenoPredictor, at('2026-11-11T12:00:00')).endsWith('(daily 06:00)'), 'and the Jobs page says when it runs');
 
 // --- the night crypto run (8 Nov 2026) ------------------------------------------
 ok(reasonFor({}, at('2026-11-11T01:05:00'), 'cryptoPredictor') === 'schedule 00:05 UTC', 'crypto at 00:05 UTC, 01:05 Brussels in winter');
@@ -173,8 +188,8 @@ ok(plans({}, at('2026-07-15T02:05:00')).includes('cryptoPredictor') && !plans({}
   'in summer at 02:05 Brussels - never before 00:00 UTC, when the day closes');
 ok(plans({}, at('2026-11-14T01:05:00')).includes('cryptoPredictor') && plans({}, at('2026-11-15T01:05:00')).includes('cryptoPredictor'),
   'every day, the weekend included');
-ok(dueAt({}, at('2026-11-11T07:00:00')).map((d) => d.plan).filter((k) => k === 'cryptoPredictor' || k === 'predictor').join() === 'cryptoPredictor,predictor',
-  'after a night and morning the box was down both are owed, crypto queued first');
+ok(dueAt({}, at('2026-11-11T07:00:00')).map((d) => d.plan).filter((k) => k === 'cryptoPredictor' || LOTTERY_KEYS.includes(k)).join() === ['cryptoPredictor', ...LOTTERY_KEYS].join(),
+  'after a night and morning the box was down all are owed, crypto queued first, then the seven games in their order');
 
 // --- the evening stocks run (31 Oct 2026; 18:05 since 8 Nov 2026) ---------------
 ok(reasonFor({}, at('2026-09-23T18:05:00'), 'sharesPredictor') === 'schedule 18:05', 'a Wednesday evening at 18:05');
@@ -245,7 +260,7 @@ ok(exitCodeFrom('ok') === null && exitCodeFrom('0 1') === null, 'garbage is not 
 // Dry mode promises to start nothing, and a queue survives in
 // config/scheduler.json across a restart - so a chain queued while the
 // schedule was on must not drain after a rollback to dry.
-const mixed = [{ key: 'predictor', manual: false }, { key: 'hyperoptBoost', manual: true }];
+const mixed = [{ key: 'kenoPredictor', manual: false }, { key: 'hyperoptBoost', manual: true }];
 ok(allowedQueue(mixed, 'on').length === 2, 'on mode starts everything queued');
 ok(allowedQueue(mixed, 'dry').length === 1 && allowedQueue(mixed, 'dry')[0].manual === true,
   'dry mode keeps only what an administrator started by hand');
@@ -372,7 +387,7 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
   ok(secondsToNextSlot(at('2026-11-07T19:00:00')) === (6 * 60 + 5) * 60, 'Saturday 19:00: the 01:05 crypto run is next (no stocks run on a Saturday)');
   ok(backtestBudget(at('2026-11-10T00:50:00')) === 0, 'between the crypto and lottery runs: no room');
   const bt = (id) => ({ key: 'backtest', backtestId: id });
-  ok(JSON.stringify(pickNext([bt('a'), { key: 'predictor' }, bt('b')], 0)) === '{"index":1,"budget":0}', 'a scheduled job jumps every queued backtest');
+  ok(JSON.stringify(pickNext([bt('a'), { key: 'kenoPredictor' }, bt('b')], 0)) === '{"index":1,"budget":0}', 'a scheduled job jumps every queued backtest');
   ok(JSON.stringify(pickNext([bt('a'), bt('b')], 1800)) === '{"index":0,"budget":1800}', 'only backtests: the first, with its budget');
   ok(pickNext([bt('a')], 0) === null && pickNext([], 3600) === null, 'no room, or nothing queued: nothing starts');
 }
@@ -389,8 +404,8 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
   fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
   const HOUR = 3600 * 1000;
   // an old state file: no retry, no durations - the durations come from its history (newest first)
-  const hist = [1000, 1200, 900].map((seconds, i) => ({ at: i, finishedAt: i, key: 'predictor', name: 'x', seconds, exit: 0 }))
-    .concat([{ at: 9, key: 'predictor', seconds: 50000, exit: 1 }, { at: 9, key: 'nullControls', seconds: 700, exit: 0, worker: 'cpu' }]);
+  const hist = [1000, 1200, 900].map((seconds, i) => ({ at: i, finishedAt: i, key: 'kenoPredictor', name: 'x', seconds, exit: 0 }))
+    .concat([{ at: 9, key: 'kenoPredictor', seconds: 50000, exit: 1 }, { at: 9, key: 'nullControls', seconds: 700, exit: 0, worker: 'cpu' }]);
   fs.writeFileSync(path.join(dir, 'config', 'scheduler.json'), JSON.stringify({ version: 1, occurrences: {}, queue: [], history: hist, current: null,
     baselinedAt: 'x', baselinedPlans: { [CHAIN_PLAN]: 'x', [CONTROLS_PLAN]: 'x' } }));
   const quiet = console.log;
@@ -404,61 +419,61 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
     const st = () => c.state();
     const notes = [];
     c.setNotifier((n) => { notes.push(n); return n; });
-    const spec = copy.JOBS.find((j) => j.key === 'predictor').noData;
+    const spec = copy.JOBS.find((j) => j.key === 'kenoPredictor').noData;
     const t0 = Date.now() - 10 * 60 * 1000;
-    const begin = (extra = {}) => { st().current = Object.assign({ key: 'predictor', name: 'Lottery predictor', reason: 'test', startedAt: t0, runId: 'r', pid: 1, pidFile: path.join(dir, 'p'), exitFile: path.join(dir, 'e') }, extra); };
+    const begin = (extra = {}) => { st().current = Object.assign({ key: 'kenoPredictor', name: 'Morning predictor: Keno', reason: 'test', startedAt: t0, runId: 'r', pid: 1, pidFile: path.join(dir, 'p'), exitFile: path.join(dir, 'e') }, extra); };
     const results = [];
-    results.push(spec && spec.exit === 74 && spec.retries === 6 && spec.everyMs === HOUR, 'the lottery predictor: status 74, six retries, an hour apart');
-    results.push(JSON.stringify(st().durations.predictor) === '[900,1200,1000]' && st().durations['nullControls@cpu'][0] === 700 && JSON.stringify(st().retry) === '{}',
+    results.push(spec && spec.exit === 74 && spec.retries === 6 && spec.everyMs === HOUR, 'a lottery game: status 74, six retries, an hour apart');
+    results.push(JSON.stringify(st().durations.kenoPredictor) === '[900,1200,1000]' && st().durations['nullControls@cpu'][0] === 700 && JSON.stringify(st().retry) === '{}',
       `an old state file gets its durations from the history, successful runs only: ${JSON.stringify(st().durations)}`);
 
     // the first run without data: a retry an hour after it ended, one note, the weekly plans wait
     begin();
     c.finish(74, null, t0 + 60000);
-    let r = st().retry.predictor;
+    let r = st().retry.kenoPredictor;
     results.push(r && r.attempt === 1 && r.of === 6 && r.at === t0 + 60000 + HOUR && st().current === null, `a run without data plans retry 1 an hour after it ended: ${JSON.stringify(r)}`);
     results.push(/tries again at \d\d:\d\d \(retry 1 of 6\)/.test(st().history[0].note) && st().history[0].exit === 74, `the record says when: ${st().history[0].note}`);
     results.push(notes.length === 1 && notes[0].kind === 'no-data' && notes[0].level === 'warning' && /up to 6 times/.test(notes[0].body[0]), 'one note: no data, and what happens next');
-    results.push(copy.status().retries.length === 1 && copy.status().retries[0].attempt === 1 && copy.status().retries[0].name === 'Morning predictor: lottery games', 'the Jobs page gets the pending retry');
+    results.push(copy.status().retries.length === 1 && copy.status().retries[0].attempt === 1 && copy.status().retries[0].name === 'Morning predictor: Keno', 'the Jobs page gets the pending retry');
     // survives a restart
     const saved = JSON.parse(fs.readFileSync(path.join(dir, 'config', 'scheduler.json'), 'utf-8'));
-    results.push(saved.retry.predictor.attempt === 1, 'the pending retry is in the state file (a restart keeps it)');
+    results.push(saved.retry.kenoPredictor.attempt === 1, 'the pending retry is in the state file (a restart keeps it)');
 
     // not before its hour; then queued as a retry
     c.startRetries(r.at - 1000);
-    results.push(st().queue.length === 0 && st().retry.predictor, 'not queued before its hour');
+    results.push(st().queue.length === 0 && st().retry.kenoPredictor, 'not queued before its hour');
     c.startRetries(r.at + 1000);
-    results.push(st().queue.length === 1 && st().queue[0].key === 'predictor' && st().queue[0].retry === 1 && !st().queue[0].manual && !st().retry.predictor
+    results.push(st().queue.length === 1 && st().queue[0].key === 'kenoPredictor' && st().queue[0].retry === 1 && !st().queue[0].manual && !st().retry.kenoPredictor
       && /retry 1 of 6/.test(st().queue[0].reason), `queued at its hour, marked as retry 1: ${JSON.stringify(st().queue[0])}`);
     st().queue.length = 0;
 
     // retries 1..5 without data: each plans the next, no further note; the sixth gives up with one
     for (let n = 1; n <= 5; n += 1) { begin({ retry: n }); c.finish(74, null, t0 + n * HOUR); }
-    results.push(st().retry.predictor.attempt === 6 && notes.length === 1, 'five retries without data: retry 6 planned, still one note');
+    results.push(st().retry.kenoPredictor.attempt === 6 && notes.length === 1, 'five retries without data: retry 6 planned, still one note');
     begin({ retry: 6 });
     c.finish(74, null, t0 + 7 * HOUR);
-    results.push(!st().retry.predictor && /no further retry/.test(st().history[0].note) && st().history[0].retry === 6, `the sixth without data ends it: ${st().history[0].note}`);
+    results.push(!st().retry.kenoPredictor && /no further retry/.test(st().history[0].note) && st().history[0].retry === 6, `the sixth without data ends it: ${st().history[0].note}`);
     results.push(notes.length === 2 && notes[1].kind === 'no-data-ended' && notes[1].level === 'error' && /after 6 retries/.test(notes[1].title), 'and says so, as an error');
 
     // data arrives on a retry: a note that it recovered, no retry left
     notes.length = 0;
     begin();
     c.finish(74, null, t0 + 60000);
-    delete st().retry.predictor;   // as launch() does when the retry starts
+    delete st().retry.kenoPredictor;   // as launch() does when the retry starts
     begin({ retry: 1 });
     c.finish(0, null, t0 + HOUR + 120000);
-    results.push(!st().retry.predictor && notes.length === 2 && notes[1].kind === 'no-data-ended' && notes[1].level === 'info' && /retry 1/.test(notes[1].title), 'data on retry 1: the retries end, a note says it arrived');
+    results.push(!st().retry.kenoPredictor && notes.length === 2 && notes[1].kind === 'no-data-ended' && notes[1].level === 'info' && /retry 1/.test(notes[1].title), 'data on retry 1: the retries end, a note says it arrived');
 
     // a pending retry hours late is dropped; a run by hand in between is that try
     begin();
     c.finish(74, null, t0);
-    c.startRetries(st().retry.predictor.at + 4 * HOUR);
-    results.push(!st().retry.predictor && st().queue.length === 0, 'a retry due more than three hours ago is dropped');
+    c.startRetries(st().retry.kenoPredictor.at + 4 * HOUR);
+    results.push(!st().retry.kenoPredictor && st().queue.length === 0, 'a retry due more than three hours ago is dropped');
     begin();
     c.finish(74, null, t0);
-    c.enqueue('predictor', 'run now', true);
-    c.startRetries(st().retry.predictor.at + 1000);
-    results.push(st().queue.length === 1 && st().queue[0].manual === true && !st().queue[0].retry && !st().retry.predictor, 'already queued by hand: that run is the retry');
+    c.enqueue('kenoPredictor', 'run now', true);
+    c.startRetries(st().retry.kenoPredictor.at + 1000);
+    results.push(st().queue.length === 1 && st().queue[0].manual === true && !st().queue[0].retry && !st().retry.kenoPredictor, 'already queued by hand: that run is the retry');
     st().queue.length = 0;
 
     // other jobs and other exits: the plain failure note; stopped by an administrator: none
@@ -468,28 +483,169 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
     results.push(!st().retry.cryptoDaily && notes.length === 1 && notes[0].kind === 'job-failed' && /exit code 74/.test(notes[0].title), 'status 74 means "no data" only for a job that says so');
     begin();
     c.finish(1, null, t0 + 1000);
-    results.push(notes.length === 2 && notes[1].kind === 'job-failed' && /Lottery predictor ended with exit code 1/.test(notes[1].title) && !st().retry.predictor, 'a failed run: a note, no retry');
+    results.push(notes.length === 2 && notes[1].kind === 'job-failed' && /Morning predictor: Keno ended with exit code 1/.test(notes[1].title) && !st().retry.kenoPredictor, 'a failed run: a note, no retry');
     begin({ stoppedBy: 'hana' });
     c.finish(null, 'killed', t0 + 1000);
     results.push(notes.length === 2 && st().history[0].stoppedBy === 'hana', 'stopped by an administrator: recorded, no note');
     begin();
     c.finish(0, null, t0 + 1100 * 1000);
-    results.push(notes.length === 2 && st().durations.predictor.slice(-1)[0] === 1100, 'a normal run: no note, its duration kept');
+    results.push(notes.length === 2 && st().durations.kenoPredictor.slice(-1)[0] === 1100, 'a normal run: no note, its duration kept');
 
     // far longer than usual: 1.5 x the longest of the last runs and at least half an hour more, said once
     notes.length = 0;
-    st().durations.predictor = [900, 1200, 1000];
-    const lim = c.slowLimit('predictor');
+    st().durations.kenoPredictor = [900, 1200, 1000];
+    const lim = c.slowLimit('kenoPredictor');
     results.push(lim && lim.longest === 1200 && lim.limit === 3000, `the limit: the longest (1200 s) + 30 min: ${JSON.stringify(lim)}`);
     st().durations.long = [7200, 8000, 7000];
     results.push(c.slowLimit('long').limit === 12000 && c.slowLimit('cryptoDaily') === null, '1.5 x for a long job; no limit with fewer than three runs');
     begin();
-    results.push(c.checkSlow(st().current, 'predictor', '', t0 + 2900 * 1000) === false && !notes.length, 'under the limit: nothing');
-    results.push(c.checkSlow(st().current, 'predictor', '', t0 + 3100 * 1000) === true && notes.length === 1 && notes[0].kind === 'slow' && /far longer than usual/.test(notes[0].title), 'over it: a note');
-    results.push(c.checkSlow(st().current, 'predictor', '', t0 + 9000 * 1000) === false && notes.length === 1, 'once per run');
+    results.push(c.checkSlow(st().current, 'kenoPredictor', '', t0 + 2900 * 1000) === false && !notes.length, 'under the limit: nothing');
+    results.push(c.checkSlow(st().current, 'kenoPredictor', '', t0 + 3100 * 1000) === true && notes.length === 1 && notes[0].kind === 'slow' && /far longer than usual/.test(notes[0].title), 'over it: a note');
+    results.push(c.checkSlow(st().current, 'kenoPredictor', '', t0 + 9000 * 1000) === false && notes.length === 1, 'once per run');
     st().current = null;
     const logText = fs.readFileSync(path.join(dir, 'log', 'scheduler.log'), 'utf-8');
-    results.push(/the weekly plans wait for a run with data/.test(logText), 'a run without data is not the weekly plans\' trigger');
+    results.push(/the weekly plans wait for Morning predictor: Keno \(a run with data\)/.test(logText), 'a run without data is not the weekly plans\' trigger');
+
+    // --- a job per lottery game (16 Nov 2026) ---
+    const nameOfJob = (key) => copy.JOBS.find((j) => j.key === key).name;
+    const game = (key, extra = {}) => begin(Object.assign({ key, name: nameOfJob(key) }, extra));
+    // the games share their notes about the API: the same key for six hours, so the store keeps one for the morning
+    notes.length = 0;
+    st().retry = {};
+    game('kenoPredictor');
+    c.finish(74, null, t0 + 1000);
+    game('lottoPredictor');
+    c.finish(74, null, t0 + 2000);
+    results.push(notes.length === 2 && notes.every((n) => n.kind === 'no-data' && n.dedupe === 'no-data:lottery' && n.dedupeMs === 6 * HOUR)
+      && /not repeated for them this morning/.test(notes[0].body[0]), 'two games without data: both raise the note under one key for the lottery group');
+    results.push(st().retry.kenoPredictor.attempt === 1 && st().retry.lottoPredictor.attempt === 1, 'each game has its own retry');
+    results.push(c.lotteryPending().join() === 'Morning predictor: Keno,Morning predictor: Lotto', `both are still to be made: ${c.lotteryPending().join()}`);
+    {
+      const notifications = require(path.join(__dirname, '..', 'notifications.js'));
+      notifications._internals.useFile(path.join(dir, 'config', 'notifications.json'));
+      c.setNotifier(notifications.raise);
+      st().retry = {};
+      game('kenoPredictor');
+      c.finish(74, null, t0 + 1000);
+      game('lottoPredictor');
+      c.finish(74, null, t0 + 2000);
+      game('cryptoPredictor');
+      c.finish(1, null, t0 + 3000);
+      const kept = notifications.view({ name: 'x' }).items;
+      results.push(kept.filter((n) => n.kind === 'no-data').length === 1 && /Keno/.test(kept.find((n) => n.kind === 'no-data').title)
+        && kept.filter((n) => n.kind === 'job-failed').length === 1, `the store keeps one no-data note for the morning (the first game's), other notes as before: ${kept.map((n) => n.kind).join()}`);
+      c.setNotifier((n) => { notes.push(n); return n; });
+    }
+    for (let n = 1; n <= 6; n += 1) { game('pick3Predictor', { retry: n }); c.finish(74, null, t0 + n * HOUR); }
+    results.push(notes.slice(-1)[0].kind === 'no-data-ended' && notes.slice(-1)[0].dedupe === 'no-data-ended:lottery', 'the retries used up: one key for the group too');
+    game('lottoPredictor', { retry: 2 });
+    c.finish(0, null, t0 + 2 * HOUR);
+    results.push(notes.slice(-1)[0].level === 'info' && notes.slice(-1)[0].dedupe === 'no-data-arrived:lottery', 'the data arriving on a retry: one key for the group');
+
+    // the weekly plans wait for the last game: not while another is queued, running or waiting for a retry
+    st().retry = {};
+    st().queue.length = 0;
+    results.push(c.lotteryPending().length === 0, 'nothing queued, running or waiting: no lottery run is left');
+    st().queue.push({ key: 'lottoPredictor', reason: 'schedule 06:00', manual: false }, { key: 'cryptoPredictor', reason: 'x', manual: false });
+    game('kenoPredictor');
+    results.push(c.lotteryPending().join() === 'Morning predictor: Keno,Morning predictor: Lotto' && c.lotteryPending(st().current).join() === 'Morning predictor: Lotto',
+      'a running and a queued game are left; the run that is finishing does not count itself, the crypto run never counts');
+    c.finish(0, null, t0 + 600 * 1000);
+    results.push(/the weekly plans wait for Morning predictor: Lotto\n/.test(fs.readFileSync(path.join(dir, 'log', 'scheduler.log'), 'utf-8')), 'a game finishing with another queued does not start the weekly plans');
+    st().queue.length = 0;
+    st().retry.predictor = { attempt: 1, of: 6, at: t0 };
+    results.push(c.lotteryPending().join() === 'predictor', 'a retry of the one run from before the split still counts');
+    st().retry = {};
+    // a run of the one job from before the split that was still running at the deploy is finished like any other
+    begin({ key: 'predictor', name: 'Morning predictor: lottery games' });
+    c.finish(0, null, t0 + 1000);
+    results.push(st().current === null && st().history[0].key === 'predictor' && copy.status().history[0].key === 'predictor', 'a run of the one job from before the split ends and is shown');
+
+    // --- a hung game is stopped (16 Nov 2026): twice the longest of a week of runs, at least two hours; four hours without ---
+    {
+      const kills = [];
+      const deps = { kill: (pid, signal) => { kills.push(`${pid} ${signal}`); }, isAlive: () => true };
+      st().durations.kenoPredictor = [900, 1200, 1000];
+      let lim = c.stopLimit('kenoPredictor');
+      results.push(lim.fallback === true && lim.limit === c.STOP_FALLBACK_S && lim.limit === 4 * 3600 && lim.runs === 3, `fewer than seven runs to compare with: four hours: ${JSON.stringify(lim)}`);
+      st().durations.kenoPredictor = [600, 700, 900, 1200, 1000, 800, 650];
+      lim = c.stopLimit('kenoPredictor');
+      results.push(lim.fallback === false && lim.limit === c.STOP_FLOOR_S && lim.limit === 7200 && lim.longest === 1200, `a week of short runs: the two-hour floor: ${JSON.stringify(lim)}`);
+      st().durations.long = [5000, 4000, 4100, 4200, 4300, 4400, 4500];
+      results.push(c.stopLimit('long').limit === 10000, 'a week of long runs: twice the longest');
+      notes.length = 0;
+      game('kenoPredictor', { pid: 4242 });
+      const run = st().current;
+      // the schedule is off in this copy: a run is reported, never stopped
+      results.push(c.checkSlow(run, 'kenoPredictor', '', t0 + 7300 * 1000, deps) === true && kills.length === 0 && !run.hungAt
+        && /The schedule stops it itself once it has run 2\.0 h/.test(notes[0].body[0]), `with the schedule off nothing is stopped; the notice names the limit: ${notes[0] && notes[0].body[0]}`);
+      fs.unlinkSync(path.join(dir, 'config', 'scheduler.disabled'));
+      delete run.slowAt;
+      notes.length = 0;
+      results.push(c.checkSlow(run, 'kenoPredictor', '', t0 + 7100 * 1000, deps) === true && notes.length === 1 && kills.length === 0 && !run.hungAt,
+        'past the notice\'s limit and under the stop limit: the notice, the run goes on');
+      c.checkSlow(run, 'kenoPredictor', '', t0 + 7201 * 1000, deps);
+      results.push(kills.join() === '-4242 SIGTERM' && run.hungAt === t0 + 7201 * 1000 && run.stoppedBy === 'the schedule' && run.hung.limit === 7200 && run.hung.seconds === 7201,
+        `past the stop limit: SIGTERM to its process group, recorded as the schedule's stop: ${kills.join()} ${JSON.stringify(run.hung)}`);
+      c.checkSlow(run, 'kenoPredictor', '', t0 + 7231 * 1000, deps);
+      results.push(kills.length === 1, 'not signalled again within the minute');
+      c.checkSlow(run, 'kenoPredictor', '', t0 + 7262 * 1000, deps);
+      c.checkSlow(run, 'kenoPredictor', '', t0 + 7300 * 1000, deps);
+      results.push(kills.join() === '-4242 SIGTERM,-4242 SIGKILL' && run.killedAt === t0 + 7262 * 1000, `still there a minute later: SIGKILL, once: ${kills.join()}`);
+      fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+      st().queue.push({ key: 'pick3Predictor', reason: 'schedule 06:00', manual: false });
+      c.finish(null, 'killed', t0 + 7263 * 1000);
+      const rec = st().history[0];
+      results.push(rec.key === 'kenoPredictor' && rec.exit === null && rec.stoppedBy === 'the schedule' && /^stopped by the schedule: far longer than usual\. It had run 2\.0 h/.test(rec.note),
+        `the record says who stopped it and why: ${rec.note}`);
+      results.push(notes.length === 2 && notes[1].kind === 'job-failed' && notes[1].level === 'error' && /Morning predictor: Keno was stopped: far longer than usual/.test(notes[1].title)
+        && /were not made/.test(notes[1].body[0]), 'and a note says the game\'s day was not made (an administrator\'s own stop raises none)');
+      results.push(st().durations.kenoPredictor.length === 7 && st().queue.length === 1 && st().queue[0].key === 'pick3Predictor' && !st().retry.kenoPredictor,
+        'its duration is not kept as a usual one, the next game is still queued, nothing starts the stopped game again');
+      st().queue.length = 0;
+      // only the lottery games are stopped: the crypto run is reported and left to an administrator
+      fs.unlinkSync(path.join(dir, 'config', 'scheduler.disabled'));
+      st().durations.cryptoPredictor = [600, 700, 900, 1200, 1000, 800, 650];
+      game('cryptoPredictor', { pid: 4343 });
+      c.checkSlow(st().current, 'cryptoPredictor', '', t0 + 90000 * 1000, deps);
+      results.push(kills.length === 2 && !st().current.hungAt && !/stops it itself/.test(notes.slice(-1)[0].body[0]), 'a job without stopWhenSlow is never stopped by the schedule');
+      // a run whose PID is not known yet cannot be stopped: nothing is recorded as hung
+      game('lottoPredictor', { pid: null });
+      c.checkSlow(st().current, 'lottoPredictor', '', t0 + 90000 * 1000, deps);
+      results.push(kills.length === 2 && !st().current.hungAt, 'no PID yet: not marked as stopped');
+      fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+      st().current = null;
+    }
+
+    // --- the one-time move from one job to seven (splitLottery) ---
+    {
+      results.push(typeof st().lotterySplitAt === 'string', 'the first start with this schedule records the move');
+      const lotteryKeys = copy.JOBS.filter((j) => j.group === copy.LOTTERY).map((j) => j.key);
+      const morning = at('2026-11-17T09:00:00');
+      st().lotterySplitAt = null;
+      st().occurrences = { 'predictor@2026-11-17': { at: 'x' } };
+      st().retry = { predictor: { attempt: 2, of: 6, at: t0, since: t0 - HOUR } };
+      st().queue = [{ key: 'predictor', reason: 'retry 1 of 6', manual: false, retry: 1 }, { key: 'gone', reason: 'x' }, { key: 'hyperoptBoost', reason: 'x', manual: true }];
+      c.splitLottery(morning);
+      results.push(lotteryKeys.every((k) => st().occurrences[`${k}@2026-11-17`]) && !st().occurrences['cryptoPredictor@2026-11-17'],
+        'deployed after the morning\'s one run: the seven games\' slots of that day are handled, the other jobs\' are not touched');
+      results.push(!c.dueAt(st().occurrences, morning).some((d) => lotteryKeys.includes(d.plan)), 'so none of them starts as a catch-up');
+      results.push(!st().retry.predictor && lotteryKeys.every((k) => st().retry[k].attempt === 2 && st().retry[k].at === t0), 'a waiting retry of the one run becomes one per game');
+      results.push(st().queue.map((q) => q.key).join() === [...lotteryKeys, 'hyperoptBoost'].join() && st().queue[0].retry === 1,
+        `a queued one run becomes seven, a job this schedule does not have leaves the queue: ${st().queue.map((q) => q.key).join()}`);
+      st().occurrences = { 'predictor@2026-11-18': { at: 'x' } };
+      c.splitLottery(at('2026-11-18T09:00:00'));
+      results.push(Object.keys(st().occurrences).length === 1, 'once: a later start marks nothing');
+      // deployed before the morning's run: nothing to mark, the seven run at 06:00
+      st().lotterySplitAt = null;
+      st().occurrences = { 'predictor@2026-11-16': { at: 'x' } };
+      st().retry = {};
+      st().queue = [];
+      c.splitLottery(at('2026-11-17T05:00:00'));
+      results.push(Object.keys(st().occurrences).length === 1 && c.dueAt(st().occurrences, at('2026-11-17T06:00:00')).filter((d) => lotteryKeys.includes(d.plan)).length === 7,
+        'deployed before 06:00: nothing is marked and the seven games are due at their slot');
+      st().occurrences = {};
+    }
 
     // a notifier that throws costs nothing
     c.setNotifier(() => { throw new Error('broken'); });

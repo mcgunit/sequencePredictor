@@ -160,9 +160,18 @@ function Tiles({ d }: { d: WeekView }) {
         href="#since"
         label="Today"
         value={today.run ? durationText(today.run.minutes, today.run.usual) : today.running ? 'running' : DASH}
-        unit={today.run ? `predictor ${today.run.result}` : today.running ? `since ${time(today.running.start)}` : 'no predictor run yet'}
+        unit={
+          today.run
+            ? today.run.open
+              ? `predictor: ${today.run.gamesMade ?? 0} of ${today.run.gamesOf ?? 0} games so far`
+              : `predictor ${today.run.result}`
+            : today.running
+              ? `since ${time(today.running.start)}`
+              : 'no predictor run yet'
+        }
         foot={[
           today.run ? `${span(today.run.start, today.run.end)} · ${usualText(today.run.usual, today.run.minutes)} · ${usualBasis(today.run.usual)}` : `${weekday(today.day)}`,
+          today.running?.name ? `now: ${today.running.name} since ${time(today.running.start)}` : '',
           today.run && today.run.overUsual ? { text: 'longer than its usual maximum', warn: true } : '',
           ...(today.run?.warnings ?? []).filter((x) => x.new).map((x) => ({ text: `new warning: ${x.sig} ×${x.n}`, warn: true })),
           `queue ${d.since.queue.length} · ${lockText(d.since.lock)}`,
@@ -483,7 +492,7 @@ function SinceCard({ d, onOpen }: { d: WeekView; onOpen: (id: string) => void })
                   {weekday(r.start)}
                 </button>
                 <span>
-                  {time(r.start)} → {time(r.end) || '…'} · <b>{durationText(r.minutes, r.usual)}</b>
+                  {time(r.start)} → {r.open ? '…' : time(r.end) || '…'} · <b>{durationText(r.minutes, r.usual)}</b>
                 </span>
                 <Chip kind={r.result === 'ok' ? 'flat' : 'down'}>{r.result}</Chip>
                 {r.overUsual ? <Chip kind="warn">over its usual maximum</Chip> : null}

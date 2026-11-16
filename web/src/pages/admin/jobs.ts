@@ -147,19 +147,23 @@ export function runAsk(job: JobLine, d: JobsView): Ask {
   }
   const ahead = aheadMinutes(r) + q.minutes;
   const timed: string[] = [];
-  // one job at a time: the predictor due before this one would end waits behind it
-  const predictor = d.jobs.find((j) => j.daily) ?? null;
+  // one job at a time: the daily job due first, before this one would end, waits behind it
+  const next = d.jobs.filter((j) => j.daily && j.key !== job.key && j.nextAt).sort((a, b) => Date.parse(a.nextAt as string) - Date.parse(b.nextAt as string))[0] ?? null;
   const longest = job.usual && isNum(job.usual.max) ? job.usual.max : null;
-  if (predictor && predictor.key !== job.key && predictor.nextAt && longest !== null && d.builtAt) {
+  if (next && next.nextAt && longest !== null && d.builtAt) {
     const ends = Date.parse(d.builtAt) + (ahead + longest) * 60000;
-    if (Date.parse(predictor.nextAt) < ends) timed.push(`The predictor due ${stamp(predictor.nextAt)} would wait behind it: one job runs at a time.`);
+    if (Date.parse(next.nextAt) < ends) timed.push(`${jobLabel(next.key, next.name)}, due ${stamp(next.nextAt)}, would wait behind it: one job runs at a time.`);
   }
-  // a predictor finishing on a Saturday (Sunday) after 09:00 starts the week's tuning chain (controls) if it has not run
-  // yet (jobs.js planTriggerAt): when this one would finish, by its median
-  if (job.daily && d.mode?.mode === 'on' && d.builtAt && job.usual && isNum(job.usual.median)) {
+  // a lottery game's job finishing on a Saturday (Sunday) after 06:00, with no other lottery job running, queued or
+  // waiting for a retry, starts the week's tuning chain (controls) if it has not run yet (jobs.js planTriggerAt,
+  // lotteryPending): when this one would finish, by its median
+  const lotteryBusy = [d.running?.key, ...d.queue.map((x) => x.key), ...d.retries.map((x) => x.key)].some(
+    (key) => key && key !== job.key && d.jobs.find((j) => j.key === key)?.group === 'lottery',
+  );
+  if (job.group === 'lottery' && !lotteryBusy && d.mode?.mode === 'on' && d.builtAt && job.usual && isNum(job.usual.median)) {
     const finish = Date.parse(d.builtAt) + (ahead + job.usual.median) * 60000;
     const [day, hour] = brussels(finish);
-    const plan = hour >= 9 ? (day === 'Sat' ? 'weeklyTuning' : day === 'Sun' ? 'weeklyControls' : null) : null;
+    const plan = hour >= 6 ? (day === 'Sat' ? 'weeklyTuning' : day === 'Sun' ? 'weeklyControls' : null) : null;
     if (plan) {
       // a monthly job (the Q0 band since 1 Nov 2026) only when that day is the first of its weekday in the month
       const today = brusselsDay(new Date(finish).toISOString());
@@ -253,7 +257,7 @@ export function serviceAsk(sv: ServiceLine, action: 'start' | 'stop' | 'restart'
   };
 }
 
-// The runs kept (or the ones given: a job's), from the oldest start to the newest: the window a "none in 40 runs" is over.
+// The runs kept (or the ones given: a job's), from the oldest start to the newest: the window a "none in the runs kept" is over.
 export function runsWindow(d: JobsView, items = d.runs.items): { from: string | null; to: string | null } {
   const starts = items.filter((x) => x.kind === 'run').map((x) => x.start).filter((x): x is string => Boolean(x)).sort();
   return { from: starts[0] ?? null, to: starts[starts.length - 1] ?? null };

@@ -105,10 +105,17 @@ export default function JobsPage() {
 }
 
 // --- tiles ---------------------------------------------------------------------------------------------------------
+// "Morning predictor: Keno" -> "Keno": the game of a lottery job's name, where the line already says it is the predictor
+const gameName = (name: string) => name.replace(/^Morning predictor:\s*/, '');
 function Tiles({ d }: { d: JobsView }) {
   const r = d.running;
-  const predictor = d.jobs.find((j) => j.daily) ?? null;
+  // the lottery morning, a job per game since 16 Nov 2026, read as one run (system.js todayOf)
   const today = d.today;
+  const games = today?.games ?? null;
+  const made = games ? games.filter((g) => g.result !== null) : [];
+  const bad = made.filter((g) => g.result !== 'ok');
+  const busy = Boolean(today && (today.running || today.queued.length || today.waiting.length));
+  const gamesText = games ? `${made.length} of ${games.length} games` : '';
   const sv = d.services?.[0] ?? null;
   const lf = d.lastFailure;
   const win = runsWindow(d);
@@ -149,13 +156,30 @@ function Tiles({ d }: { d: JobsView }) {
       <Tile
         href="#schedule"
         label="Today"
-        value={today?.run ? durationText(today.run.minutes, predictor?.usual) : today?.running ? 'running' : DASH}
-        unit={today?.run ? `predictor ${today.run.result}` : today?.running ? `predictor since ${time(r?.start)}` : 'no predictor run yet'}
+        value={today?.run ? durationText(today.run.minutes, today.usual) : today?.running ? 'running' : DASH}
+        unit={
+          today?.run
+            ? busy
+              ? `lottery games: ${gamesText || 'running'} so far`
+              : `lottery games ${today.run.result}`
+            : today?.running
+              ? `lottery games since ${time(today.runningJob?.start)}`
+              : 'no lottery run yet'
+        }
         foot={[
           today ? `${weekday(today.day)}, Brussels day` : 'no daily job here',
-          today?.run ? `started ${time(today.run.start)} · ${usualText(predictor?.usual ?? null, today.run.minutes)}` : '',
-          today?.run && today.run.result !== 'ok' ? { text: `${today.run.result}: see Runs`, warn: true } : '',
-          predictor?.nextAt ? `next ${stamp(predictor.nextAt)}` : '',
+          today?.run
+            ? `started ${time(today.run.start)}${!busy && today.run.end ? `, done ${time(today.run.end)}` : ''} · ${usualText(today.usual, busy ? null : today.run.minutes)}`
+            : '',
+          today?.runningJob ? `now: ${today.runningJob.name} since ${time(today.runningJob.start)}` : '',
+          today?.queued.length ? `queued: ${today.queued.map((q) => gameName(q.name)).join(', ')}` : '',
+          ...(today?.waiting ?? []).map((w) => ({
+            text: `${gameName(w.name)} got no data: tried again ${time(w.at)}${w.attempt !== null && w.of !== null ? ` (retry ${w.attempt} of ${w.of})` : ''}`,
+            warn: true,
+          })),
+          ...bad.map((g) => ({ text: `${g.label} ${g.result}${g.tries > 1 ? ` after ${g.tries} runs` : ''}: see Runs`, warn: true })),
+          today?.run && !games && today.run.result !== 'ok' ? { text: `${today.run.result}: see Runs`, warn: true } : '',
+          today?.nextAt ? `next ${stamp(today.nextAt)}` : '',
         ]}
       />
       <Tile
@@ -456,8 +480,8 @@ function ScheduleCard({ d, onOpenJob, onOpenRun }: { d: JobsView; onOpenJob: (ke
       flush
       help={
         <>
-          The daily predictor runs at its slot; the tuning chain starts when Saturday&apos;s predictor finishes, the controls when Sunday&apos;s does, each job
-          after the one before. Took: the last run against the usual range of the runs of that job before it. A job&apos;s name opens what it runs, its usual
+          The daily jobs run at their slot, the lottery games one job each, one after the other; the tuning chain starts when Saturday&apos;s last lottery
+          game is made, the controls when Sunday&apos;s is, each job after the one before. Took: the last run against the usual range of the runs of that job before it. A job&apos;s name opens what it runs, its usual
           duration and Run now. To stop the schedule without a restart, create config/scheduler.disabled on the server: nothing new starts while it is there,
           Run now included. Remove it to resume.
         </>

@@ -49,7 +49,8 @@ const SCHEDULER_LOG = path.join(LOG_DIR, 'scheduler.log');
 // 3.5 idle hours the fixed cron slot cost.
 const TICK_MS = 10 * 1000;
 const LOG_MAX_BYTES = 10 * 1024 * 1024;    // rotate at 10MB, keep one old file
-const HISTORY_KEPT = 40;
+// 160 since 16 Nov 2026: with a job per lottery game nine daily jobs run, and 40 runs held under five days of them
+const HISTORY_KEPT = 160;
 const OCCURRENCES_KEPT = 120;
 const RUN_FILE_DAYS = 7;
 // How long after a run is launched we keep looking for its PID file before
@@ -115,6 +116,58 @@ const CRYPTO_GAMES = 'crypto,cryptoweek';
 const NIGHT_GAMES = 'euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto';
 const EVENING_GAMES = 'shares,sharesweek';
 
+// A predictor job per lottery game (16 Nov 2026; until then one run made all seven, key 'predictor'): a game that
+// crashes, hangs or gets no data costs only its own run - the others have theirs, each with its own log, its own
+// retries and its own push. All seven are due at 06:00 Brussels and run one after the other in this order (the
+// queue is FIFO); the last of them finishing starts the Saturday tuning chain and the Sunday controls (see
+// lotteryPending). The crypto and the stocks run stay one job each: a base game and its week game share their bars.
+const LOTTERY = 'lottery';
+const LOTTERY_GAMES = [
+  ['euromillions', 'EuroMillions'], ['lotto', 'Lotto'], ['eurodreams', 'EuroDreams'], ['jokerplus', 'Joker+'],
+  ['keno', 'Keno'], ['pick3', 'Pick3'], ['vikinglotto', 'Vikinglotto'],
+];
+// The key the one run of all seven had: still in the kept history, and in a state file written before the split.
+const LEGACY_LOTTERY_KEY = 'predictor';
+// The one job of all seven games as it was until 16 Nov 2026, for the pages only (never queued, not in JOBS): its
+// kept runs keep their name and usual times, and its log stays readable from the Jobs page.
+const LEGACY_JOBS = [{
+  key: LEGACY_LOTTERY_KEY, group: LOTTERY, legacy: true, name: 'Morning predictor: lottery games',
+  description: 'The one run of all seven lottery games, until 16 Nov 2026. Since then each game has its own job.',
+  script: 'Predictor.py', args: ['-a', 'true', '-g', LOTTERY_GAMES.map(([game]) => game).join(',')], log: 'predictor.log',
+  daily: { hour: 6, minute: 0 },
+}];
+function lotteryJob([game, label]) {
+  return {
+    key: `${game}Predictor`,
+    group: LOTTERY,
+    game,
+    name: `Morning predictor: ${label}`,
+    description: `The next draw's predictions for ${label}, deep learning rows included and time-boxed `
+               + `(Predictor.py -a true -g ${game}). The seven lottery games each have their own job, all due at 06:00 Brussels `
+               + 'and run one after the other, so a game that fails or hangs costs only its own run; the morning is usually '
+               + 'done by about 10:30, before the first sales close (13:00 on Sundays for Keno, Pick3 and Joker+). A run the '
+               + 'Nationale Loterij API gives no draws ends with status 74 and is started again an hour later, up to six times. '
+               + 'A run far longer than usual is stopped and the next game starts. The last of the seven finishing starts the '
+               + 'Saturday tuning chain and the Sunday controls. One run made all seven games until 16 Nov 2026.',
+    script: 'Predictor.py',
+    args: ['-a', 'true', '-g', game],
+    log: `${game}Predictor.log`,
+    // 06:00 Brussels since 9 Nov 2026: at 00:30 UTC the Nationale Loterij API answered every game with an empty reply
+    daily: { hour: 6, minute: 0 },
+    // A run without data is a failed run (16 Nov 2026; on 9 and 16 Nov the API answered every game with a web page
+    // and the run ended with status 0, the day's predictions not made): Predictor.py ends with status 74
+    // (src/DataFetcher.py NO_DATA_EXIT) when the fetch failed, and the run is started again an hour after it ended,
+    // up to six times (see "a run without data" below).
+    noData: { exit: 74, retries: 6, everyMs: 3600 * 1000 },
+    // A hung game must not hold the six behind it (the decision of 16 Nov 2026): see "far longer than usual".
+    stopWhenSlow: true,
+    // How long after its slot a missed run is still worth starting. The box
+    // being down over a night is the case this exists for; past 20 h (02:00)
+    // the next morning's run is close enough to supersede it.
+    catchUpHours: 20,
+  };
+}
+
 const JOBS = [
   {
     // First in this list: a catch-up after a night the box was down queues crypto ahead of the lottery games.
@@ -130,30 +183,7 @@ const JOBS = [
     daily: { hour: 0, minute: 5, utc: true },
     catchUpHours: 20,
   },
-  {
-    key: 'predictor',
-    name: 'Morning predictor: lottery games',
-    description: "The next draw's predictions for the seven lottery games, deep learning rows included and time-boxed "
-               + '(Predictor.py -a true), at 06:00 Brussels, usually done by about 08:00 - well before the first sales close '
-               + '(13:00 on Sundays for Keno, Pick3 and Joker+). Every draw\'s results are published within about two and a half '
-               + 'hours of it, but on the first night run (00:30 UTC, 9 Nov 2026) the Nationale Loterij API answered every game '
-               + 'with an empty reply. A run the API gives no draws for any game ends with status 74 and is started again '
-               + 'an hour later, up to six times. Its finishing starts the Saturday tuning chain and the Sunday controls. '
-               + 'At 09:00 Brussels until 8 Nov 2026, at 00:30 UTC on the night of 8 to 9 Nov.',
-    script: 'Predictor.py',
-    args: ['-a', 'true', '-g', NIGHT_GAMES],
-    log: 'predictor.log',
-    daily: { hour: 6, minute: 0 },
-    // A run without data is a failed run (16 Nov 2026; on 9 and 16 Nov the API answered every game with a web page
-    // and the run ended with status 0, the day's predictions not made): Predictor.py ends with status 74
-    // (src/DataFetcher.py NO_DATA_EXIT) when the fetch failed for every game, and the run is started again an hour
-    // after it ended, up to six times (see "a run without data" below).
-    noData: { exit: 74, retries: 6, everyMs: 3600 * 1000 },
-    // How long after its slot a missed run is still worth starting. The box
-    // being down over a night is the case this exists for; past 20 h (02:00)
-    // the next morning's run is close enough to supersede it.
-    catchUpHours: 20,
-  },
+  ...LOTTERY_GAMES.map(lotteryJob),
   {
     // The decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
     // open-to-close book is one nobody could have followed. Euronext's day is complete after 18:00 Brussels
@@ -330,6 +360,25 @@ function nextMonthlyDay(job, day) {
 
 function jobByKey(key) {
   return JOBS.find((j) => j.key === key) || null;
+}
+// A queue entry's or a run's name, also for a key this schedule no longer has (a state file from before a change).
+const nameOf = (key) => (jobByKey(key) || {}).name || String(key);
+
+// A lottery game's predictor run: one of the seven jobs, or the one run of all of them a state file from before
+// 16 Nov 2026 may still hold as running.
+function isLottery(key) {
+  return key === LEGACY_LOTTERY_KEY || (jobByKey(key) || {}).group === LOTTERY;
+}
+// The lottery games' runs this morning still has to make, as job names: queued, running (but for `except`, the run
+// that is finishing) or waiting for the next try of a run without data. The weekly plans start behind the last of
+// them, not behind the first: the tuners read every game's history, and a chain queued early would hold the games
+// still waiting behind ten hours of tuning.
+function lotteryPending(except = null) {
+  const keys = new Set();
+  if (state.current && state.current !== except && isLottery(state.current.key)) keys.add(state.current.key);
+  state.queue.forEach((q) => { if (isLottery(q.key)) keys.add(q.key); });
+  Object.keys(state.retry).forEach((key) => { if (isLottery(key)) keys.add(key); });
+  return [...keys].map(nameOf);
 }
 
 // --- mode -------------------------------------------------------------------
@@ -510,9 +559,12 @@ function lockHolder() {
 // the schedule's own run a lock "not started by the schedule".
 function jobOfCmdline(cmdline) {
   const named = JOBS.filter((j) => cmdline.includes(j.script));
-  // a bare "Predictor.py" (a hand run) is the lottery predictor, the one whose finishing starts the weekly plans
-  return named.find((j) => j.args.length && cmdline.includes([j.script, ...j.args].join(' ')))
-    || named.find((j) => !j.args.length) || named.find((j) => j.key === 'predictor') || named[0] || null;
+  // in full: its last argument ends there, so "-g lotto" is not read into a longer game list that starts with it
+  const carries = (j) => { const full = [j.script, ...j.args].join(' '); return cmdline.endsWith(full) || cmdline.includes(`${full} `); };
+  // a bare "Predictor.py" or one with its own game list (a hand run) is a lottery predictor, the kind whose finishing
+  // starts the weekly plans
+  return named.find((j) => j.args.length && carries(j))
+    || named.find((j) => !j.args.length) || named.find((j) => j.group === LOTTERY) || named[0] || null;
 }
 
 // --- state ------------------------------------------------------------------
@@ -524,7 +576,7 @@ function jobOfCmdline(cmdline) {
 // controls on the DL360" below).
 // retry: a run without data waiting for its next try, per job key ({attempt, of, at, since}); durations: the seconds
 // of each job's last successful runs, for "far longer than usual" (both since 16 Nov 2026).
-const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {},
+const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {}, lotterySplitAt: null,
   remote: { current: null, queue: [] }, retry: {}, durations: {} };
 
 let state = null;
@@ -795,25 +847,40 @@ function startRetries(now = Date.now()) {
 }
 
 // What a finished run of this server's queue tells the administrator.
+// The seven lottery jobs share their notes about the API (dedupe per group, NO_DATA_NOTE_MS): an API that answers
+// nobody is one note for the morning, not seven.
+const NO_DATA_NOTE_MS = 6 * 3600 * 1000;
 function notifyFinished(run, exit, note, again, seconds) {
+  const job = jobByKey(run.key) || {};
+  const once = (what) => (job.group ? { dedupe: `${what}:${job.group}`, dedupeMs: NO_DATA_NOTE_MS } : {});
+  const shared = job.group ? ' The other lottery games that get no data are tried again the same way; this note is not repeated for them this morning.' : '';
   if (again) {
     // one note when the data first fails to come, one when the tries end; not one per try
     if (!again.done) {
       notify({ kind: 'no-data', level: 'warning', title: `${run.name}: no data from the lottery API`,
-        body: [`The API answered none of the games, so no prediction was made (the log has what it sent). The run is started again at ${clock(again.at)}, `
-          + `and then every hour, up to ${jobByKey(run.key).noData.retries} times.`], link: JOBS_LINK });
+        body: [`The API gave no draws, so no prediction was made (the log has what it sent). The run is started again at ${clock(again.at)}, `
+          + `and then every hour, up to ${job.noData.retries} times.${shared}`], link: JOBS_LINK, ...once('no-data') });
     } else if (again.gaveUp) {
       notify({ kind: 'no-data-ended', level: 'error', title: `${run.name}: still no data after ${again.done} retries`,
-        body: ['Today\'s lottery predictions were not made. Nothing further is tried until the next scheduled run; Run now on Jobs & services starts one by hand.'],
-        link: JOBS_LINK });
+        body: [`Today's predictions for it were not made. Nothing further is tried until the next scheduled run; Run now on Jobs & services starts one by hand.${
+          job.group ? ' This note is given once for the morning: Jobs & services shows each game\'s last run.' : ''}`],
+        link: JOBS_LINK, ...once('no-data-ended') });
     }
     return;
   }
   if (exit === 0) {
     if (run.retry) {
       notify({ kind: 'no-data-ended', level: 'info', title: `${run.name}: the data arrived on retry ${run.retry}`,
-        body: ['The run that got no data was started again and finished normally.'], link: JOBS_LINK });
+        body: [`The run that got no data was started again and finished normally.${job.group ? ' Jobs & services shows the other games\' runs.' : ''}`],
+        link: JOBS_LINK, ...once('no-data-arrived') });
     }
+    return;
+  }
+  if (run.hungAt) {
+    // the schedule stopped it (stopHung): the administrator did not, and has to know the game's day was not made
+    notify({ kind: 'job-failed', level: 'error', title: `${run.name} was stopped: far longer than usual`,
+      body: [`${hungText(run)}. Its predictions for today were not made; the next job in the queue has started. Run now on Jobs & services starts it again.`],
+      link: JOBS_LINK });
     return;
   }
   if (run.stoppedBy) return;      // an administrator stopped it: they know
@@ -853,18 +920,75 @@ function slowLimit(key) {
   const longest = Math.max(...runs);
   return { longest, limit: Math.max(longest * SLOW_FACTOR, longest + SLOW_MARGIN_S) };
 }
-function checkSlow(run, key, where, now = Date.now()) {
-  if (!run || run.slowAt || run.key === 'backtest') return false;
-  const usual = slowLimit(key);
+function checkSlow(run, key, where, now = Date.now(), deps = {}) {
+  if (!run || run.key === 'backtest') return false;
   const seconds = (now - run.startedAt) / 1000;
-  if (!usual || seconds <= usual.limit) return false;
-  run.slowAt = now;
+  const usual = run.slowAt ? null : slowLimit(key);
+  const said = Boolean(usual) && seconds > usual.limit;
+  if (said) {
+    run.slowAt = now;
+    saveState();
+    const job = jobByKey(run.key) || {};
+    log(`${run.name}${where} has run ${humanDuration(seconds)}: far longer than usual (the longest of its last runs took ${humanDuration(usual.longest)})`);
+    notify({ kind: 'slow', level: 'warning', title: `${run.name}${where} runs far longer than usual`,
+      body: [`It has run ${humanDuration(seconds)} since ${stamp(run.startedAt)}; the longest of its last ${state.durations[key].length} successful runs took ${humanDuration(usual.longest)}. `
+        + `It is still running: the Jobs & services page shows its log and can stop it.${
+          job.stopWhenSlow ? ` The schedule stops it itself once it has run ${humanDuration(stopLimit(key).limit)}.` : ''}`], link: JOBS_LINK });
+  }
+  stopHung(run, key, now, deps);
+  return said;
+}
+
+// A job with stopWhenSlow (the seven lottery games, the decision of 16 Nov 2026) is not only reported: a hung game
+// would hold the games behind it, so it is stopped and the queue moves on. The limit is wider than the notice's,
+// because stopping a run that was only slow costs that game its day: twice the longest of its last successful runs
+// and at least STOP_FLOOR_S, and only with a week of runs to compare with (a game's draw days take longer than its
+// other days) - with fewer, a fixed STOP_FALLBACK_S, about what all seven games take together. The whole process
+// group gets SIGTERM as from the Stop button, and SIGKILL when that has not ended it a minute later. The run is
+// recorded as failed, with a notification; nothing starts it again but its next slot or Run now.
+const STOP_MIN_RUNS = 7;
+const STOP_FACTOR = 2;
+const STOP_FLOOR_S = 2 * 3600;
+const STOP_FALLBACK_S = 4 * 3600;
+const STOP_KILL_AFTER_MS = 60 * 1000;
+const STOPPED_BY_SCHEDULE = 'the schedule';
+function stopLimit(key) {
+  const runs = state.durations[key] || [];
+  const longest = runs.length ? Math.max(...runs) : null;
+  if (runs.length < STOP_MIN_RUNS) return { longest, limit: STOP_FALLBACK_S, runs: runs.length, fallback: true };
+  return { longest, limit: Math.max(longest * STOP_FACTOR, STOP_FLOOR_S), runs: runs.length, fallback: false };
+}
+function hungText(run) {
+  const h = run.hung || {};
+  return `It had run ${humanDuration(h.seconds)} since ${stamp(run.startedAt)}; ${h.fallback
+    ? `with fewer than ${STOP_MIN_RUNS} successful runs to compare with, a lottery game's run is stopped after ${humanDuration(h.limit)}`
+    : `the longest of its last ${h.runs} successful runs took ${humanDuration(h.longest)}, and a run is stopped after ${humanDuration(h.limit)}`}`;
+}
+function stopHung(run, key, now = Date.now(), deps = {}) {
+  const job = jobByKey(run.key);
+  if (!job || !job.stopWhenSlow || run !== state.current || !run.pid || mode() === 'off') return false;
+  if (run.hungAt) {
+    if (!run.killedAt && now - run.hungAt >= STOP_KILL_AFTER_MS) {
+      run.killedAt = now;
+      saveState();
+      try {
+        (deps.kill || ((pid, signal) => process.kill(pid, signal)))(-run.pid, 'SIGKILL');
+        log(`${run.name} (pid ${run.pid}) did not end on SIGTERM: SIGKILL`);
+      } catch (e) {
+        log(`${run.name} (pid ${run.pid}): SIGKILL failed (${e.message})`);
+      }
+    }
+    return false;
+  }
+  const usual = stopLimit(key);
+  const seconds = (now - run.startedAt) / 1000;
+  if (seconds <= usual.limit) return false;
+  run.hungAt = now;
+  run.hung = { seconds: Math.round(seconds), limit: usual.limit, longest: usual.longest, runs: usual.runs, fallback: usual.fallback };
   saveState();
-  log(`${run.name}${where} has run ${humanDuration(seconds)}: far longer than usual (the longest of its last runs took ${humanDuration(usual.longest)})`);
-  notify({ kind: 'slow', level: 'warning', title: `${run.name}${where} runs far longer than usual`,
-    body: [`It has run ${humanDuration(seconds)} since ${stamp(run.startedAt)}; the longest of its last ${state.durations[key].length} successful runs took ${humanDuration(usual.longest)}. `
-      + 'It is still running: the Jobs & services page shows its log and can stop it.'], link: JOBS_LINK });
-  return true;
+  const answer = stopRun(run.runId, STOPPED_BY_SCHEDULE, deps);
+  log(`${run.name} has run ${humanDuration(seconds)}, past its limit of ${humanDuration(usual.limit)}: ${answer.ok ? 'stopped, the queue moves on' : `could not be stopped (${answer.message})`}`);
+  return answer.ok;
 }
 
 // --- watching a run ---------------------------------------------------------
@@ -880,7 +1004,8 @@ function finish(exit, note, finishedAt) {
   const again = noDataOutcome(run, exit, ended);
   record({
     at: run.startedAt, finishedAt: ended, key: run.key, name: run.name, reason: run.reason,
-    seconds, exit, sha: run.sha, pid: run.pid, note: note || (again && again.note) || null,
+    seconds, exit, sha: run.sha, pid: run.pid,
+    note: (run.hungAt && exit !== 0 ? `stopped by the schedule: far longer than usual. ${hungText(run)}` : note) || (again && again.note) || null,
     ...(run.retry ? { retry: run.retry } : {}), ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}),
   });
   if (exit === 0) keepDuration(run.key, seconds);
@@ -891,16 +1016,19 @@ function finish(exit, note, finishedAt) {
   saveState();
   notifyFinished(run, exit, note, again, seconds);
 
-  // Saturday's predictor finishing is the weekly chain's trigger - the whole
-  // point of the item: no fixed 14:00 slot, no idle hours. Not a run without
-  // data that is tried again: the chain would tune on a history a draw short
-  // and hold the retry behind it for hours, so the retry's finishing is the
+  // Saturday's lottery predictions finishing is the weekly chain's trigger -
+  // the whole point of the item: no fixed 14:00 slot, no idle hours. With a
+  // job per game (16 Nov 2026) that is the last of them: not while another
+  // game's run is queued or running, and not while a run without data waits
+  // for its next try - the chain would tune on a history a draw short and
+  // hold that try behind it for hours, so the last run's finishing is the
   // trigger (or, the retries used up, the last of them).
-  if (run.key === 'predictor') {
+  if (isLottery(run.key)) {
     // this run's lock going is this finishing: tick() must not read it as a run started outside the scheduler
     lastLock = null;
-    if (again && again.waiting) log('the weekly plans wait for a run with data');
-    else maybeTriggerChain(new Date(), 'the predictor finishing');
+    const left = lotteryPending(run);
+    if (left.length) log(`the weekly plans wait for ${left.length === 1 ? left[0] : `${left.length} lottery games' runs`}${again && again.waiting ? ' (a run with data)' : ''}`);
+    else maybeTriggerChain(new Date(), 'the lottery predictions finishing');
   }
   // The Sunday controls' last job finishing writes the week's reading.
   scheduleReading(run);
@@ -1338,6 +1466,39 @@ function baselinePlans(now) {
   }
 }
 
+// A job per lottery game (16 Nov 2026) on an installation that ran them as one job: once, on the first start with
+// this schedule. The seven new jobs' slots of a day whose one run was handled are handled too (deployed after
+// 06:00, they would otherwise all start as catch-ups of a morning already made); a retry or a queue entry of the
+// one run becomes one per game; a queue entry of a job this schedule does not have is dropped, and said.
+function splitLottery(now) {
+  if (state.lotterySplitAt) return;
+  const games = JOBS.filter((j) => j.group === LOTTERY);
+  const covered = dueAt(state.occurrences, now).filter((entry) => {
+    const job = jobByKey(entry.plan);
+    return job && job.group === LOTTERY && state.occurrences[`${LEGACY_LOTTERY_KEY}@${entry.occurrence.split('@')[1]}`];
+  });
+  covered.forEach((entry) => remember(entry.occurrence, 'covered by that day\'s run of all seven lottery games'));
+  const waits = state.retry[LEGACY_LOTTERY_KEY];
+  if (waits) {
+    delete state.retry[LEGACY_LOTTERY_KEY];
+    games.forEach((j) => { state.retry[j.key] = Object.assign({}, waits); });
+  }
+  const queue = [];
+  state.queue.forEach((q) => {
+    if (q.key === LEGACY_LOTTERY_KEY) games.forEach((j) => queue.push(Object.assign({}, q, { key: j.key })));
+    else if (jobByKey(q.key)) queue.push(q);
+    else log(`dropped ${q.key} from the queue: this schedule has no such job`);
+  });
+  // a job key is never queued twice
+  state.queue = queue.filter((q, i) => q.key === 'backtest' || queue.findIndex((x) => x.key === q.key) === i);
+  state.lotterySplitAt = new Date().toISOString();
+  saveState();
+  if (covered.length || waits) {
+    log(`a job per lottery game: ${covered.length ? `${covered.map((c) => c.occurrence).join(', ')} treated as already handled (that day's one run made them)` : 'no slot to mark'}`
+      + `${waits ? `; the retry of the one run (${waits.attempt} of ${waits.of}) is now one per game` : ''}`);
+  }
+}
+
 // --- the worker -------------------------------------------------------------
 // Which queued entries the current mode may start. Dry mode starts only what
 // an administrator asked for by hand; anything the schedule queued in an
@@ -1436,8 +1597,8 @@ function tick() {
     const holder = lockHolder();
     // Not while the scheduler's own predictor is still ending: it lets go of the lock a moment before its exit code
     // is written, and what its finishing starts depends on that code (finish).
-    if (lastLock && lastLock.key === 'predictor' && !holder && mode() !== 'off'
-        && !(state.current && state.current.key === 'predictor')) {
+    // Nor while this schedule still has a lottery game to run: the last of those is the trigger then.
+    if (lastLock && isLottery(lastLock.key) && !holder && mode() !== 'off' && !lotteryPending().length) {
       maybeTriggerChain(now, 'the predictor finishing (run started outside the scheduler)');
     }
     lastLock = holder;
@@ -1489,6 +1650,7 @@ function start() {
   adoptRemote();
   if (!state.baselinedAt) baseline(new Date());
   baselinePlans(new Date());
+  splitLottery(new Date());
   rotateAll();
   tick();
   timer = setInterval(tick, TICK_MS);
@@ -1653,7 +1815,7 @@ function status({ full = false } = {}) {
     current: state.current ? Object.assign({}, state.current, {
       log: tail(state.current.logFile, 20),
     }) : null,
-    queue: state.queue.map((q) => Object.assign({}, q, { name: jobByKey(q.key).name })),
+    queue: state.queue.map((q) => Object.assign({}, q, { name: nameOf(q.key) })),
     // the Sunday controls on the DL360: null when it is not set up and nothing runs or waits there
     remote: remoteStatus(),
     // a run without data waiting for its next try: [{key, name, attempt, of, at}]
@@ -1661,6 +1823,8 @@ function status({ full = false } = {}) {
       attempt: state.retry[key].attempt, of: state.retry[key].of, at: state.retry[key].at })),
     jobs: JOBS.map((job) => ({
       key: job.key, name: job.name, description: job.description,
+      // the seven lottery games' jobs: group 'lottery' and the game each makes
+      group: job.group || null, game: job.game || null,
       command: `python3 ${job.script}${job.args.length ? ` ${job.args.join(' ')}` : ''}`,
       logFile: path.join(LOG_DIR, job.log),
       next: nextDueText(job, now),
@@ -1696,7 +1860,7 @@ function remoteBusy() {
 }
 
 module.exports = {
-  start, stop, status, JOBS, HISTORY_KEPT, runRefusal, runNow, cancelQueued, stopRun, remoteBusy,
+  start, stop, status, JOBS, LEGACY_JOBS, HISTORY_KEPT, LOTTERY, runRefusal, runNow, cancelQueued, stopRun, remoteBusy,
   // the backtests started from Admin › Parameters (backtests.js)
   queueBacktest, cancelBacktest, backtestState,
   // pipeline.js names the lock holder's step by it (the keno step runs the statistical tuner's script)
@@ -1714,6 +1878,8 @@ module.exports = {
     REMOTE_NOT_STARTED, toWorker, startNextRemote, pollRemote, finishRemote, adoptRemote, remoteStatus,
     // a run without data, far longer than usual, the notifications (16 Nov 2026)
     finish, noDataOutcome, startRetries, checkSlow, keepDuration, durationsFrom, slowLimit, stopRun,
+    // a job per lottery game (16 Nov 2026)
+    LOTTERY, LOTTERY_GAMES, isLottery, lotteryPending, splitLottery, stopLimit, stopHung, STOP_FALLBACK_S, STOP_FLOOR_S, STOP_KILL_AFTER_MS,
     setNotifier: (fn) => { notifier = fn; }, setLastLock: (v) => { lastLock = v; },
     useWorker: (configFn, envFn, script) => { workerConfig = configFn; workerEnv = envFn || (() => ({})); remoteScript = script || REMOTE_SCRIPT; },
   },

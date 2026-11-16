@@ -4,6 +4,20 @@ What was decided, built, fixed, measured and found in this project, by date, new
 
 ## 16 November 2026
 
+### A predictor job per lottery game
+
+*Page: operations*
+
+Decided: each of the seven lottery games gets a predictor job of its own, all due at 06:00 Brussels and run one after the other. Crypto and the stocks stay one job each. Each game pushes its own day files. A game's job that runs far longer than usual is stopped by the schedule, recorded as failed with a notification, and the next game starts.
+
+Why: one run made all seven games, so a game that crashed, hung or got no data could cost the others their run; roadmap item 8 had this as its last open point. A base market game and its week game share their bars, so splitting them gains nothing.
+
+Built: `jobs.js` has seven jobs `<game>Predictor` with their own logs, retries and usual durations; the Saturday chain and the Sunday controls start behind the last of them (none running, queued or waiting for a retry). The stop rule: twice the longest of a game's last successful runs and at least two hours, or four hours with fewer than seven runs to compare with. The notifications of a morning without data are raised once, not once per game. The run history keeps 160 runs instead of 40. `Predictor.py` ends with status 1 when a game's prediction raised an error, so that run is recorded as failed; before, it ended with 0.
+
+Built: the admin pages read the lottery morning as one run a day, continuous with the one job's earlier runs: the Today tile and This week show how many games are made, which were not ok and which wait, and a day's drawer lists each game's run. On its first start the new schedule takes over the old job's handled slots, its pending retry and its queue entry, so a deploy after 06:00 does not make the morning a second time.
+
+Evidence: seven separate runs start Python and load the libraries seven times, which adds about a quarter of an hour to the morning; it is usually done by about 10:30, before the first sales close.
+
 ### A lottery run without data is a failed run, tried again by the schedule
 
 *Page: operations*

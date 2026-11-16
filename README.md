@@ -85,7 +85,7 @@ The open work, in short. Each item is described in [docs/roadmap.md](docs/roadma
 - [ ] Follow the control readings the scheduler writes after every Sunday's controls.
 
 **Platform**
-- [ ] A predictor job per game (there are three group runs: crypto at night, the lottery games in the morning, the stocks in the evening).
+- [ ] A message outside the app (a chat webhook) when a notification is raised, if the app's own notifications prove not enough.
 - [ ] Day files to SQLite, when its trigger is reached (docs/roadmap.md item 9).
 - [ ] Clean up stale control files and the old `Council_Integration.md`.
 

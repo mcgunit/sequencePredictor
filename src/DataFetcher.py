@@ -74,6 +74,16 @@ def no_data_status(attempted, failed):
     attempted, failed = list(attempted), set(failed)
     return NO_DATA_EXIT if attempted and all(g in failed for g in attempted) else 0
 
+# A game whose prediction raised is a failed run too (16 Nov 2026, with a predictor job per lottery game): the run
+# finishes what follows and ends with GAME_FAILED_EXIT, so the schedule records it as failed and says so, where
+# "Failed to predict" was one line in a log of a run that ended with status 0. A run without data keeps its own
+# status: that one is started again.
+GAME_FAILED_EXIT = 1
+
+def run_status(noData, crashed):
+    """The run's exit status: the no-data status when it has one, else GAME_FAILED_EXIT when a game's prediction raised, else 0."""
+    return noData or (GAME_FAILED_EXIT if list(crashed) else 0)
+
 
 class DataFetcher():
     startDate = int(time.time() - (2*24*3600)) * 1000 #((current time in seconds) - (days in seconds)) * 1000 for ms
@@ -357,6 +367,11 @@ def _self_check():
     assert no_data_status(["lotto", "keno"], ["lotto"]) == 0
     assert no_data_status(["lotto"], []) == 0
     assert no_data_status([], []) == 0          # a market-only run asks the lottery API nothing
+    # run_status: no data first (it is retried), then a game that raised
+    assert run_status(0, []) == 0
+    assert run_status(0, ["keno"]) == GAME_FAILED_EXIT == 1
+    assert run_status(NO_DATA_EXIT, ["keno"]) == NO_DATA_EXIT
+    assert run_status(NO_DATA_EXIT, []) == NO_DATA_EXIT
     print("DataFetcher self-check OK")
 
 

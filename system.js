@@ -221,10 +221,36 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
     ours: Boolean(cur && s.lock.key === cur.key) }
     : { held: false }) : null;
 
-  // the lottery predictor, whose runs start the weekly plans (jobs.js: since 8 Nov 2026 the crypto run is the first daily job)
-  const daily = list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
+  // the lottery predictor, whose runs start the weekly plans (jobs.js: since 8 Nov 2026 the crypto run is the first
+  // daily job). Since 16 Nov 2026 a job per game: Today reads the morning as one run (admin.js lotteryDays), with
+  // how many games it has made, which were not ok, and what still waits.
   const today = brussels.dayOf(nowMs);
-  const todays = daily ? ran.filter((h) => h.key === daily.key && brussels.dayOf(h.at) === today) : [];
+  const lot = admin.lotteryOf(jobs);
+  const days = lot ? admin.lotteryDays(ran, lot, today) : ran;
+  const daily = lot ? lot.job : list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
+  const todays = daily ? days.filter((h) => h.key === daily.key && brussels.dayOf(h.at) === today) : [];
+  const todayOf = () => {
+    if (!daily) return null;
+    const run = todays.length ? todays[0] : null;
+    const line = run && run.parts ? admin.lotteryLine(run, lot, slices, ran, days) : null;
+    const u = lot ? admin.usualOf({ key: daily.key, at: run ? run.at : nowMs }, daily, [], days) : usual(daily.key, run ? run.at : nowMs);
+    const nexts = list(s && s.jobs).filter((j) => (lot ? lot.keys.has(j.key) : j.key === daily.key)).map((j) => j.nextAt).filter((t) => num(t) !== null);
+    const isOurs = (key) => (lot ? lot.keys.has(key) : key === daily.key);
+    const nameOf = (key) => (byKey[key] || {}).name || key;
+    return {
+      day: today, key: daily.key, name: daily.name,
+      run: run ? { ...short(run), result: line ? line.result : resultOf(run), end: isoMs(run.finishedAt) } : null,
+      running: Boolean(cur && isOurs(cur.key)),
+      // the game being made now, the games queued and those waiting for a retry: the morning is not over while any is listed
+      runningJob: cur && isOurs(cur.key) ? { key: cur.key, name: cur.name || nameOf(cur.key), start: isoMs(cur.startedAt) } : null,
+      queued: list(s && s.queue).filter((q) => isOurs(q.key)).map((q) => ({ key: q.key, name: q.name || nameOf(q.key) })),
+      waiting: list(s && s.retries).filter((t) => isOurs(t.key)).map((t) => ({ key: t.key, name: t.name || nameOf(t.key), attempt: num(t.attempt), of: num(t.of), at: isoMs(t.at) })),
+      // each game's last run of the day (null result: none yet); null for a day the one job made
+      games: line && line.games ? line.games.map((g) => ({ key: g.key, label: g.label, result: g.result, minutes: r1(g.minutes), tries: g.tries })) : null,
+      usual: u ? { median: r1(u.median), min: r1(u.min), max: r1(u.max), n: u.n, from: u.from, to: u.to, basis: u.basis } : null,
+      nextAt: isoMs(nexts.length ? Math.min(...nexts) : NaN),
+    };
+  };
   const failed = ran.filter((h) => h.exit !== 0);
 
   const svc = services && !services.error ? list(services).map((x) => ({
@@ -251,7 +277,7 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
       const u = usual(j.key, nowMs);
       const last = ran.find((h) => h.key === j.key) || null;
       return { key: j.key, name: j.name, description: j.description, command: j.command, log: j.logFile ? path.basename(j.logFile) : null,
-        plan: j.plan || null, daily: Boolean(job.daily), nextAt: isoMs(j.nextAt), trigger: j.nextAt ? null : j.next,
+        plan: j.plan || null, daily: Boolean(job.daily), group: job.group || null, game: job.game || null, nextAt: isoMs(j.nextAt), trigger: j.nextAt ? null : j.next,
         // monthly (jobs.js, the Q0 band since 1 Nov 2026): runs only on the first of its plan's weekday in the month
         monthly: job.monthly ? { since: job.monthly.since || null } : null,
         // the median of the job's earlier successful runs (admin.js usualOf: a weekly job's from its log, reaching
@@ -261,7 +287,7 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
         canRun: !j.refusal, refusal: j.refusal || null };
     }),
     runs: { kept: s ? s.kept || null : null, shown: runs.length, ran: ran.length, items: runs },
-    today: daily ? { day: today, key: daily.key, run: todays.length ? short(todays[0]) : null, running: Boolean(cur && cur.key === daily.key) } : null,
+    today: todayOf(),
     // the newest run that did not end with exit 0 (a failure, or killed: exit unknown), over the runs kept
     lastFailure: failed.length ? { ...short(failed[0]), name: failed[0].name || null, note: admin.noPaths(failed[0].note || failed[0].error || null) } : null,
     services: svc,
@@ -488,7 +514,8 @@ function install(app, options = {}) {
   const signedIn = (req, res, next) => (req.user ? next() : json(res, { error: 'login required' }, 401));
   const body = (req) => req.body || {};
 
-  const jobList = () => list(jobs && jobs.JOBS);
+  // with the one lottery job of before 16 Nov 2026 (jobs.js LEGACY_JOBS): its kept runs and its log are still read
+  const jobList = () => [...list(jobs && jobs.JOBS), ...list(jobs && jobs.LEGACY_JOBS)];
   const slicesAll = () => Object.fromEntries(jobList().map((j) => [j.key, admin.readSlices(dirs, j)]));
   const jobsStatus = () => {
     try { return jobs && typeof jobs.status === 'function' ? jobs.status({ full: true }) : null; } catch (e) { return null; }   // the schedule has not started

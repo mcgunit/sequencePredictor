@@ -1289,7 +1289,7 @@ const median = (values) => {
 };
 const ran = (h) => Boolean(h) && !h.dry && !h.blocked && Number.isFinite(h.at);
 // A run's usual duration in minutes: median, range and count of the earlier successful runs, and their basis - a
-// weekly job's earlier runs from its own log's markers (they reach further back than the 40 runs the scheduler
+// weekly job's earlier runs from its own log's markers (they reach further back than the runs the scheduler
 // keeps), the predictor's from the scheduler's history (or when a log holds none).
 function usualOf(h, job, slices, history) {
   let minutes = [];
@@ -1339,6 +1339,102 @@ function runLine(h, job, slices, history) {
     noiseFiltered: own ? own.noise : null,
     comparedWith: earlier.length ? { runs: earlier.length, from: isoMs(earlier[0].start), to: isoMs(earlier[earlier.length - 1].start) } : null,
   };
+}
+// --- the lottery games' morning as one run (16 Nov 2026) -------------------------------------------------------------
+// Each lottery game has its own job since 16 Nov 2026 (jobs.js, group 'lottery'); until then one job made all seven
+// (key 'predictor', jobs.js LEGACY_JOBS). The Week page and the Jobs page's Today tile keep reading "the lottery
+// predictor" as one run per Brussels day, under that same key, so the weekend still expects it on Saturday and on
+// Sunday and its usual times go on from the one job's: the day's first start to its last end, the minutes of all its
+// runs together, and a result over each game's last run of the day (a run without data that was tried again counts
+// by its last try).
+const LOTTERY_GROUP = 'lottery';
+const LOTTERY_DAY = { key: 'predictor', name: 'Morning predictor: lottery games' };
+const gameLabel = (job) => String((job && job.name) || '').replace(/^[^:]*:\s*/, '') || (job && job.key) || null;
+// jobs: the job list with jobs.js LEGACY_JOBS. Null when it has no lottery group (the views then read the first daily job).
+function lotteryOf(jobs) {
+  const all = list(jobs).filter((j) => j.group === LOTTERY_GROUP);
+  const games = all.filter((j) => !j.legacy);
+  if (!games.length) return null;
+  return { keys: new Set(all.map((j) => j.key).concat(LOTTERY_DAY.key)), games, byKey: Object.fromEntries(all.map((j) => [j.key, j])),
+    job: { key: LOTTERY_DAY.key, name: LOTTERY_DAY.name, log: null, plan: null, daily: true, group: LOTTERY_GROUP, virtual: true } };
+}
+// history: the runs that ran (newest first or not). The same list with each Brussels day's lottery runs as one entry
+// (parts: that day's runs, oldest first; latest: each job's last). openDay: the day still being made (today) - a day
+// short of games is otherwise not a successful one (exit null: it does not count as a usual duration).
+function lotteryDays(history, lot, openDay = null) {
+  const days = new Map();
+  const rest = [];
+  list(history).forEach((h) => {
+    if (!lot.keys.has(h.key)) { rest.push(h); return; }
+    const day = brussels.dayOf(h.at);
+    days.set(day, [...(days.get(day) || []), h]);
+  });
+  const made = [...days.entries()].map(([day, runs]) => {
+    const parts = runs.slice().sort((a, b) => a.at - b.at);
+    const last = new Map();
+    parts.forEach((p) => last.set(p.key, p));
+    const latest = [...last.values()];
+    const isGame = (p) => lot.games.some((g) => g.key === p.key);
+    const whole = latest.some((p) => !isGame(p));          // the one run of all seven
+    const gamesMade = latest.filter(isGame).length;
+    const complete = whole || gamesMade >= lot.games.length;
+    const bad = latest.filter((p) => p.exit !== 0);
+    const ends = parts.map((p) => p.finishedAt).filter(Number.isFinite);
+    const open = !complete && day === openDay;
+    return {
+      key: LOTTERY_DAY.key, name: LOTTERY_DAY.name, at: parts[0].at, finishedAt: ends.length ? Math.max(...ends) : undefined,
+      seconds: parts.every((p) => num(p.seconds) !== null) ? parts.reduce((sum, p) => sum + p.seconds, 0) : null,
+      exit: bad.length ? (bad.every((p) => num(p.exit) !== null) ? bad[0].exit : null) : (complete || open ? 0 : null),
+      sha: parts[parts.length - 1].sha || null, reason: parts[0].reason || null,
+      day, parts, latest, whole, of: whole ? null : lot.games.length, made: gamesMade, complete, open,
+    };
+  });
+  return [...rest, ...made].sort((a, b) => b.at - a.at);
+}
+// The line of such a day: runLine's fields over the whole morning (its usual from the earlier days, the one job's
+// among them), the warning signatures of every run of it together (new: new in a game's own log), and `games` -
+// each game's last run of the day, null where it has none. slices: {job key: log slices}; history: the single runs
+// (a game's usual); days: lotteryDays' list (the morning's usual).
+function lotteryLine(h, lot, slices, history, days) {
+  const line = runLine(h, lot.job, [], days);
+  const parts = list(h.parts).map((p) => ({ p, job: lot.byKey[p.key] || lot.job, line: runLine(p, lot.byKey[p.key] || lot.job, (slices || {})[p.key], history) }));
+  const sigs = new Map();
+  const read = parts.filter((x) => x.line.warnings);
+  read.forEach((x) => x.line.warnings.forEach((w) => {
+    const have = sigs.get(w.sig) || { sig: w.sig, n: 0, new: null };
+    have.n += w.n;
+    if (w.new !== null) have.new = Boolean(have.new) || w.new;
+    sigs.set(w.sig, have);
+  }));
+  const compared = parts.map((x) => x.line.comparedWith).filter(Boolean);
+  const lastOf = (key) => parts.filter((x) => x.p.key === key).pop() || null;
+  const gameOf = (job, x) => ({
+    key: job.key, game: job.game || null, label: gameLabel(job), start: x ? x.line.start : null, end: x ? x.line.end : null, minutes: x ? x.line.minutes : null,
+    result: x ? x.line.result : null, note: x ? x.line.note : null, tries: parts.filter((y) => y.p.key === job.key).length,
+    usual: x ? x.line.usual : null, overUsual: x ? x.line.overUsual : null,
+    warnings: x && x.line.warnings ? { signatures: x.line.warnings.length, new: x.line.warnings.filter((w) => w.new).length } : null,
+  });
+  const games = h.whole ? null : lot.games.map((job) => gameOf(job, lastOf(job.key)));
+  const bad = list(h.latest).filter((p) => p.exit !== 0);
+  let result = line.result;
+  let note = null;
+  if (!h.whole) {
+    const kinds = [...new Set(bad.map((p) => (num(p.exit) === null ? 'unknown' : `exit ${p.exit}`)))];
+    if (bad.length) result = `${bad.length} of ${h.latest.length} games ${kinds.length === 1 ? kinds[0] : 'not ok'}`;
+    else if (!h.complete && !h.open) result = `${h.made} of ${h.of} games ran`;
+    else result = 'ok';
+    const told = games.filter((g) => g.result && g.result !== 'ok');
+    note = told.length ? told.map((g) => `${g.label}: ${g.note || g.result}`).join(' · ') : (h.open ? `${h.made} of ${h.of} games so far` : null);
+  } else {
+    note = list(h.parts).map((p) => p.note || p.error || null).filter(Boolean).pop() || null;
+  }
+  return Object.assign(line, {
+    result, note,
+    warnings: read.length ? [...sigs.values()].sort((a, b) => b.n - a.n || a.sig.localeCompare(b.sig)) : null,
+    noiseFiltered: read.length ? read.reduce((sum, x) => sum + (x.line.noiseFiltered || 0), 0) : null,
+    comparedWith: compared.length ? { runs: Math.max(...compared.map((c) => c.runs)), from: compared.map((c) => c.from).sort()[0], to: compared.map((c) => c.to).sort().pop() } : null,
+    games, gamesOf: h.of, gamesMade: h.whole ? null : h.made, open: Boolean(h.open),
+  });
 }
 // Whether a run belongs to the weekend of `saturday`: the daily job on Saturday or Sunday; a weekly plan's job started
 // from Saturday 00:00 until Tuesday 09:00, where the controls' catch-up net ends (Brussels time).
@@ -1498,13 +1594,19 @@ function signInsOf(events, fromMs, weekMs) {
 // knows now - {lock, current, queue, council, events} - each missing when not known (null lock = free).
 function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, live = {}, now = new Date() }) {
   const nowMs = now.getTime();
-  const history = list(sched && sched.history).filter(ran);
+  const single = list(sched && sched.history).filter(ran);
   const byKey = Object.fromEntries(list(jobs).map((j) => [j.key, j]));
-  // the lottery predictor, whose runs start the weekly plans (jobs.js: since 8 Nov 2026 the crypto run is the first daily job)
-  const daily = list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
+  // the lottery predictor, whose runs start the weekly plans (jobs.js: since 8 Nov 2026 the crypto run is the first
+  // daily job; since 16 Nov 2026 a job per game, read here as one run a day - lotteryDays)
+  const lot = lotteryOf(jobs);
+  const history = lot ? lotteryDays(single, lot, brussels.dayOf(nowMs)) : single;
+  const daily = lot ? lot.job : list(jobs).find((j) => j.key === 'predictor') || list(jobs).find((j) => j.daily) || null;
+  if (lot) byKey[lot.job.key] = lot.job;
+  const dailyKey = (key) => (lot && lot.keys.has(key) ? lot.job.key : key);
+  const lineOf = (h) => (h.parts ? lotteryLine(h, lot, slices, single, history) : runLine(h, byKey[h.key], slices[h.key], history));
   const current = live.current !== undefined ? live.current : (sched && sched.current) || null;
   const queue = live.queue !== undefined ? live.queue : list(sched && sched.queue);
-  const localRun = current && Number.isFinite(current.startedAt) ? { key: current.key, at: current.startedAt } : null;
+  const localRun = current && Number.isFinite(current.startedAt) ? { key: dailyKey(current.key), at: current.startedAt } : null;
   // a Sunday control on the DL360 runs beside this server's job: it is the weekend's running one when this server's is not
   const far = live.remoteCurrent && Number.isFinite(live.remoteCurrent.startedAt) ? { key: live.remoteCurrent.key, at: live.remoteCurrent.startedAt } : null;
   const weekendish = (r) => r && byKey[r.key] && byKey[r.key].plan;
@@ -1518,7 +1620,7 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
     runs = weekendRuns(saturday);
   }
   const sunday = brussels.addDays(saturday, 1);
-  const lines = runs.map((h) => runLine(h, byKey[h.key], slices[h.key], history));
+  const lines = runs.map(lineOf);
   // what a weekend runs: the daily job on Saturday and on Sunday, every job of the two weekly plans once - a job that
   // joined its plan later (jobs.js since, a day) only in the weekends whose Saturday is that day or later, so a step
   // added midweek does not stand as "no run" in the weekend before it existed
@@ -1569,8 +1671,10 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
         newWarnings: lines.flatMap((l) => list(l.warnings).filter((w) => w.new).map((w) => ({ key: l.key, sig: w.sig, n: w.n }))),
       },
       today: {
-        day: today, run: todays.length ? runLine(todays[todays.length - 1], daily, slices[daily.key], history) : null,
-        running: current && daily && current.key === daily.key ? { start: isoMs(current.startedAt) } : null,
+        day: today, run: todays.length ? lineOf(todays[todays.length - 1]) : null,
+        // key and name: the game whose run it is (a job per lottery game since 16 Nov 2026)
+        running: current && daily && dailyKey(current.key) === daily.key
+          ? { start: isoMs(current.startedAt), key: current.key, name: (lot && lot.byKey[current.key] ? lot.byKey[current.key].name : current.name) || null } : null,
       },
       tuners: tuning ? { weekend: tuning.weekend, ...tuning.tiles,
         // job: the scheduler job (a run's drawer finds its tuner's decisions); games and the margins for the Tuning card
@@ -1610,9 +1714,9 @@ function weekView({ jobs = [], sched = null, slices = {}, controlsView, tuning, 
     readings: controlsView.readings || null,
     since: {
       from: isoMs(mondayMs),
-      predictorRuns: daily ? history.filter((h) => h.key === daily.key && h.at >= mondayMs).sort((a, b) => a.at - b.at).map((h) => runLine(h, daily, slices[daily.key], history)) : [],
-      queue: list(queue).map((q) => ({ key: q.key, name: (byKey[q.key] || {}).name || q.key, queuedAt: isoMs(q.queuedAt), manual: Boolean(q.manual) })),
-      running: current ? { key: current.key, name: (byKey[current.key] || {}).name || current.name || current.key, start: isoMs(current.startedAt) } : null,
+      predictorRuns: daily ? history.filter((h) => h.key === daily.key && h.at >= mondayMs).sort((a, b) => a.at - b.at).map(lineOf) : [],
+      queue: list(queue).map((q) => ({ key: q.key, name: ((lot && lot.byKey[q.key]) || byKey[q.key] || {}).name || q.key, queuedAt: isoMs(q.queuedAt), manual: Boolean(q.manual) })),
+      running: current ? { key: current.key, name: ((lot && lot.byKey[current.key]) || byKey[current.key] || {}).name || current.name || current.key, start: isoMs(current.startedAt) } : null,
       // null: not known here; {held: false}: free
       lock: live.lock === undefined ? null : (live.lock ? { held: true, pid: live.lock.pid, script: live.lock.script ? path.basename(String(live.lock.script)) : null, key: live.lock.key || null } : { held: false }),
       council: live.council === undefined ? null : live.council,
@@ -1691,7 +1795,9 @@ function install(app, options = {}) {
   // the job list, from jobs.js when the server passes it (options.jobs); the week has no runs without it
   // monthly: {since, weekday} - the job runs only on the first of its plan's weekday in the month (jobs.js monthly)
   const planWeekday = (plan) => { const p = options.jobs && options.jobs._internals && options.jobs._internals.PLANS && options.jobs._internals.PLANS[plan]; return p ? p.weekday : 0; };
-  const jobList = () => list(options.jobs && options.jobs.JOBS).map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily), since: j.since || null,
+  // with the one lottery job of before 16 Nov 2026 (jobs.js LEGACY_JOBS): its kept runs and its log are still read
+  const jobList = () => [...list(options.jobs && options.jobs.JOBS), ...list(options.jobs && options.jobs.LEGACY_JOBS)].map((j) => ({ key: j.key, name: j.name, log: j.log, plan: j.plan || null, daily: Boolean(j.daily), since: j.since || null,
+    group: j.group || null, game: j.game || null, legacy: Boolean(j.legacy),
     monthly: j.monthly ? { since: j.monthly.since || null, weekday: planWeekday(j.plan) } : null }));
   const COUNCIL_WAIT_MS = 6000;   // services.js probes for up to 5 s
   // what the running server knows now: the lock, the running job and the queue (jobs.status), the Council API
@@ -1787,7 +1893,7 @@ module.exports = {
   q0Of, q2Of, fcOf, rowsOf, controlsOverview, controlsDrawer, modelsSummary, modelsGame, manualRowsOf, phaseShiftSummary, phaseShiftGame,
   randomnessSummary, randomnessGame, guard, install,
   READING_VERSION, PARTS, sundayOf, weekReading, loadReadings, stateOf, streakOf, historyOf, withHistory,
-  slicesOf, readSlices, readScheduler, runLine, weekView, tuningRecords, tuningSummary, tuningGame,
+  slicesOf, readSlices, readScheduler, runLine, lotteryOf, lotteryDays, lotteryLine, weekView, tuningRecords, tuningSummary, tuningGame,
   // shared with system.js (the Jobs page): the same run lines, usual durations, path cutting and probe timeout
   noPaths, usualOf, ran, within, isoMs, SLICE_MATCH_MS, nearestAt,
 };

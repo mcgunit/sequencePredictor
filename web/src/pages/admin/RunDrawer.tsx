@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { RunLine, WeekView } from '../../api';
+import { time } from '../../format';
 import { DASH, isNum, span, stamp, weekday } from '../../format';
 import Drawer, { Section } from '../../components/admin/Drawer';
 import Chip from '../../components/admin/Chip';
@@ -24,6 +25,7 @@ export default function RunDrawer({ id, d, onClose }: { id: string; d: WeekView;
       ) : (
         <>
           <RunSection r={r} />
+          <GamesSection r={r} />
           <WarningsSection r={r} />
           <OutputsSection r={r} d={d} />
         </>
@@ -38,7 +40,7 @@ function RunSection({ r }: { r: RunLine }) {
     <Section title="Run" aside={<Chip kind={r.result === 'ok' ? 'flat' : 'down'}>{r.result}</Chip>}>
       <p className="line">
         {span(r.start, r.end)} · <b>{durationText(r.minutes, u)}</b>
-        {r.end ? '' : ' · still running at this build'}
+        {r.open ? ` · ${r.gamesMade ?? 0} of ${r.gamesOf ?? 0} games made at this build` : r.end ? '' : ' · still running at this build'}
         {r.note ? ` · ${r.note}` : ''}
       </p>
       <p className="line">
@@ -69,6 +71,53 @@ function RunSection({ r }: { r: RunLine }) {
   );
 }
 
+// The lottery morning's games (a job per game since 16 Nov 2026): each game's last run of the day, in the order they run.
+function GamesSection({ r }: { r: RunLine }) {
+  if (!r.games) return null;
+  const bad = r.games.filter((g) => g.result !== null && g.result !== 'ok').length;
+  const none = r.games.filter((g) => g.result === null).length;
+  return (
+    <Section
+      title="Games"
+      aside={<Chip kind={bad || (none && !r.open) ? 'down' : r.open ? 'dim' : 'flat'}>{`${r.gamesMade ?? 0} of ${r.gamesOf ?? r.games.length} made${bad ? ` · ${bad} not ok` : ''}`}</Chip>}
+    >
+      <p className="line">
+        Each game is its own job, one after the other: a game that fails, hangs or gets no data costs only its own run. The duration above is all of them together,
+        retries included; the usual range is that of the earlier mornings.
+      </p>
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>Game</th>
+            <th>When</th>
+            <th className="num">Took</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {r.games.map((g) => (
+            <tr key={g.key}>
+              <td className="sym">{g.label}</td>
+              <td>{g.start ? `${time(g.start)} → ${time(g.end) || '…'}` : DASH}</td>
+              <td className="num">{g.result === null ? DASH : durationText(g.minutes, g.usual)}</td>
+              <td>
+                {g.result === null ? (
+                  <span className="mut">{r.open ? 'not yet' : 'no run that day'}</span>
+                ) : (
+                  <Chip kind={g.result === 'ok' ? 'flat' : 'down'}>{g.result}</Chip>
+                )}
+                {g.tries > 1 ? <span className="mut"> · run {g.tries} of the day</span> : null}
+                {g.overUsual ? <Chip kind="warn">over its usual maximum</Chip> : null}
+                {g.note ? <span className="sub">{g.note}</span> : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
+
 function WarningsSection({ r }: { r: RunLine }) {
   const ws = r.warnings;
   const fresh = (ws ?? []).filter((x) => x.new === true).length;
@@ -83,7 +132,7 @@ function WarningsSection({ r }: { r: RunLine }) {
         <>
           <p className="line">
             {r.comparedWith
-              ? `Compared with the ${r.comparedWith.runs} earlier run${r.comparedWith.runs === 1 ? '' : 's'} of this job the logs still hold, ${span(r.comparedWith.from, r.comparedWith.to)}: a signature is new when none of them had it.`
+              ? `Compared with the ${r.comparedWith.runs} earlier run${r.comparedWith.runs === 1 ? '' : 's'} of ${r.games ? 'these games' : 'this job'} the logs still hold, ${span(r.comparedWith.from, r.comparedWith.to)}: a signature is new when none of them had it.`
               : 'The logs hold no earlier run of this job: no signature can be called new or known.'}
           </p>
           {ws.length ? (
@@ -211,8 +260,8 @@ function OutputsSection({ r, d }: { r: RunLine; d: WeekView }) {
     return (
       <Section title="Outputs">
         <p className="line">
-          The predictor writes each game&apos;s day file and the ranking (modelPerformance.json); this page reads the ranking only.{' '}
-          {ours ? `The ranking on disk, ${stamp(d.rankingAt)}, was written by this run.` : `The ranking on disk is from ${stamp(d.rankingAt)}, not from this run.`}
+          The predictor writes each game&apos;s day file and the ranking (modelPerformance.json){r.games ? ', which every game’s job rewrites' : ''}; this page reads
+          the ranking only. {ours ? `The ranking on disk, ${stamp(d.rankingAt)}, was written by this run.` : `The ranking on disk is from ${stamp(d.rankingAt)}, not from this run.`}
         </p>
       </Section>
     );

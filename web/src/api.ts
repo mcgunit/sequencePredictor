@@ -1185,6 +1185,26 @@ export interface RunLine {
   warnings: WarningSig[] | null; // null: the run's log slice is no longer in its log
   noiseFiltered: number | null;
   comparedWith: { runs: number; from: string | null; to: string | null } | null;
+  // The lottery morning since 16 Nov 2026, a job per game read as one run a day (admin.js lotteryLine): each game's
+  // last run of the day (result null: none yet), how many games there are and how many were made, and whether the
+  // day is still open (a game runs, is queued or waits for a retry). null / false for a run of one job.
+  games: GameRun[] | null;
+  gamesOf: number | null;
+  gamesMade: number | null;
+  open: boolean;
+}
+export interface GameRun {
+  key: string; // the game's job
+  game: string | null;
+  label: string;
+  start: string | null;
+  end: string | null;
+  minutes: number | null;
+  result: string | null;
+  note: string | null;
+  tries: number; // its runs that day: more than one after a run without data
+  usual: Usual | null;
+  overUsual: boolean | null;
 }
 export interface HeldFromLastWeekend {
   weekend: string;
@@ -1277,7 +1297,7 @@ export interface WeekView {
       slowest: { key: string; minutes: number | null; usual: Usual | null } | null;
       newWarnings: { key: string; sig: string; n: number }[];
     };
-    today: { day: string | null; run: RunLine | null; running: { start: string | null } | null };
+    today: { day: string | null; run: RunLine | null; running: { start: string | null; key: string | null; name: string | null } | null };
     tuners: (TuningTiles & { weekend: string | null; byTuner: WeekTuner[] }) | null;
   } & ControlTiles;
   runs: RunLine[];
@@ -2010,6 +2030,16 @@ function runLineOf(v: unknown): RunLine {
       : null,
     noiseFiltered: opt(r.noiseFiltered),
     comparedWith: has(r.comparedWith) ? { runs: num(c.runs, 0), from: ostr(c.from), to: ostr(c.to) } : null,
+    games: Array.isArray(r.games)
+      ? r.games.filter(has).map((x) => {
+          const g = o(x);
+          return {
+            key: str(g.key), game: ostr(g.game), label: str(g.label, str(g.key)), start: ostr(g.start), end: ostr(g.end), minutes: opt(g.minutes), result: ostr(g.result),
+            note: ostr(g.note), tries: num(g.tries, 0), usual: usualOf(g.usual), overUsual: typeof g.overUsual === 'boolean' ? g.overUsual : null,
+          };
+        })
+      : null,
+    gamesOf: opt(r.gamesOf), gamesMade: opt(r.gamesMade), open: r.open === true,
   };
 }
 function tuningTilesOf(v: unknown): TuningTiles {
@@ -2094,7 +2124,7 @@ function normWeek(raw: unknown): WeekView {
         slowest: has(we.slowest) ? { key: str(slowest.key), minutes: opt(slowest.minutes), usual: usualOf(slowest.usual) } : null,
         newWarnings: arr(we.newWarnings as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), sig: str(o(x).sig), n: num(o(x).n, 0) })),
       },
-      today: { day: ostr(today.day), run: has(today.run) ? runLineOf(today.run) : null, running: has(today.running) ? { start: ostr(o(today.running).start) } : null },
+      today: { day: ostr(today.day), run: has(today.run) ? runLineOf(today.run) : null, running: has(today.running) ? { start: ostr(o(today.running).start), key: ostr(o(today.running).key), name: ostr(o(today.running).name) } : null },
       tuners: has(t.tuners)
         ? {
             ...tuningTilesOf(t.tuners),
@@ -2211,6 +2241,8 @@ export interface JobLine {
   log: string | null; // the log file's name
   plan: string | null; // 'weeklyTuning' | 'weeklyControls' | null (the daily predictor)
   daily: boolean;
+  group: string | null; // 'lottery': one of the lottery games' jobs, whose morning the pages read as one run
+  game: string | null; // that job's game
   nextAt: string | null; // the daily job's next slot
   trigger: string | null; // a weekly job: "when Saturday's predictor finishes"
   monthly: { since: string | null } | null; // a job of a weekly plan that runs only on the plan's first weekday of the month (from since)
@@ -2296,7 +2328,16 @@ export interface JobsView {
   remote: { configured: boolean; host: string | null; running: Running | null; queue: QueueItem[] } | null;
   jobs: JobLine[];
   runs: { kept: number | null; shown: number; ran: number; items: RunItem[] };
-  today: { day: string | null; key: string; run: RunShort | null; running: boolean } | null;
+  // the lottery morning: one run a day over the games' jobs (system.js todayOf). run: from the first game's start,
+  // its minutes all games together; games: each game's last run of the day (null: a day the one job made)
+  today: {
+    day: string | null; key: string; name: string | null; run: (RunShort & { end: string | null }) | null; running: boolean;
+    runningJob: { key: string; name: string; start: string | null } | null;
+    queued: { key: string; name: string }[];
+    waiting: { key: string; name: string; attempt: number | null; of: number | null; at: string | null }[];
+    games: { key: string; label: string; result: string | null; minutes: number | null; tries: number }[] | null;
+    usual: Usual | null; nextAt: string | null;
+  } | null;
   lastFailure: (RunShort & { name: string | null; note: string | null }) | null;
   services: ServiceLine[] | null;
   servicesError: string | null;
@@ -2471,7 +2512,7 @@ function normJobs(raw: unknown): JobsView {
     jobs: arr(r.jobs as unknown[]).filter(has).map((x) => {
       const j = o(x);
       return {
-        key: str(j.key), name: str(j.name, str(j.key)), description: str(j.description), command: str(j.command), log: ostr(j.log), plan: ostr(j.plan), daily: bool(j.daily),
+        key: str(j.key), name: str(j.name, str(j.key)), description: str(j.description), command: str(j.command), log: ostr(j.log), plan: ostr(j.plan), daily: bool(j.daily), group: ostr(j.group), game: ostr(j.game),
         nextAt: ostr(j.nextAt), trigger: ostr(j.trigger), monthly: has(j.monthly) ? { since: ostr(o(j.monthly).since) } : null, usual: usualOf(j.usual), last: runShortOf(j.last), canRun: bool(j.canRun), refusal: ostr(j.refusal),
       };
     }),
@@ -2492,7 +2533,19 @@ function normJobs(raw: unknown): JobsView {
         };
       }),
     },
-    today: has(r.today) ? { day: ostr(today.day), key: str(today.key, 'predictor'), run: runShortOf(today.run), running: bool(today.running) } : null,
+    today: has(r.today)
+      ? {
+          day: ostr(today.day), key: str(today.key, 'predictor'), name: ostr(today.name),
+          run: has(today.run) ? { ...(runShortOf(today.run) as RunShort), end: ostr(o(today.run).end) } : null, running: bool(today.running),
+          runningJob: has(today.runningJob) ? { key: str(o(today.runningJob).key), name: str(o(today.runningJob).name, str(o(today.runningJob).key)), start: ostr(o(today.runningJob).start) } : null,
+          queued: arr(today.queued as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), name: str(o(x).name, str(o(x).key)) })),
+          waiting: arr(today.waiting as unknown[]).filter(has).map((x) => ({ key: str(o(x).key), name: str(o(x).name, str(o(x).key)), attempt: opt(o(x).attempt), of: opt(o(x).of), at: ostr(o(x).at) })),
+          games: Array.isArray(today.games)
+            ? today.games.filter(has).map((x) => ({ key: str(o(x).key), label: str(o(x).label, str(o(x).key)), result: ostr(o(x).result), minutes: opt(o(x).minutes), tries: num(o(x).tries, 0) }))
+            : null,
+          usual: usualOf(today.usual), nextAt: ostr(today.nextAt),
+        }
+      : null,
     lastFailure: has(r.lastFailure) ? { ...(runShortOf(r.lastFailure) as RunShort), name: ostr(fail.name), note: ostr(fail.note) } : null,
     services: Array.isArray(r.services)
       ? r.services.filter(has).map((x) => {

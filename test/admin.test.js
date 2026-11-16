@@ -1054,6 +1054,61 @@ async function phaseTwo() {
     `week: a second Sunday's weekend does not list the band as missing - not due, next on the first Sunday of December: ${JSON.stringify(secondSunday)}`);
   ok(satAt('2026-11-28T08:00:00Z').notDue[0].next === '2026-12-06' && satAt('2026-12-05T08:00:00Z').missing.some((e) => e.key === 'nullControls'),
     'week: the last weekend of November names 6 Dec, and the weekend of 6 Dec expects the band again');
+  // --- a job per lottery game (16 Nov 2026): the week reads the games' morning as one run a day, under the one job's key
+  {
+    const LOT_JOBS = [
+      { key: 'kenoPredictor', group: 'lottery', game: 'keno', name: 'Morning predictor: Keno', log: 'kenoPredictor.log', daily: true },
+      { key: 'lottoPredictor', group: 'lottery', game: 'lotto', name: 'Morning predictor: Lotto', log: 'lottoPredictor.log', daily: true },
+      ...TEST_JOBS.slice(1),
+      { key: 'predictor', group: 'lottery', legacy: true, name: 'Morning predictor: lottery games', log: 'predictor.log', daily: true },
+    ];
+    const lotHistory = [
+      ...[12, 13, 14, 15, 16].map((d, i) => runOf('predictor', `2026-10-${d}T07:00:00Z`, [100, 110, 120, 130, 140][i])),
+      runOf('kenoPredictor', '2026-10-17T07:00:00Z', 20), runOf('lottoPredictor', '2026-10-17T07:21:00Z', 90), runOf('hyperoptStatistics', '2026-10-17T09:00:00Z', 300),
+      runOf('kenoPredictor', '2026-10-18T07:00:00Z', 3, 74, { note: 'no data from the lottery API: tries again at 10:03 (retry 1 of 6)' }), runOf('lottoPredictor', '2026-10-18T07:04:00Z', 80),
+      runOf('kenoPredictor', '2026-10-18T08:03:00Z', 3, 74, { note: 'no data from the lottery API on retry 6 of 6', retry: 6 }),
+      runOf('kenoPredictor', '2026-10-19T07:00:00Z', 22),
+      runOf('kenoPredictor', '2026-10-20T07:00:00Z', 25), runOf('lottoPredictor', '2026-10-20T07:26:00Z', 85),
+      runOf('kenoPredictor', '2026-10-21T07:00:00Z', 24),
+    ].reverse();
+    const gameLog = (name, days) => admin.slicesOf(days.map((d) => slice(name, `${d}`, ['saving_lib.py:1: UserWarning: keras'], 0, 600)).join('\n'));
+    const lotSlices = { kenoPredictor: gameLog('Morning predictor: Keno', ['2026-10-17 07:00:02', '2026-10-20 07:00:02']),
+      lottoPredictor: gameLog('Morning predictor: Lotto', ['2026-10-17 07:21:02', '2026-10-20 07:26:02']) };
+    const inputs = admin.readAll(admin.resolveDirs({ dataDir }));
+    const lotView = (nowIso, extra = {}) => admin.weekView({ jobs: LOT_JOBS, sched: { history: lotHistory, current: null, queue: [] }, slices: lotSlices,
+      controlsView: admin.withHistory(admin.controlsOverview(inputs, report), admin.weekReading(inputs, report), admin.loadReadings(readingsDir)), tuning: t,
+      live: { ...live, ...extra }, now: new Date(nowIso) });
+    const running = { current: { key: 'lottoPredictor', name: 'Morning predictor: Lotto', startedAt: Z('2026-10-21T07:25:00Z') } };
+    const lw = lotView('2026-10-21T08:00:00Z', running);
+    const lwe = lw.tiles.weekend;
+    ok(lw.weekend.saturday === '2026-10-17' && lwe.runs === 3 && lwe.expected === 4 && lwe.missing.map((e) => e.key).join() === 'nullControls'
+      && lw.runs.map((r) => r.key).join() === 'predictor,hyperoptStatistics,predictor',
+      `lottery games: the weekend still expects "the predictor" on Saturday and on Sunday, and has one line a day for it: ${lw.runs.map((r) => r.key).join()}`);
+    const lsat = lw.runs[0];
+    ok(lsat.job === 'Morning predictor: lottery games' && lsat.start === '2026-10-17T07:00:00Z' && lsat.end === '2026-10-17T08:51:00Z' && lsat.minutes === 110 && lsat.result === 'ok'
+      && lsat.usual.median === 120 && lsat.usual.n === 5 && lsat.overUsual === false && lsat.gamesOf === 2 && lsat.gamesMade === 2 && lsat.open === false,
+      `lottery games: a day's line runs from its first start to its last end, its minutes all its runs together, against the one job's earlier days: ${JSON.stringify(lsat.usual)}`);
+    ok(lsat.games.map((g) => `${g.label}:${g.game}:${g.result}:${g.minutes}:${g.tries}`).join() === 'Keno:keno:ok:20:1,Lotto:lotto:ok:90:1'
+      && JSON.stringify(lsat.warnings) === '[{"sig":"UserWarning (saving_lib.py)","n":2,"new":null}]', `lottery games: each game's run in the line, the warnings of both logs together: ${JSON.stringify(lsat.warnings)}`);
+    const lsun = lw.runs[2];
+    ok(lsun.result === '1 of 2 games exit 74' && lsun.minutes === 86 && lsun.games[0].tries === 2 && lsun.games[0].result === 'exit 74' && /^Keno: no data from the lottery API on retry 6 of 6$/.test(lsun.note)
+      && lwe.ok === 2 && lwe.notOk.some((x) => x.key === 'predictor' && x.result === '1 of 2 games exit 74') && lsun.warnings === null,
+      `lottery games: a game without data counts by its last try, and the day says how many games were not ok: ${lsun.result} / ${lsun.note}`);
+    const since = lw.since.predictorRuns;
+    ok(since.map((r) => r.result).join('|') === '1 of 2 games ran|ok|ok' && since[0].games[1].result === null && since[2].open === true && since[2].note === '1 of 2 games so far'
+      && since[1].usual.n === 6 && since[1].warnings[0].n === 2 && since[1].warnings[0].new === false,
+      `lottery games: a past day short of a game says so and is no usual duration; today's is open while its games are made: ${since.map((r) => r.result).join('|')}`);
+    ok(lw.tiles.today.run.minutes === 24 && lw.tiles.today.run.open === true && lw.tiles.today.running.key === 'lottoPredictor' && lw.tiles.today.running.name === 'Morning predictor: Lotto'
+      && lw.since.running.name === 'Morning predictor: Lotto', 'lottery games: today names the game being made');
+    const lsat24 = lotView('2026-10-24T08:00:00Z', { current: { key: 'kenoPredictor', name: 'Morning predictor: Keno', startedAt: Z('2026-10-24T07:00:00Z') } });
+    ok(lsat24.weekend.saturday === '2026-10-24' && lsat24.tiles.weekend.running.key === 'predictor' && !lsat24.tiles.weekend.missing.some((e) => e.key === 'predictor' && e.day === '2026-10-24')
+      && lsat24.tiles.weekend.missing.some((e) => e.key === 'predictor' && e.day === '2026-10-25'),
+      'lottery games: a game running on Saturday morning opens the weekend as the predictor running');
+    const lot = admin.lotteryOf(LOT_JOBS);
+    ok(admin.lotteryOf(TEST_JOBS) === null && lot.games.length === 2 && lot.keys.has('predictor') && lot.job.key === 'predictor'
+      && admin.lotteryDays(lotHistory, lot).filter((h) => h.parts).length === 10 && !/NaN|undefined/.test(JSON.stringify(lw.runs)),
+      'lottery games: a job list without the group is read as before; ten days, one entry each');
+  }
   const weekRoute = (await requestAsync(app2, '/api/admin/week', ADMIN)).body;
   ok(weekRoute.since.council.healthy === true && weekRoute.since.council.since === '2026-10-20T20:16:00Z' && weekRoute.since.lock.held === true && weekRoute.matrix.games.length === 11,
     'week route: the live parts from the modules the server passes');

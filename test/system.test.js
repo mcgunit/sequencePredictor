@@ -288,12 +288,12 @@ const RUN2 = T('2026-10-17T21:00:00Z') + 2000;
 const RUN3 = T('2026-10-18T21:00:00Z') + 2000;
 const RUN4 = T('2026-10-19T21:00:00Z') + 2000;
 const history = [   // newest first, as jobs.js keeps it
-  { at: NOW - 2 * 3600000, finishedAt: NOW - 3600000, key: 'predictor', name: 'Daily predictor', reason: 'schedule 09:00', seconds: 3600, exit: 0, sha: 'eee5555', pid: 11, note: null },
+  { at: NOW - 2 * 3600000, finishedAt: NOW - 3600000, key: 'kenoPredictor', name: 'Daily predictor', reason: 'schedule 09:00', seconds: 3600, exit: 0, sha: 'eee5555', pid: 11, note: null },
   { at: RUN3, finishedAt: RUN3 + 600000, key: 'hyperoptBoost', name: BOOST, reason: 'triggered', seconds: 600, exit: null, sha: 'ccc3333', pid: 12, note: 'the job disappeared without writing an exit code (killed?)' },
   { at: T('2026-10-18T10:00:00Z'), finishedAt: T('2026-10-18T12:00:00Z'), key: 'nullControls', name: 'Weekly controls: null histories (Q0 band, context)', reason: 'x', seconds: 7200, exit: 1, sha: null, pid: 13, note: null },
   { at: RUN2, finishedAt: RUN2 + 4200000, key: 'hyperoptBoost', name: BOOST, reason: 'triggered', seconds: 4200, exit: 0, sha: 'bbb2222', pid: 14, note: null },
   { at: T('2026-10-17T09:00:00Z'), key: 'weeklyTuning', name: 'Weekly tuning chain', reason: 'x', dry: true, occurrence: 'weeklyTuning@2026-W42' },
-  { at: T('2026-10-16T09:00:00Z'), finishedAt: T('2026-10-16T15:00:00Z'), key: 'predictor', name: 'Daily predictor', reason: 'x', seconds: 21600, exit: null, blocked: true,
+  { at: T('2026-10-16T09:00:00Z'), finishedAt: T('2026-10-16T15:00:00Z'), key: 'kenoPredictor', name: 'Daily predictor', reason: 'x', seconds: 21600, exit: null, blocked: true,
     note: 'blocked: process.lock held by PID 9 (Predictor.py) for over 6.0 h - the job is still queued, nothing has been skipped' },
 ];
 fs.writeFileSync(path.join(CONFIG_DIR, 'scheduler.json'), JSON.stringify({ version: 1, occurrences: {}, queue: [], current: null, history,
@@ -318,7 +318,7 @@ fs.writeFileSync(councilLog, [
   '20:03:07 INFO    council api on http://127.0.0.1:8099',
   '20:04:16 INFO    127.0.0.1 - "GET /endpoints HTTP/1.1" 200 -',
 ].join('\n') + '\n');
-ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 15, 'the copies log into their own temp dirs');
+ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 21, 'the copies log into their own temp dirs');
 
 // --- the app under test ------------------------------------------------------------------------------------------
 const app = standIn();
@@ -346,7 +346,7 @@ async function main() {
       && forUser.headers['Cache-Control'] === 'no-store', `GET ${url}: 401 signed out, a JSON 403 for a user`);
   }
   for (const url of ADMIN_POSTS) {
-    const body = withToken(USER, { key: 'predictor', username: 'mallory', password: 'long-enough-1', runId: 'x' });
+    const body = withToken(USER, { key: 'kenoPredictor', username: 'mallory', password: 'long-enough-1', runId: 'x' });
     const out = await call(app, 'POST', url, { body });
     const forUser = await call(app, 'POST', url, { user: USER, body });
     ok(out.status === 401 && forUser.status === 403 && forUser.body.error === 'admin only', `POST ${url}: 401 signed out, 403 for a user even with their own token`);
@@ -358,8 +358,8 @@ async function main() {
 
   // --- the form token: missing or wrong is a JSON 403, and changes nothing ---
   for (const url of ADMIN_POSTS) {
-    const none = await call(app, 'POST', url, { user: ADMIN, body: { key: 'predictor', username: 'mallory', password: 'long-enough-1', runId: 'x' } });
-    const wrong = await call(app, 'POST', url, { user: ADMIN, body: { _csrf: 'tok-user', key: 'predictor', username: 'mallory', password: 'long-enough-1' } });
+    const none = await call(app, 'POST', url, { user: ADMIN, body: { key: 'kenoPredictor', username: 'mallory', password: 'long-enough-1', runId: 'x' } });
+    const wrong = await call(app, 'POST', url, { user: ADMIN, body: { _csrf: 'tok-user', key: 'kenoPredictor', username: 'mallory', password: 'long-enough-1' } });
     ok(none.status === 403 && wrong.status === 403 && /form token/.test(none.body.error) && /form token/.test(wrong.body.error), `POST ${url}: 403 without the token or with another session's`);
   }
   for (const url of READER_POSTS) {
@@ -377,15 +377,24 @@ async function main() {
     && j.lock.script && !j.lock.script.includes('/'), `jobs: the mode, the lock and who holds it (not a job of the schedule, its script by file name), nothing running: ${j.lock.script}`);
   const runnable = j.jobs.filter((x) => x.key !== 'backtest');
   const btJob = j.jobs.find((x) => x.key === 'backtest');
-  ok(j.jobs.length === 15 && runnable.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every scheduled job may run now, its log named by file name only');
+  ok(j.jobs.length === 21 && runnable.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every scheduled job may run now, its log named by file name only');
   ok(btJob && !btJob.canRun && /Admin › Parameters/.test(btJob.refusal), `jobs: the backtest job is started from Admin › Parameters, never Run now: ${btJob && btJob.refusal}`);
   const boost = j.jobs.find((x) => x.key === 'hyperoptBoost');
   ok(boost.usual.median === 65 && boost.usual.n === 2 && boost.usual.basis === 'earlier runs in the job log' && boost.last.result === 'unknown' && boost.trigger.includes('Saturday'),
     `jobs: the usual duration is the median of the earlier successful runs in the log (60 and 70 min): ${JSON.stringify(boost.usual)}`);
-  const pred = j.jobs.find((x) => x.key === 'predictor');
+  const pred = j.jobs.find((x) => x.key === 'kenoPredictor');
   ok(pred.daily && pred.nextAt && pred.trigger === null && pred.usual.basis === 'earlier runs in the scheduler history' && pred.usual.n === 1 && pred.last.result === 'ok',
     'jobs: the predictor\'s next slot as an instant, its usual duration from the kept runs');
-  ok(j.runs.kept === 40 && j.runs.shown === history.length && j.runs.ran === 4 && j.runs.items.map((r) => r.kind).join() === 'run,run,run,run,dry,blocked'
+  // a job per lottery game (16 Nov 2026): Today reads the games' morning as one run under the one job's old key
+  ok(pred.group === 'lottery' && pred.game === 'keno' && j.jobs.filter((x) => x.group === 'lottery').length === 7 && !j.jobs.some((x) => x.key === 'predictor'),
+    'jobs: the seven lottery games are jobs of one group; the one job of before is not offered');
+  ok(j.today.key === 'predictor' && j.today.name === 'Morning predictor: lottery games' && j.today.nextAt === pred.nextAt && j.today.running === false && j.today.runningJob === null
+    && j.today.queued.length === 0 && j.today.waiting.length === 0, `jobs: Today is the lottery games' morning, its next slot the games': ${JSON.stringify(j.today)}`);
+  // the kept keno run started two hours ago: today's, unless this test runs in the first hours of a Brussels day
+  ok(j.today.run === null || (j.today.run.result === 'ok' && j.today.run.minutes === 60 && j.today.games.length === 7
+    && j.today.games.filter((g) => g.result !== null).map((g) => `${g.label} ${g.result} ${g.tries}`).join() === 'Keno ok 1'),
+    `jobs: today's morning so far - one game made, six without a run yet: ${JSON.stringify(j.today.games)}`);
+  ok(j.runs.kept === 160 && j.runs.shown === history.length && j.runs.ran === 4 && j.runs.items.map((r) => r.kind).join() === 'run,run,run,run,dry,blocked'
     && j.runs.items[5].result === 'waited on the lock', 'jobs: every kept entry, the dry and the blocked ones named as such, with the count of real runs');
   const r2 = j.runs.items.find((r) => r.id === `hyperoptBoost-${RUN2}`);
   ok(r2.minutes === 70 && r2.usual.median === 60 && r2.overUsual === true && r2.warnings.signatures === 3 && r2.warnings.new === 2,
@@ -427,16 +436,17 @@ async function main() {
     'log: a bad id 400, an unknown job or a dry entry 404, a run without a slice says why');
 
   // --- POST /api/admin/jobs/run | cancel ---
-  const run = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
+  const run = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'kenoPredictor' }) });
   const q = jobs._internals.state().queue;
-  ok(run.status === 200 && run.body.message === 'Morning predictor: lottery games: queued, first in the queue' && run.body.started === false && q.length === 1 && q[0].manual && q[0].reason === 'started by hand (boss)',
+  ok(run.status === 200 && run.body.message === 'Morning predictor: Keno: queued, first in the queue' && run.body.started === false && q.length === 1 && q[0].manual && q[0].reason === 'started by hand (boss)',
     'run: queued by hand, waiting behind the lock - nothing started, and the message says where it waits');
   ok(!spawned.length && logged.some((l) => /waiting for process.lock \(held by PID \d+/.test(l)), 'run: the queue waits for the lock and says so; no process was started');
-  const again = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
-  ok(again.status === 409 && again.body.error === 'Morning predictor: lottery games: already running or queued', 'run: a job is never queued twice (409)');
+  const again = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'kenoPredictor' }) });
+  ok(again.status === 409 && again.body.error === 'Morning predictor: Keno: already running or queued', 'run: a job is never queued twice (409)');
   const jq = (await call(app, 'GET', '/api/admin/jobs', { user: ADMIN })).body;
-  ok(jq.queue.length === 1 && jq.queue[0].manual && jq.jobs.find((x) => x.key === 'predictor').refusal === 'Morning predictor: lottery games: already running or queued'
+  ok(jq.queue.length === 1 && jq.queue[0].manual && jq.jobs.find((x) => x.key === 'kenoPredictor').refusal === 'Morning predictor: Keno: already running or queued'
     && jq.jobs.find((x) => x.key === 'nullControls').canRun, 'jobs: the queue, and the Run now refusal on the queued job only');
+  ok(jq.today.queued.length === 1 && jq.today.queued[0].key === 'kenoPredictor' && jq.today.queued[0].name === 'Morning predictor: Keno', 'jobs: Today lists the lottery games still queued');
   ok((await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'rm -rf' }) })).status === 400, 'run: an unknown job is a 400');
   fs.writeFileSync(path.join(CONFIG_DIR, 'scheduler.disabled'), '');
   const off = await call(app, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'nullControls' }) });
@@ -444,9 +454,9 @@ async function main() {
   fs.unlinkSync(path.join(CONFIG_DIR, 'scheduler.disabled'));
   ok(off.status === 409 && /schedule is disabled/.test(off.body.error) && offView.mode.mode === 'off' && offView.jobs.every((x) => !x.canRun),
     'run: refused while the schedule is off (409), and every job says so');
-  const cancel = await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
-  ok(cancel.status === 200 && cancel.body.message === 'Morning predictor: lottery games: removed from the queue' && jobs._internals.state().queue.length === 0, 'cancel: out of the queue, the job named');
-  ok((await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) })).status === 409
+  const cancel = await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'kenoPredictor' }) });
+  ok(cancel.status === 200 && cancel.body.message === 'Morning predictor: Keno: removed from the queue' && jobs._internals.state().queue.length === 0, 'cancel: out of the queue, the job named');
+  ok((await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'kenoPredictor' }) })).status === 409
     && (await call(app, 'POST', '/api/admin/jobs/cancel', { user: ADMIN, body: withToken(ADMIN, { key: 'bingo' }) })).status === 400, 'cancel: not queued 409, unknown 400');
 
   // --- POST /api/admin/jobs/stop: the refusals through the route, the signal on the copy with a stand-in kill ---
@@ -482,12 +492,12 @@ async function main() {
   system.install(fakeApp, { root: JOBS_ROOT, jsonBody, jobs: { JOBS: [], stopRun: (id, by) => { asked.push([id, by]); return { ok: true, status: 200, message: 'X: stopping' }; } } });
   const fakeStop = await call(fakeApp, 'POST', '/api/admin/jobs/stop', { user: ADMIN, body: withToken(ADMIN, { runId: 'r-1' }) });
   ok(fakeStop.status === 200 && fakeStop.body.ok && fakeStop.body.message === 'X: stopping' && asked.join() === 'r-1,boss', 'stop: the route passes the run id and who asked');
-  ok((await call(fakeApp, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) })).status === 503, 'a server without the schedule says so (503)');
+  ok((await call(fakeApp, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'kenoPredictor' }) })).status === 503, 'a server without the schedule says so (503)');
   const brokenApp = standIn();
   system.install(brokenApp, { root: JOBS_ROOT, jsonBody, jobs: { JOBS: [], runNow: () => { throw new Error(`EACCES: permission denied, mkdir '${JOBS_ROOT}/log'`); } },
     services: { SERVICES: [{ key: 'councilApi' }], ACTIONS: ['start'], act: async () => ({ ok: false, status: 500, message: `Council API: cannot open ${JOBS_ROOT}/log/councilApi.log: EACCES: permission denied, open '${JOBS_ROOT}/log/councilApi.log'` }) } });
   quietErrors(true);
-  const thrown = await call(brokenApp, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'predictor' }) });
+  const thrown = await call(brokenApp, 'POST', '/api/admin/jobs/run', { user: ADMIN, body: withToken(ADMIN, { key: 'kenoPredictor' }) });
   quietErrors(false);
   const svcFail = await call(brokenApp, 'POST', '/api/admin/services/councilApi/start', { user: ADMIN, body: withToken(ADMIN) });
   ok(thrown.status === 500 && thrown.body.error && !thrown.raw.includes('/') && svcFail.status === 500 && svcFail.body.error === "Council API: cannot open councilApi.log: EACCES: permission denied, open 'councilApi.log'",
@@ -689,9 +699,9 @@ async function throughExpress() {
       && (await send('GET', '/api/admin/jobs', 'admin')).status === 200, 'express: the guard in front of the jobs view');
     const malformed = await send('POST', '/api/admin/jobs/cancel', 'admin', '{"key": ');
     ok(malformed.status === 400 && malformed.type.includes('application/json') && JSON.parse(malformed.body).error === 'the request body is not valid JSON', 'express: malformed JSON is a JSON 400');
-    const simple = await send('POST', '/api/admin/jobs/cancel', 'admin', JSON.stringify({ key: 'predictor', _csrf: ADMIN.csrf }), 'text/plain');
+    const simple = await send('POST', '/api/admin/jobs/cancel', 'admin', JSON.stringify({ key: 'kenoPredictor', _csrf: ADMIN.csrf }), 'text/plain');
     ok(simple.status === 403 && simple.type.includes('application/json'), 'express: a cross-site "simple" text/plain post carries no readable token: 403');
-    const real409 = await send('POST', '/api/admin/jobs/cancel', 'admin', JSON.stringify({ key: 'predictor', _csrf: ADMIN.csrf }));
+    const real409 = await send('POST', '/api/admin/jobs/cancel', 'admin', JSON.stringify({ key: 'kenoPredictor', _csrf: ADMIN.csrf }));
     ok(real409.status === 409 && JSON.parse(real409.body).error === 'not in the queue', 'express: a JSON post with the token reaches the rule');
     ok((await send('GET', '/api/admin/else', 'admin')).status === 404 && (await send('GET', `/api/admin/jobs/run/hyperoptBoost-${RUN2}/log`, 'admin')).status === 200,
       'express: system.js before admin.js - its routes answer, the rest of /api/admin is admin.js\'s JSON 404');

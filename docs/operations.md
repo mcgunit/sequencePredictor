@@ -348,20 +348,24 @@ A service is an ordinary child of the server: it is cheap to restart and comes a
 
 The server starts the daily predictors, the weekly tuning chain and the weekly control experiments itself. There is no crontab entry.
 
-### The three daily runs
+### The daily runs
 
 | Key | Name | Command | Slot | Caught up for | Log |
 |---|---|---|---|---|---|
 | `cryptoPredictor` | Night predictor: crypto | `Predictor.py -a true -g crypto,cryptoweek` | 00:05 UTC, every day | 20 h | `log/cryptoPredictor.log` |
-| `predictor` | Morning predictor: lottery games | `Predictor.py -a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto` | 06:00 local time, every day | 20 h | `log/predictor.log` |
+| `<game>Predictor` | Morning predictor: one job per lottery game | `Predictor.py -a true -g <game>` | 06:00 local time, every day | 20 h | `log/<game>Predictor.log` |
 | `sharesPredictor` | Evening predictor: stocks | `Predictor.py -a true -g shares,sharesweek` | 18:05 local time, Monday to Friday | until 08:30 the next morning | `log/sharesPredictor.log` |
 
 - The crypto slot is in UTC, five minutes after the crypto day closes (01:05 Brussels in winter, 02:05 in summer). A crypto week closes on Monday 00:00 UTC, so Monday's run brings the new week.
 - The other slots are in the server process's local time, Europe/Brussels on the production machine, so they follow summer and winter time.
-- The lottery run is usually done by about 08:00, before the first sales close.
+- The seven lottery games each have a job of their own: `euromillionsPredictor`, `lottoPredictor`, `eurodreamsPredictor`, `jokerplusPredictor`, `kenoPredictor`, `pick3Predictor` and `vikinglottoPredictor`. All seven are due at 06:00 and run one after the other in that order. A game that fails, hangs or gets no data costs only its own run: the other games are made, each with its own log, its own retries and its own push of its day files.
+- The lottery morning is usually done by about 10:30, before the first sales close.
+- A lottery game's run that takes far longer than usual is stopped by the schedule, and the next game starts; see [Notifications](#notifications).
+- `Predictor.py` ends with status 1 when the prediction of a game it was asked for raised an error, after finishing the other games, the report and the push. The schedule records that run as failed.
 - The stocks run starts as soon as Euronext's day is complete (18:00), so the card is up before the 09:00 open. After 08:30 a missed card is no longer worth starting.
-- A lottery run that got no draws from the API for any game ends with status 74 and is started again by the schedule; see [A run without data](#a-run-without-data).
-- Only the lottery predictor (`predictor`) finishing starts the weekly plans. A bare `Predictor.py` started by hand is read as the lottery predictor.
+- A lottery game's run that got no draws from the API ends with status 74 and is started again by the schedule; see [A run without data](#a-run-without-data).
+- Only the lottery games' jobs start the weekly plans, and only the last of them: a plan starts when a lottery job finishes and no other lottery job is running, queued or waiting for a retry. A `Predictor.py` started by hand for one lottery game is read as that game's job; a bare `Predictor.py`, or one for several lottery games, is read as a lottery run.
+- The pages read the lottery morning as one run a day: from the first game's start to the last game's end, its duration all the games' runs together. The Jobs & services page's Today tile and the This week page show how many games are made, which were not ok and which still wait; a day's drawer lists each game's run.
 - Job children get a minimal environment: `PATH`, `HOME`, `LANG`, `PYTHONUNBUFFERED=1` and `TZ` from the server's environment, or `UTC` when it has none.
 
 ### The weekly tuning chain (Saturday)
@@ -409,7 +413,7 @@ A fifteenth job, `backtest` (`RunBacktest.py`), is never scheduled and has no *R
 
 ### How the queue behaves
 
-- **A plan starts when its predictor finishes**, not at a fixed hour. The trigger is seen either from the scheduler's own run or from `process.lock` being released by a lottery predictor started outside the scheduler. Only a predictor finishing after that day's 06:00 anchor counts.
+- **A plan starts when the last lottery game's job finishes**, not at a fixed hour. The trigger is seen either from the scheduler's own run or from `process.lock` being released by a lottery predictor started outside the scheduler. Only a predictor finishing after that day's 06:00 anchor counts.
 - **A job that finds the pipeline busy waits** in a first-in-first-out queue (one job at a time) instead of exiting. A chain or a control running into a daily slot queues that day's predictor behind it; nothing is pre-empted.
 - **A missed slot is caught up** within the window in the table above. The plans have a safety net: when a plan has not started, it is started from 23:00 of its day until 09:00 two days later (Monday 09:00 for the chain, Tuesday 09:00 for the controls).
 - **A first start fires nothing it never saw.** The slots inside their catch-up window at the first ever start are recorded as already handled, and so is the pending occurrence of a plan newly added to a running installation.
@@ -419,12 +423,12 @@ A fifteenth job, `backtest` (`RunBacktest.py`), is never scheduled and has no *R
 
 ### A run without data
 
-- **Status 74.** When the fetch fails for every lottery game the run asked for, `Predictor.py` still finishes (the report, the push, the lock) and then ends with status 74. A run in which at least one game answered ends with 0: the failed games are a draw behind and catch up on the next run. The market runs have no such status.
-- **Tried again every hour, at most six times.** The schedule starts the lottery predictor again one hour after such a run ended. Each retry is an ordinary queue entry: it waits for the lock and for whatever runs. A retry that again ends with 74 plans the next one; after the sixth nothing further is tried until the next scheduled run.
+- **Status 74.** When the fetch fails for every lottery game the run asked for, `Predictor.py` still finishes (the report, the push, the lock) and then ends with status 74. Each scheduled lottery job asks for one game, so a game without data ends its own job with 74 and the other games are not touched. A run by hand for several games in which at least one answered ends with 0: the failed games are a draw behind and catch up on the next run. The market runs have no such status.
+- **Tried again every hour, at most six times.** The schedule starts that game's job again one hour after such a run ended. Each retry is an ordinary queue entry: it waits for the lock and for whatever runs. A retry that again ends with 74 plans the next one; after the sixth nothing further is tried until the next scheduled run.
 - **Any start of the job is the retry.** The next morning's slot or a *Run now* replaces the pending retry. A run started by hand that again gets no data starts a new series of six.
 - **The pending retry survives a restart.** It is kept in `config/scheduler.json`. One that is more than three hours late (the schedule was off, the server was down) is dropped.
-- **The weekly plans wait.** A run without data that is tried again does not start the Saturday chain or the Sunday controls; the retry that finishes does, or the last retry when all six are used up.
-- **Where it shows.** The Jobs & services page lists the pending retry under the queue, and the run history says of each such run when it is tried again. The administrator gets one notification when the data first fails to come and one when the retries end (the data arrived, or they are used up).
+- **The weekly plans wait.** While a lottery game waits for a retry, the Saturday chain and the Sunday controls do not start; the last lottery job to finish starts them, which is the retry that gets data or the last retry when all six are used up.
+- **Where it shows.** The Jobs & services page lists the pending retry under the queue, and the run history says of each such run when it is tried again. The administrator gets one notification when the data first fails to come and one when the retries end (the data arrived, or they are used up). The lottery API usually fails for every game at once, so these notifications are raised once for the morning, not once per game: the first game without data raises it, and the others inside the next six hours do not.
 
 ### Modes
 
@@ -449,7 +453,7 @@ All are for the administrator only, POST, and checked for the form token.
 
 ### State, logs and limits
 
-- `config/scheduler.json`: handled occurrences, the queue, the running job, the pending retry of a run without data, the durations of each job's last successful runs, the history (the newest 40 runs).
+- `config/scheduler.json`: handled occurrences, the queue, the running job, the pending retry of a run without data, the durations of each job's last successful runs, the history (the newest 160 runs, about two weeks).
 - `config/runs/`: per run a pid file while it runs and an exit file when it ends; swept after 7 days.
 - `log/scheduler.log` and the job logs: rotated at 10 MB, one older file kept.
 - The scheduler ticks every 10 seconds.
@@ -472,15 +476,17 @@ The app reads the list every five minutes and when its window gets the focus aga
 | Kind | Level | Raised when |
 |---|---|---|
 | `job-failed` | error | a job ends with a status other than 0, ends without a status, or cannot be launched; not when an administrator stopped it |
-| `no-data` | warning | the lottery run got no draws from the API for any game; once per series of retries |
+| `no-data` | warning | a lottery game's run got no draws from the API; once per morning, for the first game it happens to |
 | `no-data-ended` | info or error | the retries ended: the data arrived (info), or all six are used up (error) |
 | `blocked` | warning | a queued job has waited six hours for `process.lock` |
 | `worker-fallback` | warning | a control or a hyperopt did not start on the DL360 (status 75) and runs on this server instead |
 | `worker-power` | error or warning | the DL360 did not come up after being switched on (error), or still answers long after its last work (warning; see [Power of the CPU worker](#power-of-the-cpu-worker)) |
 | `reading` | error | the week's reading could not be written after the Sunday controls |
-| `slow` | warning | a job runs far longer than usual |
+| `slow` | warning | a job runs far longer than usual; a lottery game's job is also stopped when it runs on (below) |
 
 **Far longer than usual.** The schedule keeps the durations of each job's last successful runs (a control on the DL360 under its own key, because it is slower there). With at least three of them, a run is far longer than usual once it has run 1.5 times the longest of them and at least half an hour more. It is reported once and keeps running; the Jobs & services page can stop it. Backtests are not measured.
+
+**A lottery game's job is stopped.** The games run one after the other, so a game that hangs would cost the games behind it their run. The schedule stops a lottery game's job once it has run twice the longest of its last successful runs and at least two hours; with fewer than seven successful runs to compare with, after four hours. The whole process group gets the signal of the Stop button, and a kill a minute later if it is still there. The run is recorded as failed with a `job-failed` notification, and the next game starts. Nothing starts the stopped game again but its next slot or *Run now*. No other job is stopped by the schedule.
 
 **The store.** `config/notifications.json` (not in git, mode 600) holds the newest 200 notifications and, per administrator, the ids they marked as read. A notification is unread for an administrator until they mark it; one administrator's marks do not change another's. A notification with the same subject is not raised twice inside its window (24 hours unless stated otherwise). A notification that cannot be stored never fails the job that raised it.
 
