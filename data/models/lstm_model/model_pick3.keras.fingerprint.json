@@ -6,7 +6,7 @@
   "specialNumClasses": 0,
   "num_lstm_layers": 1,
   "num_bidirectional_layers": 1,
-  "lstm_units": 128,
+  "lstm_units": 16,
   "bidirectional_lstm_units": 32,
   "useFinalLSTMLayer": false,
   "window_size": 10,
