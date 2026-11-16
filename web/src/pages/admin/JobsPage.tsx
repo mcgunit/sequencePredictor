@@ -162,13 +162,13 @@ function Tiles({ d }: { d: JobsView }) {
         href="#council"
         label={sv?.name ?? 'Council API'}
         value={sv ? SERVICE_SHORT[sv.status] ?? cap(sv.status) : DASH}
-        unit={sv ? (sv.healthy ? 'answers' : 'no answer') : 'not known'}
+        unit={sv ? (sv.healthy ? (sv.models ? sv.models.label : 'answers') : 'no answer') : 'not known'}
         foot={
           sv
             ? [
                 sv.status === 'external' || sv.status === 'disabled' ? SERVICE_WORD[sv.status] : '',
                 isNum(sv.upMinutes) ? `up ${durationText(sv.upMinutes)} since ${stamp(sv.since)}` : '',
-                sv.summary ?? '',
+                sv.models ? sv.models.why : (sv.summary ?? ''),
                 `${sv.restarts} restart${sv.restarts === 1 ? '' : 's'} · checked ${time(sv.checkedAt)}`,
                 !sv.healthy ? { text: 'its health check does not answer', warn: true } : '',
               ]
@@ -404,9 +404,10 @@ function ServiceCard({ sv, onAsk }: { sv: ServiceLine; onAsk: (a: Ask) => void }
         <dd>
           <span className="ln">
             <Chip kind={sv.status === 'failed' ? 'down' : 'flat'}>{SERVICE_WORD[sv.status] ?? sv.status}</Chip>
-            {sv.healthy ? 'answers its health check' : <Chip kind="down">no answer to its health check</Chip>}
+            {sv.models ? <Chip kind={sv.models.state === 'ready' ? 'hi' : 'warn'}>{sv.models.label}</Chip> : null}
+            {sv.healthy ? 'the service answers its health check' : <Chip kind="down">no answer to its health check</Chip>}
           </span>
-          {sv.summary ? <span className="sub">{sv.summary}</span> : null}
+          {sv.models ? <span className="sub">{sv.models.why}</span> : sv.summary ? <span className="sub">{sv.summary}</span> : null}
         </dd>
         <dt>Up</dt>
         <dd>

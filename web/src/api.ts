@@ -2269,6 +2269,8 @@ export interface ServiceLine {
   status: string; // 'running' | 'external' | 'restarting' | 'stopped' | 'disabled' | 'failed'
   healthy: boolean;
   summary: string | null;
+  // the models behind the service, apart from the service itself: ready | partial | off
+  models: { state: 'ready' | 'partial' | 'off'; label: string; why: string } | null;
   command: string | null; // what it runs, without absolute paths
   cwd: string | null; // where: relative to the checkout (src/llmCouncil)
   pid: number | null;
@@ -2501,6 +2503,8 @@ function normJobs(raw: unknown): JobsView {
           const sc = o(l.scanned);
           return {
             key: str(s.key), name: str(s.name, str(s.key)), description: str(s.description), status: str(s.status, 'unknown'), healthy: bool(s.healthy), summary: ostr(s.summary),
+            models: ((m) => (['ready', 'partial', 'off'].includes(str(m.state)) && str(m.label)
+              ? { state: str(m.state) as 'ready' | 'partial' | 'off', label: str(m.label), why: str(m.why) } : null))(o(s.models)),
             command: ostr(s.command), cwd: ostr(s.cwd),
             pid: opt(s.pid), port: opt(s.port), since: ostr(s.since), upMinutes: opt(s.upMinutes), restarts: num(s.restarts, 0),
             lastExit: has(s.lastExit) ? { code: opt(e.code), signal: ostr(e.signal), at: ostr(e.at) } : null,

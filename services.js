@@ -76,6 +76,19 @@ const SERVICES = [
         ? `models ready (${status.reachable}/${status.total} members)`
         : `models not answering (${down.join(', ') || 'none configured'}) - the page shows "summon the council"`;
     },
+    // The models behind it, apart from the service itself (16 Nov 2026: "running" was read as "the council is on"
+    // while its models were off with the DL360). ready: the council can answer; partial: some models answer;
+    // off: none does. hosts: the machines of the models that do not answer.
+    models: (body) => {
+      const status = body && body.status;
+      if (!status) return null;
+      const all = [...(status.members || []), ...(status.head ? [status.head] : [])];
+      if (!all.length) return null;
+      const up = all.filter((m) => m && m.ok).length;
+      const hosts = [...new Set(all.filter((m) => m && !m.ok)
+        .map((m) => (/https?:\/\/([A-Za-z0-9.-]+)/.exec(String(m.detail || '')) || [])[1]).filter(Boolean))];
+      return { state: status.ready && up === all.length ? 'ready' : up ? 'partial' : 'off', up, of: all.length, hosts };
+    },
   },
 ];
 
@@ -355,6 +368,7 @@ async function status() {
       healthy: Boolean(info.health),
       checkedAt: info.healthAt || null,
       summary: info.health && service.summarize ? service.summarize(info.health) : null,
+      models: info.health && service.models ? service.models(info.health) : null,
       log: tailLog(service),
     };
   }));

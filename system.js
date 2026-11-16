@@ -146,7 +146,29 @@ const resultOf = (h) => {
 // status: jobs.status({full: true}); jobs: jobs.JOBS; slices: {job key: admin.readSlices}; services: services.status()
 // (or {error}); actionsFor: services.actionsFor; serviceLogs: {service key: serviceLog}; root: the checkout, which a
 // service's working directory is named relative to. Pure, for the test.
-function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor = null, serviceLogs = {}, root = null, now = new Date() }) {
+// The CPU worker's address without its user (workers.json: root@192.168.0.250), or null.
+function cpuHostOf(workers) {
+  try {
+    const c = workers && typeof workers.configOf === 'function' ? workers.configOf('cpu') : null;
+    return c && c.host ? String(c.host).replace(/^.*@/, '') : null;
+  } catch (e) { return null; }
+}
+
+// A service's models in the page's words. cpuHost: the CPU worker's address (the DL360), so "none answers" can name
+// the usual reason instead of five model names.
+function modelsLine(models, cpuHost) {
+  if (!models || !['ready', 'partial', 'off'].includes(models.state)) return null;
+  const hosts = [].concat(models.hosts || []);
+  const onWorker = Boolean(cpuHost) && hosts.length === 1 && hosts[0] === cpuHost;
+  const count = `${models.up} of ${models.of}`;
+  if (models.state === 'ready') return { state: 'ready', label: 'models ready', why: `all ${models.of} models answer` };
+  if (models.state === 'partial') return { state: 'partial', label: `models: ${count} answer`, why: 'the council cannot answer until all of them do' };
+  return { state: 'off', label: 'models off',
+    why: onWorker ? 'the models run on the DL360, which does not answer: it is off or still starting. The Council page summons them.'
+      : 'none of the models answers. The Council page summons them.' };
+}
+
+function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor = null, serviceLogs = {}, root = null, cpuHost = null, now = new Date() }) {
   const nowMs = now.getTime();
   const errors = [];
   const byKey = Object.fromEntries(list(jobs).map((j) => [j.key, j]));
@@ -206,7 +228,7 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
   const failed = ran.filter((h) => h.exit !== 0);
 
   const svc = services && !services.error ? list(services).map((x) => ({
-    key: x.key, name: x.name, description: x.description, status: x.status, healthy: Boolean(x.healthy), summary: x.summary || null,
+    key: x.key, name: x.name, description: x.description, status: x.status, healthy: Boolean(x.healthy), summary: x.summary || null, models: modelsLine(x.models, cpuHost),
     // what it runs and where (services.js: "python3 api.py ..." in src/llmCouncil), without an absolute path
     command: admin.noPaths(x.command || null), cwd: dirOf(x.cwd, root),
     pid: x.pid || null, port: x.port || null, since: isoMs(x.since),
@@ -482,7 +504,7 @@ function install(app, options = {}) {
       }
       const serviceLogs = Object.fromEntries(list(all).map((x) => [x.key, serviceLog(x.logFile)]));
       json(res, jobsView({ status: jobsStatus(), jobs: jobList(), slices: slicesAll(), services: all, actionsFor: services && services.actionsFor, serviceLogs,
-        root: dirs.root }));
+        root: dirs.root, cpuHost: cpuHostOf(options.workers) }));
     } catch (e) { fail(res, e); }
   });
   app.get('/api/admin/jobs/run/:id/log', admin.guard, (req, res) => {

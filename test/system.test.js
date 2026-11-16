@@ -181,6 +181,21 @@ ok(system.networkOf('2a02:a03f:8722:b301:322d:e75:225b:eb45') === system.network
     services: [{ key: 'councilApi', name: 'Council API', status: 'stopped', command, cwd }] }).services[0];
   const here = svc(path.join(root, 'src', 'llmCouncil'));
   const away = svc('/srv/other/llmCouncil', '/usr/bin/python3 /srv/other/llmCouncil/api.py --port 8099');
+  // the models behind the Council API, apart from the service: ready, some, none - and none because the DL360 is off
+  const member = (name, ok, port) => ({ name, ok, detail: ok ? 'ok' : `http://192.168.0.250:${port} unreachable: <urlopen error timed out>` });
+  const health = (oks, headOk) => ({ ok: true, status: { ready: oks.every(Boolean) && headOk, members: oks.map((k, i) => member(`m${i}`, k, 8090 + i)), head: member('head', headOk, 8094) } });
+  const councilModels = require(path.join(SVC_ROOT, 'services.js')).SERVICES[0].models;
+  const line = (h, cpuHost) => system.jobsView({ status: null, root, cpuHost,
+    services: [{ key: 'councilApi', name: 'Council API', status: 'running', healthy: true, models: councilModels(h) }] }).services[0].models;
+  const off = line(health([false, false], false), '192.168.0.250');
+  ok(off.state === 'off' && off.label === 'models off' && /DL360, which does not answer/.test(off.why), `services: the API runs, its models are off with the DL360: ${off.why}`);
+  ok(/none of the models answers/.test(line(health([false, false], false), '10.0.0.9').why) && !/DL360/.test(line(health([false, false], false), null).why),
+    'services: without the DL360 as their machine the line only says none answers');
+  const some = line(health([true, false], true), '192.168.0.250');
+  ok(some.state === 'partial' && some.label === 'models: 2 of 3 answer' && line(health([true, true], true), null).label === 'models ready',
+    `services: some models, and all of them: ${some.label}`);
+  ok(councilModels({ ok: true }) === null && councilModels({ status: { members: [] } }) === null && svc(root).models === null,
+    'services: no health body or no models configured is no models line');
   ok(here.command === 'python3 api.py --config config.json --port 8099' && here.cwd === 'src/llmCouncil' && svc(root).cwd === '.'
     && away.cwd === 'llmCouncil' && away.command === 'python3 api.py --port 8099' && svc(null).cwd === null,
     `services: the command without paths, the working directory relative to the checkout or by name: ${here.cwd}, ${away.cwd}, ${away.command}`);

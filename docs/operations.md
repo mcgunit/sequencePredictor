@@ -340,6 +340,8 @@ The administrator's **Jobs & services** page (`/app/admin/jobs`, from `GET /api/
 
 The page shows state, pid, uptime, restart count, last exit, the tail of the service log and start, stop and restart buttons (`POST /api/admin/services/:name/:action`).
 
+The state of the service and the state of its models are shown apart, because the service runs on this server and the models on the DL360: next to "running" a second chip says *models ready*, *models: n of m answer* or *models off*. With the models off because the DL360 does not answer, the line under it says so.
+
 A service is an ordinary child of the server: it is cheap to restart and comes and goes with the server. The scheduled pipeline jobs are the opposite case and are launched detached; see the next section.
 
 ## The schedule (`jobs.js`)
