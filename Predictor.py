@@ -42,7 +42,7 @@ from src.BoostingBase import apply_boosting_params
 from src.Since import load as load_since
 from src.Command import Command
 from src.Helpers import Helpers
-from src.DataFetcher import DataFetcher
+from src.DataFetcher import DataFetcher, no_data_status
 from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
@@ -3009,6 +3009,7 @@ if __name__ == "__main__":
         print("Failed to create lock file. Exiting.")
         sys.exit(1)
 
+    exitStatus = 0
     try:
         time.sleep(100)
         try:
@@ -3119,6 +3120,8 @@ if __name__ == "__main__":
             ("sharesweek", "lstm_model", 0, True, True),
         ]
 
+        # the lottery games whose draws were asked for, and those whose fetch failed (see the run's status at the end)
+        fetchAsked, fetchFailed = [], []
         for dataset_name, model_type, skip_last_columns, ai, boost in datasets:
             try:
                 if dataset_name in games:
@@ -3170,9 +3173,11 @@ if __name__ == "__main__":
                         # prediction for this game: the CSV on disk is at
                         # worst one draw behind (the next run catches up via
                         # the completeness-aware rebuild).
+                        fetchAsked.append(dataset_name)
                         try:
                             dataFetcher.getLatestData(gameName, filePath)
                         except Exception as e:
+                            fetchFailed.append(dataset_name)
                             print(f"Data fetch failed for {dataset_name} - continuing with the existing CSV: {e}")
                         # The prize tables of every draw this game has scored
                         # tickets for (src/PrizeTables.py, 3 Nov 2026): the
@@ -3201,6 +3206,15 @@ if __name__ == "__main__":
 
         
         print("Finished with predictions")
+
+        # A run without data is a failed run (16 Nov 2026): when the fetch failed for every lottery game asked for,
+        # the run still finishes what follows (the report, the push, the lock) and then ends with NO_DATA_EXIT, which
+        # the scheduler answers by starting it again an hour later (jobs.js). With at least one game answered the
+        # status stays 0: the failed games are a draw behind and catch up on the next run.
+        exitStatus = no_data_status(fetchAsked, fetchFailed)
+        if fetchFailed:
+            print(f"DATA FETCH: failed for {len(fetchFailed)} of {len(fetchAsked)} game(s) ({', '.join(fetchFailed)})"
+                  + (f" - NO DATA for this run: it ends with status {exitStatus}" if exitStatus else ""))
 
         # Per-game/per-model performance summary over all scored history -
         # rendered by the web UI's History page (see server.js /database) and
@@ -3250,6 +3264,8 @@ if __name__ == "__main__":
             print("Failed to push latest predictions:", e)
     finally:
         remove_lock()  # Ensure the lock is removed even if an error occurs
+    if exitStatus:
+        sys.exit(exitStatus)
     
     
 

@@ -39,6 +39,7 @@ const docs = require('./docs');
 const auth = require('./auth');
 const brussels = require('./brussels');
 const whatsnew = require('./whatsnew');
+const notifications = require('./notifications');
 
 const SERVICES_WAIT_MS = 6000;           // services.js probes a service's health for up to 5 s
 const LOG_LINES = 200;                   // a run's log drawer: at most this many lines, warnings included
@@ -221,6 +222,8 @@ function jobsView({ status, jobs = [], slices = {}, services = null, actionsFor 
     mode: s ? { mode: s.mode, reason: s.modeReason } : null,
     lock, running, remote,
     queue: list(s && s.queue).map(queueOf),
+    // a run that got no data and is tried again later (jobs.js, 16 Nov 2026): the job, which try, and when
+    retries: list(s && s.retries).map((t) => ({ key: t.key, name: t.name || (byKey[t.key] || {}).name || t.key, attempt: num(t.attempt), of: num(t.of), at: isoMs(t.at) })),
     jobs: list(s && s.jobs).map((j) => {
       const job = byKey[j.key] || {};
       const u = usual(j.key, nowMs);
@@ -529,6 +532,9 @@ function install(app, options = {}) {
   docs.install(app, { root: options.docsRoot || dirs.root, guard: admin.guard, safe, json });
   // --- The worker machines' state and the DL360's power (workers.js) ---
   if (options.workers && typeof options.workers.install === 'function') options.workers.install(app, { guard: admin.guard, jsonBody, csrf, safe, json, reply, audit });
+
+  // --- Notifications for the administrator: what went wrong while nobody was looking (notifications.js) ---
+  notifications.install(app, { guard: admin.guard, jsonBody, csrf, safe, json });
 
   // --- Parameters: manual overrides (params.js; the predictor applies them, src/ParamOverrides.py) ---
   // set: { key, value, note }; release: { key }. Each one goes to the audit log with the game, the key and the value.

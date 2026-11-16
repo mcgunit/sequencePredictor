@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Disclaimer from './components/Disclaimer';
+import NotificationsDialog from './components/NotificationsDialog';
 import Sidebar from './components/Sidebar';
 import WhatsNewDialog from './components/WhatsNewDialog';
 import AdminGuard, { Loading } from './components/admin/States';
@@ -20,6 +21,7 @@ const GameHistoryPage = lazy(() => import('./pages/admin/GameHistoryPage'));
 const GamesPage = lazy(() => import('./pages/admin/GamesPage'));
 const JobsPage = lazy(() => import('./pages/admin/JobsPage'));
 const MarketWorkbenchPage = lazy(() => import('./pages/admin/MarketWorkbenchPage'));
+const NotificationsPage = lazy(() => import('./pages/admin/NotificationsPage'));
 const ModelsPage = lazy(() => import('./pages/admin/ModelsPage'));
 const PeoplePage = lazy(() => import('./pages/admin/PeoplePage'));
 const PhaseShiftPage = lazy(() => import('./pages/admin/PhaseShiftPage'));
@@ -59,6 +61,7 @@ export default function App() {
           <Route path="/admin/markets/:market" element={<AdminGuard><MarketWorkbenchPage /></AdminGuard>} />
           <Route path="/admin/jobs" element={<AdminGuard><JobsPage /></AdminGuard>} />
           <Route path="/admin/people" element={<AdminGuard><PeoplePage /></AdminGuard>} />
+          <Route path="/admin/notifications" element={<AdminGuard><NotificationsPage /></AdminGuard>} />
           <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
           {/* the users' Lottery: today's top 5 per game, each past draw's five as ranked before it (lottery.js) */}
           <Route path="/lottery" element={<LotteryPage />} />
@@ -77,6 +80,8 @@ export default function App() {
       </main>
       {/* the introduction, or the major notes, on whichever page a reader lands (the old pages' dialog) */}
       <WhatsNewDialog />
+      {/* an administrator's unread notifications, once after signing in (16 Nov 2026) */}
+      <NotificationsDialog />
     </div>
   );
 }

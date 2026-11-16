@@ -377,4 +377,132 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
   ok(pickNext([bt('a')], 0) === null && pickNext([], 3600) === null, 'no room, or nothing queued: nothing starts');
 }
 
+// --- a run without data, far longer than usual, the notifications (16 Nov 2026) --------------------------------------
+// On a copy of jobs.js in a temp dir, the schedule off (nothing is launched): the runs are put in state.current by hand
+// and finished through finish(), the notes collected through setNotifier.
+{
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-nodata-'));
+  fs.copyFileSync(path.join(__dirname, '..', 'jobs.js'), path.join(dir, 'jobs.js'));
+  fs.writeFileSync(path.join(dir, 'config.js'), `module.exports = { CONFIG_DIR: ${JSON.stringify(path.join(dir, 'config'))} };`);
+  fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+  const HOUR = 3600 * 1000;
+  // an old state file: no retry, no durations - the durations come from its history (newest first)
+  const hist = [1000, 1200, 900].map((seconds, i) => ({ at: i, finishedAt: i, key: 'predictor', name: 'x', seconds, exit: 0 }))
+    .concat([{ at: 9, key: 'predictor', seconds: 50000, exit: 1 }, { at: 9, key: 'nullControls', seconds: 700, exit: 0, worker: 'cpu' }]);
+  fs.writeFileSync(path.join(dir, 'config', 'scheduler.json'), JSON.stringify({ version: 1, occurrences: {}, queue: [], history: hist, current: null,
+    baselinedAt: 'x', baselinedPlans: { [CHAIN_PLAN]: 'x', [CONTROLS_PLAN]: 'x' } }));
+  const quiet = console.log;
+  console.log = () => {};
+  let copy;
+  try {
+    copy = require(path.join(dir, 'jobs.js'));
+    copy.start();
+    copy.stop();
+    const c = copy._internals;
+    const st = () => c.state();
+    const notes = [];
+    c.setNotifier((n) => { notes.push(n); return n; });
+    const spec = copy.JOBS.find((j) => j.key === 'predictor').noData;
+    const t0 = Date.now() - 10 * 60 * 1000;
+    const begin = (extra = {}) => { st().current = Object.assign({ key: 'predictor', name: 'Lottery predictor', reason: 'test', startedAt: t0, runId: 'r', pid: 1, pidFile: path.join(dir, 'p'), exitFile: path.join(dir, 'e') }, extra); };
+    const results = [];
+    results.push(spec && spec.exit === 74 && spec.retries === 6 && spec.everyMs === HOUR, 'the lottery predictor: status 74, six retries, an hour apart');
+    results.push(JSON.stringify(st().durations.predictor) === '[900,1200,1000]' && st().durations['nullControls@cpu'][0] === 700 && JSON.stringify(st().retry) === '{}',
+      `an old state file gets its durations from the history, successful runs only: ${JSON.stringify(st().durations)}`);
+
+    // the first run without data: a retry an hour after it ended, one note, the weekly plans wait
+    begin();
+    c.finish(74, null, t0 + 60000);
+    let r = st().retry.predictor;
+    results.push(r && r.attempt === 1 && r.of === 6 && r.at === t0 + 60000 + HOUR && st().current === null, `a run without data plans retry 1 an hour after it ended: ${JSON.stringify(r)}`);
+    results.push(/tries again at \d\d:\d\d \(retry 1 of 6\)/.test(st().history[0].note) && st().history[0].exit === 74, `the record says when: ${st().history[0].note}`);
+    results.push(notes.length === 1 && notes[0].kind === 'no-data' && notes[0].level === 'warning' && /up to 6 times/.test(notes[0].body[0]), 'one note: no data, and what happens next');
+    results.push(copy.status().retries.length === 1 && copy.status().retries[0].attempt === 1 && copy.status().retries[0].name === 'Morning predictor: lottery games', 'the Jobs page gets the pending retry');
+    // survives a restart
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, 'config', 'scheduler.json'), 'utf-8'));
+    results.push(saved.retry.predictor.attempt === 1, 'the pending retry is in the state file (a restart keeps it)');
+
+    // not before its hour; then queued as a retry
+    c.startRetries(r.at - 1000);
+    results.push(st().queue.length === 0 && st().retry.predictor, 'not queued before its hour');
+    c.startRetries(r.at + 1000);
+    results.push(st().queue.length === 1 && st().queue[0].key === 'predictor' && st().queue[0].retry === 1 && !st().queue[0].manual && !st().retry.predictor
+      && /retry 1 of 6/.test(st().queue[0].reason), `queued at its hour, marked as retry 1: ${JSON.stringify(st().queue[0])}`);
+    st().queue.length = 0;
+
+    // retries 1..5 without data: each plans the next, no further note; the sixth gives up with one
+    for (let n = 1; n <= 5; n += 1) { begin({ retry: n }); c.finish(74, null, t0 + n * HOUR); }
+    results.push(st().retry.predictor.attempt === 6 && notes.length === 1, 'five retries without data: retry 6 planned, still one note');
+    begin({ retry: 6 });
+    c.finish(74, null, t0 + 7 * HOUR);
+    results.push(!st().retry.predictor && /no further retry/.test(st().history[0].note) && st().history[0].retry === 6, `the sixth without data ends it: ${st().history[0].note}`);
+    results.push(notes.length === 2 && notes[1].kind === 'no-data-ended' && notes[1].level === 'error' && /after 6 retries/.test(notes[1].title), 'and says so, as an error');
+
+    // data arrives on a retry: a note that it recovered, no retry left
+    notes.length = 0;
+    begin();
+    c.finish(74, null, t0 + 60000);
+    delete st().retry.predictor;   // as launch() does when the retry starts
+    begin({ retry: 1 });
+    c.finish(0, null, t0 + HOUR + 120000);
+    results.push(!st().retry.predictor && notes.length === 2 && notes[1].kind === 'no-data-ended' && notes[1].level === 'info' && /retry 1/.test(notes[1].title), 'data on retry 1: the retries end, a note says it arrived');
+
+    // a pending retry hours late is dropped; a run by hand in between is that try
+    begin();
+    c.finish(74, null, t0);
+    c.startRetries(st().retry.predictor.at + 4 * HOUR);
+    results.push(!st().retry.predictor && st().queue.length === 0, 'a retry due more than three hours ago is dropped');
+    begin();
+    c.finish(74, null, t0);
+    c.enqueue('predictor', 'run now', true);
+    c.startRetries(st().retry.predictor.at + 1000);
+    results.push(st().queue.length === 1 && st().queue[0].manual === true && !st().queue[0].retry && !st().retry.predictor, 'already queued by hand: that run is the retry');
+    st().queue.length = 0;
+
+    // other jobs and other exits: the plain failure note; stopped by an administrator: none
+    notes.length = 0;
+    begin({ key: 'cryptoDaily', name: 'Crypto daily' });
+    c.finish(74, null, t0 + 1000);
+    results.push(!st().retry.cryptoDaily && notes.length === 1 && notes[0].kind === 'job-failed' && /exit code 74/.test(notes[0].title), 'status 74 means "no data" only for a job that says so');
+    begin();
+    c.finish(1, null, t0 + 1000);
+    results.push(notes.length === 2 && notes[1].kind === 'job-failed' && /Lottery predictor ended with exit code 1/.test(notes[1].title) && !st().retry.predictor, 'a failed run: a note, no retry');
+    begin({ stoppedBy: 'hana' });
+    c.finish(null, 'killed', t0 + 1000);
+    results.push(notes.length === 2 && st().history[0].stoppedBy === 'hana', 'stopped by an administrator: recorded, no note');
+    begin();
+    c.finish(0, null, t0 + 1100 * 1000);
+    results.push(notes.length === 2 && st().durations.predictor.slice(-1)[0] === 1100, 'a normal run: no note, its duration kept');
+
+    // far longer than usual: 1.5 x the longest of the last runs and at least half an hour more, said once
+    notes.length = 0;
+    st().durations.predictor = [900, 1200, 1000];
+    const lim = c.slowLimit('predictor');
+    results.push(lim && lim.longest === 1200 && lim.limit === 3000, `the limit: the longest (1200 s) + 30 min: ${JSON.stringify(lim)}`);
+    st().durations.long = [7200, 8000, 7000];
+    results.push(c.slowLimit('long').limit === 12000 && c.slowLimit('cryptoDaily') === null, '1.5 x for a long job; no limit with fewer than three runs');
+    begin();
+    results.push(c.checkSlow(st().current, 'predictor', '', t0 + 2900 * 1000) === false && !notes.length, 'under the limit: nothing');
+    results.push(c.checkSlow(st().current, 'predictor', '', t0 + 3100 * 1000) === true && notes.length === 1 && notes[0].kind === 'slow' && /far longer than usual/.test(notes[0].title), 'over it: a note');
+    results.push(c.checkSlow(st().current, 'predictor', '', t0 + 9000 * 1000) === false && notes.length === 1, 'once per run');
+    st().current = null;
+    const logText = fs.readFileSync(path.join(dir, 'log', 'scheduler.log'), 'utf-8');
+    results.push(/the weekly plans wait for a run with data/.test(logText), 'a run without data is not the weekly plans\' trigger');
+
+    // a notifier that throws costs nothing
+    c.setNotifier(() => { throw new Error('broken'); });
+    begin();
+    c.finish(1, null, t0 + 1000);
+    results.push(st().current === null && st().history[0].exit === 1, 'a broken notifier does not stop a run from being recorded');
+    console.log = quiet;
+    for (let i = 0; i < results.length; i += 2) ok(results[i], results[i + 1]);
+  } finally {
+    console.log = quiet;
+    if (copy) copy.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 console.log(`jobs.js: ${checks} checks passed (${jobs.JOBS.length} jobs, ${CHAIN_KEYS.length} in the weekly chain)`);

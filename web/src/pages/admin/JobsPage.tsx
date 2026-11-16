@@ -275,6 +275,13 @@ function RunningCard({ d, onAsk, onOpenRun }: { d: JobsView; onAsk: (a: Ask) => 
       ) : (
         <p className="note">Nothing waits{r ? ` behind ${label}` : ''}.</p>
       )}
+      {/* a run that got no data from the API: tried again by itself (16 Nov 2026) */}
+      {d.retries.map((t) => (
+        <p key={t.key} className="note">
+          <Chip kind="chg">retry</Chip> <b>{jobLabel(t.key, t.name)}</b> got no data and is tried again at {stamp(t.at)}
+          {t.attempt !== null && t.of !== null ? ` (retry ${t.attempt} of ${t.of})` : ''}. Running it by hand before then counts as that try.
+        </p>
+      ))}
       {d.remote ? <RemoteRuns d={d} onAsk={onAsk} onOpenRun={onOpenRun} /> : null}
     </Card>
   );

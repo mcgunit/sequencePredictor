@@ -101,6 +101,22 @@ function log(text) {
   try { fs.mkdirSync(LOG_DIR, { recursive: true }); fs.appendFileSync(path.join(LOG_DIR, 'scheduler.log'), `${line}\n`); } catch (e) { /* a convenience */ }
   console.log(line);
 }
+
+// What the administrator is told in the app (notifications.js, 16 Nov 2026). Raised only when these lanes work in the
+// server's own config folder: a test that points them at a temporary folder (useDirs) raises nothing unless it sets
+// its own notifier. Never throws - a note is a convenience, the lane's record is what counts.
+const WORKERS_LINK = { href: '/admin/backtests', label: 'Backtests' };
+let notifier = null;
+function notify(note) {
+  try {
+    if (notifier) return notifier(note);
+    if (CONFIG_DIR !== config.CONFIG_DIR) return null;
+    return require('./notifications').raise(note);
+  } catch (e) {
+    log(`could not raise a notification (${note && note.title}): ${e.message}`);
+    return null;
+  }
+}
 function alive(pid, runId) {
   if (!pid) return false;
   try { return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf-8').includes(runId); } catch (e) { return false; }
@@ -201,6 +217,17 @@ function makeLane(kind) {
       note: moved ? 'the DL360 did not come up: moved to this server' : note || null });
     log(`the ${run.type || 'backtest'} ${run.id} on ${run.local ? 'this server' : `the ${K.word}`} finished${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}${moved ? ' - the DL360 did not come up: it runs on this server next' : ''}`);
     [run.pidFile, run.exitFile].forEach((f) => { try { fs.unlinkSync(f); } catch (e) { /* gone */ } });
+    // the administrator is told when the DL360 did not come up for the work (16 Nov 2026); the work's own outcome is
+    // on its page. After any work there, a later look checks that it switched itself off.
+    if (kind === 'cpu' && !run.local) {
+      if (exit === NOT_STARTED) {
+        notify({ kind: 'worker-fallback', level: 'warning',
+          title: moved ? `The DL360 did not come up: the hyperopt ${run.id} runs on this server` : `The DL360 did not come up: the ${run.type || 'backtest'} ${run.id} did not run`,
+          body: moved ? 'It is first in the queue again and runs on this server, which is slower.' : 'Nothing was started. Start it again once the DL360 answers.',
+          link: run.type === 'hyperopt' ? { href: '/admin/hyperopts', label: 'Hyperopts' } : WORKERS_LINK, dedupe: `worker-fallback:${run.id}` });
+      }
+      watchOff(ended);
+    }
   };
 
   lane.poll = () => {
@@ -361,6 +388,10 @@ function powerOn(by, deps = {}) {
   runPower(['wake'], c, 20 * 60 * 1000, deps).then((r) => {
     const failed = r.error ? (r.stderr.trim().split('\n').pop() || r.error.message) : null;
     log(failed ? `switching the CPU worker on failed: ${failed}` : 'the CPU worker is up');
+    if (failed) {
+      notify({ kind: 'worker-power', level: 'error', title: 'The DL360 did not come up', body: [`Switched on by ${by}; the wake ended with: ${failed}`],
+        link: WORKERS_LINK, dedupe: 'worker-power:on', dedupeMs: 3600 * 1000 });
+    } else watchOff();
     powerAction = null;
     power.at = 0;
   });
@@ -382,16 +413,55 @@ function powerOff(by, deps = {}) {
   return { ok: true, status: 200, message: 'Shutting the DL360 down: the council goes down with it' };
 }
 
+// --- does it switch itself off? ----------------------------------------------------------------------------------------
+// A DL360 this server woke switches itself off after idleMinutes without work (worker/idle-off on the machine). It
+// draws a lot of power, so a look some time after its last work checks that it did (16 Nov 2026): still on, booted by
+// this server and idle for longer than OFF_GRACE_MIN past its idle time -> a note for the administrator. A machine
+// somebody switched on outside this server (no boot mark) is theirs and is left alone. The look is postponed while
+// work runs or waits there; the pending look is in memory only, so start() plans one after a restart.
+const OFF_GRACE_MIN = 20;
+let offCheckAt = null;
+function watchOff(from = Date.now()) {
+  const c = configOf('cpu');
+  if (!c || !c.iloEnv || c.local) return null;
+  offCheckAt = from + (c.idleMinutes + OFF_GRACE_MIN) * 60 * 1000;
+  return offCheckAt;
+}
+async function checkOff(now = Date.now(), deps = {}) {
+  if (!offCheckAt || now < offCheckAt) return null;
+  const c = configOf('cpu');
+  if (!c || !c.iloEnv) { offCheckAt = null; return null; }
+  const s = LANES.cpu.backtestState();
+  if ((s.current && !s.current.local) || s.queued.length || controlsBusy(deps) || powerAction) { watchOff(now); return 'busy'; }
+  offCheckAt = null;
+  power.at = 0;   // a fresh reading, not the page's last one
+  const v = await powerStatus(deps);
+  if (!v || v.power !== 'on') return 'off';
+  if (!v.woken) return 'not ours';
+  const idleMs = v.lastBusy ? now - v.lastBusy : null;
+  // work this server does not know of (somebody's shell) keeps the mark fresh: look again later
+  if (idleMs !== null && idleMs < (c.idleMinutes + OFF_GRACE_MIN) * 60 * 1000) { watchOff(v.lastBusy); return 'busy'; }
+  const idle = idleMs === null ? 'for an unknown time' : `for ${Math.round(idleMs / 60000)} minutes`;
+  log(`the CPU worker is still on, idle ${idle}: it should have switched itself off after ${c.idleMinutes}`);
+  notify({ kind: 'worker-power', level: 'warning', title: 'The DL360 is still on',
+    body: [`It was switched on by this server and has been idle ${idle}; it should have switched itself off after ${c.idleMinutes} idle minutes.`,
+      'Switch it off on the Backtests page, and check the idle-off timer on the machine.'],
+    link: WORKERS_LINK, dedupe: 'worker-power:still-on', dedupeMs: 6 * 3600 * 1000 });
+  return 'on';
+}
+
 // --- start-up ---------------------------------------------------------------------------------------------------------
 let timer = null;
 function tick() {
   Object.values(LANES).forEach((l) => {
     try { l.poll(); l.startNext(); } catch (e) { log(`${l.kind} tick failed: ${e.stack || e.message}`); }
   });
+  if (offCheckAt && Date.now() >= offCheckAt) checkOff().catch((e) => log(`the look at the CPU worker's power failed: ${e.message}`));
 }
 function start() {
   Object.values(LANES).forEach((l) => { try { l.adopt(); } catch (e) { log(`${l.kind} adoption failed: ${e.message}`); } });
   tick();
+  watchOff();   // a restart forgets a pending look: plan one
   timer = setInterval(tick, TICK_MS);
   if (timer.unref) timer.unref();
 }
@@ -422,6 +492,7 @@ function install(app, { guard, jsonBody, csrf, safe, json, reply, audit }) {
 }
 
 module.exports = {
-  start, stop, lane, configOf, localConfig, install, powerStatus, powerOn, powerOff, KINDS, scriptEnv, NOT_STARTED,
-  _internals: { useDirs, tick, lanes: () => LANES, resetPower: () => { power = { at: 0, value: null, error: null, pending: null }; powerAction = null; } },
+  start, stop, lane, configOf, localConfig, install, powerStatus, powerOn, powerOff, watchOff, KINDS, scriptEnv, NOT_STARTED,
+  _internals: { useDirs, tick, lanes: () => LANES, checkOff, setNotifier: (fn) => { notifier = fn; }, offCheckAt: () => offCheckAt,
+    resetPower: () => { power = { at: 0, value: null, error: null, pending: null }; powerAction = null; offCheckAt = null; } },
 };

@@ -2288,6 +2288,8 @@ export interface JobsView {
   lock: { held: boolean; pid: number | null; script: string | null; key: string | null; ours: boolean } | null;
   running: Running | null;
   queue: QueueItem[];
+  // a run that got no data and is tried again later (jobs.js, 16 Nov 2026)
+  retries: { key: string; name: string; attempt: number | null; of: number | null; at: string | null }[];
   // the Sunday controls on the DL360 (jobs.js, since 11 Nov 2026): their own run and queue; null when not set up
   remote: { configured: boolean; host: string | null; running: Running | null; queue: QueueItem[] } | null;
   jobs: JobLine[];
@@ -2392,6 +2394,26 @@ export interface WhatsNewView {
   items: Note[];
 }
 
+// --- Notifications for the administrator (GET /api/admin/notifications, notifications.js; 16 Nov 2026) ---------------
+// What went wrong while nobody was looking: kept on the server, read per administrator.
+export type AlertLevel = 'error' | 'warning' | 'info';
+export interface Alert {
+  id: string;
+  at: number | null; // ms
+  kind: string;
+  level: AlertLevel;
+  title: string;
+  body: string[];
+  link: { href: string; label: string } | null;
+  read: boolean;
+}
+export interface AlertsView {
+  unread: number;
+  of: number;
+  kept: number | null;
+  items: Alert[];
+}
+
 export const MIN_PASSWORD = 8; // auth.js MIN_PASSWORD_LENGTH, when an answer does not name it
 
 const runShortOf = (v: unknown): RunShort | null => {
@@ -2439,6 +2461,10 @@ function normJobs(raw: unknown): JobsView {
     lock: has(r.lock) ? { held: bool(lock.held), pid: opt(lock.pid), script: ostr(lock.script), key: ostr(lock.key), ours: bool(lock.ours) } : null,
     running: runningOf(r.running),
     queue: queueOf(r.queue),
+    retries: arr(r.retries as unknown[]).filter(has).map((x) => {
+      const t = o(x);
+      return { key: str(t.key), name: str(t.name, str(t.key)), attempt: opt(t.attempt), of: opt(t.of), at: ostr(t.at) };
+    }),
     remote: has(r.remote) ? { configured: bool(far.configured), host: ostr(far.host), running: runningOf(far.running), queue: queueOf(far.queue) } : null,
     jobs: arr(r.jobs as unknown[]).filter(has).map((x) => {
       const j = o(x);
@@ -2572,6 +2598,20 @@ function normWhatsNew(raw: unknown): WhatsNewView {
   };
 }
 
+function normAlerts(raw: unknown): AlertsView {
+  const r = o(raw);
+  const items = arr(r.items as unknown[]).filter(has).map((x): Alert => {
+    const n = o(x);
+    const l = o(n.link);
+    return {
+      id: str(n.id), at: opt(n.at), kind: str(n.kind, 'note'), level: n.level === 'error' ? 'error' : n.level === 'info' ? 'info' : 'warning', title: str(n.title), body: strs(n.body),
+      link: has(n.link) && typeof l.href === 'string' ? { href: l.href, label: str(l.label, 'Open') } : null, read: bool(n.read),
+    };
+  });
+  return { unread: items.filter((n) => !n.read).length, of: num(r.of, items.length), kept: opt(r.kept), items };
+}
+export const getAdminNotifications = async (): Promise<AlertsView> => normAlerts(await getJson<unknown>('/api/admin/notifications'));
+
 export const getAdminJobs = async (): Promise<JobsView> => normJobs(await getJson<unknown>('/api/admin/jobs'));
 export const getAdminRunLog = async (id: string): Promise<RunLog> => normRunLog(await getJson<unknown>(`/api/admin/jobs/run/${encodeURIComponent(id)}/log`), id);
 export const getAdminPeople = async (all: boolean): Promise<PeopleView> => normPeople(await getJson<unknown>(`/api/admin/people${all ? '?limit=all' : ''}`));
@@ -2590,6 +2630,7 @@ export const ACTIONS = {
   ownPassword: '/api/account/password', // {current, password, confirm} -> csrf: the new session's token
   seen: '/api/whats-new/seen', // {ids?, all?, tour?}
   replay: '/api/whats-new/replay',
+  notificationsRead: '/api/admin/notifications/read', // {ids} or {all: true}
 };
 
 // --- Admin › Parameters (GET /api/admin/parameters/:game, params.js) -------------------------------------------------

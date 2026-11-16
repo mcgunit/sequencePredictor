@@ -159,6 +159,7 @@ The interface is a React application in `web/` (Vite, TypeScript, ECharts), buil
 | `admin.js` | `GET /api/admin/week`, `/controls`, `/models`, `/phase-shift`, `/randomness`, `/tuning` (each also per game) | This week and the admin record pages |
 | `workbench.js` | `GET /api/admin/history/:game`, `/draw/:game/:date`, `/market/:market/workbench...` | Games in detail and the market workbench ([markets](markets.md)) |
 | `system.js` | `/api/admin/jobs...`, `/api/admin/services/:name/:action`, `/api/admin/people...`, `/api/account...`, `/api/whats-new...` | Jobs & services, People, Account, What's new |
+| `notifications.js` | `GET /api/admin/notifications`, `POST /api/admin/notifications/read` | Notifications (see [Notifications](#notifications)) |
 | `params.js`, `backtests.js`, `hyperopts.js` | `/api/admin/parameters/:game...`, `/api/admin/backtests...`, `/api/admin/hyperopts...` | Parameters, Backtests, Hyperopts ([tuning](tuning.md)) |
 | `docs.js` | `GET /api/admin/docs`, `/api/admin/docs/:page` | the wiki |
 | `workers.js` | `GET /api/admin/workers`, `POST /api/admin/workers/cpu/on`, `/off` | the Workers card |
@@ -185,6 +186,7 @@ The administrator also sees the Admin menu:
 | Group | Menu item | Address |
 |---|---|---|
 | | This week (with a status dot) | `/app/admin` |
+| | Notifications (with the unread count) | `/app/admin/notifications` |
 | Controls | All controls, with anchors for Q0 row tests, Q2 randomness, Feature control, Market rows | `/app/admin/controls` |
 | Models | Tuning gates | `/app/admin/tuning` |
 | Models | Parameters | `/app/admin/parameters` |
@@ -356,6 +358,7 @@ The server starts the daily predictors, the weekly tuning chain and the weekly c
 - The other slots are in the server process's local time, Europe/Brussels on the production machine, so they follow summer and winter time.
 - The lottery run is usually done by about 08:00, before the first sales close.
 - The stocks run starts as soon as Euronext's day is complete (18:00), so the card is up before the 09:00 open. After 08:30 a missed card is no longer worth starting.
+- A lottery run that got no draws from the API for any game ends with status 74 and is started again by the schedule; see [A run without data](#a-run-without-data).
 - Only the lottery predictor (`predictor`) finishing starts the weekly plans. A bare `Predictor.py` started by hand is read as the lottery predictor.
 - Job children get a minimal environment: `PATH`, `HOME`, `LANG`, `PYTHONUNBUFFERED=1` and `TZ` from the server's environment, or `UTC` when it has none.
 
@@ -412,6 +415,15 @@ A fifteenth job, `backtest` (`RunBacktest.py`), is never scheduled and has no *R
 - **A blocked queue stays noisy.** Waiting on the lock is logged again every half hour; after six hours the wait is recorded as a blocked entry on the Jobs & services page. The job stays queued.
 - **Every run is recorded**: job, the reason it started, duration, exit code and the git SHA it ran at, on the Jobs & services page and in `log/scheduler.log`. A job that ended without writing an exit code is recorded as that, never as a success. Each job's own log gets a start and a finish marker.
 
+### A run without data
+
+- **Status 74.** When the fetch fails for every lottery game the run asked for, `Predictor.py` still finishes (the report, the push, the lock) and then ends with status 74. A run in which at least one game answered ends with 0: the failed games are a draw behind and catch up on the next run. The market runs have no such status.
+- **Tried again every hour, at most six times.** The schedule starts the lottery predictor again one hour after such a run ended. Each retry is an ordinary queue entry: it waits for the lock and for whatever runs. A retry that again ends with 74 plans the next one; after the sixth nothing further is tried until the next scheduled run.
+- **Any start of the job is the retry.** The next morning's slot or a *Run now* replaces the pending retry. A run started by hand that again gets no data starts a new series of six.
+- **The pending retry survives a restart.** It is kept in `config/scheduler.json`. One that is more than three hours late (the schedule was off, the server was down) is dropped.
+- **The weekly plans wait.** A run without data that is tried again does not start the Saturday chain or the Sunday controls; the retry that finishes does, or the last retry when all six are used up.
+- **Where it shows.** The Jobs & services page lists the pending retry under the queue, and the run history says of each such run when it is tried again. The administrator gets one notification when the data first fails to come and one when the retries end (the data arrived, or they are used up).
+
 ### Modes
 
 | Mode | How | Effect |
@@ -435,11 +447,49 @@ All are for the administrator only, POST, and checked for the form token.
 
 ### State, logs and limits
 
-- `config/scheduler.json`: handled occurrences, the queue, the running job, the history (the newest 40 runs).
+- `config/scheduler.json`: handled occurrences, the queue, the running job, the pending retry of a run without data, the durations of each job's last successful runs, the history (the newest 40 runs).
 - `config/runs/`: per run a pid file while it runs and an exit file when it ends; swept after 7 days.
 - `log/scheduler.log` and the job logs: rotated at 10 MB, one older file kept.
 - The scheduler ticks every 10 seconds.
-- `test/jobs.test.js` pins `TZ=Europe/Brussels` and walks the slots, the plan triggers, the monthly rule and the mirror of `runHyperopt.sh`.
+- `test/jobs.test.js` pins `TZ=Europe/Brussels` and walks the slots, the plan triggers, the monthly rule, the mirror of `runHyperopt.sh`, the retries of a run without data and the notifications the schedule raises.
+
+## Notifications
+
+What goes wrong while nobody is looking is kept on the server and shown to the administrator in the app. The server sends no mail.
+
+**Where they show.**
+
+- A bell with the number of unread notifications in the menu, under This week, and on the phone's top bar.
+- A dialog with the unread ones (eight at most) on the first page after an administrator signs in or loads the app. *Later* closes it until the next load; *Mark all as read* empties it. It waits for the What's new dialog.
+- The page Admin › Notifications (`/app/admin/notifications`) with every kept notification, newest first, each with a link to the page that shows more.
+
+The app reads the list every five minutes and when its window gets the focus again.
+
+**What raises one.** Only the schedule (`jobs.js`) and the workers (`workers.js`) raise notifications, never a page.
+
+| Kind | Level | Raised when |
+|---|---|---|
+| `job-failed` | error | a job ends with a status other than 0, ends without a status, or cannot be launched; not when an administrator stopped it |
+| `no-data` | warning | the lottery run got no draws from the API for any game; once per series of retries |
+| `no-data-ended` | info or error | the retries ended: the data arrived (info), or all six are used up (error) |
+| `blocked` | warning | a queued job has waited six hours for `process.lock` |
+| `worker-fallback` | warning | a control or a hyperopt did not start on the DL360 (status 75) and runs on this server instead |
+| `worker-power` | error or warning | the DL360 did not come up after being switched on (error), or still answers long after its last work (warning; see [Power of the CPU worker](#power-of-the-cpu-worker)) |
+| `reading` | error | the week's reading could not be written after the Sunday controls |
+| `slow` | warning | a job runs far longer than usual |
+
+**Far longer than usual.** The schedule keeps the durations of each job's last successful runs (a control on the DL360 under its own key, because it is slower there). With at least three of them, a run is far longer than usual once it has run 1.5 times the longest of them and at least half an hour more. It is reported once and keeps running; the Jobs & services page can stop it. Backtests are not measured.
+
+**The store.** `config/notifications.json` (not in git, mode 600) holds the newest 200 notifications and, per administrator, the ids they marked as read. A notification is unread for an administrator until they mark it; one administrator's marks do not change another's. A notification with the same subject is not raised twice inside its window (24 hours unless stated otherwise). A notification that cannot be stored never fails the job that raised it.
+
+**Routes.** For the administrator only.
+
+| Route | Answers |
+|---|---|
+| `GET /api/admin/notifications` | `{ unread, of, kept, items }`, each item with `id`, `at`, `kind`, `level`, `title`, `body`, `link`, `read` |
+| `POST /api/admin/notifications/read` | marks `{ ids: [...] }` or `{ all: true }` as read for the signed-in administrator; checked for the form token; refused with 409 when authentication is off |
+
+`node test/notifications.test.js` covers the store and the read marks; `test/jobs.test.js` and `test/workers.test.js` cover what raises them.
 
 ## The workers (`workers.js`)
 
@@ -456,6 +506,7 @@ Without a `gpu` entry the deep-learning rows cannot be backtested. Without a `cp
 
 - **Switched on when needed.** A run for it, when the machine does not answer, switches it on through its iLO: `worker/power.sh wake` uses IPMI with the password from a root-only file (`iloEnv`), passed through `IPMI_PASSWORD` and `-E`, never on a command line. It waits for ssh (15 minutes at most) and marks the boot as the worker's (`/run/sequencePredictor-worker/woken`). A machine that does not come up often has a USB disk plugged in, which stops its start-up.
 - **Switches itself off.** On the machine, `sp-worker-idle.timer` runs `/usr/local/sbin/sp-worker-idle` (`worker/idle-shutdown.sh`; units `worker/sp-worker-idle.*`) every minute. Only on a marked boot (`/run` is emptied at every boot, so a start by hand is never switched off) it shuts the machine down cleanly after `IDLE_MINUTES` (10, `/etc/default/sp-worker-idle`) without any of: a running backtest, a running control, a running hyperopt, a council request (a `slot` line of a `llama@` service in the journal), or an active login (`who -u` idle below the window).
+- **Watched from the server.** The machine's own idle window plus 20 minutes after its last work, the server looks whether it still answers. A machine the worker switched on that is still on with nothing running or waiting for it raises a notification (at most one per six hours); a machine switched on by hand is left alone. When work is running the look is planned again. A machine that does not come up after a wake raises a notification too.
 - **By hand.** Jobs & services › Workers (`GET /api/admin/workers`, read every 15 seconds) shows it: on or off, whether the worker switched it on, idle minutes. *Switch on* (`POST /api/admin/workers/cpu/on`) is the same marked wake. *Shut down* (`POST /api/admin/workers/cpu/off`) is refused while a backtest or hyperopt runs or waits for it and while a control runs or waits; the council goes down with the machine. Both go to the audit log.
 
 ### Settings
@@ -558,8 +609,8 @@ npm test
 
 `npm test` is the test suite. It runs, one after the other and stopping at the first failure:
 
-- the twenty-one Node tests in `test/*.test.js`: announcements, jobs, jobs-remote, readings, council, controls, prizes, params, backtests, workers, hyperopts, docs, markets, api, admin, workbench, lottery, pipeline, system, server, switchover;
-- the Python self-checks: `python3 -m src.<Module>` for the modules that carry one (for example `src.TuningScore`, `src.TuningResult`, `src.TuningGate`, `src.Lockbox`, `src.PrizeTables`, `src.MarketSettle`, `src.MarketOrders`, `src.Markov`, `src.Helpers`) and the `_self_check()` of the entry points `NullControls`, `RandomnessDiscrimination`, `HyperoptEnsemble`, `HyperoptStatistics`, `HyperoptBoost`, `HyperoptRLTicket`, `MarketRows` and `SwitchSharesEuronext`.
+- the twenty-two Node tests in `test/*.test.js`: announcements, jobs, jobs-remote, notifications, readings, council, controls, prizes, params, backtests, workers, hyperopts, docs, markets, api, admin, workbench, lottery, pipeline, system, server, switchover;
+- the Python self-checks: `python3 -m src.<Module>` for the modules that carry one (for example `src.TuningScore`, `src.TuningResult`, `src.TuningGate`, `src.Lockbox`, `src.PrizeTables`, `src.MarketSettle`, `src.MarketOrders`, `src.Markov`, `src.Helpers`), the `_self_check()` of `src.DataFetcher` and the `_self_check()` of the entry points `NullControls`, `RandomnessDiscrimination`, `HyperoptEnsemble`, `HyperoptStatistics`, `HyperoptBoost`, `HyperoptRLTicket`, `MarketRows` and `SwitchSharesEuronext`.
 
 The full list is the `test` script in `package.json`. Each test can be run on its own, for example `node test/jobs.test.js` or `python3 -m src.TuningResult`.
 
@@ -575,8 +626,9 @@ https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&date-from=<ms>
 
 For the latest draws of every game: `https://apim.prd.natlot.be/api/v4/draw-games/draws?status=PAYABLE&previous-draws=5`. The dates are in milliseconds since 1970.
 
-- A failed answer is tried three times in all, after waits of 30 and 120 seconds; each failure is logged with its HTTP status and the start of the reply.
+- A failed answer is tried three times in all, after waits of 30 and 120 seconds; each failure is logged with its HTTP status and what the API sent: for a web page its title and visible text, not its markup.
 - When the API still fails, the game falls back to its CSV on disk.
+- When that happens for every game of the run, the run ends with status 74 and the schedule starts it again; see [A run without data](#a-run-without-data).
 - The CSV files with the real draws can also be downloaded from the lottery's website.
 
 The market data (crypto and shares) is documented in [markets](markets.md).

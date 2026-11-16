@@ -23,6 +23,20 @@ export function showAgain() {
 
 const keyOf = (p: NonNullable<WhatsNewView['pending']>) => `${p.kind}:${p.ids.join(',')}`;
 
+// Whether this dialog is up for a reader: the notifications' dialog (an administrator's, 16 Nov 2026) waits for it
+// instead of opening over it. laterReaders hear a "Later".
+const laterReaders = new Set<() => void>();
+export function onWhatsNewLater(reader: () => void): () => void {
+  laterReaders.add(reader);
+  return () => {
+    laterReaders.delete(reader);
+  };
+}
+export function whatsNewUp(view: WhatsNewView | undefined, pathname: string): boolean {
+  const p = view?.pending ?? null;
+  return Boolean(p && pathname !== '/whats-new' && later !== keyOf(p));
+}
+
 export default function WhatsNewDialog() {
   const me = useMe();
   const user = me?.user ?? null;
@@ -42,6 +56,7 @@ export default function WhatsNewDialog() {
           onLater={() => {
             later = keyOf(p);
             setHidden((n) => n + 1);
+            laterReaders.forEach((r) => r());
           }}
         />
       ) : null}

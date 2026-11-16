@@ -149,8 +149,30 @@ async function until(cond, ms = 8000) {
   ok(r.ok && /council/.test(r.message), 'off: the council goes down with it');
   await sleep(500);
   ok(/off/.test(fs.readFileSync(path.join(tmp, 'power'), 'utf-8')), 'power.sh off ran');
+  // --- does it switch itself off? (16 Nov 2026): a look idle + 20 minutes after its last work; a note when still on ---
+  workers._internals.resetPower();
+  const notes = [];
+  workers._internals.setNotifier((n) => { notes.push(n); return n; });
+  ok(workers._internals.offCheckAt() === null && await workers._internals.checkOff(Date.now()) === null, 'no look planned, none made');
+  const t0 = 1794330600 * 1000;   // the stand-in's last-busy mark
+  ok(workers.watchOff(t0) === t0 + 35 * 60000, 'the look: idle minutes (15) + 20 after the last work');
+  ok(await workers._internals.checkOff(t0 + 34 * 60000) === null && !notes.length, 'not before its time');
+  C.state.queue.push({ id: 'c-3', by: 'x', days: 90 });
+  ok(await workers._internals.checkOff(t0 + 36 * 60000) === 'busy' && workers._internals.offCheckAt() === t0 + 71 * 60000, 'postponed while work waits for the DL360');
+  C.state.queue = [];
+  ok(await workers._internals.checkOff(t0 + 72 * 60000, { waitMs: 3000 }) === 'on' && notes.length === 1
+    && notes[0].kind === 'worker-power' && /still on/.test(notes[0].title) && /72 minutes/.test(notes[0].body[0]), `still on, booted by this server and idle: a note (${notes[0] && notes[0].body[0]})`);
+  ok(workers._internals.offCheckAt() === null, 'one look, not a loop');
+  workers.watchOff(t0);
+  ok(await workers._internals.checkOff(t0 + 36 * 60000, { waitMs: 3000, controlsBusy: () => ({ running: 'a control' }) }) === 'busy' && notes.length === 1, 'postponed while a control runs there');
+  workers._internals.setNotifier(null);
+  workers._internals.resetPower();
+  ok(workers.watchOff() > Date.now(), 'planned again after work');
+  workers._internals.resetPower();
+
   cpuCfg = { host: 'root@10.0.0.8' };
   writeCfg({ host: 'root@10.0.0.9' });
+  ok(workers.watchOff() === null, 'no iLO settings: nothing to watch');
   ok(!workers.powerOn('x').ok && /iLO/.test((await workers.powerStatus()).note), 'no iLO settings: never switched by this server');
 
   fs.rmSync(tmp, { recursive: true, force: true });

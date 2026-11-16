@@ -2,6 +2,30 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 16 November 2026
+
+### A lottery run without data is a failed run, tried again by the schedule
+
+*Page: operations*
+
+Finding: the morning lottery run of 16 November got a web page instead of JSON from the lottery API for every game, three times each. It fell back to the CSV files, predicted nothing new and ended with status 0, so the schedule recorded a success and nothing was tried again that day. The log showed the first characters of the page's markup, which said nothing about what the page was.
+
+Decided: a run in which the fetch failed for every game asked for is a failed run. The schedule starts it again by itself, every hour, at most six times. Partial failures stay as they were: a game that failed is a draw behind and catches up on the next run.
+
+Built: `Predictor.py` ends such a run with status 74 after finishing the report and releasing the lock; `jobs.js` plans the retries (kept in `config/scheduler.json`, shown on Jobs & services), and holds the weekly plans until a run with data, or the last retry, finishes; `src/DataFetcher.py` logs a web page as its title and visible text.
+
+### Notifications for the administrator instead of a mail
+
+*Page: operations*
+
+Decided: what goes wrong unattended is shown in the app: a bell with the unread count, the unread list after signing in, and a Notifications page. The notifications are stored on the server and read per administrator.
+
+Why: the roadmap had "a mail on failure", but the server has no mail server to send through, and the administrator opens the app daily. A chat webhook stays possible later.
+
+Built: `notifications.js` (store `config/notifications.json`, the newest 200) with two routes; raised by the schedule for a job that failed, a run without data and the end of its retries, a queue blocked for six hours, the controls falling back from the DL360, a week's reading not written and a job running far longer than usual (1.5 times the longest of its last successful runs and at least half an hour more); raised by the workers for a hyperopt falling back, the DL360 not coming up, and the DL360 still on long after its last work.
+
+Built: the server now looks whether the DL360 switched itself off after its work. Before, a machine that stayed on was only seen by opening Jobs & services.
+
 ## 15 November 2026
 
 ### Documentation split from decisions; in-app wiki

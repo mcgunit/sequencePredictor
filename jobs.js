@@ -137,12 +137,18 @@ const JOBS = [
                + '(Predictor.py -a true), at 06:00 Brussels, usually done by about 08:00 - well before the first sales close '
                + '(13:00 on Sundays for Keno, Pick3 and Joker+). Every draw\'s results are published within about two and a half '
                + 'hours of it, but on the first night run (00:30 UTC, 9 Nov 2026) the Nationale Loterij API answered every game '
-               + 'with an empty reply. Its finishing starts the Saturday tuning chain and the Sunday controls. '
+               + 'with an empty reply. A run the API gives no draws for any game ends with status 74 and is started again '
+               + 'an hour later, up to six times. Its finishing starts the Saturday tuning chain and the Sunday controls. '
                + 'At 09:00 Brussels until 8 Nov 2026, at 00:30 UTC on the night of 8 to 9 Nov.',
     script: 'Predictor.py',
     args: ['-a', 'true', '-g', NIGHT_GAMES],
     log: 'predictor.log',
     daily: { hour: 6, minute: 0 },
+    // A run without data is a failed run (16 Nov 2026; on 9 and 16 Nov the API answered every game with a web page
+    // and the run ended with status 0, the day's predictions not made): Predictor.py ends with status 74
+    // (src/DataFetcher.py NO_DATA_EXIT) when the fetch failed for every game, and the run is started again an hour
+    // after it ended, up to six times (see "a run without data" below).
+    noData: { exit: 74, retries: 6, everyMs: 3600 * 1000 },
     // How long after its slot a missed run is still worth starting. The box
     // being down over a night is the case this exists for; past 20 h (02:00)
     // the next morning's run is close enough to supersede it.
@@ -516,8 +522,10 @@ function jobOfCmdline(cmdline) {
 // the pipeline itself.
 // remote: the Sunday controls' own queue and run on the CPU worker (the DL360, since 11 Nov 2026; see "The Sunday
 // controls on the DL360" below).
+// retry: a run without data waiting for its next try, per job key ({attempt, of, at, since}); durations: the seconds
+// of each job's last successful runs, for "far longer than usual" (both since 16 Nov 2026).
 const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {},
-  remote: { current: null, queue: [] } };
+  remote: { current: null, queue: [] }, retry: {}, durations: {} };
 
 let state = null;
 let timer = null;
@@ -531,6 +539,10 @@ function loadState() {
     // a scheduler.json from before 11 Nov 2026 has no remote part; never share EMPTY's object
     const r = out.remote && typeof out.remote === 'object' ? out.remote : {};
     out.remote = { current: r.current || null, queue: Array.isArray(r.queue) ? r.queue : [] };
+    const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+    out.retry = plain(out.retry) || {};
+    // a scheduler.json from before 16 Nov 2026 has no durations: the kept history gives the first ones
+    out.durations = plain(parsed && parsed.durations) || durationsFrom(out.history);
     return out;
   } catch (e) {
     if (e.code !== 'ENOENT') log(`scheduler.json unreadable (${e.message}) - starting from empty state`);
@@ -588,7 +600,8 @@ function enqueue(key, reason, manual, opts = {}) {
   // administrator asked for by hand. Without the mark, a queue written while
   // the schedule was on would drain the next time the process came up in dry
   // mode - the opposite of what dry mode promises.
-  state.queue.push({ key, reason, queuedAt: Date.now(), manual: Boolean(manual) });
+  // opts.retry: which retry of a run without data this is (launch carries it into the run)
+  state.queue.push({ key, reason, queuedAt: Date.now(), manual: Boolean(manual), ...(opts.retry ? { retry: opts.retry } : {}) });
   log(`queued ${job.name} (${reason})`);
   return true;
 }
@@ -701,12 +714,17 @@ function launch(entry) {
     log(`could not launch ${job.name}: ${e.message}`);
     record({ at: Date.now(), key: job.key, name: job.name, reason: entry.reason, exit: null,
              error: `launch failed: ${e.message}` });
+    notify({ kind: 'job-failed', level: 'error', title: `${job.name} could not be started`, body: `The launch failed: ${e.message}`, link: JOBS_LINK });
     return;
   }
+
+  // this run is the next try of whatever waited for one
+  if (state.retry[job.key]) delete state.retry[job.key];
 
   state.current = {
     runId, key: job.key, name: job.name, reason: entry.reason, startedAt: Date.now(),
     pid: null, pidFile, exitFile, logFile, sha, mode: mode(), ...(entry.backtestId ? { backtestId: entry.backtestId } : {}),
+    ...(entry.retry ? { retry: entry.retry } : {}),
   };
   saveState();
   log(`started ${job.name}${sha ? ` at ${sha}` : ''} (${entry.reason})`);
@@ -715,6 +733,138 @@ function launch(entry) {
   // a Stop button straight away instead of "starting" for 20 seconds.
   const soon = setTimeout(() => { try { pollCurrent(); } catch (e) { /* the tick reports it */ } }, 1500);
   if (soon.unref) soon.unref();
+}
+
+// --- notifications ----------------------------------------------------------
+// What the administrator is told in the app (notifications.js, 16 Nov 2026).
+// Loaded only when a note is raised and inside its own try, as readings.js
+// is: a broken notifications.js cannot stop a job from being recorded or the
+// next one from starting. setNotifier replaces it in the tests.
+const JOBS_LINK = { href: '/admin/jobs', label: 'Jobs & services' };
+let notifier = (note) => require('./notifications').raise(note);
+function notify(note) {
+  try { return notifier(note); } catch (e) {
+    try { log(`could not raise a notification (${note && note.title}): ${e.message}`); } catch (x) { /* the log is a convenience */ }
+    return null;
+  }
+}
+
+const clock = (at) => { const d = new Date(at); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+// --- a run without data -------------------------------------------------------
+// The decision of 16 Nov 2026. A job with a noData spec (the lottery
+// predictor) that ends with that status got no draws for any game: it is
+// started again everyMs after it ended, at most `retries` times, each try a
+// queue entry like any other (it waits for the lock and for whatever runs).
+// The pending try lives in state.retry, so it survives a restart; any start
+// of the job - the next morning's slot, a run by hand - is that try and
+// clears it. Answers null for any other run, else {note, waiting, gaveUp}:
+// waiting while another try is planned.
+function noDataOutcome(run, exit, ended) {
+  const job = jobByKey(run.key);
+  const spec = job && job.noData;
+  if (!spec || exit !== spec.exit) return null;
+  const done = run.retry || 0;
+  if (done >= spec.retries) {
+    delete state.retry[run.key];
+    return { note: `no data from the lottery API on retry ${done} of ${spec.retries}: no further retry, the next scheduled run tries again`,
+      waiting: false, gaveUp: true, done };
+  }
+  const at = ended + spec.everyMs;
+  state.retry[run.key] = { attempt: done + 1, of: spec.retries, at, since: (state.retry[run.key] || {}).since || run.startedAt };
+  return { note: `no data from the lottery API: tries again at ${clock(at)} (retry ${done + 1} of ${spec.retries})`, waiting: true, gaveUp: false, done, at };
+}
+
+// Queues the tries whose hour has come (tick). One that is hours late - the
+// schedule was off, the server down - is dropped: the next slot is closer.
+const RETRY_STALE_MS = 3 * 3600 * 1000;
+function startRetries(now = Date.now()) {
+  Object.keys(state.retry).forEach((key) => {
+    const r = state.retry[key];
+    const job = jobByKey(key);
+    if (!job || !r || !Number.isFinite(r.at)) { delete state.retry[key]; saveState(); return; }
+    if (now < r.at) return;
+    delete state.retry[key];
+    if (now - r.at > RETRY_STALE_MS) {
+      log(`retry ${r.attempt} of ${r.of} of ${job.name} was due ${humanDuration((now - r.at) / 1000)} ago: dropped, the next scheduled run tries again`);
+    } else if (!enqueue(key, `retry ${r.attempt} of ${r.of}: the run before got no data`, false, { retry: r.attempt })) {
+      log(`retry ${r.attempt} of ${r.of} of ${job.name}: it is already queued or running - that run is the retry`);
+    }
+    saveState();
+  });
+}
+
+// What a finished run of this server's queue tells the administrator.
+function notifyFinished(run, exit, note, again, seconds) {
+  if (again) {
+    // one note when the data first fails to come, one when the tries end; not one per try
+    if (!again.done) {
+      notify({ kind: 'no-data', level: 'warning', title: `${run.name}: no data from the lottery API`,
+        body: [`The API answered none of the games, so no prediction was made (the log has what it sent). The run is started again at ${clock(again.at)}, `
+          + `and then every hour, up to ${jobByKey(run.key).noData.retries} times.`], link: JOBS_LINK });
+    } else if (again.gaveUp) {
+      notify({ kind: 'no-data-ended', level: 'error', title: `${run.name}: still no data after ${again.done} retries`,
+        body: ['Today\'s lottery predictions were not made. Nothing further is tried until the next scheduled run; Run now on Jobs & services starts one by hand.'],
+        link: JOBS_LINK });
+    }
+    return;
+  }
+  if (exit === 0) {
+    if (run.retry) {
+      notify({ kind: 'no-data-ended', level: 'info', title: `${run.name}: the data arrived on retry ${run.retry}`,
+        body: ['The run that got no data was started again and finished normally.'], link: JOBS_LINK });
+    }
+    return;
+  }
+  if (run.stoppedBy) return;      // an administrator stopped it: they know
+  notify({ kind: 'job-failed', level: 'error',
+    title: exit === null ? `${run.name}: ${note || 'the outcome is unknown'}` : `${run.name} ended with exit code ${exit}`,
+    body: [`Started ${stamp(run.startedAt)} (${run.reason}), ran ${humanDuration(seconds)}.`], link: JOBS_LINK });
+}
+
+// --- far longer than usual ----------------------------------------------------
+// state.durations keeps the seconds of each job's last DURATIONS_KEPT
+// successful runs (a control on the DL360 under its own key: it is slower
+// there). A run is "far longer than usual" once it has run 1.5 times the
+// longest of them and at least half an hour more - the longest, not the
+// median, because a predictor with nothing to compute ends in minutes and a
+// full one takes hours. Said once per run, and only with SLOW_MIN_RUNS to
+// compare with; a backtest has its own budget and is left out.
+const DURATIONS_KEPT = 8;
+const SLOW_MIN_RUNS = 3;
+const SLOW_FACTOR = 1.5;
+const SLOW_MARGIN_S = 30 * 60;
+function keepDuration(key, seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return;
+  state.durations[key] = [...(state.durations[key] || []), seconds].slice(-DURATIONS_KEPT);
+}
+function durationsFrom(history) {
+  const out = {};
+  (Array.isArray(history) ? history.slice().reverse() : []).forEach((h) => {
+    if (!h || h.exit !== 0 || h.dry || h.blocked || !Number.isFinite(h.seconds)) return;
+    const key = h.worker ? `${h.key}@${h.worker}` : h.key;
+    out[key] = [...(out[key] || []), h.seconds].slice(-DURATIONS_KEPT);
+  });
+  return out;
+}
+function slowLimit(key) {
+  const runs = state.durations[key] || [];
+  if (runs.length < SLOW_MIN_RUNS) return null;
+  const longest = Math.max(...runs);
+  return { longest, limit: Math.max(longest * SLOW_FACTOR, longest + SLOW_MARGIN_S) };
+}
+function checkSlow(run, key, where, now = Date.now()) {
+  if (!run || run.slowAt || run.key === 'backtest') return false;
+  const usual = slowLimit(key);
+  const seconds = (now - run.startedAt) / 1000;
+  if (!usual || seconds <= usual.limit) return false;
+  run.slowAt = now;
+  saveState();
+  log(`${run.name}${where} has run ${humanDuration(seconds)}: far longer than usual (the longest of its last runs took ${humanDuration(usual.longest)})`);
+  notify({ kind: 'slow', level: 'warning', title: `${run.name}${where} runs far longer than usual`,
+    body: [`It has run ${humanDuration(seconds)} since ${stamp(run.startedAt)}; the longest of its last ${state.durations[key].length} successful runs took ${humanDuration(usual.longest)}. `
+      + 'It is still running: the Jobs & services page shows its log and can stop it.'], link: JOBS_LINK });
+  return true;
 }
 
 // --- watching a run ---------------------------------------------------------
@@ -726,18 +876,32 @@ function finish(exit, note, finishedAt) {
   // file's timestamp is when it actually ended.
   const ended = finishedAt || Date.now();
   const seconds = Math.round((ended - run.startedAt) / 1000);
+  // a run without data: its next try is planned before the run is recorded, so the record says when it is
+  const again = noDataOutcome(run, exit, ended);
   record({
     at: run.startedAt, finishedAt: ended, key: run.key, name: run.name, reason: run.reason,
-    seconds, exit, sha: run.sha, pid: run.pid, note: note || null,
+    seconds, exit, sha: run.sha, pid: run.pid, note: note || (again && again.note) || null,
+    ...(run.retry ? { retry: run.retry } : {}), ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}),
   });
-  log(`${run.name} finished after ${humanDuration(seconds)}${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`);
+  if (exit === 0) keepDuration(run.key, seconds);
+  log(`${run.name} finished after ${humanDuration(seconds)}${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`
+    + `${again ? ` - ${again.note}` : ''}`);
   [run.pidFile, run.exitFile].forEach((file) => { try { fs.unlinkSync(file); } catch (e) { /* already gone */ } });
   state.current = null;
   saveState();
+  notifyFinished(run, exit, note, again, seconds);
 
   // Saturday's predictor finishing is the weekly chain's trigger - the whole
-  // point of the item: no fixed 14:00 slot, no idle hours.
-  if (run.key === 'predictor') maybeTriggerChain(new Date(), 'the predictor finishing');
+  // point of the item: no fixed 14:00 slot, no idle hours. Not a run without
+  // data that is tried again: the chain would tune on a history a draw short
+  // and hold the retry behind it for hours, so the retry's finishing is the
+  // trigger (or, the retries used up, the last of them).
+  if (run.key === 'predictor') {
+    // this run's lock going is this finishing: tick() must not read it as a run started outside the scheduler
+    lastLock = null;
+    if (again && again.waiting) log('the weekly plans wait for a run with data');
+    else maybeTriggerChain(new Date(), 'the predictor finishing');
+  }
   // The Sunday controls' last job finishing writes the week's reading.
   scheduleReading(run);
 }
@@ -810,6 +974,9 @@ function writeWeekReading(run, deps = {}) {
     return result;
   } catch (e) {
     try { say(`could not write the week's reading${sunday ? ` for Sunday ${sunday}` : ''}: ${e.message} - nothing else is affected`); } catch (x) { /* the log is a convenience */ }
+    (deps.notify || notify)({ kind: 'reading', level: 'error', title: `The week's reading${sunday ? ` for Sunday ${sunday}` : ''} was not written`,
+      body: [`${e.message}. The controls' records are not affected${sunday ? `; to write it by hand: node readings.js --controls data/controls --sunday ${sunday}` : ''}.`],
+      link: { href: '/admin/controls', label: 'Controls' }, dedupe: `reading:${sunday || 'unknown'}` });
     return null;
   }
 }
@@ -979,7 +1146,9 @@ function finishRemote(exit, note, finishedAt) {
   record({
     at: run.startedAt, finishedAt: ended, key: run.key, name: run.name, reason: run.reason,
     seconds, exit, sha: run.sha, pid: run.pid, note: text || null, worker: 'cpu', host: run.host,
+    ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}),
   });
+  if (exit === 0) keepDuration(`${run.key}@cpu`, seconds);
   log(`${run.name} on the DL360 finished after ${humanDuration(seconds)}${exit === null ? ` (${note || 'outcome unknown'})` : ` with exit code ${exit}`}`);
   [run.pidFile, run.exitFile].forEach((file) => { try { fs.unlinkSync(file); } catch (e) { /* already gone */ } });
   r.current = null;
@@ -991,7 +1160,17 @@ function finishRemote(exit, note, finishedAt) {
     moved.forEach((q) => enqueue(q.key, `${q.reason}; here: the DL360 did not come up`, q.manual, { local: true }));
     log(`the DL360 did not come up: ${moved.map((q) => jobByKey(q.key).name).join(', ')} queued on this server`);
     saveState();
+    notify({ kind: 'worker-fallback', level: 'warning', title: 'The DL360 did not come up: the controls run on this server',
+      body: [`${moved.map((q) => jobByKey(q.key).name).join(', ')} ${moved.length === 1 ? 'is' : 'are'} queued here instead, behind whatever this server runs - `
+        + 'the predictors wait for them. The DL360\'s log (log/remote-control.log) says why it did not start.'], link: JOBS_LINK });
     return;
+  }
+  // the DL360 has to switch itself off after its idle minutes: checked later (workers.js)
+  try { require('./workers').watchOff(); } catch (e) { /* the watch is a convenience */ }
+  if (exit !== 0 && !run.stoppedBy) {
+    notify({ kind: 'job-failed', level: 'error',
+      title: exit === null ? `${run.name} on the DL360: ${note || 'the outcome is unknown'}` : `${run.name} on the DL360 ended with exit code ${exit}`,
+      body: [`Started ${stamp(run.startedAt)} (${run.reason}), ran ${humanDuration(seconds)}.`], link: JOBS_LINK });
   }
   // the reading, as for a run here: written when the plan's last job finishes, from the records copied back
   scheduleReading(run);
@@ -1211,6 +1390,8 @@ function startNext() {
       record({ at: waiting.since, finishedAt: now, key: head.key, name, reason: head.reason,
                seconds: Math.round((now - waiting.since) / 1000), exit: null, blocked: true, note });
       log(note);
+      notify({ kind: 'blocked', level: 'warning', title: `${name} has waited ${humanDuration(WAIT_ALARM_MS / 1000)} for process.lock`,
+        body: [`The lock is held by PID ${holder.pid} (${holder.script}). The job is still queued; nothing has been skipped.`], link: JOBS_LINK });
     }
     return;
   }
@@ -1244,13 +1425,19 @@ function tick() {
     const now = new Date();
     if (mode() !== 'off') {
       dueAt(state.occurrences, now).forEach((entry) => enqueuePlan(entry.plan, entry.occurrence, entry.reason, now));
+      startRetries(now.getTime());
     }
+    checkSlow(state.current, state.current && state.current.key, '', now.getTime());
+    checkSlow(state.remote.current, state.remote.current && `${state.remote.current.key}@cpu`, ' on the DL360', now.getTime());
 
     // "The predictor just finished" also has to be seen when the predictor
     // was not ours: during the dry-run weekend cron still starts it, and the
     // trigger has to be observed to be trusted. The lock is how we see it.
     const holder = lockHolder();
-    if (lastLock && lastLock.key === 'predictor' && !holder && mode() !== 'off') {
+    // Not while the scheduler's own predictor is still ending: it lets go of the lock a moment before its exit code
+    // is written, and what its finishing starts depends on that code (finish).
+    if (lastLock && lastLock.key === 'predictor' && !holder && mode() !== 'off'
+        && !(state.current && state.current.key === 'predictor')) {
       maybeTriggerChain(now, 'the predictor finishing (run started outside the scheduler)');
     }
     lastLock = holder;
@@ -1428,6 +1615,8 @@ function stopRun(runId, by, { kill = (pid, signal) => process.kill(pid, signal),
     try {
       // the wrapper alone, not its group: it stops the run on the DL360 and copies back what it wrote (remote-control.sh)
       kill(far.pid, 'SIGTERM');
+      far.stoppedBy = by;
+      saveState();
       log(`${far.name} on the DL360 (pid ${far.pid}) stopped by ${by}`);
       return { ok: true, status: 200, message: `${far.name}: stopping on the DL360` };
     } catch (e) {
@@ -1442,6 +1631,8 @@ function stopRun(runId, by, { kill = (pid, signal) => process.kill(pid, signal),
     // Negative PID: the whole process group setsid created, so the Python
     // process goes with the wrapper instead of being left behind.
     kill(-run.pid, 'SIGTERM');
+    run.stoppedBy = by;
+    saveState();
     log(`${run.name} (pid ${run.pid}) stopped by ${by}`);
     return { ok: true, status: 200, message: `${run.name}: stopping` };
   } catch (e) {
@@ -1465,6 +1656,9 @@ function status({ full = false } = {}) {
     queue: state.queue.map((q) => Object.assign({}, q, { name: jobByKey(q.key).name })),
     // the Sunday controls on the DL360: null when it is not set up and nothing runs or waits there
     remote: remoteStatus(),
+    // a run without data waiting for its next try: [{key, name, attempt, of, at}]
+    retries: Object.keys(state.retry).filter((key) => jobByKey(key)).map((key) => ({ key, name: jobByKey(key).name,
+      attempt: state.retry[key].attempt, of: state.retry[key].of, at: state.retry[key].at })),
     jobs: JOBS.map((job) => ({
       key: job.key, name: job.name, description: job.description,
       command: `python3 ${job.script}${job.args.length ? ` ${job.args.join(' ')}` : ''}`,
@@ -1518,6 +1712,9 @@ module.exports = {
     runsOnDay, planDayOf, planKeysOn, nextMonthlyDay, enqueuePlan, enqueueBacktest, backtestBudget, secondsToNextSlot, pickNext,
     // the Sunday controls on the DL360
     REMOTE_NOT_STARTED, toWorker, startNextRemote, pollRemote, finishRemote, adoptRemote, remoteStatus,
+    // a run without data, far longer than usual, the notifications (16 Nov 2026)
+    finish, noDataOutcome, startRetries, checkSlow, keepDuration, durationsFrom, slowLimit, stopRun,
+    setNotifier: (fn) => { notifier = fn; }, setLastLock: (v) => { lastLock = v; },
     useWorker: (configFn, envFn, script) => { workerConfig = configFn; workerEnv = envFn || (() => ({})); remoteScript = script || REMOTE_SCRIPT; },
   },
 };

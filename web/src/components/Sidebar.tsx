@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { retryMe, useMe } from '../hooks/useMe';
+import { useNotifications } from '../hooks/useNotifications';
 import { useWeekStatus } from '../hooks/useWeekStatus';
 import { useWhatsNew } from '../hooks/useWhatsNew';
 import { readTheme, setTheme, type ThemeChoice } from '../theme';
@@ -85,6 +86,7 @@ const HERE: [string, string][] = [
   ['/admin/randomness', 'Randomness'],
   ['/admin/jobs', 'Jobs & services'],
   ['/admin/people', 'People'],
+  ['/admin/notifications', 'Notifications'],
   ['/admin/wiki', 'Wiki'],
   ['/admin/games', 'Games in detail'],
   ['/admin/markets/crypto', 'Crypto workbench'],
@@ -109,6 +111,27 @@ function WeekLink({ on, onNavigate }: { on: boolean; onNavigate: () => void }) {
           <span className="vh">: {DOT_TEXT[level]}</span>
         </>
       ) : null}
+    </Link>
+  );
+}
+
+// The administrator's notifications (16 Nov 2026): a bell and the unread count, under This week. The count is red: these
+// are failures, not news.
+function AlertCount({ n }: { n: number | null | undefined }) {
+  if (!n) return null;
+  return (
+    <span className="badge alert">
+      <span aria-hidden="true">🔔 </span>
+      {n}
+      <span className="vh"> unread notification{n === 1 ? '' : 's'}</span>
+    </span>
+  );
+}
+function AlertsLink({ on, n, onNavigate }: { on: boolean; n: number | null; onNavigate: () => void }) {
+  return (
+    <Link className={on ? 'wk on' : 'wk'} to="/admin/notifications" aria-current={on ? 'page' : undefined} onClick={onNavigate}>
+      Notifications
+      {n ? <AlertCount n={n} /> : <span className="bell" aria-hidden="true">🔔</span>}
     </Link>
   );
 }
@@ -147,6 +170,8 @@ export default function Sidebar() {
   // the unseen notes, and the introduction while it is unread (the old navbar's dot lit for either)
   const wn = useWhatsNew(user && !user.open ? 'once' : 'never').view;
   const news = wn && wn.unseen !== null ? wn.unseen + (wn.tour.done === false ? 1 : 0) : null;
+  // the administrator's unread notifications (also with open access: they cannot be marked read there)
+  const alerts = useNotifications(user?.admin ? 'once' : 'never').view?.unread ?? null;
 
   // Open as a sidebar on wide screens, closed under the compact bar on phones.
   useEffect(() => {
@@ -177,6 +202,7 @@ export default function Sidebar() {
           <span className="brand">Predictor</span>
           <span className="here">{here}</span>
           {/* on a phone the menu starts closed: the count shows on the bar, as the old navbar's dot did */}
+          <AlertCount n={alerts} />
           <NewCount n={news} />
           <span className="burger" aria-hidden="true">
             ☰
@@ -198,6 +224,7 @@ export default function Sidebar() {
             <>
               <div className="grp">Admin</div>
               <WeekLink on={pathname === '/admin' || pathname === '/admin/'} onNavigate={closeDrawer} />
+              <AlertsLink on={pathname === '/admin/notifications'} n={alerts} onNavigate={closeDrawer} />
               {ADMIN_GROUPS.map((g) => {
                 const holds = g.items.some(
                   (i) => (i.to && (pathname === i.to.split('#')[0] || (i.prefix && pathname.startsWith(`${i.to}/`)))),

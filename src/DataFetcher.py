@@ -1,5 +1,6 @@
 import os, sys, csv, time, ast, re
 from datetime import datetime
+from html import unescape
 import requests
 
 
@@ -30,6 +31,48 @@ def prize_tables():
     except ImportError:
         import PrizeTables
     return PrizeTables
+
+
+
+# What a reply that is not JSON says, for the log. The API's failures of 9 and 16 Nov 2026 were web pages (HTTP 200),
+# and the first 160 characters of a page are its doctype and style sheet: nothing of what it says. So a page is
+# reduced to its title and its visible text (scripts, styles and tags left out, white space collapsed); any other
+# reply is kept as it is. At most `limit` characters.
+PAGE_TEXT_LIMIT = 400
+
+def page_text(body, limit=PAGE_TEXT_LIMIT):
+    text = str(body or "")
+    if re.search(r"<\s*(!doctype|html|head|body|title)\b", text, re.I):
+        title = re.search(r"<title[^>]*>(.*?)</title\s*>", text, re.I | re.S)
+        visible = re.sub(r"<(script|style|noscript|head|svg)\b.*?</\1\s*>", " ", text, flags=re.I | re.S)
+        # a page cut off inside its style sheet or script (no closing tag) has no visible text after it
+        visible = re.sub(r"<(script|style|noscript|svg)\b.*\Z", " ", visible, flags=re.I | re.S)
+        visible = re.sub(r"<!--.*?-->", " ", visible, flags=re.S)
+        visible = re.sub(r"<[^>]*>", " ", visible)
+        parts = []
+        if title:
+            parts.append("title: " + re.sub(r"<[^>]*>", " ", title.group(1)))
+        parts.append("text: " + visible)
+        text = unescape("; ".join(parts))
+        text = re.sub(r"\s+", " ", text).strip()
+        if text in ("text:", "title: ; text:"):
+            text = "a web page without visible text"
+    else:
+        text = re.sub(r"\s+", " ", text).strip()
+    return text if len(text) <= limit else text[:limit - 3] + "..."
+
+
+
+# A run that fetched nothing is a failed run (16 Nov 2026): when the fetch failed for every lottery game the run
+# asked for, the predictor ends with this status instead of 0, and the scheduler (jobs.js) starts it again an hour
+# later. Not for a run where at least one game answered: its failed games are a draw behind and catch up on the next
+# run. 74 is sysexits' EX_IOERR; 75 is taken by a control that could not start on the CPU worker.
+NO_DATA_EXIT = 74
+
+def no_data_status(attempted, failed):
+    """NO_DATA_EXIT when every game whose draws were asked for failed (and at least one was asked), else 0."""
+    attempted, failed = list(attempted), set(failed)
+    return NO_DATA_EXIT if attempted and all(g in failed for g in attempted) else 0
 
 
 class DataFetcher():
@@ -90,7 +133,8 @@ class DataFetcher():
     # A failed answer is tried again before the caller falls back to the CSV on disk: on 9 Nov 2026, at 00:30 UTC, the
     # API answered every game with a reply that was not JSON, and the day's lottery predictions were skipped (the run
     # moved to 06:00 Brussels). Each failure is logged with its HTTP status and the start of the reply, so the next one
-    # says what the API sent. RETRY_WAITS: the seconds before the second and third attempt.
+    # says what the API sent - for a web page its title and visible text (page_text). RETRY_WAITS: the seconds before
+    # the second and third attempt.
     RETRY_WAITS = (30, 120)
 
     def fetch_json(self, url, headers, game, sleep=time.sleep, get=None):
@@ -104,7 +148,7 @@ class DataFetcher():
                 try:
                     return response.json()
                 except ValueError as e:
-                    body = (getattr(response, "text", "") or "")[:160].replace("\n", " ")
+                    body = page_text(getattr(response, "text", "") or "")
                     raise ValueError(f"HTTP {getattr(response, 'status_code', '?')}, not JSON ({e}): {body!r}")
             except Exception as e:
                 if not waits:
@@ -264,6 +308,56 @@ class DataFetcher():
                 for row in sorted_data:
                     writer.writerow(row.split(';'))  # Split the row into a list of values
 
+
+
+def _self_check():
+    # page_text: a page is its title and visible text, never its style sheet
+    page = ('<!doctype html> <html lang="en"> <head><meta charset="utf-8"><title>Site  Maintenance</title>'
+            '<style>body { font: 20px Helvetica } h1 { font-size: 50px }</style><script>var a = "<b>x</b>";</script></head>'
+            '<body><!-- hidden --><h1>We&rsquo;ll be back soon!</h1><p>Sorry for the\n inconvenience &amp; thanks.</p></body></html>')
+    text = page_text(page)
+    assert text == "title: Site Maintenance; text: We\u2019ll be back soon! Sorry for the inconvenience & thanks.", text
+    assert "font" not in text and "var a" not in text and "hidden" not in text
+    # the reply of 16 Nov as the old log kept it: cut off inside the style sheet
+    assert page_text('<!doctype html> <html lang="en"> <head> <style> body { text-align: center') == "a web page without visible text"
+    assert page_text('<html><head><title>502 Bad Gateway</title></head><body><center>nginx</center></body></html>') == "title: 502 Bad Gateway; text: nginx"
+    assert page_text("upstream  connect error\n or disconnect") == "upstream connect error or disconnect"
+    assert page_text("") == "" and page_text(None) == ""
+    long = page_text("<html><body>" + "word " * 500 + "</body></html>")
+    assert len(long) == PAGE_TEXT_LIMIT and long.endswith("...")
+
+    # fetch_json: three attempts, and the error of the last one carries the page's text
+    class Reply:
+        status_code = 200
+        def __init__(self, text): self.text = text
+        def json(self):
+            import json
+            return json.loads(self.text)
+    fetcher = DataFetcher()
+    waits, calls = [], []
+    def bad(url, headers, timeout):
+        calls.append(url)
+        return Reply(page)
+    try:
+        import io, contextlib
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            fetcher.fetch_json("u", {}, "Lotto", sleep=waits.append, get=bad)
+        raise AssertionError("a page must not pass as JSON")
+    except ValueError as e:
+        assert "HTTP 200, not JSON" in str(e) and "Site Maintenance" in str(e) and "back soon" in str(e), str(e)
+        assert "font" not in str(e)
+    assert len(calls) == 3 and waits == list(DataFetcher.RETRY_WAITS), (calls, waits)
+    assert out.getvalue().count("trying again") == 2 and "Site Maintenance" in out.getvalue()
+    answers = [Reply(page), Reply('{"draws": []}')]
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert fetcher.fetch_json("u", {}, "Lotto", sleep=lambda s: None, get=lambda url, headers, timeout: answers.pop(0)) == {"draws": []}
+
+    # no_data_status: only a run where every asked game failed
+    assert no_data_status(["lotto", "keno"], ["lotto", "keno"]) == NO_DATA_EXIT == 74
+    assert no_data_status(["lotto", "keno"], ["lotto"]) == 0
+    assert no_data_status(["lotto"], []) == 0
+    assert no_data_status([], []) == 0          # a market-only run asks the lottery API nothing
+    print("DataFetcher self-check OK")
 
 
 if __name__ == "__main__":

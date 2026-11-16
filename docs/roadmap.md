@@ -10,7 +10,7 @@ This page lists what is open or partly open in the project: for each item, what 
 | Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
 | Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings |
-| Platform | item 8: a mail on failure, a predictor job per game; item 9: day files to SQLite; cleanup |
+| Platform | item 8: a predictor job per game; item 9: day files to SQLite; cleanup |
 
 ## Lottery
 
@@ -161,11 +161,11 @@ The design of the track, the controls and how to read them are in [research](res
 
 ### 8. Pipeline scheduling inside the server
 
-**Built.** The server's scheduler (`jobs.js`) owns the daily predictor runs, the Saturday tuning chain, the Sunday controls and the on-demand jobs. See [operations](operations.md).
+**Built.** The server's scheduler (`jobs.js`) owns the daily predictor runs, the Saturday tuning chain, the Sunday controls and the on-demand jobs. A failed job, a run without data and a worker that misbehaves raise a notification for the administrator in the app. See [operations](operations.md).
 
 **Remains.**
 
-- A mail to the administrator when a scheduled job exits non-zero. There is no mail code in the server.
+- A message outside the app (a chat webhook) when a notification is raised, if the app's own notifications prove not enough. The server has no mail code.
 - A predictor job per game, so one game's failure cannot cost the others their run. The predictor runs as three jobs per group: crypto at night, the lottery games in the morning, the stocks in the evening.
 
 ### 9. Day-file storage: from one JSON per game and day to SQLite

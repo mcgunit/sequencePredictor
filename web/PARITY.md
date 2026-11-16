@@ -203,7 +203,7 @@ An adversarial reader then tried to refute each reported gap. Result: 42 gaps re
 
 **Sign-off before the switch**
 - [ ] As a user: Home, Lottery (a game, its history, a draw), Crypto, Shares, Council, account, What's new; on a phone too.
-- [ ] As the administrator: This week, Controls, Models (all six pages), Jobs & services, People.
+- [ ] As the administrator: This week, Controls, Models (all six pages), Jobs & services, Notifications, People.
 - [ ] A few old bookmarks open their app page, for each role.
 - [ ] Sign-in page: light, dark, phone.
 - [ ] The introduction rewrite and the switch announcement, proofread and approved.

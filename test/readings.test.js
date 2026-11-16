@@ -176,9 +176,14 @@ const result = writeWeekReading(q0Run(local(2026, 10, 18, 12)), { readings: stan
 ok(result.written && calls.length === 2 && calls[0][1].sunday === '2026-10-18' && calls[0][1].root === tmp && calls[0][1].by === 'scheduler' && calls[1][2].root === tmp
   && /reading for Sunday 2026-10-18: written/.test(lines[0]), `the stand-in is asked for that Sunday's reading under the checkout: ${lines[0]}`);
 const broken = { buildReading: () => { throw new Error('boom'); }, writeReading: () => { throw new Error('never'); } };
-ok(writeWeekReading(q0Run(local(2026, 10, 18, 12)), { readings: broken, log: (l) => lines.push(l) }) === null && /could not write the week's reading for Sunday 2026-10-18: boom - nothing else is affected/.test(lines[1]),
+// notify: a stand-in, so the note of a failed reading never reaches the checkout's own config/notifications.json
+const notes = [];
+const notify = (n) => { notes.push(n); return n; };
+ok(writeWeekReading(q0Run(local(2026, 10, 18, 12)), { readings: broken, log: (l) => lines.push(l), notify }) === null && /could not write the week's reading for Sunday 2026-10-18: boom - nothing else is affected/.test(lines[1]),
   'a reading that fails is one log line, never a throw');
-ok(writeWeekReading(q0Run(local(2026, 10, 18, 12)), { readings: broken, log: () => { throw new Error('log down'); } }) === null, 'not even when the log fails too');
+ok(notes.length === 1 && notes[0].kind === 'reading' && notes[0].level === 'error' && /Sunday 2026-10-18 was not written/.test(notes[0].title)
+  && notes[0].dedupe === 'reading:2026-10-18' && notes[0].link.href === '/admin/controls', 'and one notification for the administrator, once per Sunday');
+ok(writeWeekReading(q0Run(local(2026, 10, 18, 12)), { readings: broken, log: () => { throw new Error('log down'); }, notify }) === null, 'not even when the log fails too');
 const deferred = [];
 ok(scheduleReading(q0Run(local(2026, 10, 18, 12)), { defer: (fn) => deferred.push(fn), readings: standIn, log: () => {}, root: tmp }) === true && deferred.length === 1 && calls.length === 2,
   'finish() only schedules it: nothing is built before the run is recorded and the schedule moves on');
