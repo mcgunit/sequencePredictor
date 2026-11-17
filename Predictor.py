@@ -47,6 +47,7 @@ from src.MarketGame import daily_refresh as market_refresh
 from src.MarketSettle import settle_and_export as market_settle
 from src.MarketModels import build_market_models, GARCH_NAME
 from src import RowVariants as rowVariants
+from src import CouncilTicket as councilTicket
 from src import ParamOverrides as paramOverrides
 from src.MultiPick import config_for as multiPickConfig, ordered_and_extras as multiPickOrder, order_for as probabilityOrder, in_score_order as inScoreOrder
 from src.PrizeTables import game_of as prizeTableGame, backfill as prizeBackfill
@@ -388,8 +389,12 @@ def process_single_history_entry_first_step(args):
     historyDate, historyResult = historyEntry
     jsonFileName = f"{historyDate.year}-{historyDate.month}-{historyDate.day}.json"
     jsonFilePath = os.path.join(path, "data", "database", name, jsonFileName)
+    # A rebuild writes the day anew, and the Council rows cannot be made again (one LLM answer per row and day,
+    # 17 Nov 2026): the ones the file holds are carried to the second step, which puts them back.
+    councilKept = councilTicket.kept_rows(jsonFilePath)
 
     current_json_object = {
+        "councilKept": councilKept,
         "currentPredictionRaw": [],
         "currentPrediction": [],
         "currentNumberFrequency": {},
@@ -951,6 +956,7 @@ def process_single_history_entry_second_step(args):
     current_json_object["newPrediction"].extend(heldVariants)
     addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object)
     labelManualRows(current_json_object, name, path)
+    councilTicket.put_back(current_json_object["newPrediction"], current_json_object.pop("councilKept", None))
 
     with open(jsonFilePath, "w+") as outfile:
         json.dump(current_json_object, outfile, indent=2)
@@ -1055,6 +1061,8 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         if forceRebuild or not os.path.exists(jsonFilePath):
             if not forceRebuild:
                 print("New result detected. Lets compare with a prediction from previous entry")
+            # -r writes this day anew: the Council rows it holds are put back (see the rebuild's first step)
+            councilKept = councilTicket.kept_rows(jsonFilePath)
 
             current_json_object = {
                 "currentPredictionRaw": [],
@@ -1176,6 +1184,7 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
                     current_json_object["newPrediction"].extend(heldVariants)
                     addSampledRows(current_json_object, name, jsonFilePath, bestParams_json_object)
                     labelManualRows(current_json_object, name, path)
+                    councilTicket.put_back(current_json_object["newPrediction"], councilKept)
 
                     with open(jsonFilePath, "w+") as outfile:
                         json.dump(current_json_object, outfile, indent=2)
@@ -3011,7 +3020,6 @@ if __name__ == "__main__":
 
     exitStatus = 0
     try:
-        time.sleep(100)
         try:
             helpers.git_pull()
         except Exception as e:

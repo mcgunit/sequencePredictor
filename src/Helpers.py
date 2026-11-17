@@ -159,6 +159,15 @@ def _variant_row(name):
     return is_variant(name)
 
 
+def _council_row(name):
+    """A Council row (src/CouncilTicket.py, 17 Nov 2026): scored and ranked, never an input of another row."""
+    try:
+        from src.CouncilTicket import is_council
+    except ImportError:
+        from CouncilTicket import is_council
+    return is_council(name)
+
+
 def variants_last(ranked):
     """
     A ranking with the variant rows after every other row, each order kept, and those rows marked "variant": they
@@ -2025,7 +2034,7 @@ class Helpers():
         }
 
         established = [m for m in models if m["draws"] >= minDraws and (m["bets"] > 0 if hasPayout else True)
-                       and not _variant_row(m.get("name"))]
+                       and not _variant_row(m.get("name")) and not _council_row(m.get("name"))]
         # `models` is ranked best-first, so the cap keeps the strongest rows.
         established = established[:maxRows]
         names = sorted(m["name"] for m in established)

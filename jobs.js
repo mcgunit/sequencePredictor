@@ -185,6 +185,22 @@ const JOBS = [
   },
   ...LOTTERY_GAMES.map(lotteryJob),
   {
+    // The Council rows (docs/roadmap.md item 12, 17 Nov 2026): tickets from the Council's local LLMs, added to each
+    // game's day file as rows. A job of its own behind the lottery predictors (`after`: queued when the last of
+    // them ends, ahead of the weekly plans), so a slow or silent LLM costs no game its predictions. The models run
+    // on the DL360, which is switched on first (`wake`) and switches itself off when idle again.
+    key: 'councilRows',
+    name: 'Council rows',
+    description: 'Asks the Council\'s local LLMs for a ticket for every lottery game\'s next draw and adds the answers to the '
+               + 'day files as rows, scored like every other row (CouncilRows.py). Two kinds: from the other rows\' recent '
+               + 'record, and from the draws alone; each as one row per Council member and one that combines them. It starts '
+               + 'when the morning\'s lottery predictors have ended, switches the DL360 on first, and skips a game whose '
+               + 'day file already holds the rows. An answer that is no valid ticket is asked again twice; after that the '
+               + 'row is absent that day. Status 75: no Council model answered.',
+    script: 'CouncilRows.py', args: [], log: 'councilRows.log',
+    after: LOTTERY, wake: 'cpu', unreachableExit: 75,
+  },
+  {
     // The decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
     // open-to-close book is one nobody could have followed. Euronext's day is complete after 18:00 Brussels
     // (src/MarketData.py EURONEXT_READY), so the run is at 18:05 (18:30 until 8 Nov 2026) and the card is up the
@@ -379,6 +395,26 @@ function lotteryPending(except = null) {
   state.queue.forEach((q) => { if (isLottery(q.key)) keys.add(q.key); });
   Object.keys(state.retry).forEach((key) => { if (isLottery(key)) keys.add(key); });
   return [...keys].map(nameOf);
+}
+// The last lottery run of the morning can also go without finishing: removed from the queue, a retry dropped as hours
+// late, a launch that fails. The weekly plans wait for "no lottery run left" and only a run's finishing looked, so
+// they then waited for the 23:00 net (found in review, 16 Nov 2026). Each of those three asks here.
+function lotteryLeft(key, why, now = new Date()) {
+  if (!isLottery(key) || mode() === 'off' || lotteryPending().length) return;
+  maybeTriggerChain(now, why);
+}
+// The jobs that follow the morning's lottery predictors (`after`; the Council rows, 17 Nov 2026): queued when no
+// lottery game is running or queued any more. A game that waits for a retry is not waited for - its try may be
+// hours away, and the job is queued again behind it, where it adds only that game's rows. Called before the weekly
+// plans are, so it sits ahead of them in the queue. Only a run that ended queues it: a game taken out of the queue
+// made nothing, and Run now is there for the games made before it.
+function queueAfterLottery(except, why) {
+  if (mode() === 'off') return [];
+  if (state.current && state.current !== except && isLottery(state.current.key)) return [];
+  if (state.queue.some((q) => isLottery(q.key))) return [];
+  const queued = JOBS.filter((j) => j.after === LOTTERY).filter((j) => enqueue(j.key, `after ${why}`, false));
+  if (queued.length) saveState();
+  return queued.map((j) => j.key);
 }
 
 // --- mode -------------------------------------------------------------------
@@ -576,8 +612,10 @@ function jobOfCmdline(cmdline) {
 // controls on the DL360" below).
 // retry: a run without data waiting for its next try, per job key ({attempt, of, at, since}); durations: the seconds
 // of each job's last successful runs, for "far longer than usual" (both since 16 Nov 2026).
+// stopped: the run the schedule stopped last, until its process group is gone ({pid, key, name, at, members,
+// killedAt, reportedAt}; reapStopped).
 const EMPTY = { version: 1, occurrences: {}, queue: [], current: null, history: [], baselinedAt: null, baselinedPlans: {}, lotterySplitAt: null,
-  remote: { current: null, queue: [] }, retry: {}, durations: {} };
+  remote: { current: null, queue: [] }, retry: {}, durations: {}, stopped: null };
 
 let state = null;
 let timer = null;
@@ -593,6 +631,7 @@ function loadState() {
     out.remote = { current: r.current || null, queue: Array.isArray(r.queue) ? r.queue : [] };
     const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
     out.retry = plain(out.retry) || {};
+    out.stopped = plain(out.stopped) && Number.isInteger(out.stopped.pid) && out.stopped.pid > 1 ? out.stopped : null;
     // a scheduler.json from before 16 Nov 2026 has no durations: the kept history gives the first ones
     out.durations = plain(parsed && parsed.durations) || durationsFrom(out.history);
     return out;
@@ -724,6 +763,20 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
+// A job whose work is done by a worker machine's services, not on it (`wake`: the Council rows ask the LLMs on the
+// DL360): the machine is switched on first, as worker/remote-control.sh does for a control - the same marked wake,
+// so it switches itself off when idle again. A wake that fails is written in the job's log and the job still runs:
+// it finds out itself whether the services answer. Without that worker set up, nothing is woken.
+function wakeLines(job, logFile) {
+  if (!job.wake) return [];
+  let c = null;
+  let env = {};
+  try { c = workerConfig(); env = c ? workerEnv(c) : {}; } catch (e) { c = null; }
+  if (!c || !env.WORKER_ILO_ENV) return [];
+  const vars = ['WORKER_HOST', 'WORKER_ILO_ENV', 'WORKER_IDLE_MINUTES'].filter((k) => env[k]).map((k) => `${k}=${shellQuote(env[k])}`).join(' ');
+  return [`${vars} bash ${shellQuote(path.join(ROOT, 'worker', 'power.sh'))} wake >> ${shellQuote(logFile)} 2>&1 || echo 'the wake failed: going on' >> ${shellQuote(logFile)}`];
+}
+
 function launch(entry) {
   const job = jobByKey(entry.key);
   const logFile = path.join(LOG_DIR, job.log);
@@ -747,6 +800,7 @@ function launch(entry) {
     `cd ${shellQuote(ROOT)} || exit 97`,
     `printf '=== scheduler: %s started %s UTC ===\n' ${shellQuote(job.name)} "$(date -u '+%F %T')${sha ? ` ${sha}` : ''}" >> ${shellQuote(logFile)}`,
     'started=$(date +%s)',
+    ...wakeLines(job, logFile),
     `python3 ${shellQuote(job.script)}${args.length ? ` ${args.map(shellQuote).join(' ')}` : ''} >> ${shellQuote(logFile)} 2>&1`,
     'status=$?',
     `printf '=== scheduler: %s finished status=%s after %ss ===\n' ${shellQuote(job.name)} "$status" "$(( $(date +%s) - started ))" >> ${shellQuote(logFile)}`,
@@ -767,6 +821,7 @@ function launch(entry) {
     record({ at: Date.now(), key: job.key, name: job.name, reason: entry.reason, exit: null,
              error: `launch failed: ${e.message}` });
     notify({ kind: 'job-failed', level: 'error', title: `${job.name} could not be started`, body: `The launch failed: ${e.message}`, link: JOBS_LINK });
+    lotteryLeft(job.key, `${job.name} failing to start`);
     return;
   }
 
@@ -839,6 +894,8 @@ function startRetries(now = Date.now()) {
     delete state.retry[key];
     if (now - r.at > RETRY_STALE_MS) {
       log(`retry ${r.attempt} of ${r.of} of ${job.name} was due ${humanDuration((now - r.at) / 1000)} ago: dropped, the next scheduled run tries again`);
+      saveState();
+      lotteryLeft(key, `a late retry of ${job.name} being dropped`, new Date(now));
     } else if (!enqueue(key, `retry ${r.attempt} of ${r.of}: the run before got no data`, false, { retry: r.attempt })) {
       log(`retry ${r.attempt} of ${r.of} of ${job.name}: it is already queued or running - that run is the retry`);
     }
@@ -879,11 +936,18 @@ function notifyFinished(run, exit, note, again, seconds) {
   if (run.hungAt) {
     // the schedule stopped it (stopHung): the administrator did not, and has to know the game's day was not made
     notify({ kind: 'job-failed', level: 'error', title: `${run.name} was stopped: far longer than usual`,
-      body: [`${hungText(run)}. Its predictions for today were not made; the next job in the queue has started. Run now on Jobs & services starts it again.`],
+      body: [`${hungText(run)}. Its predictions for today were not made; the queue moves on once its processes are gone. Run now on Jobs & services starts it again.`],
       link: JOBS_LINK });
     return;
   }
   if (run.stoppedBy) return;      // an administrator stopped it: they know
+  if (job.unreachableExit !== undefined && exit === job.unreachableExit) {
+    notify({ kind: 'job-failed', level: 'warning', title: `${run.name}: no Council model answered`,
+      body: ['The LLMs on the DL360 did not answer (is the machine on, are its llama services up?). No Council rows were made for today\'s draws; '
+        + 'the other rows are not affected. Run now on Jobs & services tries again; the job log says what it found.'],
+      link: JOBS_LINK, dedupe: `unreachable:${run.key}`, dedupeMs: NO_DATA_NOTE_MS });
+    return;
+  }
   notify({ kind: 'job-failed', level: 'error',
     title: exit === null ? `${run.name}: ${note || 'the outcome is unknown'}` : `${run.name} ended with exit code ${exit}`,
     body: [`Started ${stamp(run.startedAt)} (${run.reason}), ran ${humanDuration(seconds)}.`], link: JOBS_LINK });
@@ -985,10 +1049,103 @@ function stopHung(run, key, now = Date.now(), deps = {}) {
   if (seconds <= usual.limit) return false;
   run.hungAt = now;
   run.hung = { seconds: Math.round(seconds), limit: usual.limit, longest: usual.longest, runs: usual.runs, fallback: usual.fallback };
+  // the group's processes as they are now: the ones looked for after the stop (reapStopped)
+  run.hungMembers = (deps.list || groupList)(run.pid);
   saveState();
   const answer = stopRun(run.runId, STOPPED_BY_SCHEDULE, deps);
   log(`${run.name} has run ${humanDuration(seconds)}, past its limit of ${humanDuration(usual.limit)}: ${answer.ok ? 'stopped, the queue moves on' : `could not be stopped (${answer.message})`}`);
   return answer.ok;
+}
+
+// After the stop. SIGTERM to the group ends the wrapper at once, so the run is finished (pollCurrent: gone without an
+// exit code) long before the minute is over and the SIGKILL above never came - while a process of the group that
+// ignores SIGTERM keeps process.lock and holds the games behind it for hours (found in review, 16 Nov 2026). So the
+// stopped run's process group is remembered (state.stopped, kept across a restart) and looked at on every tick:
+// the queue waits while a process of it is left, SIGKILL goes to the group a minute after the stop, and when a
+// process is still there a minute after that, a notification says so and the queue stops waiting (the lock rule
+// still holds it when that process has the lock). A group id cannot be given out again while a process of the
+// group lives, and only the processes that were in it at the stop count, so the kill cannot reach another job.
+function groupList(pgid) {
+  const out = [];
+  let names;
+  try { names = fs.readdirSync('/proc'); } catch (e) { return out; }
+  names.forEach((name) => {
+    if (!/^\d+$/.test(name)) return;
+    try {
+      const stat = fs.readFileSync(`/proc/${name}/stat`, 'utf-8');
+      // pid (comm) state ppid pgrp session ... starttime is the 22nd field; comm may hold spaces and brackets
+      const f = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      if (Number(f[2]) === pgid && f[0] !== 'Z') out.push({ pid: Number(name), start: f[19] });
+    } catch (e) { /* ended meanwhile */ }
+  });
+  return out;
+}
+// Those of the group's processes that were there at the stop (`known`, from groupList then): the same PID with the
+// same start time - the kernel's own tick count, compared as written, since this container's clock of "since boot"
+// is not the one those ticks count from.
+function groupMembers(pgid, known) {
+  const was = new Set([].concat(known || []).map((m) => `${m.pid}:${m.start}`));
+  return groupList(pgid).filter((m) => was.has(`${m.pid}:${m.start}`)).map((m) => m.pid);
+}
+
+// What a stop in the middle of a write can leave in the checkout: git's index lock (a later game's commit fails on
+// it, and its day files stay unpushed) and tracked files changed but not committed. Null when there is neither.
+function checkoutAfterStop() {
+  const lines = [];
+  const lock = path.join(ROOT, '.git', 'index.lock');
+  if (fs.existsSync(lock)) {
+    lines.push('git\'s index lock (.git/index.lock) was left behind: the commits of the runs after it fail until it is removed. '
+      + 'With no job running: rm .git/index.lock in the checkout.');
+  }
+  try {
+    const changed = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'],
+      { cwd: ROOT, encoding: 'utf-8', timeout: 20000, stdio: ['ignore', 'pipe', 'ignore'], env: { ...childEnv(), GIT_OPTIONAL_LOCKS: '0' } })
+      .split('\n').filter(Boolean).map((l) => l.slice(3));
+    if (changed.length) {
+      lines.push(`${changed.length} tracked file${changed.length === 1 ? ' has' : 's have'} changes that are not committed (${changed.slice(0, 4).join(', ')}${changed.length > 4 ? ', …' : ''}): `
+        + 'a file written halfway is among them when the stop came during a write. The next run of that game writes its files again; git diff shows what is there now.');
+    }
+  } catch (e) { /* no git here, or it did not answer: nothing to say */ }
+  return lines.length ? lines : null;
+}
+
+function reapStopped(now = Date.now(), deps = {}) {
+  const s = state.stopped;
+  if (!s) return null;
+  const left = (deps.members || groupMembers)(s.pid, s.members);
+  if (!left.length) {
+    state.stopped = null;
+    saveState();
+    log(`${s.name} (pid ${s.pid}): its processes are gone${s.killedAt ? ' after SIGKILL' : ''}`);
+    const found = (deps.checkout || checkoutAfterStop)();
+    if (found) {
+      log(`${s.name} was stopped during a write: ${found.join(' ')}`);
+      notify({ kind: 'job-failed', level: 'warning', title: `${s.name} was stopped during a write: the checkout needs a look`, body: found, link: JOBS_LINK });
+    }
+    return 'gone';
+  }
+  if (mode() === 'off') return 'left';
+  if (!s.killedAt) {
+    if (now - s.at < STOP_KILL_AFTER_MS) return 'waiting';
+    s.killedAt = now;
+    saveState();
+    try {
+      (deps.kill || ((pid, signal) => process.kill(pid, signal)))(-s.pid, 'SIGKILL');
+      log(`${s.name} (pid ${s.pid}): ${left.length} process${left.length === 1 ? '' : 'es'} did not end on SIGTERM (${left.join(', ')}): SIGKILL`);
+    } catch (e) {
+      log(`${s.name} (pid ${s.pid}): SIGKILL failed (${e.message})`);
+    }
+    return 'killed';
+  }
+  if (!s.reportedAt && now - s.killedAt >= STOP_KILL_AFTER_MS) {
+    s.reportedAt = now;
+    saveState();
+    log(`${s.name} (pid ${s.pid}): ${left.join(', ')} still there after SIGKILL - the queue no longer waits for it`);
+    notify({ kind: 'job-failed', level: 'error', title: `${s.name} was stopped but a process of it is still there`,
+      body: [`Process${left.length === 1 ? '' : 'es'} ${left.join(', ')} did not end on SIGTERM or SIGKILL. While it holds process.lock the next jobs wait; end it by hand (kill -9).`],
+      link: JOBS_LINK });
+  }
+  return 'left';
 }
 
 // --- watching a run ---------------------------------------------------------
@@ -1013,6 +1170,10 @@ function finish(exit, note, finishedAt) {
     + `${again ? ` - ${again.note}` : ''}`);
   [run.pidFile, run.exitFile].forEach((file) => { try { fs.unlinkSync(file); } catch (e) { /* already gone */ } });
   state.current = null;
+  // the schedule stopped it: its process group is watched until it is gone (reapStopped)
+  if (run.hungAt && run.pid && exit !== 0) {
+    state.stopped = { pid: run.pid, key: run.key, name: run.name, at: run.hungAt, members: run.hungMembers || [], killedAt: run.killedAt || null, reportedAt: null };
+  }
   saveState();
   notifyFinished(run, exit, note, again, seconds);
 
@@ -1026,6 +1187,8 @@ function finish(exit, note, finishedAt) {
   if (isLottery(run.key)) {
     // this run's lock going is this finishing: tick() must not read it as a run started outside the scheduler
     lastLock = null;
+    // not after a run without data: it made nothing to read
+    if (exit !== ((jobByKey(run.key) || {}).noData || {}).exit) queueAfterLottery(run, 'the lottery predictions');
     const left = lotteryPending(run);
     if (left.length) log(`the weekly plans wait for ${left.length === 1 ? left[0] : `${left.length} lottery games' runs`}${again && again.waiting ? ' (a run with data)' : ''}`);
     else maybeTriggerChain(new Date(), 'the lottery predictions finishing');
@@ -1524,6 +1687,8 @@ function startNext() {
     saveState();
   }
   if (!state.queue.length) return;
+  // the run the schedule stopped still has processes: they go first (reapStopped; two minutes at most)
+  if (state.stopped && !state.stopped.reportedAt) return;
 
   const holder = lockHolder();
   if (holder) {
@@ -1584,6 +1749,7 @@ function tick() {
     pollRemote();
 
     const now = new Date();
+    reapStopped(now.getTime());
     if (mode() !== 'off') {
       dueAt(state.occurrences, now).forEach((entry) => enqueuePlan(entry.plan, entry.occurrence, entry.reason, now));
       startRetries(now.getTime());
@@ -1668,6 +1834,7 @@ function stop() {
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function nextDueText(job, now) {
   if (job.manualOnly) return 'when an administrator starts one (Admin › Parameters)';
+  if (job.after === LOTTERY) return 'when the morning\'s lottery predictors have ended';
   if (job.daily) return `${stamp(nextDaily(now, job.daily))} (${job.daily.weekdays ? 'Monday to Friday' : 'daily'} ${slotText(job.daily)})`;
   const spec = job.plan && PLANS[job.plan];
   const day = spec ? WEEKDAY_NAMES[spec.weekday] : 'Saturday';
@@ -1753,7 +1920,7 @@ function backtestState() {
 }
 
 // Cancel: takes a job out of the queue; a running job is stopped, not cancelled.
-function cancelQueued(key, by) {
+function cancelQueued(key, by, now = new Date()) {
   const before = state.queue.length + state.remote.queue.length;
   state.queue = state.queue.filter((q) => q.key !== key);
   state.remote.queue = state.remote.queue.filter((q) => q.key !== key);
@@ -1763,6 +1930,7 @@ function cancelQueued(key, by) {
   saveState();
   const name = (jobByKey(key) || { name: key }).name;
   log(`${name} removed from the queue by ${by}`);
+  lotteryLeft(key, `${name} being removed from the queue`, now);
   return { ok: true, status: 200, message: `${name}: removed from the queue` };
 }
 
@@ -1879,7 +2047,7 @@ module.exports = {
     // a run without data, far longer than usual, the notifications (16 Nov 2026)
     finish, noDataOutcome, startRetries, checkSlow, keepDuration, durationsFrom, slowLimit, stopRun,
     // a job per lottery game (16 Nov 2026)
-    LOTTERY, LOTTERY_GAMES, isLottery, lotteryPending, splitLottery, stopLimit, stopHung, STOP_FALLBACK_S, STOP_FLOOR_S, STOP_KILL_AFTER_MS,
+    LOTTERY, LOTTERY_GAMES, isLottery, lotteryPending, splitLottery, stopLimit, stopHung, reapStopped, groupList, groupMembers, checkoutAfterStop, lotteryLeft, queueAfterLottery, wakeLines, cancelQueued, STOP_FALLBACK_S, STOP_FLOOR_S, STOP_KILL_AFTER_MS,
     setNotifier: (fn) => { notifier = fn; }, setLastLock: (v) => { lastLock = v; },
     useWorker: (configFn, envFn, script) => { workerConfig = configFn; workerEnv = envFn || (() => ({})); remoteScript = script || REMOTE_SCRIPT; },
   },

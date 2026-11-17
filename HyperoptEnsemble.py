@@ -17,6 +17,7 @@ from src import TuningResult as tres
 from src.Lockbox import (load_or_warn as load_lockbox, split_by_date as lockbox_split_days, describe as describe_lockbox,
                          describe_withheld as describe_lockbox_withheld)
 from src.RowVariants import is_variant
+from src.CouncilTicket import is_council
 from src.VoteRows import effective_members, weighted_is_flat, positional_vote, voter_count, SUBSET_WEIGHTS_KEY
 
 helpers = Helpers()
@@ -297,7 +298,7 @@ def candidate_rows(evaluation_days):
         for row in rows:
             name = row.get("name")
             # the variant rows (src/RowVariants.py, 8 Nov 2026) join only through a gated decision, later
-            if not name or name in EXCLUDED_ROWS or name in seen or is_variant(name):
+            if not name or name in EXCLUDED_ROWS or name in seen or is_variant(name) or is_council(name):   # the Council rows are no members (17 Nov 2026)
                 continue
             if row.get("predictions") and row["predictions"][0]:
                 presence[name] = presence.get(name, 0) + 1

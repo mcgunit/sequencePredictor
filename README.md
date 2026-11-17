@@ -52,7 +52,7 @@ Each model produces a *row*: a ticket for the coming draw (or a call per instrum
 
 **Upcoming or proposed (not built):**
 
-- **LLM predictor** - a row whose ticket comes from large language models: the local LLMs of the Council (Qwen2.5, Granite-4.0, Falcon-H1, EXAONE-4.0, with LFM2.5 combining their answers) given the recent draws and the other rows' votes, scored like every other row. The Council itself (`/app/council`, `src/llmCouncil/`) is built and answers questions today; it was built with this row in mind.
+- **LLM predictor** - a row whose ticket comes from large language models: the local LLMs of the Council (Qwen2.5, Granite-4.0, Falcon-H1, EXAONE-4.0, with LFM2.5 combining their answers) given the recent draws and the other rows' votes, scored like every other row. The Council itself (`/app/council`, `src/llmCouncil/`) answers questions; its rows are made every morning for the lottery games.
 - Q3: direct quantum scoring of each candidate number; Q4: a Grover-style candidate-search cost study (docs/research.md).
 - Sentiment signals for the markets (CryptoPanic, LunarCrush, QuantMuse) as meta-learner features, not as predictors.
 - Lotto multi-pick: a first six rethought from the ranking (argmax by ranking) if the 7th-9th numbers turn out to carry signal.
@@ -66,7 +66,8 @@ The open work, in short. Each item is described in [docs/roadmap.md](docs/roadma
 - [ ] Tuners and meta-learners on profit for those four games (they tune on hits).
 - [ ] Lotto multi-pick: read the 7th-9th numbers against chance once enough draws are scored, then the euro value of a 7- to 9-number system play from the prize tables.
 - [ ] Vote per position for the positional games, phase 2.
-- [ ] Council rows: tickets from the Council's LLMs, per member and combined, from the other rows' record and from the draws alone (the LLM predictor above).
+- [x] Council rows: tickets from the Council's LLMs, per member and combined, from the other rows' record and from the draws alone (the LLM predictor above), on the lottery games.
+- [ ] Council rows on the market games, after the first readings.
 
 **Markets**
 - [ ] Shares: read the first weekend tunings on the five Euronext shares.
@@ -85,7 +86,7 @@ The open work, in short. Each item is described in [docs/roadmap.md](docs/roadma
 - [ ] Follow the control readings the scheduler writes after every Sunday's controls.
 
 **Platform**
-- [ ] A message outside the app (a chat webhook) when a notification is raised, if the app's own notifications prove not enough.
+- [ ] Notifications to a chat app (Telegram or similar), if the app's own notifications prove not enough (low priority).
 - [ ] Day files to SQLite, when its trigger is reached (docs/roadmap.md item 9).
 - [ ] Clean up stale control files and the old `Council_Integration.md`.
 

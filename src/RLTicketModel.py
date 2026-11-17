@@ -15,6 +15,7 @@ if src_dir not in sys.path:
 
 from Helpers import Helpers
 from RowVariants import without_variants
+from CouncilTicket import without_council
 
 helpers = Helpers()
 
@@ -161,7 +162,7 @@ class RLTicketModel():
             if mainCount:
                 realResult = realResult[:mainCount]
             # the variant rows (src/RowVariants.py, 8 Nov 2026) are not features: kept out like today's rows
-            rows = without_variants(dayData.get("currentPrediction") or [])
+            rows = without_council(without_variants(dayData.get("currentPrediction") or []))   # nor the Council rows (17 Nov 2026)
             entries.append((fileDate, rows, realResult))
 
         entries.sort(key=lambda entry: entry[0])

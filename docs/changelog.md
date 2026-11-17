@@ -2,6 +2,22 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 17 November 2026
+
+### Council rows
+
+*Pages: models, operations*
+
+Decided: the Council's LLMs give tickets as tracked rows on all seven lottery games, in both kinds (from the other rows' record, from the draws alone), each as one row per member and one combined row. The CPU worker is switched on for it every morning. The rows are scored and ranked like every other row and are no input of another row.
+
+Built: `CouncilRows.py` and `src/CouncilTicket.py`; the job `councilRows`, queued behind the morning's lottery predictors and ahead of the weekly plans, with the worker's marked wake and a notification when no model answers. The ensemble member selection, the RL ticket row and its tuner, and the combination search leave the rows out. A history rebuild puts back the Council rows a day file holds.
+
+Found in the first trials against the models: the head thinks for about 150 tokens before it answers, so an allowance of 160 tokens cut every answer off. Given the members' tickets as lines, the head answered with all of them one after the other, also when told what was wrong; given a tally of what the members chose, it gives one ticket. The small models tend to list more numbers than asked on the long tickets (Lotto's nine, Keno's twenty), which is why a set game's answer is cut to the first numbers asked for.
+
+Evidence: two dry runs over five games (Pick3, EuroMillions, Lotto, Keno, Joker+), nothing written. In the second, with the tally, 22 of 30 rows were valid tickets on Lotto, Keno and Joker+; the rows that failed were mostly one member answering with a single number. A game takes about 10 minutes, so the seven games take a little over an hour after the predictors; the machine answers 4 minutes after it is switched on and its models a further 3 minutes later. Some valid answers are plainly lazy (the numbers 1 to 9 for Lotto).
+
+Open: the retry that names what was wrong with the last answer was built after these runs and has not been tried against the models. The market games have no Council rows.
+
 ## 16 November 2026
 
 ### A predictor job per lottery game
@@ -15,6 +31,10 @@ Why: one run made all seven games, so a game that crashed, hung or got no data c
 Built: `jobs.js` has seven jobs `<game>Predictor` with their own logs, retries and usual durations; the Saturday chain and the Sunday controls start behind the last of them (none running, queued or waiting for a retry). The stop rule: twice the longest of a game's last successful runs and at least two hours, or four hours with fewer than seven runs to compare with. The notifications of a morning without data are raised once, not once per game. The run history keeps 160 runs instead of 40. `Predictor.py` ends with status 1 when a game's prediction raised an error, so that run is recorded as failed; before, it ended with 0.
 
 Built: the admin pages read the lottery morning as one run a day, continuous with the one job's earlier runs: the Today tile and This week show how many games are made, which were not ok and which wait, and a day's drawer lists each game's run. On its first start the new schedule takes over the old job's handled slots, its pending retry and its queue entry, so a deploy after 06:00 does not make the morning a second time.
+
+Found in review, the same day: the kill a minute after the stop never came, because the stop ends the job's wrapper at once and the run is finished before the minute is over, while a process that ignores the stop keeps `process.lock`. A stop during a write could leave git's index lock or a file written halfway, unsaid. And the weekly plans waited for the 23:00 net when the last lottery job went without finishing (removed from the queue, a late retry dropped, a launch that failed).
+
+Built: the stopped job's process group is watched until it is gone, across a restart: the next game waits for it, a process left after a minute is killed, one left after two is named in a notification. Only the processes that were in the group at the stop count, by PID and start time. After the stop a notification names an index lock or uncommitted tracked files. The three ways a lottery job goes without finishing start the weekly plans when no other lottery job is left.
 
 Evidence: seven separate runs start Python and load the libraries seven times, which adds about a quarter of an hour to the morning; it is usually done by about 10:30, before the first sales close.
 

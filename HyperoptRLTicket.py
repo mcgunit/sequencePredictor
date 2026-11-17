@@ -11,6 +11,7 @@ from art import text2art
 from datetime import datetime
 
 from src.RLTicketModel import RLTicketModel
+from src.CouncilTicket import without_council
 from src.RLPositionModel import RLPositionModel, ROW_NAME as POSITION_ROW
 from src.MarketSettle import cash_pnl, leg_rate
 from src.TuningScore import score_bets_by_day, attrs_for_trial, describe
@@ -236,7 +237,7 @@ def load_evaluation_days(historyDir, days):
         except Exception:
             continue
 
-        rows = dayData.get("currentPrediction") or []
+        rows = without_council(dayData.get("currentPrediction") or [])   # the Council rows are no features (17 Nov 2026)
         realResult = dayData.get("realResult") or []
         if not rows or not realResult:
             continue

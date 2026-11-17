@@ -6,11 +6,11 @@ This page lists what is open or partly open in the project: for each item, what 
 
 | Area | Open items |
 |---|---|
-| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); the Council rows (item 12) |
+| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12) |
 | Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
 | Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings |
-| Platform | item 8: a message outside the app; item 9: day files to SQLite; cleanup |
+| Platform | item 8: notifications to a chat app (Telegram or similar), low priority; item 9: day files to SQLite; cleanup |
 
 ## Lottery
 
@@ -47,20 +47,13 @@ This page lists what is open or partly open in the project: for each item, what 
 
 ### 12. Council rows: tickets from the LLMs
 
-**Built.** The Council (`/app/council`, `src/llmCouncil/`): local LLMs answer questions, one model combining the others' answers. See [operations](operations.md).
+**Built.** The Council (`/app/council`, `src/llmCouncil/`): local LLMs answer questions, one model combining the others' answers. The Council rows on the seven lottery games: tickets from each member and from the head's combination, from the other rows' record and from the draws alone, made by a job of its own after the morning's predictors. See [models](models.md) and [operations](operations.md).
 
-**Remains.** Tracked rows whose ticket comes from the Council, scored like every other row. Two kinds, each as one row per Council member and one row for the Council's combined answer, so the ranking shows whether combining helps:
+**Remains.**
 
-- **From the rows' record.** The LLM reads a summary of what the other rows predicted on recent draws and what was drawn, and gives a ticket for the coming draw. It is a meta-learner done by an LLM: its comparison is the weighted ensemble and the RL ticket row. The risk to read for is that it follows whichever row did well lately.
-- **From the draws alone.** The LLM reads only past draws and gives a ticket. On draws that test fair this is expected to behave as a biased random generator; it serves as a control, and its favourite numbers show as repetition.
-
-What the build has to settle:
-
-- **A job of its own, after the predictor.** A slow or failed LLM never holds up the predictor; the row is absent that day, as a foundation row is. The Council runs on the CPU worker, so the job wakes it.
-- **Forward only.** The rows are built for the live day and never inside a history rebuild (one LLM call per row, game and day); they are scored from their first day.
-- **A valid ticket or none.** An answer that is not a ticket of the game (range, count, distinct numbers) is asked again a fixed number of times and then dropped. The prompt, the model, the temperature and the seed are recorded with the row.
-- **What fits the context.** The whole history of every row does not fit a local model: the first kind reads a summary (recent draws, each row's ticket and result).
-- **Which games.** The lottery games first; the market games after the first readings.
+- The first readings: whether the record rows follow whichever row did well lately, whether combining helps, how much the draws rows repeat themselves, and how often a row is absent.
+- The market games, after those readings.
+- A mark on the pages that a row's ticket comes from an LLM, with its prompt and answers a click away (they are kept in `data/council/`).
 
 ## Markets
 
@@ -165,7 +158,7 @@ The design of the track, the controls and how to read them are in [research](res
 
 **Remains.**
 
-- A message outside the app (a chat webhook) when a notification is raised, if the app's own notifications prove not enough. The server has no mail code.
+- Notifications to a chat app (Telegram or similar) when one is raised, if the app's own notifications prove not enough. Low priority. The server has no mail code.
 
 ### 9. Day-file storage: from one JSON per game and day to SQLite
 

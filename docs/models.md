@@ -36,6 +36,7 @@ On the five games in `MultiPick.PROBABILITY_ORDER` (vikinglotto, euromillions, e
 | Vote | `WeightedEnsemble Model`, `SubsetEnsemble Model` |
 | Reinforcement learning | `RL Ticket Model` (lottery), `RL Position Model` (markets) |
 | Variants | `<row> · Memorise`, `<row> · Sampled` |
+| Council | `Council (record): <member>`, `Council (draws): <member>`, and `Council (record): combined`, `Council (draws): combined` (lottery games) |
 
 ## Statistical models (`src/`)
 
@@ -270,6 +271,37 @@ On a sorted set game the per-position series are order statistics: position 1 is
 - A foundation model is recognised by its `IS_FOUNDATION_MODEL` attribute, and `_start_worker` refuses when the model is used in a process other than the one that built it.
 - `foundationContext` is part of the score-table cache fingerprint.
 - Self-check: `python3 src/FoundationModel.py <game>` precomputes, forks children and asserts they served from the cache and started no worker.
+
+## Council rows (`CouncilRows.py`, `src/CouncilTicket.py`)
+
+Rows whose ticket comes from the local LLMs of the Council (`src/llmCouncil/`), on the seven lottery games. They are scored and ranked like every other row.
+
+Two kinds, each as one row per Council member and one row named `combined`:
+
+- **`Council (record): …`** The LLM reads the last 8 draws (5 for Keno), and for the ten best-ranked rows that play today: how many numbers each had right on those draws and what it plays for the next draw. It is a meta-learner done by an LLM; its comparison is `WeightedEnsemble Model` and `RL Ticket Model`. The risk to read for is that it follows whichever row did well lately.
+- **`Council (draws): …`** The LLM reads only the last 30 draws (10 for Keno). On draws that test fair this is a biased random generator: it serves as a control, and its favourite numbers show as repetition.
+
+The `combined` row is the Council's head model choosing one ticket from a tally of what the members chose (which numbers, by how many members). It is made when at least two members gave a ticket.
+
+### A valid ticket or none
+
+The answer is one line, `TICKET:` followed by the numbers, the special numbers after a plus sign. `CouncilTicket.read_answer` accepts it only as a ticket of the game: the count, the range, no number twice in a set game. An answer that is not a ticket is asked again, at most three tries in all; the next try names what was wrong with the last and is asked at a temperature of at least 0.5. After three tries the row is absent that day, as a foundation row is.
+
+One leniency: in a set game an answer that lists more main numbers than asked is cut to the first ones, since the question asks for the most likely first. Special numbers and the digits of a positional game are never cut.
+
+Lotto is asked for nine numbers: the first six are the ticket, the other three its multi-pick. Keno is asked for twenty numbers in order; their first 5 to 10 are the tickets, in the sizes the day's other rows play.
+
+### What is recorded
+
+Each row carries `council`: the kind, the member, the model the endpoint reports, the temperature, the seed, the number of tries and a hash of the prompt. A member without a seed in the Council's config gets one fixed by game, day, row and try. The prompts and every answer, refused ones included, are kept in `data/council/<game>/<day>.json`.
+
+### Where they do not count
+
+The Council rows are no input of another row: `SubsetEnsemble Model`'s member selection (`HyperoptEnsemble.py`), `RL Ticket Model` and its tuner, and the combination search leave them out. They are made after the day's other rows, so `WeightedEnsemble Model` never sees them.
+
+### Forward only
+
+They are made for the live day by a job of its own (see [operations](operations.md)) and never inside a history rebuild. A rebuild of a day that holds Council rows, `-r` included, puts them back unchanged.
 
 ## How predictions are combined
 

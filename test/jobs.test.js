@@ -24,7 +24,7 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 21, 'twenty-one jobs: the night crypto run, a morning run per lottery game (seven), the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
+ok(jobs.JOBS.length === 22, 'twenty-two jobs: the night crypto run, a morning run per lottery game (seven), the Council rows behind them, the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
 // A job per lottery game (16 Nov 2026): one game's failure, or its hanging, cannot cost the other six their run.
 const LOTTERY_JOBS = jobs.JOBS.filter((j) => j.group === jobs.LOTTERY);
 const LOTTERY_KEYS = LOTTERY_JOBS.map((j) => j.key);
@@ -615,6 +615,213 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
       results.push(kills.length === 2 && !st().current.hungAt, 'no PID yet: not marked as stopped');
       fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
       st().current = null;
+    }
+
+    // --- after the stop (review, 16 Nov 2026): the stopped run's process group is watched until it is gone ---
+    {
+      const { execFileSync: run } = require('child_process');
+      const kills = [];
+      const found = [];
+      let members = [5001, 5002];
+      const deps = { kill: (pid, signal) => { kills.push(`${pid} ${signal}`); }, members: () => members, checkout: () => found.shift() || null };
+      // the stop block above ended a run that had its SIGKILL already: remembered as such
+      results.push(st().stopped && st().stopped.pid === 4242 && st().stopped.key === 'kenoPredictor' && st().stopped.killedAt === t0 + 7262 * 1000,
+        `a run the schedule stopped is remembered when it is finished: ${JSON.stringify(st().stopped)}`);
+      // the usual course: SIGTERM ends the wrapper, the run is finished at once, a child of it lives on
+      fs.unlinkSync(path.join(dir, 'config', 'scheduler.disabled'));
+      game('kenoPredictor', { pid: 4444 });
+      c.checkSlow(st().current, 'kenoPredictor', '', t0 + 7201 * 1000, { kill: deps.kill, isAlive: () => true, list: () => ['m'] });
+      c.finish(null, 'the job disappeared without writing an exit code (killed?)', t0 + 7202 * 1000);
+      const s0 = st().stopped;
+      results.push(kills.join() === '-4444 SIGTERM' && s0.pid === 4444 && s0.at === t0 + 7201 * 1000 && s0.killedAt === null && st().current === null && s0.members.join() === 'm',
+        `finished before the minute is over: the group is remembered, not yet killed: ${JSON.stringify(s0)}`);
+      notes.length = 0;
+      results.push(c.reapStopped(t0 + 7230 * 1000, deps) === 'waiting' && kills.length === 1, 'inside the minute: nothing more is sent');
+      // the queue waits for it
+      st().queue.push({ key: 'pick3Predictor', reason: 'run by hand', manual: true });
+      c.startNext();
+      results.push(st().current === null && st().queue.length === 1, 'the next game does not start while the stopped one has processes left');
+      results.push(c.reapStopped(t0 + 7262 * 1000, deps) === 'killed' && kills.join() === '-4444 SIGTERM,-4444 SIGKILL' && st().stopped.killedAt === t0 + 7262 * 1000,
+        `a minute after the stop with a process left: SIGKILL to the group: ${kills.join()}`);
+      results.push(c.reapStopped(t0 + 7280 * 1000, deps) === 'left' && kills.length === 2 && notes.length === 0, 'killed once, and no note inside the next minute');
+      // a restart in between keeps it
+      results.push(JSON.parse(fs.readFileSync(path.join(dir, 'config', 'scheduler.json'), 'utf-8')).stopped.pid === 4444, 'the stopped group is in the state file: a restart goes on watching it');
+      members = [];
+      results.push(c.reapStopped(t0 + 7290 * 1000, deps) === 'gone' && st().stopped === null && notes.length === 0, 'its processes gone and the checkout clean: forgotten, no note');
+      results.push(c.reapStopped(t0 + 7300 * 1000, deps) === null, 'nothing stopped: nothing to do');
+      // it never goes: said once, and the queue stops waiting (the lock rule is what still holds it)
+      members = [5003];
+      st().stopped = { pid: 4445, key: 'kenoPredictor', name: 'Morning predictor: Keno', at: t0, killedAt: t0 + 60000, reportedAt: null };
+      c.reapStopped(t0 + 121000, deps);
+      c.reapStopped(t0 + 131000, deps);
+      results.push(notes.length === 1 && notes[0].level === 'error' && /a process of it is still there/.test(notes[0].title) && /5003/.test(notes[0].body[0]) && st().stopped.reportedAt === t0 + 121000,
+        `still there a minute after SIGKILL: one error note naming the process: ${notes[0] && notes[0].body[0]}`);
+      // with the schedule off nothing is killed
+      st().stopped = { pid: 4446, key: 'kenoPredictor', name: 'Morning predictor: Keno', at: t0, killedAt: null, reportedAt: null };
+      fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+      results.push(c.reapStopped(t0 + 600000, deps) === 'left' && kills.length === 2, 'with the schedule off the stopped group is not killed');
+      fs.unlinkSync(path.join(dir, 'config', 'scheduler.disabled'));
+      // a stop during a write: what it left in the checkout is named
+      members = [];
+      notes.length = 0;
+      found.push(['git\'s index lock (.git/index.lock) was left behind', '2 tracked files have changes that are not committed (a, b)']);
+      c.reapStopped(t0 + 600000, deps);
+      results.push(notes.length === 1 && notes[0].kind === 'job-failed' && notes[0].level === 'warning' && /stopped during a write/.test(notes[0].title) && notes[0].body.length === 2,
+        'an index lock or uncommitted tracked files after the stop: one warning that names them');
+      results.push(c.checkoutAfterStop() === null, 'a folder without git and without an index lock: nothing to say');
+      fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+      fs.writeFileSync(path.join(dir, '.git', 'index.lock'), '');
+      const lockLines = c.checkoutAfterStop();
+      results.push(Array.isArray(lockLines) && /index\.lock/.test(lockLines[0]), 'an index lock left behind is found');
+      fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true });
+      st().queue.length = 0;
+
+      // the real thing: a process group that ignores SIGTERM is found by its group id, and only what started before the stop
+      const pidFile = path.join(dir, 'deaf.pid');
+      run('setsid', ['--fork', 'bash', '-c', `trap '' TERM; echo $$ > ${pidFile}; sleep 60 & wait`], { stdio: 'ignore' });
+      let pgid = null;
+      for (let i = 0; i < 40 && !pgid; i += 1) {
+        try { pgid = Number(fs.readFileSync(pidFile, 'utf-8').trim()) || null; } catch (e) { /* not yet */ }
+        if (!pgid) run('sleep', ['0.1']);
+      }
+      run('sleep', ['0.3']);
+      const known = c.groupList(pgid);
+      const live = c.groupMembers(pgid, known);
+      results.push(live.length === 2 && live.includes(pgid), `the wrapper and its child are the group's members: ${live.join()} of ${pgid}`);
+      results.push(c.groupMembers(pgid, []).length === 0 && c.groupMembers(pgid, known.map((m) => ({ pid: m.pid, start: `${m.start}1` }))).length === 0,
+        'only the processes that were there at the stop count: the same PID with another start time is another process, never killed');
+      process.kill(-pgid, 'SIGTERM');
+      run('sleep', ['0.3']);
+      st().stopped = { pid: pgid, key: 'kenoPredictor', name: 'Morning predictor: Keno', at: Date.now(), members: known, killedAt: null, reportedAt: null };
+      const first = c.reapStopped(Date.now() + 61000, { checkout: () => null });
+      run('sleep', ['0.5']);
+      const second = c.reapStopped(Date.now() + 62000, { checkout: () => null });
+      results.push(first === 'killed' && second === 'gone' && st().stopped === null && c.groupList(pgid).length === 0,
+        `a group that ignores SIGTERM is ended by the SIGKILL a minute later: ${first}, ${second}`);
+      fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+    }
+
+    // --- the last lottery run going without finishing starts the weekly plans too (review, 16 Nov 2026) ---
+    {
+      const saturday = at('2026-11-21T07:30:00');
+      const id = c.planTriggerAt(CHAIN_PLAN, {}, saturday);
+      const fresh = () => { st().occurrences = {}; st().queue.length = 0; st().retry = {}; st().current = null; };
+      fs.unlinkSync(path.join(dir, 'config', 'scheduler.disabled'));
+      // removed from the queue
+      fresh();
+      st().queue.push({ key: 'pick3Predictor', reason: 'schedule 06:00', manual: false }, { key: 'vikinglottoPredictor', reason: 'schedule 06:00', manual: false });
+      copy.cancelQueued('pick3Predictor', 'admin', saturday);
+      results.push(!st().occurrences[id], 'a game removed from the queue with another still queued: the weekly plans wait');
+      copy.cancelQueued('vikinglottoPredictor', 'admin', saturday);
+      results.push(Boolean(id) && Boolean(st().occurrences[id]) && /removed from the queue/.test(st().occurrences[id].reason || JSON.stringify(st().occurrences[id])),
+        `the last game removed from the queue: the weekly plans start, not at the 23:00 net: ${JSON.stringify(st().occurrences[id])}`);
+      // a job that is no lottery game changes nothing
+      fresh();
+      st().queue.push({ key: 'cryptoPredictor', reason: 'x', manual: false });
+      copy.cancelQueued('cryptoPredictor', 'admin', saturday);
+      results.push(!st().occurrences[id], 'the crypto run removed from the queue starts no plan');
+      // another weekday: nothing
+      fresh();
+      st().queue.push({ key: 'pick3Predictor', reason: 'schedule 06:00', manual: false });
+      copy.cancelQueued('pick3Predictor', 'admin', at('2026-11-18T07:30:00'));
+      results.push(Object.keys(st().occurrences).length === 0, 'on a weekday without a plan nothing starts');
+      // a retry dropped as hours late
+      fresh();
+      st().retry.kenoPredictor = { attempt: 2, of: 6, at: saturday.getTime() - 4 * HOUR, since: saturday.getTime() - 6 * HOUR };
+      c.startRetries(saturday.getTime());
+      results.push(!st().retry.kenoPredictor && Boolean(st().occurrences[id]), 'the last waiting retry dropped as hours late: the weekly plans start');
+      fresh();
+      st().retry.kenoPredictor = { attempt: 2, of: 6, at: saturday.getTime() - 4 * HOUR, since: saturday.getTime() - 6 * HOUR };
+      st().retry.lottoPredictor = { attempt: 2, of: 6, at: saturday.getTime() + HOUR, since: saturday.getTime() - 6 * HOUR };
+      c.startRetries(saturday.getTime());
+      results.push(!st().occurrences[id] && Boolean(st().retry.lottoPredictor), 'a late retry dropped while another game still waits for its try: the plans wait');
+      // with the schedule off nothing starts
+      fresh();
+      fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
+      st().queue.push({ key: 'pick3Predictor', reason: 'schedule 06:00', manual: false });
+      copy.cancelQueued('pick3Predictor', 'admin', saturday);
+      results.push(!st().occurrences[id], 'with the schedule off the plans are not started');
+      fresh();
+      st().history = st().history.filter((h) => !h.dry);
+    }
+
+    // --- the Council rows follow the morning's lottery predictors (17 Nov 2026) ---
+    {
+      const job = copy.JOBS.find((j) => j.key === 'councilRows');
+      results.push(job && job.script === 'CouncilRows.py' && job.after === copy.LOTTERY && !job.daily && !job.plan && job.wake === 'cpu' && job.unreachableExit === 75,
+        'the Council rows are a job of their own: no slot and no plan, started after the lottery games');
+      results.push(/lottery predictors have ended/.test(copy.status().jobs.find((j) => j.key === 'councilRows').next), 'its trigger is said in words on the Jobs page');
+      const fresh = () => { st().occurrences = {}; st().queue.length = 0; st().retry = {}; st().current = null; };
+      const queuedKeys = () => st().queue.map((q) => q.key).join();
+      // with the schedule off nothing follows
+      fresh();
+      game('kenoPredictor');
+      c.finish(0, null, t0 + 1000);
+      results.push(queuedKeys() === '', 'with the schedule off nothing is queued behind the games');
+      fs.unlinkSync(path.join(dir, 'config', 'scheduler.disabled'));
+      // a game ending with another still queued: not yet
+      fresh();
+      st().queue.push({ key: 'pick3Predictor', reason: 'schedule 06:00', manual: false });
+      game('kenoPredictor');
+      c.finish(0, null, t0 + 1000);
+      results.push(queuedKeys() === 'pick3Predictor', 'a game ending with another still queued: the Council rows wait');
+      // the last game ending: queued, and ahead of the weekly plan it also starts
+      fresh();
+      game('vikinglottoPredictor');
+      c.finish(0, null, t0 + 1000);
+      results.push(queuedKeys() === 'councilRows' && /^after the lottery predictions/.test(st().queue[0].reason) && st().queue[0].manual === false,
+        `the last game ending queues the Council rows: ${JSON.stringify(st().queue)}`);
+      // a failed last game still lets the others' rows be made; a run without data made nothing to read
+      fresh();
+      game('vikinglottoPredictor');
+      c.finish(1, null, t0 + 1000);
+      results.push(queuedKeys() === 'councilRows', 'the last game failing: the other games\' rows are still asked');
+      fresh();
+      game('vikinglottoPredictor');
+      c.finish(74, null, t0 + 1000);
+      results.push(queuedKeys() === '' && Boolean(st().retry.vikinglottoPredictor), 'a run without data queues nothing: its retry does when it ends');
+      // a game waiting for its retry is not waited for
+      fresh();
+      st().retry.lottoPredictor = { attempt: 1, of: 6, at: Date.now() + HOUR, since: t0 };
+      game('vikinglottoPredictor');
+      c.finish(0, null, t0 + 1000);
+      results.push(queuedKeys() === 'councilRows', 'another game waiting for its retry does not hold the Council rows');
+      // already queued: not twice; the crypto run never queues it
+      game('pick3Predictor');
+      c.finish(0, null, t0 + 1000);
+      results.push(queuedKeys() === 'councilRows', 'not queued twice');
+      fresh();
+      game('cryptoPredictor');
+      c.finish(0, null, t0 + 1000);
+      results.push(queuedKeys() === '', 'the crypto run queues no Council rows');
+      // the last game leaving the queue without running
+      fresh();
+      st().queue.push({ key: 'pick3Predictor', reason: 'schedule 06:00', manual: false });
+      copy.cancelQueued('pick3Predictor', 'admin', at('2026-11-18T07:30:00'));
+      results.push(queuedKeys() === '', 'a game removed from the queue made nothing: no Council rows are queued for it');
+      // no model answered: one warning, not the generic failure
+      fresh();
+      notes.length = 0;
+      begin({ key: 'councilRows', name: 'Council rows' });
+      c.finish(75, null, t0 + 1000);
+      results.push(notes.length === 1 && notes[0].level === 'warning' && /no Council model answered/.test(notes[0].title) && notes[0].dedupe === 'unreachable:councilRows',
+        `status 75 is said as what it is: ${notes[0] && notes[0].title}`);
+      notes.length = 0;
+      begin({ key: 'councilRows', name: 'Council rows' });
+      c.finish(1, null, t0 + 1000);
+      results.push(notes.length === 1 && notes[0].level === 'error' && /ended with exit code 1/.test(notes[0].title), 'any other failure is the usual note');
+      // the wake: only with the DL360 set up, and with its own settings
+      results.push(c.wakeLines(job, '/tmp/x.log').length === 0 && c.wakeLines(copy.JOBS.find((j) => j.key === 'kenoPredictor'), '/tmp/x.log').length === 0,
+        'without the DL360 set up nothing is woken; a job without wake never wakes it');
+      c.useWorker(() => ({ kind: 'cpu', host: 'root@h' }), () => ({ WORKER_HOST: 'root@h', WORKER_ILO_ENV: '/e/ilo.env', WORKER_IDLE_MINUTES: '10' }));
+      const wake = c.wakeLines(job, '/tmp/x.log');
+      results.push(wake.length === 1 && /^WORKER_HOST='root@h' WORKER_ILO_ENV='\/e\/ilo\.env' WORKER_IDLE_MINUTES='10' bash '.*worker\/power\.sh' wake >> '\/tmp\/x\.log' 2>&1 \|\| echo/.test(wake[0]),
+        `the DL360 is switched on first, a failed wake does not stop the job: ${wake[0]}`);
+      c.useWorker(() => null);
+      fresh();
+      notes.length = 0;
+      st().history = st().history.filter((h) => h.key !== 'councilRows');
+      fs.writeFileSync(path.join(dir, 'config', 'scheduler.disabled'), '');
     }
 
     // --- the one-time move from one job to seven (splitLottery) ---

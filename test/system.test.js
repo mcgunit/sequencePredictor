@@ -318,7 +318,7 @@ fs.writeFileSync(councilLog, [
   '20:03:07 INFO    council api on http://127.0.0.1:8099',
   '20:04:16 INFO    127.0.0.1 - "GET /endpoints HTTP/1.1" 200 -',
 ].join('\n') + '\n');
-ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 21, 'the copies log into their own temp dirs');
+ok(services.SERVICES[0].logFile === councilLog && jobs.JOBS.length === 22, 'the copies log into their own temp dirs');
 
 // --- the app under test ------------------------------------------------------------------------------------------
 const app = standIn();
@@ -377,7 +377,7 @@ async function main() {
     && j.lock.script && !j.lock.script.includes('/'), `jobs: the mode, the lock and who holds it (not a job of the schedule, its script by file name), nothing running: ${j.lock.script}`);
   const runnable = j.jobs.filter((x) => x.key !== 'backtest');
   const btJob = j.jobs.find((x) => x.key === 'backtest');
-  ok(j.jobs.length === 21 && runnable.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every scheduled job may run now, its log named by file name only');
+  ok(j.jobs.length === 22 && runnable.every((x) => x.canRun && x.refusal === null && x.log && !x.log.includes('/')), 'jobs: every scheduled job may run now, its log named by file name only');
   ok(btJob && !btJob.canRun && /Admin › Parameters/.test(btJob.refusal), `jobs: the backtest job is started from Admin › Parameters, never Run now: ${btJob && btJob.refusal}`);
   const boost = j.jobs.find((x) => x.key === 'hyperoptBoost');
   ok(boost.usual.median === 65 && boost.usual.n === 2 && boost.usual.basis === 'earlier runs in the job log' && boost.last.result === 'unknown' && boost.trigger.includes('Saturday'),
