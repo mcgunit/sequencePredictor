@@ -1620,7 +1620,7 @@ def settle_and_export(path, market, db_path=None, log=print, fee=FEE, fetch=True
                 from src.MarketTrader import trader_export
             except ImportError:
                 from MarketTrader import trader_export
-            trader_export(conn, path, market, log=log)
+            trader_export(conn, path, market, log=log, fetch=fetch)
         except Exception as exc:
             log(f"{market}: paper trader not exported - {type(exc).__name__}: {exc}")
         log(f"{market}: {written} result(s) settled over {days} day(s); {len(record['models'])} model(s) summarised; "

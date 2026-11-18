@@ -26,7 +26,26 @@ Built: `cryptomonth` and `sharesmonth`, one draw per calendar month, cut from th
 
 Found: 51 crypto months and 106 share months can be binned. In a trial run on a copy with deep learning and boosting on, the crypto month ticket had 13 rows (the Regime HMM rows and all deep-learning rows but the two LSTM rows had too little history and left none) and the share month ticket 21. Yahoo serves hourly prices of the five Euronext listings for two years back.
 
-Open: the trader's rules on three predictions; the month games in the tuners, the controls and the admin pages.
+Open: the month games in the tuners, the controls and the admin pages.
+
+### The paper trader reads three predictions
+
+*Pages: markets, roadmap*
+
+Decided: a position is bought only when the day call (two days running), the week call and the month call are all up. It is held while the week and month calls are not both down: a day call against it, or one of the two longer calls alone, changes nothing. It is sold when the week and month calls are both down; the earlier rule that all three down also needed two down mornings is covered by this one. Long positions are what a card shows.
+
+Built: the rules above in `src/MarketTrader.py`, with crypto's shorts as their mirror; the stop measured from the best close since the entry, with each morning's decision carrying where it stands; a take limit that is off; the shares booked at the 10:00 hourly price, fetched from Yahoo with every evening export.
+
+Found in a replay on a copy with the month games back-built (crypto 78 game days, shares 42 sessions; back-built calls, so what the rules would have done, not a record):
+
+| | Trader | Long positions only | Hold everything | Its own positions at random | Random runs beaten |
+| --- | --- | --- | --- | --- | --- |
+| Crypto (100 USDT a position) | -10.82 over 7 positions | -24.91 over 4 | -113.63 | +3.13 | 24% |
+| Shares (1,000 EUR a position) | +0.98 over 3 positions | the same | +212.88 | +110.96 | 6% |
+
+The three-prediction rule trades far less than the two-prediction one (7 crypto positions against 24). None of the four long crypto positions closed with a gain; all four ended on the stop. In the shares all three positions are still open. With 3 to 21 positions under any rule values tried, the record still cannot choose between them. The first Yahoo fetch wrote 32,740 hourly bars for the five shares.
+
+Open: the card on the user pages.
 
 ### A run stopped half-way left a draw without a ticket
 

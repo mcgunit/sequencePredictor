@@ -70,7 +70,7 @@ This page lists what is open or partly open in the project: for each item, what 
 
 ### 11. Instructions from a paper trader, not from fixed intervals
 
-**Built.** Day and week games per instrument, each with a plan card whose instructions end at the game's close: buy at the open of the interval, sell at its end. The paper trader's rules on the day and week calls, booked at 09:00 Brussels time, its money, the two comparisons, a read-only replay, and its decisions stored by every daily run (`src/MarketTrader.py`); it is on no page. The month games `cryptomonth` and `sharesmonth`, one draw per calendar month, predicted in the daily runs ([markets](markets.md)).
+**Built.** Day and week games per instrument, each with a plan card whose instructions end at the game's close: buy at the open of the interval, sell at its end. The paper trader's rules on the day, week and month calls (buy when all three are up, sell when the week and month calls are both down, a stop that follows the price, a take limit that is off), booked at 09:00 (crypto) and 10:00 (shares) Brussels time, its money, the two comparisons, a read-only replay, and its decisions stored by every daily run (`src/MarketTrader.py`); it is on no page. The month games `cryptomonth` and `sharesmonth`, one draw per calendar month, predicted in the daily runs ([markets](markets.md)).
 
 **Decided (15 November 2026).** Tying the holding period to the prediction interval was the wrong choice. The models keep predicting a day, a week and a month ahead; the instructions come from a paper trader that holds a position for as long as its rules say, and the card translates that trader's state and results into the same plain wording as today ("if you have it", "if you do not have it").
 
@@ -78,7 +78,6 @@ This page lists what is open or partly open in the project: for each item, what 
 
 - **The card.** One row per instrument on the user pages, in the reader's perspective: what to do today for a reader who has the instrument and for one who has not, readable in one look at 9 to 10 in the morning.
 - **A tuner and a backtest for the trader.** The rule values stay the hand-chosen ones (decided 18 November 2026). Later the trader's rules get a hyperopt and a backtest that are started from the menu, like the lottery games' ones.
-- **The rules on three predictions.** Buy only when the day call (two days running), the week call and the month call are all up; hold while the week and month calls are up, and while only the week call is down; sell when the week and month calls are both down, with the day call down two mornings running when all three are. The shares booked at the 10:00 hourly price; a stop that is moved once a day as the price rises; a take-profit limit that is built and switched off (decided 18 November 2026).
 - **The month games elsewhere.** They are in no tuner, no control and on no admin page.
 - **Shares: long term, long only.** No shorts (the costs), and never a buy and a sale of the same position on one day. The month prediction weighs most, and later the sentiment feeds (item 4).
 - **Crypto: both directions.** Shorts are allowed, and in an extreme case a buy and a sale on the same day.

@@ -227,31 +227,35 @@ The guard combines the week call with the daily calls (`MarketSettle.guarded_wee
 
 ## The paper trader
 
-`src/MarketTrader.py` holds one paper trader per instrument. It separates the holding period from the prediction interval: the day and week games are its inputs, and a position lasts as long as the rules say. Every daily run stores its decisions (see *The trader's record* below). It is on no page yet: the cards still follow the day and week games (see *Following the plan* and *The guarded week*).
+`src/MarketTrader.py` holds one paper trader per instrument. It separates the holding period from the prediction interval: the day, week and month games are its inputs, and a position lasts as long as the rules say. Every daily run stores its decisions (see *The trader's record* below). It is on no page yet: the cards still follow the day and week games (see *Following the plan* and *The guarded week*).
 
 What it reads for an instrument and a game day:
 
 - The day call: the followed day row's call for that day (the row `followed_plan` picks from the record before the day), as up, flat or down.
 - The week call: the followed week row's call for the week the day lies in. It is unknown while that week's ticket does not exist, which for the shares is every Monday (see *The week games*).
+- The month call: the followed month row's call for the calendar month the day lies in.
 
 The rules (`RULES`, per market):
 
 | | Crypto | Shares |
 | --- | --- | --- |
-| Enter | the week call agrees and the day call has agreed 2 game days in a row | the week call is up and the day call has been up 2 sessions in a row |
-| Leave on the week call | it turned against the position | it turned down |
-| Leave on the day calls | 2 game days in a row against the position | 3 sessions in a row down |
-| Stop | a move of 10% against the entry, inside the day, booked at the stop price | a close 8% under the entry, sold at the next open |
+| Buy | the day call up 2 game days in a row, the week call up and the month call up | the same |
+| Hold | while the week call and the month call are not both down | the same |
+| Sell on the calls | the week call and the month call are both down | the same |
+| Stop | 10% under the best close since the entry; a standing stop order, booked at the stop price | 8% under the best close since the entry; read on the close, sold at the next decision |
+| Take limit | built, off | built, off |
 | Longest hold | 30 game days | 60 sessions |
-| Shorts | yes | no |
+| Shorts | yes, as the mirror of the above | no |
+| Booked at | 09:00 Brussels time | 10:00 Brussels time |
 
-- A flat call breaks a run of up or down calls; a missing call leaves the runs as they are. Neither opens or closes a position by itself.
-- After a stop or a longest-hold sale the day call has to persist anew.
-- The shares never buy and sell on one day: every order is booked at a session's open, one decision a day. Crypto does so only through its stop.
-- There is one decision per instrument and day, booked at 09:00 Brussels time (`EXEC_HOUR`): the hour a reader looks at the card. The shares are booked at the Euronext open of the day. Crypto is booked at the open of the hourly Binance bar that starts at 09:00 Brussels time.
-- The store has no intraday share prices: a reader who orders later in the morning gets another price than the record.
-- A crypto day without its hourly bar (the history before 12 October 2026) is booked at the close before the day, 00:00 UTC, which no reader could get; the replay marks those positions.
-- The crypto stop is a standing stop order placed with the buy. It works around the clock and is read on the hourly bars before and after the day's decision.
+- A day call against a position changes nothing, and neither does the week call or the month call alone: the stop answers a fast fall.
+- A flat call breaks a run of up or down calls; a missing call leaves the runs as they are. Neither opens or closes a position.
+- The stop follows the price: it is measured from the best close since the entry and is never moved back. The decision of each morning carries where it stands.
+- After a stop, a take or a longest-hold sale the day call has to persist anew.
+- The shares never buy and sell on one day. Crypto does so only through a standing order.
+- There is one decision per instrument and day, booked at the hour a reader looks at the card (`EXEC_HOURS`): the open of the hourly bar that starts then. Crypto's hourly bars are Binance's. The shares' are Yahoo's, fetched with every evening export (`refresh_share_hours`, two years back on the first fetch); the first minutes after the 09:00 open have the widest spreads, which is why the shares are booked an hour later.
+- A share day without its hourly bar is booked at the day's open. A crypto day without it (the history before 12 October 2026) is booked at the close before the day, 00:00 UTC, which no reader could get; the replay marks those positions.
+- Yahoo's hourly prices are as traded, not adjusted: after a split the hours before it are on the old basis until they are refetched.
 - Money is the market's stake and costs (`MarketSettle.Costs`), one cost pair per position. An open position is valued at the newest close as if sold there.
 - The rule values are chosen by hand and are not tuned on the record.
 
@@ -264,10 +268,10 @@ Two comparisons come with every result:
 
 `trader_export` runs in every market export (`settle_and_export`), for a market and for its week game, and writes the tracked file `data/markets/<market>-trader.json`.
 
-- The file holds the rules, the positions and totals since the trader's first day, the comparisons, and every stored decision: instrument, day, action (`buy`, `short`, `sell`, `cover`, `hold` or `wait`), reason, the two calls and when it was made.
+- The file holds the rules, the positions and totals since the trader's first day, the comparisons, and every stored decision: instrument, day, action (`buy`, `short`, `sell`, `cover`, `hold` or `wait`), reason, the three calls, where a held position's stop stands, and when it was made.
 - The trader's first day is the first day a decision was stored for. It starts there without a position; the calls before that day still count towards a signal that has persisted.
-- The decision for the day the card is for can change until 09:00 Brussels time of that day and stands after it. The market's own export runs before its week game's ticket exists, so the week game's export, a moment later, completes it.
-- A position is live when the decisions that opened and closed it were stored before 09:00 Brussels time of their days. A sale by the crypto stop needs no decision: it is a standing order.
+- The decision for the day the card is for can change until the booking hour of that day and stands after it. The market's own export runs before its week and month games' tickets exist, so their exports, a moment later, complete it.
+- A position is live when the decisions that opened and closed it were stored before the booking hour of their days. A sale by the crypto stop or by a take limit needs no decision: it is a standing order.
 - A stored order that the replay of the record no longer makes (a rebuilt history, changed rules) is listed under `diverged`.
 - The totals come twice: every position, and the long positions only. No card gives a short order, so the long positions are what a reader can follow.
 
