@@ -1,0 +1,216 @@
+{
+ "market": "shares",
+ "rules": {
+  "persist": 2,
+  "stop": 0.08,
+  "longest": 60,
+  "shorts": false,
+  "intraday": false,
+  "trail": true,
+  "take": null
+ },
+ "from": "2026-11-19",
+ "first_day": null,
+ "last_day": null,
+ "days": 0,
+ "running": "2026-11-19",
+ "exec_hour": 10,
+ "symbols": {
+  "SHELL": {
+   "positions": [],
+   "open": null,
+   "now": {
+    "action": "wait",
+    "reason": null,
+    "side": 0,
+    "stop": null,
+    "day_call": "down",
+    "week_call": "down",
+    "month_call": "flat",
+    "up_days": 0,
+    "down_days": 2
+   },
+   "hold": null,
+   "hold_move": null,
+   "closed_money": 0,
+   "open_money": null,
+   "days_in": 0,
+   "random_mean": 0.0
+  },
+  "INGA": {
+   "positions": [],
+   "open": null,
+   "now": {
+    "action": "buy",
+    "reason": null,
+    "side": 1,
+    "stop": null,
+    "day_call": "up",
+    "week_call": "up",
+    "month_call": "up",
+    "up_days": 5,
+    "down_days": 0
+   },
+   "hold": null,
+   "hold_move": null,
+   "closed_money": 0,
+   "open_money": null,
+   "days_in": 0,
+   "random_mean": 0.0
+  },
+  "ABI": {
+   "positions": [],
+   "open": null,
+   "now": {
+    "action": "buy",
+    "reason": null,
+    "side": 1,
+    "stop": null,
+    "day_call": "up",
+    "week_call": "up",
+    "month_call": "up",
+    "up_days": 4,
+    "down_days": 0
+   },
+   "hold": null,
+   "hold_move": null,
+   "closed_money": 0,
+   "open_money": null,
+   "days_in": 0,
+   "random_mean": 0.0
+  },
+  "KBC": {
+   "positions": [],
+   "open": null,
+   "now": {
+    "action": "wait",
+    "reason": null,
+    "side": 0,
+    "stop": null,
+    "day_call": "down",
+    "week_call": "up",
+    "month_call": "up",
+    "up_days": 0,
+    "down_days": 1
+   },
+   "hold": null,
+   "hold_move": null,
+   "closed_money": 0,
+   "open_money": null,
+   "days_in": 0,
+   "random_mean": 0.0
+  },
+  "UCB": {
+   "positions": [],
+   "open": null,
+   "now": {
+    "action": "wait",
+    "reason": null,
+    "side": 0,
+    "stop": null,
+    "day_call": "down",
+    "week_call": "up",
+    "month_call": "up",
+    "up_days": 0,
+    "down_days": 2
+   },
+   "hold": null,
+   "hold_move": null,
+   "closed_money": 0,
+   "open_money": null,
+   "days_in": 0,
+   "random_mean": 0.0
+  }
+ },
+ "stake": 1000.0,
+ "diverged": [],
+ "totals": {
+  "hold": 0.0,
+  "days_possible": 0,
+  "all": {
+   "total": 0.0,
+   "closed": 0.0,
+   "open": 0.0,
+   "positions": 0,
+   "wins": 0,
+   "days_in": 0,
+   "live_total": 0.0,
+   "live_positions": 0,
+   "random_mean": null,
+   "random_beaten": null,
+   "random_runs": 0
+  },
+  "long": {
+   "total": 0.0,
+   "closed": 0.0,
+   "open": 0.0,
+   "positions": 0,
+   "wins": 0,
+   "days_in": 0,
+   "live_total": 0.0,
+   "live_positions": 0,
+   "random_mean": null,
+   "random_beaten": null,
+   "random_runs": 0
+  }
+ },
+ "schema": 1,
+ "generated_at": "2026-11-18T17:25:03+00:00",
+ "decisions": [
+  {
+   "symbol": "ABI",
+   "day": "2026-11-19",
+   "action": "buy",
+   "reason": null,
+   "day_call": "up",
+   "week_call": "up",
+   "month_call": "up",
+   "stop": null,
+   "made_at": "2026-11-18T17:25:03+00:00"
+  },
+  {
+   "symbol": "INGA",
+   "day": "2026-11-19",
+   "action": "buy",
+   "reason": null,
+   "day_call": "up",
+   "week_call": "up",
+   "month_call": "up",
+   "stop": null,
+   "made_at": "2026-11-18T17:25:03+00:00"
+  },
+  {
+   "symbol": "KBC",
+   "day": "2026-11-19",
+   "action": "wait",
+   "reason": null,
+   "day_call": "down",
+   "week_call": "up",
+   "month_call": null,
+   "stop": null,
+   "made_at": "2026-11-18T17:24:50+00:00"
+  },
+  {
+   "symbol": "SHELL",
+   "day": "2026-11-19",
+   "action": "wait",
+   "reason": null,
+   "day_call": "down",
+   "week_call": "down",
+   "month_call": null,
+   "stop": null,
+   "made_at": "2026-11-18T17:24:50+00:00"
+  },
+  {
+   "symbol": "UCB",
+   "day": "2026-11-19",
+   "action": "wait",
+   "reason": null,
+   "day_call": "down",
+   "week_call": "up",
+   "month_call": null,
+   "stop": null,
+   "made_at": "2026-11-18T17:24:50+00:00"
+  }
+ ]
+}

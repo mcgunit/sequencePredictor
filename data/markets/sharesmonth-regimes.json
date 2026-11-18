@@ -1,0 +1,3443 @@
+{
+ "Regime HMM Model": [
+  {
+   "date": "2024-03-28",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.773731674532026e-39,
+    1.0
+   ],
+   "expected_return": [
+    0.035776311906127414,
+    0.057583999078750336,
+    0.02643668440600504,
+    0.04365699818683294,
+    0.15421881203714194
+   ],
+   "volatility": [
+    0.0398997333879781,
+    0.08503767611013373,
+    0.04816867006557772,
+    0.06457539226714293,
+    0.06587682060299899
+   ],
+   "template": 3,
+   "template_distance": 0.7180926072663532,
+   "templates": [
+    1,
+    3
+   ]
+  },
+  {
+   "date": "2024-04-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    2.6852846157095794e-55,
+    1.0
+   ],
+   "expected_return": [
+    0.10124843356988432,
+    0.0361154470602455,
+    0.006664012731875479,
+    0.01795374184762341,
+    0.09053508171353972
+   ],
+   "volatility": [
+    0.043302097035697984,
+    0.082839917018178,
+    0.03290921284726822,
+    0.056781033171252146,
+    0.06623391408591894
+   ],
+   "template": 1,
+   "template_distance": 0.6705710961838294,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    4.875535316387868e-52,
+    1.0
+   ],
+   "expected_return": [
+    0.03620938820629191,
+    0.10807347225683611,
+    0.020656120770463637,
+    0.01363580264135555,
+    0.10082567007792534
+   ],
+   "volatility": [
+    0.039596294726394324,
+    0.07298463993036185,
+    0.032523312596702665,
+    0.06201257458263537,
+    0.05194780713046643
+   ],
+   "template": 3,
+   "template_distance": 0.0,
+   "templates": [
+    1,
+    3
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    1.7555059507228722e-31
+   ],
+   "expected_return": [
+    0.013717376515307167,
+    0.04817675908778729,
+    -0.027631173495048678,
+    -0.0016330836256313657,
+    0.052588458066538515
+   ],
+   "volatility": [
+    0.052087309641145246,
+    0.07244476988961539,
+    0.040894239947129346,
+    0.04831782919867309,
+    0.05376207127960112
+   ],
+   "template": 3,
+   "template_distance": 0.8699645921142649,
+   "templates": [
+    3,
+    1
+   ]
+  },
+  {
+   "date": "2024-07-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    2.2321043802204912e-24
+   ],
+   "expected_return": [
+    0.020862825958332675,
+    0.1377141816840262,
+    -0.01125904171919311,
+    0.05076245636277761,
+    0.047091874286069105
+   ],
+   "volatility": [
+    0.058698737962320495,
+    0.08545749360965048,
+    0.04835755994153133,
+    0.050027135089562365,
+    0.0753244038299688
+   ],
+   "template": 1,
+   "template_distance": 0.0,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-08-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    3.9850613269000814e-88,
+    1.0
+   ],
+   "expected_return": [
+    -0.0030522233900302127,
+    0.032985693741881095,
+    -0.009587202704535502,
+    0.023221039390921558,
+    0.0599930260308741
+   ],
+   "volatility": [
+    0.0376942756971248,
+    0.0641380142081724,
+    0.050975366940760256,
+    0.060023561618113445,
+    0.05454889092436854
+   ],
+   "template": 2,
+   "template_distance": 0.6148571025057123,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-09-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 0.9999999974745,
+   "weights": [
+    0.9999999974745,
+    2.5254999301390502e-09
+   ],
+   "expected_return": [
+    -0.020097076504873496,
+    0.054860874160153235,
+    -0.0453752298928611,
+    0.06299787497634174,
+    0.02023157103697302
+   ],
+   "volatility": [
+    0.05807986069757265,
+    0.07814088496189055,
+    0.05092090386021191,
+    0.05401804034037093,
+    0.07592403478195343
+   ],
+   "template": 1,
+   "template_distance": 0.3020471185850407,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-10-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    7.282252087138561e-153,
+    1.0
+   ],
+   "expected_return": [
+    -0.008394314514973866,
+    0.03815619464838796,
+    -0.03280962194220416,
+    0.030223618649560594,
+    0.04025967311023564
+   ],
+   "volatility": [
+    0.05094958940944374,
+    0.07850083665822209,
+    0.05599660141442705,
+    0.05287301980395509,
+    0.054777856032259035
+   ],
+   "template": 2,
+   "template_distance": 0.6823710842761589,
+   "templates": [
+    4,
+    2
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    2.9357647940086806e-89,
+    1.0
+   ],
+   "expected_return": [
+    -0.009699768019635086,
+    -0.018361531217534168,
+    0.01585652201001445,
+    0.008367256855536364,
+    0.0358244912276964
+   ],
+   "volatility": [
+    0.052810015379288554,
+    0.07887163450803811,
+    0.05758243406717257,
+    0.0518834112373979,
+    0.0519686687425513
+   ],
+   "template": 2,
+   "template_distance": 0.6581755937446055,
+   "templates": [
+    5,
+    2
+   ]
+  },
+  {
+   "date": "2024-12-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    -0.010332829502566821,
+    0.007813920981142837,
+    0.006348351361763422,
+    0.0326936133204872,
+    0.04265887889196016
+   ],
+   "volatility": [
+    0.05001315805436682,
+    0.07600836075012965,
+    0.05487045816400611,
+    0.059730498618553445,
+    0.05352772311659994
+   ],
+   "template": 2,
+   "template_distance": 0.4767337120890729,
+   "templates": [
+    5,
+    2
+   ]
+  },
+  {
+   "date": "2025-01-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    5.1414175207955316e-64,
+    1.0
+   ],
+   "expected_return": [
+    0.005995341290163459,
+    0.007685736396150855,
+    -0.01851552315499473,
+    0.008505162829120044,
+    0.015394728087638084
+   ],
+   "volatility": [
+    0.05371403546804709,
+    0.0794209050718015,
+    0.04387182831372851,
+    0.04797427378601817,
+    0.06904373295178609
+   ],
+   "template": 1,
+   "template_distance": 0.4309266940017362,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2025-02-28",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    -0.005147891803754162,
+    0.024125460689782385,
+    -0.05423314101118529,
+    0.039531874605576584,
+    0.03603197490138891
+   ],
+   "volatility": [
+    0.0510509906678534,
+    0.07230301288499899,
+    0.05869101550683869,
+    0.061726830032243406,
+    0.06538799801087086
+   ],
+   "template": 2,
+   "template_distance": 0.4656780835682246,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-03-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.06278377028130241,
+    0.091491728769282,
+    -0.22155021421320548,
+    0.12041861624769708,
+    -0.21215329729911614
+   ],
+   "volatility": [
+    0.054440356003150475,
+    0.07415096880028622,
+    0.05776222691074774,
+    0.061419047278245396,
+    0.06738374402597434
+   ],
+   "template": 2,
+   "template_distance": 0.36884708970132507,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-04-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.2728679973364997e-44,
+    1.0
+   ],
+   "expected_return": [
+    -0.10461489361514308,
+    -0.011964202830217532,
+    0.002974256765726747,
+    -0.05188358143478674,
+    -0.05419522189700801
+   ],
+   "volatility": [
+    0.04437238911180232,
+    0.053759044411829285,
+    0.023967643556788546,
+    0.040258008752308644,
+    0.06296573556619267
+   ],
+   "template": 6,
+   "template_distance": 0.0,
+   "templates": [
+    2,
+    6
+   ]
+  },
+  {
+   "date": "2025-05-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    -0.04294409230602977,
+    0.034598268719344454,
+    0.006634722520101794,
+    0.02311020683441852,
+    0.008095167877504549
+   ],
+   "volatility": [
+    0.05469779438352483,
+    0.07565557745868129,
+    0.06220403570932793,
+    0.05965274055390533,
+    0.06429674784169359
+   ],
+   "template": 2,
+   "template_distance": 0.32862791040980965,
+   "templates": [
+    7,
+    2
+   ]
+  },
+  {
+   "date": "2025-06-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    8.912222282220793e-70,
+    1.0
+   ],
+   "expected_return": [
+    -0.02676721706666342,
+    0.025796569081307643,
+    0.04166010387939462,
+    0.009752813961589245,
+    -0.022819931302053703
+   ],
+   "volatility": [
+    0.049665003304544965,
+    0.056915192060473435,
+    0.05888368635048616,
+    0.04477526860673133,
+    0.03705279047981834
+   ],
+   "template": 8,
+   "template_distance": 0.0,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2025-07-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    7.556166912815512e-119,
+    1.0
+   ],
+   "expected_return": [
+    -0.034470942028138656,
+    0.06695890939651788,
+    0.021505264719459204,
+    0.04911153870963886,
+    0.010386333666162262
+   ],
+   "volatility": [
+    0.04477529231021441,
+    0.05566438577024333,
+    0.06669613989515022,
+    0.05678842652167548,
+    0.046274421740146114
+   ],
+   "template": 2,
+   "template_distance": 0.5733707450914648,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-08-29",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    2.2060819901118958e-66,
+    1.0
+   ],
+   "expected_return": [
+    -0.006097862242348243,
+    0.04338850801701323,
+    0.02444786109970569,
+    0.0594050062966365,
+    0.024246832930788782
+   ],
+   "volatility": [
+    0.05443229713961577,
+    0.055465769639000746,
+    0.06402605493465756,
+    0.044001489758160206,
+    0.04819983060509912
+   ],
+   "template": 8,
+   "template_distance": 0.3762307645555845,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2025-09-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    3.039219087455109e-80,
+    1.0
+   ],
+   "expected_return": [
+    -0.017732936428821202,
+    0.019598201137628564,
+    -0.02409625301879802,
+    0.04795854499381899,
+    0.0627147027791513
+   ],
+   "volatility": [
+    0.05380710581987376,
+    0.0550620520311281,
+    0.06419740920805593,
+    0.04399198937589305,
+    0.05271139256601099
+   ],
+   "template": 8,
+   "template_distance": 0.4828050605267595,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2025-10-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    1.4192664020416553e-60
+   ],
+   "expected_return": [
+    -0.01860198857556495,
+    -0.0024976002186844794,
+    0.017999109332849084,
+    0.020591297512854462,
+    0.01591100948094224
+   ],
+   "volatility": [
+    0.05422646001519951,
+    0.08134902494935231,
+    0.044630719222252084,
+    0.05173418120202219,
+    0.0927252444969921
+   ],
+   "template": 1,
+   "template_distance": 0.6915472864832511,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-11-28",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    1.2851937198127891e-129
+   ],
+   "expected_return": [
+    -0.0620170738225988,
+    -0.03364437394422386,
+    -0.0986693846315523,
+    -0.03419262572702518,
+    0.031904480207282
+   ],
+   "volatility": [
+    0.06159108267234346,
+    0.07907835662028721,
+    0.060607548302633506,
+    0.04969971442657758,
+    0.08309354595114546
+   ],
+   "template": 1,
+   "template_distance": 0.5069244318771534,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-12-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.4096114413730487e-232,
+    1.0
+   ],
+   "expected_return": [
+    0.019713659506882718,
+    0.08120895958684689,
+    0.013392736107479397,
+    0.05668427939798163,
+    0.00034768818408159596
+   ],
+   "volatility": [
+    0.0505543493805049,
+    0.06347727918259892,
+    0.06431601515653224,
+    0.05782602189458021,
+    0.06027022858950795
+   ],
+   "template": 1,
+   "template_distance": 0.7862239411167482,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2026-01-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    5.148082029597703e-136
+   ],
+   "expected_return": [
+    0.02372308202700775,
+    0.053249534944453086,
+    0.027462460191937002,
+    0.05219782347306498,
+    0.06845004313520622
+   ],
+   "volatility": [
+    0.055651305407643584,
+    0.05839997382759681,
+    0.056587159937054446,
+    0.024254251020369082,
+    0.05641864509104142
+   ],
+   "template": 9,
+   "template_distance": 0.0,
+   "templates": [
+    9,
+    1
+   ]
+  },
+  {
+   "date": "2026-02-27",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.0861394539332874e-148,
+    1.0
+   ],
+   "expected_return": [
+    -0.017571605561920257,
+    -0.00563194432560718,
+    0.0634867470752106,
+    -0.02649101931899283,
+    0.013477716092221013
+   ],
+   "volatility": [
+    0.04111608361334179,
+    0.04083175150937662,
+    0.06504126665967137,
+    0.04034121952712498,
+    0.054585169946013604
+   ],
+   "template": 8,
+   "template_distance": 0.7565086203998552,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2026-03-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.1417080482928408e-135,
+    1.0
+   ],
+   "expected_return": [
+    -0.05520360356320696,
+    -0.018420611021385706,
+    0.05004178185745485,
+    -0.01075066100300527,
+    0.0037828350556580095
+   ],
+   "volatility": [
+    0.0503205909961636,
+    0.044140834929207715,
+    0.07223064622761813,
+    0.041942386170332475,
+    0.0536379892920873
+   ],
+   "template": 8,
+   "template_distance": 0.673891443260282,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2026-04-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    2.4755268897457073e-143,
+    1.0
+   ],
+   "expected_return": [
+    -0.04923167219477348,
+    -0.011286550433591488,
+    0.06521499661123671,
+    -0.029267368622508484,
+    -0.0593719095496892
+   ],
+   "volatility": [
+    0.050865872639234304,
+    0.04556311211682977,
+    0.07340829071258909,
+    0.043178736359008645,
+    0.056385094589837856
+   ],
+   "template": 8,
+   "template_distance": 0.47492912670217485,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2026-05-29",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    1.0158901789764083e-147
+   ],
+   "expected_return": [
+    -0.03728945800349959,
+    0.030729014874015317,
+    0.048390969293480045,
+    -0.007562624740774368,
+    -0.0051151719109536545
+   ],
+   "volatility": [
+    0.04868653357975696,
+    0.058600048652799275,
+    0.06398657300216475,
+    0.04383523646349982,
+    0.056987964744699235
+   ],
+   "template": 8,
+   "template_distance": 0.47341063075044526,
+   "templates": [
+    8,
+    1
+   ]
+  },
+  {
+   "date": "2026-06-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    1.834517629043134e-146
+   ],
+   "expected_return": [
+    0.02307479921475375,
+    0.013872496785012114,
+    -0.001637501450561029,
+    -0.014133200189805293,
+    0.06162852987591125
+   ],
+   "volatility": [
+    0.04822306004305699,
+    0.05771466392448038,
+    0.0630577975924694,
+    0.04390759892693867,
+    0.05656503236276184
+   ],
+   "template": 8,
+   "template_distance": 0.41603413240597786,
+   "templates": [
+    8,
+    1
+   ]
+  },
+  {
+   "date": "2026-07-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    4.921726234422163e-215,
+    1.0
+   ],
+   "expected_return": [
+    0.022840029390036605,
+    0.05123428320210591,
+    0.04347005657631205,
+    0.0061169177103512825,
+    0.02876218017835789
+   ],
+   "volatility": [
+    0.05934895620969178,
+    0.06199036996149409,
+    0.066563234276987,
+    0.04387243691690207,
+    0.06390306588260894
+   ],
+   "template": 8,
+   "template_distance": 0.40812693244450443,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2026-08-31",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 0.9996874013011642,
+   "weights": [
+    0.9996874013011642,
+    0.00031259869883586974
+   ],
+   "expected_return": [
+    0.049995174222577064,
+    0.028318498662227624,
+    -0.03470310094409535,
+    0.05085680240489293,
+    -0.056815537406407275
+   ],
+   "volatility": [
+    0.05570511041868462,
+    0.0825962935269734,
+    0.050486960685465064,
+    0.06614086668269137,
+    0.07230059922705577
+   ],
+   "template": 1,
+   "template_distance": 0.32843546949895697,
+   "templates": [
+    1,
+    8
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "row": "Regime HMM Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    3.693210191957645e-165
+   ],
+   "expected_return": [
+    0.012056475739860711,
+    0.03362030617329259,
+    -0.013245614984095428,
+    0.00879978688161445,
+    -0.04234697833138436
+   ],
+   "volatility": [
+    0.05306753175947302,
+    0.05737525391410339,
+    0.06474347039354418,
+    0.04378993449794396,
+    0.06496391356769363
+   ],
+   "template": 8,
+   "template_distance": 0.31669637203137324,
+   "templates": [
+    8,
+    1
+   ]
+  }
+ ],
+ "updated": "2026-09-30",
+ "Regime HMM ZeroMean Model": [
+  {
+   "date": "2024-03-28",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    4.116370747159333e-34,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.04853282369776256,
+    0.08636567149455276,
+    0.05330293616220547,
+    0.08331537954762094,
+    0.08168421342984698
+   ],
+   "template": 2,
+   "template_distance": 0.3189893930979959,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-04-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    1.7012592146595924e-36
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06946888125839389,
+    0.0951997102243329,
+    0.07022097785481568,
+    0.06371731501334552,
+    0.09375087122234552
+   ],
+   "template": 1,
+   "template_distance": 0.1900839209746262,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    7.122433046088689e-46
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07059447883555259,
+    0.09970226627140971,
+    0.061898155286777806,
+    0.06382852886160442,
+    0.09603392864963547
+   ],
+   "template": 1,
+   "template_distance": 0.08718820660468603,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    2.0083303925175643e-153
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05460598876079873,
+    0.08778891055413461,
+    0.06569732807359452,
+    0.06621102735146972,
+    0.07102530475672367
+   ],
+   "template": 2,
+   "template_distance": 0.3645899244705436,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2024-07-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    2.787718513075425e-25
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06915684494322043,
+    0.09790803350788502,
+    0.06167143595809802,
+    0.06321751321885134,
+    0.08901517422519892
+   ],
+   "template": 1,
+   "template_distance": 0.0,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-08-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    2.68068755071051e-84,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.046710482073497185,
+    0.08534181105662164,
+    0.04379966933323435,
+    0.0727768382987528,
+    0.07825864076388453
+   ],
+   "template": 2,
+   "template_distance": 0.4996683211722587,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-09-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    4.785392001817972e-83,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.04962316915953104,
+    0.082201973886291,
+    0.05521919613241201,
+    0.07088643692152727,
+    0.07554665340089123
+   ],
+   "template": 2,
+   "template_distance": 0.2151888228608499,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-10-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    0.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05411689774081144,
+    0.09042252650428372,
+    0.0633164497632179,
+    0.0716487201396265,
+    0.07325288950241253
+   ],
+   "template": 2,
+   "template_distance": 0.3893763345036861,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    3.349592783007843e-75,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.054376160388445116,
+    0.07902715896100519,
+    0.06492463657909364,
+    0.050765758850975375,
+    0.08083581445238361
+   ],
+   "template": 2,
+   "template_distance": 0.6846836942897768,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2024-12-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05538716717981671,
+    0.08206779626502074,
+    0.06305757475872963,
+    0.0651607530878231,
+    0.06918802920712966
+   ],
+   "template": 2,
+   "template_distance": 0.3014959450177113,
+   "templates": [
+    3,
+    2
+   ]
+  },
+  {
+   "date": "2025-01-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.6834054073444612e-51,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06414773004004018,
+    0.09696535519924998,
+    0.05628467462471489,
+    0.06310905724594851,
+    0.09422402079370878
+   ],
+   "template": 1,
+   "template_distance": 0.2380250184574869,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2025-02-28",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    2.560463174601006e-49,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06281286361513926,
+    0.08705298124257432,
+    0.06016586894566833,
+    0.06963393348850687,
+    0.09830928621496066
+   ],
+   "template": 1,
+   "template_distance": 0.30035353051767605,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2025-03-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 0.9999999994443811,
+   "weights": [
+    5.556189578011127e-10,
+    0.9999999994443811
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06244518349579428,
+    0.08572997927054693,
+    0.05890215381078804,
+    0.06811157383913662,
+    0.09881336350567566
+   ],
+   "template": 1,
+   "template_distance": 0.2833968370706378,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2025-05-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    8.498552238644568e-85,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05939660531750582,
+    0.0782972819671575,
+    0.06787195552726097,
+    0.058791081201853515,
+    0.060976590038176584
+   ],
+   "template": 2,
+   "template_distance": 0.7293866907453809,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-06-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    4.501758010498174e-44,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07212930061161081,
+    0.0664578097669303,
+    0.07158874664360626,
+    0.04721686978431435,
+    0.06174555569518299
+   ],
+   "template": 4,
+   "template_distance": 0.0,
+   "templates": [
+    1,
+    4
+   ]
+  },
+  {
+   "date": "2025-07-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    7.106205532844552e-155,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05531262333250979,
+    0.0644065327354844,
+    0.0690761762741503,
+    0.062278656827126855,
+    0.07438005021858578
+   ],
+   "template": 2,
+   "template_distance": 0.47197016330602,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-08-29",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    0.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06393929331692995,
+    0.09130526512425616,
+    0.06440443944353248,
+    0.07073217957849383,
+    0.08259265321573729
+   ],
+   "template": 1,
+   "template_distance": 0.20869427446606192,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-09-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    7.243567931656539e-58,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06641782082014269,
+    0.0677150136472961,
+    0.07372946345326822,
+    0.0500826044447364,
+    0.07816866870200716
+   ],
+   "template": 4,
+   "template_distance": 0.4748129174143067,
+   "templates": [
+    1,
+    4
+   ]
+  },
+  {
+   "date": "2025-10-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0,
+    2.549823155698435e-62
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07694523866673164,
+    0.09792763242929126,
+    0.060525963445798,
+    0.06651018580661518,
+    0.09955886158188483
+   ],
+   "template": 1,
+   "template_distance": 0.448065397284223,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-11-28",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    4.0035641060403854e-184,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05718894078039695,
+    0.06693874800390938,
+    0.06953154973995376,
+    0.05316028490068558,
+    0.07904197671214275
+   ],
+   "template": 2,
+   "template_distance": 0.46812214448573525,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2025-12-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    3.732356533536655e-287,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05777779523752102,
+    0.07430485902740842,
+    0.07029770626702085,
+    0.05166238609017196,
+    0.07567194995232239
+   ],
+   "template": 2,
+   "template_distance": 0.532360566822602,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2026-01-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06430408649703431,
+    0.08719169982078687,
+    0.07335486397499177,
+    0.06544792967295986,
+    0.07716597926634433
+   ],
+   "template": 1,
+   "template_distance": 0.31342001764264327,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2026-02-27",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "calm",
+   "probability": 1.0,
+   "weights": [
+    1.5356928049486107e-153,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.05561815364856519,
+    0.053249849276966264,
+    0.07607518404465195,
+    0.05483067179139757,
+    0.07121094487865014
+   ],
+   "template": 2,
+   "template_distance": 0.7017578429371957,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2026-03-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    2.653634564892029e-139,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.06479007069930097,
+    0.05716132596084094,
+    0.08078011272928723,
+    0.05704541531166178,
+    0.0692629939881576
+   ],
+   "template": 2,
+   "template_distance": 0.6392449710544466,
+   "templates": [
+    1,
+    2
+   ]
+  },
+  {
+   "date": "2026-04-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07242813562065367,
+    0.0868312356528193,
+    0.07422661840672519,
+    0.060840213239486345,
+    0.08846526334205188
+   ],
+   "template": 1,
+   "template_distance": 0.2844998466950497,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2026-05-29",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07229672973484275,
+    0.08650340869117797,
+    0.07406875595219119,
+    0.059892002325257813,
+    0.08835776949539795
+   ],
+   "template": 1,
+   "template_distance": 0.3734655105878421,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2026-06-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07182357851768621,
+    0.08540893489655522,
+    0.07349075087010537,
+    0.05951598485840979,
+    0.08728843828147621
+   ],
+   "template": 1,
+   "template_distance": 0.34360328130839235,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2026-07-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 2,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    0.0,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07550300996178384,
+    0.08571979803784047,
+    0.07264141884450998,
+    0.05911498043435663,
+    0.09035213294729898
+   ],
+   "template": 1,
+   "template_distance": 0.3192977820166718,
+   "templates": [
+    2,
+    1
+   ]
+  },
+  {
+   "date": "2026-08-31",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.3168887220605135e-145,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.0739346793200693,
+    0.0763786233626454,
+    0.07966450193121422,
+    0.050725961537379446,
+    0.0731076102714029
+   ],
+   "template": 4,
+   "template_distance": 0.4919589189279888,
+   "templates": [
+    1,
+    4
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "row": "Regime HMM ZeroMean Model",
+   "regimes": 2,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 1,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    6.570452368649828e-140,
+    1.0
+   ],
+   "expected_return": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "volatility": [
+    0.07346347421112115,
+    0.07768480242451502,
+    0.0785273753613638,
+    0.04791699807895643,
+    0.07566866490112856
+   ],
+   "template": 4,
+   "template_distance": 0.5380354758207881,
+   "templates": [
+    1,
+    4
+   ]
+  }
+ ],
+ "Regime HMM Single Model": [
+  {
+   "date": "2024-03-28",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.03501621444087331,
+    0.08244720511010856,
+    0.017730938214462363,
+    0.06458280233123628,
+    0.10042270542498609
+   ],
+   "volatility": [
+    0.05418119298879519,
+    0.08389159530375358,
+    0.05507395150601661,
+    0.06255449159273437,
+    0.07298904740299754
+   ],
+   "template": 1,
+   "template_distance": 0.10598258926813478,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-04-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.07962503389490937,
+    0.037798197744667465,
+    0.003641522155660362,
+    0.028193002138160714,
+    0.07327249592785046
+   ],
+   "volatility": [
+    0.05402876434178322,
+    0.08379935052373653,
+    0.054513383439721085,
+    0.06220262677392031,
+    0.072345136292943
+   ],
+   "template": 1,
+   "template_distance": 0.08581731939733951,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-05-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.050551005071430316,
+    0.06388771959231455,
+    0.0019706585530090684,
+    0.01628857549069997,
+    0.06294527512626258
+   ],
+   "volatility": [
+    0.05464383904880605,
+    0.08324123976454141,
+    0.05401801403795933,
+    0.0621605178270293,
+    0.07181256651879549
+   ],
+   "template": 1,
+   "template_distance": 0.0656765476948849,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-06-28",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.030081729805457633,
+    0.0525024053772212,
+    -0.011932949327252012,
+    0.015855953754716236,
+    0.06337418435809798
+   ],
+   "volatility": [
+    0.05429021820630432,
+    0.08304011401814236,
+    0.05416444386090885,
+    0.061610532051805764,
+    0.07121308416092634
+   ],
+   "template": 1,
+   "template_distance": 0.03554426779721334,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-07-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.007817418727191178,
+    0.0691027784775744,
+    -0.015369751464793512,
+    0.03623782659894585,
+    0.07742655579435637
+   ],
+   "volatility": [
+    0.05381838085561142,
+    0.08213249462127577,
+    0.05370676455929983,
+    0.06167118150313738,
+    0.07090338621728627
+   ],
+   "template": 1,
+   "template_distance": 0.0,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-08-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.00916446358916841,
+    0.06767498930815191,
+    -0.03237560173584692,
+    0.05110609129825522,
+    0.059038898759456976
+   ],
+   "volatility": [
+    0.05390302382813277,
+    0.0820049447232999,
+    0.053208867348003674,
+    0.06140031571404872,
+    0.07032365115542137
+   ],
+   "template": 1,
+   "template_distance": 0.04486314016884189,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-09-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.003719924354562979,
+    0.05661648829894335,
+    -0.04152657362561814,
+    0.049888821591488934,
+    0.034090225789428046
+   ],
+   "volatility": [
+    0.05473373193313074,
+    0.08163264940576971,
+    0.054190906218014055,
+    0.06090276127886347,
+    0.07020556913879522
+   ],
+   "template": 1,
+   "template_distance": 0.08926625973817374,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-10-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.019818192639441002,
+    0.03302195902564875,
+    -0.04359835417269572,
+    0.03713417191561548,
+    0.06073196196704665
+   ],
+   "volatility": [
+    0.05449499271106645,
+    0.0816061723083071,
+    0.05391315108542494,
+    0.06204600877909159,
+    0.06993770420564653
+   ],
+   "template": 1,
+   "template_distance": 0.10455705998401613,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-11-29",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.027050123055219786,
+    0.0034706522635856146,
+    -0.00477797415555935,
+    0.027619005110869822,
+    0.05331091924434117
+   ],
+   "volatility": [
+    0.0540460056282491,
+    0.08168917523515525,
+    0.053613551300295006,
+    0.061434544618924364,
+    0.06933858921762542
+   ],
+   "template": 1,
+   "template_distance": 0.09281846277837459,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2024-12-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.02327587339783216,
+    0.015063214688310253,
+    -0.005279570096890972,
+    0.035820056654146656,
+    0.056101298860915805
+   ],
+   "volatility": [
+    0.0535812843422142,
+    0.08094898052624205,
+    0.0534908622101326,
+    0.0613724494123145,
+    0.06874657348070987
+   ],
+   "template": 1,
+   "template_distance": 0.12361734600977117,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-01-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.0019991165614495,
+    0.010839324565204039,
+    -0.030771183630739732,
+    0.011335946727753659,
+    0.026995722118604015
+   ],
+   "volatility": [
+    0.05425547913895087,
+    0.08048066464484334,
+    0.05299897557716881,
+    0.06095027689026776,
+    0.06881447498732733
+   ],
+   "template": 1,
+   "template_distance": 0.09417949024533773,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-02-28",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.011369070740521247,
+    0.013450292649251702,
+    -0.05751524144351303,
+    0.05614973139246888,
+    0.03812106328537915
+   ],
+   "volatility": [
+    0.05375440120153266,
+    0.08000641024364662,
+    0.05979959855701674,
+    0.06196732593533699,
+    0.06867543613115756
+   ],
+   "template": 1,
+   "template_distance": 0.1312420837775669,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-03-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.086724536710107,
+    0.030497502927304382,
+    -0.1681512007545217,
+    0.04118443999895325,
+    -0.0865869486316345
+   ],
+   "volatility": [
+    0.05364519262708097,
+    0.0793257767519256,
+    0.05938494094261933,
+    0.06157244265703498,
+    0.06970303833680513
+   ],
+   "template": 1,
+   "template_distance": 0.10544523744211826,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-04-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.11024980367345534,
+    -0.055713170250183755,
+    -0.04296581470682501,
+    -0.02930183475519634,
+    0.012861973338771298
+   ],
+   "volatility": [
+    0.056062043341152834,
+    0.07887908842373413,
+    0.05993403044118274,
+    0.06129241472048652,
+    0.06929398387418917
+   ],
+   "template": 1,
+   "template_distance": 0.173349557062405,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-05-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.03897743970591525,
+    0.010648279136346323,
+    0.009790942066479373,
+    0.015660944591320548,
+    0.011818486172573332
+   ],
+   "volatility": [
+    0.05678755332564147,
+    0.07942908649551564,
+    0.06052902262442749,
+    0.06151070893012328,
+    0.0687308437362938
+   ],
+   "template": 1,
+   "template_distance": 0.1573535001595215,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-06-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.016270041630067338,
+    0.00876316055245488,
+    -0.001610380125399846,
+    0.0022269314586501254,
+    0.004265782859204398
+   ],
+   "volatility": [
+    0.05673181208476092,
+    0.07872063354301351,
+    0.060606006134861355,
+    0.06098558341931679,
+    0.068260357821429
+   ],
+   "template": 1,
+   "template_distance": 0.1355532781937446,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-07-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.015514945993424824,
+    0.04006927822876338,
+    -0.009477908997340167,
+    0.02276834956990423,
+    0.008532002437560856
+   ],
+   "volatility": [
+    0.05674138729750253,
+    0.07868297132931752,
+    0.06189064703312951,
+    0.06068874863403032,
+    0.0693916480330918
+   ],
+   "template": 1,
+   "template_distance": 0.1419667189346383,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-08-29",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.01221226169314865,
+    0.029421793388759776,
+    -0.0006599976362023281,
+    0.033756974138052495,
+    0.014187938360940795
+   ],
+   "volatility": [
+    0.05630327385377578,
+    0.07815682448523668,
+    0.06164561166383469,
+    0.060783645246998724,
+    0.06902518320368538
+   ],
+   "template": 1,
+   "template_distance": 0.10874775638345421,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-09-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.025391168098965928,
+    0.03668789563115992,
+    -0.005492889783514055,
+    0.05044823840382866,
+    0.053614850175072136
+   ],
+   "volatility": [
+    0.0559385177449944,
+    0.07773708003339316,
+    0.061446313350776674,
+    0.060358357046528796,
+    0.07076254855160721
+   ],
+   "template": 1,
+   "template_distance": 0.16726181407454388,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-10-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.004437114776420821,
+    0.012335693225889224,
+    0.005544740837226036,
+    0.03635352295634247,
+    0.028397488685177046
+   ],
+   "volatility": [
+    0.05632601910211349,
+    0.07729441211056756,
+    0.061170075439947666,
+    0.05992475866835516,
+    0.0712802769135521
+   ],
+   "template": 1,
+   "template_distance": 0.12932100424106008,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-11-28",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.011839491955694613,
+    0.023717308741537914,
+    -0.03113430067183902,
+    0.05374900780317396,
+    0.006891962230481394
+   ],
+   "volatility": [
+    0.0559064358181585,
+    0.0766677812335484,
+    0.0606766895816796,
+    0.05947366342969851,
+    0.07100320810094768
+   ],
+   "template": 1,
+   "template_distance": 0.1271005732008145,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2025-12-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    -0.008298841836143671,
+    0.03697121762709284,
+    -0.0004898982382113809,
+    0.05159013697637522,
+    0.030034091256808334
+   ],
+   "volatility": [
+    0.05548500706965413,
+    0.07618945225314055,
+    0.06051649404108333,
+    0.059022209391107874,
+    0.07056327017184823
+   ],
+   "template": 1,
+   "template_distance": 0.17490808694299118,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-01-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.004040100505251661,
+    0.04100141105871016,
+    0.009393282679939068,
+    0.038228990821759776,
+    0.03353707879265391
+   ],
+   "volatility": [
+    0.05518060454042156,
+    0.07557430103929852,
+    0.06087484830854883,
+    0.05862574282570382,
+    0.07020872238846934
+   ],
+   "template": 1,
+   "template_distance": 0.13385662783351462,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-02-27",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.029880308424541063,
+    0.019314051957137562,
+    0.013941741117389125,
+    0.006984382530135286,
+    0.023989552625262388
+   ],
+   "volatility": [
+    0.05541632165694917,
+    0.07515103502880084,
+    0.06213596323765338,
+    0.058726123636369844,
+    0.06990135640966835
+   ],
+   "template": 1,
+   "template_distance": 0.13167490886854646,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-03-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.03262834515674988,
+    0.007525353390267969,
+    -0.006733921124492889,
+    -0.0017512880450556208,
+    0.004361740942289501
+   ],
+   "volatility": [
+    0.05698914319485346,
+    0.07592370197732057,
+    0.06408482447824068,
+    0.0593988929318621,
+    0.06940965467072845
+   ],
+   "template": 1,
+   "template_distance": 0.13772935539851666,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-04-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.021031558755614868,
+    0.009699984868363138,
+    0.01379249343601892,
+    0.004720446906944764,
+    0.018726210894953764
+   ],
+   "volatility": [
+    0.05763894954718162,
+    0.07630551780988695,
+    0.0642959561057388,
+    0.05969074643479381,
+    0.07024664094459948
+   ],
+   "template": 1,
+   "template_distance": 0.11168579599723832,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-05-29",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.008026528351383101,
+    0.0140540112198757,
+    0.025685581629849755,
+    0.010823535086117669,
+    0.03207102405676107
+   ],
+   "volatility": [
+    0.05813222545173439,
+    0.07609327084108908,
+    0.06415798801263549,
+    0.059249534117605474,
+    0.07016635604356737
+   ],
+   "template": 1,
+   "template_distance": 0.15462877990612195,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-06-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.016272515572954917,
+    0.005444601642919175,
+    0.01112659058346684,
+    -0.0006097802016830304,
+    0.049027132553019534
+   ],
+   "volatility": [
+    0.05818604326013159,
+    0.07556078381668341,
+    0.06378615604604328,
+    0.05896017757507774,
+    0.06968206823649613
+   ],
+   "template": 1,
+   "template_distance": 0.15232576801221076,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-07-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.023816776423627763,
+    0.0019286572873997224,
+    0.02740504612083287,
+    0.004202480863201969,
+    0.04960835138614893
+   ],
+   "volatility": [
+    0.0599054832563662,
+    0.07568959992812839,
+    0.0634123352155623,
+    0.05875837197149596,
+    0.07317775227797733
+   ],
+   "template": 1,
+   "template_distance": 0.13527447286371527,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-08-31",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.014430987183994364,
+    0.00502214093589258,
+    0.012142560871139543,
+    0.015885577359475943,
+    0.03585098687646941
+   ],
+   "volatility": [
+    0.05960931489805534,
+    0.075150682157209,
+    0.06445202773215392,
+    0.0585744210389847,
+    0.07323596255645493
+   ],
+   "template": 1,
+   "template_distance": 0.14766246288883964,
+   "templates": [
+    1
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "row": "Regime HMM Single Model",
+   "regimes": 1,
+   "features": [
+    "returns",
+    "vol",
+    "mom"
+   ],
+   "dominant": 0,
+   "volatility_rank": 1,
+   "label": "normal",
+   "probability": 1.0,
+   "weights": [
+    1.0
+   ],
+   "expected_return": [
+    0.02099815431423561,
+    0.013297149636266369,
+    0.010247470040300157,
+    0.014118735377268798,
+    0.01907774969017851
+   ],
+   "volatility": [
+    0.05945633759032305,
+    0.07467404584915116,
+    0.0643433927210576,
+    0.058217607442003945,
+    0.07331846168040491
+   ],
+   "template": 1,
+   "template_distance": 0.12494352573877775,
+   "templates": [
+    1
+   ]
+  }
+ ]
+}
