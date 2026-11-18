@@ -53,8 +53,8 @@ try {
   const jobKeys = require('../jobs').JOBS.map((j) => j.key);
   ok(Object.keys(pipeline.STEP_NAMES).join() === 'kenoSubsetTuning,cryptoPredictor,sharesPredictor' && Object.keys(pipeline.STEP_NAMES).every((key) => jobKeys.includes(key)),
     'three steps are named by their job rather than their script, and they are jobs of the schedule');
-  ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0shares,sharesweek\0' })).what === "Tomorrow's stock predictions are being computed"
-    && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0crypto,cryptoweek\0' })).what === "The crypto day's predictions are being computed"
+  ok(pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0shares,sharesweek,sharesmonth\0' })).what === "Tomorrow's stock predictions are being computed"
+    && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0crypto,cryptoweek,cryptomonth\0' })).what === "The crypto day's predictions are being computed"
     && pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0Predictor.py\0-a\0true\0-g\0euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto\0' })).what === "The next draws' predictions are being computed",
     'the evening stocks run says it computes tomorrow\'s stock predictions, the night crypto run the crypto day\'s, the night lottery run the next draws\'');
   const keno = pipeline.pipelineStatus(lock, procOf({ 4242: 'python3\0HyperoptStatistics.py\0-g\0keno\0-s\0KenoSubsetTuning\0' }));

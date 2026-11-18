@@ -490,6 +490,7 @@ export type Scope = 'all' | 'top';
 export type GroupName = 'Lottery' | 'Markets';
 
 export const LOTTERY_GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto', 'jokerplus', 'pick3', 'keno'];
+// the month games (cryptomonth, sharesmonth) are not listed: the admin pages do not show them yet (admin.js MARKET_GAMES)
 export const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek'];
 export const GAMES = [...LOTTERY_GAMES, ...MARKET_GAMES];
 export const isGame = (s: unknown): s is string => typeof s === 'string' && GAMES.includes(s);

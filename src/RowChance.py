@@ -112,7 +112,11 @@ GAMES = {
     "shares": ("market", 0, 9, 5),
     "cryptoweek": ("market", 0, 9, 5),
     "sharesweek": ("market", 0, 9, 5),
+    "cryptomonth": ("market", 0, 9, 5),
+    "sharesmonth": ("market", 0, 9, 5),
 }
+# the games no tuner knows (18 Nov 2026: the month games, in the daily runs only): not in HyperoptStatistics.GAME_CONFIG
+UNTUNED = ("cryptomonth", "sharesmonth")
 
 
 def kind_of(game):
@@ -582,10 +586,13 @@ def _self_check():
     config = next(ast.literal_eval(node.value) for node in tree.body
                   if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "GAME_CONFIG" for t in node.targets))
     for game, (_, lo, hi, drawn) in GAMES.items():
+        if game in UNTUNED:
+            check(game not in config and (lo, hi, drawn) == GAMES[game.replace("month", "")][1:], f"{game}: no tuner knows it, the shape of its base market")
+            continue
         c = config.get(game)
         check(c is not None and (c["min"], c["max"], c["draw_size"]) == (lo, hi, drawn),
               f"{game}: range {lo}-{hi}, {drawn} drawn, against GAME_CONFIG {c and (c['min'], c['max'], c['draw_size'])}")
-    check(set(config) == set(GAMES), f"every game of GAME_CONFIG is known here: {sorted(set(config) ^ set(GAMES))}")
+    check(set(config) == set(GAMES) - set(UNTUNED), f"every game of GAME_CONFIG is known here: {sorted(set(config) ^ set(GAMES))}")
 
     mean = lambda pmf: float((np.arange(len(pmf)) * pmf).sum())
     check(abs(mean(draw_pmf("lotto", range(1, 7), 6)) - 0.8) < 1e-9 and abs(mean(draw_pmf("lotto", range(1, 8), 6)) - 0.93333) < 1e-4,

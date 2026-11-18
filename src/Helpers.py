@@ -101,7 +101,7 @@ POSITIONAL_GAMES = {"pick3", "jokerplus", "crypto", "shares"}
 # pick3, scored on exact slot hits (a bin in the right instrument's slot).
 # The week games (one draw per ISO week, src/MarketGame.py) are market games too:
 # the tuners and the controls list them from this set (8 Oct 2026).
-MARKET_GAMES = {"crypto", "shares", "cryptoweek", "sharesweek"}
+MARKET_GAMES = {"crypto", "shares", "cryptoweek", "sharesweek", "cryptomonth", "sharesmonth"}
 MARKET_BINS = 10
 
 

@@ -352,10 +352,10 @@ The server starts the daily predictors, the weekly tuning chain and the weekly c
 
 | Key | Name | Command | Slot | Caught up for | Log |
 |---|---|---|---|---|---|
-| `cryptoPredictor` | Night predictor: crypto | `Predictor.py -a true -g crypto,cryptoweek` | 00:05 UTC, every day | 20 h | `log/cryptoPredictor.log` |
+| `cryptoPredictor` | Night predictor: crypto | `Predictor.py -a true -g crypto,cryptoweek,cryptomonth` | 00:05 UTC, every day | 20 h | `log/cryptoPredictor.log` |
 | `<game>Predictor` | Morning predictor: one job per lottery game | `Predictor.py -a true -g <game>` | 06:00 local time, every day | 20 h | `log/<game>Predictor.log` |
 | `councilRows` | Council rows | `CouncilRows.py` | when the morning's lottery predictors have ended | none | `log/councilRows.log` |
-| `sharesPredictor` | Evening predictor: stocks | `Predictor.py -a true -g shares,sharesweek` | 18:05 local time, Monday to Friday | until 08:30 the next morning | `log/sharesPredictor.log` |
+| `sharesPredictor` | Evening predictor: stocks | `Predictor.py -a true -g shares,sharesweek,sharesmonth` | 18:05 local time, Monday to Friday | until 08:30 the next morning | `log/sharesPredictor.log` |
 
 - The crypto slot is in UTC, five minutes after the crypto day closes (01:05 Brussels in winter, 02:05 in summer). A crypto week closes on Monday 00:00 UTC, so Monday's run brings the new week.
 - The other slots are in the server process's local time, Europe/Brussels on the production machine, so they follow summer and winter time.

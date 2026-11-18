@@ -26,7 +26,7 @@ const SPECIAL_COLUMN_COUNTS = { euromillions: 2, eurodreams: 1, vikinglotto: 1, 
 // the special columns by name, as the tables head them (the old page said "Num 6, Num 7")
 const SPECIAL_LABELS = { euromillions: ['Star 1', 'Star 2'], eurodreams: ['Dream'], vikinglotto: ['Viking'], jokerplus: ['Sign'] };
 // the two markets and their week games (one draw per week): positional, a slot per instrument
-const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek'];
+const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek', 'cryptomonth', 'sharesmonth'];
 // the games with a payout table on the History pages: keno, pick3 and Joker+ (the others are pari-mutuel)
 const MONEY_GAMES = ['keno', 'pick3', 'jokerplus'];
 // the games scored by position, not by membership: their vote is drawn per slot
@@ -169,7 +169,7 @@ function chartFrequency(freq, game) {
 // so keep that tolerance. vikinglotto must be tested before lotto because
 // "vikinglotto".includes("lotto") is true.
 function gameFromFolder(folder) {
-  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus", "cryptoweek", "sharesweek", "crypto", "shares"];   // the week games before their base: "cryptoweek".includes("crypto")
+  const games = ["euromillions", "eurodreams", "vikinglotto", "lotto", "keno", "pick3", "jokerplus", "cryptoweek", "sharesweek", "cryptomonth", "sharesmonth", "crypto", "shares"];   // the week and month games before their base: "cryptoweek".includes("crypto")
   for (const g of games) if (folder.includes(g)) return g;
   return folder;
 }

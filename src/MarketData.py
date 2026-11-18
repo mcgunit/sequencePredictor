@@ -83,13 +83,31 @@ WEEK_MARKETS = {"cryptoweek": "crypto", "sharesweek": "shares"}
 WEEK_KICKOFF = "2026-10-04"
 
 
+# The MONTH games (roadmap item 11, 18 Nov 2026): one draw per calendar month, cut from the base market's bars by
+# src/MarketGame.monthly_returns - the paper trader's third input (src/MarketTrader.py). Stored like the week games:
+# instruments of their own, no bars, never fetched.
+MONTH_MARKETS = {"cryptomonth": "crypto", "sharesmonth": "shares"}
+MONTH_KICKOFF = "2026-11-18"
+# every game cut from another market's bars: the week games and the month games
+PERIOD_MARKETS = {**WEEK_MARKETS, **MONTH_MARKETS}
+
+
 def base_market(market):
-    """The market whose bars a game is cut from: itself, or the base of a week game."""
-    return WEEK_MARKETS.get(market, market)
+    """The market whose bars a game is cut from: itself, or the base of a week or month game."""
+    return PERIOD_MARKETS.get(market, market)
 
 
 def is_week_game(market):
     return market in WEEK_MARKETS
+
+
+def is_month_game(market):
+    return market in MONTH_MARKETS
+
+
+def is_period_game(market):
+    """A week or a month game: cut from its base market's bars, one draw per period."""
+    return market in PERIOD_MARKETS
 
 # The frozen universe at kickoff. Crypto: the five largest coins by market
 # cap on CoinGecko on 2026-09-30 that are not stablecoins (Tether at #3 and
@@ -120,6 +138,9 @@ DEFAULT_UNIVERSE = [
 # joined on the week games' kickoff, the shares' on the day they are installed, like their base rows
 DEFAULT_UNIVERSE += [dict(row, market=week, added_on=WEEK_KICKOFF if base == "crypto" else None)
                      for week, base in WEEK_MARKETS.items() for row in list(DEFAULT_UNIVERSE) if row["market"] == base]
+# the month games' instruments, the same way (the base rows only: the list above now holds the week games' too)
+DEFAULT_UNIVERSE += [dict(row, market=month, added_on=MONTH_KICKOFF if base == "crypto" else None)
+                     for month, base in MONTH_MARKETS.items() for row in list(DEFAULT_UNIVERSE) if row["market"] == base]
 
 
 def history_symbol(market, symbol):
@@ -330,9 +351,9 @@ def instruments(conn, market=None, active_only=True):
 def base_instrument_id(conn, member):
     """The instrument whose bars a member's prices come from: itself, or for a week game's instrument the base market's row with the same symbol."""
     market = member.get("market") if isinstance(member, dict) else None
-    if market not in WEEK_MARKETS:
+    if market not in PERIOD_MARKETS:
         return member["id"]
-    row = conn.execute("SELECT id FROM instruments WHERE market = ? AND symbol = ?", (WEEK_MARKETS[market], member["symbol"])).fetchone()
+    row = conn.execute("SELECT id FROM instruments WHERE market = ? AND symbol = ?", (PERIOD_MARKETS[market], member["symbol"])).fetchone()
     return row["id"] if row else member["id"]
 
 
@@ -995,7 +1016,7 @@ def update_all(conn, market=None, env=None, log=print, full=False):
     yahoo = YahooClient()
     summaries = []
     for instrument in instruments(conn, market):
-        if is_week_game(instrument["market"]):
+        if is_period_game(instrument["market"]):
             continue   # a week game's instruments carry no bars of their own
         try:
             fetch = fetcher_for(instrument, env=env, yahoo=yahoo)
@@ -1167,7 +1188,7 @@ def status(conn, today=None):
     """One line per instrument for the CLI and, later, the page."""
     lines = []
     for instrument in instruments(conn, active_only=False):
-        if is_week_game(instrument["market"]):
+        if is_period_game(instrument["market"]):
             continue   # derived from the base market's bars: nothing of its own to report
         report = check_bars(conn, instrument, today=today)
         gap_text = f"{len(report['gaps'])} gap(s)" if report["gaps"] else "no gaps"
@@ -1187,7 +1208,7 @@ def _self_check():
 
     # 1. The frozen universe: installed once, never changed.
     added, conflicts = install_universe(conn)
-    assert len(added) == len(DEFAULT_UNIVERSE) == 20 and conflicts == [], (added, conflicts)
+    assert len(added) == len(DEFAULT_UNIVERSE) == 30 and conflicts == [], (added, conflicts)
     shares = instruments(conn, "shares")
     assert [i["symbol"] for i in shares] == ["SHELL", "INGA", "ABI", "KBC", "UCB"] and {i["quote"] for i in shares} == {"EUR"}
     assert all(i["added_on"] == utc_now().date().isoformat() for i in shares + instruments(conn, "sharesweek")), "the shares join on their install day"
@@ -1197,6 +1218,12 @@ def _self_check():
     assert week_btc["symbol"] == "BTC" and week_btc["added_on"] == WEEK_KICKOFF and week_btc["id"] != instruments(conn, "crypto")[0]["id"]
     assert base_instrument_id(conn, week_btc) == instruments(conn, "crypto")[0]["id"] and base_instrument_id(conn, instruments(conn, "crypto")[0]) == instruments(conn, "crypto")[0]["id"]
     assert base_market("sharesweek") == "shares" and base_market("shares") == "shares" and is_week_game("cryptoweek") and not is_week_game("crypto")
+    # the month games (18 Nov 2026): instruments of their own on the base market's bars, a period game but not a week game
+    month_btc = instruments(conn, "cryptomonth")[0]
+    assert month_btc["symbol"] == "BTC" and month_btc["added_on"] == MONTH_KICKOFF and month_btc["id"] not in (week_btc["id"], instruments(conn, "crypto")[0]["id"])
+    assert base_instrument_id(conn, month_btc) == instruments(conn, "crypto")[0]["id"] and len(instruments(conn, "sharesmonth")) == 5
+    assert base_market("sharesmonth") == "shares" and is_month_game("cryptomonth") and not is_week_game("cryptomonth") and not is_month_game("cryptoweek")
+    assert is_period_game("cryptomonth") and is_period_game("sharesweek") and not is_period_game("shares")
     assert install_universe(conn) == ([], [])
     conn.execute("UPDATE instruments SET name = 'renamed' WHERE symbol = 'BTC'")
     assert install_universe(conn) == ([], []) and conn.execute("SELECT name FROM instruments WHERE symbol = 'BTC'").fetchone()[0] == "renamed"

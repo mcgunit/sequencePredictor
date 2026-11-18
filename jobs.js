@@ -112,9 +112,9 @@ const PLANS = {
 // The games of the three daily runs (Predictor.py -g), the schedule of 8 Nov 2026: crypto right after its UTC
 // day closes, the lottery games in the early morning (06:00 Brussels since 9 Nov 2026: at 00:30 UTC the Nationale
 // Loterij API answered every game with an empty reply), the shares in the evening once Euronext's day is complete.
-const CRYPTO_GAMES = 'crypto,cryptoweek';
+const CRYPTO_GAMES = 'crypto,cryptoweek,cryptomonth';   // the month game since 18 Nov 2026 (roadmap item 11)
 const NIGHT_GAMES = 'euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto';
-const EVENING_GAMES = 'shares,sharesweek';
+const EVENING_GAMES = 'shares,sharesweek,sharesmonth';
 
 // A predictor job per lottery game (16 Nov 2026; until then one run made all seven, key 'predictor'): a game that
 // crashes, hangs or gets no data costs only its own run - the others have theirs, each with its own log, its own
@@ -173,7 +173,7 @@ const JOBS = [
     // First in this list: a catch-up after a night the box was down queues crypto ahead of the lottery games.
     key: 'cryptoPredictor',
     name: 'Night predictor: crypto',
-    description: "The crypto day's predictions (Predictor.py -a true -g crypto,cryptoweek) at 00:05 UTC, five minutes after the "
+    description: "The crypto day's predictions (Predictor.py -a true -g crypto,cryptoweek,cryptomonth) at 00:05 UTC, five minutes after the "
                + 'UTC day closes: the daily book buys at 00:00 UTC, so the card is up minutes after it instead of hours (01:05 Brussels '
                + 'in winter, 02:05 in summer; until 8 Nov 2026 it came with the 09:00 run). A crypto week closes on Monday 00:00 UTC, '
                + 'so Monday\'s run brings the new week too.',
@@ -207,7 +207,7 @@ const JOBS = [
     // evening before.
     key: 'sharesPredictor',
     name: 'Evening predictor: stocks',
-    description: "Tomorrow's stock predictions, from the Euronext day that just closed (Predictor.py -a true -g shares,sharesweek), "
+    description: "Tomorrow's stock predictions, from the Euronext day that just closed (Predictor.py -a true -g shares,sharesweek,sharesmonth), "
                + 'Monday to Friday at 18:05 Brussels, as soon as the day is complete (18:00), so the card is up before the 09:00 open. '
                + 'Waits for process.lock like any job: a tuner or control holding it delays the card.',
     script: 'Predictor.py',

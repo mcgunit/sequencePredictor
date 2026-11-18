@@ -51,6 +51,9 @@ const REPORT_PATH = 'data/database/modelPerformance.json';
 const CACHE_VERSION = 2;
 const CUTOFF_HOUR = 15;                                  // Brussels wall time on the draw's (the week's first) day
 const WEEK_GAMES = ['cryptoweek', 'sharesweek'];
+// The month games (18 Nov 2026): one draw per calendar month, dated by the month's last day or session; its ranking
+// is read on the 1st of that month.
+const MONTH_GAMES = ['cryptomonth', 'sharesmonth'];
 const TOP_N = rankings.TOP_MODELS_SHOWN;
 const GAME = /^[a-z0-9]+$/;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -143,12 +146,13 @@ async function readVersion(root, sha) {
 // --- the cut-off -----------------------------------------------------------------------------------------------
 // The instant a draw's ranking is read at (the header explains the hour): 15:00 Brussels on the draw's date - for a
 // lottery draw its sales close when that is earlier (draws.salesClose: Sunday keno, pick3 and Joker+ at 13:00) -, or
-// 15:00 on the week's Monday for a week game. null for a date that is not a day.
+// 15:00 on the week's Monday for a week game and on the 1st of the month for a month game. null for a date that is not a day.
 function cutoffOf(game, date) {
   if (!ISO_DAY.test(String(date)) || !brussels.isDay(date)) return null;
-  const day = WEEK_GAMES.includes(game) ? brussels.addDays(date, -((brussels.weekdayOfDay(date) + 6) % 7)) : date;
+  const day = WEEK_GAMES.includes(game) ? brussels.addDays(date, -((brussels.weekdayOfDay(date) + 6) % 7))
+    : MONTH_GAMES.includes(game) ? `${String(date).slice(0, 8)}01` : date;
   const at = brussels.instant(day, CUTOFF_HOUR, 0);
-  const close = WEEK_GAMES.includes(game) ? null : draws.salesClose(game, date);
+  const close = WEEK_GAMES.includes(game) || MONTH_GAMES.includes(game) ? null : draws.salesClose(game, date);
   return close ? Math.min(at, close.at) : at;
 }
 
@@ -254,4 +258,4 @@ async function loadNow(root, { cacheFile = null } = {}) {
 // For the tests: forget what was read (memory, the cache files read, the per-root lists).
 function reset() { memory.clear(); cacheRead.clear(); lists.clear(); failed.clear(); }
 
-module.exports = { REPORT_PATH, CUTOFF_HOUR, WEEK_GAMES, reduce, cutoffOf, makeHistory, load, reset };
+module.exports = { REPORT_PATH, CUTOFF_HOUR, WEEK_GAMES, MONTH_GAMES, reduce, cutoffOf, makeHistory, load, reset };

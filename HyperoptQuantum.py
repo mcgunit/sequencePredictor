@@ -31,7 +31,7 @@ from src.TuningScore import score_bets_by_day, attrs_for_trial
 # per-position fit and argmax-ticket scoring: the trial classifier must be
 # fitted and played exactly the way the persisted artifact will be.
 from HyperoptStatistics import GAME_CONFIG
-from src.MarketData import WEEK_MARKETS
+from src.MarketData import PERIOD_MARKETS
 from TrainMetaLearner import (
     build_training_table, load_meta_score_table, save_meta_score_table, meta_table_kind, meta_table_start_index,
     build_positional_training_table, fit_position_models, evaluate_positional_holdout, positional_profit,
@@ -988,7 +988,7 @@ if __name__ == "__main__":
             # The week games (cryptoweek, sharesweek) are left out by default: three
             # studies per game on a chain step that already takes seven hours, for
             # rows with a few hundred weeks of history. Name them with -g to tune them.
-            default=",".join(g for g in GAME_CONFIG if g not in WEEK_MARKETS),
+            default=",".join(g for g in GAME_CONFIG if g not in PERIOD_MARKETS),
             help='Comma-separated list of games, e.g. "keno,lotto"'
         )
 

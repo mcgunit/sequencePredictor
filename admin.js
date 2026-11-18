@@ -48,6 +48,8 @@ const rankings = require('./ranking');
 const workbench = require('./workbench');
 
 const LOTTERY_GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto', 'jokerplus', 'pick3', 'keno'];
+// the month games (cryptomonth, sharesmonth, 18 Nov 2026) are not in this list: it drives the controls, the tuning
+// matrix and the gates, and the month games are neither tuned nor in the controls
 const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek'];
 const GAMES = LOTTERY_GAMES.concat(MARKET_GAMES);
 const GROUPS = [{ name: 'Lottery', games: LOTTERY_GAMES }, { name: 'Markets', games: MARKET_GAMES }];
@@ -56,7 +58,7 @@ const isMarketGame = (game) => MARKET_GAMES.includes(game);
 // What one scored row - one draw of the game - is: every count of draws, table rows, windows and histories in a
 // game's JSON is in this unit (the week games' "draws" are weeks, shares' are trading days).
 const UNIT = { lotto: 'draws', euromillions: 'draws', eurodreams: 'draws', vikinglotto: 'draws', jokerplus: 'days', pick3: 'days',
-  keno: 'days', crypto: 'days', shares: 'trading days', cryptoweek: 'weeks', sharesweek: 'weeks' };
+  keno: 'days', crypto: 'days', shares: 'trading days', cryptoweek: 'weeks', sharesweek: 'weeks', cryptomonth: 'months', sharesmonth: 'months' };
 // the feature-control variants by their short code, as on the mockup's dots
 const VARIANT_CODE = { logistic: 'lr', gradient_boosting: 'gb', quantum_kernel: 'qk', quantum_vqc: 'qv', classical_svm: 'svm' };
 // the Randomness watch tripwires (server.js generateRandomnessWatch): deliberately loose, an alarm and not a verdict

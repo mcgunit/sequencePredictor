@@ -2,7 +2,62 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 18 November 2026
+
+### The paper trader books at 09:00 and keeps its decisions
+
+*Pages: markets, roadmap*
+
+Decided: the trader's rule values stay the hand-chosen ones; a hyperopt and a backtest for them, started from the menu, come later. Every instruction has to be one a reader can carry out when they look at the page once a day, between 9 and 10 in the morning.
+
+Built: one decision per instrument and day, booked at 09:00 Brussels time: the Euronext open for the shares, the hourly Binance bar of that hour for crypto (it was the 00:00 UTC close, before the ticket exists). The crypto stop is a standing order read on the hourly bars. Every market export stores the trader's decision for the coming day in `data/markets/<market>-trader.json`; the trader starts without a position on its first stored day, and a position is live only when its decisions were stored before 09:00 of their days. The totals are given for all positions and for the long ones, which are the ones a reader can follow.
+
+Found: under the 09:00 booking the crypto replay comes to -36.72 USDT over 24 positions (it was -32.49); its long positions alone made -33.72 USDT over 11 positions, against -25.89 for the same positions at random. The shares are unchanged. Of the 24 crypto positions 18 date from before the hourly bars and are booked at 00:00 UTC.
+
+Open: the card on the user pages; the month game; whether a reader of the shares page, ordering later than 09:00, needs a price of their own.
+
+### The month games
+
+*Pages: markets, operations, roadmap*
+
+Decided: the paper trader's rules read three predictions (day, week, month); the shares are booked at the 10:00 hourly price; the stop is moved once a day as the price rises; a take-profit limit is built but off.
+
+Built: `cryptomonth` and `sharesmonth`, one draw per calendar month, cut from the base market's bars like the week games and predicted in the night and evening runs. A month is cut by the first run after its last close, so the shares' month ticket exists before the next month's first open. The trader does not read them yet.
+
+Found: 51 crypto months and 106 share months can be binned. In a trial run on a copy with deep learning and boosting on, the crypto month ticket had 13 rows (the Regime HMM rows and all deep-learning rows but the two LSTM rows had too little history and left none) and the share month ticket 21. Yahoo serves hourly prices of the five Euronext listings for two years back.
+
+Open: the trader's rules on three predictions; the month games in the tuners, the controls and the admin pages.
+
+### A run stopped half-way left a draw without a ticket
+
+*Pages: operations*
+
+Found: the Joker+ draw of 17 November had no ticket. A power outage on the morning of 17 November ended the Joker+ run after 42 minutes without an exit code (and the Keno run after 7). The live path writes the day file once after the deep-learning step, with an empty new ticket, and again at the end; the run died in between. The run started by hand later that morning found the file and answered "Prediction already made".
+
+Built: a day file that exists without a ticket is made again by the next run (`dayFileWithoutTicket` in `Predictor.py`). The lottery test accepts a production draw without a ticket: it shows no row and no figures.
+
+The existing completeness check (`entryIsComplete`) did not catch it: it runs only when the newest day file is missing, and it looks for the labels, which the half-written file has. The Joker+ draw of 17 November stays without a ticket.
+
 ## 17 November 2026
+
+### The paper trader: rules and a first replay
+
+*Pages: markets, roadmap*
+
+Decided: the month game is cut per calendar month (crypto has 76 months of history, the shares 131). The paper trader is built before the month game, on the day and week calls, and reads the row each game's page follows.
+
+Built: `src/MarketTrader.py`, one trader per instrument. It enters when the week call agrees and the day call has persisted, and leaves on a turned week call, on day calls against it, on a stop or after a longest hold; the shares are long only and never buy and sell on one day, crypto may sell short. It books at the market's stake and costs and comes with two comparisons: holding everything, and its own positions laid at random over the same days. A replay prints what it would have done over the stored record. Nothing is on a page.
+
+Found in the replay over the stored record (crypto 77 game days from 1 September, shares 42 sessions from 21 September; most of these days were back-built, so this is what the rule would have done, not a record):
+
+| | Trader | Hold everything | Its own positions at random | Random runs beaten |
+| --- | --- | --- | --- | --- |
+| Crypto (100 USDT a position) | -32.49 over 24 positions | -120.33 | -10.19 | 20% |
+| Shares (1,000 EUR a position) | -20.03 over 4 positions | +212.12 | +53.57 | 16% |
+
+The trader lost less than holding in crypto because it was in the market 39% of the time and short for part of a falling stretch, not because it timed well: its own positions at random places did better four times in five. In the shares it was out of a rising market. Under other rule values the crypto total runs from -94 to +11 USDT and the shares' from -176 to +25 EUR; with 3 to 58 positions each, no value can be chosen from this record.
+
+Open: the rule values; the month game as the third input; the trader's own stored record; crypto's entry price, which is booked five minutes before the ticket exists.
 
 ### Council rows
 

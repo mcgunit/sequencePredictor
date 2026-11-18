@@ -701,6 +701,12 @@ async function partThree() {
       const file = files.find((f) => f.date === date).file;
       const day = readDay(game, file);
       const five = independentTop(root, commits, game, date, names(day.currentPrediction));
+      // a draw production had no ticket for (Joker+ 17 Nov 2026: the run was killed before the ticket was written) has
+      // no row and no figures: said as such, nothing to count by hand
+      if (!names(day.currentPrediction).length) {
+        ok(d.rows.length === 0 && d.figures === null && d.scope.none && five.length === 0, `production ${game} ${date}: a draw without a ticket shows no row and no figures`);
+        continue;
+      }
       ok(d.rows.map((r) => r.name).sort().join() === five.slice().sort().join() && d.scope.top.slice().sort().join() === five.slice().sort().join(),
         `production ${game} ${date}: the five ranked before the draw, read from git by hand: ${five.join(', ')}`);
       // the other rows: every name of the day file outside the draw's five (and, on the newest day, today's five)

@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const LOTTERY_GAMES = ['lotto', 'euromillions', 'eurodreams', 'vikinglotto', 'jokerplus', 'pick3', 'keno'];
-const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek'];
+const MARKET_GAMES = ['crypto', 'shares', 'cryptoweek', 'sharesweek', 'cryptomonth', 'sharesmonth'];
 const GAMES = [...LOTTERY_GAMES, ...MARKET_GAMES];
 // the games whose rows get a "· Sampled" twin: the number games ranked by probability (Predictor.probabilityOrder);
 // Pick3 and Joker+ are positional (digits in drawn order), the markets are settled into paper books

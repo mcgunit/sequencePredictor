@@ -39,10 +39,10 @@ ok(LOTTERY_JOBS.every((j) => j.stopWhenSlow === true && j.noData && j.noData.exi
   'each retries a run without data and is stopped when it hangs; no other job is in a group or is stopped by the schedule');
 ok(jobs._internals.isLottery('kenoPredictor') && jobs._internals.isLottery('predictor') && !jobs._internals.isLottery('cryptoPredictor') && !jobs._internals.isLottery('nope'),
   'a lottery run is one of the seven, or a run of the one job from before the split');
-ok(byKey.cryptoPredictor.script === 'Predictor.py' && byKey.cryptoPredictor.args.join(' ') === '-a true -g crypto,cryptoweek'
+ok(byKey.cryptoPredictor.script === 'Predictor.py' && byKey.cryptoPredictor.args.join(' ') === '-a true -g crypto,cryptoweek,cryptomonth'
   && byKey.cryptoPredictor.daily.hour === 0 && byKey.cryptoPredictor.daily.minute === 5 && byKey.cryptoPredictor.daily.utc === true && !byKey.cryptoPredictor.daily.weekdays,
   'crypto runs every day at 00:05 UTC, five minutes after its day closes, ahead of the lottery run');
-ok(byKey.sharesPredictor.script === 'Predictor.py' && byKey.sharesPredictor.args.join(' ') === '-a true -g shares,sharesweek'
+ok(byKey.sharesPredictor.script === 'Predictor.py' && byKey.sharesPredictor.args.join(' ') === '-a true -g shares,sharesweek,sharesmonth'
   && byKey.sharesPredictor.daily.hour === 18 && byKey.sharesPredictor.daily.minute === 5 && !byKey.sharesPredictor.daily.utc && byKey.sharesPredictor.daily.weekdays.join() === '1,2,3,4,5',
   'the stocks run in the evening, Monday to Friday 18:05 Brussels, as soon as Euronext\'s day is complete (18:00) and before the next 09:00 open');
 {
@@ -131,8 +131,8 @@ ok(jobs.JOBS.filter((j) => j.daily).map((j) => j.key).join() === ['cryptoPredict
   ok(keyOf('python3 Predictor.py -a true -g keno') === 'kenoPredictor' && keyOf('python3 Predictor.py -a true -g lotto') === 'lottoPredictor'
     && keyOf('/usr/bin/python3 /root/sequencePredictor/Predictor.py -a true -g pick3 ') === 'pick3Predictor',
     'the lock of a game\'s run names that game');
-  ok(keyOf('python3 Predictor.py -a true -g shares,sharesweek') === 'sharesPredictor'
-    && keyOf('python3 Predictor.py -a true -g crypto,cryptoweek') === 'cryptoPredictor'
+  ok(keyOf('python3 Predictor.py -a true -g shares,sharesweek,sharesmonth') === 'sharesPredictor'
+    && keyOf('python3 Predictor.py -a true -g crypto,cryptoweek,cryptomonth') === 'cryptoPredictor'
     && keyOf('python3 Predictor.py -a true -g euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto') === 'euromillionsPredictor',
     'the locks of the crypto and stocks runs name those runs, so neither starts the weekly plans; the one run of seven games from before the split is a lottery run, not EuroMillions\' own (its arguments go on after the game)');
   ok(keyOf('python3 HyperoptDeepLearning.py') === null, 'a script no job runs is no job');

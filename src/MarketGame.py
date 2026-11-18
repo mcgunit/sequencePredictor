@@ -50,9 +50,9 @@ import numpy as np
 from datetime import date, datetime, timedelta, timezone
 
 try:
-    from src.MarketData import aligned_returns, closes, instruments, base_market, is_week_game, WEEK_MARKETS
+    from src.MarketData import aligned_returns, closes, instruments, base_market, is_week_game, is_month_game, is_period_game, WEEK_MARKETS
 except ImportError:  # imported from within src/
-    from MarketData import aligned_returns, closes, instruments, base_market, is_week_game, WEEK_MARKETS
+    from MarketData import aligned_returns, closes, instruments, base_market, is_week_game, is_month_game, is_period_game, WEEK_MARKETS
 
 K_BINS = 10          # digits 0..9, like pick3
 MIN_HISTORY = 250    # returns an instrument needs before its first day can be binned (about a trading year)
@@ -65,6 +65,10 @@ MIN_HISTORY = 250    # returns an instrument needs before its first day can be b
 # for the whole coming week. MIN_WEEK_HISTORY weeks (about two years) before
 # the first week can be binned.
 MIN_WEEK_HISTORY = 100
+# The month games (roadmap item 11, 18 Nov 2026): one draw per calendar month, the month's log return per instrument
+# cut into ten quantile bins of its own past MONTHS. Two years of months before the first can be binned: crypto's
+# joint history is 76 months (from August 2020), the shares' 131, so a longer floor would leave crypto too few draws.
+MIN_MONTH_HISTORY = 24
 FILE_PATTERN = "{game}-gamedata-NL-{year}.csv"   # Predictor.py's convention for every game
 # The returns the bins were cut from, next to the yearly files: every aligned
 # day (the warm-up before the first game day included), oldest first, one
@@ -294,18 +298,75 @@ def weekly_returns(days, matrix, game, now=None, log=None):
     return wdays, (np.asarray(wrows) if wrows else np.zeros((0, matrix.shape[1] if matrix.ndim == 2 else 0)))
 
 
+def month_closed_by(game, last_day):
+    """
+    Whether `last_day` (the newest aligned day of a calendar month) is the
+    day the game's month ends on, so the month's bars are all in: the
+    month's last calendar day for crypto; for shares its last Euronext
+    session. A stored bar is a closed one (the running crypto candle is
+    skipped, a share's row of today is kept only after the close), so the
+    month is cut by the first run after its last close: crypto's at 00:05
+    UTC on the 1st, the shares' on the evening of the month's last session -
+    before the next month's first open, so the month ticket can be followed.
+    """
+    d = date.fromisoformat(last_day)
+    nxt = d + timedelta(days=1)
+    if base_market(game) == "crypto":
+        return nxt.month != d.month
+    while nxt.month == d.month:
+        if nxt.weekday() < 5 and nxt.isoformat() not in EURONEXT_CLOSED:
+            return False
+        nxt += timedelta(days=1)
+    return True
+
+
+def monthly_returns(days, matrix, game, now=None, log=None):
+    """
+    Aligned daily log returns -> one row per COMPLETE calendar month: (month
+    dates, the date of the month's last aligned day; month matrix, the sum of
+    the month's daily returns per position). The newest month is cut only
+    when its last bar is in (month_closed_by); until then it waits. `now` is
+    accepted for the shape of weekly_returns and not used: a month is over
+    when its last bar is stored.
+    """
+    matrix = np.asarray(matrix, dtype=float)
+    groups, order = {}, []
+    for day, row in zip(days, matrix):
+        key = day[:7]
+        if key not in groups:
+            groups[key] = [day, np.zeros(len(row))]
+            order.append(key)
+        groups[key][0] = day
+        groups[key][1] = groups[key][1] + row
+    mdays, mrows = [], []
+    for n, key in enumerate(order):
+        if n == len(order) - 1 and not month_closed_by(game, groups[key][0]):
+            continue
+        mdays.append(groups[key][0])
+        mrows.append(groups[key][1])
+    return mdays, (np.asarray(mrows) if mrows else np.zeros((0, matrix.shape[1] if matrix.ndim == 2 else 0)))
+
+
 def game_returns(conn, market, now=None, log=None):
-    """(days, matrix, symbols) a game is cut from: the base market's aligned daily returns, summed per complete week for a week game."""
+    """(days, matrix, symbols) a game is cut from: the base market's aligned daily returns, summed per complete week or month for a week or month game."""
     days, matrix, symbols = aligned_returns(conn, base_market(market))
     if is_week_game(market):
         days, matrix = weekly_returns(days, matrix, market, now, log=log)
+    elif is_month_game(market):
+        days, matrix = monthly_returns(days, matrix, market, now, log=log)
     return days, matrix, symbols
+
+
+def period_word(market, plural=True):
+    """What one draw of the game is: 'days', 'weeks' or 'months'."""
+    word = "month" if is_month_game(market) else ("week" if is_week_game(market) else "day")
+    return word + "s" if plural else word
 
 
 def history_needed(market, min_history=None):
     if min_history is not None:
         return int(min_history)
-    return MIN_WEEK_HISTORY if is_week_game(market) else MIN_HISTORY
+    return MIN_MONTH_HISTORY if is_month_game(market) else (MIN_WEEK_HISTORY if is_week_game(market) else MIN_HISTORY)
 
 
 def build_game(conn, market, k=K_BINS, min_history=None, now=None):
@@ -480,7 +541,7 @@ def daily_refresh(path, market, fetch=True, db_path=None, log=print):
     for conflict in conflicts:
         log(f"{market}: universe CONFLICT: {conflict}")
     # a week game is cut from its base market's bars, fetched by the base game's own refresh moments before
-    summaries = update_all(conn, market=market, log=log) if (fetch and not is_week_game(market)) else []
+    summaries = update_all(conn, market=market, log=log) if (fetch and not is_period_game(market)) else []
     if fetch and market == "crypto":
         # the order book's 1h bars up to now (src/MarketOrders.py, 30 Oct 2026); the 1m windows around the cards come
         # with the export (MarketSettle.settle_and_export). update_intraday logs a failure and never raises
@@ -501,7 +562,7 @@ def refresh(conn, market, folder, k=K_BINS, min_history=None, log=print, now=Non
     min_history = history_needed(market, min_history)
     game_days = cut_game(days, matrix, k, min_history) if len(days) > min_history else []
     if not game_days:
-        log(f"{market}: not enough aligned history to cut a game (need more than {min_history} common {'weeks' if is_week_game(market) else 'days'})")
+        log(f"{market}: not enough aligned history to cut a game (need more than {min_history} common {period_word(market)})")
         return [], []
     conn.executescript(GAME_SCHEMA)
     previous_first = conn.execute("SELECT MIN(date) FROM game_days WHERE market = ?", (market,)).fetchone()[0]
@@ -598,6 +659,22 @@ def _self_check():
     assert d6 == ["2026-09-27", "2026-10-04"], d6
     assert history_needed("cryptoweek") == MIN_WEEK_HISTORY and history_needed("crypto") == MIN_HISTORY and history_needed("cryptoweek", 7) == 7
     print("weeks: a week is its daily returns summed, dated on its last day, counted once it is over - Monday 00:00 UTC for crypto, Saturday for shares")
+
+    # 1c. Months (18 Nov 2026): a calendar month is its daily returns summed, dated on its last aligned day, cut once its last bar is in
+    mo_days = [(date(2026, 8, 30) + timedelta(days=j)).isoformat() for j in range(64)]            # 30 Aug .. 1 Nov 2026
+    mo_matrix = np.ones((len(mo_days), 2)) * 0.01
+    md, mm = monthly_returns(mo_days, mo_matrix, "cryptomonth")
+    assert md == ["2026-08-31", "2026-09-30", "2026-10-31"] and np.allclose(mm[:, 0], [0.02, 0.30, 0.31]), (md, mm)   # the lone 1 November is no month yet
+    assert monthly_returns(mo_days[:-2], mo_matrix[:-2], "cryptomonth")[0] == ["2026-08-31", "2026-09-30"], "October waits for the bar of the 31st"
+    sh_mo = [d for d in mo_days if date.fromisoformat(d).weekday() < 5]
+    sd, _ = monthly_returns(sh_mo, np.ones((len(sh_mo), 2)) * 0.01, "sharesmonth")
+    assert sd == ["2026-08-31", "2026-09-30", "2026-10-30"], sd                                # October 2026 ends on Friday the 30th
+    assert monthly_returns([d for d in sh_mo if d <= "2026-10-29"], np.ones((len([d for d in sh_mo if d <= "2026-10-29"]), 2)), "sharesmonth")[0] == ["2026-08-31", "2026-09-30"]
+    assert month_closed_by("cryptomonth", "2026-10-31") and not month_closed_by("cryptomonth", "2026-10-30") and month_closed_by("cryptomonth", "2026-02-28")
+    assert month_closed_by("sharesmonth", "2026-10-30") and not month_closed_by("sharesmonth", "2026-10-29") and month_closed_by("sharesmonth", "2026-12-31")
+    assert month_closed_by("sharesmonth", "2026-04-30") and not month_closed_by("sharesmonth", "2026-12-30"), "1 May is a closure but the 30th is April's last session anyway; 31 December is a half day, not a closure"
+    assert history_needed("cryptomonth") == MIN_MONTH_HISTORY and period_word("sharesmonth") == "months" and period_word("cryptoweek", plural=False) == "week" and period_word("crypto") == "days"
+    print("months: a calendar month is its daily returns summed, dated on its last day, cut by the first run after its last close")
 
     # 2. Cutting a game is causal: a later return changes no earlier day.
     days = [f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}" for i in range(400)]

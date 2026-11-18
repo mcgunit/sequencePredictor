@@ -314,6 +314,27 @@ def remove_lock():
     except FileNotFoundError:
         pass  # It's okay if the lock file doesn't exist
 
+def dayFileWithoutTicket(jsonFilePath):
+    """
+    Whether a day file exists but holds no ticket (18 Nov 2026). The live
+    path writes the day file once after the deep-learning step, with the
+    result and the scored tickets but an empty newPrediction, and again at
+    the end with the new ticket. A run killed in between (Joker+, 17 Nov
+    2026: a power outage after 42 minutes) left that first file; the
+    next run found the file, said "Prediction already made" and the draw had
+    no ticket at all. Such a file is made again. An unreadable file counts
+    too; a file whose newPrediction has rows never does.
+    """
+    if not jsonFilePath or not os.path.exists(jsonFilePath):
+        return False
+    try:
+        with open(jsonFilePath, "r") as handle:
+            rows = json.load(handle).get("newPrediction")
+    except (OSError, ValueError, AttributeError):
+        return True
+    return not rows
+
+
 def stampTicket(current_json_object):
     """
     Records in the day file when its ticket (newPrediction) was made, as UTC
@@ -1058,7 +1079,10 @@ def predict(name, model_type ,dataPath, modelPath, skipLastColumns=0, daysToRebu
         # forceRebuild (-r) skips both the compare path and the
         # already-made short-circuit - it exists to re-generate history
         # whose files are present but corrupt.
-        if forceRebuild or not os.path.exists(jsonFilePath):
+        ticketMissing = dayFileWithoutTicket(jsonFilePath)
+        if ticketMissing:
+            print(f"{jsonFileName} exists without a ticket (a run that was stopped before it finished): the day is made again")
+        if forceRebuild or ticketMissing or not os.path.exists(jsonFilePath):
             if not forceRebuild:
                 print("New result detected. Lets compare with a prediction from previous entry")
             # -r writes this day anew: the Council rows it holds are put back (see the rebuild's first step)
@@ -3067,7 +3091,7 @@ if __name__ == "__main__":
         parser.add_argument(
             '-g', '--games',
             type=str,
-            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,shares,cryptoweek,sharesweek",
+            default="euromillions,lotto,eurodreams,jokerplus,keno,pick3,vikinglotto,crypto,shares,cryptoweek,sharesweek,cryptomonth,sharesmonth",
             help='Comma-separated list of games, e.g. "euromillions,lotto,..."'
         )
         args = parser.parse_args()
@@ -3126,6 +3150,10 @@ if __name__ == "__main__":
             # heavy rows cost a day's work once a week.
             ("cryptoweek", "lstm_model", 0, True, True),
             ("sharesweek", "lstm_model", 0, True, True),
+            # The month games (roadmap item 11, 18 Nov 2026): one draw per calendar month, the paper trader's
+            # third input; a new draw once a month.
+            ("cryptomonth", "lstm_model", 0, True, True),
+            ("sharesmonth", "lstm_model", 0, True, True),
         ]
 
         # the lottery games whose draws were asked for, and those whose fetch failed (see the run's status at the end)

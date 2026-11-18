@@ -47,11 +47,11 @@ import bisect
 from datetime import date, datetime, timedelta, timezone
 
 try:
-    from src.MarketData import closes, instruments, base_instrument_id, is_week_game, base_market, history_symbol
+    from src.MarketData import closes, instruments, base_instrument_id, is_week_game, is_month_game, is_period_game, base_market, history_symbol
     from src.MarketGame import (EURONEXT_CLOSED, euronext_close, euronext_open, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                                 predicted_price, price_interval, representative_return)
 except ImportError:  # imported from within src/
-    from MarketData import closes, instruments, base_instrument_id, is_week_game, base_market, history_symbol
+    from MarketData import closes, instruments, base_instrument_id, is_week_game, is_month_game, is_period_game, base_market, history_symbol
     from MarketGame import (EURONEXT_CLOSED, euronext_close, euronext_open, week_closed_by, week_of, K_BINS, GAME_SCHEMA, bin_interval, direction_of, latest_edges, load_game_day,
                             predicted_price, price_interval, representative_return)
 
@@ -83,7 +83,7 @@ TOB = 0.0035
 # (asked for on 4 Oct 2026, when the shares were New York's; since 31 Oct 2026
 # the session is Euronext's, 09:00-17:30 Brussels time - entry_instant). Crypto's UTC day opens at the previous
 # close, so its open book would repeat the daily one and is not exported.
-OPEN_RULE_MARKETS = ("shares", "sharesweek")
+OPEN_RULE_MARKETS = ("shares", "sharesweek", "sharesmonth")
 # the markets that carry the crypto ORDER BOOK (trading["orders"], src/MarketOrders.py - 30 Oct 2026); the same
 # tuple as MarketOrders.ORDER_MARKETS, kept here so this module never imports that one at load (it imports this)
 ORDER_MARKETS = ("crypto", "cryptoweek")
@@ -895,14 +895,15 @@ def entry_instant(market, day, previous_game_day=None):
     prev = date.fromisoformat(previous_game_day) if previous_game_day else None
     if plan_rule(market) == "open":
         first = d
-        if is_week_game(market) and prev is not None:
+        if is_period_game(market) and prev is not None:
             first = prev + timedelta(days=1)
             while first.weekday() >= 5:
                 first += timedelta(days=1)
             first = min(first, d)
         return euronext_open(first.isoformat())
-    if is_week_game(market):
-        start = prev + timedelta(days=1) if prev is not None else d - timedelta(days=6)
+    if is_period_game(market):
+        # a month game without a game day before it starts on the 1st of its month, a week game six days before its Sunday
+        start = prev + timedelta(days=1) if prev is not None else (d.replace(day=1) if is_month_game(market) else d - timedelta(days=6))
         end = start + timedelta(days=1)
         return datetime(end.year, end.month, end.day, 0, 0, tzinfo=timezone.utc)
     return close_instant(market, day)
@@ -942,7 +943,7 @@ def followed_plan(conn, market, book, path=None, k=K_BINS):
     if not dates:
         return None
     rule = plan_rule(market)
-    min_trades = WEEK_PLAN_MIN_TRADES if is_week_game(market) else PLAN_MIN_TRADES
+    min_trades = WEEK_PLAN_MIN_TRADES if is_period_game(market) else PLAN_MIN_TRADES
     series = book["open"]["models"] if rule == "open" else book["models"]
     bench = book["open"]["benchmark"] if rule == "open" else book["benchmark"]
     counts = book["_counts"]["open" if rule == "open" else "daily"]
@@ -1403,7 +1404,7 @@ def next_day_predictions(conn, market, path):
     # rewritten by every run, also one that made no new ticket)
     made = ticket_written(os.path.join(folder, newest_name))
     made_at = made.isoformat(timespec="seconds") if made is not None else None
-    out = {"made_on": newest_day, "made_at": made_at, "for": "the next week" if is_week_game(market) else "the next trading day", "instruments": {}}
+    out = {"made_on": newest_day, "made_at": made_at, "for": "the next month" if is_month_game(market) else ("the next week" if is_week_game(market) else "the next trading day"), "instruments": {}}
     for pos, symbol in enumerate(edges_day["symbols"]):
         member = members.get(symbol)
         if member is None:
@@ -1611,6 +1612,17 @@ def settle_and_export(path, market, db_path=None, log=print, fee=FEE, fetch=True
                 log(f"{market}: intraday refresh skipped - {type(exc).__name__}: {exc}")
         files = export_results_csv(conn, path, market)
         out, record = export_page_json(conn, path, market, fee=fee)
+        # the paper trader (src/MarketTrader.py, roadmap item 11, 18 Nov 2026): its decision for the day the card is
+        # for is stored with every export - the market's own and its week game's, whose ticket is the trader's second
+        # input and is made after the market's export. Never allowed to cost the page its settlement and export.
+        try:
+            try:
+                from src.MarketTrader import trader_export
+            except ImportError:
+                from MarketTrader import trader_export
+            trader_export(conn, path, market, log=log)
+        except Exception as exc:
+            log(f"{market}: paper trader not exported - {type(exc).__name__}: {exc}")
         log(f"{market}: {written} result(s) settled over {days} day(s); {len(record['models'])} model(s) summarised; "
             f"page json {out}, {len(files)} results file(s)")
         return {"days": days, "results": written, "models": len(record["models"]), "json": out, "csv": files}

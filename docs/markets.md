@@ -6,7 +6,7 @@ The crypto and shares track runs the lottery predictor's models on market prices
 
 Do the principles that fail to find structure in a fair lottery find any in market prices? The same statistical, deep-learning, boosting and quantum model families, the same walk-forward evaluation and the same negative controls are applied. The bar is the efficient-market prior: accuracy above chance is read as predictability only after the controls and a proper score (see [research](research.md)).
 
-## The four games
+## The six games
 
 | Game | Draw | Instruments | Run |
 | --- | --- | --- | --- |
@@ -14,10 +14,12 @@ Do the principles that fail to find structure in a fair lottery find any in mark
 | `shares` | one per Euronext session | SHELL, INGA, ABI, KBC, UCB (EUR) | Monday to Friday |
 | `cryptoweek` | one per ISO week | the crypto instruments | with `crypto` |
 | `sharesweek` | one per ISO week | the shares instruments | with `shares` |
+| `cryptomonth` | one per calendar month | the crypto instruments | with `crypto` |
+| `sharesmonth` | one per calendar month | the shares instruments | with `shares` |
 
-- A game is positional: an instrument is a slot, a return bin (0-9) is the digit. All four games have five slots.
-- `Helpers.MARKET_GAMES` lists the four games; `Helpers.is_market_game` is the test the pipeline uses.
-- The games are registered in the tuners' `GAME_CONFIG` and as positional games, so `DataLoader`, `Backtester`, `ModelFactory`, the tuners, the meta-learners and `Predictor.py` run them like pick3 or Joker+ (see [models](models.md)).
+- A game is positional: an instrument is a slot, a return bin (0-9) is the digit. All six games have five slots.
+- `Helpers.MARKET_GAMES` lists the six games; `Helpers.is_market_game` is the test the pipeline uses.
+- The day and week games are registered in the tuners' `GAME_CONFIG` and as positional games, so `DataLoader`, `Backtester`, `ModelFactory`, the tuners, the meta-learners and `Predictor.py` run them like pick3 or Joker+ (see [models](models.md)).
 - A hit is the bin in the right instrument's slot, never a set intersection.
 - The universe is fixed in the `instruments` table and is not re-selected, so no survivorship or look-ahead enters the results.
 
@@ -115,12 +117,22 @@ When the week ticket is made:
 - `cryptoweek`: the run of Monday 00:05 UTC cuts the finished week and makes the ticket for the week that has just started. The weekly book's entry limit is the end of the week's first UTC day, so the ticket counts as followable.
 - `sharesweek`: the shares job runs Monday to Friday at 18:05 Brussels. On Friday the week is not yet complete (that is from Saturday), so the finished week is cut by the next run, Monday 18:05. The ticket for a week is therefore made on that week's Monday evening, after the Monday 09:00 open at which the weekly open-to-close book buys. Consequences: the followed-plan record never marks a shares week as live (the live test is ticket time before Monday 09:00 Brussels), and the guard has no current week between Friday's run and Monday evening. A run at the weekend (a caught-up Friday run or a hand run) is the only way the ticket exists before Monday's open.
 
+## The month games
+
+`cryptomonth` and `sharesmonth` have one draw per calendar month: the month's log return per instrument (the sum of its aligned daily returns), cut into ten quantile bins of the instrument's own past months, with at least 24 months before the first can be binned (`MIN_MONTH_HISTORY`). The draw is dated on the month's last aligned day. They are the paper trader's third input (see *The paper trader*).
+
+- A month is cut by the first run after its last close (`month_closed_by`): crypto's at 00:05 UTC on the 1st, the shares' on the evening of the month's last Euronext session. The shares' month ticket is therefore up before the next month's first open.
+- The history is short: 51 crypto months and 106 share months can be binned (crypto's joint history starts in August 2020).
+- Every row runs on them that has enough history. On the crypto months (51 draws) that is the statistical rows, GARCH, the two LSTM rows, the boosting rows, the ensemble and the RL Position row: the Regime HMM rows and the other deep-learning rows leave no row. On the share months (106 draws) nearly every row has a ticket.
+- The month games are settled and exported like every market game. They are in no tuner and no control, and the admin pages do not list them.
+- The ranking of a month's draw is read on the 1st of that month (`rankhistory.js`).
+
 ## The daily runs
 
 Two scheduled predictor jobs carry the markets (`jobs.js`; the schedule itself is on [operations](operations.md)):
 
-- `Predictor.py -a true -g crypto,cryptoweek`, daily at 00:05 UTC.
-- `Predictor.py -a true -g shares,sharesweek`, Monday to Friday at 18:05 Brussels, after the Euronext close, so the shares card is up the evening before the session it is for.
+- `Predictor.py -a true -g crypto,cryptoweek,cryptomonth`, daily at 00:05 UTC.
+- `Predictor.py -a true -g shares,sharesweek,sharesmonth`, Monday to Friday at 18:05 Brussels, after the Euronext close, so the shares card is up the evening before the session it is for.
 
 For a market game `Predictor.py` does what it does for a lottery game, with three differences:
 
@@ -134,7 +146,7 @@ On its first run for a new market game `Predictor.py` back-builds 31 draws (31 w
 
 | Flag | Effect |
 | --- | --- |
-| `--market` | any of the four games; default both markets, then the week games |
+| `--market` | any of the six games; default both markets, then the week games, then the month games |
 | `--no-fetch` | do not contact the sources; cut from the stored bars |
 | `--settle` | also settle every stored day and rewrite `data/markets/<game>.json` and the results CSVs |
 | `--db`, `--root` | another store or checkout |
@@ -212,6 +224,56 @@ The guard combines the week call with the daily calls (`MarketSettle.guarded_wee
 - Weeks before the daily record exists carry the plain week (held to the week's end).
 - `guarded_now` gives the current state per instrument (hold, sell, buy, out, with the reason); it has no answer while the running day's week is not the week of the newest week ticket.
 - `GUARD_FORWARD_FROM` (`2026-10-19`) marks the first week booked forward; the user pages count the guard from `GUARD_SHOWN_FROM` (`2026-10-26`) and the plain week before it. The guard's whole book is on the admin workbench.
+
+## The paper trader
+
+`src/MarketTrader.py` holds one paper trader per instrument. It separates the holding period from the prediction interval: the day and week games are its inputs, and a position lasts as long as the rules say. Every daily run stores its decisions (see *The trader's record* below). It is on no page yet: the cards still follow the day and week games (see *Following the plan* and *The guarded week*).
+
+What it reads for an instrument and a game day:
+
+- The day call: the followed day row's call for that day (the row `followed_plan` picks from the record before the day), as up, flat or down.
+- The week call: the followed week row's call for the week the day lies in. It is unknown while that week's ticket does not exist, which for the shares is every Monday (see *The week games*).
+
+The rules (`RULES`, per market):
+
+| | Crypto | Shares |
+| --- | --- | --- |
+| Enter | the week call agrees and the day call has agreed 2 game days in a row | the week call is up and the day call has been up 2 sessions in a row |
+| Leave on the week call | it turned against the position | it turned down |
+| Leave on the day calls | 2 game days in a row against the position | 3 sessions in a row down |
+| Stop | a move of 10% against the entry, inside the day, booked at the stop price | a close 8% under the entry, sold at the next open |
+| Longest hold | 30 game days | 60 sessions |
+| Shorts | yes | no |
+
+- A flat call breaks a run of up or down calls; a missing call leaves the runs as they are. Neither opens or closes a position by itself.
+- After a stop or a longest-hold sale the day call has to persist anew.
+- The shares never buy and sell on one day: every order is booked at a session's open, one decision a day. Crypto does so only through its stop.
+- There is one decision per instrument and day, booked at 09:00 Brussels time (`EXEC_HOUR`): the hour a reader looks at the card. The shares are booked at the Euronext open of the day. Crypto is booked at the open of the hourly Binance bar that starts at 09:00 Brussels time.
+- The store has no intraday share prices: a reader who orders later in the morning gets another price than the record.
+- A crypto day without its hourly bar (the history before 12 October 2026) is booked at the close before the day, 00:00 UTC, which no reader could get; the replay marks those positions.
+- The crypto stop is a standing stop order placed with the buy. It works around the clock and is read on the hourly bars before and after the day's decision.
+- Money is the market's stake and costs (`MarketSettle.Costs`), one cost pair per position. An open position is valued at the newest close as if sold there.
+- The rule values are chosen by hand and are not tuned on the record.
+
+Two comparisons come with every result:
+
+- Hold: every instrument bought on the trader's first day and kept.
+- Random: the trader's own positions (as many, as long, on the same side) laid at random over the same days, 2,000 times: the mean, and the share of those runs the trader beat.
+
+### The trader's record
+
+`trader_export` runs in every market export (`settle_and_export`), for a market and for its week game, and writes the tracked file `data/markets/<market>-trader.json`.
+
+- The file holds the rules, the positions and totals since the trader's first day, the comparisons, and every stored decision: instrument, day, action (`buy`, `short`, `sell`, `cover`, `hold` or `wait`), reason, the two calls and when it was made.
+- The trader's first day is the first day a decision was stored for. It starts there without a position; the calls before that day still count towards a signal that has persisted.
+- The decision for the day the card is for can change until 09:00 Brussels time of that day and stands after it. The market's own export runs before its week game's ticket exists, so the week game's export, a moment later, completes it.
+- A position is live when the decisions that opened and closed it were stored before 09:00 Brussels time of their days. A sale by the crypto stop needs no decision: it is a standing order.
+- A stored order that the replay of the record no longer makes (a rebuilt history, changed rules) is listed under `diverged`.
+- The totals come twice: every position, and the long positions only. No card gives a short order, so the long positions are what a reader can follow.
+
+### The replay
+
+`python3 -m src.MarketTrader --replay <crypto|shares> --db <store> --root <checkout> [--grid]` prints what the trader would have done over the stored record; it opens the store read-only and writes nothing. `--grid` prints the same record under other rule values.
 
 ## The crypto order book
 
@@ -362,7 +424,7 @@ It takes `process.lock`. It runs as the last job of the Sunday controls plan wit
 ## Tuning and controls
 
 - Tuning of the market games (the `Garch` and `RegimeHmm` strategies scored by the proper score, the position studies of the RL tuner, the ensemble tuner, the narrower Markov box of the week games, the gates) is on [tuning](tuning.md). The boosting tuner tunes no market game, and the quantum tuner skips the week games unless named.
-- The controls take all four market games. A market's synthetic control is a geometric random walk with each instrument's own mean and standard deviation, cut by the game's causal quantile rule; its shuffled control reorders whole days of returns and re-cuts the bins by the same rule. Both carry their own returns file, so the market rows run on a control as on the real history (`src/ControlHistories.control_market`). The controls, the lockbox and how they are read are on [research](research.md).
+- The controls take the day and week games; the month games are in no tuner and no control. A market's synthetic control is a geometric random walk with each instrument's own mean and standard deviation, cut by the game's causal quantile rule; its shuffled control reorders whole days of returns and re-cuts the bins by the same rule. Both carry their own returns file, so the market rows run on a control as on the real history (`src/ControlHistories.control_market`). The controls, the lockbox and how they are read are on [research](research.md).
 - Ranking and the performance report are on [scoring](scoring.md).
 
 ## What the market pages show
@@ -409,7 +471,7 @@ Routes (`workbench.js`, read-only, admin only):
 
 All are part of `npm test` and need no network:
 
-- `python3 -m src.MarketData`, `src.MarketGame`, `src.MarketSettle`, `src.MarketOrders`, `src.MarketModels`, `src.RLPositionModel`, `src.ControlHistories`
+- `python3 -m src.MarketData`, `src.MarketGame`, `src.MarketSettle`, `src.MarketOrders`, `src.MarketTrader`, `src.MarketModels`, `src.RLPositionModel`, `src.ControlHistories`
 - `python3 -c "import MarketRows; MarketRows._self_check()"`
 - `node test/markets.test.js`, `node test/api.test.js`, `node test/workbench.test.js`
 - `python3 -c "import SwitchSharesEuronext; SwitchSharesEuronext._self_check()"`, the self-check of `SwitchSharesEuronext.py`, a one-off tool that replaces the shares universe

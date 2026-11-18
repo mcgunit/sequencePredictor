@@ -17,12 +17,15 @@ export const GAME_TITLES: Record<string, string> = {
   cryptoweek: 'Crypto week',
   shares: 'Stocks day',
   sharesweek: 'Stocks week',
+  cryptomonth: 'Crypto month',
+  sharesmonth: 'Stocks month',
 };
 export const gameTitle = (game: string) => GAME_TITLES[game] ?? game;
 
-// The market a market game belongs to, and the currency its paper money is in (markets.js MARKETS: USDT, USD)
-export const MARKET_OF: Record<string, string> = { crypto: 'crypto', cryptoweek: 'crypto', shares: 'shares', sharesweek: 'shares' };
-export const CURRENCY_OF: Record<string, string> = { crypto: 'USDT', cryptoweek: 'USDT', shares: 'USD', sharesweek: 'USD' };
+// The market a market game belongs to, and the currency its paper money is in (markets.js MARKETS: USDT, EUR - the
+// shares are Euronext listings since 2 Nov 2026; this table said USD until 18 Nov 2026)
+export const MARKET_OF: Record<string, string> = { crypto: 'crypto', cryptoweek: 'crypto', cryptomonth: 'crypto', shares: 'shares', sharesweek: 'shares', sharesmonth: 'shares' };
+export const CURRENCY_OF: Record<string, string> = { crypto: 'USDT', cryptoweek: 'USDT', cryptomonth: 'USDT', shares: 'EUR', sharesweek: 'EUR', sharesmonth: 'EUR' };
 
 // The highest number a game draws, so a vote chart has a bar for every number (a gap is a number no row carried)
 export const NUMBER_MAX: Record<string, number> = { lotto: 45, euromillions: 50, eurodreams: 40, vikinglotto: 48, keno: 70 };
@@ -33,6 +36,8 @@ export const MARKET_DRAW: Record<string, string> = {
   cryptoweek: 'one UTC week, Monday to Monday: per coin the bin (0-9) its week move fell in',
   shares: 'one Euronext trading day: per stock the bin (0-9) its close-to-close move fell in',
   sharesweek: 'one trading week to its last session: per stock the bin (0-9) its week move fell in',
+  cryptomonth: 'one calendar month (UTC): per coin the bin (0-9) its month move fell in',
+  sharesmonth: 'one calendar month to its last session: per stock the bin (0-9) its month move fell in',
 };
 
 // "October 2026" for "2026-10"
