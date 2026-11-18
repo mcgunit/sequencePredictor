@@ -5920,6 +5920,229 @@
         "39": 6.159473,
         "40": 15.160302
       }
+    },
+    {
+      "name": "Council (record): Qwen2.5",
+      "predictions": [
+        [
+          24,
+          40,
+          17,
+          37,
+          22,
+          1,
+          2
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Qwen2.5",
+        "lab": "alibaba",
+        "model": "bartowski/Qwen2.5-1.5B-Instruct-GGUF:Q8_0",
+        "temperature": 0.7,
+        "seed": 1664617635,
+        "tries": 1,
+        "prompt": "5b5e113402cf9407"
+      }
+    },
+    {
+      "name": "Council (record): Granite-4.0",
+      "predictions": [
+        [
+          15,
+          37,
+          12,
+          28,
+          3,
+          24,
+          5
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Granite-4.0",
+        "lab": "IBM",
+        "model": "/srv/models/manual/ibm-granite/granite-4.0-1b-GGUF/granite-4.0-1b-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 1621848620,
+        "tries": 1,
+        "prompt": "5b5e113402cf9407"
+      }
+    },
+    {
+      "name": "Council (record): Falcon-H1",
+      "predictions": [
+        [
+          37,
+          23,
+          21,
+          32,
+          7,
+          1,
+          1
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Falcon-H1",
+        "lab": "TII",
+        "model": "/srv/models/manual/unsloth/Falcon-H1-1.5B-Deep-Instruct-GGUF/Falcon-H1-1.5B-Deep-Instruct-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 698101839,
+        "tries": 1,
+        "prompt": "5b5e113402cf9407"
+      }
+    },
+    {
+      "name": "Council (record): EXAONE-4.0",
+      "predictions": [
+        [
+          24,
+          40,
+          15,
+          29,
+          37,
+          1,
+          3
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "EXAONE-4.0",
+        "lab": "LG AI",
+        "model": "/srv/models/manual/bartowski/LGAI-EXAONE_EXAONE-4.0-1.2B-GGUF/LGAI-EXAONE_EXAONE-4.0-1.2B-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "5b5e113402cf9407"
+      }
+    },
+    {
+      "name": "Council (draws): Qwen2.5",
+      "predictions": [
+        [
+          3,
+          18,
+          22,
+          24,
+          26,
+          33,
+          2
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Qwen2.5",
+        "lab": "alibaba",
+        "model": "bartowski/Qwen2.5-1.5B-Instruct-GGUF:Q8_0",
+        "temperature": 0.7,
+        "seed": 490167283,
+        "tries": 1,
+        "prompt": "03dcd0c169d73f37"
+      }
+    },
+    {
+      "name": "Council (draws): Granite-4.0",
+      "predictions": [
+        [
+          3,
+          6,
+          13,
+          20,
+          27,
+          35,
+          3
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Granite-4.0",
+        "lab": "IBM",
+        "model": "/srv/models/manual/ibm-granite/granite-4.0-1b-GGUF/granite-4.0-1b-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 1532739663,
+        "tries": 1,
+        "prompt": "03dcd0c169d73f37"
+      }
+    },
+    {
+      "name": "Council (draws): Falcon-H1",
+      "predictions": [
+        [
+          14,
+          22,
+          26,
+          33,
+          35,
+          38,
+          3
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Falcon-H1",
+        "lab": "TII",
+        "model": "/srv/models/manual/unsloth/Falcon-H1-1.5B-Deep-Instruct-GGUF/Falcon-H1-1.5B-Deep-Instruct-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 553603660,
+        "tries": 1,
+        "prompt": "03dcd0c169d73f37"
+      }
+    },
+    {
+      "name": "Council (draws): EXAONE-4.0",
+      "predictions": [
+        [
+          1,
+          3,
+          6,
+          12,
+          24,
+          32,
+          4
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "EXAONE-4.0",
+        "lab": "LG AI",
+        "model": "/srv/models/manual/bartowski/LGAI-EXAONE_EXAONE-4.0-1.2B-GGUF/LGAI-EXAONE_EXAONE-4.0-1.2B-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "03dcd0c169d73f37"
+      }
+    },
+    {
+      "name": "Council (draws): combined",
+      "predictions": [
+        [
+          3,
+          6,
+          22,
+          24,
+          26,
+          33,
+          2
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "combined",
+        "lab": "LiquidAI",
+        "model": "/srv/models/manual/LiquidAI/LFM2.5-8B-A1B-GGUF/LFM2.5-8B-A1B-Q4_0.gguf",
+        "head": "head-LFM2.5",
+        "combines": [
+          "Qwen2.5",
+          "Granite-4.0",
+          "Falcon-H1",
+          "EXAONE-4.0"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "d6e4b13f015dbe75"
+      }
     }
   ],
   "newPredictionRaw": [
