@@ -275,6 +275,21 @@ Two comparisons come with every result:
 - A stored order that the replay of the record no longer makes (a rebuilt history, changed rules) is listed under `diverged`.
 - The totals come twice: every position, and the long positions only. No card gives a short order, so the long positions are what a reader can follow.
 
+### The trader's card
+
+The Crypto and Stocks pages open with the card "Trader" (`api.js`, `traderView`; `web/src/components/TraderCard.tsx`). It is made for a reader who looks once a morning, between the night's run and the booking hour.
+
+- One row per instrument, with two instruction columns: "If you do not have it" and "If you have it".
+- Buy: a market order around the booking hour; on crypto followed by a stop-market sell order under the buy price.
+- Hold: with where the stop stands that morning. On crypto the reader moves the standing stop order there; on shares the stop is read on the close and the sale follows the next morning, so there is no order to place.
+- Sell: a market order around the booking hour, with the reason: the week and month predictions both against it, the stop, or the longest hold.
+- Don't buy: with what the buy rule still waits for. A position the trader already holds is not offered to a reader who did not buy on its day: a later buy is not in the record.
+- Long positions only: a short of the paper record shows as no position.
+- Beside each row the day, week and month predictions, the trader's buy price and day, a live quote and the move since the buy.
+- Under the table the long positions' record in labelled lines: the money and the count, holding every instrument from the first day, and the same positions on random days. A "How to read this" fold lists the rules with the market's own values.
+- The card's head says which day the instructions are for and whether the record has traded already. After that day, until the next run, it says "last instructions".
+- Without a trader record the card says that the first instructions come with the next run.
+
 ### The replay
 
 `python3 -m src.MarketTrader --replay <crypto|shares> --db <store> --root <checkout> [--grid]` prints what the trader would have done over the stored record; it opens the store read-only and writes nothing. `--grid` prints the same record under other rule values.
@@ -433,10 +448,11 @@ It takes `process.lock`. It runs as the last job of the Sunday controls plan wit
 
 ## What the market pages show
 
-The web app has two user pages, `/crypto` (Crypto) and `/shares` (Stocks), served from `GET /api/markets/:market` (`api.js`, `marketView`). They show the followed plan as positions, in the reader's perspective ("if you bought", "if you have not bought").
+The web app has two user pages, `/crypto` (Crypto) and `/shares` (Stocks), served from `GET /api/markets/:market` (`api.js`, `marketView`). The paper trader's card is their only set of instructions, in the reader's perspective ("if you do not have it", "if you have it"); the day and week cards are not on the user pages. The tiles, charts and tables under the card report the day and week games.
+
+- The trader's card: one instruction row per instrument ([the trader's card](#the-traders-card)), with live prices from `GET /api/quotes/:market`: Binance for crypto, Yahoo's quote of the Euronext listing (about 15 minutes late) for shares, cached for a minute; `{at: null, quotes: {}}` when unavailable. Until the trader's record exists the card says that the first instructions come with the next run.
 
 - A status strip of six tiles: what following the page made (daily and weekly together), the comparison with buying everything, positions, days, instruments and what is open now.
-- Open positions, with live prices from `GET /api/quotes/:market`: Binance for crypto, Yahoo's quote of the Euronext listing (about 15 minutes late) for shares, cached for a minute; `{at: null, quotes: {}}` when unavailable.
 - Three charts: the cumulative result, the result per instrument and the result per day.
 - A trades log and the closed positions.
 - The weekly part counts the plain week before `GUARD_SHOWN_FROM` and the guard from then on.

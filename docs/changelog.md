@@ -4,6 +4,20 @@ What was decided, built, fixed, measured and found in this project, by date, new
 
 ## 18 November 2026
 
+### The trader's card on the market pages
+
+*Pages: markets, roadmap*
+
+Built: the card "Trader" on the Crypto and Stocks pages, above the day and week positions (`api.js` `traderView`, `web/src/components/TraderCard.tsx`). One row per instrument with the columns "If you do not have it" and "If you have it"; the day, week and month predictions; the buy price, a live quote and the move since the buy; the long positions' record with holding and random days beside it.
+
+Decided:
+
+- The card is written for one look a morning: every instruction names the booking hour (09:00 crypto, 10:00 shares), and a hold names where the stop stands that morning.
+- A position the trader holds is not offered to a reader who did not buy on its day; the cell says "Don't buy" and why.
+- On shares the card names no standing order: the stop is read on the close and the trader sells the next morning.
+- Long positions only; a short of the paper record shows as no position.
+- Decided the same day: the day and week cards ("Open positions") leave the user pages, as nobody followed them; the trader's card is the only set of instructions there. The admin workbench keeps its plan cards, and the figures under the card still report the day and week games.
+
 ### The paper trader books at 09:00 and keeps its decisions
 
 *Pages: markets, roadmap*

@@ -629,6 +629,58 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
      `the user payload stays small and carries no Admin-only part (${userJson.length} bytes)`);
 }
 
+// --- the paper trader's card (roadmap item 11) ---------------------------------------
+{
+  const now0 = (action, extra = {}) => ({ action, reason: null, side: action === 'wait' ? 0 : 1, stop: null, day_call: 'up', week_call: 'up', month_call: 'up', up_days: 2, down_days: 0, ...extra });
+  const sym = (nowState, open = null, positions = []) => ({ positions, open, now: nowState });
+  const held = { side: 1, entry: '2026-11-10', entry_price: 100, best: 110, held: 6, move: 0.08, money: 7.8, stop_price: 99, live: true };
+  const totals = { hold: 12.5, days_possible: 40, all: {}, long: { total: 6.3, positions: 3, wins: 1, live_positions: 2, random_mean: 1.25, random_beaten: 0.61, random_runs: 2000 } };
+  const trader = (market, over = {}) => ({ market, schema: 1, from: '2026-11-04', last_day: '2026-11-17', running: '2026-11-18', exec_hour: market === 'crypto' ? 9 : 10, stake: market === 'crypto' ? 100 : 1000, totals,
+    rules: market === 'crypto' ? { persist: 2, stop: 0.1, longest: 30, shorts: true, intraday: true, trail: true, take: null } : { persist: 2, stop: 0.08, longest: 60, shorts: false, intraday: false, trail: true, take: null },
+    symbols: {
+      AAA: sym(now0('buy')),
+      BBB: sym(now0('hold', { stop: 99, day_call: 'down', up_days: 0 }), held),
+      CCC: sym(now0('sell', { reason: 'calls', week_call: 'down', month_call: 'down' }), held),
+      DDD: sym(now0('wait', { day_call: 'up', up_days: 1, month_call: 'flat' })),
+      EEE: sym(now0('short', { side: -1, day_call: 'down', week_call: 'down', month_call: 'down' }), null, [{ side: 1, entry: '2026-11-12', exit: '2026-11-17', reason: 'stop', reason_text: 'the stop' }]),
+      FFF: sym(now0('hold', { side: -1 }), { ...held, side: -1 }),
+    }, ...over });
+  const early = new Date('2026-11-18T06:30:00Z'), after = new Date('2026-11-18T08:30:00Z');   // 09:30 in Brussels: after the crypto hour, before the shares'
+  const c = api.traderView('crypto', trader('crypto'), early, 'USDT');
+  const row = (v, s) => v.rows.find((r) => r.symbol === s);
+  ok(c.rows.length === 6 && c.booked === false && c.stateText === 'for today · the record trades at 09:00', `the card is for the running day: ${c.stateText}`);
+  ok(row(c, 'AAA').state === 'buy' && row(c, 'AAA').without.chip === 'Buy' && row(c, 'AAA').without.subs.join('|') === 'market order around 09:00|then a stop-market sell 10% under your buy price'
+     && row(c, 'AAA').held.chip === null && row(c, 'AAA').held.subs.length === 0, `a buy: ${JSON.stringify(row(c, 'AAA'))}`);
+  ok(row(c, 'BBB').state === 'hold' && row(c, 'BBB').held.chip === 'Hold' && row(c, 'BBB').held.subs[0] === 'stop-market sell at 99.00: move your stop there'
+     && row(c, 'BBB').without.chip === "Don't buy" && row(c, 'BBB').without.subs[0] === 'the trader bought Tue 10 Nov; a later buy is not in its record'
+     && row(c, 'BBB').entry.price === 100 && row(c, 'BBB').stop === 99 && row(c, 'BBB').movePctClose === 8, `a hold names the stop and invites no late buy: ${JSON.stringify(row(c, 'BBB'))}`);
+  ok(row(c, 'CCC').state === 'sell' && row(c, 'CCC').held.chip === 'Sell' && row(c, 'CCC').held.subs.join('|') === 'market order around 09:00|the week and month predictions are both against it|cancel your stop order'
+     && row(c, 'CCC').without.chip === "Don't buy", `a sell says when and why: ${JSON.stringify(row(c, 'CCC'))}`);
+  ok(row(c, 'DDD').state === 'out' && row(c, 'DDD').without.subs[0] === 'waits for: day prediction up 2 mornings running (now 1), month prediction up' && row(c, 'DDD').held.chip === null,
+     `a wait says what is missing: ${JSON.stringify(row(c, 'DDD'))}`);
+  // long positions only: a short of the record is no position on the card, and a long sold on the last day says so
+  ok(row(c, 'EEE').state === 'out' && row(c, 'EEE').without.chip === "Don't buy" && row(c, 'EEE').held.subs[0] === 'sold Tue 17 Nov: it closed under the stop'
+     && row(c, 'FFF').state === 'out' && row(c, 'FFF').entry === null && row(c, 'FFF').held.chip === null, `shorts stay off the card: ${JSON.stringify([row(c, 'EEE'), row(c, 'FFF')])}`);
+  ok(c.lines.record === '+6.30 USDT over 3 positions (1 of 1 closed won, 2 still open and counted at the last close), costs included. 2 of them were decided before 09:00 of their day; the others were filled in afterwards.'
+     && c.lines.hold === 'Buying every one on the first day and holding: +12.50 USDT.'
+     && c.lines.random === 'The same positions on random days: +1.25 USDT on average; the trader did better than 61% of 2,000 such draws.', `the record lines: ${JSON.stringify(c.lines)}`);
+  ok(c.rows.filter((r) => r.entry).length === 2, 'the open count of the record line is the rows with a buy price');
+  const late = api.traderView('crypto', trader('crypto'), after, 'USDT');
+  ok(late.booked && late.stateText === 'for today · the record traded at 09:00' && row(late, 'AAA').without.subs[0] === 'market order now; the record bought at 09:00', `after the hour: ${late.stateText}`);
+  const s = api.traderView('shares', trader('shares'), after, 'EUR');
+  ok(s.booked === false && s.bookAt === '10:00' && row(s, 'AAA').without.subs.join('|') === 'market order around 10:00'
+     && row(s, 'BBB').held.subs[0] === 'sold the morning after a close under 99.00' && !row(s, 'CCC').held.subs.includes('cancel your stop order')
+     && s.help.some((t) => t.includes('no standing order to place')), `shares have no standing stop order: ${JSON.stringify(row(s, 'BBB'))}`);
+  const next = api.traderView('crypto', trader('crypto'), new Date('2026-11-19T06:00:00Z'), 'USDT');
+  ok(next.past && next.stateText === 'last instructions: Wed 18 Nov', `a card of a past day says so: ${next.stateText}`);
+  const fresh = api.traderView('crypto', trader('crypto', { totals: { hold: 0, long: { total: 0, positions: 0 } } }), early, 'USDT');
+  ok(fresh.lines.record === 'No position yet: the trader started on Wed 4 Nov, without positions.' && fresh.lines.hold === '' && fresh.lines.random === '', `an empty record: ${fresh.lines.record}`);
+  ok(api.traderView('crypto', null, early, 'USDT') === null && api.marketView('crypto', record, weekRecord, now).trader === null
+     && api.marketView('crypto', record, weekRecord, now, { trader: trader('crypto') }).trader.rows.length === 6, 'the market view carries the card when the record exists');
+  ok(api.loadTrader('/nonexistent', 'crypto') === null, 'no record file is no card');
+  ok(!/undefined|NaN/.test(JSON.stringify([c, s, late, next, fresh])), 'no undefined in the card');
+}
+
 // --- production's own files, shape only (read-only) -------------------------------
 const prodDir = '/root/sequencePredictor/data/markets';
 if (fs.existsSync(path.join(prodDir, 'crypto.json'))) {

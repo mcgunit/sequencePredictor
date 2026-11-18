@@ -4,7 +4,7 @@ import { TITLES, getMarket, isMarket, type Market, type MarketView } from '../ap
 import { day, time } from '../format';
 import { useQuotes } from '../hooks/useQuotes';
 import StatusStrip from '../components/StatusStrip';
-import OpenPositions from '../components/OpenPositions';
+import TraderCard from '../components/TraderCard';
 import TradesLog from '../components/TradesLog';
 import { useChartPanels } from '../components/Charts';
 import ClosedPositions from '../components/ClosedPositions';
@@ -108,7 +108,17 @@ function Dashboard({ data, quotes }: { data: MarketView; quotes: ReturnType<type
       />
       <StatusStrip status={data.status} unit={data.unit} noun={data.noun} />
       <div className="grid">
-        <OpenPositions data={data} quotes={quotes} />
+        {/* the trader's card is the page's only instructions: the day and week cards left the user page on 18 Nov 2026 */}
+        {data.trader ? (
+          <TraderCard trader={data.trader} noun={data.noun} unit={data.unit} quotes={quotes} />
+        ) : (
+          <div className="card span-3">
+            <div className="card-h">
+              <h2>Trader</h2>
+            </div>
+            <div className="card-b empty">No instructions yet: the trader&apos;s first instructions come with the next run.</div>
+          </div>
+        )}
         {cumulativePanel}
         {perCoinPanel}
         {dailyPanel}

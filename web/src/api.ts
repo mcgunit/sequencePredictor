@@ -99,6 +99,38 @@ export interface OrderCard {
   newcomerRecord?: { shown: number; closed: number; open: number; total: number | null; notPlaced: number };
   lines: { model: string; soFar: string; today: string; sell: string; lateRecord?: string; newcomerRecord?: string };
 }
+// The paper trader's card (api.js traderView): one row per instrument, in the reader's words.
+export interface TraderCell {
+  chip: string | null;
+  tone: string | null;
+  subs: string[];
+}
+export type TraderCall = 'up' | 'flat' | 'down' | null;
+export interface TraderRow {
+  symbol: string;
+  state: 'buy' | 'hold' | 'sell' | 'out';
+  calls: { day: TraderCall; week: TraderCall; month: TraderCall };
+  without: TraderCell; // if you do not have it
+  held: TraderCell; // if you have it
+  text: string; // the full instruction, for the row's hover
+  entry: { day: string; dayText: string; price: number | null } | null;
+  stop: number | null;
+  movePctClose: number | null;
+}
+export interface TraderView {
+  from: string | null;
+  day: string;
+  dayText: string;
+  bookAt: string;
+  booked: boolean;
+  past: boolean;
+  stateText: string;
+  rows: TraderRow[];
+  lines: { record: string; hold: string; random: string };
+  help: string[];
+  generatedAt: string | null;
+}
+
 export interface OrdersView {
   from: string;
   day: OrderCard | null;
@@ -305,6 +337,7 @@ export interface MarketView {
   perCoin: PerInstrument[];
   closed: ClosedPosition[];
   orders: OrdersView | null; // the order cards' labelled lines (null while ORDERS_SHOWN_FROM is null)
+  trader: TraderView | null; // the paper trader's card (null until its record exists)
   notes: { entry: string; sell: string; guard: string; entryText?: string; sellText?: string; guardText?: string; closeDay?: string };
 }
 
@@ -476,6 +509,7 @@ function normalize(raw: Partial<MarketView> | null | undefined, market: Market):
     perCoin: arr(r.perCoin),
     closed: arr(r.closed),
     orders: r.orders && typeof r.orders === 'object' && typeof r.orders.from === 'string' ? r.orders : null,
+    trader: r.trader && typeof r.trader === 'object' && Array.isArray(r.trader.rows) ? r.trader : null,
     notes: { entry: str(r.notes?.entry), sell: str(r.notes?.sell), guard: str(r.notes?.guard), entryText: str(r.notes?.entryText), sellText: str(r.notes?.sellText), guardText: str(r.notes?.guardText), closeDay: str(r.notes?.closeDay) },
   };
 }

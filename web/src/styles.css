@@ -807,6 +807,9 @@ details.note-c.fresh { border-color: var(--accent); }
 @media (max-width: 640px) { .bst { grid-template-columns: minmax(0, 1fr); } .bedges span:nth-child(even) { display: none; } }
 .plines { display: grid; gap: 8px; margin: 0 0 12px; font-size: var(--fs-sm); max-width: 110ch; }
 .plines p { margin: 0; }
+/* the trader card: record lines above the help, the three prediction chips on one line */
+.card-f.stack { display: block; }
+.calls { white-space: nowrap; }
 .plines b { font-weight: 600; }
 .plines .lbl { font-weight: 600; color: var(--fg); }
 .ctl { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 10px; }

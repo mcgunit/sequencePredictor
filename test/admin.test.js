@@ -1198,7 +1198,8 @@ if (fs.existsSync(path.join(PROD, 'database', 'modelPerformance.json'))) {
     return [...new Set((JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf-8')).newPrediction || []).map((x) => x.name || 'not known'))];
   };
   ok(pm.games.every((g) => JSON.stringify(g.top) === JSON.stringify(oldTop(oldRankingFor(path.join(PROD, 'database'), g.game), newestNames(g.game))))
-    && pm.games.length === Object.keys(report0.games).length, 'production: every game\'s top five is the five its newest day\'s table shows a user');
+    // the month games are in the report since production's first month run (18 Nov 2026) and not on the admin pages (admin.js GAMES)
+    && pm.games.length === Object.keys(report0.games).filter((g) => admin.GAMES.includes(g)).length, 'production: every game\'s top five is the five its newest day\'s table shows a user');
   const markets = require('../markets');
   const pickedPlan = markets.pickPlan(markets.describeMarket(markets.loadMarket(path.join(PROD, 'markets'), 'crypto')), 'crypto').model.name;
   const pickedWeek = markets.pickWeek(markets.describeMarket(markets.loadMarket(path.join(PROD, 'markets'), 'sharesweek')), 'shares').model.name;

@@ -287,6 +287,108 @@ const pctText = (v, d = 2) => (num(v) === null ? '—' : `${signed(num(v), d)}%`
 const dateOf = (iso) => { const d = iso ? new Date(iso) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
 // "Thu 15 Oct 17:00" in Brussels time, for a moment that is not now
 const stampText = (date) => (date ? `${fmtWeekday.format(date)} ${fmtDayMonth.format(date)} ${clock(date)}` : '—');
+// --- the paper trader's card (roadmap item 11, 18 Nov 2026) ------------------------------------------------------------
+// The trader's record (src/MarketTrader.py, data/markets/<market>-trader.json) in a reader's words: one row per
+// instrument, what to do without it and what to do with it, for a reader who looks once a morning. Long positions only
+// (decision 18 Nov 2026): a short of the paper record reads as "no position" here, and the record line counts the long
+// positions. Only what the record books is invited: a reader who did not buy on the trader's day is not told to buy later.
+function loadTrader(dir, market) {
+  try {
+    const record = JSON.parse(fs.readFileSync(path.join(dir, `${market}-trader.json`), 'utf8'));
+    return record && record.market === market && record.symbols && typeof record.symbols === 'object' ? record : null;
+  } catch (error) { return null; }
+}
+const TRADER_REASON = {
+  calls: 'the week and month predictions are both against it',
+  stop: 'it closed under the stop',
+  take: 'the sell limit was reached',
+  longest: 'it was held the longest time the rules allow',
+};
+const hourText = (h) => `${String(h).padStart(2, '0')}:00`;
+function traderView(market, trader, now, unit) {
+  if (!trader || !trader.symbols || !trader.rules || !trader.running) return null;
+  const rules = trader.rules, hour = num(trader.exec_hour) === null ? 9 : trader.exec_hour, at = hourText(hour);
+  const today = dayKey(now), running = String(trader.running);
+  // booked: the record traded this day's decisions already; past: the day is over and the next run has not come
+  const booked = today > running || (today === running && Number(clock(now).slice(0, 2)) >= hour);
+  const past = today > running;
+  const stopPct = num(rules.stop) === null ? null : Math.round(rules.stop * 1000) / 10;
+  const standing = rules.intraday === true && stopPct !== null;   // a stop order that stands at the exchange (crypto)
+  const persist = num(rules.persist) || 1;
+  const rows = Object.keys(trader.symbols).map((symbol) => {
+    const s = trader.symbols[symbol] || {}, n = s.now || {};
+    const pos = s.open && s.open.side > 0 ? s.open : null;
+    const calls = { day: n.day_call || null, week: n.week_call || null, month: n.month_call || null };
+    const none = { chip: null, tone: null, subs: [] };
+    let without = none, held = none, state = 'out';
+    const level = pos ? (num(n.stop) === null ? num(pos.stop_price) : num(n.stop)) : null;
+    if (pos && n.action === 'sell') {
+      state = 'sell';
+      held = { chip: 'Sell', tone: 'down', subs: [booked ? `market order now; the record sold at ${at}` : `market order around ${at}`, TRADER_REASON[n.reason] || ''].filter(Boolean) };
+      if (standing) held.subs.push('cancel your stop order');
+      without = { chip: "Don't buy", tone: 'flat', subs: ['the trader sells it today'] };
+    } else if (pos) {
+      state = 'hold';
+      held = { chip: 'Hold', tone: 'up', subs: level === null ? [] : [standing ? `stop-market sell at ${priceText(level)}: move your stop there` : `sold the morning after a close under ${priceText(level)}`] };
+      without = { chip: "Don't buy", tone: 'flat', subs: [`the trader bought ${dayText(pos.entry)}; a later buy is not in its record`] };
+    } else if (n.action === 'buy') {
+      state = 'buy';
+      without = { chip: 'Buy', tone: 'act', subs: [booked ? `market order now; the record bought at ${at}` : `market order around ${at}`] };
+      if (standing) without.subs.push(`then a stop-market sell ${stopPct}% under your buy price`);
+    } else {
+      // what the buy rule still misses, in the order a reader can check it on the row
+      const missing = [];
+      if (calls.day !== 'up') missing.push('day prediction up');
+      else if ((num(n.up_days) || 0) < persist) missing.push(`day prediction up ${persist} mornings running (now ${num(n.up_days) || 0})`);
+      if (calls.week !== 'up') missing.push('week prediction up');
+      if (calls.month !== 'up') missing.push('month prediction up');
+      without = { chip: "Don't buy", tone: 'flat', subs: missing.length ? [`waits for: ${missing.join(', ')}`] : [] };
+      // a long the trader closed on the last booked day: a standing stop sold it for the reader too
+      const last = (s.positions || []).filter((q) => q.side > 0).slice(-1)[0];
+      if (last && last.exit && last.exit === trader.last_day) held = { chip: null, tone: null, subs: [`sold ${dayText(last.exit)}: ${TRADER_REASON[last.reason] || last.reason_text || 'closed'}`] };
+    }
+    const text = state === 'buy' ? `If you do not have ${symbol}: buy at market around ${at} Belgian time${standing ? `, then place a stop-market sell ${stopPct}% under your buy price` : ''}.`
+      : state === 'hold' ? `If you have ${symbol}: hold${held.subs[0] ? ` (${held.subs[0]})` : ''}. If you do not: do not buy now.`
+        : state === 'sell' ? `If you have ${symbol}: sell at market around ${at} Belgian time (${TRADER_REASON[n.reason] || 'the rules say so'}). If you do not: do not buy.`
+          : `If you do not have ${symbol}: do not buy${without.subs[0] ? ` (${without.subs[0]})` : ''}.`;
+    return { symbol, state, calls, without, held, text,
+      entry: pos ? { day: pos.entry, dayText: dayText(pos.entry), price: num(pos.entry_price) } : null,
+      stop: state === 'hold' ? level : null,
+      movePctClose: pos && num(pos.move) !== null ? Math.round(pos.move * 10000) / 100 : null };
+  });
+  const long = (trader.totals && trader.totals.long) || {}, positions = num(long.positions) || 0;
+  const openCount = rows.filter((r) => r.entry).length;
+  const since = trader.from ? dayText(trader.from) : null;
+  const lines = { record: '', hold: '', random: '' };
+  if (!positions) {
+    lines.record = `No position yet${since ? `: the trader started on ${since}, without positions` : ''}.`;
+  } else {
+    lines.record = `${signed(num(long.total) || 0)} ${unit} over ${plural(positions, 'position', 'positions')}`
+      + ` (${num(long.wins) || 0} of ${positions - openCount} closed won, ${openCount} still open and counted at the last close), costs included.`
+      + (num(long.live_positions) !== null && long.live_positions < positions ? ` ${long.live_positions} of them were decided before ${at} of their day; the others were filled in afterwards.` : '');
+    if (trader.totals && num(trader.totals.hold) !== null) lines.hold = `Buying every one on the first day and holding: ${signed(trader.totals.hold)} ${unit}.`;
+    if (num(long.random_beaten) !== null && num(long.random_mean) !== null) {
+      lines.random = `The same positions on random days: ${signed(long.random_mean)} ${unit} on average; the trader did better than ${Math.round(long.random_beaten * 100)}% of ${Number(long.random_runs).toLocaleString('en-US')} such draws.`;
+    }
+  }
+  const stopHelp = stopPct === null ? 'There is no stop.'
+    : standing ? `The stop is a stop-market sell order ${stopPct}% under the best close since the buy${rules.trail ? '; it only moves up, once a morning' : ''}. It stands at the exchange and can sell during the day.`
+      : `The stop is ${stopPct}% under the best close since the buy${rules.trail ? ' and only moves up' : ''}. It is read on the close: after a close under it the trader sells the next morning, so there is no standing order to place.`;
+  return {
+    from: trader.from || null, day: running, dayText: dayText(running), bookAt: at, booked, past,
+    stateText: past ? `last instructions: ${dayText(running)}` : `for ${today === running ? 'today' : dayText(running)} · ${booked ? `the record traded at ${at}` : `the record trades at ${at}`}`,
+    rows, lines, generatedAt: trader.generated_at || null,
+    help: [
+      `One decision a morning for each ${market === 'crypto' ? 'coin' : 'share'}, to be carried out around ${at} Belgian time; the record books it at that hour's price.`,
+      `Buy: the day prediction is up ${persist} mornings running and the week and month predictions are up too.`,
+      'Hold: as long as the week and month predictions are not both against it, whatever the day prediction says.',
+      `Sell: the week and month predictions are both against it, the stop${num(rules.longest) !== null ? `, or ${rules.longest} days held` : ''}.`,
+      stopHelp,
+      `Paper money: ${num(trader.stake) === null ? '' : `${trader.stake} ${unit} a position, `}long positions only. The record is what these rules made on paper since ${since || 'the start'}, not what a reader made.`,
+    ],
+  };
+}
+
 const SKIP_TEXT = {
   'target below fees': (s, minGap) => `No order: the call${s.bin !== null ? ` (bin ${s.bin})` : ''} aims at less than the ${pctText(minGap * 100).replace('+', '')} above the last close that two fees and a margin need.`,
   'already reached': (s) => `No order: the price was already above the limit${s.limit !== null ? ` ${priceText(s.limit)}` : ''} when the card appeared; the move happened before the card.`,
@@ -683,7 +785,7 @@ function weekOrderRows(o, w, nextDay, now, unit) {
 // --- the view ------------------------------------------------------------------
 // `guardFrom`: the first week the guard counts (GUARD_SHOWN_FROM; the tests move it). `ordersFrom`: the first day (a
 // week: its close) the order book's card and record count (ORDERS_SHOWN_FROM; null keeps the old card; the tests set it).
-function marketView(market, record, weekRecord, now = new Date(), { guardFrom = GUARD_SHOWN_FROM, ordersFrom = ORDERS_SHOWN_FROM } = {}) {
+function marketView(market, record, weekRecord, now = new Date(), { guardFrom = GUARD_SHOWN_FROM, ordersFrom = ORDERS_SHOWN_FROM, trader = null } = {}) {
   const meta = MARKETS[market];
   if (!meta || !record) return null;
   const view = describeMarket(record, { week: weekRecord ? describeMarket(weekRecord) : null });
@@ -1027,6 +1129,8 @@ function marketView(market, record, weekRecord, now = new Date(), { guardFrom = 
                                                     : 'The book buys at the open and sells at the close, which a reader can follow.' } : null,
     week,
     open, none,
+    // the paper trader's card (null until its record exists)
+    trader: traderView(market, trader, now, meta.unit),
     // the order cards' labelled lines and the late entries (null while ORDERS_SHOWN_FROM is null)
     orders,
     log: closed.slice(0, 10).map((q) => ({ date: q.closed, symbol: q.symbol, game: q.game, pnl: q.pnl })),
@@ -1188,7 +1292,7 @@ function install(app, { dataDir }) {
     if (!MARKETS[market]) return json(res, { error: 'unknown market' }, 404);
     const record = loadMarket(dataDir, market);
     if (!record) return json(res, { error: 'no record yet' }, 404);
-    json(res, marketView(market, record, loadMarket(dataDir, WEEK_GAMES[market]), new Date()));
+    json(res, marketView(market, record, loadMarket(dataDir, WEEK_GAMES[market]), new Date(), { trader: loadTrader(dataDir, market) }));
   });
   app.get('/api/quotes/:market', async (req, res) => {
     const market = req.params.market;
@@ -1214,6 +1318,6 @@ function installApp(app) {
   });
 }
 
-module.exports = { marketView, positionsOf, when, fetchQuotes, quotesFor, install, installApp, ticketModels,
+module.exports = { marketView, traderView, loadTrader, positionsOf, when, fetchQuotes, quotesFor, install, installApp, ticketModels,
   // the order book's pieces, for the Admin shadow (workbench.js ordersOf: what the user card would say)
   dayOrderRows, weekOrderRows, orderPositions, orderBench, orderSoFar, newcomerRecordOf, orderExitText, weekFirst, priceText };
