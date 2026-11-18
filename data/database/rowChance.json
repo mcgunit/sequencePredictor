@@ -83,6 +83,12 @@
       "testFrom": "2026-09-27",
       "rows": {}
     },
+    "sharesmonth": {
+      "checkedThrough": "2026-11-15",
+      "freeze": "2026-09-27",
+      "testFrom": "2026-09-27",
+      "rows": {}
+    },
     "sharesweek": {
       "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",
