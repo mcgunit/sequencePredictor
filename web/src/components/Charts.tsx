@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { MarketView } from '../api';
+import type { TraderView } from '../api';
 import { axisDates, day, esc, isNum, money, plural } from '../format';
 import { useEChart, type ChartOption, type Tokens } from '../hooks/useEChart';
 
@@ -46,7 +46,7 @@ function bar(v: number | null, t: Tokens) {
 
 function market(data: (number | null)[], t: Tokens, endLabel = false) {
   return {
-    name: 'Market',
+    name: 'Holding',
     type: 'line' as const,
     data,
     symbol: 'none',
@@ -61,21 +61,22 @@ function Legend({ bars }: { bars?: boolean }) {
     <div className="meta">
       <span className="swatch">
         <i className={bars ? 'bar' : ''} />
-        Plan
+        Trader
       </span>
       <span className="swatch">
         <i className="dash" />
-        Market
+        Holding
       </span>
     </div>
   );
 }
 
-// The record as three panels (MarketPage places them on the grid): cumulative and per instrument on top,
-// daily profit beside the latest positions below. "Plan" is what following the day plan made, "Market"
-// buying every instrument every day under the same rule.
-export function useChartPanels(data: MarketView, pending = false) {
-  const { daily, cumulative, perCoin, unit, noun, status } = data;
+// The trader's record as three panels (MarketPage places them on the grid): cumulative and per instrument on top,
+// the change per day beside the latest positions below. "Trader" is what the paper trader's long positions are
+// worth at each close (open ones as if sold there), "Holding" every instrument bought on its first day and kept.
+export function useChartPanels(trader: TraderView | null, unit: string, noun: string) {
+  const daily = trader?.daily ?? [], cumulative = trader?.cumulative ?? [], perCoin = trader?.perCoin ?? [];
+  const status = trader?.status ?? null;
   const amount = (v: unknown) => `${money(v)}${unit ? ` ${unit}` : ''}`;
 
   const buildDaily = useCallback(
@@ -86,11 +87,11 @@ export function useChartPanels(data: MarketView, pending = false) {
         trigger: 'axis',
         formatter: (params: unknown) => {
           const d = daily[firstIndex(params)];
-          return d ? `<b>${day(d.date)}</b><br/>Plan: ${amount(d.pnl)}<br/>Market: ${amount(d.market)}` : '';
+          return d ? `<b>${day(d.date)}</b><br/>Trader: ${amount(d.pnl)}<br/>Holding: ${amount(d.market)}` : '';
         },
       },
       series: [
-        { name: 'Plan', type: 'bar', barMaxWidth: 18, data: daily.map((d) => bar(num(d.pnl), t)) },
+        { name: 'Trader', type: 'bar', barMaxWidth: 18, data: daily.map((d) => bar(num(d.pnl), t)) },
         market(
           daily.map((d) => num(d.market)),
           t,
@@ -108,12 +109,12 @@ export function useChartPanels(data: MarketView, pending = false) {
         trigger: 'axis',
         formatter: (params: unknown) => {
           const d = cumulative[firstIndex(params)];
-          return d ? `<b>${day(d.date)}</b><br/>Plan: ${amount(d.plan)}<br/>Market: ${amount(d.market)}` : '';
+          return d ? `<b>${day(d.date)}</b><br/>Trader: ${amount(d.plan)}<br/>Holding: ${amount(d.market)}` : '';
         },
       },
       series: [
         {
-          name: 'Plan',
+          name: 'Trader',
           type: 'line',
           data: cumulative.map((d) => num(d.plan)),
           symbol: 'circle',
@@ -188,35 +189,35 @@ export function useChartPanels(data: MarketView, pending = false) {
   const dailyRef = useEChart(daily.length ? buildDaily : null);
   const cumulativeRef = useEChart(cumulative.length ? buildCumulative : null);
   const perCoinRef = useEChart(perCoin.length ? buildPerCoin : null);
-  const noPositions = pending ? 'Positions are written by the next run.' : 'No closed position yet.';
+  const noDays = trader && trader.status.days > 0 ? 'The chart comes with the next run.' : 'No day yet.';
 
   const cumulativePanel = (
     <div className="card span-2">
       <div className="card-h">
         <h2>
-          Cumulative profit{status.since ? <span className="q2">since {day(status.since)}</span> : null}
+          Cumulative profit{status?.since ? <span className="q2">since {day(status.since)}</span> : null}
         </h2>
         <Legend />
       </div>
-      <div className="card-b fill">{cumulative.length ? <div ref={cumulativeRef} className="chart" /> : <div className="chart empty">No settled day yet.</div>}</div>
+      <div className="card-b fill">{cumulative.length ? <div ref={cumulativeRef} className="chart" /> : <div className="chart empty">{noDays}</div>}</div>
     </div>
   );
   const perCoinPanel = (
     <div className="card">
       <div className="card-h">
         <h2>Profit per {noun || 'coin'}</h2>
-        <div className="meta">{pending ? '' : `${plural(status.positions, 'position')}, daily and weekly`}</div>
+        <div className="meta">{status && status.positions ? `${plural(status.positions, 'position')}, open ones at the last close` : ''}</div>
       </div>
-      <div className="card-b fill">{perCoin.length ? <div ref={perCoinRef} className="chart" /> : <div className="chart empty">{noPositions}</div>}</div>
+      <div className="card-b fill">{perCoin.length ? <div ref={perCoinRef} className="chart" /> : <div className="chart empty">No position yet.</div>}</div>
     </div>
   );
   const dailyPanel = (
     <div className="card span-2">
       <div className="card-h">
-        <h2>Daily profit</h2>
+        <h2>Change per day</h2>
         <Legend bars />
       </div>
-      <div className="card-b fill">{daily.length ? <div ref={dailyRef} className="chart short" /> : <div className="chart short empty">No settled day yet.</div>}</div>
+      <div className="card-b fill">{daily.length ? <div ref={dailyRef} className="chart short" /> : <div className="chart short empty">{noDays}</div>}</div>
     </div>
   );
   return { cumulativePanel, perCoinPanel, dailyPanel };

@@ -677,6 +677,25 @@ ok(nvdaNight.status === 'held' && nvdaNight.openRateNote.startsWith('bought at t
   ok(fresh.lines.record === 'No position yet: the trader started on Wed 4 Nov, without positions.' && fresh.lines.hold === '' && fresh.lines.random === '', `an empty record: ${fresh.lines.record}`);
   ok(api.traderView('crypto', null, early, 'USDT') === null && api.marketView('crypto', record, weekRecord, now).trader === null
      && api.marketView('crypto', record, weekRecord, now, { trader: trader('crypto') }).trader.rows.length === 6, 'the market view carries the card when the record exists');
+  // the figures under the card: the long positions only, from the record's own series and positions
+  const sold = (symbol, entry, exit, money, extra = {}) => ({ side: 1, entry, exit, entry_price: 100, exit_price: 100 + money, held: 3, reason: 'calls', money, move: money, live: true, ...extra });
+  const full = trader('crypto', { days: 3, series: [{ date: '2026-11-15', long: 0, hold: 1 }, { date: '2026-11-16', long: 4.004, hold: -2 }, { date: '2026-11-17', long: 6.3, hold: 12.5 }],
+    symbols: { AAA: sym(now0('buy'), null, [sold('AAA', '2026-11-05', '2026-11-09', 5), sold('AAA', '2026-11-11', '2026-11-14', -6.5, { reason: 'stop', live: false })]),
+               BBB: sym(now0('hold', { stop: 99 }), held, [{ ...sold('BBB', '2026-11-05', '2026-11-08', 40), side: -1 }]),
+               CCC: sym(now0('wait')) } });
+  const f = api.traderView('crypto', full, early, 'USDT');
+  ok(f.closed.map((q) => `${q.symbol} ${q.sold} ${q.pnl} ${q.reasonText} ${q.live}`).join('|') === 'AAA 2026-11-14 -6.5 stop false|AAA 2026-11-09 5 predictions against it true',
+     `the closed table: long positions, newest sale first, a short left out: ${JSON.stringify(f.closed)}`);
+  ok(JSON.stringify(f.perCoin) === JSON.stringify([{ symbol: 'AAA', pnl: -1.5, positions: 2, won: 1 }, { symbol: 'BBB', pnl: 7.8, positions: 1, won: 0 }]), `per instrument, the open position at its last close: ${JSON.stringify(f.perCoin)}`);
+  ok(JSON.stringify(f.cumulative[2]) === JSON.stringify({ date: '2026-11-17', plan: 6.3, market: 12.5 }) && JSON.stringify(f.daily.map((d) => [d.pnl, d.market])) === JSON.stringify([[0, 1], [4, -3], [2.3, 14.5]]),
+     `the charts: the series, and its day-to-day change: ${JSON.stringify(f.daily)}`);
+  ok(f.status.total === 6.3 && f.status.hold === 12.5 && f.status.ahead === -6.2 && f.status.positions === 3 && f.status.closed === 2 && f.status.won === 1 && f.status.lost === 1 && f.status.winRate === 0.5
+     && f.status.open === 1 && f.status.toBuy === 1 && f.status.toSell === 0 && f.status.bestCoin.symbol === 'BBB' && f.status.worstCoin.symbol === 'AAA' && f.status.randomBeaten === 0.61 && f.status.days === 3,
+     `the tiles: ${JSON.stringify(f.status)}`);
+  const bare = api.traderView('crypto', trader('crypto', { totals: { hold: 0, long: { total: 0, positions: 0 } }, symbols: { AAA: sym(now0('wait')) } }), early, 'USDT');
+  ok(c.cumulative.length === 0 && c.daily.length === 0 && bare.status.total === null && bare.status.ahead === null && bare.status.winRate === null && bare.status.bestCoin === null && bare.closed.length === 0 && bare.perCoin.length === 0,
+     'a record without the series, or without positions, has empty charts and tiles');
+  ok(!/undefined|NaN/.test(JSON.stringify(f)), 'no undefined in the figures');
   ok(api.loadTrader('/nonexistent', 'crypto') === null, 'no record file is no card');
   ok(!/undefined|NaN/.test(JSON.stringify([c, s, late, next, fresh])), 'no undefined in the card');
 }

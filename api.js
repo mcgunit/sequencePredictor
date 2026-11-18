@@ -304,6 +304,8 @@ const TRADER_REASON = {
   take: 'the sell limit was reached',
   longest: 'it was held the longest time the rules allow',
 };
+// why a position was sold, as the closed table's chip
+const TRADER_SOLD = { calls: 'predictions against it', stop: 'stop', take: 'sell limit', longest: 'longest hold' };
 const hourText = (h) => `${String(h).padStart(2, '0')}:00`;
 function traderView(market, trader, now, unit) {
   if (!trader || !trader.symbols || !trader.rules || !trader.running) return null;
@@ -371,13 +373,40 @@ function traderView(market, trader, now, unit) {
       lines.random = `The same positions on random days: ${signed(long.random_mean)} ${unit} on average; the trader did better than ${Math.round(long.random_beaten * 100)}% of ${Number(long.random_runs).toLocaleString('en-US')} such draws.`;
     }
   }
+  // the figures under the card (decision 18 Nov 2026): the long positions' record as tiles, charts and tables, in place
+  // of the day and week games' figures. The series is the record's own (MarketTrader.py day_values, schema 2 on):
+  // without it the charts wait for the next run.
+  const longs = Object.keys(trader.symbols).flatMap((symbol) => ((trader.symbols[symbol] || {}).positions || []).filter((q) => q && q.side > 0).map((q) => ({ symbol, q })));
+  const closed = longs.filter(({ q }) => q.exit).sort((x, y) => (x.q.exit < y.q.exit ? 1 : x.q.exit > y.q.exit ? -1 : x.symbol.localeCompare(y.symbol)))
+    .map(({ symbol, q }) => ({ symbol, bought: q.entry, sold: q.exit, days: num(q.held), reason: q.reason || null, reasonText: TRADER_SOLD[q.reason] || q.reason_text || 'sold',
+      movePct: round2(q.move), pnl: round2(q.money) || 0, entryPrice: num(q.entry_price), exitPrice: num(q.exit_price), live: q.live === true }));
+  const perCoin = Object.keys(trader.symbols).map((symbol) => {
+    const mine = closed.filter((q) => q.symbol === symbol), s = trader.symbols[symbol] || {};
+    const open = s.open && s.open.side > 0 ? s.open : null;
+    return { symbol, pnl: round2(mine.reduce((sum, q) => sum + q.pnl, 0) + (open ? num(open.money) || 0 : 0)), positions: mine.length + (open ? 1 : 0), won: mine.filter((q) => q.pnl > 0).length };
+  }).filter((r) => r.positions > 0);
+  const series = Array.isArray(trader.series) ? trader.series.filter((x) => x && x.date && num(x.long) !== null) : [];
+  const cumulative = series.map((x) => ({ date: x.date, plan: round2(x.long), market: round2(x.hold) }));
+  const daily = series.map((x, i) => ({ date: x.date, pnl: round2(x.long - (i ? series[i - 1].long : 0)),
+    market: num(x.hold) === null ? null : round2(x.hold - (i ? num(series[i - 1].hold) || 0 : 0)) }));
+  const ranked = [...perCoin].sort((x, y) => y.pnl - x.pnl);
+  const total = positions ? round2(num(long.total) || 0) : null, hold = positions && trader.totals && num(trader.totals.hold) !== null ? round2(trader.totals.hold) : null;
+  const won = closed.filter((q) => q.pnl > 0).length;
+  const status = {
+    since: trader.from || null, days: num(trader.days) || 0, total, hold, ahead: total !== null && hold !== null ? round2(total - hold) : null,
+    positions, closed: closed.length, won, lost: closed.length - won, winRate: closed.length ? won / closed.length : null,
+    open: openCount, toBuy: rows.filter((r) => r.state === 'buy').length, toSell: rows.filter((r) => r.state === 'sell').length,
+    bestCoin: ranked.length ? ranked[0] : null, worstCoin: ranked.length > 1 ? ranked[ranked.length - 1] : null,
+    randomBeaten: positions && num(long.random_beaten) !== null ? long.random_beaten : null, randomMean: positions && num(long.random_mean) !== null ? round2(long.random_mean) : null,
+    randomRuns: num(long.random_runs) || 0, stake: num(trader.stake),
+  };
   const stopHelp = stopPct === null ? 'There is no stop.'
     : standing ? `The stop is a stop-market sell order ${stopPct}% under the best close since the buy${rules.trail ? '; it only moves up, once a morning' : ''}. It stands at the exchange and can sell during the day.`
       : `The stop is ${stopPct}% under the best close since the buy${rules.trail ? ' and only moves up' : ''}. It is read on the close: after a close under it the trader sells the next morning, so there is no standing order to place.`;
   return {
     from: trader.from || null, day: running, dayText: dayText(running), bookAt: at, booked, past,
     stateText: past ? `last instructions: ${dayText(running)}` : `for ${today === running ? 'today' : dayText(running)} · ${booked ? `the record traded at ${at}` : `the record trades at ${at}`}`,
-    rows, lines, generatedAt: trader.generated_at || null,
+    rows, lines, status, daily, cumulative, perCoin, closed, generatedAt: trader.generated_at || null,
     help: [
       `One decision a morning for each ${market === 'crypto' ? 'coin' : 'share'}, to be carried out around ${at} Belgian time; the record books it at that hour's price.`,
       `Buy: the day prediction is up ${persist} mornings running and the week and month predictions are up too.`,

@@ -16,7 +16,8 @@ Decided:
 - A position the trader holds is not offered to a reader who did not buy on its day; the cell says "Don't buy" and why.
 - On shares the card names no standing order: the stop is read on the close and the trader sells the next morning.
 - Long positions only; a short of the paper record shows as no position.
-- Decided the same day: the day and week cards ("Open positions") leave the user pages, as nobody followed them; the trader's card is the only set of instructions there. The admin workbench keeps its plan cards, and the figures under the card still report the day and week games.
+- Decided the same day: the day and week cards ("Open positions") leave the user pages, as nobody followed them; the trader's card is the only set of instructions there. The admin workbench keeps its plan cards.
+- Decided the same day: the figures under the card move to the trader's record too. The status strip, the three charts, the latest and the closed positions now count the trader's long positions (sold ones, and open ones at the last close) next to holding every instrument from the trader's first day. The record gained a per-day series for the charts (`series`, schema 2); the first charts come with the first run after the change.
 
 ### The paper trader books at 09:00 and keeps its decisions
 

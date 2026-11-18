@@ -87,8 +87,9 @@ function Market({ market }: { market: Market }) {
 }
 
 function Dashboard({ data, quotes }: { data: MarketView; quotes: ReturnType<typeof useQuotes> }) {
-  const pending = data.status.days > 0 && data.status.positions === 0;
-  const { cumulativePanel, perCoinPanel, dailyPanel } = useChartPanels(data, pending);
+  // everything under the head is the paper trader's record (18 Nov 2026): the card, then its figures
+  const trader = data.trader;
+  const { cumulativePanel, perCoinPanel, dailyPanel } = useChartPanels(trader, data.unit, data.noun);
   const paper = (data.status.paperNote || '').split('. ')[0].replace(/\.$/, '');
   return (
     <>
@@ -106,11 +107,11 @@ function Dashboard({ data, quotes }: { data: MarketView; quotes: ReturnType<type
           </>
         }
       />
-      <StatusStrip status={data.status} unit={data.unit} noun={data.noun} />
+      {trader ? <StatusStrip status={trader.status} unit={data.unit} noun={data.noun} /> : null}
       <div className="grid">
         {/* the trader's card is the page's only instructions: the day and week cards left the user page on 18 Nov 2026 */}
-        {data.trader ? (
-          <TraderCard trader={data.trader} noun={data.noun} unit={data.unit} quotes={quotes} />
+        {trader ? (
+          <TraderCard trader={trader} noun={data.noun} unit={data.unit} quotes={quotes} />
         ) : (
           <div className="card span-3">
             <div className="card-h">
@@ -122,8 +123,8 @@ function Dashboard({ data, quotes }: { data: MarketView; quotes: ReturnType<type
         {cumulativePanel}
         {perCoinPanel}
         {dailyPanel}
-        <TradesLog log={data.log} unit={data.unit} pending={pending} />
-        <ClosedPositions closed={data.closed} noun={data.noun} unit={data.unit} pending={pending} />
+        <TradesLog closed={trader ? trader.closed : []} unit={data.unit} />
+        <ClosedPositions closed={trader ? trader.closed : []} noun={data.noun} />
       </div>
     </>
   );

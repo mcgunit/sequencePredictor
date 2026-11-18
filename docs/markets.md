@@ -273,6 +273,7 @@ Two comparisons come with every result:
 - The decision for the day the card is for can change until the booking hour of that day and stands after it. The market's own export runs before its week and month games' tickets exist, so their exports, a moment later, complete it.
 - A position is live when the decisions that opened and closed it were stored before the booking hour of their days. A sale by the crypto stop or by a take limit needs no decision: it is a standing order.
 - A stored order that the replay of the record no longer makes (a rebuilt history, changed rules) is listed under `diverged`.
+- `series` holds, for every day since the first, what the long positions are worth at that day's close (a sold position its money from its sale on, a held one as if sold at that close) and what holding is worth there; a day without a close keeps the close before it. The page's charts read it (schema 2).
 - The totals come twice: every position, and the long positions only. No card gives a short order, so the long positions are what a reader can follow.
 
 ### The trader's card
@@ -448,16 +449,14 @@ It takes `process.lock`. It runs as the last job of the Sunday controls plan wit
 
 ## What the market pages show
 
-The web app has two user pages, `/crypto` (Crypto) and `/shares` (Stocks), served from `GET /api/markets/:market` (`api.js`, `marketView`). The paper trader's card is their only set of instructions, in the reader's perspective ("if you do not have it", "if you have it"); the day and week cards are not on the user pages. The tiles, charts and tables under the card report the day and week games.
+The web app has two user pages, `/crypto` (Crypto) and `/shares` (Stocks), served from `GET /api/markets/:market` (`api.js`, `marketView`). Everything on them is the paper trader's record (`trader` in the answer, `traderView`): the card with the instructions, in the reader's perspective ("if you do not have it", "if you have it"), and its figures under it. The day and week cards and their figures are not on the user pages; the answer still carries them.
 
-- The trader's card: one instruction row per instrument ([the trader's card](#the-traders-card)), with live prices from `GET /api/quotes/:market`: Binance for crypto, Yahoo's quote of the Euronext listing (about 15 minutes late) for shares, cached for a minute; `{at: null, quotes: {}}` when unavailable. Until the trader's record exists the card says that the first instructions come with the next run.
-
-- A status strip of six tiles: what following the page made (daily and weekly together), the comparison with buying everything, positions, days, instruments and what is open now.
-- Three charts: the cumulative result, the result per instrument and the result per day.
-- A trades log and the closed positions.
-- The weekly part counts the plain week before `GUARD_SHOWN_FROM` and the guard from then on.
-- On the crypto page, cards from `ORDERS_SHOWN_FROM` on are the order book's: buy now at market, the sell limit, when to sell at market, and separate lines for late and newcomer entries. Until a card of that day is on the page the page keeps the book-based card.
-- The page states that every figure is paper money and where the book's entry differs from a reader's.
+- The trader's card: one instruction row per instrument ([the trader's card](#the-traders-card)), with live prices from `GET /api/quotes/:market`: Binance for crypto, Yahoo's quote of the Euronext listing (about 15 minutes late) for shares, cached for a minute; `{at: null, quotes: {}}` when unavailable. Until the trader's record exists the card says that the first instructions come with the next run, and the page shows no figures.
+- A status strip of six tiles on the trader's long positions: what the record made (sold positions, and open ones as if sold at the last close), the comparison with holding every instrument from the trader's first day, the sold positions won, the share of random placements the trader did better than, the best and worst instrument, and what is open now with the day's buys and sells.
+- Three charts: the record's worth at each close next to holding, the result per instrument, and the change per day. They read the record's per-day series; a record written before the series existed shows them from its next run.
+- The latest sold positions, and the closed positions: sold and bought day, why it was sold (the predictions, the stop, the sell limit, the longest hold), the days held, the move and the profit. A position whose decisions were not stored before the booking hour of their days is marked "filled in".
+- Short positions of the record are in none of these figures: no card gives a short order.
+- The page states that every figure is paper money: the rules' record, not what a reader made.
 
 ## What the admin workbench shows
 

@@ -137,7 +137,7 @@ MONTH_GAME = {"crypto": "cryptomonth", "shares": "sharesmonth"}
 # between 9 and 10 and orders by 10 gets close to the 10:00 price.
 EXEC_HOURS = {"crypto": 9, "shares": 10}
 BRUSSELS = ZoneInfo("Europe/Brussels")
-TRADER_SCHEMA = 1
+TRADER_SCHEMA = 2      # 2: the per-day series (18 Nov 2026)
 RANDOM_RUNS = 2000
 RANDOM_SEED = 20261117
 
@@ -429,6 +429,35 @@ def position_money(costs, stake, side, entry_price, exit_price):
     return (None, None) if money is None else (money, settle.move_pct(ret) * (1 if side > 0 else -1))
 
 
+def day_values(days, prices, costs, stake, closed, still, first):
+    """
+    One instrument's worth at every close of `days`, for the page's charts:
+    a list of (long, hold). `long` is what its long positions made up to that
+    close - a sold one its money from its exit day on, a held one as if sold
+    at that close; `hold` what buying it on `first` and keeping it is worth
+    there. A day without a close keeps the close before it. The last day's
+    values are the record's own (the open position's money, the hold total)
+    when its close is known.
+    """
+    mine = [q for q in closed + ([still] if still else []) if q["side"] > 0]
+    first_price = prices.exec_price(first) if first else None
+    out, known = [], None
+    for day in days:
+        close = prices.close(day)
+        known = close if close is not None else known
+        value = 0.0
+        for q in mine:
+            if q["entry"] > day:
+                continue
+            if q.get("exit") is not None and q["exit"] <= day:
+                value += q.get("money") or 0.0
+            else:
+                value += position_money(costs, stake, 1, q["entry_price"], known)[0] or 0.0
+        hold = (position_money(costs, stake, 1, first_price, known)[0] or 0.0) if first and day >= first else 0.0
+        out.append((value, hold))
+    return out
+
+
 def random_placements(spans, n_days, rng):
     """
     The trader's positions laid at random over `n_days`: `spans` are
@@ -648,6 +677,7 @@ def trader_record(conn, market, path, k=K_BINS, rules=None, runs=RANDOM_RUNS, se
             for v in views}
     hold_total = 0.0
     index = {d: i for i, d in enumerate(days)}
+    worth = [[0.0, 0.0] for _ in days]      # per day: the long positions' and the hold's worth at its close (day_values)
     for n, symbol in enumerate(data["symbols"]):
         prices = data["prices"][symbol]
         result = trade(all_days, data["signal"](symbol), prices, rules, running=data["running"], start=start)
@@ -679,6 +709,9 @@ def trader_record(conn, market, path, k=K_BINS, rules=None, runs=RANDOM_RUNS, se
         first = next((d for d in days if prices.exec_price(d) is not None), None)
         hold_money, hold_move = position_money(costs, stake, 1, prices.exec_price(first) if first else None, last_close)
         hold_total += hold_money or 0.0
+        for i, (value, hold) in enumerate(day_values(days, prices, costs, stake, closed, still, first)):
+            worth[i][0] += value
+            worth[i][1] += hold
         entry = {"positions": closed, "open": still, "now": result["now"],
                  "hold": None if hold_money is None else round(hold_money, 4), "hold_move": hold_move}
         for view, keep in views.items():
@@ -713,6 +746,7 @@ def trader_record(conn, market, path, k=K_BINS, rules=None, runs=RANDOM_RUNS, se
                               "random_mean": round(mean, 4)})
         out["symbols"][symbol] = entry
     out["totals"] = {"hold": round(hold_total, 4), "days_possible": len(days) * len(data["symbols"])}
+    out["series"] = [{"date": d, "long": round(worth[i][0], 4), "hold": round(worth[i][1], 4)} for i, d in enumerate(days)]
     for view, t in sums.items():
         total = t["closed"] + t["open"]
         out["totals"][view] = {
@@ -1033,6 +1067,19 @@ def _self_check():
     money, _ = position_money(share_costs, 1000.0, 1, 40.0, 44.0)       # 25 shares: 1,000 -> 1,100, 5.00 + 3.50 and 7.50 + 3.85
     assert abs(money - (100.0 - 8.5 - 11.35)) < 1e-9, money
     assert position_money(share_costs, 1000.0, 1, 1500.0, 1600.0) == (None, None) and position_money(crypto_costs, 100.0, 1, None, 5.0) == (None, None)
+
+    # 9b. the worth per day: a held position at each close, a sold one at its money from its exit day on, the hold from its first day
+    bars = {"2026-11-16": (100.0, 101.0, 99.0, 100.0), "2026-11-17": (100.0, 111.0, 99.0, 110.0), "2026-11-19": (110.0, 121.0, 109.0, 120.0)}
+    book = Prices("shares", bars)
+    sold = {"side": 1, "entry": "2026-11-16", "entry_price": 100.0, "exit": "2026-11-17", "exit_price": 100.0, "money": -1.0}
+    kept = {"side": 1, "entry": "2026-11-17", "entry_price": 100.0, "money": 5.0}
+    short = {"side": -1, "entry": "2026-11-16", "entry_price": 100.0, "exit": "2026-11-17", "exit_price": 90.0, "money": 9.0}
+    values = day_values(["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19"], book, crypto_costs, 100.0, [sold, short], kept, "2026-11-17")
+    at = lambda z: position_money(crypto_costs, 100.0, 1, 100.0, z)[0]
+    assert abs(values[0][0] - at(100.0)) < 1e-9 and values[0][1] == 0.0, values                 # held at the first close; the hold starts a day later
+    assert abs(values[1][0] - (-1.0 + at(110.0))) < 1e-9 and abs(values[1][1] - at(110.0)) < 1e-9, values
+    assert values[2] == values[1], "a day without a close keeps the close before it"
+    assert abs(values[3][0] - (-1.0 + at(120.0))) < 1e-9 and abs(values[3][1] - at(120.0)) < 1e-9, values
 
     # 10. random placements: no overlap, every length kept, inside the days
     rng = random.Random(1)

@@ -117,6 +117,40 @@ export interface TraderRow {
   stop: number | null;
   movePctClose: number | null;
 }
+export interface TraderStatus {
+  since: string | null;
+  days: number;
+  total: number | null; // null until the first position
+  hold: number | null;
+  ahead: number | null;
+  positions: number;
+  closed: number;
+  won: number;
+  lost: number;
+  winRate: number | null;
+  open: number;
+  toBuy: number;
+  toSell: number;
+  bestCoin: PerInstrument | null;
+  worstCoin: PerInstrument | null;
+  randomBeaten: number | null; // the share of random placements the trader did better than
+  randomMean: number | null;
+  randomRuns: number;
+  stake: number | null;
+}
+export interface TraderClosed {
+  symbol: string;
+  bought: string;
+  sold: string;
+  days: number | null;
+  reason: string | null;
+  reasonText: string;
+  movePct: number | null;
+  pnl: number;
+  entryPrice: number | null;
+  exitPrice: number | null;
+  live: boolean; // decided before the booking hour of its days; otherwise filled in afterwards
+}
 export interface TraderView {
   from: string | null;
   day: string;
@@ -127,6 +161,12 @@ export interface TraderView {
   stateText: string;
   rows: TraderRow[];
   lines: { record: string; hold: string; random: string };
+  // the figures under the card: the long positions' record (tiles, charts, tables)
+  status: TraderStatus;
+  daily: DailyPoint[]; // the day-to-day change of the series; market is holding
+  cumulative: CumulativePoint[]; // plan is the trader's long positions, market holding from the first day
+  perCoin: PerInstrument[];
+  closed: TraderClosed[]; // newest sale first
   help: string[];
   generatedAt: string | null;
 }
