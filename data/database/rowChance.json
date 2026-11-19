@@ -11,6 +11,12 @@
         "TCN Base Model": {"decidedOn": null, "flagDraws": 24, "flagMean": 1.25, "flagNull": 1.0456, "flagP": 0.01065, "mean": null, "null": null, "p": null, "since": "2026-11-08", "state": "running", "verdictAt": null, "verdictLength": 24}
       }
     },
+    "cryptomonth": {
+      "checkedThrough": "2026-11-15",
+      "freeze": "2026-09-27",
+      "testFrom": "2026-09-27",
+      "rows": {}
+    },
     "cryptoweek": {
       "checkedThrough": "2026-11-15",
       "freeze": "2026-09-27",

@@ -1,0 +1,385 @@
+{
+  "currentPredictionRaw": [],
+  "currentPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          5,
+          4,
+          4,
+          4,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "MarkovMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          2,
+          4,
+          3,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "OrderStatistics Baseline",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "GARCH Model",
+      "predictions": [
+        [
+          4,
+          8,
+          5,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          6,
+          4,
+          4,
+          5,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          4,
+          4,
+          7,
+          5,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          5,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "WeightedEnsemble Model",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      ],
+      "positionConfidence": [
+        0.583,
+        0.5,
+        0.917,
+        0.5,
+        0.667
+      ]
+    },
+    {
+      "name": "RL Position Model",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      ],
+      "positions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "currentNumberFrequency": {
+    "5": 0.1111111111111111,
+    "4": 0.5111111111111111,
+    "3": 0.28888888888888886,
+    "2": 0.022222222222222223,
+    "8": 0.022222222222222223,
+    "6": 0.022222222222222223,
+    "7": 0.022222222222222223
+  },
+  "realResult": [
+    6,
+    7,
+    6,
+    6,
+    4
+  ],
+  "newPrediction": [
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          6,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "MarkovMonteCarlo Model",
+      "predictions": [
+        [
+          6,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          6,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          4,
+          5,
+          5,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "OrderStatistics Baseline",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "GARCH Model",
+      "predictions": [
+        [
+          4,
+          8,
+          2,
+          4,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          3,
+          0,
+          4,
+          8,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          0,
+          0,
+          8,
+          2,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          3,
+          2,
+          4,
+          1,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "WeightedEnsemble Model",
+      "predictions": [
+        [
+          6,
+          3,
+          4,
+          4,
+          3
+        ]
+      ],
+      "positionConfidence": [
+        0.5,
+        0.5,
+        0.75,
+        0.5,
+        0.667
+      ]
+    },
+    {
+      "name": "RL Position Model",
+      "predictions": [
+        [
+          6,
+          3,
+          4,
+          4,
+          3
+        ]
+      ],
+      "positions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "newPredictionRaw": [],
+  "matchingNumbers": {
+    "model": "Markov Model",
+    "prediction": [
+      5,
+      4,
+      4,
+      4,
+      4
+    ],
+    "matching_numbers": [
+      4
+    ],
+    "match_count": 1,
+    "special_matching_numbers": [],
+    "special_match_count": 0
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "numberFrequency": {
+    "6": 0.08888888888888889,
+    "3": 0.26666666666666666,
+    "4": 0.35555555555555557,
+    "5": 0.06666666666666667,
+    "8": 0.06666666666666667,
+    "2": 0.06666666666666667,
+    "0": 0.06666666666666667,
+    "1": 0.022222222222222223
+  },
+  "madeAt": "2026-11-19T00:18:10+00:00",
+  "positionFrequency": [
+    {
+      "0": 0.5,
+      "3": 2.5,
+      "6": 3.0
+    },
+    {
+      "0": 1.0,
+      "2": 1.0,
+      "3": 3.0,
+      "4": 1.0
+    },
+    {
+      "4": 4.5,
+      "5": 1.0,
+      "8": 0.5
+    },
+    {
+      "1": 1.0,
+      "2": 0.5,
+      "4": 3.0,
+      "5": 1.0,
+      "8": 0.5
+    },
+    {
+      "3": 4.0,
+      "4": 1.0,
+      "6": 1.0
+    }
+  ]
+}
