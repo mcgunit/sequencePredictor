@@ -9,7 +9,7 @@
   "lstm_units": 256,
   "bidirectional_lstm_units": 32,
   "useFinalLSTMLayer": false,
-  "window_size": 8,
+  "window_size": 12,
   "num_heads": 2,
   "key_dim": 16,
   "labelSmoothedLoss": true,
