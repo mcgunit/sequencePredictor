@@ -1,0 +1,257 @@
+{
+  "game": "jokerplus",
+  "day": "2026-11-19",
+  "runs": [
+    {
+      "game": "jokerplus",
+      "day": "2026-11-19",
+      "askedAt": "2026-11-20T09:23:05+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Joker+. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first (numbers + zodiac sign):\n5 1 3 5 8 5 + 7\n7 5 2 8 4 8 + 9\n3 3 6 5 1 4 + 1\n8 5 3 6 6 9 + 10\n7 0 4 0 6 7 + 11\n8 1 9 0 9 6 + 8\n0 9 8 8 0 2 + 6\n0 1 1 4 1 8 + 6\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nLightGBM Model | right on those draws: 2 0 2 2 1 - 1 3 | plays now: 9 4 3 8 0 2 + 2\nMetaLearnerV2 Model | right on those draws: 1 0 0 0 1 - 2 1 | plays now: 4 2 9 9 7 7 + 7\nLSTM Base Model | right on those draws: 1 1 1 2 0 - 0 2 | plays now: 4 0 7 5 6 8 + 5\nClassicalSVM Model | right on those draws: 0 0 2 0 0 - 0 0 | plays now: 8 8 6 1 3 9 + 9\nQuantumMetaLearner Model | right on those draws: 1 0 0 0 0 - 0 0 | plays now: 8 0 9 5 8 3 + 11\nChronos Model | right on those draws: 0 0 0 1 0 - 1 2 | plays now: 8 1 1 8 4 1 + 10\nLSTM Smoothed Model | right on those draws: 2 0 1 4 1 - 1 0 | plays now: 8 9 3 5 6 9 + 9\nXGBoost Model | right on those draws: 1 0 1 1 0 - 1 1 | plays now: 2 2 3 3 3 6 + 2\nUnifiedLstmGruTcn Model | right on those draws: 1 1 1 2 0 - 0 0 | plays now: 9 8 3 5 9 3 + 0\nTimesFM Model | right on those draws: 0 0 1 0 0 - 0 0 | plays now: 2 1 3 3 4 4 + 4\n\nAnswer with one line: TICKET: followed by 6 digits from 0 to 9, one per position in the order drawn (a digit may repeat), then a plus sign and 1 zodiac sign as a number 0-11. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+          "members": {
+            "Qwen2.5": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 348269654,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 4 9 0 2 7 6 + 10",
+                  "seconds": 58.0
+                }
+              ],
+              "seed": 348269654,
+              "ticket": [
+                4,
+                9,
+                0,
+                2,
+                7,
+                6,
+                10
+              ]
+            },
+            "Granite-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 379140584,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 123456+3",
+                  "seconds": 38.9,
+                  "refused": "1 numbers where 7 were asked"
+                },
+                {
+                  "seed": 2104417023,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 123789+5",
+                  "seconds": 9.5,
+                  "refused": "1 numbers where 7 were asked"
+                },
+                {
+                  "seed": 743313035,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 123456+7",
+                  "seconds": 8.0,
+                  "refused": "1 numbers where 7 were asked"
+                }
+              ],
+              "ticket": null
+            },
+            "Falcon-H1": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 2060787728,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 4 2 9 9 7 7 + 7",
+                  "seconds": 69.7
+                }
+              ],
+              "seed": 2060787728,
+              "ticket": [
+                4,
+                2,
+                9,
+                9,
+                7,
+                7,
+                7
+              ]
+            },
+            "EXAONE-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 42,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 7 0 9 8 1 6 + 7",
+                  "seconds": 47.5
+                }
+              ],
+              "seed": 42,
+              "ticket": [
+                7,
+                0,
+                9,
+                8,
+                1,
+                6,
+                7
+              ]
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "answer": "\nTICKET: 4 7 0 9 8 2 + 10",
+                "seconds": 39.0
+              }
+            ],
+            "seed": 42,
+            "prompt": "Game: Joker+. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first (numbers + zodiac sign):\n5 1 3 5 8 5 + 7\n7 5 2 8 4 8 + 9\n3 3 6 5 1 4 + 1\n8 5 3 6 6 9 + 10\n7 0 4 0 6 7 + 11\n8 1 9 0 9 6 + 8\n0 9 8 8 0 2 + 6\n0 1 1 4 1 8 + 6\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nLightGBM Model | right on those draws: 2 0 2 2 1 - 1 3 | plays now: 9 4 3 8 0 2 + 2\nMetaLearnerV2 Model | right on those draws: 1 0 0 0 1 - 2 1 | plays now: 4 2 9 9 7 7 + 7\nLSTM Base Model | right on those draws: 1 1 1 2 0 - 0 2 | plays now: 4 0 7 5 6 8 + 5\nClassicalSVM Model | right on those draws: 0 0 2 0 0 - 0 0 | plays now: 8 8 6 1 3 9 + 9\nQuantumMetaLearner Model | right on those draws: 1 0 0 0 0 - 0 0 | plays now: 8 0 9 5 8 3 + 11\nChronos Model | right on those draws: 0 0 0 1 0 - 1 2 | plays now: 8 1 1 8 4 1 + 10\nLSTM Smoothed Model | right on those draws: 2 0 1 4 1 - 1 0 | plays now: 8 9 3 5 6 9 + 9\nXGBoost Model | right on those draws: 1 0 1 1 0 - 1 1 | plays now: 2 2 3 3 3 6 + 2\nUnifiedLstmGruTcn Model | right on those draws: 1 1 1 2 0 - 0 0 | plays now: 9 8 3 5 9 3 + 0\nTimesFM Model | right on those draws: 0 0 1 0 0 - 0 0 | plays now: 2 1 3 3 4 4 + 4\n\n3 advisers who read the same each chose a ticket.\nPosition 1, the advisers chose: 4 (2x), 7 (1x)\nPosition 2, the advisers chose: 0 (1x), 2 (1x), 9 (1x)\nPosition 3, the advisers chose: 9 (2x), 0 (1x)\nPosition 4, the advisers chose: 2 (1x), 8 (1x), 9 (1x)\nPosition 5, the advisers chose: 7 (2x), 1 (1x)\nPosition 6, the advisers chose: 6 (2x), 7 (1x)\nFor the zodiac sign the advisers chose: 7 (2x), 10 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 6 digits from 0 to 9, one per position in the order drawn (a digit may repeat), then a plus sign and 1 zodiac sign as a number 0-11. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+            "ticket": [
+              4,
+              7,
+              0,
+              9,
+              8,
+              2,
+              10
+            ],
+            "combines": [
+              "Qwen2.5",
+              "Falcon-H1",
+              "EXAONE-4.0"
+            ]
+          }
+        },
+        "draws": {
+          "prompt": "Game: Joker+. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first (numbers + zodiac sign):\n9 9 4 5 2 4 + 0\n3 3 0 1 7 2 + 4\n2 5 9 2 3 3 + 8\n4 2 4 4 3 1 + 9\n4 0 8 9 0 7 + 0\n5 4 3 1 0 2 + 8\n7 9 8 0 8 0 + 2\n5 0 4 2 4 4 + 7\n4 2 9 2 4 8 + 8\n0 2 3 8 8 2 + 10\n4 2 8 2 4 9 + 0\n7 5 7 7 0 5 + 5\n5 9 6 2 6 1 + 9\n8 0 1 2 6 2 + 0\n8 6 4 0 2 2 + 0\n5 2 2 8 9 9 + 11\n0 3 0 1 6 2 + 0\n6 6 3 5 9 3 + 3\n2 2 3 4 0 4 + 4\n1 5 3 4 2 3 + 5\n1 0 6 4 1 2 + 7\n1 3 8 0 0 0 + 4\n5 1 3 5 8 5 + 7\n7 5 2 8 4 8 + 9\n3 3 6 5 1 4 + 1\n8 5 3 6 6 9 + 10\n7 0 4 0 6 7 + 11\n8 1 9 0 9 6 + 8\n0 9 8 8 0 2 + 6\n0 1 1 4 1 8 + 6\n\nAnswer with one line: TICKET: followed by 6 digits from 0 to 9, one per position in the order drawn (a digit may repeat), then a plus sign and 1 zodiac sign as a number 0-11. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+          "members": {
+            "Qwen2.5": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1245849517,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 9 9 4 5 2 4 + 0",
+                  "seconds": 45.2
+                }
+              ],
+              "seed": 1245849517,
+              "ticket": [
+                9,
+                9,
+                4,
+                5,
+                2,
+                4,
+                0
+              ]
+            },
+            "Granite-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 300211685,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 123456 + 7",
+                  "seconds": 31.7,
+                  "refused": "1 numbers where 7 were asked"
+                },
+                {
+                  "seed": 1945141309,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 123456 + 7",
+                  "seconds": 8.4,
+                  "refused": "1 numbers where 7 were asked"
+                },
+                {
+                  "seed": 903938560,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 123456 + 7",
+                  "seconds": 2.8,
+                  "refused": "1 numbers where 7 were asked"
+                }
+              ],
+              "ticket": null
+            },
+            "Falcon-H1": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 197585206,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 6 9 4 3 8 + 6",
+                  "seconds": 52.5
+                }
+              ],
+              "seed": 197585206,
+              "ticket": [
+                1,
+                6,
+                9,
+                4,
+                3,
+                8,
+                6
+              ]
+            },
+            "EXAONE-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 42,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 0 2 8 2 4 9 + 0",
+                  "seconds": 40.3
+                }
+              ],
+              "seed": 42,
+              "ticket": [
+                0,
+                2,
+                8,
+                2,
+                4,
+                9,
+                0
+              ]
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "answer": "\nTICKET: 0 1 9 4 1 8 + 0",
+                "seconds": 35.4
+              }
+            ],
+            "seed": 42,
+            "prompt": "Game: Joker+. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first (numbers + zodiac sign):\n9 9 4 5 2 4 + 0\n3 3 0 1 7 2 + 4\n2 5 9 2 3 3 + 8\n4 2 4 4 3 1 + 9\n4 0 8 9 0 7 + 0\n5 4 3 1 0 2 + 8\n7 9 8 0 8 0 + 2\n5 0 4 2 4 4 + 7\n4 2 9 2 4 8 + 8\n0 2 3 8 8 2 + 10\n4 2 8 2 4 9 + 0\n7 5 7 7 0 5 + 5\n5 9 6 2 6 1 + 9\n8 0 1 2 6 2 + 0\n8 6 4 0 2 2 + 0\n5 2 2 8 9 9 + 11\n0 3 0 1 6 2 + 0\n6 6 3 5 9 3 + 3\n2 2 3 4 0 4 + 4\n1 5 3 4 2 3 + 5\n1 0 6 4 1 2 + 7\n1 3 8 0 0 0 + 4\n5 1 3 5 8 5 + 7\n7 5 2 8 4 8 + 9\n3 3 6 5 1 4 + 1\n8 5 3 6 6 9 + 10\n7 0 4 0 6 7 + 11\n8 1 9 0 9 6 + 8\n0 9 8 8 0 2 + 6\n0 1 1 4 1 8 + 6\n\n3 advisers who read the same each chose a ticket.\nPosition 1, the advisers chose: 0 (1x), 1 (1x), 9 (1x)\nPosition 2, the advisers chose: 2 (1x), 6 (1x), 9 (1x)\nPosition 3, the advisers chose: 4 (1x), 8 (1x), 9 (1x)\nPosition 4, the advisers chose: 2 (1x), 4 (1x), 5 (1x)\nPosition 5, the advisers chose: 2 (1x), 3 (1x), 4 (1x)\nPosition 6, the advisers chose: 4 (1x), 8 (1x), 9 (1x)\nFor the zodiac sign the advisers chose: 0 (2x), 6 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 6 digits from 0 to 9, one per position in the order drawn (a digit may repeat), then a plus sign and 1 zodiac sign as a number 0-11. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+            "ticket": [
+              0,
+              1,
+              9,
+              4,
+              1,
+              8,
+              0
+            ],
+            "combines": [
+              "Qwen2.5",
+              "Falcon-H1",
+              "EXAONE-4.0"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

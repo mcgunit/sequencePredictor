@@ -1656,6 +1656,210 @@
       ],
       "variant": "Memorise",
       "parent": "LightGBM Model"
+    },
+    {
+      "name": "Council (record): Qwen2.5",
+      "predictions": [
+        [
+          4,
+          9,
+          0,
+          2,
+          7,
+          6,
+          10
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Qwen2.5",
+        "lab": "alibaba",
+        "model": "bartowski/Qwen2.5-1.5B-Instruct-GGUF:Q8_0",
+        "temperature": 0.7,
+        "seed": 348269654,
+        "tries": 1,
+        "prompt": "2f177210be8e054f"
+      }
+    },
+    {
+      "name": "Council (record): Falcon-H1",
+      "predictions": [
+        [
+          4,
+          2,
+          9,
+          9,
+          7,
+          7,
+          7
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Falcon-H1",
+        "lab": "TII",
+        "model": "/srv/models/manual/unsloth/Falcon-H1-1.5B-Deep-Instruct-GGUF/Falcon-H1-1.5B-Deep-Instruct-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 2060787728,
+        "tries": 1,
+        "prompt": "2f177210be8e054f"
+      }
+    },
+    {
+      "name": "Council (record): EXAONE-4.0",
+      "predictions": [
+        [
+          7,
+          0,
+          9,
+          8,
+          1,
+          6,
+          7
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "EXAONE-4.0",
+        "lab": "LG AI",
+        "model": "/srv/models/manual/bartowski/LGAI-EXAONE_EXAONE-4.0-1.2B-GGUF/LGAI-EXAONE_EXAONE-4.0-1.2B-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "2f177210be8e054f"
+      }
+    },
+    {
+      "name": "Council (record): combined",
+      "predictions": [
+        [
+          4,
+          7,
+          0,
+          9,
+          8,
+          2,
+          10
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "combined",
+        "lab": "LiquidAI",
+        "model": "/srv/models/manual/LiquidAI/LFM2.5-8B-A1B-GGUF/LFM2.5-8B-A1B-Q4_0.gguf",
+        "head": "head-LFM2.5",
+        "combines": [
+          "Qwen2.5",
+          "Falcon-H1",
+          "EXAONE-4.0"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "dd7f89a2e1d10892"
+      }
+    },
+    {
+      "name": "Council (draws): Qwen2.5",
+      "predictions": [
+        [
+          9,
+          9,
+          4,
+          5,
+          2,
+          4,
+          0
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Qwen2.5",
+        "lab": "alibaba",
+        "model": "bartowski/Qwen2.5-1.5B-Instruct-GGUF:Q8_0",
+        "temperature": 0.7,
+        "seed": 1245849517,
+        "tries": 1,
+        "prompt": "772a6f4b35a73b5f"
+      }
+    },
+    {
+      "name": "Council (draws): Falcon-H1",
+      "predictions": [
+        [
+          1,
+          6,
+          9,
+          4,
+          3,
+          8,
+          6
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Falcon-H1",
+        "lab": "TII",
+        "model": "/srv/models/manual/unsloth/Falcon-H1-1.5B-Deep-Instruct-GGUF/Falcon-H1-1.5B-Deep-Instruct-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 197585206,
+        "tries": 1,
+        "prompt": "772a6f4b35a73b5f"
+      }
+    },
+    {
+      "name": "Council (draws): EXAONE-4.0",
+      "predictions": [
+        [
+          0,
+          2,
+          8,
+          2,
+          4,
+          9,
+          0
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "EXAONE-4.0",
+        "lab": "LG AI",
+        "model": "/srv/models/manual/bartowski/LGAI-EXAONE_EXAONE-4.0-1.2B-GGUF/LGAI-EXAONE_EXAONE-4.0-1.2B-Q4_0.gguf",
+        "temperature": 0.7,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "772a6f4b35a73b5f"
+      }
+    },
+    {
+      "name": "Council (draws): combined",
+      "predictions": [
+        [
+          0,
+          1,
+          9,
+          4,
+          1,
+          8,
+          0
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "combined",
+        "lab": "LiquidAI",
+        "model": "/srv/models/manual/LiquidAI/LFM2.5-8B-A1B-GGUF/LFM2.5-8B-A1B-Q4_0.gguf",
+        "head": "head-LFM2.5",
+        "combines": [
+          "Qwen2.5",
+          "Falcon-H1",
+          "EXAONE-4.0"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "8b99b11bfde97dee"
+      }
     }
   ],
   "newPredictionRaw": [
