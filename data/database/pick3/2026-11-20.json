@@ -1388,6 +1388,66 @@
       ],
       "variant": "Memorise",
       "parent": "LightGBM Model"
+    },
+    {
+      "name": "Council (draws): Granite-4.2-8B",
+      "predictions": [
+        [
+          7,
+          4,
+          1
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Granite-4.2-8B",
+        "lab": "IBM",
+        "model": "granite-4.2-8b",
+        "temperature": 0.7,
+        "seed": 1161978742,
+        "tries": 1,
+        "prompt": "102928550ac2b9b9"
+      }
+    },
+    {
+      "name": "Council (draws): Nemotron-3.5-Bolt",
+      "predictions": [
+        [
+          2,
+          5,
+          9
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Nemotron-3.5-Bolt",
+        "lab": "NVIDIA",
+        "model": "nemotron-3.5-bolt-e4b",
+        "temperature": 0.7,
+        "seed": 763061279,
+        "tries": 1,
+        "prompt": "102928550ac2b9b9"
+      }
+    },
+    {
+      "name": "Council (draws): Llama-3.1-8B",
+      "predictions": [
+        [
+          3,
+          4,
+          9
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Llama-3.1-8B",
+        "lab": "Meta",
+        "model": "llama-3.1-8b",
+        "temperature": 0.7,
+        "seed": 796484748,
+        "tries": 1,
+        "prompt": "102928550ac2b9b9"
+      }
     }
   ],
   "newPredictionRaw": [
