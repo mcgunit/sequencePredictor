@@ -2,6 +2,18 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 21 November 2026
+
+### Council rows: the machines answer side by side
+
+The first morning on the larger models made the GPU worker's rows only: 21 rows, three a game. The job asked the machines in turn, the GPU worker first. Its three members took 11 minutes, and in that time the CPU worker, woken for the job and not yet asked anything, switched itself off as idle. Every question to it was refused, so its two members, the record row and the combined rows are absent that day.
+
+Fixed: `CouncilRows.py` asks the machines side by side, each still one member at a time. The CPU worker gets its first question when the job starts, and the head follows its members without a pause. The members' tickets reach the head in the config's order, whichever machine answered first.
+
+Fixed on the way: with the schedule switched off, a lottery run that was still going queued the weekly plans behind it when it finished on a plan day. `jobs.js` now looks at the switch there too. Two checks of `test/jobs.test.js` read the real calendar and failed on a Saturday; one now tests only what it names.
+
+Open: the morning's total time on the CPU worker with gpt-oss 20B is still not measured.
+
 ## 20 November 2026
 
 ### Council rows: larger models, one record row
@@ -28,7 +40,7 @@ Built: `src/llmCouncil/rows.json` (the row models, `record_member`, `guards`); i
 
 Fixed: the CPU worker stayed on for a day. A `backtest.pid` left from 10 November named a process number that this boot gave to a kernel thread, so the idle check saw a backtest running. `worker/idle-shutdown.sh` and the new guard believe a pid file only when it is newer than the machine's boot.
 
-Open: the new member names start new rows, so the earlier Council rows end here and the new ones have no history yet. The morning's total time with gpt-oss 20B is not measured yet; the first production morning shows whether it stays inside the 90 minutes.
+Open: the new member names start new rows, so the earlier Council rows end here and the new ones have no history yet.
 
 ## 18 November 2026
 

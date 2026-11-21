@@ -30,6 +30,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from datetime import datetime, timezone
@@ -334,6 +335,41 @@ def ask_head(context, head, models, ask=client.ask, out_of_time=lambda: False):
         log(f"{game}: {name}: {ticket} (try {len(asked['attempts'])})")
 
 
+def ask_machines(contexts, members, guards, models, out_of_time, ask=client.ask, is_held=None):
+    """
+    Every member's rows for every game. The machines answer side by side, and on one machine one member at a time
+    answers every game (21 Nov 2026): the first morning asked the machines in turn, and the CPU worker switched itself
+    off as idle while the GPU worker's members answered. The tickets end in the members' order, whoever answered first.
+    """
+    is_held = is_held or held
+    machines = {}
+    for member in members:
+        machines.setdefault(member.get("base_url"), []).append(member)
+
+    def one_machine(its_members):
+        for member in its_members:
+            if member.get("guard"):
+                why = is_held(guards.get(member["guard"]))
+                if why:
+                    log(f"{member['name']}: left out today, {why}")
+                    continue
+            for game, context in contexts.items():
+                try:
+                    ask_member(context, member, models, ask=ask, out_of_time=out_of_time)
+                except Exception as error:
+                    log(f"{game}: {member['name']} failed ({error}): the others go on")
+
+    threads = [threading.Thread(target=one_machine, args=(its,), daemon=True) for its in machines.values()]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    place = {member["name"]: i for i, member in enumerate(members)}
+    for context in contexts.values():
+        for tickets in context["tickets"].values():
+            tickets.sort(key=lambda pair: place.get(pair[0], len(place)))
+
+
 def ordered_rows(context, members):
     """The game's rows in the order the tables show them: kind by kind, the members in the config's order, combined last."""
     place = {ct.row_name(kind, name): (k, i) for k, kind in enumerate(ct.KINDS)
@@ -435,7 +471,8 @@ def main(argv=None):
         out_of_time = lambda: time.time() - started > args.budget
         made = 0
         # One member at a time over every game (20 Nov 2026): a machine that holds one model at a time loads each
-        # model once a morning instead of once a question. The head combines when the members have answered.
+        # model once a morning instead of once a question. The machines answer side by side (21 Nov 2026). The head
+        # combines when the members have answered.
         contexts = {}
         for game in games:
             try:
@@ -444,17 +481,8 @@ def main(argv=None):
                     contexts[game] = context
             except Exception as error:
                 log(f"{game}: failed ({error}): the other games go on")
-        for member in (members if contexts else []):
-            if member.get("guard"):
-                why = held((config.get("guards") or {}).get(member["guard"]))
-                if why:
-                    log(f"{member['name']}: left out today, {why}")
-                    continue
-            for game, context in contexts.items():
-                try:
-                    ask_member(context, member, models, out_of_time=out_of_time)
-                except Exception as error:
-                    log(f"{game}: {member['name']} failed ({error}): the others go on")
+        if contexts:
+            ask_machines(contexts, members, config.get("guards") or {}, models, out_of_time)
         for game, context in contexts.items():
             try:
                 ask_head(context, head, models, out_of_time=out_of_time)
@@ -530,6 +558,28 @@ def _self_check():
         ask_head(context, head, models, ask=ask)
         assert [r["name"] for r in context["rows"]] == [ct.row_name("draws", "One")]
         checks += 2
+        # two machines answer side by side, each one member at a time; the tickets end in the members' order,
+        # and a member whose machine is taken is left out
+        two = [dict(m, base_url=url, **extra) for m, url, extra in zip(members, ("http://slow", "http://fast", "http://fast"), ({}, {"guard": "g"}, {}))]
+        contexts = {g: game_context(root, "pick3", two, head, None) for g in ("first", "second")}
+        spans, lock = [], threading.Lock()
+
+        def timed(base_url, question, timeout, **kwargs):
+            began = time.time()
+            time.sleep(0.05 if "slow" in base_url else 0.01)
+            with lock:
+                spans.append((base_url, began, time.time()))
+            return "TICKET: 1 2 3"
+        ask_machines(contexts, two, {"g": None}, models, lambda: False, ask=timed, is_held=lambda guard: None)
+        slow = [x for x in spans if "slow" in x[0]]
+        fast = [x for x in spans if "fast" in x[0]]
+        assert len(slow) == 4 and len(fast) == 8 and max(e for _, _, e in fast) < max(e for _, _, e in slow), spans
+        assert all(a[2] <= b[1] for a, b in zip(fast, fast[1:])), "one machine answers one question at a time"
+        assert all([m for m, _ in t] == ["One", "Two", "Three"] for c in contexts.values() for t in c["tickets"].values())
+        contexts = {"first": game_context(root, "pick3", two, head, None)}
+        ask_machines(contexts, two, {"g": None}, models, lambda: False, ask=ask, is_held=lambda guard: "taken")
+        assert [m for m, _ in contexts["first"]["tickets"]["draws"]] == ["One", "Three"]
+        checks += 4
         # a day file that holds the wanted rows is left alone, also when the record member is the only record row
         path = os.path.join(folder, "2026-11-19.json")
         with open(path) as handle:

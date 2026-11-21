@@ -468,7 +468,10 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
     begin();
     c.finish(74, null, t0);
     c.startRetries(st().retry.kenoPredictor.at + 4 * HOUR);
-    results.push(!st().retry.kenoPredictor && st().queue.length === 0, 'a retry due more than three hours ago is dropped');
+    // the game's own run is what must not be queued: on a weekly-plan day the drop queues that day's plans
+    // (lotteryLeft, 16 Nov 2026), and this test runs on the real calendar (found on a Saturday, 21 Nov 2026)
+    results.push(!st().retry.kenoPredictor && !st().queue.some((q) => q.key === 'kenoPredictor'), 'a retry due more than three hours ago is dropped');
+    st().queue = [];
     begin();
     c.finish(74, null, t0);
     c.enqueue('kenoPredictor', 'run now', true);

@@ -1193,7 +1193,9 @@ function finish(exit, note, finishedAt) {
     if (exit !== ((jobByKey(run.key) || {}).noData || {}).exit) queueAfterLottery(run, 'the lottery predictions');
     const left = lotteryPending(run);
     if (left.length) log(`the weekly plans wait for ${left.length === 1 ? left[0] : `${left.length} lottery games' runs`}${again && again.waiting ? ' (a run with data)' : ''}`);
-    else maybeTriggerChain(new Date(), 'the lottery predictions finishing');
+    // not with the schedule off: a run that was going when it was switched off must not queue the weekly plans
+    // behind it (the other ways a morning ends already looked, lotteryLeft; found on a Saturday, 21 Nov 2026)
+    else if (mode() !== 'off') maybeTriggerChain(new Date(), 'the lottery predictions finishing');
   }
   // The Sunday controls' last job finishing writes the week's reading.
   scheduleReading(run);
