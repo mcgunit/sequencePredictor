@@ -1,0 +1,426 @@
+{
+  "game": "keno",
+  "day": "2026-11-19",
+  "runs": [
+    {
+      "game": "keno",
+      "day": "2026-11-19",
+      "askedAt": "2026-11-20T09:31:16+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 5 draws, oldest first:\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nHybridStatisticalModel | right on those draws: 5 4 4 2 3 | plays now: 1 2 6 9 10 13 16 20 23 24\nAutoencoder Model | right on those draws: 5 6 3 2 2 | plays now: 30 60 32 15 54 66 10 11 42 19\nTimesFM Model | right on those draws: 2 6 2 1 3 | plays now: 1 5 70 48 8 54 51 44 55 11\nLightGBM Model | right on those draws: 2 7 2 4 5 | plays now: 68 8 18 39 32 16 10 37 1 60\nLSTM Smoothed Model | right on those draws: 3 5 2 3 2 | plays now: 10 32 66 54 26 15 63 19 42 50\nPoissonMonteCarlo Model | right on those draws: 6 4 3 2 2 | plays now: 45 65 4 43 20 50 13 33 9 59\nLSTM Base Model | right on those draws: 4 5 3 2 3 | plays now: 1 30 70 60 32 3 15 19 54 63\nQuantumMetaLearner Model | right on those draws: 3 3 3 2 2 | plays now: 8 63 33 32 1 31 60 16 54 43\nClassicalSVM Model | right on those draws: 2 2 5 2 2 | plays now: 57 1 63 29 61 67 18 4 69 44\nMarkovBayesianEnhanched Model | right on those draws: 2 3 2 3 3 | plays now: 1 13 28 37 2 4 11 39 18 41\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Qwen2.5": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 278517907,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 5 6 9 13 16 23 28 34 37 39 41 47 50 51 57 60 61 64 69",
+                  "seconds": 84.6
+                }
+              ],
+              "seed": 278517907,
+              "ticket": [
+                1,
+                5,
+                6,
+                9,
+                13,
+                16,
+                23,
+                28,
+                34,
+                37,
+                39,
+                41,
+                47,
+                50,
+                51,
+                57,
+                60,
+                61,
+                64,
+                69
+              ]
+            },
+            "Granite-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 760215183,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 3 7 12 22 29 34 41 46 52 58 63 64 68 2 6 11 18 25 30 47",
+                  "seconds": 52.3
+                }
+              ],
+              "seed": 760215183,
+              "ticket": [
+                3,
+                7,
+                12,
+                22,
+                29,
+                34,
+                41,
+                46,
+                52,
+                58,
+                63,
+                64,
+                68,
+                2,
+                6,
+                11,
+                18,
+                25,
+                30,
+                47
+              ]
+            },
+            "Falcon-H1": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1225624458,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 16 20 23 24 32 33 35 38 40 43 46 50 51 52 56 60 66 69",
+                  "seconds": 96.2,
+                  "refused": "18 numbers where 20 were asked"
+                },
+                {
+                  "seed": 1448963899,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 16 20 23 24 32 35 38 40 43 46 50 51 52 56 60 66 69 48 54 63",
+                  "seconds": 68.7
+                }
+              ],
+              "seed": 1448963899,
+              "ticket": [
+                16,
+                20,
+                23,
+                24,
+                32,
+                35,
+                38,
+                40,
+                43,
+                46,
+                50,
+                51,
+                52,
+                56,
+                60,
+                66,
+                69,
+                48,
+                54,
+                63
+              ]
+            },
+            "EXAONE-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 42,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 5 6 8 13 16 19 30 32 35 37 39 41 42 45 47 48 50 51 54 55 56 57 59 60 63",
+                  "seconds": 79.3
+                }
+              ],
+              "seed": 42,
+              "ticket": [
+                1,
+                5,
+                6,
+                8,
+                13,
+                16,
+                19,
+                30,
+                32,
+                35,
+                37,
+                39,
+                41,
+                42,
+                45,
+                47,
+                48,
+                50,
+                51,
+                54
+              ]
+            }
+          },
+          "head": {
+            "temperature": 0.5,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "answer": "TICKET: 6 3 15 19 30 32 3 15 19 54 63 1 29 61 67 18 4 69 44 8 2 7 8 9 11 12 18 19 20 22 24 25 28 29 38 40 42 43 45 56 57 58 61 66 68",
+                "seconds": 52.4,
+                "refused": "a number twice"
+              },
+              {
+                "seed": 997532233,
+                "temperature": 0.5,
+                "answer": "\nTICKET: 6 3 15 19 30 32 3 15 19 54 63 1 29 61 67 18 4 69 44 8 2 7 8 9 11 12 18 19 20 22 24 25 28 29 38 40 42 43 45 56 57 58 61 66 68\"\n\nWe need to see that the user's previous answer had a duplicate number \"3 15 19\" repeated twice, so it's invalid. We need to choose a final ticket from these advisers' tickets, presumably selecting the one that is most likely based on the model predictions. However, we have no explicit guidance on which ticket is best. The problem seems to be a meta-puzzle: we need to consider the \"right on those draws\" counts for each model and perhaps assign weight to each mo",
+                "seconds": 56.8,
+                "refused": "a number twice"
+              },
+              {
+                "seed": 568028233,
+                "temperature": 0.5,
+                "answer": "\nTICKET: 6 16 41 47 50 51 1 5 13 23 30 32 34 35 37 39 46 48 52 60",
+                "seconds": 31.0
+              }
+            ],
+            "seed": 568028233,
+            "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 5 draws, oldest first:\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nHybridStatisticalModel | right on those draws: 5 4 4 2 3 | plays now: 1 2 6 9 10 13 16 20 23 24\nAutoencoder Model | right on those draws: 5 6 3 2 2 | plays now: 30 60 32 15 54 66 10 11 42 19\nTimesFM Model | right on those draws: 2 6 2 1 3 | plays now: 1 5 70 48 8 54 51 44 55 11\nLightGBM Model | right on those draws: 2 7 2 4 5 | plays now: 68 8 18 39 32 16 10 37 1 60\nLSTM Smoothed Model | right on those draws: 3 5 2 3 2 | plays now: 10 32 66 54 26 15 63 19 42 50\nPoissonMonteCarlo Model | right on those draws: 6 4 3 2 2 | plays now: 45 65 4 43 20 50 13 33 9 59\nLSTM Base Model | right on those draws: 4 5 3 2 3 | plays now: 1 30 70 60 32 3 15 19 54 63\nQuantumMetaLearner Model | right on those draws: 3 3 3 2 2 | plays now: 8 63 33 32 1 31 60 16 54 43\nClassicalSVM Model | right on those draws: 2 2 5 2 2 | plays now: 57 1 63 29 61 67 18 4 69 44\nMarkovBayesianEnhanched Model | right on those draws: 2 3 2 3 3 | plays now: 1 13 28 37 2 4 11 39 18 41\n\n4 advisers who read the same each chose a ticket.\nNumbers the advisers chose (and how many of them chose it): 6 (3x), 16 (3x), 41 (3x), 47 (3x), 50 (3x), 51 (3x), 1 (2x), 5 (2x), 13 (2x), 23 (2x), 30 (2x), 32 (2x), 34 (2x), 35 (2x), 37 (2x), 39 (2x), 46 (2x), 48 (2x), 52 (2x), 54 (2x), 60 (2x), 63 (2x), 64 (2x), 69 (2x), 2 (1x), 3 (1x), 7 (1x), 8 (1x), 9 (1x), 11 (1x), 12 (1x), 18 (1x), 19 (1x), 20 (1x), 22 (1x), 24 (1x), 25 (1x), 28 (1x), 29 (1x), 38 (1x), 40 (1x), 42 (1x), 43 (1x), 45 (1x), 56 (1x), 57 (1x), 58 (1x), 61 (1x), 66 (1x), 68 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+            "ticket": [
+              6,
+              16,
+              41,
+              47,
+              50,
+              51,
+              1,
+              5,
+              13,
+              23,
+              30,
+              32,
+              34,
+              35,
+              37,
+              39,
+              46,
+              48,
+              52,
+              60
+            ],
+            "combines": [
+              "Qwen2.5",
+              "Granite-4.0",
+              "Falcon-H1",
+              "EXAONE-4.0"
+            ]
+          }
+        },
+        "draws": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n3 4 6 9 11 15 16 21 27 28 30 35 40 45 46 50 52 53 65 69\n2 3 4 7 8 11 18 27 31 35 36 37 38 46 47 58 65 66 68 70\n4 9 11 13 19 20 22 24 30 32 35 37 38 39 42 43 45 49 66 68\n2 4 5 10 11 13 17 23 27 28 33 35 37 39 40 44 45 54 55 61\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Qwen2.5": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 221968228,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 13 23 30 35 36 38 46 54 55 56 61 62 65 66 68 70",
+                  "seconds": 57.3,
+                  "refused": "16 numbers where 20 were asked"
+                },
+                {
+                  "seed": 325214631,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 2 3 5 6 8 10 11 13 17 20 21 22 30 32 37",
+                  "seconds": 15.9,
+                  "refused": "15 numbers where 20 were asked"
+                },
+                {
+                  "seed": 464076037,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 2 3 4 5 6 7 8 9 10 11 13 17 20 21 23 32 35 36 41 50 52 53",
+                  "seconds": 18.6
+                }
+              ],
+              "seed": 464076037,
+              "ticket": [
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                13,
+                17,
+                20,
+                21,
+                23,
+                32,
+                35,
+                36,
+                41,
+                50
+              ]
+            },
+            "Granite-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 390020576,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 3 6 9 11 15 16 21 27 28 30 35 40 45 46 50 52 53 65 69 70",
+                  "seconds": 34.2
+                }
+              ],
+              "seed": 390020576,
+              "ticket": [
+                3,
+                6,
+                9,
+                11,
+                15,
+                16,
+                21,
+                27,
+                28,
+                30,
+                35,
+                40,
+                45,
+                46,
+                50,
+                52,
+                53,
+                65,
+                69,
+                70
+              ]
+            },
+            "Falcon-H1": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1167579348,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 11 13 16 21 27 30 35 37 39 45 46 50 52 65 66 68 69 70",
+                  "seconds": 66.7,
+                  "refused": "18 numbers where 20 were asked"
+                },
+                {
+                  "seed": 1257506248,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 11 13 16 21 27 30 35 37 39 45 46 50 52 65 66 68 69 70 40 44",
+                  "seconds": 65.2
+                }
+              ],
+              "seed": 1257506248,
+              "ticket": [
+                11,
+                13,
+                16,
+                21,
+                27,
+                30,
+                35,
+                37,
+                39,
+                45,
+                46,
+                50,
+                52,
+                65,
+                66,
+                68,
+                69,
+                70,
+                40,
+                44
+              ]
+            },
+            "EXAONE-4.0": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 42,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 2 3 5 6 10 11 13 15 17 19 20 21 22 23 24 27 28 30 32 33",
+                  "seconds": 51.3
+                }
+              ],
+              "seed": 42,
+              "ticket": [
+                1,
+                2,
+                3,
+                5,
+                6,
+                10,
+                11,
+                13,
+                15,
+                17,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                27,
+                28,
+                30,
+                32
+              ]
+            }
+          },
+          "head": {
+            "temperature": 0.5,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "answer": "\nTICKET: 11 21 3 6 13 27 30 35 50 52 65 69 2 4 5 10 11 15 17 20 29 32 33 35 38 40 44 45 54 55 61 1 5 8 11 13 17 18 19 30 32 35 38 40 43 46 50 51 62 65 67 68 10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 57 59 70 2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69 4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69 1 5 6 9 13 16 23 28 34 37 ",
+                "seconds": 57.7,
+                "refused": "a number twice"
+              },
+              {
+                "seed": 1357073624,
+                "temperature": 0.5,
+                "answer": "\nTICKET: 68 10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 57 59 70 2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69 1 5 6 9 13 16 23 28 34 37 39 42 45 51 54 55 56 68 69 4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69 1 5 6 9 13 16 23 28 34 37 4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69 1 5 6 9 13 16 23 28 34 37 4 8 ",
+                "seconds": 55.8
+              }
+            ],
+            "seed": 1357073624,
+            "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n3 4 6 9 11 15 16 21 27 28 30 35 40 45 46 50 52 53 65 69\n2 3 4 7 8 11 18 27 31 35 36 37 38 46 47 58 65 66 68 70\n4 9 11 13 19 20 22 24 30 32 35 37 38 39 42 43 45 49 66 68\n2 4 5 10 11 13 17 23 27 28 33 35 37 39 40 44 45 54 55 61\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n\n4 advisers who read the same each chose a ticket.\nNumbers the advisers chose (and how many of them chose it): 11 (4x), 21 (4x), 3 (3x), 6 (3x), 13 (3x), 27 (3x), 30 (3x), 35 (3x), 50 (3x), 2 (2x), 5 (2x), 9 (2x), 10 (2x), 15 (2x), 16 (2x), 17 (2x), 20 (2x), 23 (2x), 28 (2x), 32 (2x), 40 (2x), 45 (2x), 46 (2x), 52 (2x), 65 (2x), 69 (2x), 70 (2x), 1 (1x), 4 (1x), 7 (1x), 8 (1x), 19 (1x), 22 (1x), 24 (1x), 36 (1x), 37 (1x), 39 (1x), 41 (1x), 44 (1x), 53 (1x), 66 (1x), 68 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+            "ticket": [
+              68,
+              10,
+              11,
+              13,
+              17,
+              18,
+              20,
+              29,
+              32,
+              33,
+              35,
+              38,
+              40,
+              43,
+              46,
+              50,
+              51,
+              57,
+              59,
+              70
+            ],
+            "combines": [
+              "Qwen2.5",
+              "Granite-4.0",
+              "Falcon-H1",
+              "EXAONE-4.0"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
