@@ -1144,7 +1144,10 @@ async function phaseTwoOnProduction() {
       const text = JSON.stringify(r.body);
       sizes.push([url, text.length]);
       ok(r.statusCode === 200 && !/NaN|undefined/.test(text), `production ${url} (${fs.existsSync(readingsAt) ? 'with' : 'without'} readings): ${r.statusCode}`);
-      ok(text.length < 40 * 1024, `production ${url}: ${text.length} bytes, under 40 KB`);
+      // the week page carries each morning's run with its seven per-game parts since the predictor became one job a
+      // game (16 Nov 2026): about 3.3 KB a morning, so a full week is near 50 KB. It gets 100 KB, the rest stay at 40 KB
+      const limit = url === '/api/admin/week' ? 100 : 40;
+      ok(text.length < limit * 1024, `production ${url}: ${text.length} bytes, under ${limit} KB`);
     }
     const t = (await requestAsync(prod, '/api/admin/tuning', ADMIN)).body;
     ok(t.byTuner.reduce((s, x) => s + x.n, 0) === t.tiles.n && t.byGame.reduce((s, x) => s + x.n, 0) === t.tiles.n

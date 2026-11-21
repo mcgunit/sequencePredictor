@@ -47,11 +47,11 @@ This page lists what is open or partly open in the project: for each item, what 
 
 ### 12. Council rows: tickets from the LLMs
 
-**Built.** The Council (`/app/council`, `src/llmCouncil/`): local LLMs answer questions, one model combining the others' answers. The Council rows on the seven lottery games: tickets from each member and from the head's combination, from the other rows' record and from the draws alone, made by a job of its own after the morning's predictors. See [models](models.md) and [operations](operations.md).
+**Built.** The Council (`/app/council`, `src/llmCouncil/`): local LLMs answer questions, one model combining the others' answers. The Council rows on the seven lottery games: from the draws alone a ticket from each member and from the head's combination, from the other rows' record a ticket from one member, made by a job of its own after the morning's predictors with a set of larger models. See [models](models.md) and [operations](operations.md).
 
 **Remains.**
 
-- The first readings: whether the record rows follow whichever row did well lately, whether combining helps, how much the draws rows repeat themselves, and how often a row is absent.
+- The first readings: whether the record row follows whichever row did well lately, whether combining helps, how much the draws rows repeat themselves, and how often a row is absent.
 - The market games, after those readings.
 - A mark on the pages that a row's ticket comes from an LLM, with its prompt and answers a click away (they are kept in `data/council/`).
 

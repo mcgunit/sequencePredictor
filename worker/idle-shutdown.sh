@@ -15,14 +15,18 @@ MARK="${WORKER_MARK:-/run/sequencePredictor-worker}"   # WORKER_MARK and SP_IDLE
 [ -f "$MARK/woken" ] || exit 0
 now=$(date +%s)
 busy=""
-if [ -f "$APP/backtest.pid" ] && kill -0 "$(cat "$APP/backtest.pid" 2>/dev/null)" 2>/dev/null; then busy="a backtest is running"; fi
+# A pid file is believed only when it was written since this boot (20 Nov 2026): a file left by a run that the last
+# switch-off cut short names a number the next boot hands to another process - a kernel thread on 20 Nov, which kept
+# the machine on for a day.
+running() { [ -f "$1" ] && [ "$1" -nt /proc/1 ] && kill -0 "$(cat "$1" 2>/dev/null)" 2>/dev/null; }
+if running "$APP/backtest.pid"; then busy="a backtest is running"; fi
 # a Sunday control (worker/remote-control.sh: <dir>/controls/control.pid, since 11 Nov 2026)
 for pidfile in "$(dirname "$APP")"/controls/control.pid "$(dirname "$APP")"/*/controls/control.pid; do
-  [ -z "$busy" ] && [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && busy="a control is running"
+  [ -z "$busy" ] && running "$pidfile" && busy="a control is running"
 done
 # a hyperopt from the Hyperopts page (worker/remote-hyperopt.sh: <dir>/hyperopt/hyperopt.pid, since 12 Nov 2026)
 pidfile="$(dirname "$APP")/hyperopt/hyperopt.pid"
-[ -z "$busy" ] && [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && busy="a hyperopt is running"
+[ -z "$busy" ] && running "$pidfile" && busy="a hyperopt is running"
 if [ -z "$busy" ] && journalctl -u 'llama@*' --since "-${IDLE} min" -q --no-pager -o cat 2>/dev/null | grep -q ' slot '; then busy="the council answered a request"; fi
 if [ -z "$busy" ]; then
   # who -u: the 5th field is the idle time - "." (active this minute), "HH:MM", or "old" (a day)

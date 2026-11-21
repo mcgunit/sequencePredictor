@@ -188,14 +188,16 @@ const JOBS = [
     // The Council rows (docs/roadmap.md item 12, 17 Nov 2026): tickets from the Council's local LLMs, added to each
     // game's day file as rows. A job of its own behind the lottery predictors (`after`: queued when the last of
     // them ends, ahead of the weekly plans), so a slow or silent LLM costs no game its predictions. The models run
-    // on the DL360, which is switched on first (`wake`) and switches itself off when idle again.
+    // on the DL360, which is switched on first (`wake`) and switches itself off when idle again, and since
+    // 20 Nov 2026 on the GPU worker too (always on; the row models' own config, src/llmCouncil/rows.json).
     key: 'councilRows',
     name: 'Council rows',
     description: 'Asks the Council\'s local LLMs for a ticket for every lottery game\'s next draw and adds the answers to the '
-               + 'day files as rows, scored like every other row (CouncilRows.py). Two kinds: from the other rows\' recent '
-               + 'record, and from the draws alone; each as one row per Council member and one that combines them. It starts '
+               + 'day files as rows, scored like every other row (CouncilRows.py). The row models are a set of their own '
+               + '(src/llmCouncil/rows.json), on the GPU worker and the DL360. Two kinds: from the draws alone, one row per '
+               + 'member and one that combines them; from the other rows\' recent record, one row. It starts '
                + 'when the morning\'s lottery predictors have ended, switches the DL360 on first, and skips a game whose '
-               + 'day file already holds the rows. An answer that is no valid ticket is asked again twice; after that the '
+               + 'day file already holds the rows. A member on the GPU worker is left out while a hyperopt or backtest runs there. An answer that is no valid ticket is asked again twice; after that the '
                + 'row is absent that day. Status 75: no Council model answered.',
     script: 'CouncilRows.py', args: [], log: 'councilRows.log',
     after: LOTTERY, wake: 'cpu', unreachableExit: 75,

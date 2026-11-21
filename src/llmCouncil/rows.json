@@ -1,0 +1,87 @@
+{
+  "request_timeout_s": 1800,
+  "health_timeout_s": 5,
+  "retries": 2,
+  "retry_delay_s": 5.0,
+  "record_member": "Gemma-4-26B",
+  "guards": {
+    "gpu": {
+      "ssh": "root@192.168.0.120",
+      "pid_files": [
+        "/opt/sequencePredictor-worker/hyperopt/hyperopt.pid",
+        "/opt/sequencePredictor-worker/app/backtest.pid"
+      ]
+    }
+  },
+  "members": [
+    {
+      "name": "Granite-4.2-8B",
+      "lab": "IBM",
+      "base_url": "http://192.168.0.120:8095",
+      "model": "granite-4.2-8b",
+      "enabled": true,
+      "temperature": 0.7,
+      "seed": null,
+      "role": null,
+      "system_prompt": null,
+      "guard": "gpu"
+    },
+    {
+      "name": "Nemotron-3.5-Bolt",
+      "lab": "NVIDIA",
+      "base_url": "http://192.168.0.120:8095",
+      "model": "nemotron-3.5-bolt-e4b",
+      "enabled": true,
+      "temperature": 0.7,
+      "seed": null,
+      "role": null,
+      "system_prompt": null,
+      "guard": "gpu"
+    },
+    {
+      "name": "Llama-3.1-8B",
+      "lab": "Meta",
+      "base_url": "http://192.168.0.120:8095",
+      "model": "llama-3.1-8b",
+      "enabled": true,
+      "temperature": 0.7,
+      "seed": null,
+      "role": null,
+      "system_prompt": null,
+      "guard": "gpu"
+    },
+    {
+      "name": "Gemma-4-26B",
+      "lab": "Google",
+      "base_url": "http://192.168.0.250:8096",
+      "model": "gemma-4-26b-a4b",
+      "enabled": true,
+      "temperature": 0.7,
+      "seed": null,
+      "role": null,
+      "system_prompt": null
+    },
+    {
+      "name": "gpt-oss-20b",
+      "lab": "OpenAI",
+      "base_url": "http://192.168.0.250:8096",
+      "model": "gpt-oss-20b",
+      "enabled": true,
+      "temperature": 0.7,
+      "seed": null,
+      "role": null,
+      "system_prompt": null
+    }
+  ],
+  "head": {
+    "name": "head-Qwen3.6-35B",
+    "lab": "Alibaba",
+    "base_url": "http://192.168.0.250:8096",
+    "model": "qwen3.6-35b-a3b",
+    "enabled": true,
+    "temperature": 0.0,
+    "seed": 42,
+    "role": null,
+    "system_prompt": null
+  }
+}

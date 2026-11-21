@@ -274,14 +274,16 @@ On a sorted set game the per-position series are order statistics: position 1 is
 
 ## Council rows (`CouncilRows.py`, `src/CouncilTicket.py`)
 
-Rows whose ticket comes from the local LLMs of the Council (`src/llmCouncil/`), on the seven lottery games. They are scored and ranked like every other row.
+Rows whose ticket comes from local LLMs, on the seven lottery games. They are scored and ranked like every other row.
 
-Two kinds, each as one row per Council member and one row named `combined`:
+The row models are a set of their own (`src/llmCouncil/rows.json`), larger than the models the Council pages ask (`src/llmCouncil/config.json`): three 8B models on the GPU worker, two larger ones and the head on the CPU worker, each from a different lab. They answer with thinking switched off, which is set in their services' presets.
 
-- **`Council (record): …`** The LLM reads the last 8 draws (5 for Keno), and for the ten best-ranked rows that play today: how many numbers each had right on those draws and what it plays for the next draw. It is a meta-learner done by an LLM; its comparison is `WeightedEnsemble Model` and `RL Ticket Model`. The risk to read for is that it follows whichever row did well lately.
-- **`Council (draws): …`** The LLM reads only the last 30 draws (10 for Keno). On draws that test fair this is a biased random generator: it serves as a control, and its favourite numbers show as repetition.
+Two kinds:
 
-The `combined` row is the Council's head model choosing one ticket from a tally of what the members chose (which numbers, by how many members). It is made when at least two members gave a ticket.
+- **`Council (record): …`** One row, from the member the config names as `record_member`. The LLM reads the last 8 draws (5 for Keno), and for the ten best-ranked rows that play today: how many numbers each had right on those draws and what it plays for the next draw. It is a meta-learner done by an LLM; its comparison is `WeightedEnsemble Model` and `RL Ticket Model`. The risk to read for is that it follows whichever row did well lately: every model given this question answers with the leading row's ticket or close to it, which is why one member answers it and not all.
+- **`Council (draws): …`** One row per member and one row named `combined`. The LLM reads only the last 30 draws (10 for Keno). On draws that test fair this is a biased random generator: it serves as a control, and its favourite numbers show as repetition.
+
+The `combined` row is the head model choosing one ticket from a tally of what the members chose (which numbers, by how many members). It is made when at least two members gave a ticket. Without a `record_member` in the config every member answers the record question too and it gets a `combined` row as well.
 
 ### A valid ticket or none
 
@@ -293,7 +295,7 @@ Lotto is asked for nine numbers: the first six are the ticket, the other three i
 
 ### What is recorded
 
-Each row carries `council`: the kind, the member, the model the endpoint reports, the temperature, the seed, the number of tries and a hash of the prompt. A member without a seed in the Council's config gets one fixed by game, day, row and try. The prompts and every answer, refused ones included, are kept in `data/council/<game>/<day>.json`.
+Each row carries `council`: the kind, the member, the model the endpoint reports, the temperature, the seed, the number of tries and a hash of the prompt. A member without a seed in the config gets one fixed by game, day, row and try. The prompts and every answer, refused ones included, are kept in `data/council/<game>/<day>.json`.
 
 ### Where they do not count
 

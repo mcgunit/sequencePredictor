@@ -2,6 +2,34 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 20 November 2026
+
+### Council rows: larger models, one record row
+
+*Pages: models, operations, roadmap*
+
+Decided:
+
+- The Council rows get models of their own, larger than the ones the Council pages ask: Granite 4.2 8B, Nemotron 3.5 Bolt and Llama 3.1 8B on the GPU worker, Gemma 4 26B and gpt-oss 20B on the CPU worker, and Qwen3.6 35B as the head. The Council pages keep their models.
+- The row models answer with thinking off and within 400 tokens.
+- The record question goes to one member (Gemma 4 26B). The draws question goes to every member.
+- A member on the GPU worker is left out while a hyperopt or a backtest holds that machine.
+
+Found, in a trial on a copy of the day files (nothing written):
+
+- With thinking on the CPU worker gave one ticket in two hours: an answer ran to 4,096 tokens at 2 to 4 tokens a second, most without a ticket line. On the GPU worker the same seven games took 4 hours 37 minutes, about half of it loading a model for every question, and Granite gave 10 of 14 tickets.
+- With thinking off the CPU worker made its rows for seven games in 48 minutes: Gemma 14 of 14 tickets, LFM2.5 10 of 14, the head 10 of 10. LFM2.5 does not follow the thinking switch and needs a thinking budget of zero.
+- LFM2.5 24B, the second CPU member of the trial, is replaced by gpt-oss 20B (21 November): 14 of 14 valid tickets on the first try with thinking off, at four to five minutes a ticket against about one for LFM2.5. As a member it is asked seven tickets a morning, about half an hour.
+- With thinking off and one model at a time the GPU worker made 42 of 42 tickets in 9.5 minutes, nearly all of it three model loads.
+- On the record question the models gave the same ticket as each other in most games: the question shows the leading rows' tickets and they copy one.
+- A model loaded on the GPU worker beside a running hyperopt does not fit on the card and stalls both.
+
+Built: `src/llmCouncil/rows.json` (the row models, `record_member`, `guards`); in `CouncilRows.py` the order of asking (one member over every game, then the head), the single record row, the guard and a self-check in the test chain. The wait for one answer is 10 minutes, to cover a model's load.
+
+Fixed: the CPU worker stayed on for a day. A `backtest.pid` left from 10 November named a process number that this boot gave to a kernel thread, so the idle check saw a backtest running. `worker/idle-shutdown.sh` and the new guard believe a pid file only when it is newer than the machine's boot.
+
+Open: the new member names start new rows, so the earlier Council rows end here and the new ones have no history yet. The morning's total time with gpt-oss 20B is not measured yet; the first production morning shows whether it stays inside the 90 minutes.
+
 ## 18 November 2026
 
 ### The trader's card on the market pages
