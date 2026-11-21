@@ -1,6 +1,6 @@
 {
  "market": "cryptomonth",
- "generated_at": "2026-11-20T00:19:03+00:00",
+ "generated_at": "2026-11-21T00:16:19+00:00",
  "k": 10,
  "fee": 0.001,
  "chance": {
@@ -17,13 +17,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 61986.73,
-   "last_date": "2026-11-19",
+   "last_close": 58951.51,
+   "last_date": "2026-11-20",
    "closes": [
-    [
-     "2025-11-20",
-     86637.23
-    ],
     [
      "2025-11-21",
      85129.43
@@ -1479,10 +1475,13 @@
     [
      "2026-11-19",
      61986.73
+    ],
+    [
+     "2026-11-20",
+     58951.51
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -1966,10 +1965,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -2333,11 +2332,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -2683,6 +2682,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -2713,7 +2713,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -3050,6 +3049,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -3080,7 +3080,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -3417,6 +3416,7 @@
      null,
      null,
      5,
+     null,
      null,
      null,
      null,
@@ -3447,7 +3447,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -3784,6 +3783,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -3814,7 +3814,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -4151,6 +4150,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -4181,7 +4181,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -4518,6 +4517,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -4548,7 +4548,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -4885,6 +4884,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -4906,7 +4906,6 @@
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -5270,10 +5269,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -5637,6 +5636,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
@@ -5649,7 +5649,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -5986,6 +5985,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -6016,7 +6016,6 @@
      null,
      null,
      null,
-     null,
      5,
      null,
      null,
@@ -6353,6 +6352,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -6382,13 +6382,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 1757.32,
-   "last_date": "2026-11-19",
+   "last_close": 1623.09,
+   "last_date": "2026-11-20",
    "closes": [
-    [
-     "2025-11-20",
-     2834.22
-    ],
     [
      "2025-11-21",
      2765.85
@@ -7844,10 +7840,13 @@
     [
      "2026-11-19",
      1757.32
+    ],
+    [
+     "2026-11-20",
+     1623.09
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -8331,10 +8330,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -8698,11 +8697,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -9066,6 +9065,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "MarkovMonteCarlo Model": [
@@ -9078,7 +9078,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -9415,6 +9414,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -9445,7 +9445,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -9782,6 +9781,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -9803,7 +9803,6 @@
      null
     ],
     "LaplaceMonteCarlo Model": [
-     null,
      null,
      null,
      null,
@@ -10167,6 +10166,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "OrderStatistics Baseline": [
@@ -10179,7 +10179,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -10516,6 +10515,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -10546,7 +10546,6 @@
      null,
      null,
      null,
-     null,
      8,
      null,
      null,
@@ -10883,6 +10882,7 @@
      null,
      null,
      8,
+     null,
      null,
      null,
      null,
@@ -10904,7 +10904,6 @@
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -11268,10 +11267,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -11635,10 +11634,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -12002,6 +12001,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
@@ -12014,7 +12014,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -12351,6 +12350,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -12381,7 +12381,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -12718,6 +12717,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -12747,13 +12747,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 580.25,
-   "last_date": "2026-11-19",
+   "last_close": 540.84,
+   "last_date": "2026-11-20",
    "closes": [
-    [
-     "2025-11-20",
-     866.51
-    ],
     [
      "2025-11-21",
      830.46
@@ -14209,10 +14205,13 @@
     [
      "2026-11-19",
      580.25
+    ],
+    [
+     "2026-11-20",
+     540.84
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -14696,10 +14695,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -15063,6 +15062,7 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
@@ -15076,7 +15076,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -15413,6 +15412,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -15443,7 +15443,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -15780,6 +15779,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -15810,7 +15810,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -16147,6 +16146,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -16177,7 +16177,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -16514,6 +16513,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -16544,7 +16544,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -16881,6 +16880,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -16911,7 +16911,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -17248,6 +17247,7 @@
      null,
      null,
      2,
+     null,
      null,
      null,
      null,
@@ -17269,7 +17269,6 @@
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -17633,10 +17632,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -18000,10 +17999,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -18367,6 +18366,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
@@ -18379,7 +18379,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -18716,6 +18715,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -18746,7 +18746,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -19083,6 +19082,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -19112,13 +19112,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 0.9604,
-   "last_date": "2026-11-19",
+   "last_close": 0.9107,
+   "last_date": "2026-11-20",
    "closes": [
-    [
-     "2025-11-20",
-     1.9999
-    ],
     [
      "2025-11-21",
      1.9509
@@ -20574,10 +20570,13 @@
     [
      "2026-11-19",
      0.9604
+    ],
+    [
+     "2026-11-20",
+     0.9107
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -21061,10 +21060,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -21428,6 +21427,7 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
@@ -21441,7 +21441,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -21778,6 +21777,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -21808,7 +21808,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -22145,6 +22144,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -22175,7 +22175,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -22512,6 +22511,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -22542,7 +22542,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -22879,6 +22878,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -22909,7 +22909,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -23246,6 +23245,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -23276,7 +23276,6 @@
      null,
      null,
      null,
-     null,
      7,
      null,
      null,
@@ -23613,6 +23612,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -23634,7 +23634,6 @@
      null
     ],
     "XGBoost Model": [
-     null,
      null,
      null,
      null,
@@ -23998,10 +23997,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -24365,6 +24364,7 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
@@ -24377,7 +24377,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -24714,6 +24713,7 @@
      null,
      null,
      1,
+     null,
      null,
      null,
      null,
@@ -24744,7 +24744,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -25081,6 +25080,7 @@
      null,
      null,
      4,
+     null,
      null,
      null,
      null,
@@ -25111,7 +25111,6 @@
      null,
      null,
      null,
-     null,
      4,
      null,
      null,
@@ -25466,6 +25465,7 @@
      null,
      null,
      null,
+     null,
      null
     ]
    }
@@ -25477,13 +25477,9 @@
    "quote": "USDT",
    "active": true,
    "quote_symbol": null,
-   "last_close": 73.15,
-   "last_date": "2026-11-19",
+   "last_close": 68.88,
+   "last_date": "2026-11-20",
    "closes": [
-    [
-     "2025-11-20",
-     133.67
-    ],
     [
      "2025-11-21",
      128.68
@@ -26939,10 +26935,13 @@
     [
      "2026-11-19",
      73.15
+    ],
+    [
+     "2026-11-20",
+     68.88
     ]
    ],
    "edges": [
-    null,
     null,
     null,
     null,
@@ -27426,10 +27425,10 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "moves": [
-    null,
     null,
     null,
     null,
@@ -27793,11 +27792,11 @@
     null,
     null,
     null,
+    null,
     null
    ],
    "course": {
     "Markov Model": [
-     null,
      null,
      null,
      null,
@@ -28143,6 +28142,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -28173,7 +28173,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -28510,6 +28509,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -28540,7 +28540,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -28877,6 +28876,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -28907,7 +28907,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -29244,6 +29243,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -29274,7 +29274,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -29611,6 +29610,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -29641,7 +29641,6 @@
      null,
      null,
      null,
-     null,
      6,
      null,
      null,
@@ -29978,6 +29977,7 @@
      null,
      null,
      6,
+     null,
      null,
      null,
      null,
@@ -30008,7 +30008,6 @@
      null,
      null,
      null,
-     null,
      0,
      null,
      null,
@@ -30363,10 +30362,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "LightGBM Model": [
-     null,
      null,
      null,
      null,
@@ -30730,10 +30729,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "CatBoost Model": [
-     null,
      null,
      null,
      null,
@@ -31097,10 +31096,10 @@
      null,
      null,
      null,
+     null,
      null
     ],
     "WeightedEnsemble Model": [
-     null,
      null,
      null,
      null,
@@ -31446,6 +31445,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -31476,7 +31476,6 @@
      null,
      null,
      null,
-     null,
      3,
      null,
      null,
@@ -31813,6 +31812,7 @@
      null,
      null,
      3,
+     null,
      null,
      null,
      null,
@@ -40492,7 +40492,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-19"
+    "traded_since": "2026-11-20"
    },
    "ETH": {
     "last_close": 2255.66,
@@ -40616,7 +40616,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-19"
+    "traded_since": "2026-11-20"
    },
    "BNB": {
     "last_close": 703.95,
@@ -40740,7 +40740,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-19"
+    "traded_since": "2026-11-20"
    },
    "XRP": {
     "last_close": 1.2519,
@@ -40864,7 +40864,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-19"
+    "traded_since": "2026-11-20"
    },
    "SOL": {
     "last_close": 95.54,
@@ -40988,7 +40988,7 @@
       "size": 0.0
      }
     ],
-    "traded_since": "2026-11-19"
+    "traded_since": "2026-11-20"
    }
   }
  },
