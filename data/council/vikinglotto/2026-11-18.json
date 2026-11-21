@@ -205,6 +205,189 @@
           "head": null
         }
       }
+    },
+    {
+      "game": "vikinglotto",
+      "day": "2026-11-18",
+      "askedAt": "2026-11-21T09:29:45+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Vikinglotto. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first (numbers + Viking number):\n15 19 23 40 44 46 + 5\n1 11 31 32 34 44 + 1\n3 16 20 21 37 38 + 3\n18 22 29 30 34 40 + 4\n4 9 11 16 23 46 + 3\n11 18 23 36 42 44 + 5\n2 6 21 30 35 42 + 2\n5 9 11 15 23 24 + 4\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nCatBoostMultiLabel Model | right on those draws: 2 3 1 1 1 2 2 1 | plays now: 22 9 12 35 31 47 + 1\nCatBoost Model | right on those draws: 0 3 2 1 1 1 1 0 | plays now: 1 34 37 46 11 25 + 4\nQuantumVQC Model | right on those draws: 0 2 2 1 0 2 0 0 | plays now: 11 42 1 19 25 12 + 5\nMetaLearner Model | right on those draws: 1 1 1 0 2 0 0 2 | plays now: 34 1 9 27 38 45 + 1\nMarkovBayesian Model | right on those draws: 1 1 0 1 2 1 0 1 | plays now: 9 11 23 15 5 12 + 2\nMarkovBayesianEnhanched Model | right on those draws: 1 1 0 0 0 1 0 1 | plays now: 9 1 34 11 5 35 + 3\nMarkov Model | right on those draws: 0 2 1 2 0 0 1 0 | plays now: 41 33 37 7 23 11 + 5\nLSTM Base Model | right on those draws: 1 0 0 0 0 0 2 1 | plays now: 15 35 2 26 48 41 + 4\nPoissonMarkov Model | right on those draws: 0 1 0 0 1 2 1 1 | plays now: 44 1 9 36 22 8 + 1\nPoissonMonteCarlo Model | right on those draws: 1 0 0 0 0 0 0 1 | plays now: 5 28 22 7 47 42 + 5\n\nAnswer with one line: TICKET: followed by 6 different numbers from 1 to 48, the one you find most likely first, then a plus sign and 1 Viking number from 1 to 8. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1950953007,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1134158248,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1672522097,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Vikinglotto. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first (numbers + Viking number):\n2 8 28 36 41 44 + 1\n1 8 9 19 25 42 + 1\n9 25 28 29 35 47 + 3\n14 17 23 35 41 45 + 1\n23 31 34 39 45 47 + 2\n1 7 9 12 14 36 + 3\n7 27 34 35 38 46 + 1\n7 9 19 21 35 47 + 3\n10 12 18 24 42 47 + 4\n1 2 9 28 36 45 + 5\n1 7 24 29 44 48 + 2\n1 5 12 34 37 40 + 5\n1 29 35 37 42 44 + 3\n10 13 27 35 37 44 + 5\n3 6 10 24 35 40 + 4\n1 3 11 12 16 25 + 4\n7 19 22 26 34 45 + 1\n3 12 14 22 31 42 + 3\n1 2 11 25 41 48 + 3\n1 12 13 14 32 34 + 5\n4 11 13 26 28 43 + 1\n4 22 25 29 38 46 + 1\n15 19 23 40 44 46 + 5\n1 11 31 32 34 44 + 1\n3 16 20 21 37 38 + 3\n18 22 29 30 34 40 + 4\n4 9 11 16 23 46 + 3\n11 18 23 36 42 44 + 5\n2 6 21 30 35 42 + 2\n5 9 11 15 23 24 + 4\n\nAnswer with one line: TICKET: followed by 6 different numbers from 1 to 48, the one you find most likely first, then a plus sign and 1 Viking number from 1 to 8. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1544900299,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 8 19 28 35 42 47 + 1",
+                  "seconds": 0.5
+                }
+              ],
+              "seed": 1544900299,
+              "ticket": [
+                8,
+                19,
+                28,
+                35,
+                42,
+                47,
+                1
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1503654937,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 9 12 25 35 41 44 + 1",
+                  "seconds": 0.5
+                }
+              ],
+              "seed": 1503654937,
+              "ticket": [
+                9,
+                12,
+                25,
+                35,
+                41,
+                44,
+                1
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1103442552,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 35 14 25 9 28 40 + 1",
+                  "seconds": 1.9
+                }
+              ],
+              "seed": 1103442552,
+              "ticket": [
+                35,
+                14,
+                25,
+                9,
+                28,
+                40,
+                1
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1599244860,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 510172581,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 323066077,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 844308274,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 2098983604,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1366835672,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              },
+              {
+                "seed": 936752676,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              },
+              {
+                "seed": 1409900580,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              }
+            ],
+            "prompt": "Game: Vikinglotto. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first (numbers + Viking number):\n2 8 28 36 41 44 + 1\n1 8 9 19 25 42 + 1\n9 25 28 29 35 47 + 3\n14 17 23 35 41 45 + 1\n23 31 34 39 45 47 + 2\n1 7 9 12 14 36 + 3\n7 27 34 35 38 46 + 1\n7 9 19 21 35 47 + 3\n10 12 18 24 42 47 + 4\n1 2 9 28 36 45 + 5\n1 7 24 29 44 48 + 2\n1 5 12 34 37 40 + 5\n1 29 35 37 42 44 + 3\n10 13 27 35 37 44 + 5\n3 6 10 24 35 40 + 4\n1 3 11 12 16 25 + 4\n7 19 22 26 34 45 + 1\n3 12 14 22 31 42 + 3\n1 2 11 25 41 48 + 3\n1 12 13 14 32 34 + 5\n4 11 13 26 28 43 + 1\n4 22 25 29 38 46 + 1\n15 19 23 40 44 46 + 5\n1 11 31 32 34 44 + 1\n3 16 20 21 37 38 + 3\n18 22 29 30 34 40 + 4\n4 9 11 16 23 46 + 3\n11 18 23 36 42 44 + 5\n2 6 21 30 35 42 + 2\n5 9 11 15 23 24 + 4\n\n3 advisers who read the same each chose a ticket.\nNumbers the advisers chose (and how many of them chose it): 35 (3x), 9 (2x), 25 (2x), 28 (2x), 8 (1x), 12 (1x), 14 (1x), 19 (1x), 40 (1x), 41 (1x), 42 (1x), 44 (1x), 47 (1x)\nFor the Viking number the advisers chose: 1 (3x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 6 different numbers from 1 to 48, the one you find most likely first, then a plus sign and 1 Viking number from 1 to 8. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+            "ticket": null,
+            "combines": [
+              "Granite-4.2-8B",
+              "Nemotron-3.5-Bolt",
+              "Llama-3.1-8B"
+            ]
+          }
+        }
+      }
     }
   ]
 }

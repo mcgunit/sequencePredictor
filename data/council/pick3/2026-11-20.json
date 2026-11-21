@@ -1,0 +1,177 @@
+{
+  "game": "pick3",
+  "day": "2026-11-20",
+  "runs": [
+    {
+      "game": "pick3",
+      "day": "2026-11-20",
+      "askedAt": "2026-11-21T09:29:45+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Pick3. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first:\n1 6 5\n4 3 4\n5 0 8\n6 0 2\n7 0 5\n5 3 1\n9 6 3\n7 8 1\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nUnifiedLstmTcn Model | right on those draws: 0 1 1 2 1 0 0 0 | plays now: 6 0 4\nLSTM Base Model | right on those draws: 0 1 1 1 1 1 0 0 | plays now: 5 4 4\nLightGBM Model | right on those draws: 1 0 0 1 0 1 1 0 | plays now: 3 4 8\nXGBoost Model | right on those draws: 0 0 2 0 1 1 0 0 | plays now: 3 0 3\nTransformer Model | right on those draws: 0 0 1 1 1 0 0 0 | plays now: 0 0 0\nOrderStatistics Baseline | right on those draws: 0 0 1 1 1 0 0 0 | plays now: 8 0 0\nTCN Base Model | right on those draws: 0 0 2 1 1 0 0 0 | plays now: 0 0 8\nLaplaceMonteCarlo Model | right on those draws: 0 1 0 0 0 0 0 0 | plays now: 3 4 5\nGNN Model | right on those draws: 0 1 1 2 1 0 0 0 | plays now: 6 0 4\nAutoencoder Model | right on those draws: 0 1 1 2 1 0 0 0 | plays now: 6 0 4\n\nAnswer with one line: TICKET: followed by 3 digits from 0 to 9, one per position in the order drawn (a digit may repeat). That is exactly 3 numbers in all, no more and no fewer.\nFormat: TICKET: N N N",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1413741421,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 527535225,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1856781210,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Pick3. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first:\n7 7 1\n7 5 5\n0 4 4\n7 2 9\n2 8 2\n3 1 8\n4 5 6\n0 4 3\n3 5 7\n7 4 9\n0 5 6\n7 0 1\n4 4 4\n3 1 7\n2 5 9\n9 1 6\n3 1 4\n9 5 1\n1 8 7\n4 0 5\n6 9 0\n7 4 1\n1 6 5\n4 3 4\n5 0 8\n6 0 2\n7 0 5\n5 3 1\n9 6 3\n7 8 1\n\nAnswer with one line: TICKET: followed by 3 digits from 0 to 9, one per position in the order drawn (a digit may repeat). That is exactly 3 numbers in all, no more and no fewer.\nFormat: TICKET: N N N",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1161978742,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 7 4 1",
+                  "seconds": 0.3
+                }
+              ],
+              "seed": 1161978742,
+              "ticket": [
+                7,
+                4,
+                1
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 763061279,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 2 5 9",
+                  "seconds": 0.2
+                }
+              ],
+              "seed": 763061279,
+              "ticket": [
+                2,
+                5,
+                9
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 796484748,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 3 4 9",
+                  "seconds": 1.9
+                }
+              ],
+              "seed": 796484748,
+              "ticket": [
+                3,
+                4,
+                9
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 124775634,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1828804813,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1348373806,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 357950451,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 282877610,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 721167993,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              },
+              {
+                "seed": 632455705,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              },
+              {
+                "seed": 1557421623,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              }
+            ],
+            "prompt": "Game: Pick3. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first:\n7 7 1\n7 5 5\n0 4 4\n7 2 9\n2 8 2\n3 1 8\n4 5 6\n0 4 3\n3 5 7\n7 4 9\n0 5 6\n7 0 1\n4 4 4\n3 1 7\n2 5 9\n9 1 6\n3 1 4\n9 5 1\n1 8 7\n4 0 5\n6 9 0\n7 4 1\n1 6 5\n4 3 4\n5 0 8\n6 0 2\n7 0 5\n5 3 1\n9 6 3\n7 8 1\n\n3 advisers who read the same each chose a ticket.\nPosition 1, the advisers chose: 2 (1x), 3 (1x), 7 (1x)\nPosition 2, the advisers chose: 4 (2x), 5 (1x)\nPosition 3, the advisers chose: 9 (2x), 1 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 3 digits from 0 to 9, one per position in the order drawn (a digit may repeat). That is exactly 3 numbers in all, no more and no fewer.\nFormat: TICKET: N N N",
+            "ticket": null,
+            "combines": [
+              "Granite-4.2-8B",
+              "Nemotron-3.5-Bolt",
+              "Llama-3.1-8B"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

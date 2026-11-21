@@ -235,6 +235,195 @@
           "head": null
         }
       }
+    },
+    {
+      "game": "lotto",
+      "day": "2026-11-18",
+      "askedAt": "2026-11-21T09:29:45+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Lotto. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first:\n5 7 16 25 35 37\n4 7 9 17 34 38\n5 11 15 29 41 43\n13 14 25 27 35 40\n4 9 14 29 30 36\n5 6 8 9 16 31\n8 21 28 35 36 39\n4 6 16 30 36 39\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nGNN Model | right on those draws: 0 1 0 0 0 1 3 0 | plays now: 44 34 28 8 1 21\nMarkovBayesianEnhanched Model | right on those draws: 1 1 0 0 2 2 1 2 | plays now: 4 16 5 10 6 30\nSubsetEnsemble Model | right on those draws: 1 2 0 1 0 1 1 0 | plays now: 8 1 21 32 38 44\nWeightedEnsemble Model | right on those draws: 1 1 0 0 0 1 2 1 | plays now: 44 16 45 8 6 1\nTransformer Model | right on those draws: 0 1 0 1 0 1 2 0 | plays now: 44 18 38 28 1 8\nMetaLearner Model | right on those draws: 1 1 1 0 3 1 1 0 | plays now: 5 4 16 30 25 6\nTimesFM Model | right on those draws: 1 0 0 1 0 0 1 0 | plays now: 45 3 9 35 25 20\nHybridStatisticalModel | right on those draws: 1 1 0 2 2 0 1 1 | plays now: 6 8 18 20 30 45\nCatBoost Model | right on those draws: 1 0 0 0 0 1 4 1 | plays now: 20 45 4 6 29 27\nQuantumMetaLearner Model | right on those draws: 1 2 1 1 0 1 3 0 | plays now: 7 44 22 15 38 14\n\nAnswer with one line: TICKET: followed by 9 different numbers from 1 to 45, the one you find most likely first. That is exactly 9 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 2136615241,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 446172859,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1658135702,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Lotto. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first:\n8 14 24 27 37 39\n19 22 24 30 31 45\n16 18 28 29 30 41\n8 10 16 20 26 40\n12 18 20 22 29 32\n3 10 14 34 35 39\n3 6 12 15 23 29\n1 5 21 31 34 43\n3 10 16 26 44 45\n6 11 29 34 40 41\n3 7 25 30 40 44\n9 10 12 32 36 42\n8 10 15 24 30 36\n3 6 9 21 39 40\n15 22 27 38 40 45\n4 7 12 15 21 32\n4 12 17 21 29 45\n2 5 8 23 33 40\n2 5 32 41 43 44\n1 10 16 28 32 37\n8 12 20 27 30 32\n14 25 31 35 36 41\n5 7 16 25 35 37\n4 7 9 17 34 38\n5 11 15 29 41 43\n13 14 25 27 35 40\n4 9 14 29 30 36\n5 6 8 9 16 31\n8 21 28 35 36 39\n4 6 16 30 36 39\n\nAnswer with one line: TICKET: followed by 9 different numbers from 1 to 45, the one you find most likely first. That is exactly 9 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1262351730,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 8 14 24 27 30 36 39 41 45",
+                  "seconds": 0.6
+                }
+              ],
+              "seed": 1262351730,
+              "ticket": [
+                8,
+                14,
+                24,
+                27,
+                30,
+                36,
+                39,
+                41,
+                45
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1704101146,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 6 12 16 29 30 36 39 40",
+                  "seconds": 0.6
+                }
+              ],
+              "seed": 1704101146,
+              "ticket": [
+                1,
+                6,
+                12,
+                16,
+                29,
+                30,
+                36,
+                39,
+                40
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1616398374,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 3 8 10 16 20 29 30 39 40",
+                  "seconds": 0.5
+                }
+              ],
+              "seed": 1616398374,
+              "ticket": [
+                3,
+                8,
+                10,
+                16,
+                20,
+                29,
+                30,
+                39,
+                40
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1878746318,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1674634439,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 903277454,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1545685708,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 213045863,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 274043231,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                "seconds": 0.0
+              },
+              {
+                "seed": 413071647,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                "seconds": 0.0
+              },
+              {
+                "seed": 1493966021,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                "seconds": 0.0
+              }
+            ],
+            "prompt": "Game: Lotto. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first:\n8 14 24 27 37 39\n19 22 24 30 31 45\n16 18 28 29 30 41\n8 10 16 20 26 40\n12 18 20 22 29 32\n3 10 14 34 35 39\n3 6 12 15 23 29\n1 5 21 31 34 43\n3 10 16 26 44 45\n6 11 29 34 40 41\n3 7 25 30 40 44\n9 10 12 32 36 42\n8 10 15 24 30 36\n3 6 9 21 39 40\n15 22 27 38 40 45\n4 7 12 15 21 32\n4 12 17 21 29 45\n2 5 8 23 33 40\n2 5 32 41 43 44\n1 10 16 28 32 37\n8 12 20 27 30 32\n14 25 31 35 36 41\n5 7 16 25 35 37\n4 7 9 17 34 38\n5 11 15 29 41 43\n13 14 25 27 35 40\n4 9 14 29 30 36\n5 6 8 9 16 31\n8 21 28 35 36 39\n4 6 16 30 36 39\n\n3 advisers who read the same each chose a ticket.\nNumbers the advisers chose (and how many of them chose it): 30 (3x), 39 (3x), 8 (2x), 16 (2x), 29 (2x), 36 (2x), 40 (2x), 1 (1x), 3 (1x), 6 (1x), 10 (1x), 12 (1x), 14 (1x), 20 (1x), 24 (1x), 27 (1x), 41 (1x), 45 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 9 different numbers from 1 to 45, the one you find most likely first. That is exactly 9 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N",
+            "ticket": null,
+            "combines": [
+              "Granite-4.2-8B",
+              "Nemotron-3.5-Bolt",
+              "Llama-3.1-8B"
+            ]
+          }
+        }
+      }
     }
   ]
 }

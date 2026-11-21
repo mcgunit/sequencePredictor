@@ -7046,6 +7046,90 @@
         "tries": 1,
         "prompt": "918b60650588421d"
       }
+    },
+    {
+      "name": "Council (draws): Granite-4.2-8B",
+      "predictions": [
+        [
+          8,
+          14,
+          24,
+          27,
+          30,
+          36
+        ]
+      ],
+      "multiPick": [
+        39,
+        41,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Granite-4.2-8B",
+        "lab": "IBM",
+        "model": "granite-4.2-8b",
+        "temperature": 0.7,
+        "seed": 1262351730,
+        "tries": 1,
+        "prompt": "918b60650588421d"
+      }
+    },
+    {
+      "name": "Council (draws): Nemotron-3.5-Bolt",
+      "predictions": [
+        [
+          1,
+          6,
+          12,
+          16,
+          29,
+          30
+        ]
+      ],
+      "multiPick": [
+        36,
+        39,
+        40
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Nemotron-3.5-Bolt",
+        "lab": "NVIDIA",
+        "model": "nemotron-3.5-bolt-e4b",
+        "temperature": 0.7,
+        "seed": 1704101146,
+        "tries": 1,
+        "prompt": "918b60650588421d"
+      }
+    },
+    {
+      "name": "Council (draws): Llama-3.1-8B",
+      "predictions": [
+        [
+          3,
+          8,
+          10,
+          16,
+          20,
+          29
+        ]
+      ],
+      "multiPick": [
+        30,
+        39,
+        40
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Llama-3.1-8B",
+        "lab": "Meta",
+        "model": "llama-3.1-8b",
+        "temperature": 0.7,
+        "seed": 1616398374,
+        "tries": 1,
+        "prompt": "918b60650588421d"
+      }
     }
   ],
   "newPredictionRaw": [
