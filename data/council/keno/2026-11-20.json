@@ -1,0 +1,228 @@
+{
+  "game": "keno",
+  "day": "2026-11-20",
+  "runs": [
+    {
+      "game": "keno",
+      "day": "2026-11-20",
+      "askedAt": "2026-11-21T09:29:45+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 5 draws, oldest first:\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nHybridStatisticalModel | right on those draws: 4 4 2 3 2 | plays now: 1 4 5 11 12 13 19 20 24 25\nAutoencoder Model | right on those draws: 6 3 2 2 0 | plays now: 30 60 32 15 66 54 10 11 42 19\nTimesFM Model | right on those draws: 6 2 1 3 3 | plays now: 1 70 5 66 12 9 29 41 43 26\nLightGBM Model | right on those draws: 7 2 4 5 1 | plays now: 49 36 32 62 29 54 11 2 67 70\nPoissonMonteCarlo Model | right on those draws: 4 3 2 2 3 | plays now: 45 42 65 56 25 20 30 50 4 2\nLSTM Base Model | right on those draws: 5 3 2 3 2 | plays now: 30 6 60 15 32 54 10 19 63 24\nLSTM Smoothed Model | right on those draws: 5 2 3 2 1 | plays now: 32 26 10 30 66 15 54 63 42 19\nQuantumMetaLearner Model | right on those draws: 3 3 2 2 1 | plays now: 65 11 64 66 12 23 50 70 27 59\nQuantumVQC Model | right on those draws: 2 5 4 2 0 | plays now: 30 68 32 49 7 58 60 36 14 59\nClassicalSVM Model | right on those draws: 2 5 2 2 2 | plays now: 45 30 64 42 1 55 57 41 49 44\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1225012965,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 497684014,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1563172852,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n2 3 4 7 8 11 18 27 31 35 36 37 38 46 47 58 65 66 68 70\n4 9 11 13 19 20 22 24 30 32 35 37 38 39 42 43 45 49 66 68\n2 4 5 10 11 13 17 23 27 28 33 35 37 39 40 44 45 54 55 61\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1562827357,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 2 3 4 5 7 8 11 13 17 18 19 27 28 30 35 37 38 42 45 66",
+                  "seconds": 0.8
+                }
+              ],
+              "seed": 1562827357,
+              "ticket": [
+                2,
+                3,
+                4,
+                5,
+                7,
+                8,
+                11,
+                13,
+                17,
+                18,
+                19,
+                27,
+                28,
+                30,
+                35,
+                37,
+                38,
+                42,
+                45,
+                66
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1950200413,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 5 13 17 28 35 37 41 45 51 52 56 65 68 70 4 11 18 39 47",
+                  "seconds": 0.9
+                }
+              ],
+              "seed": 1950200413,
+              "ticket": [
+                1,
+                5,
+                13,
+                17,
+                28,
+                35,
+                37,
+                41,
+                45,
+                51,
+                52,
+                56,
+                65,
+                68,
+                70,
+                4,
+                11,
+                18,
+                39,
+                47
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1180192597,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 2 3 4 5 6 7 8 10 11 13 16 17 20 21 27 28 30 35 37",
+                  "seconds": 2.1
+                }
+              ],
+              "seed": 1180192597,
+              "ticket": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                10,
+                11,
+                13,
+                16,
+                17,
+                20,
+                21,
+                27,
+                28,
+                30,
+                35,
+                37
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1593997397,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 828582298,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 17664724,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 10619305,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1847411855,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1815286149,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              },
+              {
+                "seed": 82729115,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              },
+              {
+                "seed": 1845370803,
+                "temperature": 0.5,
+                "error": "request failed: <urlopen error [Errno 113] No route to host>",
+                "seconds": 3.1
+              }
+            ],
+            "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n2 3 4 7 8 11 18 27 31 35 36 37 38 46 47 58 65 66 68 70\n4 9 11 13 19 20 22 24 30 32 35 37 38 39 42 43 45 49 66 68\n2 4 5 10 11 13 17 23 27 28 33 35 37 39 40 44 45 54 55 61\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n\n3 advisers who read the same each chose a ticket.\nNumbers the advisers chose (and how many of them chose it): 4 (3x), 5 (3x), 11 (3x), 13 (3x), 17 (3x), 28 (3x), 35 (3x), 37 (3x), 1 (2x), 2 (2x), 3 (2x), 7 (2x), 8 (2x), 18 (2x), 27 (2x), 30 (2x), 45 (2x), 6 (1x), 10 (1x), 16 (1x), 19 (1x), 20 (1x), 21 (1x), 38 (1x), 39 (1x), 41 (1x), 42 (1x), 47 (1x), 51 (1x), 52 (1x), 56 (1x), 65 (1x), 66 (1x), 68 (1x), 70 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+            "ticket": null,
+            "combines": [
+              "Granite-4.2-8B",
+              "Nemotron-3.5-Bolt",
+              "Llama-3.1-8B"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
