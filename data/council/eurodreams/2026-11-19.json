@@ -247,6 +247,160 @@
           }
         }
       }
+    },
+    {
+      "game": "eurodreams",
+      "day": "2026-11-19",
+      "askedAt": "2026-11-21T09:29:45+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: EuroDreams. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first (numbers + dream number):\n3 19 21 26 35 38 + 3\n3 8 11 13 34 40 + 5\n5 7 22 23 29 36 + 1\n15 18 21 31 33 34 + 3\n1 3 6 12 27 37 + 1\n5 10 15 18 19 37 + 1\n2 4 11 14 17 18 + 2\n5 8 18 24 27 39 + 2\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nQuantumMetaLearner Model | right on those draws: 1 4 2 1 1 3 1 2 | plays now: 2 4 39 23 22 18 + 4\nLaplaceMonteCarlo Model | right on those draws: 1 0 2 2 0 1 1 0 | plays now: 4 16 21 11 36 28 + 1\nXGBoost Model | right on those draws: 1 2 0 2 1 4 0 0 | plays now: 19 29 35 23 4 40 + 2\nLSTM Base Model | right on those draws: 1 0 2 1 2 2 0 0 | plays now: 19 23 37 33 7 1 + 3\nPoissonMarkov Model | right on those draws: 2 0 1 0 0 2 2 0 | plays now: 22 2 13 37 12 29 + 2\nOrderStatistics Baseline | right on those draws: 2 2 2 0 1 1 0 0 | plays now: 3 22 19 33 7 40 + 3\nMarkovBayesian Model | right on those draws: 1 1 0 0 0 1 1 0 | plays now: 8 18 5 19 14 9 + 1\nTransformer Model | right on those draws: 2 0 2 0 2 2 0 0 | plays now: 37 23 21 32 7 1 + 1\nLightGBM Model | right on those draws: 1 1 2 2 1 1 1 1 | plays now: 3 22 34 15 40 20 + 5\nWeightedEnsemble Model | right on those draws: 3 1 2 0 3 2 0 0 | plays now: 3 23 19 22 7 37 + 1\n\nAnswer with one line: TICKET: followed by 6 different numbers from 1 to 40, the one you find most likely first, then a plus sign and 1 dream number from 1 to 5. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1740996292,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 1422365717,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 932717937,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: EuroDreams. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first (numbers + dream number):\n7 9 10 26 33 40 + 1\n10 14 18 20 26 30 + 5\n8 12 19 21 26 36 + 4\n19 20 24 28 30 33 + 3\n3 11 17 23 28 30 + 2\n6 12 29 30 35 38 + 3\n6 14 15 17 34 37 + 2\n8 18 20 22 33 40 + 1\n1 3 21 24 28 32 + 5\n3 6 12 24 38 40 + 4\n2 15 18 22 34 38 + 4\n8 10 13 17 20 27 + 4\n4 11 20 22 38 39 + 5\n6 13 14 18 20 32 + 4\n2 7 9 17 18 30 + 3\n6 9 12 21 36 37 + 3\n3 6 16 24 29 40 + 2\n6 13 20 27 35 38 + 4\n3 4 6 19 30 36 + 2\n4 19 27 31 34 39 + 5\n1 2 10 15 23 26 + 3\n6 7 13 14 25 30 + 1\n3 19 21 26 35 38 + 3\n3 8 11 13 34 40 + 5\n5 7 22 23 29 36 + 1\n15 18 21 31 33 34 + 3\n1 3 6 12 27 37 + 1\n5 10 15 18 19 37 + 1\n2 4 11 14 17 18 + 2\n5 8 18 24 27 39 + 2\n\nAnswer with one line: TICKET: followed by 6 different numbers from 1 to 40, the one you find most likely first, then a plus sign and 1 dream number from 1 to 5. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N + S",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1052619849,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 8 14 19 26 33 40 + 3",
+                  "seconds": 0.6
+                }
+              ],
+              "seed": 1052619849,
+              "ticket": [
+                8,
+                14,
+                19,
+                26,
+                33,
+                40,
+                3
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 526546370,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 10 18 20 26 30 38 + 4",
+                  "seconds": 0.5
+                }
+              ],
+              "seed": 526546370,
+              "ticket": [
+                10,
+                18,
+                20,
+                26,
+                30,
+                38,
+                4
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 294593387,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 26 33 30 20 28 10 + 4",
+                  "seconds": 1.0
+                }
+              ],
+              "seed": 294593387,
+              "ticket": [
+                26,
+                33,
+                30,
+                20,
+                28,
+                10,
+                4
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1775280158,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 260644887,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 371998498,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 205410023,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 358736851,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                },
+                {
+                  "seed": 243411157,
+                  "temperature": 0.7,
+                  "error": "request failed: <urlopen error [Errno 111] Connection refused>",
+                  "seconds": 0.0
+                }
+              ],
+              "ticket": null
+            }
+          },
+          "head": null
+        }
+      }
     }
   ]
 }
