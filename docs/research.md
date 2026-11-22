@@ -150,7 +150,7 @@ The number compared is the best AUC of the suite per repetition. The best of sev
 
 ### The verdict
 
-`compute_verdict` (verdict version 2) gives one of five statuses:
+`compute_verdict` (verdict version 3) gives one of five statuses:
 
 | Status | Meaning |
 |---|---|
@@ -158,6 +158,9 @@ The number compared is the best AUC of the suite per repetition. The best of sev
 | `failed` | a comparison scored fewer than two seeds; no number is shown |
 | `above` | the real mean clears the null bound and the shuffled control's bound |
 | `above band, not shuffled` | the real mean clears the null bound but not the shuffled control's |
+
+The shuffled control's bound carries a margin: the bound from its seeds plus two of that bound's standard errors (`SHUFFLED_MARGIN_SE`). The bound moves by about one standard error from one block of seeds to the next, so without the margin a real mean that sits on it changes label from week to week. The record keeps both figures (`shuffled_threshold`, what the real mean is held against, and `shuffled_threshold_plain`).
+
 | `within` | the real mean is inside the null band |
 
 - **The power rule** lives in `controlRules.json` at the repository root (`{"q2": {"few_windows": 250}}`), read by both `RandomnessDiscrimination.py` and `controls.js`. It is a property of the history's length, `--draws` and `--window`, fixed before any classifier runs. Games under the line keep running, so their numbers stay on the admin pages. Every record stores the `few_windows` it was judged by; a version 1 record, which stores none, is read by the current value.
@@ -222,7 +225,7 @@ The daily performance report tests every ranked row on its **live** draws (the l
 
 ### The family
 
-Holm's correction at 5% runs over the rows with at least `minDrawsForRanking` live draws (10 live weeks for the week games). The page shows two figures, both of the current week and never a colour:
+Holm's correction at 5% runs over the rows with at least 30 live draws (`RowChance.MIN_DRAWS`; the ranking's own minimum where that is larger). A row with fewer is not tested and cannot be flagged: on 13 to 15 draws one lucky ticket decides the p value. The page shows two figures, both of the current week and never a colour:
 
 - **under 5%**: the rows with raw p < 0.05, always next to what chance puts there (the sum of the rows' own discrete levels for the exact test, rows x 0.05 for the markets)
 - **holds**: the rows still under 5% after the correction
@@ -234,7 +237,7 @@ The payout games (keno, pick3, Joker+) are tested on hits too, as information on
 Only new draws count as confirmation:
 
 - From the first Sunday on which a row's live record reads p < 0.05, the row is **followed**.
-- It is judged once, on as many new live draws as flagged it (at least `minDrawsForRanking`, at most 52): **confirmed** at p < 0.01, otherwise **not confirmed**.
+- It is judged once, on as many new live draws as flagged it (at least the test's minimum of 30, at most 52): **confirmed** at p < 0.01, otherwise **not confirmed**.
 - Until then it reads **running**, with the figures so far and no p. After 28 days without a new live draw it reads **stopped**.
 
 Flags and verdicts are kept in `data/database/rowChance.json` (tracked, written only when it changes). The first run for a game replays every Sunday once, flagging only on or after the `since.json` freeze; later runs test only new Sundays, and a verdict is never recomputed. The one reset is a later `since.json` freeze, which drops the entries of rows flagged before it. A lottery game judged without git is tested but stores nothing; one whose liveness could not be judged is not tested and says why.

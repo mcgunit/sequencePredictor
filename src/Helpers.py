@@ -1324,7 +1324,7 @@ class Helpers():
                         persist = chanceStore is not None and (liveDays is not None or judged["checked"] == "stamp+git")
                         rowsChance, gameChance, keep = RowChance.game_chance(
                             game, chanceDays, [{"name": m["name"], "draws": m["draws"]} for m in models if not m.get("variant")],
-                            minDraws, chanceToday,
+                            max(minDraws, RowChance.MIN_DRAWS), chanceToday,
                             stored=(chanceStore or {}).get("games", {}).get(game), freeze=since["since"] if since else None, persist=persist)
                         if persist and keep is not None:
                             chanceStore["games"][game] = keep

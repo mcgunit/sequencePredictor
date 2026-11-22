@@ -90,6 +90,10 @@ VERDICT_ALPHA = 0.01    # the fresh verdict (decided 26 Oct 2026)
 PERMUTATIONS = 20000
 BLOCK = 7               # market shuffles stay within this many consecutive live days (weeks for the week games)
 MAX_VERDICT = 52        # the longest verdict: EuroMillions' 92-draw flag would otherwise take until Sep 2027
+# The fewest live draws a row needs before it is tested and can be flagged (22 Nov 2026): the ranking's own minimum
+# (10) put rows on the card on 13 to 15 draws, where one lucky ticket decides the p value. The test uses the larger of
+# this and the ranking's minimum (Helpers); a row followed before the change stays followed.
+MIN_DRAWS = 30
 STOPPED_DAYS = 28       # a followed row with no new live draw for four weeks reads "stopped"
 FILE_NAME = "rowChance.json"
 VERSION = 1

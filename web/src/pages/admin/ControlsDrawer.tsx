@@ -305,7 +305,7 @@ function Q2Section({ d }: { d: ControlsGameView }) {
       </p>
       <p className="line">
         {q.rule >= 2
-          ? `Shuffled control: bound ${fixed(q.shuffledThreshold)} (shuffled mean + ${q.shuffledK !== null ? fixed(q.shuffledK, 2) : DASH} sd, the same bound from its own seeds) - above needs the real mean past it as well as past the threshold.`
+          ? `Shuffled control: bound ${fixed(q.shuffledThreshold)} (shuffled mean + ${q.shuffledK !== null ? fixed(q.shuffledK, 2) : DASH} sd, the same bound from its own seeds${q.rule >= 3 ? ', plus two standard errors of that bound: it moves by about one from run to run' : ''}) - above needs the real mean past it as well as past the threshold.`
           : 'Shuffled control under the old rule: the real mean against the shuffled mean itself.'}
         {q.status === 'failed'
           ? ` Failed: a comparison scored fewer than 2 seeds${scored ? ` (real ${scored.real ?? DASH}, null ${scored.null ?? DASH}, shuffled ${scored.shuffled ?? DASH} of ${q.seeds ?? DASH})` : ''}, so there is no band - the run's log says why.`

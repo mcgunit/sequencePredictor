@@ -4,6 +4,19 @@ What was decided, built, fixed, measured and found in this project, by date, new
 
 ## 22 November 2026
 
+### Controls: a margin on the shuffled bound, a higher minimum for the row test
+
+*Documented in [research.md](research.md), The verdict and the per-row test.*
+
+**Found in the reading of 22 November.** Crypto's real figure stood at 0.951 to 0.953 for three weeks while its label went "above", "above", "above band, not shuffled": the shuffled control's bound moved 0.943, 0.929, 0.957 between blocks of seeds. And rows were flagged on 13 to 15 live draws.
+
+**Decided and built.**
+
+- The shuffled control's bound carries a margin of two of its own standard errors (verdict version 3). Read back over the four weeks from 1 November, crypto is "above band, not shuffled" in each. A run of weeks on the pages starts anew at the change of rule.
+- The per-row test needs 30 live draws (was the ranking's minimum of 10). Rows followed before the change stay followed until their verdict.
+
+**Not changed.** The controls decide nothing: no tuner, gate, ranking or ticket reads them. They are read by the admin pages and the weekly reading only.
+
 ### The backtest record on the lottery pages (roadmap item 13)
 
 *Documented in [tuning.md](tuning.md), The backtest record.*

@@ -523,10 +523,11 @@ function controlsOverview(inputs, report, now = new Date()) {
         live: 'live = draws whose ticket was saved before the sales close, over the whole record (live_draws) - lottery: stamped or committed '
           + 'before it, a ticket rewritten after the draw scored as it stood at the close (recovered); markets: out before the close; '
           + 'notLive = back-built or late (and a second row of one name on a draw)' },
-      // rule: version 2 (the records from 1 Nov 2026 on); k comes from each record's own seed count, so it is not named
+      // rule: version 2 (the records from 1 Nov 2026 on), version 3 from 22 Nov 2026 on (the margin on the shuffled bound);
+      // k comes from each record's own seed count, so it is not named
       q2: { metric: 'best AUC of the classifier suite, mean over seeds', axis: [0.5, 1.0], fewWindows: controls.FEW_WINDOWS,
         rule: 'above = the real mean above the null bound (null mean + k sd: the 97.7% bound for one fair run, k from the seed count: 2.19 at 20) '
-          + `and above the shuffled control's bound (shuffled mean + k sd, the same way); too few draws under ${controls.FEW_WINDOWS} test windows, `
+          + `and above the shuffled control's bound (shuffled mean + k sd, the same way; from 22 Nov 2026 on plus two standard errors of that bound); too few draws under ${controls.FEW_WINDOWS} test windows, `
           + 'fixed by the history before the run; failed when a comparison scored fewer than 2 seeds' },
       fc: { share: "the noise columns' share of training importance", chanceShare: 'noise columns / (base-model columns + noise columns)',
         auc: '[held-out AUC without noise, with noise]', variants: Object.fromEntries(Object.entries(VARIANT_CODE).map(([k, c]) => [c, controls.VARIANT_LABELS[k] || k])) },

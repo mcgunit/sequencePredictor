@@ -259,7 +259,12 @@ def run_comparison(game, name, window, seed, draws_kept, skip_quantum):
 # control re-cut as on 26 Oct), 4,000 resampled weeks of 20 seeds: no false "above" on the lottery games, 0.06 label
 # changes a week over the 11 games (all of them shares, a genuine borderline case), crypto "above" in 99.7%.
 BAND_COVERAGE = float(norm.cdf(2.0))   # 0.97725: the one-sided coverage "+ 2 sd" stood for, now made exact
-VERDICT_VERSION = 2
+VERDICT_VERSION = 3
+# The margin on the shuffled control's bound (version 3, 22 Nov 2026). The bound is worked out from 20 shuffled seeds
+# and moves from run to run by about its own standard error: crypto's real mean stood at 0.951-0.953 for three weeks
+# while its bound moved 0.943 -> 0.929 -> 0.957, and the label went above -> above -> not shuffled on that alone.
+# "Above the shuffled control" now means past the bound by this many of the bound's standard errors.
+SHUFFLED_MARGIN_SE = 2.0
 STATUSES = ("above", "above band, not shuffled", "within", "too few draws", "failed")
 
 
@@ -322,7 +327,7 @@ def compute_verdict(record, few_windows=FEW_WINDOWS):
     failed = min(len(real_values), len(null_values), len(shuffled_values)) < 2
 
     real_mean = real_sd = null_mean = null_sd = shuffled_mean = shuffled_sd = None
-    band_k = shuffled_k = threshold = threshold_se = shuffled_threshold = None
+    band_k = shuffled_k = threshold = threshold_se = shuffled_threshold = shuffled_plain = shuffled_se = None
     above_band = survives = False
     if not failed:
         (real_mean, real_sd), (null_mean, null_sd), (shuffled_mean, shuffled_sd) = (
@@ -333,7 +338,11 @@ def compute_verdict(record, few_windows=FEW_WINDOWS):
         # the threshold's own standard error (mean and sd both estimated from the n null seeds): about 0.42 sd at 20
         threshold_se = null_sd * math.sqrt(1 / n_null + band_k ** 2 / (2 * (n_null - 1)))
         shuffled_k = band_factor(len(shuffled_values))
-        shuffled_threshold = shuffled_mean + shuffled_k * shuffled_sd
+        # the shuffled control's bound, the same way, then the margin: its own standard error SHUFFLED_MARGIN_SE times
+        n_shuffled = len(shuffled_values)
+        shuffled_plain = shuffled_mean + shuffled_k * shuffled_sd
+        shuffled_se = shuffled_sd * math.sqrt(1 / n_shuffled + shuffled_k ** 2 / (2 * (n_shuffled - 1)))
+        shuffled_threshold = shuffled_plain + SHUFFLED_MARGIN_SE * shuffled_se
         above_band = real_mean > threshold
         survives = real_mean > shuffled_threshold
 
@@ -360,7 +369,9 @@ def compute_verdict(record, few_windows=FEW_WINDOWS):
         "band_coverage": round(BAND_COVERAGE, 5),
         "band_k": number(band_k, 3), "shuffled_k": number(shuffled_k, 3),
         "null_threshold": number(threshold), "null_threshold_se": number(threshold_se),
-        "shuffled_threshold": number(shuffled_threshold),
+        # shuffled_threshold: what the real mean is held against (the plain bound plus the margin, version 3)
+        "shuffled_threshold": number(shuffled_threshold), "shuffled_threshold_plain": number(shuffled_plain),
+        "shuffled_threshold_se": number(shuffled_se), "shuffled_margin_se": SHUFFLED_MARGIN_SE,
         "per_seed_real": [round(v, 4) for v in real_values],
         "per_seed_null": [round(v, 4) for v in null_values],
         "per_seed_shuffled": [round(v, 4) for v in shuffled_values],
@@ -371,7 +382,7 @@ def compute_verdict(record, few_windows=FEW_WINDOWS):
         "windows_test": windows_test,
         "rule": (f"above = the real mean above the null band's {BAND_COVERAGE:.1%} bound for one fair run (null mean "
                  f"+ k sd, k from the seed count: 2.19 at 20) and above the shuffled control's bound (shuffled mean + "
-                 f"k sd, the same way); too few draws under {int(few_windows)} held-out windows, fixed by the history "
+                 f"k sd, the same way, plus {SHUFFLED_MARGIN_SE:g} standard errors of that bound); too few draws under {int(few_windows)} held-out windows, fixed by the history "
                  f"before the run; failed when a comparison scored fewer than 2 seeds"),
         "power_rule": (f"too few draws under {int(few_windows)} held-out windows, both classes together: set by the "
                        f"history's length, --draws and --window before any classifier runs, never by an AUC - on "
@@ -446,15 +457,21 @@ def _self_check():
     z = list(np.random.RandomState(0).standard_normal(20))
     z = [(x - statistics.fmean(z)) / statistics.stdev(z) for x in z]   # mean 0, sd 1 exactly
     null20 = [0.57 + 0.05 * x for x in z]
-    real20 = [0.75 + 0.03 * x for x in z[::-1]]
+    real20 = [0.80 + 0.03 * x for x in z[::-1]]
     shuffled20 = [0.60 + 0.05 * x for x in z[1:] + z[:1]]
 
     # 20 seeds, real far above both: above; the threshold is mean + 2.193 sd with its standard error
     v = verdict(record(real20, null20, shuffled20))
     assert v["status"] == "above" and v["band_k"] == 2.193 and v["shuffled_k"] == 2.193, v
-    assert abs(v["null_threshold"] - (0.57 + 2.1934 * 0.05)) < 1e-3 and abs(v["shuffled_threshold"] - (0.60 + 2.1934 * 0.05)) < 1e-3, v
+    assert abs(v["null_threshold"] - (0.57 + 2.1934 * 0.05)) < 1e-3 and abs(v["shuffled_threshold_plain"] - (0.60 + 2.1934 * 0.05)) < 1e-3, v
+    assert abs(v["shuffled_threshold"] - (v["shuffled_threshold_plain"] + 2 * 0.05 * math.sqrt(1 / 20 + 2.1934 ** 2 / 38))) < 1e-3 and v["shuffled_margin_se"] == 2.0, v
     assert abs(v["null_threshold_se"] - 0.05 * math.sqrt(1 / 20 + 2.1934 ** 2 / 38)) < 1e-4, v
     assert v["seeds_scored"] == {"real": 20, "null": 20, "shuffled": 20} and v["band_coverage"] == 0.97725 and len(v["per_seed_real"]) == 20
+    # version 3: past the shuffled control's plain bound but inside the margin (crypto, 15 Nov 2026: real 0.951, plain
+    # bound 0.929) is not "above" - the bound itself moves by that much from one block of seeds to the next
+    edge = verdict(record([0.73 + 0.03 * x for x in z[::-1]], null20, shuffled20))
+    assert edge["shuffled_threshold_plain"] < edge["real_max_of_suite_mean"] < edge["shuffled_threshold"], edge
+    assert edge["status"] == "above band, not shuffled" and not edge["survives_marginals_control"], edge
     # the same with the shuffled control separating as well as the real draws, seed by seed: a marginal, not time
     v = verdict(record(real20, null20, real20))
     assert v["status"] == "above band, not shuffled" and v["above_null_band"] and not v["survives_marginals_control"], v
@@ -483,7 +500,8 @@ def _self_check():
         assert v["status"] == "failed" and not v["above_null_band"] and not v["survives_marginals_control"], v
         assert all(v[k] is None for k in ("real_max_of_suite_mean", "real_max_of_suite_sd", "null_max_of_suite_mean",
                                           "null_max_of_suite_sd", "shuffled_max_of_suite_mean", "shuffled_max_of_suite_sd",
-                                          "band_k", "shuffled_k", "null_threshold", "null_threshold_se", "shuffled_threshold")), v
+                                          "band_k", "shuffled_k", "null_threshold", "null_threshold_se", "shuffled_threshold",
+                                          "shuffled_threshold_plain", "shuffled_threshold_se")), v
     # ... unless the history already decided it: too few draws first
     assert verdict(record([None] * 3, [0.5], [], windows=150))["status"] == "too few draws"
     # controls whose seeds all scored the same: no spread, each bound is its mean (no division by zero); two seeds
