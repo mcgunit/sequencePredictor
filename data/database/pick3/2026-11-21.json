@@ -1276,6 +1276,66 @@
       ],
       "variant": "Memorise",
       "parent": "LightGBM Model"
+    },
+    {
+      "name": "Council (record): Gemma-4-26B",
+      "predictions": [
+        [
+          6,
+          0,
+          4
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 1239962290,
+        "tries": 1,
+        "prompt": "3f822cf838343340"
+      }
+    },
+    {
+      "name": "Council (draws): Gemma-4-26B",
+      "predictions": [
+        [
+          7,
+          4,
+          2
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 743557819,
+        "tries": 1,
+        "prompt": "1cad9d86fd78f2dd"
+      }
+    },
+    {
+      "name": "Council (draws): gpt-oss-20b",
+      "predictions": [
+        [
+          5,
+          7,
+          9
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "gpt-oss-20b",
+        "lab": "OpenAI",
+        "model": "gpt-oss-20b",
+        "temperature": 0.7,
+        "seed": 1681567008,
+        "tries": 1,
+        "prompt": "1cad9d86fd78f2dd"
+      }
     }
   ],
   "newPredictionRaw": [
