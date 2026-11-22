@@ -3,7 +3,7 @@
   "rule": "per row on its live draws: lottery against the exact fair-draw null (hypergeometric, pick3 distinct digits, Joker+ runs), markets against its own tickets shuffled within blocks of 7 live days or weeks (20000 permutations); Holm at 0.05 over the rows with at least minDrawsForRanking live draws; followed from the first Sunday its record read p < 0.05, judged once on as many new live draws as flagged it (at most 52): confirmed at p < 0.01",
   "games": {
     "crypto": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -12,19 +12,19 @@
       }
     },
     "cryptomonth": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "cryptoweek": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "eurodreams": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -33,7 +33,7 @@
       }
     },
     "euromillions": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -41,7 +41,7 @@
       }
     },
     "jokerplus": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -49,21 +49,23 @@
       }
     },
     "keno": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
         "Autoencoder Model": {"decidedOn": null, "flagDraws": 55, "flagMean": 6.0, "flagNull": 5.5221, "flagP": 0.02085, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 52},
         "GNN Model": {"decidedOn": null, "flagDraws": 55, "flagMean": 6.1818, "flagNull": 5.7143, "flagP": 0.0244, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 52},
+        "LSTM Smoothed Model": {"decidedOn": null, "flagDraws": 25, "flagMean": 6.32, "flagNull": 5.7029, "flagP": 0.04174, "mean": null, "null": null, "p": null, "since": "2026-11-22", "state": "running", "verdictAt": null, "verdictLength": 25},
         "MarkovBayesian Model": {"decidedOn": "2026-11-19", "flagDraws": 215, "flagMean": 5.9721, "flagNull": 5.7143, "flagP": 0.01486, "mean": 5.8077, "null": 5.7143, "p": 0.3618, "since": "2026-09-27", "state": "not confirmed", "verdictAt": "2026-11-18", "verdictLength": 52},
         "QuantumMetaLearner Model": {"decidedOn": null, "flagDraws": 48, "flagMean": 6.1458, "flagNull": 5.7143, "flagP": 0.04531, "mean": null, "null": null, "p": null, "since": "2026-10-25", "state": "running", "verdictAt": null, "verdictLength": 48},
         "TCN Base Model": {"decidedOn": null, "flagDraws": 46, "flagMean": 6.1957, "flagNull": 5.7143, "flagP": 0.03219, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 46},
         "Transformer Model": {"decidedOn": null, "flagDraws": 55, "flagMean": 6.2364, "flagNull": 5.7143, "flagP": 0.01378, "mean": null, "null": null, "p": null, "since": "2026-11-01", "state": "running", "verdictAt": null, "verdictLength": 52},
-        "UnifiedLstmGruTcn Model": {"decidedOn": null, "flagDraws": 61, "flagMean": 6.0492, "flagNull": 5.6581, "flagP": 0.04094, "mean": null, "null": null, "p": null, "since": "2026-11-15", "state": "running", "verdictAt": null, "verdictLength": 52}
+        "UnifiedLstmGruTcn Model": {"decidedOn": null, "flagDraws": 61, "flagMean": 6.0492, "flagNull": 5.6581, "flagP": 0.04094, "mean": null, "null": null, "p": null, "since": "2026-11-15", "state": "running", "verdictAt": null, "verdictLength": 52},
+        "WeightedEnsemble Model": {"decidedOn": null, "flagDraws": 95, "flagMean": 6.0105, "flagNull": 5.7143, "flagP": 0.04987, "mean": null, "null": null, "p": null, "since": "2026-11-22", "state": "running", "verdictAt": null, "verdictLength": 52}
       }
     },
     "lotto": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
@@ -74,35 +76,38 @@
       }
     },
     "pick3": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
+        "LSTM Smoothed Model": {"decidedOn": null, "flagDraws": 25, "flagMean": 1.04, "flagNull": 0.7588, "flagP": 0.02775, "mean": null, "null": null, "p": null, "since": "2026-11-22", "state": "running", "verdictAt": null, "verdictLength": 25},
         "LightGBM Model": {"decidedOn": null, "flagDraws": 41, "flagMean": 0.9268, "flagNull": 0.7337, "flagP": 0.0419, "mean": null, "null": null, "p": null, "since": "2026-10-11", "state": "running", "verdictAt": null, "verdictLength": 41},
         "TCN Base Model": {"decidedOn": "2026-11-07", "flagDraws": 26, "flagMean": 1.0385, "flagNull": 0.7192, "flagP": 0.01143, "mean": 0.6923, "null": 0.7922, "p": 0.8124, "since": "2026-10-11", "state": "not confirmed", "verdictAt": "2026-11-06", "verdictLength": 26},
         "UnifiedLstmGruTcn Model": {"decidedOn": "2026-10-28", "flagDraws": 14, "flagMean": 1.2857, "flagNull": 0.7356, "flagP": 0.002385, "mean": 0.6429, "null": 0.7356, "p": 0.7626, "since": "2026-09-27", "state": "not confirmed", "verdictAt": "2026-10-10", "verdictLength": 14}
       }
     },
     "shares": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
-      "rows": {}
+      "rows": {
+        "LaplaceMonteCarlo Model": {"decidedOn": null, "flagDraws": 15, "flagMean": 0.4667, "flagNull": 0.2286, "flagP": 0.0465, "mean": null, "null": null, "p": null, "since": "2026-11-22", "state": "running", "verdictAt": null, "verdictLength": 15}
+      }
     },
     "sharesmonth": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "sharesweek": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {}
     },
     "vikinglotto": {
-      "checkedThrough": "2026-11-15",
+      "checkedThrough": "2026-11-22",
       "freeze": "2026-09-27",
       "testFrom": "2026-09-27",
       "rows": {
