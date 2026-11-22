@@ -1,8 +1,8 @@
 {
   "game": "eurodreams",
-  "trained_at": "2026-11-15T05:38:08.203233+00:00",
+  "trained_at": "2026-11-22T03:44:10.677390+00:00",
   "days": 300,
-  "table_days": 190,
+  "table_days": 192,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
@@ -22,87 +22,87 @@
       "artifact": "meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 1520,
+        "rows": 1560,
         "base_rate": 0.15,
-        "brier": 0.2503,
+        "brier": 0.25,
         "brier_base_rate": 0.1275,
-        "log_loss": 0.6939,
+        "log_loss": 0.6933,
         "log_loss_base_rate": 0.4227,
-        "auc": 0.5166,
+        "auc": 0.5203,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 750,
-            "mean_predicted": 0.4807,
-            "observed": 0.1373
+            "count": 752,
+            "mean_predicted": 0.4805,
+            "observed": 0.137
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 748,
-            "mean_predicted": 0.5139,
-            "observed": 0.1658
+            "count": 794,
+            "mean_predicted": 0.5148,
+            "observed": 0.1637
           },
           {
             "lo": 0.6,
             "hi": 0.7,
-            "count": 22,
-            "mean_predicted": 0.6352,
-            "observed": 0.0455
+            "count": 14,
+            "mean_predicted": 0.6235,
+            "observed": 0.0714
           }
         ],
-        "ece": 0.3493,
-        "precision_at_k": 0.1491,
-        "hits_at_k": 0.8947,
+        "ece": 0.3492,
+        "precision_at_k": 0.1368,
+        "hits_at_k": 0.8205,
         "chance_precision": 0.15,
         "chance_hits": 0.9,
-        "days": 38,
+        "days": 39,
         "k": 6,
-        "train_days": 152,
-        "test_days": 38,
-        "accuracy": 0.5079,
+        "train_days": 153,
+        "test_days": 39,
+        "accuracy": 0.5,
         "special": {
-          "rows": 190,
+          "rows": 195,
           "base_rate": 0.2,
-          "brier": 0.2512,
+          "brier": 0.2504,
           "brier_base_rate": 0.16,
-          "log_loss": 0.6957,
+          "log_loss": 0.694,
           "log_loss_base_rate": 0.5004,
-          "auc": 0.4398,
+          "auc": 0.4681,
           "reliability": [
             {
               "lo": 0.3,
               "hi": 0.4,
               "count": 2,
-              "mean_predicted": 0.3942,
+              "mean_predicted": 0.3924,
               "observed": 0.0
             },
             {
               "lo": 0.4,
               "hi": 0.5,
-              "count": 105,
-              "mean_predicted": 0.4704,
-              "observed": 0.2381
+              "count": 108,
+              "mean_predicted": 0.4726,
+              "observed": 0.2037
             },
             {
               "lo": 0.5,
               "hi": 0.6,
-              "count": 83,
-              "mean_predicted": 0.5308,
-              "observed": 0.1566
+              "count": 85,
+              "mean_predicted": 0.5293,
+              "observed": 0.2
             }
           ],
-          "ece": 0.296,
-          "precision_at_k": 0.1579,
-          "hits_at_k": 0.1579,
+          "ece": 0.2965,
+          "precision_at_k": 0.1538,
+          "hits_at_k": 0.1538,
           "chance_precision": 0.2,
           "chance_hits": 0.2,
-          "days": 38,
+          "days": 39,
           "k": 1,
-          "train_days": 152,
-          "test_days": 38,
-          "accuracy": 0.5
+          "train_days": 153,
+          "test_days": 39,
+          "accuracy": 0.5385
         }
       }
     },
@@ -110,157 +110,150 @@
       "artifact": "meta_learner_v2.joblib",
       "positional": false,
       "metrics": {
-        "rows": 1520,
+        "rows": 1560,
         "base_rate": 0.15,
-        "brier": 0.2344,
+        "brier": 0.2336,
         "brier_base_rate": 0.1275,
-        "log_loss": 0.661,
+        "log_loss": 0.6592,
         "log_loss_base_rate": 0.4227,
-        "auc": 0.4988,
+        "auc": 0.5024,
         "reliability": [
           {
             "lo": 0.0,
             "hi": 0.1,
-            "count": 2,
-            "mean_predicted": 0.0731,
+            "count": 1,
+            "mean_predicted": 0.049,
             "observed": 0.0
           },
           {
             "lo": 0.1,
             "hi": 0.2,
-            "count": 17,
-            "mean_predicted": 0.1659,
-            "observed": 0.2941
+            "count": 26,
+            "mean_predicted": 0.167,
+            "observed": 0.1538
           },
           {
             "lo": 0.2,
             "hi": 0.3,
-            "count": 57,
-            "mean_predicted": 0.2563,
-            "observed": 0.1404
+            "count": 46,
+            "mean_predicted": 0.2552,
+            "observed": 0.2609
           },
           {
             "lo": 0.3,
             "hi": 0.4,
-            "count": 171,
-            "mean_predicted": 0.3597,
-            "observed": 0.1287
+            "count": 201,
+            "mean_predicted": 0.3615,
+            "observed": 0.0846
           },
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 696,
-            "mean_predicted": 0.4578,
-            "observed": 0.1638
+            "count": 698,
+            "mean_predicted": 0.4585,
+            "observed": 0.1719
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 552,
-            "mean_predicted": 0.5322,
-            "observed": 0.1395
+            "count": 561,
+            "mean_predicted": 0.5326,
+            "observed": 0.139
           },
           {
             "lo": 0.6,
             "hi": 0.7,
-            "count": 21,
-            "mean_predicted": 0.6358,
-            "observed": 0.0952
+            "count": 24,
+            "mean_predicted": 0.6351,
+            "observed": 0.125
           },
           {
             "lo": 0.7,
             "hi": 0.8,
-            "count": 4,
-            "mean_predicted": 0.7189,
+            "count": 3,
+            "mean_predicted": 0.705,
             "observed": 0.0
           }
         ],
-        "ece": 0.3185,
-        "precision_at_k": 0.1579,
-        "hits_at_k": 0.9474,
+        "ece": 0.3151,
+        "precision_at_k": 0.1368,
+        "hits_at_k": 0.8205,
         "chance_precision": 0.15,
         "chance_hits": 0.9,
-        "days": 38,
+        "days": 39,
         "k": 6,
-        "train_days": 152,
-        "test_days": 38,
-        "accuracy": 0.5743,
+        "train_days": 153,
+        "test_days": 39,
+        "accuracy": 0.5769,
         "special": {
-          "rows": 190,
+          "rows": 195,
           "base_rate": 0.2,
-          "brier": 0.2286,
+          "brier": 0.2312,
           "brier_base_rate": 0.16,
-          "log_loss": 0.6523,
+          "log_loss": 0.6545,
           "log_loss_base_rate": 0.5004,
-          "auc": 0.5788,
+          "auc": 0.5442,
           "reliability": [
-            {
-              "lo": 0.1,
-              "hi": 0.2,
-              "count": 5,
-              "mean_predicted": 0.1395,
-              "observed": 0.4
-            },
             {
               "lo": 0.2,
               "hi": 0.3,
-              "count": 25,
-              "mean_predicted": 0.2623,
-              "observed": 0.2
+              "count": 18,
+              "mean_predicted": 0.2626,
+              "observed": 0.2222
             },
             {
               "lo": 0.3,
               "hi": 0.4,
-              "count": 40,
-              "mean_predicted": 0.361,
-              "observed": 0.15
+              "count": 46,
+              "mean_predicted": 0.3523,
+              "observed": 0.1739
             },
             {
               "lo": 0.4,
               "hi": 0.5,
-              "count": 50,
-              "mean_predicted": 0.4597,
-              "observed": 0.12
+              "count": 66,
+              "mean_predicted": 0.458,
+              "observed": 0.1818
             },
             {
               "lo": 0.5,
               "hi": 0.6,
-              "count": 51,
-              "mean_predicted": 0.5416,
-              "observed": 0.2353
+              "count": 44,
+              "mean_predicted": 0.5432,
+              "observed": 0.1591
             },
             {
               "lo": 0.6,
               "hi": 0.7,
-              "count": 14,
-              "mean_predicted": 0.6336,
-              "observed": 0.3571
+              "count": 15,
+              "mean_predicted": 0.6392,
+              "observed": 0.2667
             },
             {
               "lo": 0.7,
               "hi": 0.8,
-              "count": 3,
-              "mean_predicted": 0.7316,
-              "observed": 0.3333
+              "count": 5,
+              "mean_predicted": 0.7426,
+              "observed": 0.6
             },
             {
               "lo": 0.8,
               "hi": 0.9,
-              "count": 2,
-              "mean_predicted": 0.8153,
-              "observed": 0.5
+              "count": 1,
+              "mean_predicted": 0.813,
+              "observed": 1.0
             }
           ],
-          "ece": 0.2611,
-          "precision_at_k": 0.3421,
-          "hits_at_k": 0.3421,
+          "ece": 0.2592,
+          "precision_at_k": 0.3077,
+          "hits_at_k": 0.3077,
           "chance_precision": 0.2,
           "chance_hits": 0.2,
-          "days": 38,
+          "days": 39,
           "k": 1,
-          "train_days": 152,
-          "test_days": 38,
-          "accuracy": 0.6316
+          "train_days": 153,
+          "test_days": 39,
+          "accuracy": 0.6205
         }
       }
     },
@@ -268,72 +261,79 @@
       "artifact": "quantum_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 1520,
+        "rows": 1560,
         "base_rate": 0.15,
-        "brier": 0.2503,
+        "brier": 0.2487,
         "brier_base_rate": 0.1275,
-        "log_loss": 0.6937,
+        "log_loss": 0.6904,
         "log_loss_base_rate": 0.4227,
-        "auc": 0.4912,
+        "auc": 0.4982,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 454,
-            "mean_predicted": 0.4919,
-            "observed": 0.1608
+            "count": 714,
+            "mean_predicted": 0.4691,
+            "observed": 0.1485
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1066,
-            "mean_predicted": 0.5038,
-            "observed": 0.1454
+            "count": 843,
+            "mean_predicted": 0.5197,
+            "observed": 0.1507
+          },
+          {
+            "lo": 0.6,
+            "hi": 0.7,
+            "count": 3,
+            "mean_predicted": 0.6177,
+            "observed": 0.3333
           }
         ],
-        "ece": 0.3503,
-        "precision_at_k": 0.1535,
-        "hits_at_k": 0.9211,
+        "ece": 0.3468,
+        "precision_at_k": 0.141,
+        "hits_at_k": 0.8462,
         "chance_precision": 0.15,
         "chance_hits": 0.9,
-        "days": 38,
+        "days": 39,
         "k": 6,
-        "train_days": 152,
-        "test_days": 38,
-        "accuracy": 0.6474,
+        "train_days": 153,
+        "test_days": 39,
+        "accuracy": 0.5474,
         "special": {
-          "rows": 190,
+          "rows": 195,
           "base_rate": 0.2,
-          "brier": 0.1602,
+          "brier": 0.16,
           "brier_base_rate": 0.16,
-          "log_loss": 0.5011,
+          "log_loss": 0.5005,
           "log_loss_base_rate": 0.5004,
-          "auc": 0.4683,
+          "auc": 0.4607,
           "reliability": [
             {
               "lo": 0.1,
               "hi": 0.2,
-              "count": 61,
-              "mean_predicted": 0.1967,
-              "observed": 0.2459
+              "count": 78,
+              "mean_predicted": 0.1995,
+              "observed": 0.2564
             },
             {
               "lo": 0.2,
               "hi": 0.3,
-              "count": 129,
-              "mean_predicted": 0.2057,
-              "observed": 0.1783
+              "count": 117,
+              "mean_predicted": 0.2008,
+              "observed": 0.1624
             }
           ],
-          "ece": 0.0344,
-          "precision_at_k": 0.2105,
-          "hits_at_k": 0.2105,
+          "ece": 0.0458,
+          "precision_at_k": 0.1282,
+          "hits_at_k": 0.1282,
           "chance_precision": 0.2,
           "chance_hits": 0.2,
-          "days": 38,
+          "days": 39,
           "k": 1,
-          "train_days": 152,
-          "test_days": 38,
+          "train_days": 153,
+          "test_days": 39,
           "accuracy": 0.8
         }
       }
@@ -342,87 +342,87 @@
       "artifact": "quantum_vqc_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 1520,
+        "rows": 1560,
         "base_rate": 0.15,
-        "brier": 0.2493,
+        "brier": 0.2485,
         "brier_base_rate": 0.1275,
-        "log_loss": 0.6918,
+        "log_loss": 0.6901,
         "log_loss_base_rate": 0.4227,
-        "auc": 0.5192,
+        "auc": 0.5152,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 763,
+            "count": 871,
             "mean_predicted": 0.4874,
-            "observed": 0.1363
+            "observed": 0.1424
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 757,
-            "mean_predicted": 0.5111,
-            "observed": 0.1638
+            "count": 689,
+            "mean_predicted": 0.511,
+            "observed": 0.1597
           }
         ],
-        "ece": 0.3492,
-        "precision_at_k": 0.1798,
-        "hits_at_k": 1.0789,
+        "ece": 0.3478,
+        "precision_at_k": 0.1624,
+        "hits_at_k": 0.9744,
         "chance_precision": 0.15,
         "chance_hits": 0.9,
-        "days": 38,
+        "days": 39,
         "k": 6,
-        "train_days": 152,
-        "test_days": 38,
-        "accuracy": 0.5151,
+        "train_days": 153,
+        "test_days": 39,
+        "accuracy": 0.5494,
         "special": {
-          "rows": 190,
+          "rows": 195,
           "base_rate": 0.2,
-          "brier": 0.2672,
+          "brier": 0.2615,
           "brier_base_rate": 0.16,
-          "log_loss": 0.7285,
+          "log_loss": 0.7167,
           "log_loss_base_rate": 0.5004,
-          "auc": 0.4584,
+          "auc": 0.4652,
           "reliability": [
             {
               "lo": 0.3,
               "hi": 0.4,
-              "count": 12,
-              "mean_predicted": 0.373,
-              "observed": 0.1667
+              "count": 10,
+              "mean_predicted": 0.3779,
+              "observed": 0.1
             },
             {
               "lo": 0.4,
               "hi": 0.5,
-              "count": 69,
-              "mean_predicted": 0.4625,
-              "observed": 0.2174
+              "count": 77,
+              "mean_predicted": 0.4613,
+              "observed": 0.2078
             },
             {
               "lo": 0.5,
               "hi": 0.6,
-              "count": 84,
-              "mean_predicted": 0.5424,
-              "observed": 0.1905
+              "count": 92,
+              "mean_predicted": 0.5401,
+              "observed": 0.2174
             },
             {
               "lo": 0.6,
               "hi": 0.7,
-              "count": 25,
-              "mean_predicted": 0.6365,
-              "observed": 0.2
+              "count": 16,
+              "mean_predicted": 0.6287,
+              "observed": 0.125
             }
           ],
-          "ece": 0.3151,
-          "precision_at_k": 0.1316,
-          "hits_at_k": 0.1316,
+          "ece": 0.308,
+          "precision_at_k": 0.1282,
+          "hits_at_k": 0.1282,
           "chance_precision": 0.2,
           "chance_hits": 0.2,
-          "days": 38,
+          "days": 39,
           "k": 1,
-          "train_days": 152,
-          "test_days": 38,
-          "accuracy": 0.4474
+          "train_days": 153,
+          "test_days": 39,
+          "accuracy": 0.4718
         }
       }
     },
@@ -430,65 +430,65 @@
       "artifact": "classical_svm_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 1520,
+        "rows": 1560,
         "base_rate": 0.15,
-        "brier": 0.2211,
+        "brier": 0.2233,
         "brier_base_rate": 0.1275,
-        "log_loss": 0.6352,
+        "log_loss": 0.6395,
         "log_loss_base_rate": 0.4227,
-        "auc": 0.4814,
+        "auc": 0.5035,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1520,
-            "mean_predicted": 0.4558,
+            "count": 1560,
+            "mean_predicted": 0.4591,
             "observed": 0.15
           }
         ],
-        "ece": 0.3058,
-        "precision_at_k": 0.1579,
-        "hits_at_k": 0.9474,
+        "ece": 0.3091,
+        "precision_at_k": 0.1624,
+        "hits_at_k": 0.9744,
         "chance_precision": 0.15,
         "chance_hits": 0.9,
-        "days": 38,
+        "days": 39,
         "k": 6,
-        "train_days": 152,
-        "test_days": 38,
+        "train_days": 153,
+        "test_days": 39,
         "accuracy": 0.85,
         "special": {
-          "rows": 190,
+          "rows": 195,
           "base_rate": 0.2,
-          "brier": 0.1602,
+          "brier": 0.1601,
           "brier_base_rate": 0.16,
-          "log_loss": 0.5009,
+          "log_loss": 0.5006,
           "log_loss_base_rate": 0.5004,
-          "auc": 0.4827,
+          "auc": 0.4714,
           "reliability": [
             {
               "lo": 0.1,
               "hi": 0.2,
-              "count": 64,
-              "mean_predicted": 0.1963,
-              "observed": 0.1875
+              "count": 69,
+              "mean_predicted": 0.1991,
+              "observed": 0.2174
             },
             {
               "lo": 0.2,
               "hi": 0.3,
               "count": 126,
-              "mean_predicted": 0.206,
-              "observed": 0.2063
+              "mean_predicted": 0.2015,
+              "observed": 0.1905
             }
           ],
-          "ece": 0.0032,
-          "precision_at_k": 0.2105,
-          "hits_at_k": 0.2105,
+          "ece": 0.0136,
+          "precision_at_k": 0.1795,
+          "hits_at_k": 0.1795,
           "chance_precision": 0.2,
           "chance_hits": 0.2,
-          "days": 38,
+          "days": 39,
           "k": 1,
-          "train_days": 152,
-          "test_days": 38,
+          "train_days": 153,
+          "test_days": 39,
           "accuracy": 0.8
         }
       }
