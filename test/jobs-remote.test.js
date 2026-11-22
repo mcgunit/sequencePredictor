@@ -139,6 +139,16 @@ async function until(cond, ms = 8000) {
     ok(await until(() => { c.pollRemote(); return !st().remote.current; }), 'and ends');
     ok(/fake randomnessDiscrimination-dl360-\S+ weeklyControls-2026-W44 /.test(fs.readFileSync(path.join(dir, 'log', 'randomnessDiscrimination.log'), 'utf-8')), 'with the same snapshot');
     st().remote.queue.length = 0;
+
+    // 7. the DL360's queue waits while the Council rows (which work the DL360 themselves) run or wait here (22 Nov 2026)
+    st().queue.push({ key: 'councilRows', reason: 'test', queuedAt: Date.now(), manual: false, occurrence: null });
+    st().remote.queue.push({ key: 'randomnessDiscrimination', reason: 'test', queuedAt: Date.now(), manual: false, occurrence: null });
+    c.startNextRemote();
+    ok(!st().remote.current && st().remote.queue.length === 1, 'a control is not started on the DL360 while the Council rows wait here');
+    st().queue.length = 0;
+    c.startNextRemote();
+    ok(st().remote.current && st().remote.current.key === 'randomnessDiscrimination', 'and starts once they are gone');
+    ok(await until(() => { c.pollRemote(); return !st().remote.current; }), 'it ends');
     delete process.env.SCHEDULER;
   } finally {
     console.log = quiet;

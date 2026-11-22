@@ -1350,6 +1350,7 @@ let workerConfig = () => { try { return require('./workers').configOf('cpu'); } 
 let workerEnv = (c) => require('./workers').scriptEnv(c);
 const REMOTE_SCRIPT = path.join(ROOT, 'worker', 'remote-control.sh');
 let remoteScript = REMOTE_SCRIPT;
+let remoteHeldFor = null;     // the key of the job here that the DL360's queue waits for (logged once)
 
 // A control goes to the DL360 when it is set up; anything else stays here.
 function toWorker(key) {
@@ -1408,6 +1409,17 @@ function startNextRemote() {
   if (r.current) return;
   const current = mode();
   if (current === 'off' || !r.queue.length) return;
+  // Not beside a job of this server that works the DL360 itself (`wake: 'cpu'`: the Council rows). Found on
+  // 22 Nov 2026, the first Sunday with both: a control started there in the same second as the Council rows and
+  // took the processors, the row models answered at 0.27 tokens a second instead of 3.8. The DL360's jobs wait
+  // until that job is neither running nor queued here; it comes first because its rows are read in the morning.
+  const holder = [state.current, ...state.queue].filter(Boolean).map((x) => jobByKey(x.key)).find((j) => j && j.wake === 'cpu');
+  if (holder) {
+    if (remoteHeldFor !== holder.key) log(`the DL360's queue waits for ${holder.name}: it works the DL360 itself`);
+    remoteHeldFor = holder.key;
+    return;
+  }
+  remoteHeldFor = null;
   const kept = allowedQueue(r.queue, current);
   if (kept.length !== r.queue.length) {
     r.queue.filter((q) => !kept.includes(q)).forEach((q) => log(

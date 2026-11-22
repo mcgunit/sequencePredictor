@@ -589,6 +589,7 @@ When the CPU worker does not come up, or cannot be copied to, before the tuner r
 With a `cpu` entry in `config/workers.json`, the control plan's four jobs run on the DL360 instead of in the scheduler's queue.
 
 - Same trigger, same order, same log files and markers, same week's reading, written when the market rows finish.
+- The DL360's queue waits while the Council rows run or wait in the scheduler's queue: that job works the DL360's processors itself, and its rows are read in the morning. The first control starts when it has ended.
 - The scheduler's history carries them with `worker: 'cpu'`; the Jobs page's runs say *on the DL360*.
 - They have their own first-in-first-out queue in `jobs.js` (`state.remote` in `config/scheduler.json`): one at a time, beside this server's run, taking no `process.lock` here. The daily runs do not wait behind them.
 - The band takes about twice as long there as on this server, so on a first Sunday the weekly controls and the reading come later, inside the plan's window (until Tuesday 09:00).

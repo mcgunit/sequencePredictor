@@ -2,7 +2,39 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 22 November 2026
+
+### The Sunday controls wait for the Council rows
+
+*Documented in [operations.md](operations.md), The Sunday controls on the DL360.*
+
+**Found.** On the first Sunday with both, the first control started on the DL360 in the same second as the Council rows. The control took the processors: the row models answered at 0.27 tokens a second instead of 3.8.
+
+**Fixed.** The DL360's queue starts nothing while a job that works the DL360 itself (the Council rows) runs or waits in the scheduler's queue. The Council rows come first because their rows are read in the morning; the controls follow when they have ended.
+
+**Also found and decided.** On the same morning the three row models on the GPU worker did not load: another program held 7.3 GB of the card's 11 GB, and the models were set to load onto the card whole. Decided: the row models fit themselves to the memory that is free and run the rest on the processor. Measured beside the occupied card: about 10 tokens a second instead of 85 to 95, and a load of 2 to 12 minutes a model.
+
+### Experiment: a Pick3 network with hand-written weights (roadmap item 15)
+
+*Roadmap item 15, closed with this entry.*
+
+**Set-up.** A network of 970 weights (a digit's share of the last 300 and the last 30 draws in, ten chances a position out). Four sets of weights written by an LLM from figures of 2012 to November 2025 only, compared on 153 days (March to July 2026); the best of them then scored once on 112 later days (August to November 2026). Beside it: the plain counts and the same network trained three times. The lockbox period is in none of it.
+
+**Found.** Loss per digit on the later days, lower is better; a blind guess is 2.30259.
+
+| | Loss | Against the counts |
+| --- | --- | --- |
+| Plain counts | 2.30193 | |
+| Written network (chosen on the earlier days) | 2.30429 | +0.0024 (standard error 0.0013) |
+| Trained network, three runs | 2.308 to 2.310 | +0.006 to +0.008 (standard error 0.005) |
+
+Nothing beats the counts, and the counts beat a blind guess by less than their own noise. The written network loses less than the trained one because it holds fewer weights that differ from zero, not because it found something. In the figures the weights were written from, a digit that came often lately is drawn 10.07% of the time and one that came seldom 9.95%: no rule to write down. The experiment ends here.
+
 ## 21 November 2026
+
+### A backtest record on the lottery pages (roadmap item 13)
+
+Decided: the best model, the best combination and the top 5 get a count of the past periods a row ended in profit, out of ten. The periods are ten different calendar months. A row without a record shows "not tested yet" and is not hidden. Lottery games first. Nothing is built yet; the roadmap lists what it needs, with the chance count beside the row's as the first condition for reading it.
 
 ### Council rows: the machines answer side by side
 
