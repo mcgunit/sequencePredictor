@@ -243,6 +243,20 @@ export interface LiveMark {
   commit: string | null;
   atClose: Row | null;
 }
+// A row's or a combination's backtest record (roadmap item 13): in how many past calendar months its ticket ended in
+// profit, with the count for random tickets - or "not tested yet". The words are the server's (backtestRecord.js).
+export interface Backtest {
+  tested: boolean;
+  brief: string; // "backtest 3 of 10"
+  text: string; // "profit in 3 of 10 backtested months; random tickets: 2.1 on average"
+  detail: string; // what it is and its limit, for the tooltip
+}
+export function backtestOf(v: unknown): Backtest | null {
+  if (!has(v)) return null;
+  const b = o(v);
+  const text = str(b.text);
+  return text ? { tested: b.state === 'tested', brief: str(b.brief, text), text, detail: str(b.detail) } : null;
+}
 export interface Row {
   name: string;
   rank: number | null; // place in the ranking the draw is read against
@@ -251,6 +265,7 @@ export interface Row {
   multiPick: { numbers: number[]; mark: string; nine: number | null } | null; // lotto: the 7th-9th numbers
   liveMark: LiveMark | null; // null: live as stored (or not judged)
   manual: string[] | null; // the admin: the settings this row ran on by hand (Admin > Parameters), null when none
+  backtest: Backtest | null; // today's five only (the coming draw); null elsewhere
 }
 const LIVE_MARKS: LiveMark['status'][] = ['late', 'recovered', 'duplicate', 'unchecked'];
 function liveMarkOf(v: unknown): LiveMark | null {
@@ -283,6 +298,7 @@ export function rowOf(v: unknown): Row {
     multiPick: has(r.multiPick) && nums(mp.numbers).length ? { numbers: nums(mp.numbers), mark: str(mp.mark), nine: opt(mp.nine) } : null,
     liveMark: liveMarkOf(r.liveMark),
     manual: Array.isArray(r.manual) && r.manual.length ? r.manual.filter((x): x is string => typeof x === 'string') : null,
+    backtest: backtestOf(r.backtest),
   };
 }
 

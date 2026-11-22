@@ -355,6 +355,7 @@ The server starts the daily predictors, the weekly tuning chain and the weekly c
 | `cryptoPredictor` | Night predictor: crypto | `Predictor.py -a true -g crypto,cryptoweek,cryptomonth` | 00:05 UTC, every day | 20 h | `log/cryptoPredictor.log` |
 | `<game>Predictor` | Morning predictor: one job per lottery game | `Predictor.py -a true -g <game>` | 06:00 local time, every day | 20 h | `log/<game>Predictor.log` |
 | `councilRows` | Council rows | `CouncilRows.py` | when the morning's lottery predictors have ended | none | `log/councilRows.log` |
+| `backtestRecord` | Backtest record | `BacktestRecord.py --budget 7200` | when the morning's lottery predictors have ended, behind the Council rows | none | `log/backtestRecord.log` |
 | `sharesPredictor` | Evening predictor: stocks | `Predictor.py -a true -g shares,sharesweek,sharesmonth` | 18:05 local time, Monday to Friday | until 08:30 the next morning | `log/sharesPredictor.log` |
 
 - The crypto slot is in UTC, five minutes after the crypto day closes (01:05 Brussels in winter, 02:05 in summer). A crypto week closes on Monday 00:00 UTC, so Monday's run brings the new week.
@@ -362,7 +363,8 @@ The server starts the daily predictors, the weekly tuning chain and the weekly c
 - The seven lottery games each have a job of their own: `euromillionsPredictor`, `lottoPredictor`, `eurodreamsPredictor`, `jokerplusPredictor`, `kenoPredictor`, `pick3Predictor` and `vikinglottoPredictor`. All seven are due at 06:00 and run one after the other in that order. A game that fails, hangs or gets no data costs only its own run: the other games are made, each with its own log, its own retries and its own push of its day files.
 - The lottery morning is usually done by about 10:30, before the first sales close.
 - The Council rows' job is queued when a lottery game's job ends and no other lottery game is running or queued. A game that waits for a retry is not waited for: the job is queued again when that retry ends and adds only what is missing. It is queued ahead of the weekly plans. A run without data queues nothing.
-- The job first switches the CPU worker on, with the same marked wake as a control, so the machine switches itself off when idle again; a model loads on its first question, which takes up to a few minutes. It holds `process.lock` while it runs. A game whose newest day file already holds the rows is skipped. The rows of a game are committed and pushed when that game is done, only its day file and its record in `data/council/`.
+- The backtest record's job is queued with the Council rows and runs behind them, on this server. It keeps every month it backtested with a row's current settings, so a usual morning takes seconds; rows whose settings changed are backtested anew, and no new row is started after two hours. See [tuning](tuning.md), *The backtest record*.
+- The Council rows' job first switches the CPU worker on, with the same marked wake as a control, so the machine switches itself off when idle again; a model loads on its first question, which takes up to a few minutes. It holds `process.lock` while it runs. A game whose newest day file already holds the rows is skipped. The rows of a game are committed and pushed when that game is done, only its day file and its record in `data/council/`.
 - The two machines answer side by side. On one machine the members are asked one after the other, each for every game, and the head combines when all have answered. A machine that holds one model at a time, as the GPU worker's card does, loads each model once a morning that way, and the CPU worker is never left without a question long enough to switch itself off.
 - A member on the GPU worker is left out for the day while a hyperopt or a backtest runs on that machine (`guards` in `src/llmCouncil/rows.json`: the job looks at their pid files over SSH). A check that cannot be made counts as taken. The log names the member and the reason.
 - The row models are served by one router service per machine: `llama-rows` on the GPU worker and `llama@rows` on the CPU worker, each with a preset `/etc/llama/rows.ini`. They are not part of this repository.
@@ -412,7 +414,7 @@ Started when Sunday's lottery predictor finishes, in this order ([research](rese
 
 ### The backtest job
 
-A fifteenth job, `backtest` (`RunBacktest.py`), is never scheduled and has no *Run now*: backtests are started from the Backtests page ([tuning](tuning.md)). When a backtest runs in this server's queue:
+One more job, `backtest` (`RunBacktest.py`), is never scheduled and has no *Run now*: backtests are started from the Backtests page ([tuning](tuning.md)). When a backtest runs in this server's queue:
 
 - every scheduled job in the queue goes first, wherever it waits;
 - a backtest starts only when at least 15 minutes remain before the next daily slot;
@@ -625,7 +627,7 @@ npm test
 
 `npm test` is the test suite. It runs, one after the other and stopping at the first failure:
 
-- the twenty-two Node tests in `test/*.test.js`: announcements, jobs, jobs-remote, notifications, readings, council, controls, prizes, params, backtests, workers, hyperopts, docs, markets, api, admin, workbench, lottery, pipeline, system, server, switchover;
+- the twenty-three Node tests in `test/*.test.js`: announcements, jobs, jobs-remote, notifications, readings, council, controls, prizes, params, backtests, workers, hyperopts, docs, markets, api, admin, workbench, lottery, backtestRecord, pipeline, system, server, switchover;
 - the Python self-checks: `python3 -m src.<Module>` for the modules that carry one (for example `src.TuningScore`, `src.TuningResult`, `src.TuningGate`, `src.Lockbox`, `src.PrizeTables`, `src.MarketSettle`, `src.MarketOrders`, `src.Markov`, `src.Helpers`), the `_self_check()` of `src.DataFetcher` and the `_self_check()` of the entry points `NullControls`, `RandomnessDiscrimination`, `HyperoptEnsemble`, `HyperoptStatistics`, `HyperoptBoost`, `HyperoptRLTicket`, `MarketRows` and `SwitchSharesEuronext`.
 
 The full list is the `test` script in `package.json`. Each test can be run on its own, for example `node test/jobs.test.js` or `python3 -m src.TuningResult`.

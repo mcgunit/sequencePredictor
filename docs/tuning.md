@@ -472,6 +472,28 @@ LSTM, TCN, the two Unified rows, Transformer, GNN and Autoencoder are backtested
 
 Tests: `node test/backtests.test.js` (the row table against `RunBacktest.py --rows`), the budget and queue rules in `node test/jobs.test.js`.
 
+## The backtest record (`BacktestRecord.py`)
+
+Home and the Lottery page show, beside the best model, the best combination and each of today's top 5, in how many past calendar months the row's ticket ended in profit: "profit in 3 of 10 backtested months; random tickets: 2.1 on average". A row without a record reads "not tested yet".
+
+| Part | What it is |
+| --- | --- |
+| The backtest | The row's tuner evaluation with the served settings, as in a backtest from the admin pages, walked over whole calendar months. Each draw's ticket is made from the history before it. |
+| The months | The ten newest complete calendar months that hold no lockbox day. A month that touches the lockbox is left out and an older month takes its place. |
+| A draw's money | Keno: every playable sub-selection the row serves is a 1 EUR bet. Pick3: the ticket on all bet types. Joker+: one ticket. Lotto, EuroMillions, EuroDreams and Vikinglotto: one grid at the draw's price against the draw's own prize table; a draw without a table is not played. |
+| Random tickets | 400 random players per kind of play (per ticket size for Keno) over the same draws. The reference is the average number of months they end in profit. One random ticket's own count would be luck. |
+| A combination | Every member played on every draw: the members' months added up, over the months all of them played. Its random reference uses as many random players as it has members. One member without a record and the combination reads "not tested yet". |
+| Kept | A month backtested with the settings a row still runs on is not backtested again. A row whose settings changed is backtested anew, all ten months; until then its line says "settings changed since". |
+
+Covered: the statistical and the boosting rows of the seven lottery games. Not covered, and "not tested yet" on the pages: the deep-learning rows (a retrain per backtested draw, to run on the workers later), the quantum rows, the ensembles, the meta-learners, the RL rows, the Council rows and the sampled variants.
+
+The limit, said in the line's tooltip: the tuners chose a row's settings with these same months in view, so the count flatters a tuned row. It is a count, not proof.
+
+- Files: `data/backtestRecord/<game>.json`, one per game: the months, the random players' totals per month, and per row the settings backtested and each month's draws, bets, stake and profit.
+- Code: `BacktestRecord.py` (the job), `src/BacktestMonths.py` (the months, a draw's money, the random players), `backtestRecord.js` (what the pages read).
+- The job runs every morning behind the Council rows (see [operations](operations.md)); `--budget` ends a long first pass and the next morning goes on.
+- Tests: `python3 -m src.BacktestMonths`, `python3 BacktestRecord.py --self-check`, `node test/backtestRecord.test.js`.
+
 ## Training the meta-learner (`TrainMetaLearner.py`)
 
 Trains five stacking variants per game on the base models' backtest scores: `MetaLearner Model` (logistic regression), `MetaLearnerV2 Model` (gradient boosting), the two quantum rows and the quantum kernel's classical control (see [research](research.md)).

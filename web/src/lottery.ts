@@ -5,6 +5,7 @@
 // total and the line on the draws left out, and Home's one answer.
 import { getJson } from './api';
 import {
+  backtestOf,
   bestOf,
   comingScopeOf,
   drawScopeOf,
@@ -17,6 +18,7 @@ import {
   shapeOf,
   versionOf,
   noneOf,
+  type Backtest,
   type Best,
   type Coming,
   type DayFigures,
@@ -194,8 +196,8 @@ export function normUserHistory(raw: unknown, game: string): UserHistory {
 export interface HomeSummary {
   unit: string; // 'EUR' or 'hits per draw'
   minDraws: number;
-  best: { name: string; value: number; draws: number | null } | null;
-  combination: { members: string[]; value: number; draws: number | null; unit: string; pValue: number | null } | null;
+  best: { name: string; value: number; draws: number | null; backtest: Backtest | null } | null;
+  combination: { members: string[]; value: number; draws: number | null; unit: string; pValue: number | null; backtest: Backtest | null } | null;
 }
 export interface HomeGame {
   game: string;
@@ -245,9 +247,9 @@ function summaryOf(v: unknown): HomeSummary | null {
   const cv = opt(c.value);
   return {
     unit: str(s.unit, 'hits per draw'), minDraws: num(s.minDraws, 0),
-    best: has(s.best) && bv !== null ? { name: str(b.name), value: bv, draws: opt(b.draws) } : null,
+    best: has(s.best) && bv !== null ? { name: str(b.name), value: bv, draws: opt(b.draws), backtest: backtestOf(b.backtest) } : null,
     combination: has(s.combination) && cv !== null
-      ? { members: arr(c.members).filter((m): m is string => typeof m === 'string'), value: cv, draws: opt(c.draws), unit: str(c.unit), pValue: opt(c.pValue) }
+      ? { members: arr(c.members).filter((m): m is string => typeof m === 'string'), value: cv, draws: opt(c.draws), unit: str(c.unit), pValue: opt(c.pValue), backtest: backtestOf(c.backtest) }
       : null,
   };
 }

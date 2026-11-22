@@ -6,7 +6,7 @@ This page lists what is open or partly open in the project: for each item, what 
 
 | Area | Open items |
 |---|---|
-| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); a backtest record on the best model, the best combination and the top 5 (item 13) |
+| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); the backtest record for the rows it does not cover yet (item 13) |
 | Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
 | Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings; an experiment: tuning the Council's row models (item 14) |
@@ -57,19 +57,13 @@ This page lists what is open or partly open in the project: for each item, what 
 
 ### 13. A backtest record beside the best model, the best combination and the top 5
 
-**Built.** The backtest of one row over past draws, each draw fitted on the history before it, with the profit per draw where the game pays (`RunBacktest.py`, Admin > Models > Backtests). See [tuning](tuning.md). Nothing of this item itself.
-
-**Decided (21 November 2026).** The lottery pages show, beside the best model, the best combination and each of the top 5, in how many of ten past periods the row ended in profit. The periods are ten different calendar months, not ten repeats of one period: a statistical row gives the same answer every time on the same draws. A row without a record reads "not tested yet" and stays where it is. Lottery games first. For Lotto, EuroMillions, EuroDreams and Vikinglotto a month's result is the euro result from each draw's prize table, also where the tuners still score hits.
+**Built.** Home and the Lottery page show, beside the best model, the best combination and each of the top 5, in how many of ten past calendar months the row's ticket ended in profit, with the same count for random tickets; a row without a record reads "not tested yet". The statistical and boosting rows of the seven lottery games are covered; Lotto, EuroMillions, EuroDreams and Vikinglotto are counted in euro from each draw's prize table. See [tuning](tuning.md), *The backtest record*.
 
 **Remains.**
 
-- A job that backtests a row over the ten newest complete calendar months and stores, per month, the draws played, the stake and the profit.
-- The same count for a random ticket over the same months, shown beside the row's: a random ticket also ends some months in profit, and on Pick3 and Keno not rarely. Without it the count cannot be read.
-- The count for the best combination, from its member rows' backtested tickets.
-- The line on the pages, worded as a count ("profit in 3 of 10 backtested months; a random ticket: 2"), not as proof. The text is outward-facing and is proofread.
-- The rows the backtest does not cover yet read "not tested yet": the quantum rows, the ensembles, the meta-learners, the RL rows and the Council rows.
-- The deep-learning rows retrain for every backtested draw, up to four minutes each: ten months of a daily game is days of GPU time per row. They run on the workers, a few months at a time, after the rows that cost seconds.
-- A limit to say on the page: the tuners chose a row's settings with these same months in view, so the count flatters a tuned row. The lockbox days stay shut, as in every backtest.
+- The deep-learning rows: a retrain for every backtested draw, up to four minutes each, so ten months of a daily game is days of GPU time per row. They are to run on the workers, a few months at a time.
+- The quantum rows, the ensembles, the meta-learners, the RL rows and the Council rows: no backtest replays them yet.
+- The market games.
 
 ## Markets
 

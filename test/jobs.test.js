@@ -24,7 +24,7 @@ const reasonFor = (occurrences, now, plan) => (dueAt(occurrences, now).find((d) 
 // with the same logs - only the trigger changed. A renamed script must break
 // here rather than silently stop being scheduled.
 const byKey = Object.fromEntries(jobs.JOBS.map((j) => [j.key, j]));
-ok(jobs.JOBS.length === 22, 'twenty-two jobs: the night crypto run, a morning run per lottery game (seven), the Council rows behind them, the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
+ok(jobs.JOBS.length === 23, 'twenty-three jobs: the night crypto run, a morning run per lottery game (seven), the Council rows and the backtest record behind them, the evening stocks run, the seven steps of the weekly tuning chain, the four control experiments and the backtest an administrator starts');
 // A job per lottery game (16 Nov 2026): one game's failure, or its hanging, cannot cost the other six their run.
 const LOTTERY_JOBS = jobs.JOBS.filter((j) => j.group === jobs.LOTTERY);
 const LOTTERY_KEYS = LOTTERY_JOBS.map((j) => j.key);
@@ -754,6 +754,12 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
       results.push(job && job.script === 'CouncilRows.py' && job.after === copy.LOTTERY && !job.daily && !job.plan && job.wake === 'cpu' && job.unreachableExit === 75,
         'the Council rows are a job of their own: no slot and no plan, started after the lottery games');
       results.push(/lottery predictors have ended/.test(copy.status().jobs.find((j) => j.key === 'councilRows').next), 'its trigger is said in words on the Jobs page');
+      {
+        const record = copy.JOBS.find((j) => j.key === 'backtestRecord');
+        results.push(record && record.script === 'BacktestRecord.py' && record.after === copy.LOTTERY && !record.daily && !record.plan && !record.wake
+          && record.args.join(' ') === '--budget 7200' && copy.JOBS.indexOf(record) === copy.JOBS.indexOf(job) + 1,
+          'the backtest record (22 Nov 2026) follows the lottery games too, behind the Council rows, with its two hours');
+      }
       const fresh = () => { st().occurrences = {}; st().queue.length = 0; st().retry = {}; st().current = null; };
       const queuedKeys = () => st().queue.map((q) => q.key).join();
       // with the schedule off nothing follows
@@ -772,13 +778,13 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
       fresh();
       game('vikinglottoPredictor');
       c.finish(0, null, t0 + 1000);
-      results.push(queuedKeys() === 'councilRows' && /^after the lottery predictions/.test(st().queue[0].reason) && st().queue[0].manual === false,
+      results.push(queuedKeys() === 'councilRows,backtestRecord' && /^after the lottery predictions/.test(st().queue[0].reason) && st().queue[0].manual === false,
         `the last game ending queues the Council rows: ${JSON.stringify(st().queue)}`);
       // a failed last game still lets the others' rows be made; a run without data made nothing to read
       fresh();
       game('vikinglottoPredictor');
       c.finish(1, null, t0 + 1000);
-      results.push(queuedKeys() === 'councilRows', 'the last game failing: the other games\' rows are still asked');
+      results.push(queuedKeys() === 'councilRows,backtestRecord', 'the last game failing: the other games\' rows are still asked');
       fresh();
       game('vikinglottoPredictor');
       c.finish(74, null, t0 + 1000);
@@ -788,11 +794,11 @@ ok(nextDaily(at('2026-09-23T10:00:00'), { hour: 9, minute: 0 }).getTime() === at
       st().retry.lottoPredictor = { attempt: 1, of: 6, at: Date.now() + HOUR, since: t0 };
       game('vikinglottoPredictor');
       c.finish(0, null, t0 + 1000);
-      results.push(queuedKeys() === 'councilRows', 'another game waiting for its retry does not hold the Council rows');
+      results.push(queuedKeys() === 'councilRows,backtestRecord', 'another game waiting for its retry does not hold the Council rows');
       // already queued: not twice; the crypto run never queues it
       game('pick3Predictor');
       c.finish(0, null, t0 + 1000);
-      results.push(queuedKeys() === 'councilRows', 'not queued twice');
+      results.push(queuedKeys() === 'councilRows,backtestRecord', 'not queued twice');
       fresh();
       game('cryptoPredictor');
       c.finish(0, null, t0 + 1000);

@@ -251,6 +251,17 @@ def ticket_profit(game, mains, specials, real_mains, real_specials, entry, typic
         return None
     main_hits = len(set(map(int, mains)) & set(map(int, real_mains)))
     special_hits = len(set(map(int, mains if game == "lotto" else specials)) & set(map(int, real_specials)))
+    return hits_profit(game, main_hits, special_hits, entry, typical)
+
+
+def hits_profit(game, main_hits, special_hits, entry, typical=None):
+    """
+    Net EUR of one full grid that had `main_hits` numbers and `special_hits` specials right (Lotto: 1 when one of
+    the six is the bonus number) on a draw: ticket_profit's second half, for a caller that holds the hit counts and
+    not the ticket (the backtest record, BacktestRecord.py, 22 Nov 2026). None without a table or a price.
+    """
+    if not entry or not entry.get("price") or not entry.get("tiers"):
+        return None
     tiers = entry["tiers"]
     tier = (next((t for t in tiers if t["mains"] == main_hits and t["special"] == special_hits), None)
             or next((t for t in tiers if t["mains"] == main_hits and t["special"] is None), None))

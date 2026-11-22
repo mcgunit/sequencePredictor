@@ -4,6 +4,21 @@ What was decided, built, fixed, measured and found in this project, by date, new
 
 ## 22 November 2026
 
+### The backtest record on the lottery pages (roadmap item 13)
+
+*Documented in [tuning.md](tuning.md), The backtest record.*
+
+**Decided.**
+
+- The months are the ten newest complete calendar months outside the lockbox: October and November 2025, then March to October 2026. The lockbox months stay shut.
+- A row whose settings changed keeps its old count with "settings changed since" until it is backtested again.
+- The random reference is the average over many random tickets, not one random ticket's count, which is luck itself.
+- The job runs on this server.
+
+**Built.** `BacktestRecord.py`, `src/BacktestMonths.py`, `backtestRecord.js`, the job `backtestRecord`, and the line on Home (best model, best combination, top 5) and on the Lottery page's ticket table.
+
+**Changed from the plan.** The job was to close the weekend chain. That chain already ends on Sunday morning, hours after the night's crypto run was due, so the job runs every morning behind the Council rows instead: with the months it keeps, a usual morning takes seconds, and a row whose settings changed on a weekday is backtested the next morning.
+
 ### The Sunday controls wait for the Council rows
 
 *Documented in [operations.md](operations.md), The Sunday controls on the DL360.*

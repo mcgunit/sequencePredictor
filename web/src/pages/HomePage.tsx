@@ -108,7 +108,10 @@ function GameLine({ g }: { g: HomeGame }) {
             {g.tops.map((r) => (
               <div key={r.name} className="htop">
                 <TicketNums shape={g.shape} row={r} numbers />
-                <small>{short(r.name)}</small>
+                <small>
+                  {short(r.name)}
+                  {r.backtest ? <span className={`bt${r.backtest.tested ? '' : ' none'}`} title={r.backtest.detail}> · {r.backtest.brief}</span> : null}
+                </small>
               </div>
             ))}
           </div>
@@ -137,6 +140,7 @@ function GameSummary({ s }: { s: HomeSummary }) {
           <>
             {short(b.name)} <b className={s.unit === 'EUR' ? signClass(b.value) : ''}>{s.unit === 'EUR' ? euro(b.value) : `${fixed(b.value, 2)} hits`}</b>
             {b.draws !== null ? <small> · {plural(b.draws, 'draw')}</small> : null}
+            {b.backtest ? <small className={`bt line${b.backtest.tested ? '' : ' none'}`} title={b.backtest.detail}>{b.backtest.text}</small> : null}
           </>
         ) : (
           DASH
@@ -154,6 +158,7 @@ function GameSummary({ s }: { s: HomeSummary }) {
           <>
             {c.members.map(short).join(' + ')} <b className={c.unit === 'EUR' ? signClass(c.value) : ''}>{c.unit === 'EUR' ? euro(c.value) : `${fixed(c.value, 2)} hits`}</b>
             {c.draws !== null ? <small> · {plural(c.draws, 'draw')}</small> : null}
+            {c.backtest ? <small className={`bt line${c.backtest.tested ? '' : ' none'}`} title={c.backtest.detail}>{c.backtest.text}</small> : null}
           </>
         ) : (
           DASH

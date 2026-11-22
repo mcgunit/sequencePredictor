@@ -59,6 +59,11 @@ function NameCell({ row, mode, ranked, showTop, rankWhose, first }: { row: Row; 
           <Chip kind="model">top 5</Chip>
         </>
       ) : null}
+      {row.backtest ? (
+        <span className={`sub bt${row.backtest.tested ? '' : ' none'}`} title={row.backtest.detail}>
+          {row.backtest.text}
+        </span>
+      ) : null}
       {mode === 'admin' && ranked ? <span className="sub">{row.rank ? `#${row.rank} ${rankWhose}` : `not ${rankWhose}`}</span> : null}
       {mode === 'admin' && row.liveMark ? <span className="sub">{liveMarkText(row.liveMark)}</span> : null}
       {mode === 'admin' ? <ManualChip keys={row.manual} /> : null}

@@ -1126,3 +1126,8 @@ nav.side .foot.theme .seg button { padding: 3px 9px; font-size: var(--fs-xs); }
 .wiki-tbl .tbl th, .wiki-tbl .tbl td { padding: 7px 10px; vertical-align: top; }
 .wiki-tbl .tbl th { white-space: normal; border-top: 0; }
 .wiki-tbl .tbl td { font-size: var(--fs-md); }
+
+/* the backtest record beside the best model, the best combination and the top 5 (roadmap item 13) */
+.bt { color: var(--muted); cursor: help; }
+.bt.none { font-style: italic; }
+.hsum .bt.line { display: block; font-size: var(--fs-xs); }

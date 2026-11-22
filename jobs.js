@@ -203,6 +203,23 @@ const JOBS = [
     after: LOTTERY, wake: 'cpu', unreachableExit: 75,
   },
   {
+    // The backtest record (docs/roadmap.md item 13, 22 Nov 2026): how ten past calendar months ended for each
+    // statistical and boosting row, shown on Home and the Lottery page. Behind the lottery predictors and the Council
+    // rows, every morning: a month backtested with a row's current settings is kept, so a morning backtests only the
+    // rows whose settings changed (a tuner at the weekend, a manual value) and, once a month, the month that ended.
+    // Not in the weekend chain: that already runs into Sunday morning. The budget ends a first pass (hours) after
+    // two hours; the next morning goes on where it stopped.
+    key: 'backtestRecord',
+    name: 'Backtest record',
+    description: 'Brings the lottery rows\' backtest record up to date (BacktestRecord.py): for every statistical and '
+               + 'boosting row, how each of the ten newest complete calendar months outside the lockbox ended had its '
+               + 'ticket been played on every draw, and the same months played by random tickets. A month backtested with '
+               + 'a row\'s current settings is kept; rows whose settings changed are backtested anew. Starts no new row '
+               + 'after two hours and goes on the next morning. Home and the Lottery page read the result.',
+    script: 'BacktestRecord.py', args: ['--budget', '7200'], log: 'backtestRecord.log',
+    after: LOTTERY,
+  },
+  {
     // The decision of 31 Oct 2026: a shares card must be up before Euronext opens at 09:00, or its
     // open-to-close book is one nobody could have followed. Euronext's day is complete after 18:00 Brussels
     // (src/MarketData.py EURONEXT_READY), so the run is at 18:05 (18:30 until 8 Nov 2026) and the card is up the
