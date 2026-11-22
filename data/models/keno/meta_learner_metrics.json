@@ -1,15 +1,15 @@
 {
   "game": "keno",
-  "trained_at": "2026-11-15T05:40:46.344422+00:00",
+  "trained_at": "2026-11-22T03:46:50.180759+00:00",
   "days": 300,
-  "table_days": 258,
+  "table_days": 265,
   "lockbox": {
     "from": "2025-12-01",
     "to": "2026-02-28",
     "declared": "2026-09-27",
     "note": "declared after the September 2026 objective, gate and cadence changes"
   },
-  "lockbox_days_withheld": 42,
+  "lockbox_days_withheld": 35,
   "manualOverrides": {},
   "versions": {
     "python": "3.10.12",
@@ -22,230 +22,230 @@
       "artifact": "meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3640,
+        "rows": 3710,
         "base_rate": 0.2857,
-        "brier": 0.2502,
+        "brier": 0.2503,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6936,
+        "log_loss": 0.6938,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.4991,
+        "auc": 0.4938,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1807,
+            "count": 1850,
             "mean_predicted": 0.4918,
-            "observed": 0.28
+            "observed": 0.2805
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1833,
-            "mean_predicted": 0.5081,
-            "observed": 0.2913
+            "count": 1860,
+            "mean_predicted": 0.5082,
+            "observed": 0.2909
           }
         ],
         "ece": 0.2143,
-        "precision_at_k": 0.2769,
-        "hits_at_k": 5.5385,
+        "precision_at_k": 0.2717,
+        "hits_at_k": 5.434,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 52,
+        "days": 53,
         "k": 20,
-        "train_days": 206,
-        "test_days": 52,
-        "accuracy": 0.5041
+        "train_days": 212,
+        "test_days": 53,
+        "accuracy": 0.5046
       }
     },
     "keno (v2)": {
       "artifact": "meta_learner_v2.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3640,
+        "rows": 3710,
         "base_rate": 0.2857,
-        "brier": 0.2492,
+        "brier": 0.2497,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6915,
+        "log_loss": 0.6926,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.5051,
+        "auc": 0.5039,
         "reliability": [
           {
             "lo": 0.1,
             "hi": 0.2,
             "count": 1,
-            "mean_predicted": 0.1961,
+            "mean_predicted": 0.1911,
             "observed": 0.0
           },
           {
             "lo": 0.2,
             "hi": 0.3,
-            "count": 10,
-            "mean_predicted": 0.2688,
-            "observed": 0.3
+            "count": 21,
+            "mean_predicted": 0.2774,
+            "observed": 0.5238
           },
           {
             "lo": 0.3,
             "hi": 0.4,
-            "count": 99,
-            "mean_predicted": 0.3667,
-            "observed": 0.3434
+            "count": 110,
+            "mean_predicted": 0.3599,
+            "observed": 0.3364
           },
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1891,
-            "mean_predicted": 0.4747,
-            "observed": 0.2834
+            "count": 1954,
+            "mean_predicted": 0.4741,
+            "observed": 0.2794
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 1605,
-            "mean_predicted": 0.5229,
-            "observed": 0.286
+            "count": 1575,
+            "mean_predicted": 0.5243,
+            "observed": 0.2876
           },
           {
             "lo": 0.6,
             "hi": 0.7,
-            "count": 33,
-            "mean_predicted": 0.6274,
-            "observed": 0.2424
+            "count": 47,
+            "mean_predicted": 0.6262,
+            "observed": 0.2766
           },
           {
             "lo": 0.7,
             "hi": 0.8,
-            "count": 1,
-            "mean_predicted": 0.7369,
+            "count": 2,
+            "mean_predicted": 0.7389,
             "observed": 0.0
           }
         ],
-        "ece": 0.2083,
-        "precision_at_k": 0.2827,
-        "hits_at_k": 5.6538,
+        "ece": 0.21,
+        "precision_at_k": 0.2858,
+        "hits_at_k": 5.717,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 52,
+        "days": 53,
         "k": 20,
-        "train_days": 206,
-        "test_days": 52,
-        "accuracy": 0.5206
+        "train_days": 212,
+        "test_days": 53,
+        "accuracy": 0.5278
       }
     },
     "keno (quantum kernel)": {
       "artifact": "quantum_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3640,
+        "rows": 3710,
         "base_rate": 0.2857,
-        "brier": 0.2497,
+        "brier": 0.2501,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6925,
+        "log_loss": 0.6934,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.5033,
+        "auc": 0.4909,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 1415,
-            "mean_predicted": 0.4863,
-            "observed": 0.2763
+            "count": 885,
+            "mean_predicted": 0.4914,
+            "observed": 0.296
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 2225,
-            "mean_predicted": 0.5069,
-            "observed": 0.2917
+            "count": 2825,
+            "mean_predicted": 0.5027,
+            "observed": 0.2825
           }
         ],
-        "ece": 0.2131,
-        "precision_at_k": 0.2875,
-        "hits_at_k": 5.75,
+        "ece": 0.2143,
+        "precision_at_k": 0.2877,
+        "hits_at_k": 5.7547,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 52,
+        "days": 53,
         "k": 20,
-        "train_days": 206,
-        "test_days": 52,
-        "accuracy": 0.5747
+        "train_days": 212,
+        "test_days": 53,
+        "accuracy": 0.6092
       }
     },
     "keno (quantum vqc)": {
       "artifact": "quantum_vqc_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3640,
+        "rows": 3710,
         "base_rate": 0.2857,
-        "brier": 0.2621,
+        "brier": 0.2476,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.7174,
+        "log_loss": 0.6883,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.4884,
+        "auc": 0.5042,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 247,
-            "mean_predicted": 0.4936,
-            "observed": 0.3198
+            "count": 2664,
+            "mean_predicted": 0.4889,
+            "observed": 0.283
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 3393,
-            "mean_predicted": 0.5278,
-            "observed": 0.2832
+            "count": 1046,
+            "mean_predicted": 0.5073,
+            "observed": 0.2925
           }
         ],
-        "ece": 0.2398,
-        "precision_at_k": 0.2808,
-        "hits_at_k": 5.6154,
+        "ece": 0.2084,
+        "precision_at_k": 0.3019,
+        "hits_at_k": 6.0377,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 52,
+        "days": 53,
         "k": 20,
-        "train_days": 206,
-        "test_days": 52,
-        "accuracy": 0.3102
+        "train_days": 212,
+        "test_days": 53,
+        "accuracy": 0.5973
       }
     },
     "keno (classical svm)": {
       "artifact": "classical_svm_meta_learner.joblib",
       "positional": false,
       "metrics": {
-        "rows": 3640,
+        "rows": 3710,
         "base_rate": 0.2857,
-        "brier": 0.2499,
+        "brier": 0.251,
         "brier_base_rate": 0.2041,
-        "log_loss": 0.6929,
+        "log_loss": 0.6951,
         "log_loss_base_rate": 0.5983,
-        "auc": 0.5131,
+        "auc": 0.4941,
         "reliability": [
           {
             "lo": 0.4,
             "hi": 0.5,
-            "count": 586,
-            "mean_predicted": 0.4924,
-            "observed": 0.2679
+            "count": 1166,
+            "mean_predicted": 0.49,
+            "observed": 0.2959
           },
           {
             "lo": 0.5,
             "hi": 0.6,
-            "count": 3054,
-            "mean_predicted": 0.5014,
-            "observed": 0.2891
+            "count": 2544,
+            "mean_predicted": 0.5072,
+            "observed": 0.2811
           }
         ],
-        "ece": 0.2142,
-        "precision_at_k": 0.3029,
-        "hits_at_k": 6.0577,
+        "ece": 0.2161,
+        "precision_at_k": 0.283,
+        "hits_at_k": 5.6604,
         "chance_precision": 0.2857,
         "chance_hits": 5.7143,
-        "days": 52,
+        "days": 53,
         "k": 20,
-        "train_days": 206,
-        "test_days": 52,
-        "accuracy": 0.6577
+        "train_days": 212,
+        "test_days": 53,
+        "accuracy": 0.5512
       }
     }
   }

@@ -198,6 +198,88 @@
           }
         }
       }
+    },
+    {
+      "game": "euromillions",
+      "day": "2026-11-20",
+      "askedAt": "2026-11-22T09:09:50+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: EuroMillions. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first (numbers + stars):\n21 30 32 42 48 + 3 6\n3 12 14 17 37 + 3 12\n13 23 38 39 48 + 5 8\n7 13 37 47 49 + 7 11\n15 18 31 37 41 + 1 5\n16 27 32 41 45 + 2 12\n35 37 38 46 48 + 1 2\n8 21 24 36 49 + 1 8\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nCatBoost Model | right on those draws: 2 2 1 0 1 1 1 0 | plays now: 45 35 10 1 38 + 2 9\nXGBoostMultiLabel Model | right on those draws: 2 2 0 0 0 0 0 0 | plays now: 42 44 29 23 19 + 2 3\nTransformer Model | right on those draws: 0 0 0 0 0 0 1 1 | plays now: 2 21 34 17 50 + 2 11\nMarkovBayesian Model | right on those draws: 0 1 0 1 1 0 1 0 | plays now: 21 24 8 17 27 + 1 8\nMarkov Model | right on those draws: 0 2 0 2 0 1 2 1 | plays now: 25 30 15 5 43 + 1 12\nLightGBM Model | right on those draws: 1 0 0 2 0 0 0 1 | plays now: 48 5 38 17 9 + 2 9\nLaplaceMonteCarlo Model | right on those draws: 0 1 0 0 0 1 1 0 | plays now: 9 44 35 18 24 + 5 9\nLSTM Base Model | right on those draws: 1 0 0 0 0 1 1 0 | plays now: 20 27 35 2 50 + 2 12\nAutoencoder Model | right on those draws: 2 0 1 0 0 1 1 0 | plays now: 20 27 48 2 33 + 2 12\nPoissonMarkov Model | right on those draws: 1 1 0 0 0 1 1 0 | plays now: 45 2 48 35 8 + 7 3\n\nAnswer with one line: TICKET: followed by 5 different numbers from 1 to 50, the one you find most likely first, then a plus sign and 2 different stars from 1 to 12. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N + S S",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 20244442,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 45 35 10 1 38 + 2 9",
+                  "seconds": 462.0
+                }
+              ],
+              "seed": 20244442,
+              "ticket": [
+                45,
+                35,
+                10,
+                1,
+                38,
+                2,
+                9
+              ]
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: EuroMillions. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first (numbers + stars):\n3 11 17 46 48 + 1 2\n5 29 39 48 49 + 4 8\n3 9 38 40 50 + 6 10\n10 14 15 19 45 + 4 12\n8 16 30 47 48 + 4 9\n7 14 28 42 45 + 6 9\n2 10 23 37 47 + 3 5\n11 12 19 27 46 + 4 12\n13 17 33 35 39 + 7 12\n1 7 15 39 50 + 1 11\n10 16 18 22 28 + 6 10\n8 17 25 30 44 + 2 3\n13 14 16 44 50 + 10 12\n11 12 15 38 49 + 10 12\n4 7 12 31 44 + 8 11\n7 8 10 22 35 + 2 10\n18 22 32 41 48 + 8 10\n5 20 24 31 45 + 5 10\n21 23 39 44 49 + 4 11\n7 15 16 22 35 + 4 6\n9 15 16 37 43 + 7 10\n24 33 35 44 47 + 7 11\n21 30 32 42 48 + 3 6\n3 12 14 17 37 + 3 12\n13 23 38 39 48 + 5 8\n7 13 37 47 49 + 7 11\n15 18 31 37 41 + 1 5\n16 27 32 41 45 + 2 12\n35 37 38 46 48 + 1 2\n8 21 24 36 49 + 1 8\n\nAnswer with one line: TICKET: followed by 5 different numbers from 1 to 50, the one you find most likely first, then a plus sign and 2 different stars from 1 to 12. That is exactly 7 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N + S S",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 784369551,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 48 37 16 44 7 + 12 10",
+                  "seconds": 165.0
+                }
+              ],
+              "seed": 784369551,
+              "ticket": [
+                48,
+                37,
+                16,
+                44,
+                7,
+                12,
+                10
+              ]
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1274085433,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 13 17 30 46 48 + 4 12",
+                  "seconds": 541.7
+                }
+              ],
+              "seed": 1274085433,
+              "ticket": [
+                13,
+                17,
+                30,
+                46,
+                48,
+                4,
+                12
+              ]
+            }
+          },
+          "head": null
+        }
+      }
     }
   ]
 }

@@ -1,0 +1,206 @@
+{
+  "game": "keno",
+  "day": "2026-11-21",
+  "runs": [
+    {
+      "game": "keno",
+      "day": "2026-11-21",
+      "askedAt": "2026-11-22T09:09:51+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 5 draws, oldest first:\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n4 6 23 25 26 28 31 33 34 45 46 48 52 54 58 62 64 65 66 69\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nHybridStatisticalModel | right on those draws: 4 2 3 2 2 | plays now: 1 4 6 7 11 14 20 23 24 25\nAutoencoder Model | right on those draws: 3 2 2 0 2 | plays now: 30 60 32 15 66 54 10 11 19 42\nTimesFM Model | right on those draws: 2 1 3 3 2 | plays now: 1 70 5 59 66 9 62 26 24 30\nLightGBM Model | right on those draws: 2 4 5 1 2 | plays now: 9 47 62 37 69 20 61 25 26 1\nPoissonMonteCarlo Model | right on those draws: 3 2 2 3 4 | plays now: 45 65 43 4 56 25 13 20 33 11\nQuantumMetaLearner Model | right on those draws: 3 2 2 1 4 | plays now: 70 20 3 65 58 22 68 32 66 34\nLSTM Base Model | right on those draws: 3 2 3 2 2 | plays now: 30 6 60 15 32 54 10 63 19 3\nLSTM Smoothed Model | right on those draws: 2 3 2 1 3 | plays now: 32 10 26 30 66 15 54 63 42 19\nQuantumVQC Model | right on those draws: 5 4 2 0 1 | plays now: 26 33 12 30 22 24 51 53 56 7\nMarkovBayesianEnhanched Model | right on those draws: 2 3 3 3 2 | plays now: 4 6 25 28 33 11 13 18 20 45\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 365855776,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 28 20 45 25 33 11 13 18 4 6 26 33 12 30 22 24 51 53 56 7",
+                  "seconds": 323.5,
+                  "refused": "a number twice"
+                },
+                {
+                  "seed": 1216297554,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 4 6 25 28 33 11 13 18 20 45 1 70 5 59 66 9 62 26 24 30",
+                  "seconds": 286.5
+                }
+              ],
+              "seed": 1216297554,
+              "ticket": [
+                4,
+                6,
+                25,
+                28,
+                33,
+                11,
+                13,
+                18,
+                20,
+                45,
+                1,
+                70,
+                5,
+                59,
+                66,
+                9,
+                62,
+                26,
+                24,
+                30
+              ]
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n4 9 11 13 19 20 22 24 30 32 35 37 38 39 42 43 45 49 66 68\n2 4 5 10 11 13 17 23 27 28 33 35 37 39 40 44 45 54 55 61\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n4 6 23 25 26 28 31 33 34 45 46 48 52 54 58 62 64 65 66 69\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 742424439,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=granite-4.2-8b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 1.4
+                },
+                {
+                  "seed": 1250237565,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=granite-4.2-8b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 1.4
+                },
+                {
+                  "seed": 618633231,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=granite-4.2-8b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 1.5
+                }
+              ],
+              "ticket": null
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1862555155,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=nemotron-3.5-bolt-e4b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 2.9
+                },
+                {
+                  "seed": 2060983919,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=nemotron-3.5-bolt-e4b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 3.1
+                },
+                {
+                  "seed": 872023319,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=nemotron-3.5-bolt-e4b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 3.0
+                }
+              ],
+              "ticket": null
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1096529289,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=llama-3.1-8b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 1.7
+                },
+                {
+                  "seed": 1935249757,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=llama-3.1-8b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 1.7
+                },
+                {
+                  "seed": 679763675,
+                  "temperature": 0.7,
+                  "error": "HTTP 500: {\"error\":{\"code\":500,\"message\":\"model name=llama-3.1-8b failed to load\",\"type\":\"server_error\"}}",
+                  "seconds": 1.8
+                }
+              ],
+              "ticket": null
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1219500562,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 35 45 51 17 33 39 56 28 11 13 30 54 66 68 42 52 67 23 5 69",
+                  "seconds": 300.6
+                }
+              ],
+              "seed": 1219500562,
+              "ticket": [
+                35,
+                45,
+                51,
+                17,
+                33,
+                39,
+                56,
+                28,
+                11,
+                13,
+                30,
+                54,
+                66,
+                68,
+                42,
+                52,
+                67,
+                23,
+                5,
+                69
+              ]
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 301691983,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 4 5 11 13 17 18 19 20 21 23 24 25 26 27 28 29 30 32 35 38",
+                  "seconds": 404.9
+                }
+              ],
+              "seed": 301691983,
+              "ticket": [
+                4,
+                5,
+                11,
+                13,
+                17,
+                18,
+                19,
+                20,
+                21,
+                23,
+                24,
+                25,
+                26,
+                27,
+                28,
+                29,
+                30,
+                32,
+                35,
+                38
+              ]
+            }
+          },
+          "head": null
+        }
+      }
+    }
+  ]
+}
