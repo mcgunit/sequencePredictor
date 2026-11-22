@@ -6838,6 +6838,90 @@
         8,
         38
       ]
+    },
+    {
+      "name": "Council (record): Gemma-4-26B",
+      "predictions": [
+        [
+          44,
+          11,
+          34,
+          1,
+          28,
+          8
+        ]
+      ],
+      "multiPick": [
+        19,
+        25,
+        43
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 1667951411,
+        "tries": 1,
+        "prompt": "66e43051502adba6"
+      }
+    },
+    {
+      "name": "Council (draws): Gemma-4-26B",
+      "predictions": [
+        [
+          16,
+          30,
+          40,
+          34,
+          29,
+          12
+        ]
+      ],
+      "multiPick": [
+        41,
+        36,
+        5
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 1092354644,
+        "tries": 1,
+        "prompt": "d00f531ea322ec04"
+      }
+    },
+    {
+      "name": "Council (draws): gpt-oss-20b",
+      "predictions": [
+        [
+          3,
+          8,
+          16,
+          22,
+          30,
+          34
+        ]
+      ],
+      "multiPick": [
+        41,
+        43,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "gpt-oss-20b",
+        "lab": "OpenAI",
+        "model": "gpt-oss-20b",
+        "temperature": 0.7,
+        "seed": 272773139,
+        "tries": 1,
+        "prompt": "d00f531ea322ec04"
+      }
     }
   ],
   "newPredictionRaw": [
