@@ -44954,15 +44954,6 @@
   "jokerplus": {
     "Markov Model": [
       {
-        "run": "2026-09-21",
-        "lag": 3,
-        "avg_hits": 0.359,
-        "n": 39,
-        "z": 2.72,
-        "profile_mean": 0.172,
-        "metric": "main_hits"
-      },
-      {
         "run": "2026-09-22",
         "lag": 28,
         "avg_hits": 0.4,
@@ -45492,18 +45483,18 @@
         "z": 2.52,
         "profile_mean": 0.196,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 19,
+        "avg_hits": 0.329,
+        "n": 85,
+        "z": 2.43,
+        "profile_mean": 0.196,
+        "metric": "main_hits"
       }
     ],
     "MarkovMonteCarlo Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 7,
-        "avg_hits": 0.222,
-        "n": 36,
-        "z": 1.92,
-        "profile_mean": 0.109,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 10,
@@ -46034,18 +46025,18 @@
         "z": 2.85,
         "profile_mean": 0.185,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 17,
+        "avg_hits": 0.322,
+        "n": 87,
+        "z": 2.83,
+        "profile_mean": 0.188,
+        "metric": "main_hits"
       }
     ],
     "PoissonMonteCarlo Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 28,
-        "avg_hits": 0.4,
-        "n": 15,
-        "z": 2.21,
-        "profile_mean": 0.228,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 28,
@@ -46576,18 +46567,18 @@
         "z": 2.45,
         "profile_mean": 0.241,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 29,
+        "avg_hits": 0.333,
+        "n": 75,
+        "z": 2.44,
+        "profile_mean": 0.24,
+        "metric": "main_hits"
       }
     ],
     "LaplaceMonteCarlo Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 8,
-        "avg_hits": 0.514,
-        "n": 35,
-        "z": 2.57,
-        "profile_mean": 0.263,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 8,
@@ -47118,18 +47109,18 @@
         "z": 2.26,
         "profile_mean": 0.242,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 8,
+        "avg_hits": 0.396,
+        "n": 96,
+        "z": 2.26,
+        "profile_mean": 0.239,
+        "metric": "main_hits"
       }
     ],
     "MetaLearner Model": [
-      {
-        "run": "2026-09-20",
-        "lag": 12,
-        "avg_hits": 0.5,
-        "n": 24,
-        "z": 2.26,
-        "profile_mean": 0.229,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-21",
         "lag": 12,
@@ -47660,18 +47651,18 @@
         "z": 1.93,
         "profile_mean": 0.208,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 2,
+        "avg_hits": 0.292,
+        "n": 96,
+        "z": 1.91,
+        "profile_mean": 0.207,
+        "metric": "main_hits"
       }
     ],
     "MetaLearnerV2 Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 5,
-        "avg_hits": 0.515,
-        "n": 33,
-        "z": 2.25,
-        "profile_mean": 0.232,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 5,
@@ -48202,18 +48193,18 @@
         "z": 1.76,
         "profile_mean": 0.246,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 24,
+        "avg_hits": 0.347,
+        "n": 75,
+        "z": 1.78,
+        "profile_mean": 0.245,
+        "metric": "main_hits"
       }
     ],
     "QuantumMetaLearner Model": [
-      {
-        "run": "2026-09-17",
-        "lag": 20,
-        "avg_hits": 0.556,
-        "n": 18,
-        "z": 2.18,
-        "profile_mean": 0.285,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-18",
         "lag": 22,
@@ -48744,18 +48735,18 @@
         "z": 2.81,
         "profile_mean": 0.237,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 17,
+        "avg_hits": 0.366,
+        "n": 82,
+        "z": 2.82,
+        "profile_mean": 0.239,
+        "metric": "main_hits"
       }
     ],
     "QuantumVQC Model": [
-      {
-        "run": "2026-09-21",
-        "lag": 5,
-        "avg_hits": 0.438,
-        "n": 32,
-        "z": 2.31,
-        "profile_mean": 0.212,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-22",
         "lag": 5,
@@ -49286,18 +49277,18 @@
         "z": 1.58,
         "profile_mean": 0.221,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 7,
+        "avg_hits": 0.326,
+        "n": 92,
+        "z": 1.73,
+        "profile_mean": 0.218,
+        "metric": "main_hits"
       }
     ],
     "Transformer Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 2,
-        "avg_hits": 0.341,
-        "n": 41,
-        "z": 2.19,
-        "profile_mean": 0.159,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 2,
@@ -49828,18 +49819,18 @@
         "z": 2.26,
         "profile_mean": 0.198,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 30,
+        "avg_hits": 0.311,
+        "n": 74,
+        "z": 2.26,
+        "profile_mean": 0.202,
+        "metric": "main_hits"
       }
     ],
     "GNN Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 30,
-        "avg_hits": 0.231,
-        "n": 13,
-        "z": 2.17,
-        "profile_mean": 0.124,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 30,
@@ -50370,18 +50361,18 @@
         "z": 3.37,
         "profile_mean": 0.156,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 26,
+        "avg_hits": 0.256,
+        "n": 78,
+        "z": 3.31,
+        "profile_mean": 0.165,
+        "metric": "main_hits"
       }
     ],
     "Autoencoder Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 11,
-        "avg_hits": 0.156,
-        "n": 32,
-        "z": 1.33,
-        "profile_mean": 0.116,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 11,
@@ -50912,18 +50903,18 @@
         "z": 1.81,
         "profile_mean": 0.142,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 25,
+        "avg_hits": 0.177,
+        "n": 79,
+        "z": 1.8,
+        "profile_mean": 0.152,
+        "metric": "main_hits"
       }
     ],
     "XGBoost Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 25,
-        "avg_hits": 0.444,
-        "n": 18,
-        "z": 2.22,
-        "profile_mean": 0.209,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 25,
@@ -51454,18 +51445,18 @@
         "z": 1.78,
         "profile_mean": 0.216,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 24,
+        "avg_hits": 0.3,
+        "n": 80,
+        "z": 1.73,
+        "profile_mean": 0.215,
+        "metric": "main_hits"
       }
     ],
     "LightGBM Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 24,
-        "avg_hits": 0.474,
-        "n": 19,
-        "z": 3.23,
-        "profile_mean": 0.193,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 24,
@@ -51996,18 +51987,18 @@
         "z": 1.85,
         "profile_mean": 0.231,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 23,
+        "avg_hits": 0.321,
+        "n": 81,
+        "z": 1.76,
+        "profile_mean": 0.23,
+        "metric": "main_hits"
       }
     ],
     "CatBoost Model": [
-      {
-        "run": "2026-09-22",
-        "lag": 9,
-        "avg_hits": 0.353,
-        "n": 34,
-        "z": 1.96,
-        "profile_mean": 0.182,
-        "metric": "main_hits"
-      },
       {
         "run": "2026-09-23",
         "lag": 9,
@@ -52538,6 +52529,15 @@
         "z": 2.24,
         "profile_mean": 0.22,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 11,
+        "avg_hits": 0.355,
+        "n": 93,
+        "z": 2.26,
+        "profile_mean": 0.218,
+        "metric": "main_hits"
       }
     ],
     "LSTM Base Model": [
@@ -53016,6 +53016,15 @@
         "n": 45,
         "z": 2.43,
         "profile_mean": 0.194,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 20,
+        "avg_hits": 0.326,
+        "n": 46,
+        "z": 1.97,
+        "profile_mean": 0.211,
         "metric": "main_hits"
       }
     ],
@@ -53496,6 +53505,15 @@
         "z": 2.79,
         "profile_mean": 0.147,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 30,
+        "avg_hits": 0.25,
+        "n": 36,
+        "z": 2.46,
+        "profile_mean": 0.16,
+        "metric": "main_hits"
       }
     ],
     "UnifiedLstmTcn Model": [
@@ -53966,6 +53984,15 @@
         "z": 2.74,
         "profile_mean": 0.143,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 29,
+        "avg_hits": 0.27,
+        "n": 37,
+        "z": 2.89,
+        "profile_mean": 0.159,
+        "metric": "main_hits"
       }
     ],
     "UnifiedLstmGruTcn Model": [
@@ -54426,6 +54453,15 @@
         "n": 61,
         "z": 2.2,
         "profile_mean": 0.178,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 3,
+        "avg_hits": 0.274,
+        "n": 62,
+        "z": 1.85,
+        "profile_mean": 0.185,
         "metric": "main_hits"
       }
     ],
@@ -54888,6 +54924,15 @@
         "z": 2.21,
         "profile_mean": 0.223,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 29,
+        "avg_hits": 0.353,
+        "n": 34,
+        "z": 2.18,
+        "profile_mean": 0.224,
+        "metric": "main_hits"
       }
     ],
     "OrderStatistics Baseline": [
@@ -55340,6 +55385,15 @@
         "z": 2.07,
         "profile_mean": 0.22,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 25,
+        "avg_hits": 0.263,
+        "n": 38,
+        "z": 1.98,
+        "profile_mean": 0.233,
+        "metric": "main_hits"
       }
     ],
     "TimesFM Model": [
@@ -55783,6 +55837,15 @@
         "z": 3.1,
         "profile_mean": 0.182,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 28,
+        "avg_hits": 0.382,
+        "n": 34,
+        "z": 3.06,
+        "profile_mean": 0.179,
+        "metric": "main_hits"
       }
     ],
     "ClassicalSVM Model": [
@@ -56127,6 +56190,15 @@
         "z": 2.47,
         "profile_mean": 0.224,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 26,
+        "avg_hits": 0.417,
+        "n": 24,
+        "z": 2.48,
+        "profile_mean": 0.222,
+        "metric": "main_hits"
       }
     ],
     "LSTM Smoothed Model": [
@@ -56282,6 +56354,15 @@
         "z": 1.68,
         "profile_mean": 0.258,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 13,
+        "avg_hits": 0.4,
+        "n": 15,
+        "z": 1.65,
+        "profile_mean": 0.239,
+        "metric": "main_hits"
       }
     ],
     "LSTM Base Model \u00b7 Memorise": [
@@ -56293,6 +56374,15 @@
         "z": null,
         "profile_mean": 0.0,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 2,
+        "avg_hits": 0.455,
+        "n": 11,
+        "z": 1.35,
+        "profile_mean": 0.246,
+        "metric": "main_hits"
       }
     ],
     "TCN Base Model \u00b7 Memorise": [
@@ -56303,6 +56393,15 @@
         "n": 10,
         "z": null,
         "profile_mean": 0.1,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 2,
+        "avg_hits": 0.455,
+        "n": 11,
+        "z": 1.25,
+        "profile_mean": 0.307,
         "metric": "main_hits"
       }
     ],
@@ -56335,6 +56434,15 @@
         "z": null,
         "profile_mean": 0.0,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 3,
+        "avg_hits": 0.2,
+        "n": 10,
+        "z": 1.29,
+        "profile_mean": 0.094,
+        "metric": "main_hits"
       }
     ],
     "Transformer Model \u00b7 Memorise": [
@@ -56354,6 +56462,15 @@
         "n": 11,
         "z": 1.0,
         "profile_mean": 0.186,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 1,
+        "avg_hits": 0.25,
+        "n": 12,
+        "z": 1.18,
+        "profile_mean": 0.177,
         "metric": "main_hits"
       }
     ],
@@ -56375,6 +56492,15 @@
         "z": 1.0,
         "profile_mean": 0.137,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 3,
+        "avg_hits": 0.3,
+        "n": 10,
+        "z": 0.89,
+        "profile_mean": 0.183,
+        "metric": "main_hits"
       }
     ],
     "Autoencoder Model \u00b7 Memorise": [
@@ -56385,6 +56511,15 @@
         "n": 10,
         "z": null,
         "profile_mean": 0.2,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 2,
+        "avg_hits": 0.636,
+        "n": 11,
+        "z": 1.36,
+        "profile_mean": 0.329,
         "metric": "main_hits"
       }
     ],
@@ -56417,6 +56552,15 @@
         "z": 1.0,
         "profile_mean": 0.186,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 3,
+        "avg_hits": 0.3,
+        "n": 10,
+        "z": 0.97,
+        "profile_mean": 0.214,
+        "metric": "main_hits"
       }
     ],
     "PoissonMonteCarlo Model \u00b7 Memorise": [
@@ -56436,6 +56580,15 @@
         "n": 11,
         "z": 1.0,
         "profile_mean": 0.137,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 3,
+        "avg_hits": 0.4,
+        "n": 10,
+        "z": 1.11,
+        "profile_mean": 0.217,
         "metric": "main_hits"
       }
     ],
@@ -56457,6 +56610,15 @@
         "z": 1.0,
         "profile_mean": 0.137,
         "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 1,
+        "avg_hits": 0.25,
+        "n": 12,
+        "z": 1.41,
+        "profile_mean": 0.083,
+        "metric": "main_hits"
       }
     ],
     "XGBoost Model \u00b7 Memorise": [
@@ -56476,6 +56638,15 @@
         "n": 11,
         "z": 1.0,
         "profile_mean": 0.232,
+        "metric": "main_hits"
+      },
+      {
+        "run": "2026-11-22",
+        "lag": 1,
+        "avg_hits": 0.333,
+        "n": 12,
+        "z": 0.86,
+        "profile_mean": 0.241,
         "metric": "main_hits"
       }
     ],
