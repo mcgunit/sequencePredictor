@@ -6922,6 +6922,124 @@
         "tries": 1,
         "prompt": "d00f531ea322ec04"
       }
+    },
+    {
+      "name": "Council (draws): Granite-4.2-8B",
+      "predictions": [
+        [
+          3,
+          6,
+          9,
+          12,
+          15,
+          30
+        ]
+      ],
+      "multiPick": [
+        34,
+        40,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Granite-4.2-8B",
+        "lab": "IBM",
+        "model": "granite-4.2-8b",
+        "temperature": 0.7,
+        "seed": 716727232,
+        "tries": 1,
+        "prompt": "d00f531ea322ec04"
+      }
+    },
+    {
+      "name": "Council (draws): Nemotron-3.5-Bolt",
+      "predictions": [
+        [
+          3,
+          10,
+          16,
+          29,
+          34,
+          36
+        ]
+      ],
+      "multiPick": [
+        40,
+        41,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Nemotron-3.5-Bolt",
+        "lab": "NVIDIA",
+        "model": "nemotron-3.5-bolt-e4b",
+        "temperature": 0.7,
+        "seed": 7346461,
+        "tries": 1,
+        "prompt": "d00f531ea322ec04"
+      }
+    },
+    {
+      "name": "Council (draws): Llama-3.1-8B",
+      "predictions": [
+        [
+          10,
+          16,
+          20,
+          22,
+          29,
+          30
+        ]
+      ],
+      "multiPick": [
+        32,
+        34,
+        40
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Llama-3.1-8B",
+        "lab": "Meta",
+        "model": "llama-3.1-8b",
+        "temperature": 0.7,
+        "seed": 479314579,
+        "tries": 1,
+        "prompt": "d00f531ea322ec04"
+      }
+    },
+    {
+      "name": "Council (draws): combined",
+      "predictions": [
+        [
+          3,
+          6,
+          9,
+          10,
+          12,
+          15
+        ]
+      ],
+      "multiPick": [
+        16,
+        20,
+        22
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "combined",
+        "lab": "Alibaba",
+        "model": "qwen3.6-35b-a3b",
+        "head": "head-Qwen3.6-35B",
+        "combines": [
+          "Granite-4.2-8B",
+          "Nemotron-3.5-Bolt",
+          "Llama-3.1-8B"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "618b1888c7b47f95"
+      }
     }
   ],
   "newPredictionRaw": [
