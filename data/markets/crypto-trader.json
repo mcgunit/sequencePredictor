@@ -11,9 +11,9 @@
  },
  "from": "2026-11-19",
  "first_day": "2026-11-19",
- "last_day": "2026-11-21",
- "days": 3,
- "running": "2026-11-22",
+ "last_day": "2026-11-22",
+ "days": 4,
+ "running": "2026-11-23",
  "exec_hour": 9,
  "symbols": {
   "BTC": {
@@ -24,14 +24,14 @@
     "reason": null,
     "side": 0,
     "stop": null,
-    "day_call": "up",
+    "day_call": "flat",
     "week_call": "down",
     "month_call": "flat",
-    "up_days": 1,
+    "up_days": 0,
     "down_days": 0
    },
-   "hold": -5.72,
-   "hold_move": -5.5255,
+   "hold": -4.066,
+   "hold_move": -3.8698,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -51,8 +51,8 @@
     "up_days": 0,
     "down_days": 0
    },
-   "hold": -6.7695,
-   "hold_move": -6.576,
+   "hold": -4.6267,
+   "hold_move": -4.4311,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -66,14 +66,14 @@
     "reason": null,
     "side": 0,
     "stop": null,
-    "day_call": "up",
-    "week_call": "up",
+    "day_call": "flat",
+    "week_call": "down",
     "month_call": "flat",
-    "up_days": 1,
+    "up_days": 0,
     "down_days": 0
    },
-   "hold": -7.1641,
-   "hold_move": -6.9711,
+   "hold": -5.3041,
+   "hold_move": -5.1092,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -91,10 +91,10 @@
     "week_call": "down",
     "month_call": "up",
     "up_days": 0,
-    "down_days": 6
+    "down_days": 7
    },
-   "hold": -5.3921,
-   "hold_move": -5.1973,
+   "hold": -5.7071,
+   "hold_move": -5.5126,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -114,8 +114,8 @@
     "up_days": 0,
     "down_days": 0
    },
-   "hold": -6.3721,
-   "hold_move": -6.1783,
+   "hold": -5.8122,
+   "hold_move": -5.6178,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -125,8 +125,8 @@
  "stake": 100.0,
  "diverged": [],
  "totals": {
-  "hold": -31.4178,
-  "days_possible": 15,
+  "hold": -25.5161,
+  "days_possible": 20,
   "all": {
    "total": 0.0,
    "closed": 0.0,
@@ -169,10 +169,15 @@
    "date": "2026-11-21",
    "long": 0.0,
    "hold": -31.4178
+  },
+  {
+   "date": "2026-11-22",
+   "long": 0.0,
+   "hold": -25.5161
   }
  ],
  "schema": 2,
- "generated_at": "2026-11-22T04:28:52+00:00",
+ "generated_at": "2026-11-23T00:21:18+00:00",
  "decisions": [
   {
    "symbol": "BNB",
@@ -393,6 +398,61 @@
    "month_call": "up",
    "stop": null,
    "made_at": "2026-11-22T04:28:43+00:00"
+  },
+  {
+   "symbol": "BNB",
+   "day": "2026-11-23",
+   "action": "wait",
+   "reason": null,
+   "day_call": "flat",
+   "week_call": "down",
+   "month_call": "flat",
+   "stop": null,
+   "made_at": "2026-11-23T00:21:09+00:00"
+  },
+  {
+   "symbol": "BTC",
+   "day": "2026-11-23",
+   "action": "wait",
+   "reason": null,
+   "day_call": "flat",
+   "week_call": "down",
+   "month_call": "flat",
+   "stop": null,
+   "made_at": "2026-11-23T00:21:09+00:00"
+  },
+  {
+   "symbol": "ETH",
+   "day": "2026-11-23",
+   "action": "wait",
+   "reason": null,
+   "day_call": "flat",
+   "week_call": "down",
+   "month_call": "down",
+   "stop": null,
+   "made_at": "2026-11-23T00:21:09+00:00"
+  },
+  {
+   "symbol": "SOL",
+   "day": "2026-11-23",
+   "action": "wait",
+   "reason": null,
+   "day_call": "flat",
+   "week_call": "flat",
+   "month_call": "down",
+   "stop": null,
+   "made_at": "2026-11-23T00:21:09+00:00"
+  },
+  {
+   "symbol": "XRP",
+   "day": "2026-11-23",
+   "action": "wait",
+   "reason": null,
+   "day_call": "down",
+   "week_call": "down",
+   "month_call": "up",
+   "stop": null,
+   "made_at": "2026-11-23T00:21:09+00:00"
   }
  ]
 }
