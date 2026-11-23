@@ -77,14 +77,14 @@ try {
   eq([draws.shapeOf('lotto', { prizes: true }).prizes, draws.shapeOf('lotto', { prizes: true }).money, draws.shapeOf('lotto').prizes], [true, false, undefined], 'shape');
   eq(draws.shapeOf('keno', { prizes: true }).prizes, undefined, 'keno has its payout table');
 
-  // Vikinglotto (5 Nov 2026): 'k' without the viking number, 'k+Fav' with it, '6/' whatever it is; one number pays 2.00
+  // Vikinglotto (5 Nov 2026): 'k' without the viking number, 'k+Fav' with it, '6/' whatever it is; a grid costs 5 x the base price
   write('vikinglotto', { '2026-11-04': { price: 2, jackpot: 3000000, tiers: [tier('6/', 6, null, 0), tier('5+Fav', 5, 1, 0),
     tier('3+Fav', 3, 1, 60), tier('3', 3, 0, 30), tier('1+Fav', 1, 1, 4), tier('1', 1, 0, 2)] } });
   const vk = draws.prizeOfDraw(draws.prizesOf(databaseDir, 'vikinglotto'), '2026-11-04');
   const vkSplit = draws.splitRealResult([11, 18, 23, 36, 42, 44, 5], 'vikinglotto');
-  eq(draws.prizeTicketProfit('vikinglotto', [11, 1, 2, 3, 4, 6, 1], vkSplit, vk), 0, 'one number: the price back');
-  eq(draws.prizeTicketProfit('vikinglotto', [11, 18, 23, 3, 4, 6, 5], vkSplit, vk), 58, '3+Fav');
-  eq(draws.prizeTicketProfit('vikinglotto', [11, 18, 23, 36, 42, 44, 1], vkSplit, vk), 3000000 - 2, '6/: the jackpot, any viking');
+  eq(draws.prizeTicketProfit('vikinglotto', [11, 1, 2, 3, 4, 6, 1], vkSplit, vk), -8, 'one number pays 2.00 of the 10.00 a grid costs');
+  eq(draws.prizeTicketProfit('vikinglotto', [11, 18, 23, 3, 4, 6, 5], vkSplit, vk), 50, '3+Fav');
+  eq(draws.prizeTicketProfit('vikinglotto', [11, 18, 23, 36, 42, 44, 1], vkSplit, vk), 3000000 - 10, '6/: the jackpot, any viking');
   eq(draws.prizeTicketProfit('vikinglotto', [1, 9, 35, 34, 36, 48], vkSplit, vk), null, 'an RL ticket without its viking: hits only');
   eq(draws.shapeOf('vikinglotto', { prizes: true }).prizes, true, 'vikinglotto in euro');
 

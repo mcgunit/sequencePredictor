@@ -101,9 +101,9 @@ A row's profit on a draw is **one grid** of its own ticket at the draw's price: 
 | Lotto | six numbers; the bonus counts when one of the six is it | 1.50 EUR |
 | EuroMillions | five numbers and two stars | 2.50 EUR |
 | EuroDreams | six numbers and the dream number | 2.50 EUR |
-| Vikinglotto | six numbers and the viking number | 2.00 EUR |
+| Vikinglotto | six numbers played with all five vikings; the viking number on the ticket is the Super Viking, which doubles the prize | 10.00 EUR (five times the API's base price of 2.00, `GRID_PLAYS`) |
 
-- Tier names are read by `tier_key`: Lotto `5` / `5+1` (the +1 is the bonus), EuroMillions `4+2` (stars), EuroDreams `6+1` / `5/` (the slash is any dream number), Vikinglotto `k` (k numbers without the viking number), `k+Fav` (k numbers with it) and `6/` (all six whatever the viking number: the jackpot). On Vikinglotto one correct number already pays the price back.
+- Tier names are read by `tier_key`: Lotto `5` / `5+1` (the +1 is the bonus), EuroMillions `4+2` (stars), EuroDreams `6+1` / `5/` (the slash is any dream number), Vikinglotto `k` (k numbers, the drawn viking is not the Super Viking), `k+Fav` (k numbers and the drawn viking is the Super Viking: twice `k`) and `6/` (all six whatever the viking number: the jackpot). On Vikinglotto one correct number pays 2.00 EUR of the 10.00 a grid costs.
 - A tier nobody won shows 0 in the API (the money rolls over). A hit on it is valued at the draw's announced jackpot for the top tier, otherwise at that tier's median over the stored draws where it paid.
 - EuroDreams' two annuities count at their rule value: 20,000 EUR a month for 30 years, 2,000 EUR a month for 5 years.
 - A ticket longer than a grid plays its first numbers. Lotto's 7th to 9th numbers (the multi-pick below) are never part of the grid.

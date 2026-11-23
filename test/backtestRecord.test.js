@@ -78,6 +78,11 @@ try {
   ok(bt.forGame(dirs, 'lotto').row('A Model').state === 'none', 'a broken file');
   fs.writeFileSync(path.join(root, 'data', 'backtestRecord', 'lotto.json'), JSON.stringify({ ...record, version: 99 }));
   ok(bt.forGame(dirs, 'lotto').row('A Model').state === 'none', 'another version');
+  // a Vikinglotto record booked at the old grid price (no money mark) is not shown; one booked the new way is
+  fs.writeFileSync(path.join(root, 'data', 'backtestRecord', 'vikinglotto.json'), JSON.stringify(record));
+  ok(bt.forGame(dirs, 'vikinglotto').row('A Model').state === 'none', 'vikinglotto booked the old way');
+  fs.writeFileSync(path.join(root, 'data', 'backtestRecord', 'vikinglotto.json'), JSON.stringify({ ...record, money: 2, updatedAt: 'x' }));
+  ok(bt.forGame(dirs, 'vikinglotto').row('A Model').state === 'tested', 'vikinglotto booked at 10.00 a grid');
 
   // keno: a row's plays are its ticket sizes, each on players of its own
   const keno = { ...record, game: 'keno', random: { sims: 4, months: { '2026-10': { 5: [3, -1, -1, -1], 6: [-1, -1, 2, -1] } } }, months: ['2026-10'],

@@ -36,6 +36,9 @@ from datetime import datetime, timezone
 ROOT = os.path.dirname(os.path.abspath(__file__))
 RECORD_DIR = os.path.join("data", "backtestRecord")
 VERSION = 1
+# How a game's money is booked, where that changed: a record booked the old way is thrown away and built anew.
+# vikinglotto 2: a grid costs 10.00 EUR, five times the base price (PrizeTables.GRID_PLAYS, 23 Nov 2026).
+MONEY = {"vikinglotto": 2}
 
 
 def log(text):
@@ -50,7 +53,7 @@ def load_record(root, game):
     try:
         with open(record_path(root, game)) as handle:
             data = json.load(handle)
-        return data if data.get("version") == VERSION else {}
+        return data if data.get("version") == VERSION and data.get("money", 1) == MONEY.get(game, 1) else {}
     except (OSError, ValueError):
         return {}
 
@@ -199,7 +202,7 @@ def run_game(root, game, months, lockbox, only_rows=None, deadline=None, sims=No
     rows = [row for row in list(rb.STATISTICS_ROWS) + list(rb.BOOSTING_ROWS)
             if game in rb.games_for(row) and (not only_rows or row in only_rows)]
     old_rows = record.get("rows") or {}
-    record = {"version": VERSION, "game": game, "months": months, "lockbox": lockbox or None,
+    record = {"version": VERSION, "money": MONEY.get(game, 1), "game": game, "months": months, "lockbox": lockbox or None,
               "random": {"sims": sims or bm.SIMS,
                          "months": random_months(game, months, config, context, (record.get("random") or {}).get("months"), sims or bm.SIMS)},
               "rows": {name: entry for name, entry in old_rows.items() if name in rb.covered() and game in rb.games_for(name)}}

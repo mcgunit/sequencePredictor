@@ -6,10 +6,10 @@ This page lists what is open or partly open in the project: for each item, what 
 
 | Area | Open items |
 |---|---|
-| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); the backtest record for the rows it does not cover yet (item 13) |
+| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); the backtest record for the rows it does not cover yet (item 13); how long the best model, the top 5 and the best combination have held their place (item 16) |
 | Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
-| Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings; an experiment: tuning the Council's row models (item 14) |
+| Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings; an experiment: tuning the Council's row models (item 14); the phase-shift page as a "what if" (item 17) |
 | Platform | item 8: notifications to a chat app (Telegram or similar), low priority; item 9: day files to SQLite; cleanup |
 
 ## Lottery
@@ -64,6 +64,18 @@ This page lists what is open or partly open in the project: for each item, what 
 - The deep-learning rows: a retrain for every backtested draw, up to four minutes each, so ten months of a daily game is days of GPU time per row. They are to run on the workers, a few months at a time.
 - The quantum rows, the ensembles, the meta-learners, the RL rows and the Council rows: no backtest replays them yet.
 - The market games.
+
+### 16. How long the best model, the top 5 and the best combination have held their place
+
+**Built.** The ranking as it stood before any past draw can be rebuilt from the day files (`rankhistory.js`, used for the point-in-time History). Nothing counts or shows how long a row has held a place.
+
+**Remains.**
+
+- Per game, for every scored draw: the best model, the top 5 and the best combination as they stood before that draw.
+- From that: over how many draws in a row the present best model has been the best, how many draws in total, and since when; the same for each of the top 5 (draws in the top 5) and for the best combination.
+- A timeline of the changes: which row took over on which draw.
+- Where it shows: a line beside the best model, the top 5 and the best combination, and the full timeline on an administrators' page.
+- To decide: whether users see the line or administrators only; whether a combination counts as the same one when its members are the same in another order; how far back the best combination can be rebuilt, since its search is not stored per draw.
 
 ## Markets
 
@@ -167,6 +179,18 @@ The design of the track, the controls and how to read them are in [research](res
 - A tuner for the row models on the GPU worker, where a ticket takes seconds: sampling settings (temperature, top-p, top-k), the prompt (how many draws are shown, how the tally is laid out) and which model answers. The models on the DL360 take minutes a ticket and stay out of it.
 - Two scores, kept apart. Arrival and variety are measured directly and can be tuned. Profit goes through the same gate as every other tuner; the expectation written down beforehand is "no better than a random ticket", because the controls find no structure in the draws for a setting to exploit.
 - Later, only if the first part shows something: fine-tuning a small model on the draws (LoRA, models up to about 4B on the 11 GB card).
+
+### 17. The phase-shift page as a "what if"
+
+**Built.** The phase-shift analysis scores every stored ticket against the draw it was made for and against the 29 draws after it, and shows each row's best lag. See [scoring](scoring.md), *Phase-shift (lag) analysis*.
+
+**Remains.**
+
+- A "what if" per row: the profit had its ticket been played on the draw at its best lag instead of on the next draw, beside the profit it really had at lag +1.
+- The best lag is taken from the draws before the one it is played on, never from the whole record: a lag chosen with the played draws in view always looks profitable.
+- A reference: the same count for a lag picked at random, so that a best lag has something to beat.
+- The result stays on the Phase-shift page. No ranking, ticket or plan reads it.
+- To decide: the games and rows it covers first; how many scored draws a row needs before a best lag is named.
 
 ### Later, only if the tracked results justify it
 

@@ -238,6 +238,16 @@ def combines(kind, head, record_member):
     return bool(head) and not (kind == "record" and record_member)
 
 
+def stored_ticket(game, row):
+    """The ticket of a Council row as the day file holds it (ct.as_row backwards); None when it is not a valid ticket."""
+    try:
+        ticket = list(row["predictions"][0]) + (list(row.get("multiPick") or []) if game == "lotto" else [])
+        ticket = [int(n) for n in ticket]
+    except Exception:
+        return None
+    return ct.validate(game, ticket)[0]
+
+
 def game_context(root, game, members, head, record_member=None):
     """
     What a game's rows are made from: its newest day file, the questions and the rows it still misses. None when
@@ -279,6 +289,14 @@ def game_context(root, game, members, head, record_member=None):
                "sizes": keno_sizes(existing) if game == "keno" else ct.KENO_SIZES, "info": {}, "question": {},
                "tickets": {kind: [] for kind in ct.KINDS}, "rows": [],
                "record": {"game": game, "day": day, "askedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"), "kinds": {}}}
+    # the members' tickets an earlier run of this day left in the file: the head combines them with today's (found
+    # 23 Nov 2026: a game whose members had all answered on an earlier morning never got its combined row)
+    stored = {r.get("name"): r for r in existing if isinstance(r, dict)}
+    for kind in ct.KINDS:
+        for member in members:
+            ticket = stored_ticket(game, stored.get(ct.row_name(kind, member["name"])))
+            if ticket is not None and asks(kind, member["name"], record_member):
+                context["tickets"][kind].append((member["name"], ticket))
     for kind in ct.KINDS:
         context["info"][kind] = ct.summary(game, days, ranked_names=ranking, kind=kind)
         context["question"][kind] = ct.prompt(game, kind, context["info"][kind])
@@ -589,6 +607,19 @@ def _self_check():
             json.dump(body, handle)
         assert game_context(root, "pick3", members, head, "Two") is None and game_context(root, "pick3", members, head, None) is not None
         checks += 1
+        # the members' rows of an earlier run and no combined row: the head combines the stored tickets, no member asked
+        body["newPrediction"] = [r for r in body["newPrediction"] if r["name"] != ct.row_name("draws", ct.COMBINED)]
+        with open(path, "w") as handle:
+            json.dump(body, handle)
+        context = game_context(root, "pick3", members, head, "Two")
+        assert [m for m, _ in context["tickets"]["draws"]] == ["One", "Two", "Three"] and context["tickets"]["draws"][0][1] == [1, 2, 3]
+        for member in members:
+            ask_member(context, member, models, ask=lambda *a, **k: 1 / 0)
+        ask_head(context, head, models, ask=ask)
+        assert [r["name"] for r in context["rows"]] == [ct.row_name("draws", ct.COMBINED)]
+        assert stored_ticket("pick3", {"predictions": [[1, 2]]}) is None and stored_ticket("pick3", None) is None
+        assert stored_ticket("lotto", {"predictions": [[1, 2, 3, 4, 5, 6]], "multiPick": [7, 8, 9]}) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        checks += 4
 
     # the guard: free, taken, and every way of not knowing counts as taken
     class Out:

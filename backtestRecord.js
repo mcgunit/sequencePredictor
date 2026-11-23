@@ -16,6 +16,7 @@ const path = require('path');
 const params = require('./params');
 
 const VERSION = 1;
+const MONEY = { vikinglotto: 2 };   // BacktestRecord.MONEY: a record booked the old way is not shown
 const MEMBER_STEP = 53;
 const PLAY_STEP = 17;
 const NOT_TESTED = 'not tested yet';
@@ -31,7 +32,7 @@ function load(dirs, game) {
   let record = null;
   try {
     const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
-    if (data && data.version === VERSION && data.rows && typeof data.rows === 'object' && Array.isArray(data.months)) record = data;
+    if (data && data.version === VERSION && (data.money || 1) === (MONEY[game] || 1) && data.rows && typeof data.rows === 'object' && Array.isArray(data.months)) record = data;
   } catch (e) { record = null; }
   cache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, record });
   return record;

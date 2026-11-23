@@ -2,6 +2,24 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 23 November 2026
+
+### Vikinglotto: a grid costs 10.00 EUR, not 2.00
+
+*Documented in [scoring.md](scoring.md), Profit for Lotto, EuroMillions, EuroDreams and Vikinglotto.*
+
+**Found in the first backtest record.** Vikinglotto rows ended 4 to 9 of 9 months in profit and random tickets about half of them. The stored prize tables with a grid at 2.00 EUR pay random tickets back 2.5 times their stake, which no lottery does. The play form settles it: a grid is six numbers played with all five vikings, five times the API's base price, and the chosen Super Viking doubles the prize (the `k+Fav` tiers are twice the `k` tiers).
+
+**Changed.** A Vikinglotto grid is booked at 10.00 EUR (`PrizeTables.GRID_PLAYS`, the same in `draws.js`); the stored prize tables keep the API's base price. Random tickets now get back half their stake. Every Vikinglotto euro figure shown between 5 and 23 November was too high by 8.00 EUR a grid; the figures are computed from the day files, so they are right from the first run after this change. The Vikinglotto backtest record made on 23 November is discarded and built anew (`BacktestRecord.MONEY`).
+
+### Council rows: the combined row reads the tickets already in the day file
+
+*Documented in [operations.md](operations.md), the Council rows job.*
+
+**Found on the morning of 23 November.** EuroMillions and Vikinglotto had no new draw, and their day files already held every member's row from earlier mornings. The job asked no member, so the head had nothing to combine and both games stayed without a combined row; Lotto's combined row was made from three of its five member tickets.
+
+**Changed.** The head combines the member tickets of the day file together with the ones of the running morning. A later run of the same day adds the missing combined row without asking a member again.
+
 ## 22 November 2026
 
 ### Controls: a margin on the shuffled bound, a higher minimum for the row test

@@ -351,6 +351,10 @@ function prizeOfDraw(prizes, iso) {
   if (!entry || !entry.price || !Array.isArray(entry.tiers) || !entry.tiers.length) return null;
   return { entry, typical: prizes.typical };
 }
+// What one grid costs on a draw (PrizeTables.grid_price): the stored base price, times five for Vikinglotto, whose grid
+// plays its six numbers with all five vikings (10.00 EUR; corrected 23 Nov 2026, a grid was booked at 2.00 until then)
+const PRIZE_GRID_PLAYS = { vikinglotto: 5 };
+const prizeGridPrice = (game, entry) => Math.round(Number(entry.price) * (PRIZE_GRID_PLAYS[game] || 1) * 100) / 100;
 // Net EUR of one grid of the ticket on its draw (PrizeTables.ticket_profit), or null: no table, not a full grid
 function prizeTicketProfit(game, cells, split, prize) {
   if (!prize || !PRIZE_GRID[game] || !split.mains.length) return null;
@@ -376,7 +380,7 @@ function prizeTicketProfit(game, cells, split, prize) {
       if (!payout) payout = tier === tiers[0] ? Number(entry.jackpot || 0) : Number((typical || {})[tier.name] || 0);
     }
   }
-  return Math.round((payout - Number(entry.price)) * 100) / 100;
+  return Math.round((payout - prizeGridPrice(game, entry)) * 100) / 100;
 }
 
 // --- DAY FILES ---
@@ -526,7 +530,7 @@ function scoreTicket(game, row, realResult, split = splitRealResult(realResult, 
   } else if (PRIZE_GAMES.includes(game)) {
     const profit = prizeTicketProfit(game, cells, split, prize);
     out.profit = profit;
-    out.stake = profit === null ? null : Number(prize.entry.price);
+    out.stake = profit === null ? null : prizeGridPrice(game, prize.entry);
   }
   return out;
 }
@@ -572,7 +576,7 @@ function dayFigures(game, day, keep = keepAll, prize = null) {
       if (money) { rowProfit += calculateProfit(p, realResult, game, nameOf(m)); stake += ticketStake(p, realResult, game); }
       if (priced) {
         const v = prizeTicketProfit(game, p, split, prize);
-        if (v !== null) { rowProfit += v; stake += Number(prize.entry.price); grids += 1; }
+        if (v !== null) { rowProfit += v; stake += prizeGridPrice(game, prize.entry); grids += 1; }
       }
     });
     profit += rowProfit;

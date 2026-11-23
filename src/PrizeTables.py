@@ -18,7 +18,8 @@ The rules a ticket is scored by (decided 3 Nov 2026):
       the multi-pick stay a hit-rate study), EuroMillions five numbers and
       two stars, EuroDreams six numbers and the dream number, Vikinglotto
       six numbers and the viking number - at the draw's base price (1.50,
-      2.50, 2.50, 2.00 EUR).
+      2.50, 2.50 EUR); a Vikinglotto grid plays all five vikings, so it
+      costs five times its base price (10.00 EUR, GRID_PLAYS).
   a tier nobody won pays 0 in the API (the money rolls over), so a hit on
       it is valued as: the top tier the draw's announced jackpot; any other
       tier its median over the stored draws where it did pay; EuroDreams'
@@ -29,8 +30,12 @@ The rules a ticket is scored by (decided 3 Nov 2026):
 
 Vikinglotto joined on 5 Nov 2026 (its tiers confirmed): 'k' is k
 numbers without the viking number, 'k+Fav' k numbers with it, '6/' all six
-whatever the viking number (the jackpot); one number already pays 2.00 EUR,
-the price back. The winner counts fit those odds (checked 4 Nov 2026).
+whatever the viking number (the jackpot). The winner counts fit those odds
+(checked 4 Nov 2026). Corrected 23 Nov 2026: a grid is six numbers played
+with all five vikings, 5 x the API's base price of 2.00 EUR; the viking
+number on the ticket is the Super Viking, the one that doubles the prize
+('k+Fav' is twice 'k'). Until then a grid was booked at 2.00 EUR, which
+made random tickets pay back 2.5 times their stake.
 
     python3 -m src.PrizeTables      # self-check (in npm test)
 """
@@ -51,6 +56,8 @@ GAMES = {"lotto": "Lotto", "euromillions": "Euro+Millions", "eurodreams": "EuroD
 # bonus column (one Markov row's was 46, in a 1-45 game), not a 7th number one
 # can play - their grid is the first six.
 GRID = {"lotto": (6, 0), "euromillions": (5, 2), "eurodreams": (6, 1), "vikinglotto": (6, 1)}
+# how many times the API's base price one grid costs: a Vikinglotto grid plays its six numbers with all five vikings
+GRID_PLAYS = {"vikinglotto": 5}
 # EuroDreams' annuities, per their rule (the API shows the monthly amount, or 0)
 ANNUITY = {"eurodreams": {"6+1": 20000.0 * 12 * 30, "6+0": 2000.0 * 12 * 5}}
 API = "https://apim.prd.natlot.be/api/v4/draw-games/draws"
@@ -254,6 +261,13 @@ def ticket_profit(game, mains, specials, real_mains, real_specials, entry, typic
     return hits_profit(game, main_hits, special_hits, entry, typical)
 
 
+def grid_price(game, entry):
+    """What one grid costs on a draw, EUR: the stored base price times GRID_PLAYS. None without a price."""
+    if not entry or not entry.get("price"):
+        return None
+    return round(float(entry["price"]) * GRID_PLAYS.get(game, 1), 2)
+
+
 def hits_profit(game, main_hits, special_hits, entry, typical=None):
     """
     Net EUR of one full grid that had `main_hits` numbers and `special_hits` specials right (Lotto: 1 when one of
@@ -273,7 +287,7 @@ def hits_profit(game, main_hits, special_hits, entry, typical=None):
             if not payout:
                 payout = (float(entry.get("jackpot") or 0) if tier is tiers[0]
                           else float((typical or {}).get(tier["name"], 0.0)))
-    return round(payout - float(entry["price"]), 2)
+    return round(payout - grid_price(game, entry), 2)
 
 
 def _self_check():
@@ -338,11 +352,11 @@ def _self_check():
     assert tier_key("vikinglotto", "5+Fav") == (5, 1) and tier_key("vikinglotto", "6/") == (6, None) and tier_key("vikinglotto", "1") == (1, 0)
     vk = entry_of("vikinglotto", viking)[1]
     assert vk["price"] == 2.0 and vk["jackpot"] == 3000000.0 and len(vk["tiers"]) == 7
-    assert ticket_profit("vikinglotto", [1, 40, 41, 42, 43, 44], [2], real, [3], vk) == 0.0      # one number: the price back
-    assert ticket_profit("vikinglotto", [1, 40, 41, 42, 43, 44], [3], real, [3], vk) == 2.0      # 1+Fav
-    assert ticket_profit("vikinglotto", [1, 2, 3, 42, 43, 44], [3], real, [3], vk) == 58.0       # 3+Fav
-    assert ticket_profit("vikinglotto", real, [1], real, [3], vk) == 3000000.0 - 2.0             # 6/ whatever the viking
-    assert ticket_profit("vikinglotto", [40, 41, 42, 43, 44, 45], [3], real, [3], vk) == -2.0    # nothing (0+Fav pays nothing)
+    assert ticket_profit("vikinglotto", [1, 40, 41, 42, 43, 44], [2], real, [3], vk) == -8.0     # one number pays 2.00 of the 10.00
+    assert ticket_profit("vikinglotto", [1, 40, 41, 42, 43, 44], [3], real, [3], vk) == -6.0     # 1+Fav
+    assert ticket_profit("vikinglotto", [1, 2, 3, 42, 43, 44], [3], real, [3], vk) == 50.0       # 3+Fav
+    assert ticket_profit("vikinglotto", real, [1], real, [3], vk) == 3000000.0 - 10.0            # 6/ whatever the viking
+    assert ticket_profit("vikinglotto", [40, 41, 42, 43, 44, 45], [3], real, [3], vk) == -10.0   # nothing (0+Fav pays nothing)
     assert ticket_profit("vikinglotto", real, [], real, [3], vk) is None                         # an old RL ticket: hits only
     print("PrizeTables self-check OK")
 

@@ -111,7 +111,7 @@ def draw_money(game, helpers, name, row, prize=None, typical=None, bonus=None):
         profit = PrizeTables.hits_profit(game, int(main_hits), int(special_hits), prize, typical)
         if profit is None:
             return None
-        return 1, float(prize["price"]), float(profit), ["ticket"]
+        return 1, PrizeTables.grid_price(game, prize), float(profit), ["ticket"]
     return None
 
 
