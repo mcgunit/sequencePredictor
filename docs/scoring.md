@@ -307,6 +307,19 @@ Next to the single-row ranking each game carries a `combinations` section (`Help
 
 Ticket-versus-result scores are computed once (one-hot matrix products for hits and for keno, whose payout depends only on played and matched counts; the positional payout functions for pick3 and Joker+), so the control stays cheap in the daily run. A failure of the section costs only the section.
 
+### How long a place is held
+
+Home and the Lottery page say, beside the best model, the best combination and each of the top 5, how long it has held that place (`standing.js`). Nothing is computed about a model: the saved rankings are counted.
+
+- **A draw's standing** is read from the ranking saved before that draw (the cut-off of `rankhistory.js`, so no hindsight): its best model as Home names it (the highest total profit, or average hits, among the rows with enough live draws; `ranking.bestOf`), the first five of its ranking, and its best combination. A draw without a ranking saved before it is not counted; the first ranking was saved on 25 August 2026.
+- **The coming draw** is the last draw of every count: today's report and the five rows the pages show.
+- **In a row**: the draws up to and including the coming one over which the place was held without a break.
+- **The score**: the share of all counted draws on which the place was held, in percent. A row that was in the top 5 before 40 of 61 draws has a score of 66%.
+- **A combination** is the same one when its members are the same, in any order.
+- **Who held the top**: administrators have, on *Best model & rankings*, a card with per lottery game the runs of the best model and of the best combination, the newest first (at most eight; `/api/admin/standing`). Users do not get it: it names rows outside the day's five.
+- A ranking saved before the live record (27 October 2026) has no live figures: its best model is its first ranked row with enough draws.
+- How long a place was held says nothing about the next draw; the line says so in its tooltip.
+
 ## Phase-shift (lag) analysis
 
 Also part of the report (administrators: *Phase-shift*, `/api/admin/phase-shift`). Every day's `newPrediction` is scored not only against the draw it was made for (**lag +1**) but at every lag up to +30: the target draw and the 29 draws after it.

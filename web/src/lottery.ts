@@ -6,6 +6,7 @@
 import { getJson } from './api';
 import {
   backtestOf,
+  standingOf,
   bestOf,
   comingScopeOf,
   drawScopeOf,
@@ -19,6 +20,7 @@ import {
   versionOf,
   noneOf,
   type Backtest,
+  type Standing,
   type Best,
   type Coming,
   type DayFigures,
@@ -111,6 +113,32 @@ export interface GameCard {
   multiPick: MultiPickLegendData | null; // lotto: the system play's sizes, prices and chances, once per game
   last: LastDraw | null;
 }
+// Who held the top (roadmap item 16; administrators, /api/admin/standing): per game the runs of the best model and of
+// the best combination, newest first; to null: up to the coming draw
+export interface TopRun {
+  names: string[];
+  from: string | null;
+  to: string | null;
+  draws: number;
+}
+export interface TopChanges {
+  game: string;
+  draws: number; // the draws counted
+  from: string | null; // the first of them
+  best: TopRun[];
+  combination: TopRun[];
+}
+export function changesOf(v: unknown): TopChanges | null {
+  if (!has(v)) return null;
+  const s = o(v);
+  const run = (x: unknown): TopRun => {
+    const r = o(x);
+    const names = typeof r.name === 'string' ? [r.name] : arr(r.members).filter((m): m is string => typeof m === 'string');
+    return { names, from: ostr(r.from), to: ostr(r.to), draws: num(r.draws, 0) };
+  };
+  const runs = (x: unknown) => arr(x).filter(has).map(run).filter((r) => r.names.length > 0);
+  return { game: str(s.game), draws: num(s.draws, 0), from: ostr(s.from), best: runs(s.best), combination: runs(s.combination) };
+}
 export interface LotteryOverview {
   builtAt: string | null;
   topN: number;
@@ -144,6 +172,10 @@ function cardOf(v: unknown): GameCard {
     multiPick: multiPickLegendOf(c.multiPick), last: lastOf(c.last),
   };
 }
+export const getStanding = async (): Promise<TopChanges[]> => {
+  const raw = o(await getJson<unknown>('/api/admin/standing'));
+  return arr(raw.games).map(changesOf).filter((g): g is TopChanges => g !== null);
+};
 export function normOverview(raw: unknown): LotteryOverview {
   const r = o(raw);
   return { builtAt: ostr(r.builtAt), topN: num(r.topN, 5), firstSaved: savedOf(r.firstSaved), games: arr(r.games).filter(has).map(cardOf), running: runningOf(r.running) };
@@ -196,8 +228,8 @@ export function normUserHistory(raw: unknown, game: string): UserHistory {
 export interface HomeSummary {
   unit: string; // 'EUR' or 'hits per draw'
   minDraws: number;
-  best: { name: string; value: number; draws: number | null; backtest: Backtest | null } | null;
-  combination: { members: string[]; value: number; draws: number | null; unit: string; pValue: number | null; backtest: Backtest | null } | null;
+  best: { name: string; value: number; draws: number | null; backtest: Backtest | null; standing: Standing | null } | null;
+  combination: { members: string[]; value: number; draws: number | null; unit: string; pValue: number | null; backtest: Backtest | null; standing: Standing | null } | null;
 }
 export interface HomeGame {
   game: string;
@@ -247,9 +279,9 @@ function summaryOf(v: unknown): HomeSummary | null {
   const cv = opt(c.value);
   return {
     unit: str(s.unit, 'hits per draw'), minDraws: num(s.minDraws, 0),
-    best: has(s.best) && bv !== null ? { name: str(b.name), value: bv, draws: opt(b.draws), backtest: backtestOf(b.backtest) } : null,
+    best: has(s.best) && bv !== null ? { name: str(b.name), value: bv, draws: opt(b.draws), backtest: backtestOf(b.backtest), standing: standingOf(b.standing) } : null,
     combination: has(s.combination) && cv !== null
-      ? { members: arr(c.members).filter((m): m is string => typeof m === 'string'), value: cv, draws: opt(c.draws), unit: str(c.unit), pValue: opt(c.pValue), backtest: backtestOf(c.backtest) }
+      ? { members: arr(c.members).filter((m): m is string => typeof m === 'string'), value: cv, draws: opt(c.draws), unit: str(c.unit), pValue: opt(c.pValue), backtest: backtestOf(c.backtest), standing: standingOf(c.standing) }
       : null,
   };
 }

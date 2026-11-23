@@ -1881,6 +1881,13 @@ function install(app, options = {}) {
     return weekView({ jobs, sched: readScheduler(dirs), slices: Object.fromEntries(jobs.map((j) => [j.key, readSlices(dirs, j)])),
       controlsView: controlsWithHistory(), tuning: tuningSummary(t.records, t.hist, t.runs, t.missing), live });
   }));
+  // Who held the top (standing.js, roadmap item 16, 23 Nov 2026): per lottery game the runs of the best model and of
+  // the best combination over the saved rankings. Administrators only: the runs name rows outside a day's five.
+  app.get('/api/admin/standing', (req, res) => answerLater(res, async () => {
+    const hist = await require('./rankhistory').load(dirs.root, { cacheFile: options.rankCacheFile || path.join(__dirname, 'config', 'rankhistory-cache.json') });
+    const standing = require('./standing');
+    return { games: LOTTERY_GAMES.map((game) => { const st = standing.forGame(dirs, game, hist, report()); return { game, draws: st.draws, from: st.from, ...st.changes() }; }) };
+  }));
   // the Workbench (workbench.js): the draws of every game, one draw, the market workbench. The point-in-time ranking
   // reads git at the checkout's root; its cache goes to the server's own gitignored config/ unless the caller names a file
   workbench.install(app, { dirs, answerLater, games: { GAMES, UNIT, groupOf },

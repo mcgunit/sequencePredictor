@@ -6,7 +6,7 @@ This page lists what is open or partly open in the project: for each item, what 
 
 | Area | Open items |
 |---|---|
-| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); the backtest record for the rows it does not cover yet (item 13); how long the best model, the top 5 and the best combination have held their place (item 16) |
+| Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); the backtest record for the rows it does not cover yet (item 13) |
 | Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
 | Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings; an experiment: tuning the Council's row models (item 14); the phase-shift page as a "what if" (item 17) |
@@ -64,18 +64,6 @@ This page lists what is open or partly open in the project: for each item, what 
 - The deep-learning rows: a retrain for every backtested draw, up to four minutes each, so ten months of a daily game is days of GPU time per row. They are to run on the workers, a few months at a time.
 - The quantum rows, the ensembles, the meta-learners, the RL rows and the Council rows: no backtest replays them yet.
 - The market games.
-
-### 16. How long the best model, the top 5 and the best combination have held their place
-
-**Built.** The ranking as it stood before any past draw can be rebuilt from the day files (`rankhistory.js`, used for the point-in-time History). Nothing counts or shows how long a row has held a place.
-
-**Remains.**
-
-- Per game, for every scored draw: the best model, the top 5 and the best combination as they stood before that draw.
-- From that: over how many draws in a row the present best model has been the best, how many draws in total, and since when; the same for each of the top 5 (draws in the top 5) and for the best combination.
-- A timeline of the changes: which row took over on which draw.
-- Where it shows: a line beside the best model, the top 5 and the best combination, and the full timeline on an administrators' page.
-- To decide: whether users see the line or administrators only; whether a combination counts as the same one when its members are the same in another order; how far back the best combination can be rebuilt, since its search is not stored per draw.
 
 ## Markets
 
@@ -249,3 +237,4 @@ They are read by:
 - **Prize-table scoring** for Lotto, EuroMillions, EuroDreams and Vikinglotto ([scoring](scoring.md)).
 - **Worker machines.** A GPU lane and a CPU lane, with the Sunday controls on the CPU worker ([operations](operations.md)).
 - **Hyperopts, backtests and parameter overrides from the admin pages**, and variant rows per model ([tuning](tuning.md), [models](models.md)).
+- **16. How long a place is held.** Beside the best model, the best combination and each of the top 5: the draws in a row and a score, with a table of who held the top ([scoring](scoring.md)).

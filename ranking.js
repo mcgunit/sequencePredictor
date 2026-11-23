@@ -99,4 +99,28 @@ function usersTop(report, game, present) {
   return topNames(rankingOf(report, game), TOP_MODELS_SHOWN, Array.isArray(present) ? present : null);
 }
 
-module.exports = { isVariantRow, TOP_MODELS_SHOWN, METRIC_TEXT, metricTextOf, rankingOf, topNames, loadReport, rankingFor, namesToday, usersTop };
+// The best model of a game's report entry, as Home names it (lottery.summaryOf): among the rows with enough live
+// draws, the one with the highest total profit - or the highest average hits where the game has no money figure.
+// {name, value, draws, money, minDraws}, or null. A report saved before the live record (27 Oct 2026) has no live
+// figures: its best model is the first ranked row with enough draws, without a value.
+const numOf = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+function bestOf(info) {
+  if (!info || !Array.isArray(info.models)) return null;
+  const minDraws = numOf((info.live && info.live.minDrawsForRanking) ?? info.minDrawsForRanking) || 1;
+  const rows = info.models.filter((m) => m && m.live && numOf(m.live.draws) >= minDraws);
+  const money = rows.some((m) => numOf(m.live.profit_total) !== null);
+  const value = (m) => (money ? numOf(m.live.profit_total) : numOf(m.live.avg_hits));
+  const ranked = rows.filter((m) => value(m) !== null).sort((a, b) => value(b) - value(a) || String(a.name).localeCompare(String(b.name)));
+  if (ranked.length) return { name: String(ranked[0].name), value: value(ranked[0]), draws: numOf(ranked[0].live.draws), money, minDraws };
+  if (info.rankedOn === 'live') return null;
+  const first = info.models.find((m) => m && m.name !== undefined && m.name !== null && !isVariantRow(m.name) && (numOf(m.draws) || 0) >= minDraws);
+  return first ? { name: String(first.name), value: null, draws: numOf(first.draws), money, minDraws } : null;
+}
+// The best combination's members of a report entry, or null
+function comboOf(info) {
+  const best = info && info.combinations && info.combinations.best;
+  const members = best && Array.isArray(best.members) ? best.members.map(String) : [];
+  return members.length ? members : null;
+}
+
+module.exports = { bestOf, comboOf, isVariantRow, TOP_MODELS_SHOWN, METRIC_TEXT, metricTextOf, rankingOf, topNames, loadReport, rankingFor, namesToday, usersTop };

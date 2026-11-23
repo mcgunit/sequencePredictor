@@ -59,6 +59,7 @@ const pipeline = require('./pipeline');
 const rankings = require('./ranking');
 const rankhistory = require('./rankhistory');
 const workbench = require('./workbench');
+const standing = require('./standing');
 
 const GAMES = admin.LOTTERY_GAMES;                     // the users' Lottery: the markets have their own pages (api.js)
 const TOP_N = rankings.TOP_MODELS_SHOWN;
@@ -367,7 +368,9 @@ function marketHeadline(dirs, market, now) {
 // combination exactly as the admin's Best combination per game card has it (every established row, every scored draw;
 // for the payout games its total profit, for the others the best line held per draw), with its luck control's p value.
 // Raw profit, as asked: one big prize can carry a row's total.
-function summaryOf(report, game, bt = null) {
+// st: the game's standing reader (standing.forGame, roadmap item 16) - how long the best model and the best
+// combination have held their place
+function summaryOf(report, game, bt = null, st = null) {
   const info = report && report.games ? report.games[game] : null;
   if (!info) return null;
   const minDraws = num((info.live && info.live.minDrawsForRanking) ?? info.minDrawsForRanking) || 1;
@@ -376,7 +379,8 @@ function summaryOf(report, game, bt = null) {
   const value = (m) => (money ? num(m.live.profit_total) : num(m.live.avg_hits));
   const ranked = rows.filter((m) => value(m) !== null).sort((a, b) => value(b) - value(a) || String(a.name).localeCompare(String(b.name)));
   // bt: the game's backtest record (backtestRecord.forGame, roadmap item 13) - the count beside both, "not tested yet" without one
-  const best = ranked.length ? { name: ranked[0].name, value: round2(value(ranked[0])), draws: num(ranked[0].live.draws), ...(bt ? { backtest: bt.row(ranked[0].name) } : {}) } : null;
+  const best = ranked.length ? { name: ranked[0].name, value: round2(value(ranked[0])), draws: num(ranked[0].live.draws), ...(bt ? { backtest: bt.row(ranked[0].name) } : {}),
+    ...(st ? { standing: { ...st.best(ranked[0].name), detail: st.note } } : {}) } : null;
   const combo = info.combinations && info.combinations.best ? info.combinations.best : null;
   const comboMoney = info.combinations && info.combinations.metric === 'profit_per_draw';
   const comboValue = combo ? num(comboMoney ? combo.profit_total : combo.avg_best_hits) : null;
@@ -384,26 +388,34 @@ function summaryOf(report, game, bt = null) {
   return {
     unit: money ? 'EUR' : 'hits per draw', minDraws, best,
     combination: combo && comboValue !== null ? { members: list(combo.members).map(String), value: round2(comboValue), draws: num(combo.draws),
-      unit: comboMoney ? 'EUR' : 'best line per draw', pValue: control, ...(bt ? { backtest: bt.combination(list(combo.members).map(String)) } : {}) } : null,
+      unit: comboMoney ? 'EUR' : 'best line per draw', pValue: control, ...(bt ? { backtest: bt.combination(list(combo.members).map(String)) } : {}),
+      ...(st ? { standing: { ...st.combination(list(combo.members).map(String)), detail: st.note } } : {}) } : null,
   };
 }
 // The backtest record beside each of today's five (roadmap item 13, 22 Nov 2026). Added to a copy, outside the
 // overview's memory: a record or a row's served settings change without any of the overview's sources changing.
-function withBacktest(dirs, overview) {
+// With it, since 23 Nov 2026 (roadmap item 16): how long each of the five has been in the top 5 (standing.js), and
+// per game the changes at the top (`standing`: the draws counted and the best model's and best combination's runs).
+const standingFor = (dirs, hist, report, g) => standing.forGame(dirs, g.game, hist, report, g.coming ? g.coming.rows.map((r) => r.name) : null);
+// The changes at the top are not here: they name rows outside today's five (admin.js, /api/admin/standing).
+function withBacktest(dirs, overview, hist = null, report = null) {
   return { ...overview, games: overview.games.map((g) => {
     if (g.empty || !g.coming) return g;
     const bt = backtestRecord.forGame(dirs, g.game);
-    return { ...g, coming: { ...g.coming, rows: g.coming.rows.map((r) => ({ ...r, backtest: bt.row(r.name) })) } };
+    const st = hist ? standingFor(dirs, hist, report, g) : null;
+    return { ...g, coming: { ...g.coming, rows: g.coming.rows.map((r) => ({ ...r, backtest: bt.row(r.name), ...(st ? { standing: st.top(r.name) } : {}) })) },
+    };
   }) };
 }
 function homeOf(dirs, hist, report, now = new Date()) {
-  const overview = withBacktest(dirs, overviewOf(dirs, hist, report, now));
+  const overview = withBacktest(dirs, overviewOf(dirs, hist, report, now), hist, report);
   return {
     builtAt: isoNow(now),
     lottery: overview.games.map((g) => (g.empty ? g : {
       game: g.game, unit: g.unit, shape: g.shape, next: g.next,
-      summary: summaryOf(report, g.game, backtestRecord.forGame(dirs, g.game)),
-      tops: g.coming.rows.map((r) => ({ ...r, tickets: r.tickets.filter((t) => t.kind !== 'ranking').slice(0, 1) })), rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
+      summary: summaryOf(report, g.game, backtestRecord.forGame(dirs, g.game), standingFor(dirs, hist, report, g)),
+      // Home keeps a top row's standing short (no tooltip text of its own: the line is the tooltip)
+      tops: g.coming.rows.map((r) => ({ ...r, ...(r.standing ? { standing: { state: r.standing.state, brief: r.standing.brief, text: r.standing.text } } : {}), tickets: r.tickets.filter((t) => t.kind !== 'ranking').slice(0, 1) })), rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
       last: { date: g.last.date, rows: g.last.rows ? g.last.rows.length : 0, figures: g.last.figures || null, none: g.last.none || (g.last.scope ? g.last.scope.none : null), leftOut: g.last.leftOut || null,
         afterClose: Boolean(g.last.afterClose) },
     })),
@@ -436,7 +448,7 @@ function install(app, options = {}) {
 
   app.use('/api/lottery', signedIn);
   app.use('/api/home', signedIn);
-  app.get('/api/lottery', (req, res) => answerLater(res, async () => ({ ...withBacktest(dirs, overviewOf(dirs, await history(), report())), running: running() })));
+  app.get('/api/lottery', (req, res) => answerLater(res, async () => { const hist = await history(); return { ...withBacktest(dirs, overviewOf(dirs, hist, report()), hist, report()), running: running() }; }));
   app.get('/api/lottery/:game', (req, res) => answerLater(res, async () => {
     const game = gameOf(req);
     if (!game) return { error: 'unknown game', status: 404 };

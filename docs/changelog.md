@@ -4,6 +4,16 @@ What was decided, built, fixed, measured and found in this project, by date, new
 
 ## 23 November 2026
 
+### How long the best model, the top 5 and the best combination have held their place (roadmap item 16)
+
+*Documented in [scoring.md](scoring.md), How long a place is held.*
+
+**Decided.** Users see it too, as a score. Beside the best model, the best combination and each of the top 5, Home and the Lottery page show over how many draws in a row the place has been held and a score: the share of all counted draws in that place. Administrators have a card *Who held the top* on *Best model & rankings*, with each game's runs; users do not get it, because it names rows outside the day's five.
+
+**Built.** `standing.js` counts the rankings saved before each draw (`rankhistory.js`, whose saved versions now also keep the best model and the best combination; its cache is read anew once) and today's report for the coming draw. No new job and no new file: the count is made when the page is asked for.
+
+**First reading, on the saved rankings of 23 November.** Places change often. Lotto's best model had held its place for 4 draws in a row and before 7 of the 27 counted draws (score 26%); keno's for 27 in a row (30%); Pick3's best model had changed that morning. The longest holders are top-5 rows: Lotto's WeightedEnsemble and Vikinglotto's MarkovBayesian were in the top 5 before every counted draw.
+
 ### Vikinglotto: a grid costs 10.00 EUR, not 2.00
 
 *Documented in [scoring.md](scoring.md), Profit for Lotto, EuroMillions, EuroDreams and Vikinglotto.*

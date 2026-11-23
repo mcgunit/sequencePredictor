@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { getAdminModels, type Combination, type ModelsGameSummary, type ModelsView } from '../../api';
 import { DASH, count, day, fixed, perUnit, short, signedFixed, stamp } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
+import { getStanding, type TopRun } from '../../lottery';
+import { gameTitle } from '../../components/draws/text';
 import { useDrawerParam } from '../../hooks/useUrlState';
 import { Card, Scroll } from '../../components/admin/Card';
 import Chip from '../../components/admin/Chip';
@@ -39,6 +41,7 @@ export default function ModelsPage() {
       <div className="stack">
         <BestCard d={d} onOpen={drawer.open} />
         <CombinationCard d={d} onOpen={drawer.open} />
+        <StandingCard />
       </div>
       {drawer.game ? <ModelsDrawer key={drawer.game} game={drawer.game} onClose={drawer.close} /> : null}
     </div>
@@ -311,5 +314,64 @@ function CombinationGroup({ name, games, onOpen }: { name: string; games: Models
         );
       })}
     </>
+  );
+}
+
+// Who held the top (roadmap item 16): per lottery game the runs of the best model, as Home names it, and of the best
+// combination over the rankings saved before each draw; the newest first. Folded per game.
+function StandingCard() {
+  const load = useLoad(getStanding, []);
+  if (load.kind !== 'ok') return null;
+  const games = load.data.filter((g) => g.best.length || g.combination.length);
+  if (!games.length) return null;
+  return (
+    <Card
+      title="Who held the top"
+      help={
+        <>
+          Read from the ranking saved before each draw (the first was saved on 25 Aug 2026), with today&apos;s ranking for the coming draw. Best model: the
+          row Home names, the highest total profit (or average hits) among the rows with enough live draws. A combination is the same one when its members
+          are the same. Users see the count for today&apos;s holders only, as draws in a row and a score. How long a place was held says nothing about the
+          next draw.
+        </>
+      }
+    >
+      {games.map((g) => (
+        <details className="fold" key={g.game}>
+          <summary>
+            {gameTitle(g.game)}: {g.draws} draws{g.from ? ` since ${day(g.from)}` : ''}
+          </summary>
+          <TopRuns title="Best model" runs={g.best} />
+          <TopRuns title="Best combination" runs={g.combination} />
+        </details>
+      ))}
+    </Card>
+  );
+}
+function TopRuns({ title, runs }: { title: string; runs: TopRun[] }) {
+  if (!runs.length) return null;
+  return (
+    <Scroll>
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>{title}</th>
+            <th>From</th>
+            <th>To</th>
+            <th className="num">Draws</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((r, i) => (
+            <tr key={`${r.from ?? 'now'}-${i}`}>
+              <td>{r.names.map(short).join(' + ')}</td>
+              <td>{r.from ? day(r.from) : 'the coming draw'}</td>
+              <td>{r.to ? day(r.to) : 'the coming draw'}</td>
+              <td className="num">{r.draws}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Scroll>
   );
 }

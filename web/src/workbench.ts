@@ -257,6 +257,20 @@ export function backtestOf(v: unknown): Backtest | null {
   const text = str(b.text);
   return text ? { tested: b.state === 'tested', brief: str(b.brief, text), text, detail: str(b.detail) } : null;
 }
+// How long a row, the best model or the best combination has held its place (roadmap item 16): the draws in a row up
+// to the coming one and the score, the share of the counted draws in that place. The words are the server's (standing.js).
+export interface Standing {
+  tracked: boolean;
+  brief: string; // "12 draws in a row, score 66%"
+  text: string; // "best model for 12 draws in a row (since the draw of 2026-11-01); 40 of 61 draws on record: score 66%"
+  detail: string;
+}
+export function standingOf(v: unknown): Standing | null {
+  if (!has(v)) return null;
+  const b = o(v);
+  const text = str(b.text);
+  return text ? { tracked: b.state === 'tracked', brief: str(b.brief, text), text, detail: str(b.detail, text) } : null;
+}
 export interface Row {
   name: string;
   rank: number | null; // place in the ranking the draw is read against
@@ -266,6 +280,7 @@ export interface Row {
   liveMark: LiveMark | null; // null: live as stored (or not judged)
   manual: string[] | null; // the admin: the settings this row ran on by hand (Admin > Parameters), null when none
   backtest: Backtest | null; // today's five only (the coming draw); null elsewhere
+  standing: Standing | null; // today's five only: how long the row has been in the top 5
 }
 const LIVE_MARKS: LiveMark['status'][] = ['late', 'recovered', 'duplicate', 'unchecked'];
 function liveMarkOf(v: unknown): LiveMark | null {
@@ -299,6 +314,7 @@ export function rowOf(v: unknown): Row {
     liveMark: liveMarkOf(r.liveMark),
     manual: Array.isArray(r.manual) && r.manual.length ? r.manual.filter((x): x is string => typeof x === 'string') : null,
     backtest: backtestOf(r.backtest),
+    standing: standingOf(r.standing),
   };
 }
 

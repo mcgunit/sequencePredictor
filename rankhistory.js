@@ -48,7 +48,8 @@ const rankings = require('./ranking');
 const REPORT_PATH = 'data/database/modelPerformance.json';
 // 2 (27 Oct 2026): a version ranked on the live record is reduced with its live values (reduce); entries reduced
 // before could hold all-draws values for such a version, so every version is read once more from git
-const CACHE_VERSION = 2;
+// 3 (23 Nov 2026): each game also keeps its best model and its best combination (standing.js, roadmap item 16)
+const CACHE_VERSION = 3;
 const CUTOFF_HOUR = 15;                                  // Brussels wall time on the draw's (the week's first) day
 const WEEK_GAMES = ['cryptoweek', 'sharesweek'];
 // The month games (18 Nov 2026): one draw per calendar month, dated by the month's last day or session; its ranking
@@ -86,6 +87,8 @@ function reduce(text) {
     games[game] = {
       names: models.map((m) => String(m.name)), metric, minDraws: num(live ? info.live.minDrawsForRanking : info.minDrawsForRanking),
       values: models.map((m) => r4(of(m)[metric])), draws: models.map((m) => num(of(m).draws)), rankedOn: live ? 'live' : 'all',
+      // the best model as Home names it and the best combination's members, sorted (rankings.bestOf, comboOf)
+      best: (rankings.bestOf(info) || {}).name || null, combo: (rankings.comboOf(info) || []).slice().sort(),
     };
   });
   return { generatedAt: isoUtc(report.generatedAt), games };
@@ -106,7 +109,8 @@ function validEntry(v) {
   if ((v.generatedAt !== null && typeof v.generatedAt !== 'string') || !v.games || typeof v.games !== 'object' || Array.isArray(v.games)) return false;
   return Object.entries(v.games).every(([game, g]) => GAME.test(game) && g && typeof g === 'object' && typeof g.metric === 'string'
     && (g.rankedOn === 'all' || g.rankedOn === 'live') && Array.isArray(g.names) && g.names.every((n) => typeof n === 'string')
-    && Array.isArray(g.values) && g.values.length === g.names.length && Array.isArray(g.draws) && g.draws.length === g.names.length);
+    && Array.isArray(g.values) && g.values.length === g.names.length && Array.isArray(g.draws) && g.draws.length === g.names.length
+    && (g.best === null || typeof g.best === 'string') && Array.isArray(g.combo) && g.combo.every((n) => typeof n === 'string'));
 }
 function readCache(file) {
   if (!file || cacheRead.has(file)) return;
@@ -186,7 +190,7 @@ function makeHistory(versions, { head = null, error = null, skipped = 0, unread 
     const version = { sha: v.sha, committedAt: isoMs(v.at), generatedAt: v.generatedAt };
     if (!g) return none('not-ranked', { version });
     return { version, names: g.names, metric: g.metric, metricText: rankings.metricTextOf(g.metric, g.rankedOn),
-      minDraws: g.minDraws, values: g.values, draws: g.draws, rankedOn: g.rankedOn || 'all' };
+      minDraws: g.minDraws, values: g.values, draws: g.draws, rankedOn: g.rankedOn || 'all', best: g.best || null, combo: g.combo || [] };
   }
   // The top n of a draw: the first n names of the ranking at its cut-off that are in the draw's table (present: the
   // names of its rows; a ranked row can be missing from a day). {top, ranking, cutoff} or {none, text, cutoff}.
