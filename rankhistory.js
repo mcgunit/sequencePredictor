@@ -49,7 +49,7 @@ const REPORT_PATH = 'data/database/modelPerformance.json';
 // 2 (27 Oct 2026): a version ranked on the live record is reduced with its live values (reduce); entries reduced
 // before could hold all-draws values for such a version, so every version is read once more from git
 // 3 (23 Nov 2026): each game also keeps its best model and its best combination (standing.js, roadmap item 16)
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;   // 4 (24 Nov 2026): the best model is never a variant row
 const CUTOFF_HOUR = 15;                                  // Brussels wall time on the draw's (the week's first) day
 const WEEK_GAMES = ['cryptoweek', 'sharesweek'];
 // The month games (18 Nov 2026): one draw per calendar month, dated by the month's last day or session; its ranking

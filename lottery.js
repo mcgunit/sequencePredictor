@@ -374,7 +374,8 @@ function summaryOf(report, game, bt = null, st = null) {
   const info = report && report.games ? report.games[game] : null;
   if (!info) return null;
   const minDraws = num((info.live && info.live.minDrawsForRanking) ?? info.minDrawsForRanking) || 1;
-  const rows = list(info.models).filter((m) => m && m.live && num(m.live.draws) >= minDraws);
+  // a variant row ("· Sampled", "· Memorise") is administrators only: never the best model here (24 Nov 2026)
+  const rows = list(info.models).filter((m) => m && m.live && !rankings.isVariantRow(m.name) && num(m.live.draws) >= minDraws);
   const money = rows.some((m) => num(m.live.profit_total) !== null);
   const value = (m) => (money ? num(m.live.profit_total) : num(m.live.avg_hits));
   const ranked = rows.filter((m) => value(m) !== null).sort((a, b) => value(b) - value(a) || String(a.name).localeCompare(String(b.name)));

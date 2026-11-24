@@ -2,6 +2,24 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 24 November 2026
+
+### The phase-shift page as a "what if" (roadmap item 17)
+
+*Documented in [scoring.md](scoring.md), What if the peak lag had been played.*
+
+**Decided.** The Phase-shift page also answers what the profit would have been had the peak lag been taken into account. The result stays on that page.
+
+**Built.** `phasewhatif.js`: for every draw the ticket a row made *lag - 1* draws earlier is played on that draw, with the lag the row's peak in the newest run recorded before the draw. Beside it stand the row as played and the average over all thirty lags, what a lag picked at random pays. Computed from the day files when the table is opened; no new job and no new file.
+
+**First reading, on production's day files of 23 November.** Playing the peak lag does not beat a lag picked at random. Over all rows together the what-if ends behind any lag in six of the seven games (keno -4,058 against -3,917 EUR, Joker+ -1,215 against -1,025, Vikinglotto -900 against -833, Lotto -566 against -542, EuroMillions -979 against -971, EuroDreams -788 against -786). Pick3 is the exception (-742 against -1,288), carried by a few straight hits: its two best rows gained on 2 and 3 draws of about 60. In every game fewer than half of the rows are ahead of any lag (7 of 23 up to 17 of 39).
+
+### Home's best model is never a variant row
+
+**Found on 23 November.** Home named `XGBoost Model · Memorise` as Joker+'s best model; the Sampled and Memorise rows are for administrators only.
+
+**Changed.** The best model is chosen among the rows that are not variant rows (`ranking.bestOf`, `lottery.summaryOf`); the saved rankings are read anew once, so the count of how long a best model has held its place follows the same rule.
+
 ## 23 November 2026
 
 ### How long the best model, the top 5 and the best combination have held their place (roadmap item 16)

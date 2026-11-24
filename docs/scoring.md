@@ -337,3 +337,14 @@ Each run keeps only its single best peak per model, with a z-score against the m
 The page shows this run's peak and z-score, the most frequent peak lag across the recorded runs (highlighted as tracked once at least 3 runs exist and at least half agree), and a run-length-encoded peak trail (`+30×5` = holding still, `+26 → +28 → +30` = drifting).
 
 Reading it: with under about 100 scored draws per lag the best lag moves around by chance. A real phase shift would show the *same* peak lag persistently over time, and plausibly across related models, not a one-off maximum.
+
+### What if the peak lag had been played
+
+On the Phase-shift page each lottery game has a folded table, *What if the peak lag had been played* (`phasewhatif.js`, `/api/admin/phase-shift/:game/what-if`). It stays on that page: no ranking, ticket or plan reads it.
+
+- **The lag used**: for every draw, the row's peak lag in the newest run recorded before that draw's day (`lagPeakHistory.json`). A lag is never chosen with the draw in view, and a draw before the row's first recorded run is not counted.
+- **What if**: the ticket the row made that many draws earlier, played on this draw and paid by the money rules of the History pages (the payout tables, or the draw's own prize table).
+- **As played**: the row's own ticket for the draw (lag +1), over the same draws.
+- **Any lag**: the average over every lag from +1 to +30 the day files can give for the draw: what a lag picked at random pays. A peak lag has that to beat, not only the row as played.
+- A draw counts when the row has a ticket at lag +1 and at the lag used and both could be scored in euro. The market games have no what-if.
+- Limits: the peak is found on hits and the what-if is money, so a few big prizes can carry a row (the column *Draws better* shows on how many draws the what-if paid more); and no control measures what the difference reaches by chance.

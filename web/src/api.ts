@@ -1510,6 +1510,45 @@ export const getAdminModelsGame = async (game: string, scope: Scope): Promise<Mo
 export const getAdminPhaseShift = async (): Promise<PhaseShiftView> => normPhaseShift(await getJson<unknown>('/api/admin/phase-shift'));
 export const getAdminPhaseShiftGame = async (game: string, scope: Scope): Promise<PhaseShiftGameView> =>
   normPhaseShiftGame(await getJson<unknown>(`/api/admin/phase-shift/${encodeURIComponent(game)}?scope=${scope}`), game, scope);
+// GET /api/admin/phase-shift/:game/what-if (roadmap item 17): a lottery game's rows played at their peak lag, in euro
+export interface WhatIfRow {
+  row: string;
+  draws: number;
+  from: string | null;
+  to: string | null;
+  stake: number;
+  played: number; // the row's own tickets (lag +1) over those draws
+  whatIf: number; // the tickets made lag - 1 draws earlier
+  anyLag: number; // the average over every lag: what a lag picked at random pays
+  gain: number; // whatIf - played
+  overAnyLag: number; // whatIf - anyLag
+  betterDraws: number;
+  lagNow: number | null;
+  lags: { lag: number; draws: number }[];
+  lagsUsed: number;
+}
+export interface WhatIfView {
+  game: string;
+  lagMax: number;
+  rows: WhatIfRow[];
+  total: { rows: number; draws: number; stake: number; played: number; whatIf: number; anyLag: number; gain: number; overAnyLag: number; aheadOfPlayed: number; aheadOfAnyLag: number } | null;
+}
+export const getAdminWhatIf = async (game: string): Promise<WhatIfView> => {
+  const r = o(await getJson<unknown>(`/api/admin/phase-shift/${encodeURIComponent(game)}/what-if`));
+  const t = o(r.total);
+  const n = (v: unknown) => num(v, 0);
+  return {
+    game: str(r.game, game), lagMax: num(r.lagMax, 30),
+    rows: arr(r.rows as unknown[]).filter(has).map((x) => {
+      const w = o(x);
+      return { row: str(w.row), draws: n(w.draws), from: ostr(w.from), to: ostr(w.to), stake: n(w.stake), played: n(w.played), whatIf: n(w.whatIf), anyLag: n(w.anyLag), gain: n(w.gain),
+        overAnyLag: n(w.overAnyLag), betterDraws: n(w.betterDraws), lagNow: opt(w.lagNow), lagsUsed: n(w.lagsUsed),
+        lags: arr(w.lags as unknown[]).filter(has).map((l) => ({ lag: n(o(l).lag), draws: n(o(l).draws) })) };
+    }),
+    total: has(r.total) ? { rows: n(t.rows), draws: n(t.draws), stake: n(t.stake), played: n(t.played), whatIf: n(t.whatIf), anyLag: n(t.anyLag), gain: n(t.gain), overAnyLag: n(t.overAnyLag),
+      aheadOfPlayed: n(t.aheadOfPlayed), aheadOfAnyLag: n(t.aheadOfAnyLag) } : null,
+  };
+};
 export const getAdminRandomness = async (): Promise<RandomnessView> => normRandomness(await getJson<unknown>('/api/admin/randomness'));
 export const getAdminRandomnessGame = async (game: string, scope: Scope): Promise<RandomnessGameView> =>
   normRandomnessGame(await getJson<unknown>(`/api/admin/randomness/${encodeURIComponent(game)}?scope=${scope}`), game, scope);

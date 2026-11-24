@@ -627,7 +627,7 @@ npm test
 
 `npm test` is the test suite. It runs, one after the other and stopping at the first failure:
 
-- the twenty-four Node tests in `test/*.test.js`: announcements, jobs, jobs-remote, notifications, readings, council, controls, prizes, params, backtests, workers, hyperopts, docs, markets, api, admin, workbench, lottery, backtestRecord, standing, pipeline, system, server, switchover;
+- the twenty-five Node tests in `test/*.test.js`: announcements, jobs, jobs-remote, notifications, readings, council, controls, prizes, params, backtests, workers, hyperopts, docs, markets, api, admin, workbench, lottery, backtestRecord, standing, phasewhatif, pipeline, system, server, switchover;
 - the Python self-checks: `python3 -m src.<Module>` for the modules that carry one (for example `src.TuningScore`, `src.TuningResult`, `src.TuningGate`, `src.Lockbox`, `src.PrizeTables`, `src.MarketSettle`, `src.MarketOrders`, `src.Markov`, `src.Helpers`), the `_self_check()` of `src.DataFetcher` and the `_self_check()` of the entry points `NullControls`, `RandomnessDiscrimination`, `HyperoptEnsemble`, `HyperoptStatistics`, `HyperoptBoost`, `HyperoptRLTicket`, `MarketRows` and `SwitchSharesEuronext`.
 
 The full list is the `test` script in `package.json`. Each test can be run on its own, for example `node test/jobs.test.js` or `python3 -m src.TuningResult`.

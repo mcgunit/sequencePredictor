@@ -9,7 +9,7 @@ This page lists what is open or partly open in the project: for each item, what 
 | Lottery | best-combination search on profit; tuners and meta-learners on profit; lotto multi-pick (item 10); positional soft vote (item 7); Council rows on the market games (item 12); the backtest record for the rows it does not cover yet (item 13) |
 | Markets | item 11: instructions from a paper trader instead of fixed intervals, with the month game; item 4: Bolero tiers, the order-book review, sentiment feeds, the first shares tuning reading |
 | Users' side | a beginners' page |
-| Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings; an experiment: tuning the Council's row models (item 14); the phase-shift page as a "what if" (item 17) |
+| Research | item 6: Q2 extensions, Q3, Q4; dead deep-learning settings; the deep-learning tuner's lockbox; the control readings; an experiment: tuning the Council's row models (item 14) |
 | Platform | item 8: notifications to a chat app (Telegram or similar), low priority; item 9: day files to SQLite; cleanup |
 
 ## Lottery
@@ -168,18 +168,6 @@ The design of the track, the controls and how to read them are in [research](res
 - Two scores, kept apart. Arrival and variety are measured directly and can be tuned. Profit goes through the same gate as every other tuner; the expectation written down beforehand is "no better than a random ticket", because the controls find no structure in the draws for a setting to exploit.
 - Later, only if the first part shows something: fine-tuning a small model on the draws (LoRA, models up to about 4B on the 11 GB card).
 
-### 17. The phase-shift page as a "what if"
-
-**Built.** The phase-shift analysis scores every stored ticket against the draw it was made for and against the 29 draws after it, and shows each row's best lag. See [scoring](scoring.md), *Phase-shift (lag) analysis*.
-
-**Remains.**
-
-- A "what if" per row: the profit had its ticket been played on the draw at its best lag instead of on the next draw, beside the profit it really had at lag +1.
-- The best lag is taken from the draws before the one it is played on, never from the whole record: a lag chosen with the played draws in view always looks profitable.
-- A reference: the same count for a lag picked at random, so that a best lag has something to beat.
-- The result stays on the Phase-shift page. No ranking, ticket or plan reads it.
-- To decide: the games and rows it covers first; how many scored draws a row needs before a best lag is named.
-
 ### Later, only if the tracked results justify it
 
 - Fine-tuning a foundation model instead of using it zero-shot.
@@ -238,3 +226,4 @@ They are read by:
 - **Worker machines.** A GPU lane and a CPU lane, with the Sunday controls on the CPU worker ([operations](operations.md)).
 - **Hyperopts, backtests and parameter overrides from the admin pages**, and variant rows per model ([tuning](tuning.md), [models](models.md)).
 - **16. How long a place is held.** Beside the best model, the best combination and each of the top 5: the draws in a row and a score, with a table of who held the top ([scoring](scoring.md)).
+- **17. The phase-shift page as a "what if".** Each lottery row played at its peak lag, in euro, beside the row as played and a lag picked at random; on the Phase-shift page only ([scoring](scoring.md)).

@@ -107,7 +107,8 @@ const numOf = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 function bestOf(info) {
   if (!info || !Array.isArray(info.models)) return null;
   const minDraws = numOf((info.live && info.live.minDrawsForRanking) ?? info.minDrawsForRanking) || 1;
-  const rows = info.models.filter((m) => m && m.live && numOf(m.live.draws) >= minDraws);
+  // a variant row ("· Sampled", "· Memorise") is administrators only and never the best model (24 Nov 2026)
+  const rows = info.models.filter((m) => m && m.live && !isVariantRow(m.name) && numOf(m.live.draws) >= minDraws);
   const money = rows.some((m) => numOf(m.live.profit_total) !== null);
   const value = (m) => (money ? numOf(m.live.profit_total) : numOf(m.live.avg_hits));
   const ranked = rows.filter((m) => value(m) !== null).sort((a, b) => value(b) - value(a) || String(a.name).localeCompare(String(b.name)));

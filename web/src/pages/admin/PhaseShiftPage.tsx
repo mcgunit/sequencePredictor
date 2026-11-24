@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getAdminPhaseShift, getAdminPhaseShiftGame, type LagRow, type PhaseShiftSummary, type Scope, type TrailStep } from '../../api';
-import { DASH, cap, count, day, fixed, perUnit, range, share, short, stamp } from '../../format';
+import { getAdminPhaseShift, getAdminPhaseShiftGame, getAdminWhatIf, type LagRow, type PhaseShiftSummary, type Scope, type TrailStep } from '../../api';
+import { DASH, cap, count, day, fixed, money, perUnit, range, share, short, stamp } from '../../format';
 import { useLoad } from '../../hooks/useLoad';
 import { useDrawerParam, useScope } from '../../hooks/useUrlState';
 import { Scroll } from '../../components/admin/Card';
@@ -145,6 +145,7 @@ function Trail({ steps, earlier }: { steps: TrailStep[]; earlier: number }) {
 
 function GameRows({ game, unit, scope, onRow }: { game: string; unit: string; scope: Scope; onRow: (row: string) => void }) {
   const load = useLoad(() => getAdminPhaseShiftGame(game, scope), [game, scope]);
+  const [whatIf, setWhatIf] = useState(false);
   if (load.kind === 'loading') return <div className="card-b empty">Loading…</div>;
   if (load.kind === 'error') {
     return (
@@ -217,6 +218,75 @@ function GameRows({ game, unit, scope, onRow }: { game: string; unit: string; sc
           ranking order · lags in {units(unit)} · up to {d.meta.runsKept ?? DASH} runs kept
         </span>
       </div>
+      {isMarketGame(game) ? null : (
+        <div className="card-b">
+          <details className="fold" onToggle={(e) => setWhatIf((e.target as HTMLDetailsElement).open)}>
+            <summary>What if the peak lag had been played (in EUR)</summary>
+            {whatIf ? <WhatIf game={game} /> : null}
+          </details>
+        </div>
+      )}
+    </>
+  );
+}
+
+// The "what if" (roadmap item 17): each row's tickets played on the draw at its peak lag instead of on the draw they
+// were made for, in euro, beside the row as played and a lag picked at random. It stays on this page.
+function WhatIf({ game }: { game: string }) {
+  const load = useLoad(() => getAdminWhatIf(game), [game]);
+  if (load.kind === 'loading') return <div className="empty">Loading…</div>;
+  if (load.kind === 'error') return <Failed error={load.error} retry={load.retry} bare />;
+  const d = load.data;
+  const t = d.total;
+  if (!t) return <div className="empty">No row has a recorded peak before a scored draw yet.</div>;
+  const rows = d.rows.slice().sort((x, y) => y.overAnyLag - x.overAnyLag);
+  return (
+    <>
+      <p className="note">
+        For every draw the lag is the row&apos;s peak in the newest run recorded before that draw, never one chosen with the draw in view. <b>What if</b>: the
+        ticket the row made that many draws earlier, played on this draw. <b>As played</b>: its own ticket for the draw. <b>Any lag</b>: the average over
+        every lag from +1 to +{d.lagMax}, what a lag picked at random pays; a peak lag has that to beat. The peak is found on hits and this is money, a few
+        big prizes can carry a row, and no control measures what the difference reaches by chance.
+      </p>
+      <p className="note">
+        All {t.rows} rows together over {t.draws} played draws, {money(t.stake)} staked: as played {money(t.played)}, what if {money(t.whatIf)}, any lag{' '}
+        {money(t.anyLag)}. The what-if is ahead of the row as played on {t.aheadOfPlayed} rows and ahead of any lag on {t.aheadOfAnyLag}.
+      </p>
+      <Scroll>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Row</th>
+              <th className="num">Draws</th>
+              <th>Lags used</th>
+              <th className="num">Staked</th>
+              <th className="num">As played</th>
+              <th className="num">What if</th>
+              <th className="num">Any lag</th>
+              <th className="num">What if − any lag</th>
+              <th className="num">Draws better</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.row}>
+                <td title={r.from && r.to ? `${day(r.from)} to ${day(r.to)}` : undefined}>{short(r.row)}</td>
+                <td className="num">{r.draws}</td>
+                <td>
+                  {r.lags.map((l) => `+${l.lag}×${l.draws}`).join(' ')}
+                  {r.lagsUsed > r.lags.length ? ' …' : ''}
+                </td>
+                <td className="num">{money(r.stake)}</td>
+                <td className="num">{money(r.played)}</td>
+                <td className="num">{money(r.whatIf)}</td>
+                <td className="num">{money(r.anyLag)}</td>
+                <td className="num">{money(r.overAnyLag)}</td>
+                <td className="num">{r.betterDraws}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Scroll>
     </>
   );
 }

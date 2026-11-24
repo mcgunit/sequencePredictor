@@ -1853,6 +1853,13 @@ function install(app, options = {}) {
     if (!report()) return noReport;
     return phaseShiftGame(report(), gameOf(req), scopeOf(req), todayOf(gameOf(req))) || { error: 'no phase-shift record for this game', status: 404 };
   }));
+  // the "what if" of the Phase-shift page (phasewhatif.js, roadmap item 17, 24 Nov 2026): a lottery game's rows played
+  // at their peak lag, in euro. It stays on this page: nothing else reads it.
+  app.get('/api/admin/phase-shift/:game/what-if', (req, res) => answer(res, () => {
+    const game = gameOf(req);
+    if (!game) return { error: 'unknown game', status: 404 };
+    return require('./phasewhatif').forGame(dirs, game) || { error: 'no what-if for this game: it is counted in euro on the lottery games only', status: 404 };
+  }));
   app.get('/api/admin/randomness', (req, res) => answer(res, () => {
     if (!report()) return noReport;
     return randomnessSummary(report(), Object.fromEntries(GAMES.map((g) => [g, readControls(dirs, g).q2])));

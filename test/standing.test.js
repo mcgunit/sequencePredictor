@@ -62,6 +62,8 @@ try {
   // a report saved before the live record: the first ranked row with enough draws is its best model
   const old = rankings.bestOf({ minDrawsForRanking: 3, models: [{ name: 'X', draws: 2 }, { name: 'Y · Sampled', draws: 9 }, { name: 'Z', draws: 9 }] });
   ok(old && old.name === 'Z' && rankings.bestOf({ rankedOn: 'live', models: [{ name: 'X', draws: 9 }] }) === null && rankings.comboOf({}) === null, 'the best model of an old report');
+  const variant = rankings.bestOf({ rankedOn: 'live', live: { minDrawsForRanking: 1 }, models: [{ name: 'X · Memorise', live: { draws: 9, profit_total: 50 } }, { name: 'Y', live: { draws: 9, profit_total: 2 } }] });
+  ok(variant && variant.name === 'Y', 'a variant row is never the best model');
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
