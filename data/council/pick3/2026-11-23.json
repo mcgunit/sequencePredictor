@@ -1,0 +1,151 @@
+{
+  "game": "pick3",
+  "day": "2026-11-23",
+  "runs": [
+    {
+      "game": "pick3",
+      "day": "2026-11-23",
+      "askedAt": "2026-11-24T09:01:04+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Pick3. Choose a ticket for the next draw.\n\nThe last 8 draws, oldest first:\n6 0 2\n7 0 5\n5 3 1\n9 6 3\n7 8 1\n7 8 4\n4 4 9\n6 0 6\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nUnifiedLstmTcn Model | right on those draws: 2 1 0 0 0 1 0 2 | plays now: 6 0 4\nTransformer Model | right on those draws: 1 1 0 0 0 0 0 2 | plays now: 5 4 0\nLSTM Base Model | right on those draws: 1 1 1 0 0 1 0 2 | plays now: 5 0 4\nGNN Model | right on those draws: 2 1 0 0 0 1 0 2 | plays now: 6 0 4\nAutoencoder Model | right on those draws: 2 1 0 0 0 1 0 2 | plays now: 6 0 4\nLightGBM Model | right on those draws: 1 0 1 1 0 0 1 0 | plays now: 5 0 2\nXGBoost Model | right on those draws: 0 1 1 0 0 0 2 0 | plays now: 3 7 2\nUnifiedLstmGruTcn Model | right on those draws: 1 0 0 0 0 0 2 1 | plays now: 2 9 6\nOrderStatistics Baseline | right on those draws: 1 1 0 0 0 0 0 1 | plays now: 8 0 0\nTCN Base Model | right on those draws: 1 1 0 0 0 0 0 1 | plays now: 0 0 8\n\nAnswer with one line: TICKET: followed by 3 digits from 0 to 9, one per position in the order drawn (a digit may repeat). That is exactly 3 numbers in all, no more and no fewer.\nFormat: TICKET: N N N",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 311905798,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 6 0 4",
+                  "seconds": 33.8
+                }
+              ],
+              "seed": 311905798,
+              "ticket": [
+                6,
+                0,
+                4
+              ]
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Pick3. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first:\n7 2 9\n2 8 2\n3 1 8\n4 5 6\n0 4 3\n3 5 7\n7 4 9\n0 5 6\n7 0 1\n4 4 4\n3 1 7\n2 5 9\n9 1 6\n3 1 4\n9 5 1\n1 8 7\n4 0 5\n6 9 0\n7 4 1\n1 6 5\n4 3 4\n5 0 8\n6 0 2\n7 0 5\n5 3 1\n9 6 3\n7 8 1\n7 8 4\n4 4 9\n6 0 6\n\nAnswer with one line: TICKET: followed by 3 digits from 0 to 9, one per position in the order drawn (a digit may repeat). That is exactly 3 numbers in all, no more and no fewer.\nFormat: TICKET: N N N",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1158883305,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 3 8 5",
+                  "seconds": 0.5
+                }
+              ],
+              "seed": 1158883305,
+              "ticket": [
+                3,
+                8,
+                5
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 851456049,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 3 1 7",
+                  "seconds": 0.2
+                }
+              ],
+              "seed": 851456049,
+              "ticket": [
+                3,
+                1,
+                7
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 748888566,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 8 3 2",
+                  "seconds": 0.4
+                }
+              ],
+              "seed": 748888566,
+              "ticket": [
+                8,
+                3,
+                2
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1311167998,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 5 2 8",
+                  "seconds": 17.8
+                }
+              ],
+              "seed": 1311167998,
+              "ticket": [
+                5,
+                2,
+                8
+              ]
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 819460334,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 7 4 6",
+                  "seconds": 121.0
+                }
+              ],
+              "seed": 819460334,
+              "ticket": [
+                7,
+                4,
+                6
+              ]
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "answer": "TICKET: 3 1 2",
+                "seconds": 37.8
+              }
+            ],
+            "seed": 42,
+            "prompt": "Game: Pick3. Choose a ticket for the next draw.\n\nThe last 30 draws, oldest first:\n7 2 9\n2 8 2\n3 1 8\n4 5 6\n0 4 3\n3 5 7\n7 4 9\n0 5 6\n7 0 1\n4 4 4\n3 1 7\n2 5 9\n9 1 6\n3 1 4\n9 5 1\n1 8 7\n4 0 5\n6 9 0\n7 4 1\n1 6 5\n4 3 4\n5 0 8\n6 0 2\n7 0 5\n5 3 1\n9 6 3\n7 8 1\n7 8 4\n4 4 9\n6 0 6\n\n5 advisers who read the same each chose a ticket.\nPosition 1, the advisers chose: 3 (2x), 5 (1x), 7 (1x), 8 (1x)\nPosition 2, the advisers chose: 1 (1x), 2 (1x), 3 (1x), 4 (1x), 8 (1x)\nPosition 3, the advisers chose: 2 (1x), 5 (1x), 6 (1x), 7 (1x), 8 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 3 digits from 0 to 9, one per position in the order drawn (a digit may repeat). That is exactly 3 numbers in all, no more and no fewer.\nFormat: TICKET: N N N",
+            "ticket": [
+              3,
+              1,
+              2
+            ],
+            "combines": [
+              "Granite-4.2-8B",
+              "Nemotron-3.5-Bolt",
+              "Llama-3.1-8B",
+              "Gemma-4-26B",
+              "gpt-oss-20b"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

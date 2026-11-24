@@ -1,0 +1,270 @@
+{
+  "game": "keno",
+  "day": "2026-11-23",
+  "runs": [
+    {
+      "game": "keno",
+      "day": "2026-11-23",
+      "askedAt": "2026-11-24T09:01:04+00:00",
+      "kinds": {
+        "record": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 5 draws, oldest first:\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n4 6 23 25 26 28 31 33 34 45 46 48 52 54 58 62 64 65 66 69\n2 7 15 27 28 29 31 35 41 43 44 45 50 51 52 54 55 58 68 70\n1 2 5 8 12 13 16 20 21 23 24 25 27 28 36 38 41 45 64 68\n\nPrediction models, the best of the long record first. For each: how many numbers it had right on each of those draws (oldest first, - when it did not play), and what it plays for the next draw:\nHybridStatisticalModel | right on those draws: 3 2 2 1 4 | plays now: 1 3 7 11 12 13 14 18 19 20\nAutoencoder Model | right on those draws: 2 0 2 2 0 | plays now: 30 60 32 15 66 54 10 11 19 42\nLightGBM Model | right on those draws: 5 1 2 0 0 | plays now: 52 30 47 54 60 32 70 8 23 22\nClassicalSVM Model | right on those draws: 2 2 2 5 0 | plays now: 69 51 52 53 54 55 56 57 58 59\nTimesFM Model | right on those draws: 3 3 2 1 4 | plays now: 1 70 5 54 8 41 59 66 19 24\nLSTM Smoothed Model | right on those draws: 2 1 3 2 0 | plays now: 63 3 30 32 15 26 10 42 66 56\nPoissonMonteCarlo Model | right on those draws: 2 3 4 2 4 | plays now: 45 65 28 25 43 20 56 11 50 13\nQuantumMetaLearner Model | right on those draws: 2 1 4 3 2 | plays now: 58 64 67 43 1 23 4 54 55 56\nLSTM Base Model | right on those draws: 3 2 2 2 1 | plays now: 30 6 60 15 32 10 54 63 19 24\nMarkovBayesianEnhanched Model | right on those draws: 3 3 2 2 4 | plays now: 1 2 13 20 21 4 25 11 28 18\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1692511212,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 28 45 54 13 23 51 52 64 55 56 20 21 4 1 11 25 18 2 34 41",
+                  "seconds": 77.0
+                }
+              ],
+              "seed": 1692511212,
+              "ticket": [
+                28,
+                45,
+                54,
+                13,
+                23,
+                51,
+                52,
+                64,
+                55,
+                56,
+                20,
+                21,
+                4,
+                1,
+                11,
+                25,
+                18,
+                2,
+                34,
+                41
+              ]
+            }
+          },
+          "head": null
+        },
+        "draws": {
+          "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n4 6 23 25 26 28 31 33 34 45 46 48 52 54 58 62 64 65 66 69\n2 7 15 27 28 29 31 35 41 43 44 45 50 51 52 54 55 58 68 70\n1 2 5 8 12 13 16 20 21 23 24 25 27 28 36 38 41 45 64 68\n\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+          "members": {
+            "Granite-4.2-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1827333826,
+                  "temperature": 0.7,
+                  "answer": "</think>TICKET: 1 3 6 8 11 14 17 20 23 26 29 32 35 38 41 44 47 50 53 56",
+                  "seconds": 1.0
+                }
+              ],
+              "seed": 1827333826,
+              "ticket": [
+                1,
+                3,
+                6,
+                8,
+                11,
+                14,
+                17,
+                20,
+                23,
+                26,
+                29,
+                32,
+                35,
+                38,
+                41,
+                44,
+                47,
+                50,
+                53,
+                56
+              ]
+            },
+            "Nemotron-3.5-Bolt": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1231985153,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 5 13 17 28 35 45 51 52 56 68 21 23 30 33 41 48 54 65 70",
+                  "seconds": 0.9
+                }
+              ],
+              "seed": 1231985153,
+              "ticket": [
+                1,
+                5,
+                13,
+                17,
+                28,
+                35,
+                45,
+                51,
+                52,
+                56,
+                68,
+                21,
+                23,
+                30,
+                33,
+                41,
+                48,
+                54,
+                65,
+                70
+              ]
+            },
+            "Gemma-4-26B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 181340612,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 5 17 21 28 45 51 56 1 13 16 35 41 52 68 20 30 48 54 65 27",
+                  "seconds": 58.1
+                }
+              ],
+              "seed": 181340612,
+              "ticket": [
+                5,
+                17,
+                21,
+                28,
+                45,
+                51,
+                56,
+                1,
+                13,
+                16,
+                35,
+                41,
+                52,
+                68,
+                20,
+                30,
+                48,
+                54,
+                65,
+                27
+              ]
+            },
+            "Llama-3.1-8B": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 270292195,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 2 5 6 8 11 13 16 17 18 20 28 30 32 35 41 45 48 51 68",
+                  "seconds": 1.2
+                }
+              ],
+              "seed": 270292195,
+              "ticket": [
+                1,
+                2,
+                5,
+                6,
+                8,
+                11,
+                13,
+                16,
+                17,
+                18,
+                20,
+                28,
+                30,
+                32,
+                35,
+                41,
+                45,
+                48,
+                51,
+                68
+              ]
+            },
+            "gpt-oss-20b": {
+              "temperature": 0.7,
+              "attempts": [
+                {
+                  "seed": 1144286386,
+                  "temperature": 0.7,
+                  "answer": "TICKET: 1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68",
+                  "seconds": 234.9
+                }
+              ],
+              "seed": 1144286386,
+              "ticket": [
+                1,
+                2,
+                3,
+                5,
+                6,
+                10,
+                11,
+                15,
+                17,
+                20,
+                21,
+                30,
+                44,
+                45,
+                48,
+                51,
+                62,
+                65,
+                67,
+                68
+              ]
+            }
+          },
+          "head": {
+            "temperature": 0.0,
+            "attempts": [
+              {
+                "seed": 42,
+                "temperature": 0.0,
+                "answer": "TICKET: 1 5 17 20 30 35 41 45 48 51 68 6 11 13 21 28 56 65 2 8",
+                "seconds": 103.9
+              }
+            ],
+            "seed": 42,
+            "prompt": "Game: Keno. Choose a ticket for the next draw.\n\nThe last 10 draws, oldest first:\n1 2 3 5 6 10 11 15 17 20 21 30 44 45 48 51 62 65 67 68\n10 11 13 17 18 20 29 32 33 35 38 40 43 46 50 51 52 56 60 66\n1 5 8 11 13 17 18 19 30 32 35 42 45 51 54 55 56 57 59 70\n2 3 5 14 16 17 19 21 28 30 33 35 39 41 48 53 54 56 68 69\n4 8 12 15 16 17 18 21 26 27 28 29 42 48 50 51 52 56 67 69\n1 5 6 9 13 16 23 28 34 37 39 41 42 47 50 51 57 60 61 64\n12 20 21 23 28 35 37 40 41 45 47 51 52 55 56 62 63 65 67 70\n4 6 23 25 26 28 31 33 34 45 46 48 52 54 58 62 64 65 66 69\n2 7 15 27 28 29 31 35 41 43 44 45 50 51 52 54 55 58 68 70\n1 2 5 8 12 13 16 20 21 23 24 25 27 28 36 38 41 45 64 68\n\n5 advisers who read the same each chose a ticket.\nNumbers the advisers chose (and how many of them chose it): 1 (5x), 17 (5x), 5 (4x), 20 (4x), 30 (4x), 35 (4x), 41 (4x), 45 (4x), 48 (4x), 51 (4x), 68 (4x), 6 (3x), 11 (3x), 13 (3x), 21 (3x), 28 (3x), 56 (3x), 65 (3x), 2 (2x), 3 (2x), 8 (2x), 16 (2x), 23 (2x), 32 (2x), 44 (2x), 52 (2x), 54 (2x), 10 (1x), 14 (1x), 15 (1x), 18 (1x), 26 (1x), 27 (1x), 29 (1x), 33 (1x), 38 (1x), 47 (1x), 50 (1x), 53 (1x), 62 (1x), 67 (1x), 70 (1x)\n\nChoose the final ticket from these.\nAnswer with one line: TICKET: followed by 20 different numbers from 1 to 70, the one you find most likely first. That is exactly 20 numbers in all, no more and no fewer.\nFormat: TICKET: N N N N N N N N N N N N N N N N N N N N",
+            "ticket": [
+              1,
+              5,
+              17,
+              20,
+              30,
+              35,
+              41,
+              45,
+              48,
+              51,
+              68,
+              6,
+              11,
+              13,
+              21,
+              28,
+              56,
+              65,
+              2,
+              8
+            ],
+            "combines": [
+              "Granite-4.2-8B",
+              "Nemotron-3.5-Bolt",
+              "Llama-3.1-8B",
+              "Gemma-4-26B",
+              "gpt-oss-20b"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
