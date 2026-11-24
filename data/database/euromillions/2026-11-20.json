@@ -6702,6 +6702,38 @@
         "tries": 1,
         "prompt": "5187351039b064a2"
       }
+    },
+    {
+      "name": "Council (draws): combined",
+      "predictions": [
+        [
+          48,
+          3,
+          13,
+          16,
+          17,
+          4,
+          12
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "combined",
+        "lab": "Alibaba",
+        "model": "qwen3.6-35b-a3b",
+        "head": "head-Qwen3.6-35B",
+        "combines": [
+          "Granite-4.2-8B",
+          "Nemotron-3.5-Bolt",
+          "Llama-3.1-8B",
+          "Gemma-4-26B",
+          "gpt-oss-20b"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "44c68436e71e7c78"
+      }
     }
   ],
   "newPredictionRaw": [
