@@ -1,0 +1,2578 @@
+{
+  "currentPredictionRaw": [
+    [
+      0.08680950105190277,
+      0.09996099770069122,
+      0.09642624109983444,
+      0.09274289757013321,
+      0.10495017468929291,
+      0.09831268340349197,
+      0.11096268892288208,
+      0.09615279734134674,
+      0.1090308278799057,
+      0.10465120524168015,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.10516401380300522,
+      0.09341001510620117,
+      0.10105089843273163,
+      0.0997554361820221,
+      0.0995364636182785,
+      0.09932173788547516,
+      0.09986075758934021,
+      0.09575670212507248,
+      0.10069890320301056,
+      0.10544505715370178,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.1069464161992073,
+      0.10181551426649094,
+      0.09963328391313553,
+      0.10483217984437943,
+      0.09662970155477524,
+      0.09360776841640472,
+      0.10020419210195541,
+      0.10523971915245056,
+      0.09563758969306946,
+      0.09545355290174484,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0959988608956337,
+      0.10194144397974014,
+      0.09940683096647263,
+      0.10362447798252106,
+      0.10104928910732269,
+      0.10769721865653992,
+      0.09945821017026901,
+      0.10033707320690155,
+      0.10096906125545502,
+      0.08951757103204727,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0952974185347557,
+      0.10728967934846878,
+      0.09832191467285156,
+      0.09821485728025436,
+      0.09944576025009155,
+      0.09432289749383926,
+      0.11200761795043945,
+      0.09474446624517441,
+      0.09685807675123215,
+      0.10349733382463455,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.1015363484621048,
+      0.09979869425296783,
+      0.09533993154764175,
+      0.09601715207099915,
+      0.1017238199710846,
+      0.10434794425964355,
+      0.10120099037885666,
+      0.09174971282482147,
+      0.10422398149967194,
+      0.10406140983104706,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.08863375335931778,
+      0.07868121564388275,
+      0.08585051447153091,
+      0.08146664500236511,
+      0.0901809111237526,
+      0.09624432772397995,
+      0.08662832528352737,
+      0.07642867416143417,
+      0.07533036172389984,
+      0.0845676064491272,
+      0.07436250150203705,
+      0.08162511140108109
+    ]
+  ],
+  "currentPrediction": [
+    {
+      "name": "Transformer Model",
+      "predictions": [
+        [
+          6,
+          1,
+          3,
+          5,
+          4,
+          3,
+          1
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.8085,
+        "baselineLoss": 4.7889,
+        "margin": 0.0128,
+        "excessLoss": 0.018983,
+        "verdict": "counts-only",
+        "sameTicket": 0.024,
+        "inputBlind": false,
+        "windows": 701
+      }
+    },
+    {
+      "name": "GNN Model",
+      "predictions": [
+        [
+          6,
+          8,
+          3,
+          5,
+          1,
+          8,
+          2
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7892,
+        "baselineLoss": 4.7892,
+        "margin": 0.0137,
+        "excessLoss": -0.000317,
+        "verdict": "counts-only",
+        "sameTicket": 0.38,
+        "inputBlind": false,
+        "windows": 711
+      }
+    },
+    {
+      "name": "Autoencoder Model",
+      "predictions": [
+        [
+          6,
+          8,
+          3,
+          5,
+          6,
+          5,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7886,
+        "baselineLoss": 4.7893,
+        "margin": 0.0152,
+        "excessLoss": -0.000741,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "LSTM Base Model",
+      "predictions": [
+        [
+          6,
+          9,
+          0,
+          5,
+          6,
+          5,
+          5
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7864,
+        "baselineLoss": 4.789,
+        "margin": 0.0156,
+        "excessLoss": -0.002667,
+        "verdict": "counts-only",
+        "sameTicket": 0.027,
+        "inputBlind": false,
+        "windows": 731
+      }
+    },
+    {
+      "name": "LSTM Smoothed Model",
+      "predictions": [
+        [
+          8,
+          9,
+          0,
+          5,
+          6,
+          8,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7869,
+        "baselineLoss": 4.7887,
+        "margin": 0.0126,
+        "excessLoss": -0.002302,
+        "verdict": "counts-only",
+        "sameTicket": 0.438,
+        "inputBlind": false,
+        "windows": 731
+      }
+    },
+    {
+      "name": "TCN Base Model",
+      "predictions": [
+        [
+          6,
+          9,
+          0,
+          5,
+          6,
+          5,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7857,
+        "baselineLoss": 4.7892,
+        "margin": 0.0137,
+        "excessLoss": -0.003922,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "UnifiedLstmTcn Model",
+      "predictions": [
+        [
+          6,
+          8,
+          7,
+          5,
+          6,
+          5,
+          4
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7867,
+        "baselineLoss": 4.7892,
+        "margin": 0.0137,
+        "excessLoss": -0.002797,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "UnifiedLstmGruTcn Model",
+      "predictions": [
+        [
+          6,
+          8,
+          3,
+          5,
+          6,
+          0,
+          4
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7869,
+        "baselineLoss": 4.7892,
+        "margin": 0.0137,
+        "excessLoss": -0.002647,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          1,
+          2,
+          4,
+          8,
+          8,
+          8,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "MarkovMonteCarlo Model",
+      "predictions": [
+        [
+          6,
+          2,
+          0,
+          3,
+          3,
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          8,
+          0,
+          6,
+          8,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          3,
+          4,
+          4,
+          3,
+          4,
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "Chronos Model",
+      "predictions": [
+        [
+          2,
+          9,
+          8,
+          1,
+          1,
+          8,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "TimesFM Model",
+      "predictions": [
+        [
+          2,
+          1,
+          5,
+          1,
+          4,
+          3,
+          11
+        ]
+      ]
+    },
+    {
+      "name": "OrderStatistics Baseline",
+      "predictions": [
+        [
+          8,
+          6,
+          3,
+          5,
+          6,
+          8,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "MetaLearner Model",
+      "predictions": [
+        [
+          4,
+          4,
+          6,
+          6,
+          8,
+          0,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "MetaLearnerV2 Model",
+      "predictions": [
+        [
+          7,
+          6,
+          0,
+          2,
+          1,
+          9,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "QuantumMetaLearner Model",
+      "predictions": [
+        [
+          7,
+          3,
+          1,
+          8,
+          8,
+          4,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "QuantumVQC Model",
+      "predictions": [
+        [
+          7,
+          3,
+          3,
+          1,
+          5,
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "ClassicalSVM Model",
+      "predictions": [
+        [
+          8,
+          7,
+          4,
+          5,
+          8,
+          5,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          1,
+          9,
+          7,
+          9,
+          6,
+          8,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          6,
+          0,
+          7,
+          8,
+          5,
+          1,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          8,
+          1,
+          9,
+          0,
+          0,
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "LSTM Base Model \u00b7 Memorise",
+      "predictions": [
+        [
+          5,
+          2,
+          4,
+          5,
+          6,
+          0,
+          2
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.9785,
+        "baselineLoss": 4.789,
+        "margin": 0.0156,
+        "excessLoss": 0.18951,
+        "verdict": "counts-only",
+        "sameTicket": 0.003,
+        "inputBlind": false,
+        "windows": 731
+      },
+      "variant": "Memorise",
+      "parent": "LSTM Base Model"
+    },
+    {
+      "name": "TCN Base Model \u00b7 Memorise",
+      "predictions": [
+        [
+          6,
+          1,
+          7,
+          1,
+          6,
+          8,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7892,
+        "baselineLoss": 4.7893,
+        "margin": 0.0152,
+        "excessLoss": -0.000101,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "TCN Base Model"
+    },
+    {
+      "name": "UnifiedLstmTcn Model \u00b7 Memorise",
+      "predictions": [
+        [
+          3,
+          0,
+          7,
+          5,
+          2,
+          0,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.8048,
+        "baselineLoss": 4.7893,
+        "margin": 0.0152,
+        "excessLoss": 0.015452,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "UnifiedLstmTcn Model"
+    },
+    {
+      "name": "UnifiedLstmGruTcn Model \u00b7 Memorise",
+      "predictions": [
+        [
+          8,
+          5,
+          3,
+          8,
+          1,
+          0,
+          0
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.8156,
+        "baselineLoss": 4.7893,
+        "margin": 0.0152,
+        "excessLoss": 0.026272,
+        "verdict": "counts-only",
+        "sameTicket": 0.571,
+        "inputBlind": false,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "UnifiedLstmGruTcn Model"
+    },
+    {
+      "name": "Transformer Model \u00b7 Memorise",
+      "predictions": [
+        [
+          2,
+          0,
+          0,
+          9,
+          6,
+          3,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 12.6939,
+        "baselineLoss": 4.789,
+        "margin": 0.0142,
+        "excessLoss": 7.90481,
+        "verdict": "counts-only",
+        "sameTicket": 0.003,
+        "inputBlind": false,
+        "windows": 701
+      },
+      "variant": "Memorise",
+      "parent": "Transformer Model"
+    },
+    {
+      "name": "GNN Model \u00b7 Memorise",
+      "predictions": [
+        [
+          2,
+          2,
+          0,
+          5,
+          5,
+          7,
+          4
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 6.4179,
+        "baselineLoss": 4.7893,
+        "margin": 0.0152,
+        "excessLoss": 1.62861,
+        "verdict": "counts-only",
+        "sameTicket": 0.001,
+        "inputBlind": false,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "GNN Model"
+    },
+    {
+      "name": "Autoencoder Model \u00b7 Memorise",
+      "predictions": [
+        [
+          3,
+          9,
+          7,
+          5,
+          2,
+          7,
+          2
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 15.6816,
+        "baselineLoss": 4.7893,
+        "margin": 0.0152,
+        "excessLoss": 10.892247,
+        "verdict": "counts-only",
+        "sameTicket": 0.006,
+        "inputBlind": false,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "Autoencoder Model"
+    },
+    {
+      "name": "Markov Model \u00b7 Memorise",
+      "predictions": [
+        [
+          1,
+          0,
+          8,
+          8,
+          8,
+          9,
+          11
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "Markov Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "MarkovMonteCarlo Model \u00b7 Memorise",
+      "predictions": [
+        [
+          1,
+          0,
+          3,
+          0,
+          6,
+          9,
+          6
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "MarkovMonteCarlo Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "PoissonMonteCarlo Model \u00b7 Memorise",
+      "predictions": [
+        [
+          7,
+          2,
+          3,
+          2,
+          6,
+          9,
+          11
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "PoissonMonteCarlo Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "LaplaceMonteCarlo Model \u00b7 Memorise",
+      "predictions": [
+        [
+          4,
+          3,
+          4,
+          4,
+          3,
+          4,
+          5
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "LaplaceMonteCarlo Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "XGBoost Model \u00b7 Memorise",
+      "predictions": [
+        [
+          1,
+          2,
+          3,
+          0,
+          8,
+          8,
+          6
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "XGBoost Model"
+    },
+    {
+      "name": "LightGBM Model \u00b7 Memorise",
+      "predictions": [
+        [
+          1,
+          0,
+          4,
+          4,
+          1,
+          1,
+          4
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "LightGBM Model"
+    },
+    {
+      "name": "Council (record): Gemma-4-26B",
+      "predictions": [
+        [
+          6,
+          9,
+          0,
+          5,
+          6,
+          5,
+          5
+        ]
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 864590424,
+        "tries": 1,
+        "prompt": "1ec7e654c864a7eb"
+      }
+    },
+    {
+      "name": "Council (draws): Granite-4.2-8B",
+      "predictions": [
+        [
+          4,
+          2,
+          8,
+          0,
+          5,
+          1,
+          0
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Granite-4.2-8B",
+        "lab": "IBM",
+        "model": "granite-4.2-8b",
+        "temperature": 0.7,
+        "seed": 1207603045,
+        "tries": 1,
+        "prompt": "4de8f02f33c9393b"
+      }
+    },
+    {
+      "name": "Council (draws): Nemotron-3.5-Bolt",
+      "predictions": [
+        [
+          7,
+          5,
+          2,
+          8,
+          4,
+          8,
+          9
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Nemotron-3.5-Bolt",
+        "lab": "NVIDIA",
+        "model": "nemotron-3.5-bolt-e4b",
+        "temperature": 0.7,
+        "seed": 1983238698,
+        "tries": 1,
+        "prompt": "4de8f02f33c9393b"
+      }
+    },
+    {
+      "name": "Council (draws): Llama-3.1-8B",
+      "predictions": [
+        [
+          5,
+          2,
+          0,
+          9,
+          4,
+          8,
+          10
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Llama-3.1-8B",
+        "lab": "Meta",
+        "model": "llama-3.1-8b",
+        "temperature": 0.7,
+        "seed": 1744885722,
+        "tries": 1,
+        "prompt": "4de8f02f33c9393b"
+      }
+    },
+    {
+      "name": "Council (draws): Gemma-4-26B",
+      "predictions": [
+        [
+          5,
+          3,
+          2,
+          4,
+          0,
+          9,
+          4
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 1462933521,
+        "tries": 1,
+        "prompt": "4de8f02f33c9393b"
+      }
+    },
+    {
+      "name": "Council (draws): gpt-oss-20b",
+      "predictions": [
+        [
+          3,
+          7,
+          1,
+          4,
+          0,
+          9,
+          6
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "gpt-oss-20b",
+        "lab": "OpenAI",
+        "model": "gpt-oss-20b",
+        "temperature": 0.7,
+        "seed": 30164982,
+        "tries": 1,
+        "prompt": "4de8f02f33c9393b"
+      }
+    },
+    {
+      "name": "Council (draws): combined",
+      "predictions": [
+        [
+          5,
+          2,
+          2,
+          4,
+          0,
+          8,
+          0
+        ]
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "combined",
+        "lab": "Alibaba",
+        "model": "qwen3.6-35b-a3b",
+        "head": "head-Qwen3.6-35B",
+        "combines": [
+          "Granite-4.2-8B",
+          "Nemotron-3.5-Bolt",
+          "Llama-3.1-8B",
+          "Gemma-4-26B",
+          "gpt-oss-20b"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "efdef983ed8c1d70"
+      }
+    }
+  ],
+  "currentNumberFrequency": {
+    "6": 0.156508686341061,
+    "1": 0.0872873355608177,
+    "3": 0.12176141949449854,
+    "5": 0.1470248378038333,
+    "4": 0.0748060668092426,
+    "8": 0.1678243457898047,
+    "9": 0.052857223224740714,
+    "0": 0.10513126532508114,
+    "7": 0.04754367088339066,
+    "2": 0.03925514876752962
+  },
+  "realResult": [
+    6,
+    1,
+    7,
+    8,
+    3,
+    0,
+    4
+  ],
+  "newPrediction": [
+    {
+      "name": "Transformer Model",
+      "predictions": [
+        [
+          6,
+          1,
+          3,
+          5,
+          4,
+          3,
+          1
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.8081,
+        "baselineLoss": 4.7889,
+        "margin": 0.013,
+        "excessLoss": 0.018462,
+        "verdict": "counts-only",
+        "sameTicket": 0.024,
+        "inputBlind": false,
+        "windows": 701
+      }
+    },
+    {
+      "name": "GNN Model",
+      "predictions": [
+        [
+          6,
+          8,
+          3,
+          5,
+          6,
+          5,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7892,
+        "baselineLoss": 4.7892,
+        "margin": 0.0139,
+        "excessLoss": -0.000298,
+        "verdict": "counts-only",
+        "sameTicket": 0.38,
+        "inputBlind": false,
+        "windows": 711
+      }
+    },
+    {
+      "name": "Autoencoder Model",
+      "predictions": [
+        [
+          6,
+          8,
+          3,
+          5,
+          6,
+          5,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7886,
+        "baselineLoss": 4.7894,
+        "margin": 0.0154,
+        "excessLoss": -0.000783,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "LSTM Base Model",
+      "predictions": [
+        [
+          6,
+          8,
+          0,
+          5,
+          1,
+          4,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7863,
+        "baselineLoss": 4.7891,
+        "margin": 0.0161,
+        "excessLoss": -0.002883,
+        "verdict": "counts-only",
+        "sameTicket": 0.027,
+        "inputBlind": false,
+        "windows": 731
+      }
+    },
+    {
+      "name": "LSTM Smoothed Model",
+      "predictions": [
+        [
+          8,
+          9,
+          0,
+          5,
+          6,
+          9,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7869,
+        "baselineLoss": 4.7888,
+        "margin": 0.013,
+        "excessLoss": -0.002406,
+        "verdict": "counts-only",
+        "sameTicket": 0.438,
+        "inputBlind": false,
+        "windows": 731
+      }
+    },
+    {
+      "name": "TCN Base Model",
+      "predictions": [
+        [
+          6,
+          9,
+          0,
+          5,
+          6,
+          5,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7856,
+        "baselineLoss": 4.7892,
+        "margin": 0.0139,
+        "excessLoss": -0.004064,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "UnifiedLstmTcn Model",
+      "predictions": [
+        [
+          6,
+          8,
+          7,
+          5,
+          6,
+          5,
+          4
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7867,
+        "baselineLoss": 4.7892,
+        "margin": 0.0139,
+        "excessLoss": -0.002865,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "UnifiedLstmGruTcn Model",
+      "predictions": [
+        [
+          6,
+          8,
+          3,
+          5,
+          6,
+          0,
+          4
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7868,
+        "baselineLoss": 4.7892,
+        "margin": 0.0139,
+        "excessLoss": -0.002777,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      }
+    },
+    {
+      "name": "Markov Model",
+      "predictions": [
+        [
+          7,
+          3,
+          0,
+          8,
+          1,
+          6,
+          11
+        ]
+      ]
+    },
+    {
+      "name": "MarkovMonteCarlo Model",
+      "predictions": [
+        [
+          8,
+          9,
+          8,
+          3,
+          4,
+          8,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "PoissonMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          4,
+          7,
+          6,
+          2,
+          11
+        ]
+      ]
+    },
+    {
+      "name": "LaplaceMonteCarlo Model",
+      "predictions": [
+        [
+          5,
+          3,
+          4,
+          4,
+          5,
+          4,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "Chronos Model",
+      "predictions": [
+        [
+          1,
+          9,
+          8,
+          8,
+          8,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "TimesFM Model",
+      "predictions": [
+        [
+          6,
+          1,
+          6,
+          3,
+          3,
+          4,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "OrderStatistics Baseline",
+      "predictions": [
+        [
+          8,
+          6,
+          3,
+          5,
+          6,
+          8,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "MetaLearner Model",
+      "predictions": [
+        [
+          4,
+          4,
+          4,
+          6,
+          1,
+          6,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "MetaLearnerV2 Model",
+      "predictions": [
+        [
+          6,
+          6,
+          6,
+          2,
+          3,
+          9,
+          7
+        ]
+      ]
+    },
+    {
+      "name": "QuantumMetaLearner Model",
+      "predictions": [
+        [
+          9,
+          0,
+          5,
+          1,
+          7,
+          3,
+          10
+        ]
+      ]
+    },
+    {
+      "name": "QuantumVQC Model",
+      "predictions": [
+        [
+          6,
+          2,
+          6,
+          5,
+          0,
+          4,
+          5
+        ]
+      ]
+    },
+    {
+      "name": "ClassicalSVM Model",
+      "predictions": [
+        [
+          9,
+          6,
+          5,
+          5,
+          4,
+          3,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost Model",
+      "predictions": [
+        [
+          4,
+          9,
+          5,
+          4,
+          9,
+          9,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "LightGBM Model",
+      "predictions": [
+        [
+          5,
+          6,
+          1,
+          4,
+          8,
+          2,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "CatBoost Model",
+      "predictions": [
+        [
+          8,
+          0,
+          5,
+          1,
+          9,
+          9,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "LSTM Base Model \u00b7 Memorise",
+      "predictions": [
+        [
+          2,
+          2,
+          7,
+          8,
+          9,
+          4,
+          0
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.9898,
+        "baselineLoss": 4.7891,
+        "margin": 0.0161,
+        "excessLoss": 0.200691,
+        "verdict": "counts-only",
+        "sameTicket": 0.003,
+        "inputBlind": false,
+        "windows": 731
+      },
+      "variant": "Memorise",
+      "parent": "LSTM Base Model"
+    },
+    {
+      "name": "TCN Base Model \u00b7 Memorise",
+      "predictions": [
+        [
+          7,
+          8,
+          3,
+          8,
+          6,
+          9,
+          3
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.7902,
+        "baselineLoss": 4.7894,
+        "margin": 0.0154,
+        "excessLoss": 0.000791,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "TCN Base Model"
+    },
+    {
+      "name": "UnifiedLstmTcn Model \u00b7 Memorise",
+      "predictions": [
+        [
+          3,
+          9,
+          7,
+          9,
+          1,
+          9,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.9058,
+        "baselineLoss": 4.7894,
+        "margin": 0.0154,
+        "excessLoss": 0.116412,
+        "verdict": "counts-only",
+        "sameTicket": 0.131,
+        "inputBlind": false,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "UnifiedLstmTcn Model"
+    },
+    {
+      "name": "UnifiedLstmGruTcn Model \u00b7 Memorise",
+      "predictions": [
+        [
+          4,
+          8,
+          4,
+          2,
+          9,
+          6,
+          5
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 4.8144,
+        "baselineLoss": 4.7894,
+        "margin": 0.0154,
+        "excessLoss": 0.024992,
+        "verdict": "counts-only",
+        "sameTicket": 1.0,
+        "inputBlind": true,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "UnifiedLstmGruTcn Model"
+    },
+    {
+      "name": "Transformer Model \u00b7 Memorise",
+      "predictions": [
+        [
+          0,
+          6,
+          1,
+          9,
+          5,
+          6,
+          9
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 12.5019,
+        "baselineLoss": 4.7891,
+        "margin": 0.0144,
+        "excessLoss": 7.712803,
+        "verdict": "counts-only",
+        "sameTicket": 0.004,
+        "inputBlind": false,
+        "windows": 701
+      },
+      "variant": "Memorise",
+      "parent": "Transformer Model"
+    },
+    {
+      "name": "GNN Model \u00b7 Memorise",
+      "predictions": [
+        [
+          1,
+          0,
+          5,
+          8,
+          2,
+          1,
+          6
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 7.0155,
+        "baselineLoss": 4.7894,
+        "margin": 0.0154,
+        "excessLoss": 2.226061,
+        "verdict": "counts-only",
+        "sameTicket": 0.003,
+        "inputBlind": false,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "GNN Model"
+    },
+    {
+      "name": "Autoencoder Model \u00b7 Memorise",
+      "predictions": [
+        [
+          6,
+          6,
+          4,
+          2,
+          2,
+          8,
+          2
+        ]
+      ],
+      "learningCheck": {
+        "valLoss": 16.3187,
+        "baselineLoss": 4.7894,
+        "margin": 0.0154,
+        "excessLoss": 11.52929,
+        "verdict": "counts-only",
+        "sameTicket": 0.004,
+        "inputBlind": false,
+        "windows": 711
+      },
+      "variant": "Memorise",
+      "parent": "Autoencoder Model"
+    },
+    {
+      "name": "Markov Model \u00b7 Memorise",
+      "predictions": [
+        [
+          0,
+          3,
+          6,
+          8,
+          1,
+          8,
+          6
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "Markov Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "MarkovMonteCarlo Model \u00b7 Memorise",
+      "predictions": [
+        [
+          6,
+          3,
+          6,
+          8,
+          6,
+          2,
+          6
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "MarkovMonteCarlo Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "PoissonMonteCarlo Model \u00b7 Memorise",
+      "predictions": [
+        [
+          5,
+          5,
+          3,
+          8,
+          6,
+          2,
+          0
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "PoissonMonteCarlo Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "LaplaceMonteCarlo Model \u00b7 Memorise",
+      "predictions": [
+        [
+          4,
+          2,
+          5,
+          0,
+          4,
+          5,
+          6
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "LaplaceMonteCarlo Model",
+      "memoriseWindowDraws": 30
+    },
+    {
+      "name": "XGBoost Model \u00b7 Memorise",
+      "predictions": [
+        [
+          5,
+          9,
+          4,
+          4,
+          9,
+          1,
+          4
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "XGBoost Model"
+    },
+    {
+      "name": "LightGBM Model \u00b7 Memorise",
+      "predictions": [
+        [
+          4,
+          0,
+          5,
+          8,
+          8,
+          3,
+          3
+        ]
+      ],
+      "variant": "Memorise",
+      "parent": "LightGBM Model"
+    }
+  ],
+  "newPredictionRaw": [
+    [
+      0.08546236157417297,
+      0.0973578616976738,
+      0.09559530019760132,
+      0.09255801141262054,
+      0.10880046337842941,
+      0.09511993080377579,
+      0.11106418818235397,
+      0.10220913589000702,
+      0.1071791872382164,
+      0.10465356707572937,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.1003861352801323,
+      0.09388946741819382,
+      0.10537055879831314,
+      0.09698501974344254,
+      0.10032536089420319,
+      0.10500326007604599,
+      0.09653989225625992,
+      0.09078916907310486,
+      0.10729177296161652,
+      0.10341936349868774,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.10662543773651123,
+      0.1059706062078476,
+      0.09597370773553848,
+      0.10261425375938416,
+      0.10236494988203049,
+      0.09675636142492294,
+      0.09824901819229126,
+      0.09847862273454666,
+      0.09842734783887863,
+      0.09453968703746796,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.09735225886106491,
+      0.10184884816408157,
+      0.09984783828258514,
+      0.10209283977746964,
+      0.09746427088975906,
+      0.11068668216466904,
+      0.0924944207072258,
+      0.09911319613456726,
+      0.10053200274705887,
+      0.0985676571726799,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.09436923265457153,
+      0.11151459813117981,
+      0.10572326183319092,
+      0.09187515825033188,
+      0.09983686357736588,
+      0.09638134390115738,
+      0.10649745166301727,
+      0.09138549864292145,
+      0.09808958321809769,
+      0.10432698577642441,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0991780161857605,
+      0.10091212391853333,
+      0.0943731963634491,
+      0.09824912995100021,
+      0.1042933240532875,
+      0.1031622439622879,
+      0.10145115852355957,
+      0.09416481852531433,
+      0.10372010618448257,
+      0.10049588233232498,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.08550771325826645,
+      0.07463270425796509,
+      0.08790100365877151,
+      0.08697067946195602,
+      0.09132328629493713,
+      0.09133332222700119,
+      0.08217576146125793,
+      0.07830660045146942,
+      0.07148673385381699,
+      0.09702406823635101,
+      0.06778930127620697,
+      0.08554889261722565
+    ]
+  ],
+  "matchingNumbers": {
+    "model": "MarkovMonteCarlo Model",
+    "prediction": [
+      6,
+      2,
+      0,
+      3,
+      3,
+      0,
+      6
+    ],
+    "matching_numbers": [
+      6,
+      3,
+      0
+    ],
+    "match_count": 3,
+    "special_matching_numbers": [],
+    "special_match_count": 0,
+    "left_run": 1,
+    "right_run": 2
+  },
+  "labels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "numberFrequency": {
+    "6": 0.18920705583493383,
+    "1": 0.06764550669798436,
+    "3": 0.11209195507879034,
+    "5": 0.1632510814931984,
+    "4": 0.12664861091595983,
+    "8": 0.13307075464386706,
+    "0": 0.052828714266603606,
+    "9": 0.09261514238123635,
+    "7": 0.0304547179226111,
+    "2": 0.032186460764815315
+  },
+  "anomalyWatch": {
+    "model": "Autoencoder Model",
+    "latest_z": -0.5380361415612249,
+    "min_z_recent": -2.169,
+    "alert": false,
+    "scores": [
+      {
+        "index": 119,
+        "nll": 16.221665143966675,
+        "z": -0.4582266331109254
+      },
+      {
+        "index": 118,
+        "nll": 16.599895477294922,
+        "z": 2.185141793132845
+      },
+      {
+        "index": 117,
+        "nll": 16.219408750534058,
+        "z": -0.4734620668174917
+      },
+      {
+        "index": 116,
+        "nll": 16.36701464653015,
+        "z": 0.5024573341993307
+      },
+      {
+        "index": 115,
+        "nll": 16.364415168762207,
+        "z": 0.46567231068379705
+      },
+      {
+        "index": 114,
+        "nll": 16.072354555130005,
+        "z": -1.5605034576572872
+      },
+      {
+        "index": 113,
+        "nll": 16.26991319656372,
+        "z": -0.15218929652135682
+      },
+      {
+        "index": 112,
+        "nll": 16.402212619781494,
+        "z": 0.7576210998226134
+      },
+      {
+        "index": 111,
+        "nll": 16.525031566619873,
+        "z": 1.6063488472487524
+      },
+      {
+        "index": 110,
+        "nll": 16.243402242660522,
+        "z": -0.40666596282446144
+      },
+      {
+        "index": 109,
+        "nll": 16.544560194015503,
+        "z": 1.723452716139205
+      },
+      {
+        "index": 108,
+        "nll": 16.279733180999756,
+        "z": -0.1296755140588798
+      },
+      {
+        "index": 107,
+        "nll": 16.071539402008057,
+        "z": -1.6471868416482611
+      },
+      {
+        "index": 106,
+        "nll": 16.391515254974365,
+        "z": 0.6650730998980969
+      },
+      {
+        "index": 105,
+        "nll": 16.037092685699463,
+        "z": -1.8279197227916595
+      },
+      {
+        "index": 104,
+        "nll": 16.469079732894897,
+        "z": 1.1841958754541977
+      },
+      {
+        "index": 103,
+        "nll": 16.551353693008423,
+        "z": 1.7158479487778524
+      },
+      {
+        "index": 102,
+        "nll": 16.26539444923401,
+        "z": -0.27081307055322223
+      },
+      {
+        "index": 101,
+        "nll": 16.16182017326355,
+        "z": -0.9647211663540122
+      },
+      {
+        "index": 100,
+        "nll": 16.458433866500854,
+        "z": 1.0440118891800465
+      },
+      {
+        "index": 99,
+        "nll": 16.265808582305908,
+        "z": -0.2537900096813871
+      },
+      {
+        "index": 98,
+        "nll": 16.36738634109497,
+        "z": 0.4387351019359992
+      },
+      {
+        "index": 97,
+        "nll": 16.096832990646362,
+        "z": -1.3881532127806933
+      },
+      {
+        "index": 96,
+        "nll": 16.356899738311768,
+        "z": 0.38528942551718937
+      },
+      {
+        "index": 95,
+        "nll": 16.421244144439697,
+        "z": 0.8074057412469804
+      },
+      {
+        "index": 94,
+        "nll": 16.262722492218018,
+        "z": -0.2640079183011367
+      },
+      {
+        "index": 93,
+        "nll": 16.271329641342163,
+        "z": -0.1980032868466964
+      },
+      {
+        "index": 92,
+        "nll": 16.142592191696167,
+        "z": -1.043451179606556
+      },
+      {
+        "index": 91,
+        "nll": 16.259048223495483,
+        "z": -0.25471858545655296
+      },
+      {
+        "index": 90,
+        "nll": 16.471952199935913,
+        "z": 1.194615694636896
+      },
+      {
+        "index": 89,
+        "nll": 16.197279930114746,
+        "z": -0.6890052077961745
+      },
+      {
+        "index": 88,
+        "nll": 16.358013153076172,
+        "z": 0.3875044587821152
+      },
+      {
+        "index": 87,
+        "nll": 16.37374448776245,
+        "z": 0.49687271933425625
+      },
+      {
+        "index": 86,
+        "nll": 16.586314916610718,
+        "z": 1.9185637930945059
+      },
+      {
+        "index": 85,
+        "nll": 16.344878435134888,
+        "z": 0.249779705350652
+      },
+      {
+        "index": 84,
+        "nll": 16.295028924942017,
+        "z": -0.12670114923654274
+      },
+      {
+        "index": 83,
+        "nll": 16.49640130996704,
+        "z": 1.272663161324554
+      },
+      {
+        "index": 82,
+        "nll": 16.321893215179443,
+        "z": 0.041552684310196306
+      },
+      {
+        "index": 81,
+        "nll": 16.31950831413269,
+        "z": 0.009275301588519332
+      },
+      {
+        "index": 80,
+        "nll": 16.32280993461609,
+        "z": 0.06009703522762191
+      },
+      {
+        "index": 79,
+        "nll": 16.385087490081787,
+        "z": 0.4994233392824515
+      },
+      {
+        "index": 78,
+        "nll": 16.304476261138916,
+        "z": -0.0557078251545853
+      },
+      {
+        "index": 77,
+        "nll": 16.485565900802612,
+        "z": 1.2630588646566263
+      },
+      {
+        "index": 76,
+        "nll": 16.28519368171692,
+        "z": -0.22428184670380402
+      },
+      {
+        "index": 75,
+        "nll": 16.141878843307495,
+        "z": -1.261837414367739
+      },
+      {
+        "index": 74,
+        "nll": 16.603703260421753,
+        "z": 2.072457005252892
+      },
+      {
+        "index": 73,
+        "nll": 16.33751106262207,
+        "z": 0.1143869903072123
+      },
+      {
+        "index": 72,
+        "nll": 16.348978757858276,
+        "z": 0.1887241237448523
+      },
+      {
+        "index": 71,
+        "nll": 16.249857664108276,
+        "z": -0.5285021416890876
+      },
+      {
+        "index": 70,
+        "nll": 16.381494998931885,
+        "z": 0.44214074930121305
+      },
+      {
+        "index": 69,
+        "nll": 16.288504362106323,
+        "z": -0.2390414127731311
+      },
+      {
+        "index": 68,
+        "nll": 16.277092456817627,
+        "z": -0.3051976188940598
+      },
+      {
+        "index": 67,
+        "nll": 16.504299879074097,
+        "z": 1.3720233446228676
+      },
+      {
+        "index": 66,
+        "nll": 16.12123155593872,
+        "z": -1.4177867498721395
+      },
+      {
+        "index": 65,
+        "nll": 16.508444786071777,
+        "z": 1.3590385260054225
+      },
+      {
+        "index": 64,
+        "nll": 16.542896509170532,
+        "z": 1.5903834959164453
+      },
+      {
+        "index": 63,
+        "nll": 16.273136377334595,
+        "z": -0.37546157321420737
+      },
+      {
+        "index": 62,
+        "nll": 16.32876682281494,
+        "z": 0.00839210740225943
+      },
+      {
+        "index": 61,
+        "nll": 16.255393028259277,
+        "z": -0.5336164484519439
+      },
+      {
+        "index": 60,
+        "nll": 16.334465503692627,
+        "z": 0.01915382858234642
+      },
+      {
+        "index": 59,
+        "nll": 16.472111463546753,
+        "z": 1.0203851763560678
+      },
+      {
+        "index": 58,
+        "nll": 16.150601863861084,
+        "z": -1.37230979363622
+      },
+      {
+        "index": 57,
+        "nll": 16.54767870903015,
+        "z": 1.623996118150812
+      },
+      {
+        "index": 56,
+        "nll": 16.295064449310303,
+        "z": -0.29786870647412506
+      },
+      {
+        "index": 55,
+        "nll": 16.47575807571411,
+        "z": 1.0390644775900437
+      },
+      {
+        "index": 54,
+        "nll": 16.078551054000854,
+        "z": -1.8780335725048978
+      },
+      {
+        "index": 53,
+        "nll": 16.12564492225647,
+        "z": -1.5377668258295598
+      },
+      {
+        "index": 52,
+        "nll": 16.346245527267456,
+        "z": 0.08829018938764369
+      },
+      {
+        "index": 51,
+        "nll": 16.247377157211304,
+        "z": -0.6154424894527804
+      },
+      {
+        "index": 50,
+        "nll": 16.2644362449646,
+        "z": -0.465794033307245
+      },
+      {
+        "index": 49,
+        "nll": 16.335360288619995,
+        "z": 0.048384248506754886
+      },
+      {
+        "index": 48,
+        "nll": 16.26566195487976,
+        "z": -0.4440306355487345
+      },
+      {
+        "index": 47,
+        "nll": 16.543902158737183,
+        "z": 1.6302721664632032
+      },
+      {
+        "index": 46,
+        "nll": 16.194164037704468,
+        "z": -1.042820188392321
+      },
+      {
+        "index": 45,
+        "nll": 16.214564323425293,
+        "z": -0.8586231011686914
+      },
+      {
+        "index": 44,
+        "nll": 16.293715476989746,
+        "z": -0.3002016713044999
+      },
+      {
+        "index": 43,
+        "nll": 16.04015302658081,
+        "z": -2.2577515626931666
+      },
+      {
+        "index": 42,
+        "nll": 16.456159353256226,
+        "z": 1.037558119366841
+      },
+      {
+        "index": 41,
+        "nll": 16.578503131866455,
+        "z": 1.939232877184866
+      },
+      {
+        "index": 40,
+        "nll": 16.506537199020386,
+        "z": 1.3149425674328692
+      },
+      {
+        "index": 39,
+        "nll": 16.42989706993103,
+        "z": 0.7291253710575842
+      },
+      {
+        "index": 38,
+        "nll": 16.185132026672363,
+        "z": -1.1123686445884142
+      },
+      {
+        "index": 37,
+        "nll": 16.431182861328125,
+        "z": 0.7323671307790929
+      },
+      {
+        "index": 36,
+        "nll": 16.123691082000732,
+        "z": -1.6076084412297797
+      },
+      {
+        "index": 35,
+        "nll": 16.250253438949585,
+        "z": -0.613158398149947
+      },
+      {
+        "index": 34,
+        "nll": 16.229366064071655,
+        "z": -0.7465876571369084
+      },
+      {
+        "index": 33,
+        "nll": 15.98971939086914,
+        "z": -2.5041033549414657
+      },
+      {
+        "index": 32,
+        "nll": 16.407981395721436,
+        "z": 0.5799602563991091
+      },
+      {
+        "index": 31,
+        "nll": 16.583117246627808,
+        "z": 1.7981867303269135
+      },
+      {
+        "index": 30,
+        "nll": 16.213572025299072,
+        "z": -0.8426571256696039
+      },
+      {
+        "index": 29,
+        "nll": 16.38576316833496,
+        "z": 0.3815312451247218
+      },
+      {
+        "index": 28,
+        "nll": 16.453715085983276,
+        "z": 0.8368867504795874
+      },
+      {
+        "index": 27,
+        "nll": 16.294892072677612,
+        "z": -0.28273472004137645
+      },
+      {
+        "index": 26,
+        "nll": 16.437901258468628,
+        "z": 0.720392409694266
+      },
+      {
+        "index": 25,
+        "nll": 16.38041377067566,
+        "z": 0.34549394555336155
+      },
+      {
+        "index": 24,
+        "nll": 16.47713041305542,
+        "z": 1.0274398139506793
+      },
+      {
+        "index": 23,
+        "nll": 16.190521240234375,
+        "z": -1.0202561284578913
+      },
+      {
+        "index": 22,
+        "nll": 16.182093143463135,
+        "z": -1.0465141752963745
+      },
+      {
+        "index": 21,
+        "nll": 16.145057201385498,
+        "z": -1.280139970064219
+      },
+      {
+        "index": 20,
+        "nll": 16.06273365020752,
+        "z": -1.8117590441022888
+      },
+      {
+        "index": 19,
+        "nll": 16.115960121154785,
+        "z": -1.3776541440096792
+      },
+      {
+        "index": 18,
+        "nll": 16.200093507766724,
+        "z": -0.7709019651393944
+      },
+      {
+        "index": 17,
+        "nll": 16.24958896636963,
+        "z": -0.4288071274386377
+      },
+      {
+        "index": 16,
+        "nll": 15.985251188278198,
+        "z": -2.169289194298165
+      },
+      {
+        "index": 15,
+        "nll": 16.22269582748413,
+        "z": -0.5325945315890878
+      },
+      {
+        "index": 14,
+        "nll": 16.220072269439697,
+        "z": -0.561995788529393
+      },
+      {
+        "index": 13,
+        "nll": 16.440685987472534,
+        "z": 0.9342959812973484
+      },
+      {
+        "index": 12,
+        "nll": 16.41469430923462,
+        "z": 0.7445900463406036
+      },
+      {
+        "index": 11,
+        "nll": 16.220503568649292,
+        "z": -0.5465399871703361
+      },
+      {
+        "index": 10,
+        "nll": 16.18325185775757,
+        "z": -0.7879266752069569
+      },
+      {
+        "index": 9,
+        "nll": 16.304277420043945,
+        "z": 0.031019809957723965
+      },
+      {
+        "index": 8,
+        "nll": 16.274306774139404,
+        "z": -0.1676162952443289
+      },
+      {
+        "index": 7,
+        "nll": 16.274818658828735,
+        "z": -0.16394020902010079
+      },
+      {
+        "index": 6,
+        "nll": 16.371447324752808,
+        "z": 0.5036998504992832
+      },
+      {
+        "index": 5,
+        "nll": 16.441378355026245,
+        "z": 0.9516010818584295
+      },
+      {
+        "index": 4,
+        "nll": 16.312637090682983,
+        "z": 0.09269351702838212
+      },
+      {
+        "index": 3,
+        "nll": 16.16350817680359,
+        "z": -0.9163705986531132
+      },
+      {
+        "index": 2,
+        "nll": 16.091431856155396,
+        "z": -1.3959839715201952
+      },
+      {
+        "index": 1,
+        "nll": 16.469829082489014,
+        "z": 1.2289072879757401
+      },
+      {
+        "index": 0,
+        "nll": 16.213019847869873,
+        "z": -0.5380361415612249
+      }
+    ]
+  },
+  "madeAt": "2026-11-24T06:02:26+00:00"
+}
