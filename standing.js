@@ -52,8 +52,8 @@ function measure(states, holds, place) {
   const sinceText = since ? ` (since the draw of ${since})` : '';
   return {
     state: 'tracked', streak, total, of: states.length, since, score, from: states[0].date,
-    brief: `${streak} ${drawWord(streak)} in a row, score ${score}%`,
-    text: `${place} for ${streak} ${drawWord(streak)} in a row${sinceText}; ${total} of ${states.length} draws on record: score ${score}%`,
+    brief: `${score}% of ${states.length} draws, ${streak} in a row`,
+    text: `${place} for ${streak} ${drawWord(streak)} in a row${sinceText}; in that place on ${total} of the ${states.length} draws checked (${score}%)`,
   };
 }
 // the runs of one place, newest first: [{name | members, from, to, draws}]; to null = up to the coming draw

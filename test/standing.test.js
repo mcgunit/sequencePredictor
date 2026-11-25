@@ -42,10 +42,10 @@ try {
   ok(st.draws === 5 && st.from === '2026-11-07', `the draws counted: ${st.draws} from ${st.from}`);
   const a = st.best('A');
   ok(a.state === 'tracked' && a.streak === 3 && a.total === 4 && a.of === 5 && a.since === '2026-11-14' && a.score === 80, `the best model: ${JSON.stringify(a)}`);
-  ok(a.text === 'best model for 3 draws in a row (since the draw of 2026-11-14); 4 of 5 draws on record: score 80%' && a.brief === '3 draws in a row, score 80%', a.text);
+  ok(a.text === 'best model for 3 draws in a row (since the draw of 2026-11-14); in that place on 4 of the 5 draws checked (80%)' && a.brief === '80% of 5 draws, 3 in a row', a.text);
   ok(st.best('B').state === 'none' && st.best('B').text === standing.NOT_TRACKED, 'a row that is not the best today has no count');
   const e = st.top('E');
-  ok(e.streak === 1 && e.total === 3 && e.since === null && e.score === 60 && /^in the top 5 for 1 draw in a row; 3 of 5/.test(e.text), `back in the top 5 today: ${JSON.stringify(e)}`);
+  ok(e.streak === 1 && e.total === 3 && e.since === null && e.score === 60 && /^in the top 5 for 1 draw in a row; in that place on 3 of the 5 /.test(e.text), `back in the top 5 today: ${JSON.stringify(e)}`);
   ok(st.top('F').state === 'none' && st.top('A').streak === 5 && st.top('A').score === 100, 'the top 5: the first five of each saved ranking');
   const c = st.combination(['C', 'A']);
   ok(c.streak === 3 && c.total === 3 && c.since === '2026-11-14' && st.combination(['A', 'B']).state === 'none', `a combination is its members in any order: ${JSON.stringify(c)}`);

@@ -250,26 +250,42 @@ export interface Backtest {
   brief: string; // "backtest 3 of 10"
   text: string; // "profit in 3 of 10 backtested months; random tickets: 2.1 on average"
   detail: string; // what it is and its limit, for the tooltip
+  pct: number | null; // the share of its backtested months that ended in profit ("30% validated"); null: not tested
+  ahead: boolean; // more months in profit than random tickets played the same way
+  changed: boolean; // its settings have changed since the backtest
 }
 export function backtestOf(v: unknown): Backtest | null {
   if (!has(v)) return null;
   const b = o(v);
   const text = str(b.text);
-  return text ? { tested: b.state === 'tested', brief: str(b.brief, text), text, detail: str(b.detail) } : null;
+  if (!text) return null;
+  const tested = b.state === 'tested';
+  const inProfit = opt(b.inProfit);
+  const months = opt(b.months);
+  const random = opt(b.random);
+  const known = tested && inProfit !== null && months !== null && months > 0;
+  return {
+    tested, brief: str(b.brief, text), text, detail: str(b.detail),
+    pct: known ? Math.round((inProfit / months) * 100) : null,
+    ahead: known && random !== null && inProfit > random, changed: b.changed === true,
+  };
 }
 // How long a row, the best model or the best combination has held its place (roadmap item 16): the draws in a row up
-// to the coming one and the score, the share of the counted draws in that place. The words are the server's (standing.js).
+// to the coming one and the share of the checked draws in that place. The words are the server's (standing.js).
 export interface Standing {
   tracked: boolean;
-  brief: string; // "12 draws in a row, score 66%"
-  text: string; // "best model for 12 draws in a row (since the draw of 2026-11-01); 40 of 61 draws on record: score 66%"
+  brief: string; // "66% of 61 draws, 12 in a row"
+  text: string; // "best model for 12 draws in a row (since the draw of 2026-11-01); in that place on 40 of the 61 draws checked (66%)"
   detail: string;
+  streak: number | null; // the draws in a row up to the coming one
+  score: number | null; // the share of the checked draws in that place, in percent
+  of: number | null; // the draws checked
 }
 export function standingOf(v: unknown): Standing | null {
   if (!has(v)) return null;
   const b = o(v);
   const text = str(b.text);
-  return text ? { tracked: b.state === 'tracked', brief: str(b.brief, text), text, detail: str(b.detail, text) } : null;
+  return text ? { tracked: b.state === 'tracked', brief: str(b.brief, text), text, detail: str(b.detail, text), streak: opt(b.streak), score: opt(b.score), of: opt(b.of) } : null;
 }
 export interface Row {
   name: string;

@@ -416,7 +416,7 @@ function homeOf(dirs, hist, report, now = new Date()) {
       game: g.game, unit: g.unit, shape: g.shape, next: g.next,
       summary: summaryOf(report, g.game, backtestRecord.forGame(dirs, g.game), standingFor(dirs, hist, report, g)),
       // Home keeps a top row's standing short (no tooltip text of its own: the line is the tooltip)
-      tops: g.coming.rows.map((r) => ({ ...r, ...(r.standing ? { standing: { state: r.standing.state, brief: r.standing.brief, text: r.standing.text } } : {}), tickets: r.tickets.filter((t) => t.kind !== 'ranking').slice(0, 1) })), rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
+      tops: g.coming.rows.map((r) => ({ ...r, ...(r.standing ? { standing: { state: r.standing.state, brief: r.standing.brief, text: r.standing.text, streak: r.standing.streak, score: r.standing.score, of: r.standing.of } } : {}), tickets: r.tickets.filter((t) => t.kind !== 'ranking').slice(0, 1) })), rows: g.coming.scope.rows, ranking: g.coming.scope.ranking, none: g.coming.scope.none,
       last: { date: g.last.date, rows: g.last.rows ? g.last.rows.length : 0, figures: g.last.figures || null, none: g.last.none || (g.last.scope ? g.last.scope.none : null), leftOut: g.last.leftOut || null,
         afterClose: Boolean(g.last.afterClose) },
     })),

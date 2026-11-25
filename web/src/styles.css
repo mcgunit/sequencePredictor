@@ -1131,3 +1131,8 @@ nav.side .foot.theme .seg button { padding: 3px 9px; font-size: var(--fs-xs); }
 .bt { color: var(--muted); cursor: help; }
 .bt.none { font-style: italic; }
 .hsum .bt.line { display: block; font-size: var(--fs-xs); }
+/* the marks: validated and held, as chips (24 Nov 2026) */
+.marks { display: inline-flex; flex-wrap: wrap; gap: 3px 5px; align-items: center; vertical-align: middle; }
+.marks .chip { cursor: help; }
+.hsum .marks { display: flex; margin-top: 4px; }
+.meter { display: inline-block; width: 34px; height: 5px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--v, 0%), var(--line) var(--v, 0%)); }

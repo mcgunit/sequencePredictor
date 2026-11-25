@@ -3,6 +3,7 @@ import { DASH, isNum, money, pct, rate, short, stamp, unsigned } from '../../for
 import { binInterval, type DrawResult, type LiveMark, type MarketDay, type Row, type Shape, type Ticket } from '../../workbench';
 import { Legend, Scroll } from '../admin/Card';
 import Chip, { ManualChip } from '../admin/Chip';
+import Marks from '../lottery/Marks';
 import { specialsLabel, type Mode } from './text';
 
 // Every row's tickets in the old History table's grid (24 Oct 2026: "the table with the hits like it was"):
@@ -59,14 +60,9 @@ function NameCell({ row, mode, ranked, showTop, rankWhose, first }: { row: Row; 
           <Chip kind="model">top 5</Chip>
         </>
       ) : null}
-      {row.backtest ? (
-        <span className={`sub bt${row.backtest.tested ? '' : ' none'}`} title={row.backtest.detail}>
-          {row.backtest.text}
-        </span>
-      ) : null}
-      {row.standing ? (
-        <span className={`sub bt${row.standing.tracked ? '' : ' none'}`} title={row.standing.detail}>
-          {row.standing.text}
+      {row.backtest || row.standing ? (
+        <span className="sub">
+          <Marks backtest={row.backtest} standing={row.standing} wide quiet />
         </span>
       ) : null}
       {mode === 'admin' && ranked ? <span className="sub">{row.rank ? `#${row.rank} ${rankWhose}` : `not ${rankWhose}`}</span> : null}

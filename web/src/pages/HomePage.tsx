@@ -8,6 +8,7 @@ import { Card } from '../components/admin/Card';
 import { Failed, Loading, PageHead } from '../components/admin/States';
 import { gameTitle } from '../components/draws/text';
 import { TicketNums, lotteryHref, nextText } from '../components/lottery/bits';
+import Marks from '../components/lottery/Marks';
 import RunBanner from '../components/RunBanner';
 
 // / : the three sections (the rule of 1 Oct: Lottery games, Crypto, Stocks), each with its headline and a link,
@@ -109,9 +110,7 @@ function GameLine({ g }: { g: HomeGame }) {
               <div key={r.name} className="htop">
                 <TicketNums shape={g.shape} row={r} numbers />
                 <small>
-                  {short(r.name)}
-                  {r.backtest ? <span className={`bt${r.backtest.tested ? '' : ' none'}`} title={r.backtest.detail}> · {r.backtest.brief}</span> : null}
-                  {r.standing && r.standing.tracked ? <span className="bt" title={r.standing.detail}> · top 5 for {r.standing.brief}</span> : null}
+                  {short(r.name)} <Marks backtest={r.backtest} standing={r.standing} quiet />
                 </small>
               </div>
             ))}
@@ -141,8 +140,7 @@ function GameSummary({ s }: { s: HomeSummary }) {
           <>
             {short(b.name)} <b className={s.unit === 'EUR' ? signClass(b.value) : ''}>{s.unit === 'EUR' ? euro(b.value) : `${fixed(b.value, 2)} hits`}</b>
             {b.draws !== null ? <small> · {plural(b.draws, 'draw')}</small> : null}
-            {b.backtest ? <small className={`bt line${b.backtest.tested ? '' : ' none'}`} title={b.backtest.detail}>{b.backtest.text}</small> : null}
-            {b.standing ? <small className={`bt line${b.standing.tracked ? '' : ' none'}`} title={b.standing.detail}>{b.standing.text}</small> : null}
+            <Marks backtest={b.backtest} standing={b.standing} wide />
           </>
         ) : (
           DASH
@@ -160,8 +158,7 @@ function GameSummary({ s }: { s: HomeSummary }) {
           <>
             {c.members.map(short).join(' + ')} <b className={c.unit === 'EUR' ? signClass(c.value) : ''}>{c.unit === 'EUR' ? euro(c.value) : `${fixed(c.value, 2)} hits`}</b>
             {c.draws !== null ? <small> · {plural(c.draws, 'draw')}</small> : null}
-            {c.backtest ? <small className={`bt line${c.backtest.tested ? '' : ' none'}`} title={c.backtest.detail}>{c.backtest.text}</small> : null}
-            {c.standing ? <small className={`bt line${c.standing.tracked ? '' : ' none'}`} title={c.standing.detail}>{c.standing.text}</small> : null}
+            <Marks backtest={c.backtest} standing={c.standing} wide />
           </>
         ) : (
           DASH

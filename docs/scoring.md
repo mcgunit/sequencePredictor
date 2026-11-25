@@ -314,7 +314,8 @@ Home and the Lottery page say, beside the best model, the best combination and e
 - **A draw's standing** is read from the ranking saved before that draw (the cut-off of `rankhistory.js`, so no hindsight): its best model as Home names it (the highest total profit, or average hits, among the rows with enough live draws; `ranking.bestOf`), the first five of its ranking, and its best combination. A draw without a ranking saved before it is not counted; the first ranking was saved on 25 August 2026.
 - **The coming draw** is the last draw of every count: today's report and the five rows the pages show.
 - **In a row**: the draws up to and including the coming one over which the place was held without a break.
-- **The score**: the share of all counted draws on which the place was held, in percent. A row that was in the top 5 before 40 of 61 draws has a score of 66%.
+- **The share**: the share of all checked draws on which the place was held, in percent. A row that was in the top 5 before 40 of 61 draws reads 66%.
+- **On the page** both are chips: a bar with the share (beside the best model and the best combination also "checked over 61 draws") and "12 in a row". The backtest record of the section above is the chip beside them: "30% validated" is profit in 3 of 10 backtested calendar months, green when that is more months than random tickets reach, and "not validated" without a record. The full sentences are the tooltips. These are indicators, not proof.
 - **A combination** is the same one when its members are the same, in any order.
 - **Who held the top**: administrators have, on *Best model & rankings*, a card with per lottery game the runs of the best model and of the best combination, the newest first (at most eight; `/api/admin/standing`). Users do not get it: it names rows outside the day's five.
 - A ranking saved before the live record (27 October 2026) has no live figures: its best model is its first ranked row with enough draws.

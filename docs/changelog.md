@@ -14,6 +14,16 @@ What was decided, built, fixed, measured and found in this project, by date, new
 
 **First reading, on production's day files of 23 November.** Playing the peak lag does not beat a lag picked at random. Over all rows together the what-if ends behind any lag in six of the seven games (keno -4,058 against -3,917 EUR, Joker+ -1,215 against -1,025, Vikinglotto -900 against -833, Lotto -566 against -542, EuroMillions -979 against -971, EuroDreams -788 against -786). Pick3 is the exception (-742 against -1,288), carried by a few straight hits: its two best rows gained on 2 and 3 draws of about 60. In every game fewer than half of the rows are ahead of any lag (7 of 23 up to 17 of 39).
 
+### Backtest record and held place as chips
+
+The lines beside the best model, the best combination and each of the top 5 on Home and the Lottery page were sentences, and five of them beside five tickets read as a block of text. They are chips now, with the sentences as tooltips:
+
+- **"30% validated"**: profit in 3 of 10 backtested calendar months. Green when that is more months than random tickets played the same way; "not validated" (dashed) without a backtest record. A `*` marks settings that changed since the backtest.
+- **A bar with a percentage**: the share of the checked draws on which the row held its place; beside the best model and the best combination also "checked over 92 draws".
+- **"39 in a row"**: the draws up to the coming one without a break.
+
+The word "score" is gone: it was the share of the checked draws in that place, and "score 1%" beside a row that entered the top 5 today (1 of 92 draws) read as a verdict on the row. The figures are indicators, not proof.
+
 ### Home's best model is never a variant row
 
 **Found on 23 November.** Home named `XGBoost Model · Memorise` as Joker+'s best model; the Sampled and Memorise rows are for administrators only.
