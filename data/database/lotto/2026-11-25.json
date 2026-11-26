@@ -6727,6 +6727,210 @@
         29,
         31
       ]
+    },
+    {
+      "name": "Council (record): Gemma-4-26B",
+      "predictions": [
+        [
+          4,
+          28,
+          1,
+          8,
+          44,
+          19
+        ]
+      ],
+      "multiPick": [
+        34,
+        31,
+        27
+      ],
+      "council": {
+        "kind": "record",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 1103303299,
+        "tries": 1,
+        "prompt": "3a46d27910a997a1"
+      }
+    },
+    {
+      "name": "Council (draws): Granite-4.2-8B",
+      "predictions": [
+        [
+          6,
+          11,
+          16,
+          22,
+          28,
+          30
+        ]
+      ],
+      "multiPick": [
+        34,
+        40,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Granite-4.2-8B",
+        "lab": "IBM",
+        "model": "granite-4.2-8b",
+        "temperature": 0.7,
+        "seed": 374304850,
+        "tries": 1,
+        "prompt": "a40cafd6fdaca343"
+      }
+    },
+    {
+      "name": "Council (draws): Nemotron-3.5-Bolt",
+      "predictions": [
+        [
+          4,
+          7,
+          16,
+          21,
+          29,
+          34
+        ]
+      ],
+      "multiPick": [
+        39,
+        41,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Nemotron-3.5-Bolt",
+        "lab": "NVIDIA",
+        "model": "nemotron-3.5-bolt-e4b",
+        "temperature": 0.7,
+        "seed": 810850187,
+        "tries": 1,
+        "prompt": "a40cafd6fdaca343"
+      }
+    },
+    {
+      "name": "Council (draws): Llama-3.1-8B",
+      "predictions": [
+        [
+          3,
+          10,
+          16,
+          20,
+          22,
+          29
+        ]
+      ],
+      "multiPick": [
+        32,
+        40,
+        44
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Llama-3.1-8B",
+        "lab": "Meta",
+        "model": "llama-3.1-8b",
+        "temperature": 0.7,
+        "seed": 550154841,
+        "tries": 1,
+        "prompt": "a40cafd6fdaca343"
+      }
+    },
+    {
+      "name": "Council (draws): Gemma-4-26B",
+      "predictions": [
+        [
+          4,
+          16,
+          30,
+          34,
+          41,
+          10
+        ]
+      ],
+      "multiPick": [
+        29,
+        36,
+        39
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "Gemma-4-26B",
+        "lab": "Google",
+        "model": "gemma-4-26b-a4b",
+        "temperature": 0.7,
+        "seed": 2008750603,
+        "tries": 1,
+        "prompt": "a40cafd6fdaca343"
+      }
+    },
+    {
+      "name": "Council (draws): gpt-oss-20b",
+      "predictions": [
+        [
+          4,
+          10,
+          16,
+          28,
+          34,
+          39
+        ]
+      ],
+      "multiPick": [
+        41,
+        43,
+        45
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "gpt-oss-20b",
+        "lab": "OpenAI",
+        "model": "gpt-oss-20b",
+        "temperature": 0.7,
+        "seed": 762912208,
+        "tries": 1,
+        "prompt": "a40cafd6fdaca343"
+      }
+    },
+    {
+      "name": "Council (draws): combined",
+      "predictions": [
+        [
+          16,
+          34,
+          4,
+          10,
+          29,
+          39
+        ]
+      ],
+      "multiPick": [
+        41,
+        45,
+        22
+      ],
+      "council": {
+        "kind": "draws",
+        "member": "combined",
+        "lab": "Alibaba",
+        "model": "qwen3.6-35b-a3b",
+        "head": "head-Qwen3.6-35B",
+        "combines": [
+          "Granite-4.2-8B",
+          "Nemotron-3.5-Bolt",
+          "Llama-3.1-8B",
+          "Gemma-4-26B",
+          "gpt-oss-20b"
+        ],
+        "temperature": 0.0,
+        "seed": 42,
+        "tries": 1,
+        "prompt": "d6e45a99fee081e5"
+      }
     }
   ],
   "newPredictionRaw": [
