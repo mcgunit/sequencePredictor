@@ -11,9 +11,9 @@
  },
  "from": "2026-11-19",
  "first_day": "2026-11-19",
- "last_day": "2026-11-26",
- "days": 6,
- "running": "2026-11-27",
+ "last_day": "2026-11-27",
+ "days": 7,
+ "running": "2026-11-30",
  "exec_hour": 10,
  "symbols": {
   "SHELL": {
@@ -25,13 +25,13 @@
     "side": 0,
     "stop": null,
     "day_call": "down",
-    "week_call": "down",
+    "week_call": null,
     "month_call": "flat",
     "up_days": 0,
-    "down_days": 1
+    "down_days": 2
    },
-   "hold": -10.2868,
-   "hold_move": 0.6734,
+   "hold": -3.8482,
+   "hold_move": 1.579,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -62,17 +62,17 @@
     "side": 0,
     "stop": null,
     "day_call": "flat",
-    "week_call": "down",
+    "week_call": null,
     "month_call": "up",
     "up_days": 0,
     "down_days": 0
    },
-   "hold": -83.6012,
-   "hold_move": -6.8391,
+   "hold": -65.9831,
+   "hold_move": -5.0338,
    "closed_money": -78.519,
    "open_money": null,
    "days_in": 5,
-   "random_mean": -64.715
+   "random_mean": -45.7321
   },
   "ABI": {
    "positions": [],
@@ -80,11 +80,11 @@
     "side": 1,
     "entry": "2026-11-19",
     "entry_price": 73.68000030517578,
-    "held": 6,
+    "held": 7,
     "best": 73.68000030517578,
-    "last_close": 71.46,
-    "money": -45.4639,
-    "move": -3.013,
+    "last_close": 72.06,
+    "money": -37.6912,
+    "move": -2.1987,
     "stop_price": 67.7856,
     "take_price": null,
     "followable": true,
@@ -95,18 +95,18 @@
     "reason": null,
     "side": 1,
     "stop": 67.7856,
-    "day_call": "down",
-    "week_call": "down",
+    "day_call": "up",
+    "week_call": null,
     "month_call": "up",
-    "up_days": 0,
-    "down_days": 1
+    "up_days": 1,
+    "down_days": 0
    },
-   "hold": -45.4639,
-   "hold_move": -3.013,
+   "hold": -37.6912,
+   "hold_move": -2.1987,
    "closed_money": 0,
-   "open_money": -45.4639,
-   "days_in": 6,
-   "random_mean": -45.4639
+   "open_money": -37.6912,
+   "days_in": 7,
+   "random_mean": -37.6912
   },
   "KBC": {
    "positions": [],
@@ -117,13 +117,13 @@
     "side": 0,
     "stop": null,
     "day_call": "up",
-    "week_call": "flat",
+    "week_call": null,
     "month_call": "up",
-    "up_days": 2,
+    "up_days": 3,
     "down_days": 0
    },
-   "hold": -47.051,
-   "hold_move": -3.3906,
+   "hold": -35.4916,
+   "hold_move": -2.1136,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -138,13 +138,13 @@
     "side": 0,
     "stop": null,
     "day_call": "down",
-    "week_call": "down",
+    "week_call": null,
     "month_call": "up",
     "up_days": 0,
-    "down_days": 8
+    "down_days": 9
    },
-   "hold": -3.9892,
-   "hold_move": 1.4124,
+   "hold": 2.8866,
+   "hold_move": 2.2246,
    "closed_money": 0,
    "open_money": null,
    "days_in": 0,
@@ -154,31 +154,31 @@
  "stake": 1000.0,
  "diverged": [],
  "totals": {
-  "hold": -190.3921,
-  "days_possible": 30,
+  "hold": -140.1274,
+  "days_possible": 35,
   "all": {
-   "total": -123.9829,
+   "total": -116.2102,
    "closed": -78.519,
-   "open": -45.4639,
+   "open": -37.6912,
    "positions": 2,
    "wins": 0,
-   "days_in": 11,
-   "live_total": -123.9829,
+   "days_in": 12,
+   "live_total": -116.2102,
    "live_positions": 2,
-   "random_mean": -110.1789,
+   "random_mean": -83.4232,
    "random_beaten": 0.0,
    "random_runs": 2000
   },
   "long": {
-   "total": -123.9829,
+   "total": -116.2102,
    "closed": -78.519,
-   "open": -45.4639,
+   "open": -37.6912,
    "positions": 2,
    "wins": 0,
-   "days_in": 11,
-   "live_total": -123.9829,
+   "days_in": 12,
+   "live_total": -116.2102,
    "live_positions": 2,
-   "random_mean": -109.6797,
+   "random_mean": -83.1771,
    "random_beaten": 0.0,
    "random_runs": 2000
   }
@@ -213,10 +213,15 @@
    "date": "2026-11-26",
    "long": -123.9829,
    "hold": -190.3921
+  },
+  {
+   "date": "2026-11-27",
+   "long": -116.2102,
+   "hold": -140.1274
   }
  ],
  "schema": 2,
- "generated_at": "2026-11-26T17:17:15+00:00",
+ "generated_at": "2026-11-27T17:16:39+00:00",
  "decisions": [
   {
    "symbol": "ABI",
@@ -602,6 +607,61 @@
    "month_call": "up",
    "stop": null,
    "made_at": "2026-11-26T17:17:06+00:00"
+  },
+  {
+   "symbol": "ABI",
+   "day": "2026-11-30",
+   "action": "hold",
+   "reason": null,
+   "day_call": "up",
+   "week_call": null,
+   "month_call": "up",
+   "stop": 67.7856,
+   "made_at": "2026-11-27T17:16:30+00:00"
+  },
+  {
+   "symbol": "INGA",
+   "day": "2026-11-30",
+   "action": "wait",
+   "reason": null,
+   "day_call": "flat",
+   "week_call": null,
+   "month_call": "up",
+   "stop": null,
+   "made_at": "2026-11-27T17:16:30+00:00"
+  },
+  {
+   "symbol": "KBC",
+   "day": "2026-11-30",
+   "action": "wait",
+   "reason": null,
+   "day_call": "up",
+   "week_call": null,
+   "month_call": "up",
+   "stop": null,
+   "made_at": "2026-11-27T17:16:30+00:00"
+  },
+  {
+   "symbol": "SHELL",
+   "day": "2026-11-30",
+   "action": "wait",
+   "reason": null,
+   "day_call": "down",
+   "week_call": null,
+   "month_call": "flat",
+   "stop": null,
+   "made_at": "2026-11-27T17:16:30+00:00"
+  },
+  {
+   "symbol": "UCB",
+   "day": "2026-11-30",
+   "action": "wait",
+   "reason": null,
+   "day_call": "down",
+   "week_call": null,
+   "month_call": "up",
+   "stop": null,
+   "made_at": "2026-11-27T17:16:30+00:00"
   }
  ]
 }
