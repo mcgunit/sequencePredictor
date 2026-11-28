@@ -5884,5 +5884,59 @@
     "type": "FIXED"
    }
   ]
+ },
+ "2026-11-26": {
+  "price": 2.5,
+  "jackpot": null,
+  "tiers": [
+   {
+    "name": "6+1",
+    "mains": 6,
+    "special": 1,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "6+0",
+    "mains": 6,
+    "special": 0,
+    "amount": 0.0,
+    "winners": 0,
+    "type": "FIXED"
+   },
+   {
+    "name": "5/",
+    "mains": 5,
+    "special": null,
+    "amount": 685.2,
+    "winners": 11,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "4/",
+    "mains": 4,
+    "special": null,
+    "amount": 42.0,
+    "winners": 406,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "3/",
+    "mains": 3,
+    "special": null,
+    "amount": 5.8,
+    "winners": 5982,
+    "type": "PARAMUTUEL"
+   },
+   {
+    "name": "2/",
+    "mains": 2,
+    "special": null,
+    "amount": 2.5,
+    "winners": 37714,
+    "type": "FIXED"
+   }
+  ]
  }
 }
