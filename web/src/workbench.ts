@@ -253,6 +253,7 @@ export interface Backtest {
   pct: number | null; // the share of its backtested months that ended in profit ("30% validated"); null: not tested
   ahead: boolean; // more months in profit than random tickets played the same way
   changed: boolean; // its settings have changed since the backtest
+  slow: boolean; // not tested: replaying it takes longer than the daily job has
 }
 export function backtestOf(v: unknown): Backtest | null {
   if (!has(v)) return null;
@@ -267,7 +268,7 @@ export function backtestOf(v: unknown): Backtest | null {
   return {
     tested, brief: str(b.brief, text), text, detail: str(b.detail),
     pct: known ? Math.round((inProfit / months) * 100) : null,
-    ahead: known && random !== null && inProfit > random, changed: b.changed === true,
+    ahead: known && random !== null && inProfit > random, changed: b.changed === true, slow: b.slow === true,
   };
 }
 // How long a row, the best model or the best combination has held its place (roadmap item 16): the draws in a row up

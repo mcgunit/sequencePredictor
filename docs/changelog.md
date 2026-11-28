@@ -2,6 +2,21 @@
 
 What was decided, built, fixed, measured and found in this project, by date, newest first. The other pages describe how the software works now; this page records how it came to be that way. Each entry names the page that documents its subject. Figures in an entry are the figures of that day.
 
+## 27 November 2026
+
+### Backtest record: a row that is too slow no longer holds up the others
+
+**Found.** On 25, 26 and 27 November the Backtest record job ran 3.1 to 3.2 hours and ended on the same row each day: Keno's XGBoost. Its replay takes about 70 seconds a draw; the first two months went through in 72 minutes, the other eight were cut off at the two-hour limit after 110 of 245 draws. Nothing was recorded, so the next day started on it again, and the four other Keno boosting rows behind it never ran. The job also ran past its own two hours because each stretch of months got the full time that was left.
+
+**Changed.**
+
+- A row cut off at the time limit after an hour or more of its own is marked `slow` with the settings it ran on. It is not started again until those settings change, and reads "too slow to validate" on Home and the Lottery page instead of "not validated".
+- A row cut off with less than an hour, because the job's time was nearly up, is left for the next run without a mark.
+- A row that failed before is taken behind the others.
+- A row's time limit holds for all its months together.
+
+Open: whether such a row gets a longer run of its own on the CPU worker. Keno's XGBoost row would need about 4.5 hours each time its settings change.
+
 ## 24 November 2026
 
 ### The phase-shift page as a "what if" (roadmap item 17)

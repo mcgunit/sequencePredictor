@@ -28,6 +28,8 @@ try {
       'B Model': { values: { beta: 1 }, fromDefault: [], plays: ['ticket'], testedAt: '2026-11-21T10:00:00Z',
         months: { '2026-08': month(31, 124, 100), '2026-09': month(30, 120, -100), '2026-10': month(0, 0, 0) } },
       'E Model': { error: 'ValueError: no data', errorAt: '2026-11-22T10:00:00Z' },
+      'S Model': { error: 'TrialPruned: ', errorAt: '2026-11-27T12:00:00Z', slow: { at: '2026-11-27T12:00:00Z', seconds: 7198, allowed: 7198 }, values: { alpha: 0.5 }, fromDefault: [] },
+      'T Model': { error: 'TrialPruned: ', errorAt: '2026-11-27T12:00:00Z', slow: { at: '2026-11-27T12:00:00Z', seconds: 7198, allowed: 7198 }, values: { alpha: 0.9 }, fromDefault: [] },
     },
   };
   const file = path.join(root, 'data', 'backtestRecord', 'pick3.json');
@@ -51,6 +53,10 @@ try {
   const none = g.row('Z Model');
   ok(none.state === 'none' && none.text === 'not tested yet' && /no backtest record yet/.test(none.detail), 'a row without a record is said, not hidden');
   ok(g.row('E Model').state === 'none' && g.row('A Model · Sampled').state === 'none', 'a failed row and a variant row are not tested yet');
+  const slow = g.row('S Model');
+  ok(slow.state === 'none' && slow.slow === true && slow.text === 'too slow to backtest' && /longer than the daily job/.test(slow.detail), `a row out of time on its served settings: ${JSON.stringify(slow)}`);
+  ok(g.row('T Model').slow === undefined && g.row('T Model').text === 'not tested yet', 'out of time on other settings than the served ones: not tested yet');
+  ok(/1 of 2 members have no backtest/.test(g.combination(['A Model', 'S Model']).text), 'a combination with a slow member is not tested yet');
 
   // a combination: the members' months added up, over the months all of them played
   const c = g.combination(['A Model', 'B Model']);

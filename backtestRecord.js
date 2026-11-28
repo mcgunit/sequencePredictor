@@ -20,6 +20,8 @@ const MONEY = { vikinglotto: 2 };   // BacktestRecord.MONEY: a record booked the
 const MEMBER_STEP = 53;
 const PLAY_STEP = 17;
 const NOT_TESTED = 'not tested yet';
+// a row whose backtest did not fit in the job's time on the settings it is served with (BacktestRecord.SLOW_SECONDS, 27 Nov 2026)
+const TOO_SLOW = 'too slow to backtest';
 const cache = new Map();   // file -> {mtimeMs, size, record}
 
 const dirOf = (dirs) => path.join(path.dirname(dirs.databaseDir), 'backtestRecord');
@@ -75,6 +77,7 @@ function textOf(b) {
   return `profit in ${b.inProfit} of ${b.months} backtested ${monthWord(b.months)}${random}${b.changed ? '; settings changed since' : ''}`;
 }
 function detailOf(b, what) {
+  if (b.slow) return `${what} could not be backtested: replaying it over the ten months takes longer than the daily job has. It is tried again when its settings change.`;
   if (b.state !== 'tested') return `${what} has no backtest record yet. The record covers the rows a backtest can replay: the statistical and the boosting rows.`;
   return [
     `Backtest over ${b.months} calendar ${monthWord(b.months)} between ${b.from} and ${b.to}: ${what} played on every draw, each draw's ticket made from the history before it.`,
@@ -92,6 +95,7 @@ const none = (why, what) => finish({ state: 'none', why }, what);
 
 function rowOf(record, name, served) {
   const entry = record && record.rows[name];
+  if (entry && entry.slow && !(entry.months && Object.keys(entry.months).length) && servedNow(entry, served)) return finish({ state: 'none', why: TOO_SLOW, slow: true }, 'This row');
   if (!entry || !entry.months) return none(NOT_TESTED, 'This row');
   const months = playedMonths(record, entry);
   if (!months.length) return none(NOT_TESTED, 'This row');
@@ -142,4 +146,4 @@ function forGame(dirs, game) {
   };
 }
 
-module.exports = { VERSION, NOT_TESTED, load, stampOf, forGame, rowOf, combinationOf, randomCount, servedNow, textOf };
+module.exports = { VERSION, NOT_TESTED, TOO_SLOW, load, stampOf, forGame, rowOf, combinationOf, randomCount, servedNow, textOf };

@@ -484,6 +484,7 @@ Home and the Lottery page show, beside the best model, the best combination and 
 | Random tickets | 400 random players per kind of play (per ticket size for Keno) over the same draws. The reference is the average number of months they end in profit. One random ticket's own count would be luck. |
 | A combination | Every member played on every draw: the members' months added up, over the months all of them played. Its random reference uses as many random players as it has members. One member without a record and the combination reads "not tested yet". |
 | Kept | A month backtested with the settings a row still runs on is not backtested again. A row whose settings changed is backtested anew, all ten months; until then its line says "settings changed since". |
+| Too slow | The job has two hours (`--budget 7200`), and a row gets what is left of them for all its months together. A row cut off after an hour or more of its own is marked `slow` with the settings it ran on, reads "too slow to validate" on the pages, and is not started again until those settings change. A row cut off with less than an hour is left for the next run. A row that failed before is taken behind the others, so it cannot hold them up. |
 
 Covered: the statistical and the boosting rows of the seven lottery games. Not covered, and "not tested yet" on the pages: the deep-learning rows (a retrain per backtested draw, to run on the workers later), the quantum rows, the ensembles, the meta-learners, the RL rows, the Council rows and the sampled variants.
 
